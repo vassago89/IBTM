@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="IBTM.Device/IBTM.Device.csproj" />
+  <Project Path="IBTM/IBTM.csproj" />
+</Solution>
