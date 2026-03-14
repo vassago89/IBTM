@@ -1,0 +1,224 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ══════════════════════════════════════════════════════════
+         공정 시각화 전용 색상 팔레트 (ThemeMode=Dark 위에 커스텀)
+         ══════════════════════════════════════════════════════════ -->
+
+    <!-- 앱 배경 / 패널 -->
+    <SolidColorBrush x:Key="AppBgBrush"      Color="#0D1117"/>
+    <SolidColorBrush x:Key="SidebarBgBrush"  Color="#010409"/>
+    <SolidColorBrush x:Key="PanelBgBrush"    Color="#161B22"/>
+    <SolidColorBrush x:Key="CardBgBrush"     Color="#1C2033"/>
+    <SolidColorBrush x:Key="CardBorderBrush" Color="#30363D"/>
+    <SolidColorBrush x:Key="DividerBrush"    Color="#21262D"/>
+
+    <!-- 강조색 -->
+    <SolidColorBrush x:Key="AccentBlueBrush"   Color="#58A6FF"/>
+    <SolidColorBrush x:Key="AccentGreenBrush"  Color="#3FB950"/>
+    <SolidColorBrush x:Key="AccentRedBrush"    Color="#F85149"/>
+    <SolidColorBrush x:Key="AccentOrangeBrush" Color="#F0883E"/>
+    <SolidColorBrush x:Key="AccentYellowBrush" Color="#D29922"/>
+    <SolidColorBrush x:Key="AccentCyanBrush"   Color="#39D353"/>
+
+    <!-- 텍스트 -->
+    <SolidColorBrush x:Key="TextPrimaryBrush"   Color="#E6EDF3"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#8B949E"/>
+    <SolidColorBrush x:Key="TextMutedBrush"     Color="#484F58"/>
+
+    <!-- ══════════════════════════════════════════════════════════
+         사이드바 네비게이션 버튼 스타일
+         ══════════════════════════════════════════════════════════ -->
+    <Style x:Key="NavButtonStyle" TargetType="RadioButton">
+        <Setter Property="Background"   Value="Transparent"/>
+        <Setter Property="Foreground"   Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Height"       Value="52"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="Padding"      Value="20,0,0,0"/>
+        <Setter Property="FontSize"     Value="13"/>
+        <Setter Property="Cursor"       Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="Root" Background="Transparent"
+                            BorderThickness="3,0,0,0"
+                            BorderBrush="Transparent"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background"
+                                    Value="#15FFFFFF"/>
+                            <Setter Property="Foreground"
+                                    Value="{StaticResource TextPrimaryBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Root" Property="Background"
+                                    Value="#1A58A6FF"/>
+                            <Setter TargetName="Root" Property="BorderBrush"
+                                    Value="{StaticResource AccentBlueBrush}"/>
+                            <Setter Property="Foreground"
+                                    Value="{StaticResource AccentBlueBrush}"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══════════════════════════════════════════════════════════
+         통계 항목 텍스트 스타일
+         ══════════════════════════════════════════════════════════ -->
+    <Style x:Key="StatLabelStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="FontSize"   Value="10"/>
+        <Setter Property="Margin"     Value="0,0,0,2"/>
+    </Style>
+
+    <Style x:Key="StatValueStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="FontSize"   Value="18"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontFamily" Value="Consolas"/>
+    </Style>
+
+    <!-- ══════════════════════════════════════════════════════════
+         제어 버튼 스타일
+         ══════════════════════════════════════════════════════════ -->
+    <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+        <Setter Property="Background"   Value="#238636"/>
+        <Setter Property="Foreground"   Value="#FFFFFF"/>
+        <Setter Property="BorderBrush"  Value="#2EA043"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding"      Value="20,8"/>
+        <Setter Property="FontSize"     Value="13"/>
+        <Setter Property="FontWeight"   Value="SemiBold"/>
+        <Setter Property="Cursor"       Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#2EA043"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#1B6F27"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="DangerButtonStyle" TargetType="Button">
+        <Setter Property="Background"   Value="#8B1A1A"/>
+        <Setter Property="Foreground"   Value="#FFFFFF"/>
+        <Setter Property="BorderBrush"  Value="#F85149"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding"      Value="20,8"/>
+        <Setter Property="FontSize"     Value="13"/>
+        <Setter Property="FontWeight"   Value="Bold"/>
+        <Setter Property="Cursor"       Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#A62020"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#F85149"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+        <Setter Property="Background"   Value="Transparent"/>
+        <Setter Property="Foreground"   Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="BorderBrush"  Value="{StaticResource CardBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding"      Value="20,8"/>
+        <Setter Property="FontSize"     Value="13"/>
+        <Setter Property="Cursor"       Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#15FFFFFF"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ══════════════════════════════════════════════════════════
+         로그 ListBox 스타일
+         ══════════════════════════════════════════════════════════ -->
+    <Style x:Key="LogListBoxStyle" TargetType="ListBox">
+        <Setter Property="Background"    Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+    </Style>
+
+    <Style x:Key="LogListBoxItemStyle" TargetType="ListBoxItem">
+        <Setter Property="Padding"          Value="4,2"/>
+        <Setter Property="Background"       Value="Transparent"/>
+        <Setter Property="BorderThickness"  Value="0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="Root" Background="Transparent" Padding="4,3">
+                        <ContentPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#0CFFFFFF"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

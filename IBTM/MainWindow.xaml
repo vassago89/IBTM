@@ -1,12 +1,127 @@
-﻿<Window x:Class="IBTM.MainWindow"
+<Window x:Class="IBTM.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:IBTM"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        xmlns:vm="clr-namespace:IBTM.ViewModels"
+        xmlns:views="clr-namespace:IBTM.Views"
+        Title="IBTM — SMT Inline Control System"
+        Width="1440" Height="860"
+        MinWidth="1280" MinHeight="720"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource AppBgBrush}">
 
+    <Window.Resources>
+        <DataTemplate DataType="{x:Type vm:ProcessViewModel}">
+            <views:ProcessView/>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ═════════════════════════════════════
+             사이드바
+             ═════════════════════════════════════ -->
+        <Border Grid.Column="0"
+                Background="{StaticResource SidebarBgBrush}"
+                BorderThickness="0,0,1,0"
+                BorderBrush="{StaticResource DividerBrush}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- 로고 -->
+                <Border Grid.Row="0"
+                        BorderThickness="0,0,0,1"
+                        BorderBrush="{StaticResource DividerBrush}"
+                        Padding="20,18">
+                    <StackPanel>
+                        <TextBlock Text="IBTM"
+                                   FontSize="22" FontWeight="Bold"
+                                   Foreground="{StaticResource AccentBlueBrush}"/>
+                        <TextBlock Text="SMT Inline Control"
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Margin="0,2,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 네비게이션 -->
+                <StackPanel Grid.Row="1" Margin="0,8">
+                    <TextBlock Text="MENU" Margin="20,12,0,6"
+                               FontSize="10" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextMutedBrush}"/>
+
+                    <RadioButton Content="  &#x25BA;  공정 모니터"
+                                 GroupName="Navigation"
+                                 IsChecked="True"
+                                 Style="{StaticResource NavButtonStyle}"
+                                 Command="{Binding NavigateCommand}"
+                                 CommandParameter="공정"/>
+
+                    <RadioButton Content="  &#x2699;  수동 조작"
+                                 GroupName="Navigation"
+                                 Style="{StaticResource NavButtonStyle}"
+                                 IsEnabled="False"/>
+
+                    <RadioButton Content="  &#x25C8;  설정"
+                                 GroupName="Navigation"
+                                 Style="{StaticResource NavButtonStyle}"
+                                 IsEnabled="False"/>
+
+                    <RadioButton Content="  &#x2261;  로그 뷰어"
+                                 GroupName="Navigation"
+                                 Style="{StaticResource NavButtonStyle}"
+                                 IsEnabled="False"/>
+                </StackPanel>
+
+                <!-- 하단 디바이스 상태 -->
+                <Border Grid.Row="2"
+                        BorderThickness="0,1,0,0"
+                        BorderBrush="{StaticResource DividerBrush}"
+                        Padding="20,14">
+                    <StackPanel>
+                        <TextBlock Text="DEVICE STATUS" FontSize="9" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Margin="0,0,0,8"/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,2">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource AccentGreenBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="Transfer Axis" FontSize="11" Margin="8,0,0,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource AccentGreenBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="Fiducial Axis" FontSize="11" Margin="8,0,0,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource AccentYellowBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="IO (Virtual)" FontSize="11" Margin="8,0,0,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource AccentYellowBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="Bolt Ctrl (Stub)" FontSize="11" Margin="8,0,0,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource AccentYellowBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="Camera (Sim)" FontSize="11" Margin="8,0,0,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- 메인 콘텐츠 -->
+        <ContentControl Grid.Column="1"
+                        Content="{Binding CurrentPage}"/>
     </Grid>
 </Window>
