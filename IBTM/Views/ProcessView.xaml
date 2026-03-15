@@ -382,6 +382,14 @@
                                            Width="{Binding Zone1Visual.HeadSize}" Height="{Binding Zone1Visual.HeadSize}"
                                            Fill="{StaticResource AccentBlueBrush}" Opacity="0.85" Stroke="White" StrokeThickness="1.5"
                                            RadiusX="2" RadiusY="2"/>
+                                <!-- 그리퍼 활성 표시 (픽업/배치 시) -->
+                                <Border Canvas.Left="{Binding Zone1Visual.HeadLeft}" Canvas.Top="{Binding Zone1Visual.HeadTop}"
+                                        Width="18" Height="10" CornerRadius="2"
+                                        Background="#CC58A6FF" BorderBrush="#58A6FF" BorderThickness="0.5"
+                                        Visibility="{Binding Zone1Visual.GripperVisibility}">
+                                    <TextBlock Text="GRIP" FontSize="4.5" FontWeight="Bold"
+                                               Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
                                 <!-- Z축 사이드 패널 -->
                                 <Rectangle Canvas.Left="212" Canvas.Top="2" Width="26" Height="176"
                                            Fill="#080C18" Stroke="#1A2040" StrokeThickness="0.5" RadiusX="2" RadiusY="2"/>
@@ -497,6 +505,15 @@
                                          Fill="#A06818" Opacity="0.3">
                                     <Ellipse.Effect><BlurEffect Radius="10"/></Ellipse.Effect>
                                 </Ellipse>
+                                <!-- 피듀셜 보정 위치 마커 (십자선, 시안색) -->
+                                <Ellipse Canvas.Left="{Binding Zone2Visual.FiducialOffsetLeft}" Canvas.Top="{Binding Zone2Visual.FiducialOffsetTop}"
+                                         Width="8" Height="8" Margin="-4,-4,0,0"
+                                         Stroke="{StaticResource AccentCyanBrush}" StrokeThickness="1" Fill="Transparent"
+                                         Visibility="{Binding Zone2Visual.FiducialOffsetVisibility}"/>
+                                <Line X1="{Binding Zone2Visual.FiducialOffsetLeft}" Y1="{Binding Zone2Visual.FiducialOffsetTop}"
+                                      X2="{Binding Zone2Visual.FiducialOffsetLeft}" Y2="{Binding Zone2Visual.FiducialOffsetTop}"
+                                      Stroke="{StaticResource AccentCyanBrush}" StrokeThickness="0.5" StrokeDashArray="2 1"
+                                      Visibility="{Binding Zone2Visual.FiducialOffsetVisibility}"/>
                                 <!-- 헤드 본체 (Bolt Driver — 원형 + 중심점) -->
                                 <Ellipse Canvas.Left="{Binding Zone2Visual.HeadLeft}" Canvas.Top="{Binding Zone2Visual.HeadTop}"
                                          Width="{Binding Zone2Visual.HeadSize}" Height="{Binding Zone2Visual.HeadSize}"
@@ -680,9 +697,11 @@
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
                                         Visibility="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
                                 <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
-                                           RadiusX="1" RadiusY="1" Margin="2,0"/>
+                                           RadiusX="1" RadiusY="1" Margin="2,0"
+                                           Visibility="{Binding Zone3Visual.Pcb1Visibility}"/>
                                 <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
-                                           RadiusX="1" RadiusY="1" Margin="2,0"/>
+                                           RadiusX="1" RadiusY="1" Margin="2,0"
+                                           Visibility="{Binding Zone3Visual.Pcb2Visibility}"/>
                             </StackPanel>
                         </Grid>
                     </Grid>

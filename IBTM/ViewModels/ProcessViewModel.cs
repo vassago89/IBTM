@@ -51,12 +51,26 @@ public partial class ZoneVisualState : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShuttleStrokeThickness))]
     private bool _isLifted;
 
+    // 셔틀 위 PCB 수량 (기본 2, NG 이송 시 감소)
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Pcb1Visibility))]
+    [NotifyPropertyChangedFor(nameof(Pcb2Visibility))]
+    private int _pcbCount = 2;
+
+    public Visibility Pcb1Visibility => PcbCount >= 1 ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility Pcb2Visibility => PcbCount >= 2 ? Visibility.Visible : Visibility.Collapsed;
+
     /// <summary>리프트 상태 표시 (▲) Visibility</summary>
     public Visibility LiftIndicatorVisibility =>
         ShuttlePresent && IsLifted ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>리프트 시 셔틀 테두리 두꺼워짐</summary>
     public double ShuttleStrokeThickness => IsLifted ? 2.5 : 1.0;
+
+    // 피듀셜 보정 오프셋 (캔버스 좌표 변환용)
+    [ObservableProperty] private double _fiducialOffsetLeft;
+    [ObservableProperty] private double _fiducialOffsetTop;
+    [ObservableProperty] private Visibility _fiducialOffsetVisibility = Visibility.Collapsed;
 
     // Z 게이지 (사이드뷰, 위→아래 채움)
     [ObservableProperty] private double _zGaugeHeight;
@@ -237,7 +251,11 @@ public partial class ProcessViewModel : ObservableObject
         if (stage == ProcessStage.Zone1_WaitShuttle && status == StageStatus.Running)
             foreach (var c in Zone1Stages) c.Status = StageStatus.Idle;
         if (stage == ProcessStage.Zone2_WaitShuttle && status == StageStatus.Running)
+        {
             foreach (var c in Zone2Stages) c.Status = StageStatus.Idle;
+            Zone2Visual.FiducialOffsetVisibility = Visibility.Collapsed;
+            LastFiducialResult = string.Empty;
+        }
         if (stage == ProcessStage.Zone3_WaitShuttle && status == StageStatus.Running)
         {
             foreach (var c in Zone3Stages) c.Status = StageStatus.Idle;
@@ -287,6 +305,7 @@ public partial class ProcessViewModel : ObservableObject
         if (stage == ProcessStage.Zone3_StopAlignLift && status == StageStatus.Running)
         {
             Zone3Visual.ShuttlePresent = true;
+            Zone3Visual.PcbCount = 2;  // 셔틀 도착 시 PCB 2개
             ShuttleTransit23 = false;  // 구간3 도착
         }
         if (stage == ProcessStage.Zone3_StopAlignLift && status == StageStatus.Done)
@@ -297,6 +316,10 @@ public partial class ProcessViewModel : ObservableObject
             Zone3Visual.ShuttlePresent = false;
 
         // 구간3 배출 완료 시 잠깐 배출 이동 표시
+        // NG 이송 완료 시 PCB 1개 감소
+        if (stage == ProcessStage.Zone3_NgTransfer && status == StageStatus.Done)
+            Zone3Visual.PcbCount = Math.Max(0, Zone3Visual.PcbCount - 1);
+
         if (stage == ProcessStage.Zone3_Discharge && status == StageStatus.Done)
             ShuttleTransitOut = true;
         if (stage == ProcessStage.Zone3_WaitShuttle && status == StageStatus.Running)
@@ -378,8 +401,22 @@ public partial class ProcessViewModel : ObservableObject
                 card.Info1 = $"dX: {r.OffsetX:+0.000;-0.000} mm";
                 card.Info2 = $"dY: {r.OffsetY:+0.000;-0.000} mm  ({r.Confidence:P0})";
                 LastFiducialResult = $"dX:{r.OffsetX:+0.000;-0.000}  dY:{r.OffsetY:+0.000;-0.000}";
+
+                // 캔버스 좌표로 보정 오프셋 표시 (피듀셜 위치 기준 십자선)
+                const double maxCoord = 200.0;
+                var fidPos = _orchestrator.CurrentRecipe.Zone2_FiducialPos;
+                var baseX = 12 + Math.Clamp(fidPos.X / maxCoord, 0, 1) * 186;
+                var baseY = 10 + Math.Clamp(fidPos.Y / maxCoord, 0, 1) * 160;
+                Zone2Visual.FiducialOffsetLeft = baseX + (r.OffsetX / maxCoord) * 186;
+                Zone2Visual.FiducialOffsetTop = baseY + (r.OffsetY / maxCoord) * 160;
+                Zone2Visual.FiducialOffsetVisibility = Visibility.Visible;
             }
-            else { card.Info1 = "검출 실패"; card.Info2 = ""; LastFiducialResult = "검출 실패"; }
+            else
+            {
+                card.Info1 = "검출 실패"; card.Info2 = "";
+                LastFiducialResult = "검출 실패";
+                Zone2Visual.FiducialOffsetVisibility = Visibility.Collapsed;
+            }
         });
     }
 

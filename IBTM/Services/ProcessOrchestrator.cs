@@ -480,6 +480,7 @@ public class ProcessOrchestrator
 
         // 그리퍼 닫기 (PCB 픽업)
         _ioService.Set(gripperIo, true);
+        GripperChanged?.Invoke(this, (zone, true));
         await Task.Delay(200, ct);
 
         // Z 복귀 → 배치 위치로 이동
@@ -493,6 +494,7 @@ public class ProcessOrchestrator
 
         // 그리퍼 열기 (PCB 배치)
         _ioService.Set(gripperIo, false);
+        GripperChanged?.Invoke(this, (zone, false));
         await Task.Delay(150, ct);
 
         // Z 복귀
