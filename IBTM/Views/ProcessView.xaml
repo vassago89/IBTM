@@ -14,6 +14,10 @@
         <conv:BoolToOpacityConverter           x:Key="BoolToOpacity"/>
         <conv:NgSlotFillConverter              x:Key="NgSlotFill"/>
         <conv:ZGaugeTopConverter               x:Key="ZGaugeTop" GaugeTop="15" GaugeHeight="50"/>
+        <conv:BoltIndexToBrushConverter        x:Key="BoltBrush0" BoltIndex="0"/>
+        <conv:BoltIndexToBrushConverter        x:Key="BoltBrush1" BoltIndex="1"/>
+        <conv:BoltIndexToBrushConverter        x:Key="BoltBrush2" BoltIndex="2"/>
+        <conv:BoltIndexToBrushConverter        x:Key="BoltBrush3" BoltIndex="3"/>
 
         <!-- 스테이지 카드 템플릿 -->
         <DataTemplate x:Key="StageCardTemplate" DataType="{x:Type vm:StageCardViewModel}">
@@ -373,11 +377,34 @@
                                 <!-- X축 브릿지 레일 (Y축 따라 이동) -->
                                 <Rectangle Canvas.Left="3" Canvas.Top="{Binding Zone1Visual.BridgeTop}"
                                            Width="204" Height="4" Fill="#152030" Stroke="#1E2840" StrokeThickness="0.5"/>
-                                <!-- 작업 영역 기준점 (그리드 도트) -->
-                                <Ellipse Canvas.Left="55" Canvas.Top="55" Width="2" Height="2" Fill="#1A2240"/>
-                                <Ellipse Canvas.Left="55" Canvas.Top="120" Width="2" Height="2" Fill="#1A2240"/>
-                                <Ellipse Canvas.Left="145" Canvas.Top="55" Width="2" Height="2" Fill="#1A2240"/>
-                                <Ellipse Canvas.Left="145" Canvas.Top="120" Width="2" Height="2" Fill="#1A2240"/>
+                                <!-- PICK 영역 (앞장비 셔틀, 좌측) -->
+                                <Rectangle Canvas.Left="30" Canvas.Top="20" Width="60" Height="70"
+                                           Stroke="#1A2860" StrokeThickness="0.7" StrokeDashArray="3 2"
+                                           Fill="#080C1A" RadiusX="2" RadiusY="2"/>
+                                <TextBlock Canvas.Left="40" Canvas.Top="22" Text="PICK" FontSize="6" FontWeight="Bold"
+                                           Foreground="#2040A0"/>
+                                <!-- Pick 위치 마커 (P1: X50,Y30 / P2: X50,Y80) -->
+                                <Ellipse Canvas.Left="56" Canvas.Top="32" Width="5" Height="5"
+                                         Stroke="#3060C0" StrokeThickness="0.8" Fill="#101830"/>
+                                <TextBlock Canvas.Left="63" Canvas.Top="31" Text="P1" FontSize="5" Foreground="#2040A0"/>
+                                <Ellipse Canvas.Left="56" Canvas.Top="72" Width="5" Height="5"
+                                         Stroke="#3060C0" StrokeThickness="0.8" Fill="#101830"/>
+                                <TextBlock Canvas.Left="63" Canvas.Top="71" Text="P2" FontSize="5" Foreground="#2040A0"/>
+                                <!-- PLACE 영역 (우리 셔틀, 우측) -->
+                                <Rectangle Canvas.Left="120" Canvas.Top="20" Width="60" Height="70"
+                                           Stroke="#183060" StrokeThickness="0.7" StrokeDashArray="3 2"
+                                           Fill="#080E1A" RadiusX="2" RadiusY="2"/>
+                                <TextBlock Canvas.Left="125" Canvas.Top="22" Text="PLACE" FontSize="6" FontWeight="Bold"
+                                           Foreground="#2040A0"/>
+                                <!-- Place 위치 마커 (L1: X150,Y30 / L2: X150,Y80) -->
+                                <Ellipse Canvas.Left="149" Canvas.Top="32" Width="5" Height="5"
+                                         Stroke="#3060C0" StrokeThickness="0.8" Fill="#101830"/>
+                                <TextBlock Canvas.Left="156" Canvas.Top="31" Text="L1" FontSize="5" Foreground="#2040A0"/>
+                                <Ellipse Canvas.Left="149" Canvas.Top="72" Width="5" Height="5"
+                                         Stroke="#3060C0" StrokeThickness="0.8" Fill="#101830"/>
+                                <TextBlock Canvas.Left="156" Canvas.Top="71" Text="L2" FontSize="5" Foreground="#2040A0"/>
+                                <!-- 중앙 화살표 (PICK → PLACE 흐름) -->
+                                <TextBlock Canvas.Left="96" Canvas.Top="48" Text="→" FontSize="10" Foreground="#1A2860"/>
                                 <!-- 헤드 글로우 -->
                                 <Ellipse Canvas.Left="{Binding Zone1Visual.HeadLeft}" Canvas.Top="{Binding Zone1Visual.HeadTop}"
                                          Width="{Binding Zone1Visual.HeadSize}" Height="{Binding Zone1Visual.HeadSize}"
@@ -501,13 +528,36 @@
                                 <!-- X축 브릿지 레일 -->
                                 <Rectangle Canvas.Left="3" Canvas.Top="{Binding Zone2Visual.BridgeTop}"
                                            Width="204" Height="4" Fill="#1A1E28" Stroke="#1E2838" StrokeThickness="0.5"/>
-                                <!-- 볼트 포인트 참조 마크 -->
-                                <Ellipse Canvas.Left="60" Canvas.Top="50" Width="3" Height="3" Fill="#1E1A14" Stroke="#302818" StrokeThickness="0.3"/>
-                                <Ellipse Canvas.Left="90" Canvas.Top="50" Width="3" Height="3" Fill="#1E1A14" Stroke="#302818" StrokeThickness="0.3"/>
-                                <Ellipse Canvas.Left="120" Canvas.Top="50" Width="3" Height="3" Fill="#1E1A14" Stroke="#302818" StrokeThickness="0.3"/>
-                                <Ellipse Canvas.Left="60" Canvas.Top="120" Width="3" Height="3" Fill="#1E1A14" Stroke="#302818" StrokeThickness="0.3"/>
-                                <Ellipse Canvas.Left="90" Canvas.Top="120" Width="3" Height="3" Fill="#1E1A14" Stroke="#302818" StrokeThickness="0.3"/>
-                                <Ellipse Canvas.Left="120" Canvas.Top="120" Width="3" Height="3" Fill="#1E1A14" Stroke="#302818" StrokeThickness="0.3"/>
+                                <!-- 볼트 체결 영역 아웃라인 -->
+                                <Rectangle Canvas.Left="70" Canvas.Top="40" Width="70" Height="55"
+                                           Stroke="#302818" StrokeThickness="0.5" StrokeDashArray="3 2"
+                                           Fill="#0C0A08" RadiusX="2" RadiusY="2"/>
+                                <TextBlock Canvas.Left="88" Canvas.Top="41" Text="BOLT AREA" FontSize="5"
+                                           Foreground="#302818" FontWeight="Bold"/>
+                                <!-- B1: (80,60) → Canvas(86,58) -->
+                                <Ellipse Canvas.Left="84" Canvas.Top="56" Width="6" Height="6"
+                                         Stroke="{Binding CurrentBoltIndex, Converter={StaticResource BoltBrush0}}"
+                                         StrokeThickness="1.2" Fill="#0C0A08"/>
+                                <TextBlock Canvas.Left="78" Canvas.Top="50" Text="B1" FontSize="5"
+                                           Foreground="#605030" FontWeight="Bold"/>
+                                <!-- B2: (120,60) → Canvas(124,58) -->
+                                <Ellipse Canvas.Left="121" Canvas.Top="56" Width="6" Height="6"
+                                         Stroke="{Binding CurrentBoltIndex, Converter={StaticResource BoltBrush1}}"
+                                         StrokeThickness="1.2" Fill="#0C0A08"/>
+                                <TextBlock Canvas.Left="128" Canvas.Top="50" Text="B2" FontSize="5"
+                                           Foreground="#605030" FontWeight="Bold"/>
+                                <!-- B3: (120,90) → Canvas(124,82) -->
+                                <Ellipse Canvas.Left="121" Canvas.Top="80" Width="6" Height="6"
+                                         Stroke="{Binding CurrentBoltIndex, Converter={StaticResource BoltBrush2}}"
+                                         StrokeThickness="1.2" Fill="#0C0A08"/>
+                                <TextBlock Canvas.Left="128" Canvas.Top="74" Text="B3" FontSize="5"
+                                           Foreground="#605030" FontWeight="Bold"/>
+                                <!-- B4: (80,90) → Canvas(86,82) -->
+                                <Ellipse Canvas.Left="84" Canvas.Top="80" Width="6" Height="6"
+                                         Stroke="{Binding CurrentBoltIndex, Converter={StaticResource BoltBrush3}}"
+                                         StrokeThickness="1.2" Fill="#0C0A08"/>
+                                <TextBlock Canvas.Left="78" Canvas.Top="74" Text="B4" FontSize="5"
+                                           Foreground="#605030" FontWeight="Bold"/>
                                 <!-- 헤드 글로우 -->
                                 <Ellipse Canvas.Left="{Binding Zone2Visual.HeadLeft}" Canvas.Top="{Binding Zone2Visual.HeadTop}"
                                          Width="{Binding Zone2Visual.HeadSize}" Height="{Binding Zone2Visual.HeadSize}"

@@ -131,6 +131,7 @@ public partial class ProcessViewModel : ObservableObject
 
     // ── 볼트 진행 ─────────────────────────────────────────────────────────────
     [ObservableProperty] private string _boltProgress = string.Empty;
+    [ObservableProperty] private int _currentBoltIndex = -1;  // 0-based, -1=없음
     [ObservableProperty] private int _ngStackCount;
     [ObservableProperty] private bool _ngStackAlarm;
 
@@ -255,6 +256,8 @@ public partial class ProcessViewModel : ObservableObject
             foreach (var c in Zone2Stages) c.Status = StageStatus.Idle;
             Zone2Visual.FiducialOffsetVisibility = Visibility.Collapsed;
             LastFiducialResult = string.Empty;
+            CurrentBoltIndex = -1;
+            BoltProgress = string.Empty;
         }
         if (stage == ProcessStage.Zone3_WaitShuttle && status == StageStatus.Running)
         {
@@ -429,6 +432,7 @@ public partial class ProcessViewModel : ObservableObject
         Application.Current.Dispatcher.Invoke(() =>
         {
             BoltProgress = $"{e.BoltName}  {e.Current}/{e.Total}";
+            CurrentBoltIndex = e.Current - 1;  // 0-based
             var card = Zone2Stages.FirstOrDefault(c => c.Stage == ProcessStage.Zone2_BoltTighten);
             if (card != null) card.Info1 = $"볼트 {e.Current}/{e.Total}  [{e.BoltName}]";
         });

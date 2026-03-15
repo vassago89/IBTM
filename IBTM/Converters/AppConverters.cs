@@ -150,3 +150,22 @@ public class NgSlotFillConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotImplementedException();
 }
+
+// ── int (볼트 인덱스) → 볼트별 Brush (현재 체결 중 = 주황 하이라이트) ──────────
+[ValueConversion(typeof(int), typeof(Brush))]
+public class BoltIndexToBrushConverter : IValueConverter
+{
+    public int BoltIndex { get; set; }
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        var current = value is int i ? i : -1;
+        if (current == BoltIndex)
+            return new SolidColorBrush(Color.FromRgb(0xF0, 0x88, 0x3E)); // 주황 하이라이트
+        if (current > BoltIndex)
+            return new SolidColorBrush(Color.FromRgb(0x3F, 0xB9, 0x50)); // 완료: 초록
+        return new SolidColorBrush(Color.FromRgb(0x30, 0x28, 0x18)); // 대기: 어두운 색
+    }
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
