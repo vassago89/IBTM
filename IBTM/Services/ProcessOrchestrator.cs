@@ -53,6 +53,7 @@ public class ProcessOrchestrator
     public event EventHandler<InspectionResult>? RouteDecided;
     public event EventHandler<int>? NgStackUpdated;
     public event EventHandler<int>? NgStackAlarm;
+    public event EventHandler<(int Zone, bool Active)>? GripperChanged;
 
     // ── 상태 ────────────────────────────────────────────────────────────────
     public bool IsRunning => _cts is { IsCancellationRequested: false };
@@ -346,6 +347,7 @@ public class ProcessOrchestrator
 
                     // 그리퍼로 PCB 픽업 → NG 적재 위치로 이동
                     _ioService.Set(IoMap.Zone3_Gripper, true);
+                    GripperChanged?.Invoke(this, (3, true));
                     await Task.Delay(200, ct);
 
                     await _zone3Motion.MoveZ(0, 80.0);
@@ -357,6 +359,7 @@ public class ProcessOrchestrator
                     FireZonePos(3);
 
                     _ioService.Set(IoMap.Zone3_Gripper, false);
+                    GripperChanged?.Invoke(this, (3, false));
                     await Task.Delay(150, ct);
 
                     await _zone3Motion.MoveZ(0, 80.0);

@@ -519,6 +519,14 @@
                                 <Ellipse Canvas.Left="{Binding Zone3Visual.HeadLeft}" Canvas.Top="{Binding Zone3Visual.HeadTop}"
                                          Width="{Binding Zone3Visual.HeadSize}" Height="{Binding Zone3Visual.HeadSize}"
                                          Fill="{StaticResource AccentGreenBrush}" Opacity="0.85" Stroke="White" StrokeThickness="1.5"/>
+                                <!-- 그리퍼 활성 표시 (NG 이송 시) -->
+                                <Border Canvas.Left="{Binding Zone3Visual.HeadLeft}" Canvas.Top="{Binding Zone3Visual.HeadTop}"
+                                        Width="18" Height="10" CornerRadius="2"
+                                        Background="#CCF85149" BorderBrush="#F85149" BorderThickness="0.5"
+                                        Visibility="{Binding Zone3Visual.GripperVisibility}">
+                                    <TextBlock Text="GRIP" FontSize="4.5" FontWeight="Bold"
+                                               Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
                                 <!-- Z축 사이드 패널 -->
                                 <Rectangle Canvas.Left="212" Canvas.Top="2" Width="26" Height="176"
                                            Fill="#080C18" Stroke="#1A2838" StrokeThickness="0.5" RadiusX="2" RadiusY="2"/>

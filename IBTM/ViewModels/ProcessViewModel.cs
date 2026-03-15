@@ -13,7 +13,7 @@ public partial class ZoneVisualState : ObservableObject
 {
     private readonly double _canvasW, _canvasH;
     private const double MaxCoord = 200.0;
-    private const double MaxZ = 30.0;
+    private const double MaxZ = 60.0;
 
     public ZoneVisualState(double canvasW, double canvasH)
     {
@@ -31,6 +31,15 @@ public partial class ZoneVisualState : ObservableObject
 
     // 갠트리 브릿지 (X축 레일, Y축 따라 이동)
     [ObservableProperty] private double _bridgeTop;
+
+    // 그리퍼 상태
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GripperVisibility))]
+    private bool _gripperActive;
+
+    /// <summary>그리퍼 활성 표시 Visibility</summary>
+    public Visibility GripperVisibility =>
+        GripperActive ? Visibility.Visible : Visibility.Collapsed;
 
     // 셔틀 상태
     [ObservableProperty]
@@ -195,6 +204,7 @@ public partial class ProcessViewModel : ObservableObject
         _orchestrator.RouteDecided += OnRouteDecided;
         _orchestrator.NgStackUpdated += OnNgStackUpdated;
         _orchestrator.NgStackAlarm += OnNgStackAlarm;
+        _orchestrator.GripperChanged += OnGripperChanged;
     }
 
     // ── StageChanged ─────────────────────────────────────────────────────────
@@ -211,6 +221,20 @@ public partial class ProcessViewModel : ObservableObject
 
     private void UpdateZoneCard(ProcessStage stage, StageStatus status)
     {
+        // 새 사이클 시작 시 해당 Zone 카드 전체 리셋
+        if (stage == ProcessStage.Zone1_WaitShuttle && status == StageStatus.Running)
+            foreach (var c in Zone1Stages) c.Status = StageStatus.Idle;
+        if (stage == ProcessStage.Zone2_WaitShuttle && status == StageStatus.Running)
+            foreach (var c in Zone2Stages) c.Status = StageStatus.Idle;
+        if (stage == ProcessStage.Zone3_WaitShuttle && status == StageStatus.Running)
+        {
+            foreach (var c in Zone3Stages) c.Status = StageStatus.Idle;
+            LastRoute = InspectionResult.Unknown;
+            IsNgPath = false;
+            IsGoodPath = false;
+            LastRouteText = "──";
+        }
+
         var allStages = Zone1Stages.Concat(Zone2Stages).Concat(Zone3Stages);
         var card = allStages.FirstOrDefault(c => c.Stage == stage);
         if (card != null) card.Status = status;
@@ -263,6 +287,20 @@ public partial class ProcessViewModel : ObservableObject
                 InspectionResult.Ng => "NG",
                 _ => "──"
             };
+
+            // 분기에 따라 안 쓰는 스테이지를 Skipped 처리
+            if (result == InspectionResult.Good)
+            {
+                var ngCard = Zone3Stages.FirstOrDefault(c => c.Stage == ProcessStage.Zone3_NgTransfer);
+                if (ngCard != null) ngCard.Status = StageStatus.Skipped;
+            }
+            else if (result == InspectionResult.Ng)
+            {
+                var smemaCard = Zone3Stages.FirstOrDefault(c => c.Stage == ProcessStage.Zone3_SmemaWait);
+                if (smemaCard != null) smemaCard.Status = StageStatus.Skipped;
+                var dischargeCard = Zone3Stages.FirstOrDefault(c => c.Stage == ProcessStage.Zone3_Discharge);
+                if (dischargeCard != null) dischargeCard.Status = StageStatus.Skipped;
+            }
         });
     }
 
@@ -336,6 +374,21 @@ public partial class ProcessViewModel : ObservableObject
     private void OnNgStackAlarm(object? sender, int count)
     {
         Application.Current.Dispatcher.Invoke(() => { NgStackCount = count; NgStackAlarm = true; UpdateNgStackSlots(count); });
+    }
+
+    private void OnGripperChanged(object? sender, (int Zone, bool Active) e)
+    {
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            var visual = e.Zone switch
+            {
+                1 => Zone1Visual,
+                2 => Zone2Visual,
+                3 => Zone3Visual,
+                _ => null
+            };
+            if (visual != null) visual.GripperActive = e.Active;
+        });
     }
 
     private void OnLogAdded(object? sender, LogEntry entry) { }

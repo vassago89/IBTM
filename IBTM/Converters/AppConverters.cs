@@ -19,6 +19,7 @@ public class StageStatusToBrushConverter : IValueConverter
             StageStatus.Done    => new SolidColorBrush(Color.FromRgb(0x3F, 0xB9, 0x50)),  // #3FB950 초록
             StageStatus.Error   => new SolidColorBrush(Color.FromRgb(0xF8, 0x51, 0x49)),  // #F85149 빨강
             StageStatus.Warning => new SolidColorBrush(Color.FromRgb(0xF0, 0x88, 0x3E)),  // #F0883E 주황
+            StageStatus.Skipped => new SolidColorBrush(Color.FromRgb(0x38, 0x3C, 0x46)),  // #383C46 흐린 회색
             _                   => new SolidColorBrush(Color.FromRgb(0x48, 0x4F, 0x58))   // #484F58 회색
         };
     }
@@ -39,6 +40,7 @@ public class StageStatusToBackgroundConverter : IValueConverter
             StageStatus.Done    => new SolidColorBrush(Color.FromRgb(0x1A, 0x2E, 0x20)),  // 초록 틴트
             StageStatus.Error   => new SolidColorBrush(Color.FromRgb(0x31, 0x1A, 0x1A)),  // 빨간 틴트
             StageStatus.Warning => new SolidColorBrush(Color.FromRgb(0x30, 0x22, 0x14)),  // 주황 틴트
+            StageStatus.Skipped => new SolidColorBrush(Color.FromRgb(0x14, 0x16, 0x1E)),  // 어두운 틴트
             _                   => new SolidColorBrush(Color.FromRgb(0x1C, 0x20, 0x33))   // 기본 카드색
         };
     }

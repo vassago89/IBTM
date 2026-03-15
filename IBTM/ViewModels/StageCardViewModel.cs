@@ -27,6 +27,7 @@ public partial class StageCardViewModel : ObservableObject
         StageStatus.Done    => "완료",
         StageStatus.Error   => "오류",
         StageStatus.Warning => "경고",
+        StageStatus.Skipped => "스킵",
         _                   => "대기"
     };
 
