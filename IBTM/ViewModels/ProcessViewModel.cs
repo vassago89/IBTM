@@ -274,7 +274,10 @@ public partial class ProcessViewModel : ObservableObject
     {
         // 구간 1 셔틀 상태
         if (stage == ProcessStage.Zone1_StopAlignLift && status == StageStatus.Running)
+        {
             Zone1Visual.ShuttlePresent = true;
+            Zone1Visual.PcbCount = 0;  // 빈 셔틀 도착
+        }
         if (stage == ProcessStage.Zone1_StopAlignLift && status == StageStatus.Done)
             Zone1Visual.IsLifted = true;
         if (stage == ProcessStage.Zone1_Release && status == StageStatus.Running)
@@ -289,6 +292,7 @@ public partial class ProcessViewModel : ObservableObject
         if (stage == ProcessStage.Zone2_StopAlignLift && status == StageStatus.Running)
         {
             Zone2Visual.ShuttlePresent = true;
+            Zone2Visual.PcbCount = 2;  // PCB 2개 탑재 상태
             ShuttleTransit12 = false;  // 구간2 도착
         }
         if (stage == ProcessStage.Zone2_StopAlignLift && status == StageStatus.Done)
@@ -474,6 +478,10 @@ public partial class ProcessViewModel : ObservableObject
                 _ => null
             };
             if (visual != null) visual.GripperActive = e.Active;
+
+            // Zone 1: 그리퍼 OFF = PCB 배치 완료 → 셔틀 PCB 증가
+            if (e.Zone == 1 && !e.Active)
+                Zone1Visual.PcbCount = Math.Min(2, Zone1Visual.PcbCount + 1);
         });
     }
 

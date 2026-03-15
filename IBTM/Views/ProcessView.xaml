@@ -245,42 +245,49 @@
                     </TextBlock>
                     <StackPanel Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3"
                                 Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,2">
-                        <TextBlock Text="►" FontSize="7" FontFamily="Consolas" Opacity="0.3">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="#15182A"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                            <Setter Property="Foreground" Value="#303860"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <TextBlock Text=" ► " FontSize="7" FontFamily="Consolas" Opacity="0.5">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="#15182A"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                            <Setter Property="Foreground" Value="#404870"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <TextBlock Text="►" FontSize="7" FontFamily="Consolas" Opacity="0.7">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="#15182A"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                            <Setter Property="Foreground" Value="#505880"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
+                        <StackPanel.Resources>
+                            <Storyboard x:Key="FlowAnimation" RepeatBehavior="Forever">
+                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow1" Storyboard.TargetProperty="Opacity"
+                                                              Duration="0:0:1.5" RepeatBehavior="Forever">
+                                    <LinearDoubleKeyFrame KeyTime="0:0:0" Value="0.15"/>
+                                    <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.8"/>
+                                    <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.15"/>
+                                </DoubleAnimationUsingKeyFrames>
+                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow2" Storyboard.TargetProperty="Opacity"
+                                                              Duration="0:0:1.5" RepeatBehavior="Forever">
+                                    <LinearDoubleKeyFrame KeyTime="0:0:0" Value="0.15"/>
+                                    <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.15"/>
+                                    <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.8"/>
+                                    <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0.15"/>
+                                </DoubleAnimationUsingKeyFrames>
+                                <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow3" Storyboard.TargetProperty="Opacity"
+                                                              Duration="0:0:1.5" RepeatBehavior="Forever">
+                                    <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.15"/>
+                                    <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.15"/>
+                                    <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0.8"/>
+                                </DoubleAnimationUsingKeyFrames>
+                            </Storyboard>
+                        </StackPanel.Resources>
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard x:Name="FlowSb" Storyboard="{StaticResource FlowAnimation}"/>
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <StopStoryboard BeginStoryboardName="FlowSb"/>
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock x:Name="FlowArrow1" Text="►  " FontSize="7" FontFamily="Consolas"
+                                   Foreground="#505880" Opacity="0.15"/>
+                        <TextBlock x:Name="FlowArrow2" Text="►  " FontSize="7" FontFamily="Consolas"
+                                   Foreground="#505880" Opacity="0.15"/>
+                        <TextBlock x:Name="FlowArrow3" Text="►" FontSize="7" FontFamily="Consolas"
+                                   Foreground="#505880" Opacity="0.15"/>
                     </StackPanel>
                     <TextBlock Grid.Row="3" Grid.Column="4" Text="► ►" FontSize="7"
                                HorizontalAlignment="Left" VerticalAlignment="Bottom" FontFamily="Consolas" Margin="8,0,0,2">
@@ -453,13 +460,15 @@
                             <Rectangle Fill="#1A2545" Stroke="#3A5580" RadiusX="2" RadiusY="2" Margin="6,4"
                                        StrokeThickness="{Binding Zone1Visual.ShuttleStrokeThickness}"
                                        Visibility="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}"/>
-                            <!-- PCB (2개, 초록) -->
+                            <!-- PCB (동적, 그리퍼 배치 시 증가) -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
                                         Visibility="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
                                 <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
-                                           RadiusX="1" RadiusY="1" Margin="2,0"/>
+                                           RadiusX="1" RadiusY="1" Margin="2,0"
+                                           Visibility="{Binding Zone1Visual.Pcb1Visibility}"/>
                                 <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
-                                           RadiusX="1" RadiusY="1" Margin="2,0"/>
+                                           RadiusX="1" RadiusY="1" Margin="2,0"
+                                           Visibility="{Binding Zone1Visual.Pcb2Visibility}"/>
                             </StackPanel>
                         </Grid>
                     </Grid>
@@ -577,9 +586,11 @@
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
                                         Visibility="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
                                 <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
-                                           RadiusX="1" RadiusY="1" Margin="2,0"/>
+                                           RadiusX="1" RadiusY="1" Margin="2,0"
+                                           Visibility="{Binding Zone2Visual.Pcb1Visibility}"/>
                                 <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
-                                           RadiusX="1" RadiusY="1" Margin="2,0"/>
+                                           RadiusX="1" RadiusY="1" Margin="2,0"
+                                           Visibility="{Binding Zone2Visual.Pcb2Visibility}"/>
                             </StackPanel>
                         </Grid>
                     </Grid>
@@ -620,6 +631,12 @@
                                 <Rectangle Canvas.Left="40" Canvas.Top="30" Width="130" Height="120"
                                            Stroke="#142818" StrokeThickness="0.5" StrokeDashArray="4 2" Fill="Transparent"
                                            RadiusX="2" RadiusY="2"/>
+                                <!-- NG 스택 적재 영역 마커 (Y=200 → 캔버스 하단) -->
+                                <Rectangle Canvas.Left="20" Canvas.Top="164" Width="170" Height="10"
+                                           Stroke="#301010" StrokeThickness="0.5" StrokeDashArray="3 2"
+                                           Fill="#0C0808" RadiusX="1" RadiusY="1"/>
+                                <TextBlock Canvas.Left="80" Canvas.Top="164" Text="NG STACK" FontSize="5"
+                                           Foreground="#401818" FontWeight="Bold"/>
                                 <!-- 헤드 글로우 -->
                                 <Ellipse Canvas.Left="{Binding Zone3Visual.HeadLeft}" Canvas.Top="{Binding Zone3Visual.HeadTop}"
                                          Width="{Binding Zone3Visual.HeadSize}" Height="{Binding Zone3Visual.HeadSize}"
