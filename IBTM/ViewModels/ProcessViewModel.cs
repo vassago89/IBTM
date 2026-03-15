@@ -58,6 +58,8 @@ public partial class ZoneVisualState : ObservableObject
     [ObservableProperty] private double _headLeft;
     [ObservableProperty] private double _headTop;
     [ObservableProperty] private double _headSize = 12;
+    [ObservableProperty] private double _headCenterLeft;  // 중심점 위치
+    [ObservableProperty] private double _headCenterTop;
     [ObservableProperty] private double _zRatio;
     [ObservableProperty] private string _coordText = "";
 
@@ -102,6 +104,10 @@ public partial class ZoneVisualState : ObservableObject
     // 피듀셜 보정 오프셋 (캔버스 좌표 변환용)
     [ObservableProperty] private double _fiducialOffsetLeft;
     [ObservableProperty] private double _fiducialOffsetTop;
+    [ObservableProperty] private double _fiducialCrossH1;  // 십자선 가로 X1
+    [ObservableProperty] private double _fiducialCrossH2;  // 십자선 가로 X2
+    [ObservableProperty] private double _fiducialCrossV1;  // 십자선 세로 Y1
+    [ObservableProperty] private double _fiducialCrossV2;  // 십자선 세로 Y2
     [ObservableProperty] private Visibility _fiducialOffsetVisibility = Visibility.Collapsed;
 
     // Z 게이지 (사이드뷰, 위→아래 채움)
@@ -122,6 +128,8 @@ public partial class ZoneVisualState : ObservableObject
 
         HeadLeft = xCanvas - size / 2;
         HeadTop = yCanvas - size / 2;
+        HeadCenterLeft = xCanvas - 2;  // 중심점 (4px 원)
+        HeadCenterTop = yCanvas - 2;
         BridgeTop = yCanvas - 2;   // 4px 브릿지 중심
 
         ZRatio = Math.Clamp(zMm / MaxZ, 0, 1);
@@ -166,6 +174,7 @@ public partial class ProcessViewModel : ObservableObject
     [ObservableProperty] private int _currentBoltIndex = -1;  // 0-based, -1=없음
     public ObservableCollection<BoltMarkerViewModel> BoltMarkers { get; } = [];
     [ObservableProperty] private int _ngStackCount;
+    [ObservableProperty] private int _ngStackMaxCount;
     [ObservableProperty] private bool _ngStackAlarm;
 
     // ── 라우팅 분기 ───────────────────────────────────────────────────────────
@@ -253,6 +262,7 @@ public partial class ProcessViewModel : ObservableObject
     private void BuildNgSlots()
     {
         int maxSlots = _orchestrator.CurrentRecipe.NgStackMaxCount;
+        NgStackMaxCount = maxSlots;
         for (int i = 0; i < maxSlots; i++)
             NgStackSlots.Add(new NgSlotViewModel());
     }
@@ -373,7 +383,10 @@ public partial class ProcessViewModel : ObservableObject
         if (stage == ProcessStage.Zone3_Release && status == StageStatus.Running)
             Zone3Visual.IsLifted = false;
         if (stage == ProcessStage.Zone3_Release && status == StageStatus.Done)
+        {
             Zone3Visual.ShuttlePresent = false;
+            ShuttleTransitOut = true;  // 셔틀 배출 이동 (Good/NG 공통)
+        }
 
         // SMEMA 상태
         if (stage == ProcessStage.Zone3_SmemaWait && status == StageStatus.Running)
@@ -388,8 +401,6 @@ public partial class ProcessViewModel : ObservableObject
         if (stage == ProcessStage.Zone3_NgTransfer && status == StageStatus.Done)
             Zone3Visual.PcbCount = Math.Max(0, Zone3Visual.PcbCount - 1);
 
-        if (stage == ProcessStage.Zone3_Discharge && status == StageStatus.Done)
-            ShuttleTransitOut = true;
         if (stage == ProcessStage.Zone3_WaitShuttle && status == StageStatus.Running)
             ShuttleTransitOut = false;
     }
@@ -475,8 +486,14 @@ public partial class ProcessViewModel : ObservableObject
                 var fidPos = _orchestrator.CurrentRecipe.Zone2_FiducialPos;
                 var baseX = 12 + Math.Clamp(fidPos.X / maxCoord, 0, 1) * 186;
                 var baseY = 10 + Math.Clamp(fidPos.Y / maxCoord, 0, 1) * 160;
-                Zone2Visual.FiducialOffsetLeft = baseX + (r.OffsetX / maxCoord) * 186;
-                Zone2Visual.FiducialOffsetTop = baseY + (r.OffsetY / maxCoord) * 160;
+                var cx = baseX + (r.OffsetX / maxCoord) * 186;
+                var cy = baseY + (r.OffsetY / maxCoord) * 160;
+                Zone2Visual.FiducialOffsetLeft = cx;
+                Zone2Visual.FiducialOffsetTop = cy;
+                Zone2Visual.FiducialCrossH1 = cx - 8;
+                Zone2Visual.FiducialCrossH2 = cx + 8;
+                Zone2Visual.FiducialCrossV1 = cy - 8;
+                Zone2Visual.FiducialCrossV2 = cy + 8;
                 Zone2Visual.FiducialOffsetVisibility = Visibility.Visible;
             }
             else

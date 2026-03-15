@@ -591,14 +591,23 @@
                                          Width="8" Height="8" Margin="-4,-4,0,0"
                                          Stroke="{StaticResource AccentCyanBrush}" StrokeThickness="1" Fill="Transparent"
                                          Visibility="{Binding Zone2Visual.FiducialOffsetVisibility}"/>
-                                <Line X1="{Binding Zone2Visual.FiducialOffsetLeft}" Y1="{Binding Zone2Visual.FiducialOffsetTop}"
-                                      X2="{Binding Zone2Visual.FiducialOffsetLeft}" Y2="{Binding Zone2Visual.FiducialOffsetTop}"
+                                <!-- 십자선 가로 -->
+                                <Line X1="{Binding Zone2Visual.FiducialCrossH1}" Y1="{Binding Zone2Visual.FiducialOffsetTop}"
+                                      X2="{Binding Zone2Visual.FiducialCrossH2}" Y2="{Binding Zone2Visual.FiducialOffsetTop}"
+                                      Stroke="{StaticResource AccentCyanBrush}" StrokeThickness="0.5" StrokeDashArray="2 1"
+                                      Visibility="{Binding Zone2Visual.FiducialOffsetVisibility}"/>
+                                <!-- 십자선 세로 -->
+                                <Line X1="{Binding Zone2Visual.FiducialOffsetLeft}" Y1="{Binding Zone2Visual.FiducialCrossV1}"
+                                      X2="{Binding Zone2Visual.FiducialOffsetLeft}" Y2="{Binding Zone2Visual.FiducialCrossV2}"
                                       Stroke="{StaticResource AccentCyanBrush}" StrokeThickness="0.5" StrokeDashArray="2 1"
                                       Visibility="{Binding Zone2Visual.FiducialOffsetVisibility}"/>
                                 <!-- 헤드 본체 (Bolt Driver — 원형 + 중심점) -->
                                 <Ellipse Canvas.Left="{Binding Zone2Visual.HeadLeft}" Canvas.Top="{Binding Zone2Visual.HeadTop}"
                                          Width="{Binding Zone2Visual.HeadSize}" Height="{Binding Zone2Visual.HeadSize}"
                                          Fill="{StaticResource AccentOrangeBrush}" Opacity="0.85" Stroke="White" StrokeThickness="1.5"/>
+                                <!-- 볼트드라이버 중심점 (소켓 표시) -->
+                                <Ellipse Canvas.Left="{Binding Zone2Visual.HeadCenterLeft}" Canvas.Top="{Binding Zone2Visual.HeadCenterTop}"
+                                         Width="4" Height="4" Fill="White" Opacity="0.6"/>
                                 <!-- Z축 사이드 패널 -->
                                 <Rectangle Canvas.Left="212" Canvas.Top="2" Width="26" Height="176"
                                            Fill="#080C18" Stroke="#1E2838" StrokeThickness="0.5" RadiusX="2" RadiusY="2"/>
@@ -715,10 +724,13 @@
                                          Fill="#18A038" Opacity="0.3">
                                     <Ellipse.Effect><BlurEffect Radius="10"/></Ellipse.Effect>
                                 </Ellipse>
-                                <!-- 헤드 본체 (Camera — 원형 + 내부 원) -->
+                                <!-- 헤드 본체 (Camera — 원형 + 내부 렌즈) -->
                                 <Ellipse Canvas.Left="{Binding Zone3Visual.HeadLeft}" Canvas.Top="{Binding Zone3Visual.HeadTop}"
                                          Width="{Binding Zone3Visual.HeadSize}" Height="{Binding Zone3Visual.HeadSize}"
                                          Fill="{StaticResource AccentGreenBrush}" Opacity="0.85" Stroke="White" StrokeThickness="1.5"/>
+                                <!-- 카메라 렌즈 (내부 원) -->
+                                <Ellipse Canvas.Left="{Binding Zone3Visual.HeadCenterLeft}" Canvas.Top="{Binding Zone3Visual.HeadCenterTop}"
+                                         Width="4" Height="4" Stroke="White" StrokeThickness="0.8" Fill="Transparent" Opacity="0.7"/>
                                 <!-- 그리퍼 활성 표시 (NG 이송 시) -->
                                 <Border Canvas.Left="{Binding Zone3Visual.HeadLeft}" Canvas.Top="{Binding Zone3Visual.HeadTop}"
                                         Width="18" Height="10" CornerRadius="2"
@@ -845,17 +857,18 @@
                         <!-- NG 스택 -->
                         <TextBlock Text="NG STACK" Margin="0,8,0,3"
                                    Foreground="{StaticResource AccentRedBrush}" FontSize="8" FontWeight="SemiBold"/>
-                        <StackPanel Orientation="Horizontal">
-                            <Rectangle Width="28" Height="22" Margin="0,0,4,0"
-                                       Stroke="{StaticResource AccentRedBrush}" StrokeThickness="1" RadiusX="2" RadiusY="2"
-                                       Fill="{Binding NgStackSlots[0].IsFilled, Converter={StaticResource NgSlotFill}}"/>
-                            <Rectangle Width="28" Height="22" Margin="0,0,4,0"
-                                       Stroke="{StaticResource AccentRedBrush}" StrokeThickness="1" RadiusX="2" RadiusY="2"
-                                       Fill="{Binding NgStackSlots[1].IsFilled, Converter={StaticResource NgSlotFill}}"/>
-                            <Rectangle Width="28" Height="22"
-                                       Stroke="{StaticResource AccentRedBrush}" StrokeThickness="1" RadiusX="2" RadiusY="2"
-                                       Fill="{Binding NgStackSlots[2].IsFilled, Converter={StaticResource NgSlotFill}}"/>
-                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding NgStackSlots}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Rectangle Width="28" Height="22" Margin="0,0,4,0"
+                                               Stroke="{StaticResource AccentRedBrush}" StrokeThickness="1" RadiusX="2" RadiusY="2"
+                                               Fill="{Binding IsFilled, Converter={StaticResource NgSlotFill}}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                         <TextBlock FontFamily="Consolas" FontSize="9" FontWeight="Bold" Margin="0,2,0,0">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -867,7 +880,7 @@
                                     </Style.Triggers>
                                 </Style>
                             </TextBlock.Style>
-                            <Run Text="{Binding NgStackCount, Mode=OneWay}"/><Run Text="/3"/>
+                            <Run Text="{Binding NgStackCount, Mode=OneWay}"/><Run Text="/"/><Run Text="{Binding NgStackMaxCount, Mode=OneWay}"/>
                         </TextBlock>
 
                         <!-- 뒷장비 + SMEMA 상태 -->
