@@ -14,11 +14,6 @@
         <conv:BoolToOpacityConverter           x:Key="BoolToOpacity"/>
         <conv:NgSlotFillConverter              x:Key="NgSlotFill"/>
         <conv:ZGaugeTopConverter               x:Key="ZGaugeTop" GaugeTop="15" GaugeHeight="50"/>
-        <conv:BoltIndexToBrushConverter        x:Key="BoltBrush0" BoltIndex="0"/>
-        <conv:BoltIndexToBrushConverter        x:Key="BoltBrush1" BoltIndex="1"/>
-        <conv:BoltIndexToBrushConverter        x:Key="BoltBrush2" BoltIndex="2"/>
-        <conv:BoltIndexToBrushConverter        x:Key="BoltBrush3" BoltIndex="3"/>
-
         <!-- 스테이지 카드 템플릿 -->
         <DataTemplate x:Key="StageCardTemplate" DataType="{x:Type vm:StageCardViewModel}">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -559,60 +554,32 @@
                                 <!-- X축 브릿지 레일 -->
                                 <Rectangle Canvas.Left="3" Canvas.Top="{Binding Zone2Visual.BridgeTop}"
                                            Width="204" Height="4" Fill="#1A1E28" Stroke="#1E2838" StrokeThickness="0.5"/>
-                                <!-- 볼트 체결 영역 아웃라인 -->
-                                <Rectangle Canvas.Left="70" Canvas.Top="40" Width="70" Height="55"
-                                           Stroke="#302818" StrokeThickness="0.5" StrokeDashArray="3 2"
-                                           Fill="#0C0A08" RadiusX="2" RadiusY="2"/>
-                                <TextBlock Canvas.Left="88" Canvas.Top="41" Text="BOLT AREA" FontSize="5"
-                                           Foreground="#302818" FontWeight="Bold"/>
-                                <!-- B1: (80,60) → Canvas(86,58) -->
-                                <Ellipse Canvas.Left="84" Canvas.Top="56" Width="6" Height="6"
-                                         StrokeThickness="1.2" Fill="#0C0A08">
-                                    <Ellipse.Stroke>
-                                        <MultiBinding Converter="{StaticResource BoltBrush0}">
-                                            <Binding Path="CurrentBoltIndex"/>
-                                            <Binding Path="Bolt0Result"/>
-                                        </MultiBinding>
-                                    </Ellipse.Stroke>
-                                </Ellipse>
-                                <TextBlock Canvas.Left="78" Canvas.Top="50" Text="B1" FontSize="5"
-                                           Foreground="#605030" FontWeight="Bold"/>
-                                <!-- B2: (120,60) → Canvas(124,58) -->
-                                <Ellipse Canvas.Left="121" Canvas.Top="56" Width="6" Height="6"
-                                         StrokeThickness="1.2" Fill="#0C0A08">
-                                    <Ellipse.Stroke>
-                                        <MultiBinding Converter="{StaticResource BoltBrush1}">
-                                            <Binding Path="CurrentBoltIndex"/>
-                                            <Binding Path="Bolt1Result"/>
-                                        </MultiBinding>
-                                    </Ellipse.Stroke>
-                                </Ellipse>
-                                <TextBlock Canvas.Left="128" Canvas.Top="50" Text="B2" FontSize="5"
-                                           Foreground="#605030" FontWeight="Bold"/>
-                                <!-- B3: (120,90) → Canvas(124,82) -->
-                                <Ellipse Canvas.Left="121" Canvas.Top="80" Width="6" Height="6"
-                                         StrokeThickness="1.2" Fill="#0C0A08">
-                                    <Ellipse.Stroke>
-                                        <MultiBinding Converter="{StaticResource BoltBrush2}">
-                                            <Binding Path="CurrentBoltIndex"/>
-                                            <Binding Path="Bolt2Result"/>
-                                        </MultiBinding>
-                                    </Ellipse.Stroke>
-                                </Ellipse>
-                                <TextBlock Canvas.Left="128" Canvas.Top="74" Text="B3" FontSize="5"
-                                           Foreground="#605030" FontWeight="Bold"/>
-                                <!-- B4: (80,90) → Canvas(86,82) -->
-                                <Ellipse Canvas.Left="84" Canvas.Top="80" Width="6" Height="6"
-                                         StrokeThickness="1.2" Fill="#0C0A08">
-                                    <Ellipse.Stroke>
-                                        <MultiBinding Converter="{StaticResource BoltBrush3}">
-                                            <Binding Path="CurrentBoltIndex"/>
-                                            <Binding Path="Bolt3Result"/>
-                                        </MultiBinding>
-                                    </Ellipse.Stroke>
-                                </Ellipse>
-                                <TextBlock Canvas.Left="78" Canvas.Top="74" Text="B4" FontSize="5"
-                                           Foreground="#605030" FontWeight="Bold"/>
+                                <!-- 볼트 마커 (레시피 기반 동적) -->
+                                <ItemsControl ItemsSource="{Binding BoltMarkers}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <Canvas/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemContainerStyle>
+                                        <Style TargetType="ContentPresenter">
+                                            <Setter Property="Canvas.Left" Value="{Binding CanvasLeft}"/>
+                                            <Setter Property="Canvas.Top" Value="{Binding CanvasTop}"/>
+                                        </Style>
+                                    </ItemsControl.ItemContainerStyle>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid>
+                                                <Ellipse Width="6" Height="6"
+                                                         Stroke="{Binding MarkerBrush}"
+                                                         StrokeThickness="1.2" Fill="#0C0A08"/>
+                                                <TextBlock Text="{Binding Name}" FontSize="5"
+                                                           Foreground="#605030" FontWeight="Bold"
+                                                           Margin="7,-3,0,0"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                                 <!-- 헤드 글로우 -->
                                 <Ellipse Canvas.Left="{Binding Zone2Visual.HeadLeft}" Canvas.Top="{Binding Zone2Visual.HeadTop}"
                                          Width="{Binding Zone2Visual.HeadSize}" Height="{Binding Zone2Visual.HeadSize}"

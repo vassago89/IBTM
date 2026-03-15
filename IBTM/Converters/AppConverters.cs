@@ -150,30 +150,3 @@ public class NgSlotFillConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotImplementedException();
 }
-
-// ── 볼트 결과 → Brush (OK=초록, NG=빨강, 체결중=주황, 대기=어둠) ──────────────
-// MultiBinding: [0]=CurrentBoltIndex, [1]=Bolt#Result
-[ValueConversion(typeof(int), typeof(Brush))]
-public class BoltIndexToBrushConverter : IMultiValueConverter
-{
-    public int BoltIndex { get; set; }
-
-    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
-    {
-        var current = values.Length > 0 && values[0] is int ci ? ci : -1;
-        var result = values.Length > 1 && values[1] is int ri ? ri : 0;
-
-        // 결과가 있으면 결과색 우선
-        if (result == 1) return new SolidColorBrush(Color.FromRgb(0x3F, 0xB9, 0x50));  // OK: 초록
-        if (result == -1) return new SolidColorBrush(Color.FromRgb(0xF8, 0x51, 0x49));  // NG: 빨강
-
-        // 현재 체결 중
-        if (current == BoltIndex)
-            return new SolidColorBrush(Color.FromRgb(0xF0, 0x88, 0x3E)); // 주황
-
-        return new SolidColorBrush(Color.FromRgb(0x30, 0x28, 0x18)); // 대기: 어두운 색
-    }
-
-    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
-        => throw new NotImplementedException();
-}

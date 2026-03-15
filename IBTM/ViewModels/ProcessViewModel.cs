@@ -8,6 +8,38 @@ using System.Windows.Threading;
 
 namespace IBTM.ViewModels;
 
+// ── 볼트 마커 (캔버스 위 동적 표시) ──────────────────────────────────────────
+public partial class BoltMarkerViewModel : ObservableObject
+{
+    private const double MaxCoord = 200.0;
+
+    public string Name { get; }
+
+    // 캔버스 좌표 (240×180 기준)
+    public double CanvasLeft { get; }
+    public double CanvasTop { get; }
+
+    // 상태: 0=대기, 1=체결중, 2=OK, -1=NG
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MarkerBrush))]
+    private int _state;
+
+    public System.Windows.Media.Brush MarkerBrush => State switch
+    {
+        1  => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF0, 0x88, 0x3E)), // 체결중: 주황
+        2  => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3F, 0xB9, 0x50)), // OK: 초록
+        -1 => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF8, 0x51, 0x49)), // NG: 빨강
+        _  => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x30, 0x28, 0x18)), // 대기: 어둠
+    };
+
+    public BoltMarkerViewModel(string name, double xMm, double yMm)
+    {
+        Name = name;
+        CanvasLeft = 12 + Math.Clamp(xMm / MaxCoord, 0, 1) * 186 - 3;
+        CanvasTop = 10 + Math.Clamp(yMm / MaxCoord, 0, 1) * 160 - 3;
+    }
+}
+
 // ── 구간별 2D 레이아웃 상태 ──────────────────────────────────────────────────
 public partial class ZoneVisualState : ObservableObject
 {
@@ -132,11 +164,7 @@ public partial class ProcessViewModel : ObservableObject
     // ── 볼트 진행 ─────────────────────────────────────────────────────────────
     [ObservableProperty] private string _boltProgress = string.Empty;
     [ObservableProperty] private int _currentBoltIndex = -1;  // 0-based, -1=없음
-    // 볼트별 결과: 0=대기, 1=OK, -1=NG
-    [ObservableProperty] private int _bolt0Result;
-    [ObservableProperty] private int _bolt1Result;
-    [ObservableProperty] private int _bolt2Result;
-    [ObservableProperty] private int _bolt3Result;
+    public ObservableCollection<BoltMarkerViewModel> BoltMarkers { get; } = [];
     [ObservableProperty] private int _ngStackCount;
     [ObservableProperty] private bool _ngStackAlarm;
 
@@ -185,6 +213,7 @@ public partial class ProcessViewModel : ObservableObject
         _orchestrator = orchestrator;
         BuildStages();
         BuildNgSlots();
+        BuildBoltMarkers();
         SubscribeEvents();
 
         _uptimeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -212,6 +241,13 @@ public partial class ProcessViewModel : ObservableObject
         Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_NgTransfer, Title = "NG 적재", Subtitle = "max 3", Icon = "✕" });
         Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_SmemaWait, Title = "SMEMA", Subtitle = "뒤 설비", Icon = "◇" });
         Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_Discharge, Title = "배출", Subtitle = "컨베이어", Icon = "▶", IsLastCard = true });
+    }
+
+    private void BuildBoltMarkers()
+    {
+        BoltMarkers.Clear();
+        foreach (var bp in _orchestrator.CurrentRecipe.BoltPoints)
+            BoltMarkers.Add(new BoltMarkerViewModel(bp.Name, bp.X, bp.Y));
     }
 
     private void BuildNgSlots()
@@ -268,7 +304,7 @@ public partial class ProcessViewModel : ObservableObject
             LastFiducialResult = string.Empty;
             CurrentBoltIndex = -1;
             BoltProgress = string.Empty;
-            Bolt0Result = 0; Bolt1Result = 0; Bolt2Result = 0; Bolt3Result = 0;
+            BuildBoltMarkers();
         }
         if (stage == ProcessStage.Zone3_WaitShuttle && status == StageStatus.Running)
         {
@@ -458,6 +494,9 @@ public partial class ProcessViewModel : ObservableObject
         {
             BoltProgress = $"{e.BoltName}  {e.Current}/{e.Total}";
             CurrentBoltIndex = e.Current - 1;  // 0-based
+            // 현재 볼트 마커 하이라이트
+            if (CurrentBoltIndex >= 0 && CurrentBoltIndex < BoltMarkers.Count)
+                BoltMarkers[CurrentBoltIndex].State = 1; // 체결중
             var card = Zone2Stages.FirstOrDefault(c => c.Stage == ProcessStage.Zone2_BoltTighten);
             if (card != null) card.Info1 = $"볼트 {e.Current}/{e.Total}  [{e.BoltName}]";
         });
@@ -472,15 +511,9 @@ public partial class ProcessViewModel : ObservableObject
             card.Info2 = $"토크: {r.Torque:F2} Nm  {r.Message}";
             if (!r.Success) card.Status = StageStatus.Warning;
 
-            // 볼트별 결과 저장
-            var result = r.Success ? 1 : -1;
-            switch (CurrentBoltIndex)
-            {
-                case 0: Bolt0Result = result; break;
-                case 1: Bolt1Result = result; break;
-                case 2: Bolt2Result = result; break;
-                case 3: Bolt3Result = result; break;
-            }
+            // 볼트 마커 결과 반영
+            if (CurrentBoltIndex >= 0 && CurrentBoltIndex < BoltMarkers.Count)
+                BoltMarkers[CurrentBoltIndex].State = r.Success ? 2 : -1;
         });
     }
 
