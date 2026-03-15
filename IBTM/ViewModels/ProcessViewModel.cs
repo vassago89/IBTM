@@ -126,6 +126,17 @@ public partial class ProcessViewModel : ObservableObject
     [ObservableProperty] private bool _isGoodPath;
     [ObservableProperty] private string _lastRouteText = "──";
 
+    // ── 컨베이어 셔틀 이동 상태 ────────────────────────────────────────────────
+    [ObservableProperty] private bool _shuttleTransit12;  // Zone1→2 이동 중
+    [ObservableProperty] private bool _shuttleTransit23;  // Zone2→3 이동 중
+    [ObservableProperty] private bool _shuttleTransitOut;  // Zone3→배출 이동 중
+
+    // ── 존별 타이밍 ──────────────────────────────────────────────────────────
+    [ObservableProperty] private string _zone1Timing = "";
+    [ObservableProperty] private string _zone2Timing = "";
+    [ObservableProperty] private string _zone3Timing = "";
+    private DateTime _zone1Start, _zone2Start, _zone3Start;
+
     // ── 마지막 Fiducial 결과 ──────────────────────────────────────────────────
     [ObservableProperty] private string _lastFiducialResult = string.Empty;
 
@@ -216,6 +227,7 @@ public partial class ProcessViewModel : ObservableObject
             StatusMessage = GetStatusMessage(e.Stage, e.Status);
             UpdateZoneCard(e.Stage, e.Status);
             UpdateZoneVisualState(e.Stage, e.Status);
+            UpdateZoneTiming(e.Stage, e.Status);
         });
     }
 
@@ -250,27 +262,64 @@ public partial class ProcessViewModel : ObservableObject
         if (stage == ProcessStage.Zone1_Release && status == StageStatus.Running)
             Zone1Visual.IsLifted = false;
         if (stage == ProcessStage.Zone1_Release && status == StageStatus.Done)
+        {
             Zone1Visual.ShuttlePresent = false;
+            ShuttleTransit12 = true;  // 구간1→2 이동 시작
+        }
 
         // 구간 2 셔틀 상태
         if (stage == ProcessStage.Zone2_StopAlignLift && status == StageStatus.Running)
+        {
             Zone2Visual.ShuttlePresent = true;
+            ShuttleTransit12 = false;  // 구간2 도착
+        }
         if (stage == ProcessStage.Zone2_StopAlignLift && status == StageStatus.Done)
             Zone2Visual.IsLifted = true;
         if (stage == ProcessStage.Zone2_Release && status == StageStatus.Running)
             Zone2Visual.IsLifted = false;
         if (stage == ProcessStage.Zone2_Release && status == StageStatus.Done)
+        {
             Zone2Visual.ShuttlePresent = false;
+            ShuttleTransit23 = true;  // 구간2→3 이동 시작
+        }
 
         // 구간 3 셔틀 상태
         if (stage == ProcessStage.Zone3_StopAlignLift && status == StageStatus.Running)
+        {
             Zone3Visual.ShuttlePresent = true;
+            ShuttleTransit23 = false;  // 구간3 도착
+        }
         if (stage == ProcessStage.Zone3_StopAlignLift && status == StageStatus.Done)
             Zone3Visual.IsLifted = true;
         if (stage == ProcessStage.Zone3_Release && status == StageStatus.Running)
             Zone3Visual.IsLifted = false;
         if (stage == ProcessStage.Zone3_Release && status == StageStatus.Done)
             Zone3Visual.ShuttlePresent = false;
+
+        // 구간3 배출 완료 시 잠깐 배출 이동 표시
+        if (stage == ProcessStage.Zone3_Discharge && status == StageStatus.Done)
+            ShuttleTransitOut = true;
+        if (stage == ProcessStage.Zone3_WaitShuttle && status == StageStatus.Running)
+            ShuttleTransitOut = false;
+    }
+
+    private void UpdateZoneTiming(ProcessStage stage, StageStatus status)
+    {
+        // 각 존 작업 시작 (StopAlignLift Running) ~ 완료 (Release Done) 시간 측정
+        if (stage == ProcessStage.Zone1_StopAlignLift && status == StageStatus.Running)
+            _zone1Start = DateTime.Now;
+        if (stage == ProcessStage.Zone1_Release && status == StageStatus.Done)
+            Zone1Timing = $"{(DateTime.Now - _zone1Start).TotalSeconds:F1}s";
+
+        if (stage == ProcessStage.Zone2_StopAlignLift && status == StageStatus.Running)
+            _zone2Start = DateTime.Now;
+        if (stage == ProcessStage.Zone2_Release && status == StageStatus.Done)
+            Zone2Timing = $"{(DateTime.Now - _zone2Start).TotalSeconds:F1}s";
+
+        if (stage == ProcessStage.Zone3_StopAlignLift && status == StageStatus.Running)
+            _zone3Start = DateTime.Now;
+        if (stage == ProcessStage.Zone3_Release && status == StageStatus.Done)
+            Zone3Timing = $"{(DateTime.Now - _zone3Start).TotalSeconds:F1}s";
     }
 
     // ── RouteDecided ─────────────────────────────────────────────────────────
