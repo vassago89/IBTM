@@ -8,64 +8,95 @@
     <UserControl.Resources>
         <conv:StageStatusToBrushConverter      x:Key="StatusToBrush"/>
         <conv:StageStatusToBackgroundConverter x:Key="StatusToBg"/>
-        <conv:LogLevelToBrushConverter         x:Key="LogLevelToBrush"/>
         <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
         <conv:BoolToVisibilityConverter        x:Key="BoolToVis"/>
         <conv:InspectionResultToBrushConverter x:Key="InspResultToBrush"/>
         <conv:BoolToOpacityConverter           x:Key="BoolToOpacity"/>
         <conv:NgSlotFillConverter              x:Key="NgSlotFill"/>
+        <conv:ZGaugeTopConverter               x:Key="ZGaugeTop" GaugeTop="15" GaugeHeight="50"/>
+
+        <!-- 스테이지 카드 템플릿 -->
+        <DataTemplate x:Key="StageCardTemplate" DataType="{x:Type vm:StageCardViewModel}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Border Width="105" Height="120" CornerRadius="8"
+                        Background="{Binding Status, Converter={StaticResource StatusToBg}}"
+                        BorderThickness="1.5"
+                        BorderBrush="{Binding Status, Converter={StaticResource StatusToBrush}}">
+                    <Grid Margin="6,5">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="20"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0">
+                            <TextBlock Text="{Binding Icon}" FontSize="13"
+                                       Foreground="{Binding Status, Converter={StaticResource StatusToBrush}}"
+                                       VerticalAlignment="Center"/>
+                            <Ellipse Width="7" Height="7" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                     Fill="{Binding Status, Converter={StaticResource StatusToBrush}}"
+                                     Opacity="{Binding IndicatorOpacity}"/>
+                        </Grid>
+                        <TextBlock Grid.Row="1" Text="{Binding Title}" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
+                        <TextBlock Grid.Row="2" Text="{Binding Subtitle}" FontSize="9"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,1,0,4"/>
+                        <StackPanel Grid.Row="3">
+                            <TextBlock Text="{Binding Info1}" FontSize="9" FontFamily="Consolas"
+                                       Foreground="{Binding Info1, Converter={StaticResource InspResultToBrush}}"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{Binding Info2}" FontSize="9" FontFamily="Consolas"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       TextTrimming="CharacterEllipsis" Margin="0,1,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+                <Grid Width="12" Visibility="{Binding IsLastCard, Converter={StaticResource InvBoolToVis}}">
+                    <TextBlock Text="&#x203A;" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{StaticResource TextMutedBrush}"/>
+                </Grid>
+            </StackPanel>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="72"/>   <!-- Row 0: 통계 바 -->
-            <RowDefinition Height="190"/>  <!-- Row 1: 공정 흐름 카드 -->
-            <RowDefinition Height="120"/>  <!-- Row 2: 라우팅 분기 (NG / GOOD) -->
-            <RowDefinition Height="88"/>   <!-- Row 3: 축 위치 + 볼트 진행 -->
-            <RowDefinition Height="58"/>   <!-- Row 4: 제어 버튼 -->
-            <RowDefinition Height="*"/>    <!-- Row 5: 이벤트 로그 -->
+            <RowDefinition Height="62"/>   <!-- Row 0: 통계 바 -->
+            <RowDefinition Height="170"/>  <!-- Row 1: 3구간 스테이지 카드 -->
+            <RowDefinition Height="*"/>    <!-- Row 2: 2D 설비 레이아웃 -->
+            <RowDefinition Height="52"/>   <!-- Row 3: 제어 버튼 -->
         </Grid.RowDefinitions>
 
         <!-- ════════════════════════════════════════════════════════
-             NG 알람 배너 (알람 시 Row 1 최상위 오버레이)
+             NG 알람 배너
              ════════════════════════════════════════════════════════ -->
         <Border Grid.Row="1" Panel.ZIndex="10"
                 VerticalAlignment="Top" HorizontalAlignment="Stretch"
-                Margin="16,8,16,0"
-                Background="#D08B1A1A"
+                Margin="16,4,16,0" Background="#D08B1A1A"
                 BorderBrush="{StaticResource AccentRedBrush}"
-                BorderThickness="1" CornerRadius="6"
-                Padding="16,10"
+                BorderThickness="1" CornerRadius="6" Padding="16,8"
                 Visibility="{Binding NgStackAlarm, Converter={StaticResource BoolToVis}}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <TextBlock Text="&#x26A0;  " FontSize="16"
-                               Foreground="{StaticResource AccentRedBrush}" VerticalAlignment="Center"/>
-                    <TextBlock VerticalAlignment="Center" FontSize="13" FontWeight="SemiBold"
-                               Foreground="{StaticResource AccentRedBrush}">
-                        <Run Text="NG 적재 수량 초과 ("/>
-                        <Run Text="{Binding NgStackCount}"/>
-                        <Run Text="개) &#x2014; 작업자 NG 스택 확인 후 리셋하세요"/>
-                    </TextBlock>
-                </StackPanel>
-                <Button Grid.Column="1" Content="NG 리셋"
-                        Command="{Binding ResetNgStackCommand}"
-                        Style="{StaticResource DangerButtonStyle}"
-                        Padding="12,5"/>
+                <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
+                           Foreground="{StaticResource AccentRedBrush}">
+                    <Run Text="&#x26A0; NG 적재 초과 ("/>
+                    <Run Text="{Binding NgStackCount}"/>
+                    <Run Text="개) — 리셋 필요"/>
+                </TextBlock>
+                <Button Grid.Column="1" Content="NG 리셋" Command="{Binding ResetNgStackCommand}"
+                        Style="{StaticResource DangerButtonStyle}" Padding="10,4"/>
             </Grid>
         </Border>
 
         <!-- ════════════════════════════════════════════════════════
-             Row 0: 생산 통계 바
+             Row 0: 통계 바
              ════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="0"
-                Background="{StaticResource PanelBgBrush}"
-                BorderThickness="0,0,0,1"
-                BorderBrush="{StaticResource DividerBrush}">
+        <Border Grid.Row="0" Background="{StaticResource PanelBgBrush}"
+                BorderThickness="0,0,0,1" BorderBrush="{StaticResource DividerBrush}">
             <Grid Margin="24,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -82,637 +113,595 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-
                 <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,20,0">
                     <TextBlock Text="총 생산" Style="{StaticResource StatLabelStyle}"/>
-                    <TextBlock Text="{Binding TotalCount, StringFormat='{}{0:N0} ea'}"
-                               Style="{StaticResource StatValueStyle}"/>
+                    <TextBlock Text="{Binding TotalCount, StringFormat='{}{0:N0} ea'}" Style="{StaticResource StatValueStyle}"/>
                 </StackPanel>
                 <Rectangle Grid.Column="1" Fill="{StaticResource DividerBrush}" Margin="0,10"/>
-
                 <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="20,0">
                     <TextBlock Text="GOOD" Style="{StaticResource StatLabelStyle}"/>
-                    <TextBlock Text="{Binding GoodCount, StringFormat='{}{0:N0} ea'}"
-                               Style="{StaticResource StatValueStyle}"
-                               Foreground="{StaticResource AccentGreenBrush}"/>
+                    <TextBlock Text="{Binding GoodCount, StringFormat='{}{0:N0}'}" Style="{StaticResource StatValueStyle}" Foreground="{StaticResource AccentGreenBrush}"/>
                 </StackPanel>
                 <Rectangle Grid.Column="3" Fill="{StaticResource DividerBrush}" Margin="0,10"/>
-
                 <StackPanel Grid.Column="4" VerticalAlignment="Center" Margin="20,0">
                     <TextBlock Text="NG" Style="{StaticResource StatLabelStyle}"/>
-                    <TextBlock Text="{Binding NgCount, StringFormat='{}{0:N0} ea'}"
-                               Style="{StaticResource StatValueStyle}"
-                               Foreground="{StaticResource AccentRedBrush}"/>
+                    <TextBlock Text="{Binding NgCount, StringFormat='{}{0:N0}'}" Style="{StaticResource StatValueStyle}" Foreground="{StaticResource AccentRedBrush}"/>
                 </StackPanel>
                 <Rectangle Grid.Column="5" Fill="{StaticResource DividerBrush}" Margin="0,10"/>
-
                 <StackPanel Grid.Column="6" VerticalAlignment="Center" Margin="20,0">
                     <TextBlock Text="NG율" Style="{StaticResource StatLabelStyle}"/>
-                    <TextBlock Text="{Binding NgRate, StringFormat='{}{0:F2} %'}"
-                               Style="{StaticResource StatValueStyle}"
-                               Foreground="{StaticResource AccentOrangeBrush}"/>
+                    <TextBlock Text="{Binding NgRate, StringFormat='{}{0:F2}%'}" Style="{StaticResource StatValueStyle}" Foreground="{StaticResource AccentOrangeBrush}"/>
                 </StackPanel>
                 <Rectangle Grid.Column="7" Fill="{StaticResource DividerBrush}" Margin="0,10"/>
-
                 <StackPanel Grid.Column="8" VerticalAlignment="Center" Margin="20,0">
-                    <TextBlock Text="Cycle Time" Style="{StaticResource StatLabelStyle}"/>
-                    <TextBlock Text="{Binding LastCycleTime, StringFormat='{}{0:F1} s'}"
-                               Style="{StaticResource StatValueStyle}"/>
+                    <TextBlock Text="CT" Style="{StaticResource StatLabelStyle}"/>
+                    <TextBlock Text="{Binding LastCycleTime, StringFormat='{}{0:F1}s'}" Style="{StaticResource StatValueStyle}"/>
                 </StackPanel>
                 <Rectangle Grid.Column="9" Fill="{StaticResource DividerBrush}" Margin="0,10"/>
-
                 <StackPanel Grid.Column="10" VerticalAlignment="Center" Margin="20,0">
-                    <TextBlock Text="가동 시간" Style="{StaticResource StatLabelStyle}"/>
-                    <TextBlock Text="{Binding Uptime}"
-                               Style="{StaticResource StatValueStyle}"
-                               Foreground="{StaticResource AccentCyanBrush}"/>
+                    <TextBlock Text="가동" Style="{StaticResource StatLabelStyle}"/>
+                    <TextBlock Text="{Binding Uptime}" Style="{StaticResource StatValueStyle}" Foreground="{StaticResource AccentCyanBrush}"/>
                 </StackPanel>
-
-                <Border Grid.Column="12" VerticalAlignment="Center"
-                        Background="#1A58A6FF" CornerRadius="4" Padding="12,5">
-                    <TextBlock Text="{Binding StatusMessage}"
-                               Foreground="{StaticResource AccentBlueBrush}"
-                               FontSize="12" FontWeight="SemiBold"/>
+                <Border Grid.Column="12" VerticalAlignment="Center" Background="#1A58A6FF" CornerRadius="4" Padding="12,4">
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource AccentBlueBrush}" FontSize="11" FontWeight="SemiBold"/>
                 </Border>
             </Grid>
         </Border>
 
         <!-- ════════════════════════════════════════════════════════
-             Row 1: 공정 흐름 카드 (7장, 병렬 시 동시 Running 가능)
+             Row 1: 3구간 스테이지 카드
              ════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="1"
-                Background="{StaticResource AppBgBrush}"
-                BorderThickness="0,0,0,1"
-                BorderBrush="{StaticResource DividerBrush}">
-            <Grid>
-                <TextBlock Text="PROCESS FLOW" Margin="24,10,0,0"
-                           VerticalAlignment="Top"
-                           Foreground="{StaticResource TextMutedBrush}"
-                           FontSize="10" FontWeight="SemiBold"/>
-
-                <ItemsControl ItemsSource="{Binding Stages}"
-                              HorizontalAlignment="Center"
-                              VerticalAlignment="Center"
-                              Margin="0,20,0,0">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"/>
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type vm:StageCardViewModel}">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-
-                                <!-- 스테이지 카드 -->
-                                <Border Width="140" Height="152" CornerRadius="10"
-                                        Background="{Binding Status, Converter={StaticResource StatusToBg}}"
-                                        BorderThickness="1.5"
-                                        BorderBrush="{Binding Status, Converter={StaticResource StatusToBrush}}">
-                                    <Grid Margin="10,8">
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="28"/>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="*"/>
-                                        </Grid.RowDefinitions>
-
-                                        <Grid Grid.Row="0">
-                                            <TextBlock Text="{Binding Icon}" FontSize="16"
-                                                       Foreground="{Binding Status, Converter={StaticResource StatusToBrush}}"
-                                                       VerticalAlignment="Center"/>
-                                            <Ellipse Width="9" Height="9"
-                                                     HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                     Fill="{Binding Status, Converter={StaticResource StatusToBrush}}"
-                                                     Opacity="{Binding IndicatorOpacity}"/>
-                                        </Grid>
-
-                                        <TextBlock Grid.Row="1" Text="{Binding Title}"
-                                                   FontSize="12" FontWeight="SemiBold"
-                                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                                   TextWrapping="Wrap"/>
-
-                                        <TextBlock Grid.Row="2" Text="{Binding Subtitle}"
-                                                   FontSize="10"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                                   Margin="0,2,0,6"/>
-
-                                        <StackPanel Grid.Row="3">
-                                            <TextBlock Text="{Binding Info1}"
-                                                       FontSize="10" FontFamily="Consolas"
-                                                       Foreground="{Binding Info1, Converter={StaticResource InspResultToBrush}}"
-                                                       TextTrimming="CharacterEllipsis"/>
-                                            <TextBlock Text="{Binding Info2}"
-                                                       FontSize="10" FontFamily="Consolas"
-                                                       Foreground="{StaticResource TextMutedBrush}"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       Margin="0,2,0,0"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-
-                                <!-- 화살표 (마지막 카드 제외) -->
-                                <Grid Width="24"
-                                      Visibility="{Binding IsLastCard, Converter={StaticResource InvBoolToVis}}">
-                                    <TextBlock Text="&#x203A;" FontSize="28"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                                               Foreground="{StaticResource TextMutedBrush}"/>
-                                </Grid>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+        <Border Grid.Row="1" Background="{StaticResource AppBgBrush}"
+                BorderThickness="0,0,0,1" BorderBrush="{StaticResource DividerBrush}">
+            <Grid Margin="12,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid Grid.Column="0">
+                    <TextBlock Text="ZONE 1 — 픽업" Margin="8,6,0,0" VerticalAlignment="Top"
+                               Foreground="{StaticResource AccentBlueBrush}" FontSize="10" FontWeight="SemiBold"/>
+                    <ItemsControl ItemsSource="{Binding Zone1Stages}" ItemTemplate="{StaticResource StageCardTemplate}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,14,0,0">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </Grid>
+                <TextBlock Grid.Column="1" Text="&#x25BA;" FontSize="16" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextMutedBrush}" Margin="2,14,2,0"/>
+                <Grid Grid.Column="2">
+                    <TextBlock Text="ZONE 2 — 볼트" Margin="8,6,0,0" VerticalAlignment="Top"
+                               Foreground="{StaticResource AccentOrangeBrush}" FontSize="10" FontWeight="SemiBold"/>
+                    <ItemsControl ItemsSource="{Binding Zone2Stages}" ItemTemplate="{StaticResource StageCardTemplate}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,14,0,0">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </Grid>
+                <TextBlock Grid.Column="3" Text="&#x25BA;" FontSize="16" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextMutedBrush}" Margin="2,14,2,0"/>
+                <Grid Grid.Column="4">
+                    <TextBlock Text="ZONE 3 — 검사" Margin="8,6,0,0" VerticalAlignment="Top"
+                               Foreground="{StaticResource AccentGreenBrush}" FontSize="10" FontWeight="SemiBold"/>
+                    <ItemsControl ItemsSource="{Binding Zone3Stages}" ItemTemplate="{StaticResource StageCardTemplate}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,14,0,0">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </Grid>
             </Grid>
         </Border>
 
         <!-- ════════════════════════════════════════════════════════
-             Row 2: 라우팅 분기 (NG / GOOD 경로 시각화)
+             Row 2: 2D 설비 레이아웃 (Grid 기반)
              ════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="2"
-                Background="{StaticResource PanelBgBrush}"
-                BorderThickness="0,0,0,1"
-                BorderBrush="{StaticResource DividerBrush}">
-            <Grid Margin="24,0">
-                <Grid.ColumnDefinitions>
-                    <!-- 결과 배지 -->
-                    <ColumnDefinition Width="90"/>
-                    <!-- 세로 구분선 -->
-                    <ColumnDefinition Width="1"/>
-                    <!-- NG 경로 -->
-                    <ColumnDefinition Width="*"/>
-                    <!-- 세로 구분선 -->
-                    <ColumnDefinition Width="1"/>
-                    <!-- GOOD 경로 -->
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
+        <Border Grid.Row="2" Background="#080A14"
+                BorderThickness="0,0,0,1" BorderBrush="{StaticResource DividerBrush}">
+            <!-- 설비 프레임 -->
+            <Border BorderBrush="#2A2E40" BorderThickness="2" CornerRadius="6" Margin="8,4">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="70"/>   <!-- 앞장비 -->
+                        <ColumnDefinition Width="*"/>    <!-- Zone 1 -->
+                        <ColumnDefinition Width="*"/>    <!-- Zone 2 -->
+                        <ColumnDefinition Width="*"/>    <!-- Zone 3 -->
+                        <ColumnDefinition Width="130"/>  <!-- 우측 패널 -->
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="16"/>     <!-- Zone 라벨 -->
+                        <RowDefinition Height="*"/>      <!-- Gantry 영역 -->
+                        <RowDefinition Height="6"/>      <!-- 컨베이어 상단 레일 -->
+                        <RowDefinition Height="60"/>     <!-- Station (레일 사이) -->
+                        <RowDefinition Height="6"/>      <!-- 컨베이어 하단 레일 -->
+                        <RowDefinition Height="18"/>     <!-- 좌표 정보 -->
+                    </Grid.RowDefinitions>
 
-                <!-- ── 결과 배지 ────────────────────────────────────── -->
-                <StackPanel Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Center">
-                    <TextBlock Text="RESULT" FontSize="9" FontWeight="SemiBold"
-                               Foreground="{StaticResource TextMutedBrush}"
-                               HorizontalAlignment="Center" Margin="0,0,0,6"/>
-                    <Border CornerRadius="6" Padding="10,5" HorizontalAlignment="Center"
-                            BorderThickness="1.5">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background" Value="#1C2033"/>
-                                <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsNgPath}" Value="True">
-                                        <Setter Property="Background" Value="#2A1010"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsGoodPath}" Value="True">
-                                        <Setter Property="Background" Value="#102A10"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock Text="{Binding LastRouteText}"
-                                   FontSize="14" FontWeight="Bold"
-                                   HorizontalAlignment="Center">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                    <!-- 설비 라벨 -->
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="IBTM" FontSize="7"
+                               Foreground="#2A2E40" FontWeight="Bold" Margin="4,2"/>
+
+                    <!-- ── 컨베이어 레일 (전체 컬럼 관통, 듀얼 레일) ────── -->
+                    <Grid Grid.Row="2" Grid.ColumnSpan="5">
+                        <Rectangle Fill="#1A1E30" Height="1.5" VerticalAlignment="Top" Margin="0,0.5"/>
+                        <Rectangle Fill="#252A40" Height="1" VerticalAlignment="Bottom" Margin="0,0.5"/>
+                    </Grid>
+                    <Grid Grid.Row="4" Grid.ColumnSpan="5">
+                        <Rectangle Fill="#252A40" Height="1" VerticalAlignment="Top" Margin="0,0.5"/>
+                        <Rectangle Fill="#1A1E30" Height="1.5" VerticalAlignment="Bottom" Margin="0,0.5"/>
+                    </Grid>
+                    <!-- 흐름 화살표 -->
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="► ► ►" FontSize="7" Foreground="#15182A"
+                               HorizontalAlignment="Center" VerticalAlignment="Bottom" FontFamily="Consolas" Margin="0,0,0,2"/>
+                    <TextBlock Grid.Row="3" Grid.Column="4" Text="► ►" FontSize="7" Foreground="#15182A"
+                               HorizontalAlignment="Left" VerticalAlignment="Bottom" FontFamily="Consolas" Margin="8,0,0,2"/>
+
+                    <!-- ══════════════════════════════════════════════════
+                         앞장비
+                         ══════════════════════════════════════════════════ -->
+                    <Border Grid.Row="1" Grid.Column="0" Grid.RowSpan="4"
+                            BorderBrush="#252840" BorderThickness="1" CornerRadius="3"
+                            Background="#0C0E18" Margin="4,2">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="PREV" Foreground="#404060" FontSize="7" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="EQUIP" Foreground="#404060" FontSize="7" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"/>
+                            <Border Background="#101428" BorderBrush="#303060" BorderThickness="1"
+                                    CornerRadius="2" Margin="4,6,4,0" Padding="4,3">
+                                <StackPanel>
+                                    <Rectangle Width="14" Height="6" Fill="#1E4080" RadiusX="1" RadiusY="1" Margin="0,0,0,2"/>
+                                    <Rectangle Width="14" Height="6" Fill="#1E4080" RadiusX="1" RadiusY="1"/>
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Text="PCB×2" Foreground="#3A4070" FontSize="6"
+                                       HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ══════════════════════════════════════════════════
+                         ZONE 1 — 픽업 (Gripper 갠트리)
+                         ══════════════════════════════════════════════════ -->
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="GANTRY 1 — PICK" FontSize="9" FontWeight="Bold"
+                               Foreground="{StaticResource AccentBlueBrush}" Margin="6,2" VerticalAlignment="Center"/>
+                    <Border Grid.Row="1" Grid.Column="1" Background="#0C0E1A"
+                            BorderBrush="{StaticResource AccentBlueBrush}" BorderThickness="1.5"
+                            CornerRadius="3" Margin="4,0">
+                        <Viewbox Stretch="Fill">
+                            <Canvas Width="240" Height="180" ClipToBounds="True">
+                                <!-- Y축 컬럼 레일 (좌/우) -->
+                                <Rectangle Canvas.Left="3" Canvas.Top="2" Width="7" Height="176"
+                                           Fill="#111828" Stroke="#1E2840" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="200" Canvas.Top="2" Width="7" Height="176"
+                                           Fill="#111828" Stroke="#1E2840" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
+                                <!-- 리니어 가이드 (컬럼 위 점선) -->
+                                <Line X1="6.5" Y1="6" X2="6.5" Y2="174" Stroke="#1A2540" StrokeThickness="0.4" StrokeDashArray="1 3"/>
+                                <Line X1="203.5" Y1="6" X2="203.5" Y2="174" Stroke="#1A2540" StrokeThickness="0.4" StrokeDashArray="1 3"/>
+                                <!-- X축 브릿지 레일 (Y축 따라 이동) -->
+                                <Rectangle Canvas.Left="3" Canvas.Top="{Binding Zone1Visual.BridgeTop}"
+                                           Width="204" Height="4" Fill="#152030" Stroke="#1E2840" StrokeThickness="0.5"/>
+                                <!-- 작업 영역 기준점 (그리드 도트) -->
+                                <Ellipse Canvas.Left="55" Canvas.Top="55" Width="2" Height="2" Fill="#1A2240"/>
+                                <Ellipse Canvas.Left="55" Canvas.Top="120" Width="2" Height="2" Fill="#1A2240"/>
+                                <Ellipse Canvas.Left="145" Canvas.Top="55" Width="2" Height="2" Fill="#1A2240"/>
+                                <Ellipse Canvas.Left="145" Canvas.Top="120" Width="2" Height="2" Fill="#1A2240"/>
+                                <!-- 헤드 글로우 -->
+                                <Ellipse Canvas.Left="{Binding Zone1Visual.HeadLeft}" Canvas.Top="{Binding Zone1Visual.HeadTop}"
+                                         Width="{Binding Zone1Visual.HeadSize}" Height="{Binding Zone1Visual.HeadSize}"
+                                         Fill="#1858A6" Opacity="0.3">
+                                    <Ellipse.Effect><BlurEffect Radius="10"/></Ellipse.Effect>
+                                </Ellipse>
+                                <!-- 헤드 본체 (Gripper — 사각 형태) -->
+                                <Rectangle Canvas.Left="{Binding Zone1Visual.HeadLeft}" Canvas.Top="{Binding Zone1Visual.HeadTop}"
+                                           Width="{Binding Zone1Visual.HeadSize}" Height="{Binding Zone1Visual.HeadSize}"
+                                           Fill="{StaticResource AccentBlueBrush}" Opacity="0.85" Stroke="White" StrokeThickness="1.5"
+                                           RadiusX="2" RadiusY="2"/>
+                                <!-- Z축 사이드 패널 -->
+                                <Rectangle Canvas.Left="212" Canvas.Top="2" Width="26" Height="176"
+                                           Fill="#080C18" Stroke="#1A2040" StrokeThickness="0.5" RadiusX="2" RadiusY="2"/>
+                                <!-- Z 컬럼 레일 -->
+                                <Rectangle Canvas.Left="218" Canvas.Top="10" Width="4" Height="156"
+                                           Fill="#101828" RadiusX="1" RadiusY="1"/>
+                                <!-- Z 채움 (위→아래, 깊이 표현) -->
+                                <Rectangle Canvas.Left="218" Canvas.Top="10" Width="4"
+                                           Height="{Binding Zone1Visual.ZGaugeHeight}"
+                                           Fill="{StaticResource AccentBlueBrush}" Opacity="0.5" RadiusX="1" RadiusY="1"/>
+                                <!-- Z 툴 암 (현재 깊이 위치) -->
+                                <Rectangle Canvas.Left="214" Canvas.Top="{Binding Zone1Visual.ZToolTop}"
+                                           Width="16" Height="4"
+                                           Fill="{StaticResource AccentBlueBrush}" Opacity="0.7" RadiusX="1" RadiusY="1"/>
+                                <!-- Z 라벨 -->
+                                <TextBlock Canvas.Left="226" Canvas.Top="4" Text="Z" FontSize="6" FontWeight="Bold" Foreground="#253050"/>
+                                <TextBlock Canvas.Left="224" Canvas.Top="168" Text="▼" FontSize="5" Foreground="#253050"/>
+                            </Canvas>
+                        </Viewbox>
+                    </Border>
+                    <!-- Station (레일 사이) — 스토퍼/얼라인/리프트/셔틀+PCB -->
+                    <Grid Grid.Row="3" Grid.Column="1" Margin="4,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="10"/>   <!-- STP 실린더 -->
+                            <ColumnDefinition Width="14"/>   <!-- ALN left -->
+                            <ColumnDefinition Width="*"/>    <!-- Lift + Shuttle + PCB -->
+                            <ColumnDefinition Width="14"/>   <!-- ALN right -->
+                        </Grid.ColumnDefinitions>
+                        <!-- 스토퍼 실린더 -->
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <Rectangle Width="6" Height="10" Fill="#183060" RadiusX="1" RadiusY="1"
+                                       Opacity="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}"/>
+                            <Rectangle Width="3" Height="6" Fill="#102040" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                        <!-- 얼라인 (좌) — 삼각 푸셔 -->
+                        <Border Grid.Column="1" Margin="1,4" Background="#0E1830"
+                                BorderBrush="#183060" BorderThickness="0.5" CornerRadius="1"
+                                Opacity="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
+                            <TextBlock Text="▶" FontSize="7" Foreground="#2050A0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <!-- 얼라인 (우) — 삼각 푸셔 -->
+                        <Border Grid.Column="3" Margin="1,4" Background="#0E1830"
+                                BorderBrush="#183060" BorderThickness="0.5" CornerRadius="1"
+                                Opacity="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
+                            <TextBlock Text="◀" FontSize="7" Foreground="#2050A0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <!-- 리프트 + 셔틀 + PCB -->
+                        <Grid Grid.Column="2">
+                            <!-- 리프트 플랫폼 -->
+                            <Rectangle Stroke="#304060" StrokeThickness="1" StrokeDashArray="2 2"
+                                       Fill="Transparent" RadiusX="2" RadiusY="2" Margin="2,1"/>
+                            <!-- 리프트 업 글로우 -->
+                            <Rectangle Fill="#2858A6" Opacity="0.15" RadiusX="3" RadiusY="3" Margin="2,1"
+                                       Visibility="{Binding Zone1Visual.LiftIndicatorVisibility}">
+                                <Rectangle.Effect><BlurEffect Radius="6"/></Rectangle.Effect>
+                            </Rectangle>
+                            <TextBlock Text="▲ LIFT" FontSize="7" FontWeight="Bold" Foreground="#58A6FF"
+                                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,1,0,0"
+                                       Visibility="{Binding Zone1Visual.LiftIndicatorVisibility}"/>
+                            <!-- 셔틀 프레임 -->
+                            <Rectangle Fill="#1A2545" Stroke="#3A5580" RadiusX="2" RadiusY="2" Margin="6,4"
+                                       StrokeThickness="{Binding Zone1Visual.ShuttleStrokeThickness}"
+                                       Visibility="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}"/>
+                            <!-- PCB (2개, 초록) -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Visibility="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
+                                <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
+                                           RadiusX="1" RadiusY="1" Margin="2,0"/>
+                                <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
+                                           RadiusX="1" RadiusY="1" Margin="2,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                    <!-- 좌표 -->
+                    <TextBlock Grid.Row="5" Grid.Column="1"
+                               Text="{Binding Zone1Visual.CoordText}" FontFamily="Consolas" FontSize="8"
+                               Foreground="{StaticResource AccentBlueBrush}" Margin="6,1" VerticalAlignment="Center"/>
+
+                    <!-- ══════════════════════════════════════════════════
+                         ZONE 2 — 볼트 체결 (Bolt Driver 갠트리)
+                         ══════════════════════════════════════════════════ -->
+                    <TextBlock Grid.Row="0" Grid.Column="2" Text="GANTRY 2 — BOLT" FontSize="9" FontWeight="Bold"
+                               Foreground="{StaticResource AccentOrangeBrush}" Margin="6,2" VerticalAlignment="Center"/>
+                    <Border Grid.Row="1" Grid.Column="2" Background="#0C0E1A"
+                            BorderBrush="{StaticResource AccentOrangeBrush}" BorderThickness="1.5"
+                            CornerRadius="3" Margin="4,0">
+                        <Viewbox Stretch="Fill">
+                            <Canvas Width="240" Height="180" ClipToBounds="True">
+                                <!-- Y축 컬럼 레일 (좌/우) -->
+                                <Rectangle Canvas.Left="3" Canvas.Top="2" Width="7" Height="176"
+                                           Fill="#141820" Stroke="#1E2838" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="200" Canvas.Top="2" Width="7" Height="176"
+                                           Fill="#141820" Stroke="#1E2838" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
+                                <!-- 리니어 가이드 -->
+                                <Line X1="6.5" Y1="6" X2="6.5" Y2="174" Stroke="#1E2030" StrokeThickness="0.4" StrokeDashArray="1 3"/>
+                                <Line X1="203.5" Y1="6" X2="203.5" Y2="174" Stroke="#1E2030" StrokeThickness="0.4" StrokeDashArray="1 3"/>
+                                <!-- X축 브릿지 레일 -->
+                                <Rectangle Canvas.Left="3" Canvas.Top="{Binding Zone2Visual.BridgeTop}"
+                                           Width="204" Height="4" Fill="#1A1E28" Stroke="#1E2838" StrokeThickness="0.5"/>
+                                <!-- 볼트 포인트 참조 마크 -->
+                                <Ellipse Canvas.Left="60" Canvas.Top="50" Width="3" Height="3" Fill="#1E1A14" Stroke="#302818" StrokeThickness="0.3"/>
+                                <Ellipse Canvas.Left="90" Canvas.Top="50" Width="3" Height="3" Fill="#1E1A14" Stroke="#302818" StrokeThickness="0.3"/>
+                                <Ellipse Canvas.Left="120" Canvas.Top="50" Width="3" Height="3" Fill="#1E1A14" Stroke="#302818" StrokeThickness="0.3"/>
+                                <Ellipse Canvas.Left="60" Canvas.Top="120" Width="3" Height="3" Fill="#1E1A14" Stroke="#302818" StrokeThickness="0.3"/>
+                                <Ellipse Canvas.Left="90" Canvas.Top="120" Width="3" Height="3" Fill="#1E1A14" Stroke="#302818" StrokeThickness="0.3"/>
+                                <Ellipse Canvas.Left="120" Canvas.Top="120" Width="3" Height="3" Fill="#1E1A14" Stroke="#302818" StrokeThickness="0.3"/>
+                                <!-- 헤드 글로우 -->
+                                <Ellipse Canvas.Left="{Binding Zone2Visual.HeadLeft}" Canvas.Top="{Binding Zone2Visual.HeadTop}"
+                                         Width="{Binding Zone2Visual.HeadSize}" Height="{Binding Zone2Visual.HeadSize}"
+                                         Fill="#A06818" Opacity="0.3">
+                                    <Ellipse.Effect><BlurEffect Radius="10"/></Ellipse.Effect>
+                                </Ellipse>
+                                <!-- 헤드 본체 (Bolt Driver — 원형 + 중심점) -->
+                                <Ellipse Canvas.Left="{Binding Zone2Visual.HeadLeft}" Canvas.Top="{Binding Zone2Visual.HeadTop}"
+                                         Width="{Binding Zone2Visual.HeadSize}" Height="{Binding Zone2Visual.HeadSize}"
+                                         Fill="{StaticResource AccentOrangeBrush}" Opacity="0.85" Stroke="White" StrokeThickness="1.5"/>
+                                <!-- Z축 사이드 패널 -->
+                                <Rectangle Canvas.Left="212" Canvas.Top="2" Width="26" Height="176"
+                                           Fill="#080C18" Stroke="#1E2838" StrokeThickness="0.5" RadiusX="2" RadiusY="2"/>
+                                <!-- Z 컬럼 레일 -->
+                                <Rectangle Canvas.Left="218" Canvas.Top="10" Width="4" Height="156"
+                                           Fill="#101828" RadiusX="1" RadiusY="1"/>
+                                <!-- Z 채움 -->
+                                <Rectangle Canvas.Left="218" Canvas.Top="10" Width="4"
+                                           Height="{Binding Zone2Visual.ZGaugeHeight}"
+                                           Fill="{StaticResource AccentOrangeBrush}" Opacity="0.5" RadiusX="1" RadiusY="1"/>
+                                <!-- Z 툴 암 -->
+                                <Rectangle Canvas.Left="214" Canvas.Top="{Binding Zone2Visual.ZToolTop}"
+                                           Width="16" Height="4"
+                                           Fill="{StaticResource AccentOrangeBrush}" Opacity="0.7" RadiusX="1" RadiusY="1"/>
+                                <!-- Z 라벨 -->
+                                <TextBlock Canvas.Left="226" Canvas.Top="4" Text="Z" FontSize="6" FontWeight="Bold" Foreground="#253050"/>
+                                <TextBlock Canvas.Left="224" Canvas.Top="168" Text="▼" FontSize="5" Foreground="#253050"/>
+                            </Canvas>
+                        </Viewbox>
+                    </Border>
+                    <!-- Station -->
+                    <Grid Grid.Row="3" Grid.Column="2" Margin="4,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="14"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="14"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <Rectangle Width="6" Height="10" Fill="#603810" RadiusX="1" RadiusY="1"
+                                       Opacity="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}"/>
+                            <Rectangle Width="3" Height="6" Fill="#402810" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                        <Border Grid.Column="1" Margin="1,4" Background="#1A1208"
+                                BorderBrush="#603810" BorderThickness="0.5" CornerRadius="1"
+                                Opacity="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
+                            <TextBlock Text="▶" FontSize="7" Foreground="#A06020" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <Border Grid.Column="3" Margin="1,4" Background="#1A1208"
+                                BorderBrush="#603810" BorderThickness="0.5" CornerRadius="1"
+                                Opacity="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
+                            <TextBlock Text="◀" FontSize="7" Foreground="#A06020" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <Grid Grid.Column="2">
+                            <Rectangle Stroke="#604020" StrokeThickness="1" StrokeDashArray="2 2"
+                                       Fill="Transparent" RadiusX="2" RadiusY="2" Margin="2,1"/>
+                            <Rectangle Fill="#A06818" Opacity="0.15" RadiusX="3" RadiusY="3" Margin="2,1"
+                                       Visibility="{Binding Zone2Visual.LiftIndicatorVisibility}">
+                                <Rectangle.Effect><BlurEffect Radius="6"/></Rectangle.Effect>
+                            </Rectangle>
+                            <TextBlock Text="▲ LIFT" FontSize="7" FontWeight="Bold" Foreground="#F0883E"
+                                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,1,0,0"
+                                       Visibility="{Binding Zone2Visual.LiftIndicatorVisibility}"/>
+                            <Rectangle Fill="#2A2515" Stroke="#806030" RadiusX="2" RadiusY="2" Margin="6,4"
+                                       StrokeThickness="{Binding Zone2Visual.ShuttleStrokeThickness}"
+                                       Visibility="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Visibility="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
+                                <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
+                                           RadiusX="1" RadiusY="1" Margin="2,0"/>
+                                <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
+                                           RadiusX="1" RadiusY="1" Margin="2,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                    <StackPanel Grid.Row="5" Grid.Column="2" Orientation="Horizontal" Margin="6,1"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Zone2Visual.CoordText}" FontFamily="Consolas" FontSize="8"
+                                   Foreground="{StaticResource AccentOrangeBrush}"/>
+                        <TextBlock Text="{Binding BoltProgress}" FontFamily="Consolas" FontSize="8" FontWeight="Bold"
+                                   Foreground="{StaticResource AccentOrangeBrush}" Margin="8,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- ══════════════════════════════════════════════════
+                         ZONE 3 — 검사 (Camera 갠트리)
+                         ══════════════════════════════════════════════════ -->
+                    <TextBlock Grid.Row="0" Grid.Column="3" Text="GANTRY 3 — INSPECT" FontSize="9" FontWeight="Bold"
+                               Foreground="{StaticResource AccentGreenBrush}" Margin="6,2" VerticalAlignment="Center"/>
+                    <Border Grid.Row="1" Grid.Column="3" Background="#0C0E1A"
+                            BorderBrush="{StaticResource AccentGreenBrush}" BorderThickness="1.5"
+                            CornerRadius="3" Margin="4,0">
+                        <Viewbox Stretch="Fill">
+                            <Canvas Width="240" Height="180" ClipToBounds="True">
+                                <!-- Y축 컬럼 레일 -->
+                                <Rectangle Canvas.Left="3" Canvas.Top="2" Width="7" Height="176"
+                                           Fill="#101820" Stroke="#1A2838" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="200" Canvas.Top="2" Width="7" Height="176"
+                                           Fill="#101820" Stroke="#1A2838" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
+                                <!-- 리니어 가이드 -->
+                                <Line X1="6.5" Y1="6" X2="6.5" Y2="174" Stroke="#142820" StrokeThickness="0.4" StrokeDashArray="1 3"/>
+                                <Line X1="203.5" Y1="6" X2="203.5" Y2="174" Stroke="#142820" StrokeThickness="0.4" StrokeDashArray="1 3"/>
+                                <!-- X축 브릿지 레일 -->
+                                <Rectangle Canvas.Left="3" Canvas.Top="{Binding Zone3Visual.BridgeTop}"
+                                           Width="204" Height="4" Fill="#101E18" Stroke="#1A2838" StrokeThickness="0.5"/>
+                                <!-- 검사 영역 아웃라인 -->
+                                <Rectangle Canvas.Left="40" Canvas.Top="30" Width="130" Height="120"
+                                           Stroke="#142818" StrokeThickness="0.5" StrokeDashArray="4 2" Fill="Transparent"
+                                           RadiusX="2" RadiusY="2"/>
+                                <!-- 헤드 글로우 -->
+                                <Ellipse Canvas.Left="{Binding Zone3Visual.HeadLeft}" Canvas.Top="{Binding Zone3Visual.HeadTop}"
+                                         Width="{Binding Zone3Visual.HeadSize}" Height="{Binding Zone3Visual.HeadSize}"
+                                         Fill="#18A038" Opacity="0.3">
+                                    <Ellipse.Effect><BlurEffect Radius="10"/></Ellipse.Effect>
+                                </Ellipse>
+                                <!-- 헤드 본체 (Camera — 원형 + 내부 원) -->
+                                <Ellipse Canvas.Left="{Binding Zone3Visual.HeadLeft}" Canvas.Top="{Binding Zone3Visual.HeadTop}"
+                                         Width="{Binding Zone3Visual.HeadSize}" Height="{Binding Zone3Visual.HeadSize}"
+                                         Fill="{StaticResource AccentGreenBrush}" Opacity="0.85" Stroke="White" StrokeThickness="1.5"/>
+                                <!-- Z축 사이드 패널 -->
+                                <Rectangle Canvas.Left="212" Canvas.Top="2" Width="26" Height="176"
+                                           Fill="#080C18" Stroke="#1A2838" StrokeThickness="0.5" RadiusX="2" RadiusY="2"/>
+                                <!-- Z 컬럼 레일 -->
+                                <Rectangle Canvas.Left="218" Canvas.Top="10" Width="4" Height="156"
+                                           Fill="#101828" RadiusX="1" RadiusY="1"/>
+                                <!-- Z 채움 -->
+                                <Rectangle Canvas.Left="218" Canvas.Top="10" Width="4"
+                                           Height="{Binding Zone3Visual.ZGaugeHeight}"
+                                           Fill="{StaticResource AccentGreenBrush}" Opacity="0.5" RadiusX="1" RadiusY="1"/>
+                                <!-- Z 툴 암 -->
+                                <Rectangle Canvas.Left="214" Canvas.Top="{Binding Zone3Visual.ZToolTop}"
+                                           Width="16" Height="4"
+                                           Fill="{StaticResource AccentGreenBrush}" Opacity="0.7" RadiusX="1" RadiusY="1"/>
+                                <!-- Z 라벨 -->
+                                <TextBlock Canvas.Left="226" Canvas.Top="4" Text="Z" FontSize="6" FontWeight="Bold" Foreground="#253050"/>
+                                <TextBlock Canvas.Left="224" Canvas.Top="168" Text="▼" FontSize="5" Foreground="#253050"/>
+                            </Canvas>
+                        </Viewbox>
+                    </Border>
+                    <!-- Station -->
+                    <Grid Grid.Row="3" Grid.Column="3" Margin="4,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="14"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="14"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <Rectangle Width="6" Height="10" Fill="#104020" RadiusX="1" RadiusY="1"
+                                       Opacity="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}"/>
+                            <Rectangle Width="3" Height="6" Fill="#082818" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                        <Border Grid.Column="1" Margin="1,4" Background="#081A0E"
+                                BorderBrush="#104020" BorderThickness="0.5" CornerRadius="1"
+                                Opacity="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
+                            <TextBlock Text="▶" FontSize="7" Foreground="#208040" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <Border Grid.Column="3" Margin="1,4" Background="#081A0E"
+                                BorderBrush="#104020" BorderThickness="0.5" CornerRadius="1"
+                                Opacity="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
+                            <TextBlock Text="◀" FontSize="7" Foreground="#208040" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <Grid Grid.Column="2">
+                            <Rectangle Stroke="#206030" StrokeThickness="1" StrokeDashArray="2 2"
+                                       Fill="Transparent" RadiusX="2" RadiusY="2" Margin="2,1"/>
+                            <Rectangle Fill="#18A038" Opacity="0.15" RadiusX="3" RadiusY="3" Margin="2,1"
+                                       Visibility="{Binding Zone3Visual.LiftIndicatorVisibility}">
+                                <Rectangle.Effect><BlurEffect Radius="6"/></Rectangle.Effect>
+                            </Rectangle>
+                            <TextBlock Text="▲ LIFT" FontSize="7" FontWeight="Bold" Foreground="#3FB950"
+                                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,1,0,0"
+                                       Visibility="{Binding Zone3Visual.LiftIndicatorVisibility}"/>
+                            <Rectangle Fill="#152A1A" Stroke="#308040" RadiusX="2" RadiusY="2" Margin="6,4"
+                                       StrokeThickness="{Binding Zone3Visual.ShuttleStrokeThickness}"
+                                       Visibility="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                        Visibility="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
+                                <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
+                                           RadiusX="1" RadiusY="1" Margin="2,0"/>
+                                <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
+                                           RadiusX="1" RadiusY="1" Margin="2,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                    <TextBlock Grid.Row="5" Grid.Column="3"
+                               Text="{Binding Zone3Visual.CoordText}" FontFamily="Consolas" FontSize="8"
+                               Foreground="{StaticResource AccentGreenBrush}" Margin="6,1" VerticalAlignment="Center"/>
+
+                    <!-- ══════════════════════════════════════════════════
+                         우측 패널
+                         ══════════════════════════════════════════════════ -->
+                    <StackPanel Grid.Row="0" Grid.RowSpan="6" Grid.Column="4" Margin="8,4">
+                        <!-- 결과 배지 -->
+                        <Border Width="70" Height="34" CornerRadius="6" BorderThickness="1.5"
+                                HorizontalAlignment="Left">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="#1C2033"/>
+                                    <Setter Property="BorderBrush" Value="#303050"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsNgPath}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                            <Setter Property="Background" Value="#2A1010"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding IsGoodPath}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                            <Setter Property="Background" Value="#102A10"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="{Binding LastRouteText}" FontSize="13" FontWeight="Bold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="#505070"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsNgPath}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IsGoodPath}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Border>
+
+                        <!-- NG 스택 -->
+                        <TextBlock Text="NG STACK" Margin="0,8,0,3"
+                                   Foreground="{StaticResource AccentRedBrush}" FontSize="8" FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Rectangle Width="28" Height="22" Margin="0,0,4,0"
+                                       Stroke="{StaticResource AccentRedBrush}" StrokeThickness="1" RadiusX="2" RadiusY="2"
+                                       Fill="{Binding NgStackSlots[0].IsFilled, Converter={StaticResource NgSlotFill}}"/>
+                            <Rectangle Width="28" Height="22" Margin="0,0,4,0"
+                                       Stroke="{StaticResource AccentRedBrush}" StrokeThickness="1" RadiusX="2" RadiusY="2"
+                                       Fill="{Binding NgStackSlots[1].IsFilled, Converter={StaticResource NgSlotFill}}"/>
+                            <Rectangle Width="28" Height="22"
+                                       Stroke="{StaticResource AccentRedBrush}" StrokeThickness="1" RadiusX="2" RadiusY="2"
+                                       Fill="{Binding NgStackSlots[2].IsFilled, Converter={StaticResource NgSlotFill}}"/>
+                        </StackPanel>
+                        <TextBlock FontFamily="Consolas" FontSize="9" FontWeight="Bold" Margin="0,2,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="#505070"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding NgStackAlarm}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </TextBlock.Style>
+                            <Run Text="{Binding NgStackCount, Mode=OneWay}"/><Run Text="/3"/>
                         </TextBlock>
-                    </Border>
-                </StackPanel>
-                <Rectangle Grid.Column="1" Fill="{StaticResource DividerBrush}" Margin="0,12"/>
 
-                <!-- ── NG 경로 ──────────────────────────────────────── -->
-                <Border Grid.Column="2" Margin="0,10" CornerRadius="8"
-                        Padding="12,8" BorderThickness="1"
-                        Opacity="{Binding IsNgPath, Converter={StaticResource BoolToOpacity}}">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Background" Value="#14151A"/>
-                            <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsNgPath}" Value="True">
-                                    <Setter Property="Background" Value="#1F1010"/>
-                                    <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
+                        <!-- 뒷장비 -->
+                        <Border BorderBrush="#252840" BorderThickness="1" CornerRadius="3"
+                                Background="#0C0E18" Margin="0,8,0,0" Padding="6,4">
+                            <StackPanel>
+                                <TextBlock Text="NEXT EQUIP" Foreground="#404060" FontSize="8" FontWeight="SemiBold"/>
+                                <TextBlock Text="SMEMA ►" Foreground="#303050" FontSize="8" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
 
-                        <!-- NG 경로 헤더 -->
-                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
-                            <Border Background="{StaticResource AccentRedBrush}" CornerRadius="3"
-                                    Padding="6,2" Margin="0,0,8,0" VerticalAlignment="Center">
-                                <TextBlock Text="NG" FontSize="10" FontWeight="Bold" Foreground="White"/>
-                            </Border>
-                            <TextBlock Text="NG ROUTE" FontSize="10" FontWeight="SemiBold"
-                                       Foreground="{StaticResource AccentRedBrush}"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-
-                        <!-- NG 서브 스테이지 + 스택 시각화 -->
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
-
-                            <!-- NG 라우팅 서브 스테이지 칩 -->
-                            <ItemsControl ItemsSource="{Binding NgRoutePath}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal"/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type vm:RouteStageItem}">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border CornerRadius="5" Padding="8,4"
-                                                    Background="{Binding Status, Converter={StaticResource StatusToBg}}"
-                                                    BorderThickness="1"
-                                                    BorderBrush="{Binding Status, Converter={StaticResource StatusToBrush}}">
-                                                <TextBlock Text="{Binding Label}"
-                                                           FontSize="11" FontWeight="SemiBold"
-                                                           Foreground="{Binding Status, Converter={StaticResource StatusToBrush}}"/>
-                                            </Border>
-                                            <TextBlock Text=" &#x203A; " FontSize="14"
-                                                       Foreground="{StaticResource TextMutedBrush}"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!-- NG 스택 시각화 (슬롯 박스) -->
-                            <Border CornerRadius="5" Padding="8,4"
-                                    Background="#1C2033" BorderThickness="1"
-                                    BorderBrush="{StaticResource DividerBrush}"
-                                    VerticalAlignment="Center">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="STACK " FontSize="10" FontWeight="SemiBold"
-                                               Foreground="{StaticResource TextMutedBrush}"
-                                               VerticalAlignment="Center"/>
-
-                                    <!-- 슬롯 박스 -->
-                                    <ItemsControl ItemsSource="{Binding NgStackSlots}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal"/>
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate DataType="{x:Type vm:NgSlotViewModel}">
-                                                <Border Width="24" Height="24" CornerRadius="3" Margin="2,0"
-                                                        BorderThickness="1.5"
-                                                        BorderBrush="{StaticResource AccentRedBrush}"
-                                                        Background="{Binding IsFilled, Converter={StaticResource NgSlotFill}}">
-                                                    <TextBlock VerticalAlignment="Center"
-                                                               HorizontalAlignment="Center"
-                                                               FontSize="10"
-                                                               Visibility="{Binding IsFilled, Converter={StaticResource BoolToVis}}">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Text" Value="&#x25A0;"/>
-                                                                <Setter Property="Foreground" Value="White"/>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-
-                                    <!-- 카운트 텍스트 -->
-                                    <TextBlock Margin="6,0,0,0" VerticalAlignment="Center"
-                                               FontSize="13" FontWeight="Bold" FontFamily="Consolas">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding NgStackAlarm}" Value="True">
-                                                        <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                        <Run Text="{Binding NgStackCount, Mode=OneWay}"/>
-                                        <Run Text=" / "/>
-                                        <Run Text="{Binding NgStackSlots.Count, Mode=OneWay}"/>
-                                    </TextBlock>
-
-                                    <!-- ALARM 배지 -->
-                                    <Border Margin="6,0,0,0"
-                                            Background="{StaticResource AccentRedBrush}"
-                                            CornerRadius="3" Padding="5,2"
-                                            VerticalAlignment="Center"
-                                            Visibility="{Binding NgStackAlarm, Converter={StaticResource BoolToVis}}">
-                                        <TextBlock Text="ALARM" FontSize="9" FontWeight="Bold" Foreground="White"/>
-                                    </Border>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-                <Rectangle Grid.Column="3" Fill="{StaticResource DividerBrush}" Margin="0,12"/>
-
-                <!-- ── GOOD 경로 ─────────────────────────────────────── -->
-                <Border Grid.Column="4" Margin="0,10" CornerRadius="8"
-                        Padding="12,8" BorderThickness="1"
-                        Opacity="{Binding IsGoodPath, Converter={StaticResource BoolToOpacity}}">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Background" Value="#14151A"/>
-                            <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsGoodPath}" Value="True">
-                                    <Setter Property="Background" Value="#10201A"/>
-                                    <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-
-                        <!-- GOOD 경로 헤더 -->
-                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
-                            <Border Background="{StaticResource AccentGreenBrush}" CornerRadius="3"
-                                    Padding="6,2" Margin="0,0,8,0" VerticalAlignment="Center">
-                                <TextBlock Text="GOOD" FontSize="10" FontWeight="Bold" Foreground="White"/>
-                            </Border>
-                            <TextBlock Text="GOOD ROUTE" FontSize="10" FontWeight="SemiBold"
-                                       Foreground="{StaticResource AccentGreenBrush}"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-
-                        <!-- GOOD 서브 스테이지 칩 -->
-                        <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
-
-                            <ItemsControl ItemsSource="{Binding GoodRoutePath}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <StackPanel Orientation="Horizontal"/>
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type vm:RouteStageItem}">
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Border CornerRadius="5" Padding="8,4"
-                                                    Background="{Binding Status, Converter={StaticResource StatusToBg}}"
-                                                    BorderThickness="1"
-                                                    BorderBrush="{Binding Status, Converter={StaticResource StatusToBrush}}">
-                                                <TextBlock Text="{Binding Label}"
-                                                           FontSize="11" FontWeight="SemiBold"
-                                                           Foreground="{Binding Status, Converter={StaticResource StatusToBrush}}"/>
-                                            </Border>
-                                            <TextBlock Text=" &#x203A; " FontSize="14"
-                                                       Foreground="{StaticResource TextMutedBrush}"
-                                                       VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-
-                            <!-- OUT 인디케이터 -->
-                            <Border CornerRadius="5" Padding="8,4"
-                                    VerticalAlignment="Center"
-                                    BorderThickness="1">
-                                <Border.Style>
-                                    <Style TargetType="Border">
-                                        <Setter Property="Background" Value="#1C2033"/>
-                                        <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsGoodPath}" Value="True">
-                                                <Setter Property="Background" Value="#10201A"/>
-                                                <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <TextBlock Text="&#x25BA;&#x25BA; OUT"
-                                           FontSize="12" FontWeight="Bold">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsGoodPath}" Value="True">
-                                                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </Border>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-            </Grid>
+                        <!-- 범례 -->
+                        <TextBlock FontSize="7" Foreground="#303050" Margin="0,8,0,0">
+                            <Run Text="╠═══╗ Gantry frame"/><LineBreak/>
+                            <Run Text="─── X bridge rail"/><LineBreak/>
+                            <Run Text="● HEAD = XY pos"/><LineBreak/>
+                            <Run Text="● SIZE = Z depth"/><LineBreak/>
+                            <Run Text="▶◀ Align pushers"/><LineBreak/>
+                            <Run Text="█ STP  ▲ LIFT"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Grid>
+            </Border>
         </Border>
 
         <!-- ════════════════════════════════════════════════════════
-             Row 3: 축 위치 + 볼트 진행
+             Row 3: 제어 버튼
              ════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="3"
-                Background="{StaticResource PanelBgBrush}"
-                BorderThickness="0,0,0,1"
-                BorderBrush="{StaticResource DividerBrush}">
-            <Grid Margin="24,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="1"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="1"/>
-                    <ColumnDefinition Width="180"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- Transfer 축 -->
-                <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                    <TextBlock Text="TRANSFER AXIS" Margin="0,0,0,4"
-                               FontSize="10" FontWeight="SemiBold"
-                               Foreground="{StaticResource TextMutedBrush}"/>
-                    <TextBlock Text="{Binding TransferPos}"
-                               FontFamily="Consolas" FontSize="13"
-                               Foreground="{StaticResource AccentBlueBrush}"/>
-                </StackPanel>
-                <Rectangle Grid.Column="1" Fill="{StaticResource DividerBrush}" Margin="0,12"/>
-
-                <!-- Fiducial 축 -->
-                <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="20,0,0,0">
-                    <TextBlock Text="FIDUCIAL / BOLT AXIS" Margin="0,0,0,4"
-                               FontSize="10" FontWeight="SemiBold"
-                               Foreground="{StaticResource TextMutedBrush}"/>
-                    <TextBlock Text="{Binding FiducialPos}"
-                               FontFamily="Consolas" FontSize="13"
-                               Foreground="{StaticResource AccentCyanBrush}"/>
-                </StackPanel>
-                <Rectangle Grid.Column="3" Fill="{StaticResource DividerBrush}" Margin="0,12"/>
-
-                <!-- 볼트 진행 -->
-                <StackPanel Grid.Column="4" VerticalAlignment="Center" Margin="16,0">
-                    <TextBlock Text="BOLT PROGRESS" Margin="0,0,0,4"
-                               FontSize="10" FontWeight="SemiBold"
-                               Foreground="{StaticResource TextMutedBrush}"/>
-                    <TextBlock Text="{Binding BoltProgress}"
-                               FontFamily="Consolas" FontSize="14" FontWeight="Bold"
-                               Foreground="{StaticResource AccentOrangeBrush}"/>
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <!-- ════════════════════════════════════════════════════════
-             Row 4: 제어 버튼
-             ════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="4"
-                Background="{StaticResource PanelBgBrush}"
-                BorderThickness="0,0,0,1"
-                BorderBrush="{StaticResource DividerBrush}">
+        <Border Grid.Row="3" Background="{StaticResource PanelBgBrush}"
+                BorderThickness="0,0,0,1" BorderBrush="{StaticResource DividerBrush}">
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="24,0">
-
-                <!-- 업스트림 라인 도착 상태 표시 -->
                 <Border VerticalAlignment="Center" Background="{StaticResource CardBgBrush}"
                         BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
-                        CornerRadius="6" Padding="10,5" Margin="0,0,16,0">
+                        CornerRadius="6" Padding="10,3" Margin="0,0,16,0">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="INPUT  " VerticalAlignment="Center"
-                                   Foreground="{StaticResource TextMutedBrush}" FontSize="10" FontWeight="SemiBold"/>
-
-                        <!-- Line 1 인디케이터 -->
-                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,0,4,0">
-                            <Ellipse.Style>
-                                <Style TargetType="Ellipse">
-                                    <Setter Property="Fill" Value="{StaticResource TextMutedBrush}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsLine1Ready}" Value="True">
-                                            <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Ellipse.Style>
-                        </Ellipse>
-                        <TextBlock Text="L1" VerticalAlignment="Center" FontSize="11" Margin="0,0,10,0"
-                                   Foreground="{StaticResource TextSecondaryBrush}"/>
-
-                        <!-- Line 2 인디케이터 -->
-                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,0,4,0">
-                            <Ellipse.Style>
-                                <Style TargetType="Ellipse">
-                                    <Setter Property="Fill" Value="{StaticResource TextMutedBrush}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsLine2Ready}" Value="True">
-                                            <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Ellipse.Style>
-                        </Ellipse>
-                        <TextBlock Text="L2" VerticalAlignment="Center" FontSize="11"
-                                   Foreground="{StaticResource TextSecondaryBrush}"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- 목표 토크 -->
-                <Border VerticalAlignment="Center" Background="{StaticResource CardBgBrush}"
-                        BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
-                        CornerRadius="6" Padding="10,4" Margin="0,0,16,0">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="기본 토크: " VerticalAlignment="Center"
-                                   Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+                        <TextBlock Text="토크: " VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
                         <TextBox Text="{Binding TargetTorque, StringFormat='{}{0:F1}', UpdateSourceTrigger=LostFocus}"
-                                 VerticalAlignment="Center" FontSize="12"
-                                 MinWidth="55" TextAlignment="Right"/>
-                        <TextBlock Text=" Nm" VerticalAlignment="Center"
-                                   Foreground="{StaticResource TextMutedBrush}" FontSize="12"/>
+                                 VerticalAlignment="Center" FontSize="11" MinWidth="45" TextAlignment="Right"/>
+                        <TextBlock Text=" Nm" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
                     </StackPanel>
                 </Border>
-
-                <Button Content="&#x25BA;  시작"
-                        Command="{Binding StartCommand}"
-                        Style="{StaticResource PrimaryButtonStyle}"
-                        MinWidth="100" Margin="0,0,8,0"/>
-
-                <Button Content="&#x25A0;  정지"
-                        Command="{Binding StopCommand}"
-                        Style="{StaticResource SecondaryButtonStyle}"
-                        MinWidth="100" Margin="0,0,8,0"/>
-
-                <Button Content="&#x26A0;  E-STOP"
-                        Command="{Binding EStopCommand}"
-                        Style="{StaticResource DangerButtonStyle}"
-                        MinWidth="120" Margin="0,0,16,0"/>
-
-                <!-- NG 리셋 (알람 시만 표시) -->
-                <Button Content="NG 리셋"
-                        Command="{Binding ResetNgStackCommand}"
-                        Style="{StaticResource SecondaryButtonStyle}"
-                        MinWidth="80"
+                <Button Content="&#x25BA; 시작" Command="{Binding StartCommand}" Style="{StaticResource PrimaryButtonStyle}" MinWidth="90" Margin="0,0,6,0"/>
+                <Button Content="&#x25A0; 정지" Command="{Binding StopCommand}" Style="{StaticResource SecondaryButtonStyle}" MinWidth="90" Margin="0,0,6,0"/>
+                <Button Content="&#x26A0; E-STOP" Command="{Binding EStopCommand}" Style="{StaticResource DangerButtonStyle}" MinWidth="110" Margin="0,0,12,0"/>
+                <Button Content="NG 리셋" Command="{Binding ResetNgStackCommand}" Style="{StaticResource SecondaryButtonStyle}" MinWidth="70"
                         Visibility="{Binding NgStackAlarm, Converter={StaticResource BoolToVis}}"/>
             </StackPanel>
         </Border>
-
-        <!-- ════════════════════════════════════════════════════════
-             Row 5: 이벤트 로그
-             ════════════════════════════════════════════════════════ -->
-        <Grid Grid.Row="5">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="28"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-
-            <Border Grid.Row="0"
-                    Background="{StaticResource PanelBgBrush}"
-                    BorderThickness="0,0,0,1"
-                    BorderBrush="{StaticResource DividerBrush}"
-                    Padding="24,0">
-                <TextBlock Text="EVENT LOG" VerticalAlignment="Center"
-                           FontSize="10" FontWeight="SemiBold"
-                           Foreground="{StaticResource TextMutedBrush}"/>
-            </Border>
-
-            <ListBox Grid.Row="1"
-                     ItemsSource="{Binding Logs}"
-                     Style="{StaticResource LogListBoxStyle}"
-                     ItemContainerStyle="{StaticResource LogListBoxItemStyle}"
-                     Padding="8,4">
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="95"/>
-                                <ColumnDefinition Width="145"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0"
-                                       Text="{Binding FormattedTime}"
-                                       FontFamily="Consolas" FontSize="11"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="1"
-                                       Text="{Binding Stage}"
-                                       FontFamily="Consolas" FontSize="11"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis"/>
-                            <TextBlock Grid.Column="2"
-                                       Text="{Binding Message}"
-                                       FontSize="12"
-                                       Foreground="{Binding Level, Converter={StaticResource LogLevelToBrush}}"
-                                       VerticalAlignment="Center"/>
-                        </Grid>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-        </Grid>
-
     </Grid>
 </UserControl>

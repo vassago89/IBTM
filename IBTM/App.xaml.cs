@@ -24,17 +24,15 @@ public partial class App : Application
 
     private static void ConfigureServices(IServiceCollection services)
     {
-        // ── 디바이스 서비스 ──────────────────────────────────────────────────
-        // Transfer 3축 (라인 선택 + PCB 이송)
-        services.AddKeyedSingleton<IMotionService, VirtualMotionService>("transfer");
-        // Fiducial 3축 (마크 검출 + 위치 보정)
-        services.AddKeyedSingleton<IMotionService, VirtualMotionService>("fiducial");
-        // IO 서비스 (컨베이어, 그리퍼 등 - IO 확정 후 AjinIOService로 교체)
+        // ── 디바이스 서비스 (구간별 3축 모션) ────────────────────────────────
+        services.AddKeyedSingleton<IMotionService, VirtualMotionService>("zone1"); // 구간1: 픽업 XYZ
+        services.AddKeyedSingleton<IMotionService, VirtualMotionService>("zone2"); // 구간2: 볼트 체결 XYZ
+        services.AddKeyedSingleton<IMotionService, VirtualMotionService>("zone3"); // 구간3: 검사 XYZ
+        // IO 서비스 (컨베이어, 스토퍼, 얼라인, 리프트, 그리퍼 등)
         services.AddSingleton<IIOService, VirtualOService>();
 
         // ── 애플리케이션 서비스 ──────────────────────────────────────────────
         services.AddSingleton<IFiducialService, FiducialService>();
-        // 볼트 체결기 (프로토콜 확정 후 실구현으로 교체)
         services.AddSingleton<IBoltService, StubBoltService>();
         services.AddSingleton<ProcessOrchestrator>();
 

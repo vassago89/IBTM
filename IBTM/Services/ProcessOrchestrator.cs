@@ -18,68 +18,61 @@ public class BoltProgressEventArgs(int current, int total, string boltName) : Ev
 }
 
 /// <summary>
-/// SMT Inline 볼트 체결 설비 공정 오케스트레이터
+/// 3구간 파이프라인 오케스트레이터
 ///
-/// 파이프라인 구조 (2번째 사이클부터):
-///   [Bolt Station]  FiducialBolt → [BoltTighten→VisionInspect]×N → FinalInspect ─▶ Route
-///        ⟋ 병렬 ⟋
-///   [Transfer]      LineArrival → FiducialPick → PickAndTransfer → ConveyorToBolt (다음 PCB)
+///   구간1 (zone1Motion): 앞장비 셔틀에서 PCB 2개 픽업 → 우리 셔틀에 배치
+///   구간2 (zone2Motion): 볼트 체결 (Fiducial 보정 → N회 체결)
+///   구간3 (zone3Motion): 카메라 검사 → NG 적재 / Good SMEMA 배출
 ///
-/// 병렬 가능 이유:
-///   - BoltTighten  : _fiducialMotion 사용
-///   - PickAndTransfer : _transferMotion 사용 → 충돌 없음
-///   - FiducialForPick : _fiducialMotion 사용 → BoltTighten 완료 후 순차 실행
+///   각 구간은 독립 XYZ 모션축을 가지며, 셔틀은 공용 컨베이어로 이동.
+///   셔틀이 구간에 도착하면 스토퍼 → 얼라인 → 리프트 업 → 작업 → 리프트 다운 → 스토퍼 해제.
+///   3구간 동시 동작 (각각 다른 셔틀 대상).
 /// </summary>
 public class ProcessOrchestrator
 {
-    private readonly IMotionService _transferMotion;   // PCB 픽업/배치/NG 적재
-    private readonly IMotionService _fiducialMotion;   // 카메라 + 볼트 체결 위치
+    private readonly IMotionService _zone1Motion;   // 구간1: 픽업 XYZ
+    private readonly IMotionService _zone2Motion;   // 구간2: 볼트 체결 XYZ
+    private readonly IMotionService _zone3Motion;   // 구간3: 검사 XYZ
     private readonly IIOService _ioService;
     private readonly IFiducialService _fiducialService;
     private readonly IBoltService _boltService;
 
     private CancellationTokenSource? _cts;
-    private ProcessStage _currentStage = ProcessStage.Idle;
 
     // ── 이벤트 ──────────────────────────────────────────────────────────────
     public event EventHandler<StageChangedEventArgs>? StageChanged;
     public event EventHandler<LogEntry>? LogAdded;
     public event EventHandler<ProductionStats>? StatsUpdated;
-    public event EventHandler<(double X, double Y, double Z)>? TransferPositionChanged;
-    public event EventHandler<(double X, double Y, double Z)>? FiducialPositionChanged;
+    public event EventHandler<(double X, double Y, double Z)>? Zone1PositionChanged;
+    public event EventHandler<(double X, double Y, double Z)>? Zone2PositionChanged;
+    public event EventHandler<(double X, double Y, double Z)>? Zone3PositionChanged;
     public event EventHandler<FiducialResult>? FiducialDetected;
     public event EventHandler<BoltResult>? BoltCompleted;
     public event EventHandler<BoltProgressEventArgs>? BoltProgress;
     public event EventHandler<InspectionResult>? InspectionDone;
-    public event EventHandler<InspectionResult>? RouteDecided;  // NG/Good 분기 결정
-    public event EventHandler<int>? NgStackUpdated;             // NG 적재 수 변경
-    public event EventHandler<int>? NgStackAlarm;               // NG 적재 수량 알람
-    public event EventHandler<bool>? Line1SensorChanged;        // Line 1 도착 센서
-    public event EventHandler<bool>? Line2SensorChanged;        // Line 2 도착 센서
+    public event EventHandler<InspectionResult>? RouteDecided;
+    public event EventHandler<int>? NgStackUpdated;
+    public event EventHandler<int>? NgStackAlarm;
 
     // ── 상태 ────────────────────────────────────────────────────────────────
-    public ProcessStage CurrentStage => _currentStage;
     public bool IsRunning => _cts is { IsCancellationRequested: false };
     public ProductionStats Stats { get; } = new();
     public int NgStackCount { get; private set; }
-    public InspectionResult LastRoute { get; private set; } = InspectionResult.Unknown;
 
     // ── 설정 ────────────────────────────────────────────────────────────────
-    /// <summary>
-    /// 업스트림에 2개 라인이 있으며, 두 라인 모두 PCB 도착 확인 후
-    /// Line 1의 PCB를 방열판 위로 Transfer.
-    /// </summary>
     public Recipe CurrentRecipe { get; set; } = new();
 
     public ProcessOrchestrator(
-        [FromKeyedServices("transfer")] IMotionService transferMotion,
-        [FromKeyedServices("fiducial")] IMotionService fiducialMotion,
+        [FromKeyedServices("zone1")] IMotionService zone1Motion,
+        [FromKeyedServices("zone2")] IMotionService zone2Motion,
+        [FromKeyedServices("zone3")] IMotionService zone3Motion,
         IIOService ioService,
         IFiducialService fiducialService,
         IBoltService boltService)
     {
-        _transferMotion = transferMotion;
-        _fiducialMotion = fiducialMotion;
+        _zone1Motion = zone1Motion;
+        _zone2Motion = zone2Motion;
+        _zone3Motion = zone3Motion;
         _ioService = ioService;
         _fiducialService = fiducialService;
         _boltService = boltService;
@@ -88,10 +81,12 @@ public class ProcessOrchestrator
 
     private void HardwareInit()
     {
-        _transferMotion.Initialize(0, 1, 2);
-        _transferMotion.On();
-        _fiducialMotion.Initialize(3, 4, 5);
-        _fiducialMotion.On();
+        _zone1Motion.Initialize(0, 1, 2);
+        _zone1Motion.On();
+        _zone2Motion.Initialize(3, 4, 5);
+        _zone2Motion.On();
+        _zone3Motion.Initialize(6, 7, 8);
+        _zone3Motion.On();
         _ioService.Initiliaze();
         Stats.StartTime = DateTime.Now;
     }
@@ -103,7 +98,7 @@ public class ProcessOrchestrator
         _cts = new CancellationTokenSource();
         AddLog("공정 시작", ProcessStage.Idle);
 
-        try { await RunProcessLoopAsync(_cts.Token); }
+        try { await RunPipelineAsync(_cts.Token); }
         catch (OperationCanceledException)
         {
             AddLog("공정 중지됨", ProcessStage.Idle);
@@ -119,16 +114,18 @@ public class ProcessOrchestrator
     public void Stop()
     {
         _cts?.Cancel();
-        _transferMotion.Stop();
-        _fiducialMotion.Stop();
+        _zone1Motion.Stop();
+        _zone2Motion.Stop();
+        _zone3Motion.Stop();
         AddLog("정지 요청", ProcessStage.Idle, LogLevel.Warning);
     }
 
     public void EStop()
     {
         _cts?.Cancel();
-        _transferMotion.EStop();
-        _fiducialMotion.EStop();
+        _zone1Motion.EStop();
+        _zone2Motion.EStop();
+        _zone3Motion.EStop();
         _ioService.Off();
         AddLog("비상 정지 (E-STOP)!", ProcessStage.Idle, LogLevel.Error);
         Transition(ProcessStage.Idle, StageStatus.Error);
@@ -141,239 +138,373 @@ public class ProcessOrchestrator
         AddLog("NG 적재 카운트 초기화", ProcessStage.Idle);
     }
 
-    // ── 메인 공정 루프 (파이프라인) ──────────────────────────────────────────
-    private async Task RunProcessLoopAsync(CancellationToken ct)
+    // ── 메인 파이프라인 ──────────────────────────────────────────────────────
+    /// <summary>
+    /// 3구간 병렬 파이프라인.
+    /// 각 구간은 독립 루프를 돌며 셔틀이 도착하면 작업 수행.
+    /// </summary>
+    private async Task RunPipelineAsync(CancellationToken ct)
     {
-        // 부트스트랩: 첫 PCB를 볼트 스테이션까지 이송
-        var currentPickFiducial = await DoPickupPhaseAsync(ct);
+        var zone1Task = RunZone1LoopAsync(ct);
+        var zone2Task = RunZone2LoopAsync(ct);
+        var zone3Task = RunZone3LoopAsync(ct);
 
+        await Task.WhenAll(zone1Task, zone2Task, zone3Task);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 구간 1: 픽업
+    // ══════════════════════════════════════════════════════════════════════════
+    private async Task RunZone1LoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            // 셔틀 도착 + 앞장비 뒤쪽 레인 센서 대기
+            await DoStageAsync(ProcessStage.Zone1_WaitShuttle, ct, async () =>
+            {
+                AddLog("[구간1] 셔틀 도착 + 앞장비 레인 센서 대기", ProcessStage.Zone1_WaitShuttle);
+                await WaitForSensorAsync(IoMap.Zone1_Sensor, ct);
+                await WaitForSensorAsync(IoMap.PrevRearLaneSensor, ct);
+                AddLog("[구간1] 셔틀 + 앞장비 준비 확인", ProcessStage.Zone1_WaitShuttle);
+            });
+
+            // 스토퍼 → 얼라인 → 리프트 업
+            await DoStageAsync(ProcessStage.Zone1_StopAlignLift, ct, async () =>
+            {
+                AddLog("[구간1] 스토퍼 → 얼라인 → 리프트 업", ProcessStage.Zone1_StopAlignLift);
+                await StopAlignLiftAsync(IoMap.Zone1_Stopper, IoMap.Zone1_Align, IoMap.Zone1_Lift, ct);
+            });
+
+            // PCB 2개 픽업 → 배치
+            await DoStageAsync(ProcessStage.Zone1_PickPlace, ct, async () =>
+            {
+                AddLog("[구간1] PCB 1번 픽업", ProcessStage.Zone1_PickPlace);
+                await PickAndPlaceAsync(
+                    _zone1Motion, CurrentRecipe.Zone1_PickPos1, CurrentRecipe.Zone1_PlacePos1,
+                    IoMap.Zone1_Gripper, 1, ct);
+
+                AddLog("[구간1] PCB 2번 픽업", ProcessStage.Zone1_PickPlace);
+                await PickAndPlaceAsync(
+                    _zone1Motion, CurrentRecipe.Zone1_PickPos2, CurrentRecipe.Zone1_PlacePos2,
+                    IoMap.Zone1_Gripper, 1, ct);
+
+                AddLog("[구간1] PCB 2개 배치 완료", ProcessStage.Zone1_PickPlace);
+            });
+
+            // 리프트 다운 → 스토퍼 해제
+            await DoStageAsync(ProcessStage.Zone1_Release, ct, async () =>
+            {
+                AddLog("[구간1] 리프트 다운 → 스토퍼 해제", ProcessStage.Zone1_Release);
+                await ReleaseAsync(IoMap.Zone1_Stopper, IoMap.Zone1_Align, IoMap.Zone1_Lift, ct);
+            });
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 구간 2: 볼트 체결
+    // ══════════════════════════════════════════════════════════════════════════
+    private async Task RunZone2LoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            // 셔틀 도착 대기
+            await DoStageAsync(ProcessStage.Zone2_WaitShuttle, ct, async () =>
+            {
+                AddLog("[구간2] 셔틀 도착 대기", ProcessStage.Zone2_WaitShuttle);
+                await WaitForSensorAsync(IoMap.Zone2_Sensor, ct);
+                AddLog("[구간2] 셔틀 도착 확인", ProcessStage.Zone2_WaitShuttle);
+            });
+
+            // 스토퍼 → 얼라인 → 리프트 업
+            await DoStageAsync(ProcessStage.Zone2_StopAlignLift, ct, async () =>
+            {
+                AddLog("[구간2] 스토퍼 → 얼라인 → 리프트 업", ProcessStage.Zone2_StopAlignLift);
+                await StopAlignLiftAsync(IoMap.Zone2_Stopper, IoMap.Zone2_Align, IoMap.Zone2_Lift, ct);
+            });
+
+            // Fiducial 검출
+            FiducialResult? fiducial = null;
+            await DoStageAsync(ProcessStage.Zone2_Fiducial, ct, async () =>
+            {
+                AddLog("[구간2] Fiducial 검출", ProcessStage.Zone2_Fiducial);
+                var pos = CurrentRecipe.Zone2_FiducialPos;
+                await _zone2Motion.MoveXY(pos.X, pos.Y, 100.0);
+                FireZonePos(2);
+                await _zone2Motion.MoveZ(pos.Z, 60.0);
+                ct.ThrowIfCancellationRequested();
+                FireZonePos(2);
+
+                fiducial = await _fiducialService.DetectFromCameraAsync(ct);
+                FiducialDetected?.Invoke(this, fiducial);
+
+                if (fiducial.Found)
+                    AddLog($"[구간2] Fiducial  dX:{fiducial.OffsetX:+0.000;-0.000}  dY:{fiducial.OffsetY:+0.000;-0.000}  ({fiducial.Confidence:P0})", ProcessStage.Zone2_Fiducial);
+                else
+                    AddLog("[구간2] Fiducial 검출 실패", ProcessStage.Zone2_Fiducial, LogLevel.Warning);
+            });
+
+            // 볼트 체결 반복
+            await DoStageAsync(ProcessStage.Zone2_BoltTighten, ct, async () =>
+            {
+                var boltPoints = CurrentRecipe.BoltPoints;
+                for (int i = 0; i < boltPoints.Count; i++)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var bp = boltPoints[i];
+
+                    BoltProgress?.Invoke(this, new BoltProgressEventArgs(i + 1, boltPoints.Count, bp.Name));
+                    AddLog($"[구간2] 볼트 {i + 1}/{boltPoints.Count} [{bp.Name}] 이동", ProcessStage.Zone2_BoltTighten);
+
+                    double corrX = bp.X + (fiducial?.OffsetX ?? 0);
+                    double corrY = bp.Y + (fiducial?.OffsetY ?? 0);
+
+                    await _zone2Motion.MoveXY(corrX, corrY, 80.0);
+                    FireZonePos(2);
+                    await _zone2Motion.MoveZ(bp.Z, 50.0);
+                    ct.ThrowIfCancellationRequested();
+                    FireZonePos(2);
+
+                    AddLog($"[구간2] [{bp.Name}] Shooting", ProcessStage.Zone2_BoltTighten);
+                    await _boltService.ShootAsync(ct);
+
+                    AddLog($"[구간2] [{bp.Name}] Tightening  목표: {bp.TargetTorqueNm:F1} Nm", ProcessStage.Zone2_BoltTighten);
+                    var boltResult = await _boltService.TightenAsync(bp.TargetTorqueNm, ct);
+                    BoltCompleted?.Invoke(this, boltResult);
+
+                    var lvl = boltResult.Success ? LogLevel.Info : LogLevel.Warning;
+                    AddLog($"[구간2] [{bp.Name}] 체결 완료  실측: {boltResult.Torque:F2} Nm  [{boltResult.Message}]",
+                        ProcessStage.Zone2_BoltTighten, lvl);
+
+                    await _zone2Motion.MoveZ(0, 80.0);
+                    FireZonePos(2);
+                }
+
+                AddLog("[구간2] 전체 볼트 체결 완료", ProcessStage.Zone2_BoltTighten);
+            });
+
+            // 리프트 다운 → 스토퍼 해제
+            await DoStageAsync(ProcessStage.Zone2_Release, ct, async () =>
+            {
+                AddLog("[구간2] 리프트 다운 → 스토퍼 해제", ProcessStage.Zone2_Release);
+                await ReleaseAsync(IoMap.Zone2_Stopper, IoMap.Zone2_Align, IoMap.Zone2_Lift, ct);
+            });
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // 구간 3: 검사
+    // ══════════════════════════════════════════════════════════════════════════
+    private async Task RunZone3LoopAsync(CancellationToken ct)
+    {
         while (!ct.IsCancellationRequested)
         {
             var cycleStart = DateTime.Now;
-            var boltResults = new List<BoltStepResult>();
 
-            // ── 병렬 실행 ────────────────────────────────────────────────────
-            // A) 볼트 스테이션 (fiducialMotion): FiducialBolt → [Tighten→Vision]×N → FinalInspect
-            // B) 다음 PCB 이송 (transferMotion): LineArrival → FiducialPick → PickTransfer → Conveyor
-            //
-            // 주의: FiducialForPick도 fiducialMotion을 사용하므로 가상 환경에서는 협력적으로 동작.
-            //       실 하드웨어에서는 BoltTighten 완료 후 FiducialForPick이 실행되도록 축 잠금 필요.
-            var boltTask    = DoBoltStationPhaseAsync(boltResults, ct);
-            var pickupTask  = DoPickupPhaseAsync(ct);
-
-            await Task.WhenAll(boltTask, pickupTask);
-            ct.ThrowIfCancellationRequested();
-
-            var finalResult = boltTask.Result;
-            currentPickFiducial = pickupTask.Result;
-
-            // ── 라우팅 ───────────────────────────────────────────────────────
-            LastRoute = finalResult;
-            RouteDecided?.Invoke(this, finalResult);
-
-            await DoRoutePhaseAsync(finalResult, boltResults, cycleStart, ct);
-        }
-    }
-
-    // ── Step 1~4: Transfer 픽업 페이즈 ──────────────────────────────────────
-    private async Task<FiducialResult?> DoPickupPhaseAsync(CancellationToken ct)
-    {
-        FiducialResult? pickFiducial = null;
-
-        await DoStageAsync(ProcessStage.LineArrivalCheck, ct, async () =>
-        {
-            AddLog("Line 1 / Line 2 PCB 도착 대기...", ProcessStage.LineArrivalCheck);
-            await WaitLineArrivalAsync(ct);
-            AddLog("Line 1 + Line 2 도착 확인 → Transfer 시작", ProcessStage.LineArrivalCheck);
-        });
-
-        await DoStageAsync(ProcessStage.FiducialForPick, ct, async () =>
-        {
-            AddLog("픽업용 Fiducial 검출 (X,Y,Z 이동)", ProcessStage.FiducialForPick);
-            pickFiducial = await FiducialCheckAsync(CurrentRecipe.FiducialForPickPos, ct);
-            FiducialDetected?.Invoke(this, pickFiducial);
-            if (pickFiducial.Found)
-                AddLog($"픽업 Fiducial  dX:{pickFiducial.OffsetX:+0.000;-0.000}  dY:{pickFiducial.OffsetY:+0.000;-0.000}  ({pickFiducial.Confidence:P0})", ProcessStage.FiducialForPick);
-            else
-                AddLog("픽업 Fiducial 검출 실패", ProcessStage.FiducialForPick, LogLevel.Warning);
-        });
-
-        await DoStageAsync(ProcessStage.PickAndTransfer, ct, async () =>
-        {
-            AddLog("Line 1 PCB 픽업 (보정 좌표 적용, X,Y,Z)", ProcessStage.PickAndTransfer);
-            await PickAndTransferAsync(pickFiducial, ct);
-            AddLog("우리 라인 방열판 위 PCB 배치 완료", ProcessStage.PickAndTransfer);
-        });
-
-        await DoStageAsync(ProcessStage.ConveyorToBoltStation, ct, async () =>
-        {
-            AddLog("컨베이어 구동 → 볼트 체결 스테이션", ProcessStage.ConveyorToBoltStation);
-            await ConveyorMoveAsync(ct);
-            AddLog("볼트 체결 스테이션 도달", ProcessStage.ConveyorToBoltStation);
-        });
-
-        return pickFiducial;
-    }
-
-    // ── Step 5~8: 볼트 스테이션 페이즈 ─────────────────────────────────────
-    private async Task<InspectionResult> DoBoltStationPhaseAsync(
-        List<BoltStepResult> boltResults, CancellationToken ct)
-    {
-        FiducialResult? boltFiducial = null;
-
-        await DoStageAsync(ProcessStage.FiducialForBolt, ct, async () =>
-        {
-            AddLog("볼트용 Fiducial 검출 (X,Y,Z 이동)", ProcessStage.FiducialForBolt);
-            boltFiducial = await FiducialCheckAsync(CurrentRecipe.FiducialForBoltPos, ct);
-            FiducialDetected?.Invoke(this, boltFiducial);
-            if (boltFiducial.Found)
-                AddLog($"볼트 Fiducial  dX:{boltFiducial.OffsetX:+0.000;-0.000}  dY:{boltFiducial.OffsetY:+0.000;-0.000}  ({boltFiducial.Confidence:P0})", ProcessStage.FiducialForBolt);
-            else
-                AddLog("볼트 Fiducial 검출 실패", ProcessStage.FiducialForBolt, LogLevel.Warning);
-        });
-
-        // ── [볼트 체결 → 비전 검사] 반복 ──────────────────────────────────
-        var boltPoints = CurrentRecipe.BoltPoints;
-        for (int i = 0; i < boltPoints.Count; i++)
-        {
-            ct.ThrowIfCancellationRequested();
-            var bp = boltPoints[i];
-            BoltResult? boltResult = null;
-            bool visionOk = false;
-
-            await DoStageAsync(ProcessStage.BoltTighten, ct, async () =>
+            // 셔틀 도착 대기
+            await DoStageAsync(ProcessStage.Zone3_WaitShuttle, ct, async () =>
             {
-                BoltProgress?.Invoke(this, new BoltProgressEventArgs(i + 1, boltPoints.Count, bp.Name));
-                AddLog($"[볼트 {i + 1}/{boltPoints.Count}  {bp.Name}]  보정 위치로 X,Y,Z 이동", ProcessStage.BoltTighten);
+                AddLog("[구간3] 셔틀 도착 대기", ProcessStage.Zone3_WaitShuttle);
+                await WaitForSensorAsync(IoMap.Zone3_Sensor, ct);
+                AddLog("[구간3] 셔틀 도착 확인", ProcessStage.Zone3_WaitShuttle);
+            });
 
-                double corrX = bp.X + (boltFiducial?.OffsetX ?? 0);
-                double corrY = bp.Y + (boltFiducial?.OffsetY ?? 0);
+            // 스토퍼 → 얼라인 → 리프트 업
+            await DoStageAsync(ProcessStage.Zone3_StopAlignLift, ct, async () =>
+            {
+                AddLog("[구간3] 스토퍼 → 얼라인 → 리프트 업", ProcessStage.Zone3_StopAlignLift);
+                await StopAlignLiftAsync(IoMap.Zone3_Stopper, IoMap.Zone3_Align, IoMap.Zone3_Lift, ct);
+            });
 
-                await _fiducialMotion.MoveXY(corrX, corrY, 80.0);
-                await _fiducialMotion.MoveZ(bp.Z, 50.0);
+            // 카메라 검사
+            InspectionResult inspectResult = InspectionResult.Unknown;
+            await DoStageAsync(ProcessStage.Zone3_Inspect, ct, async () =>
+            {
+                AddLog("[구간3] 카메라 검사 시작 (볼트 유무)", ProcessStage.Zone3_Inspect);
+                var pos = CurrentRecipe.Zone3_InspectPos;
+                await _zone3Motion.MoveXY(pos.X, pos.Y, 100.0);
+                FireZonePos(3);
+                await _zone3Motion.MoveZ(pos.Z, 60.0);
                 ct.ThrowIfCancellationRequested();
-                FireFiducialPos();
+                FireZonePos(3);
 
-                AddLog($"[{bp.Name}]  Shooting", ProcessStage.BoltTighten);
-                await _boltService.ShootAsync(ct);
+                inspectResult = await VisionInspectAsync(ct);
+                InspectionDone?.Invoke(this, inspectResult);
+                RouteDecided?.Invoke(this, inspectResult);
 
-                AddLog($"[{bp.Name}]  Tightening  목표: {bp.TargetTorqueNm:F1} Nm", ProcessStage.BoltTighten);
-                boltResult = await _boltService.TightenAsync(bp.TargetTorqueNm, ct);
-                BoltCompleted?.Invoke(this, boltResult);
-
-                var lvl = boltResult.Success ? LogLevel.Info : LogLevel.Warning;
-                AddLog($"[{bp.Name}]  체결 완료  실측: {boltResult.Torque:F2} Nm  [{boltResult.Message}]",
-                    ProcessStage.BoltTighten, lvl);
+                var lvl = inspectResult == InspectionResult.Good ? LogLevel.Info : LogLevel.Warning;
+                var text = inspectResult == InspectionResult.Good ? "▶ GOOD ◀" : "▶  NG  ◀";
+                AddLog($"[구간3] 검사 결과: {text}", ProcessStage.Zone3_Inspect, lvl);
             });
 
-            await DoStageAsync(ProcessStage.BoltVisionInspect, ct, async () =>
+            // NG / Good 분기
+            if (inspectResult != InspectionResult.Good)
             {
-                AddLog($"[{bp.Name}]  체결 위치 비전 검사", ProcessStage.BoltVisionInspect);
-                visionOk = await BoltVisionInspectAsync(ct);
-                var lvl = visionOk ? LogLevel.Info : LogLevel.Warning;
-                AddLog($"[{bp.Name}]  비전 검사: {(visionOk ? "OK" : "NG")}", ProcessStage.BoltVisionInspect, lvl);
-            });
+                // NG → 뒤쪽 적재
+                await DoStageAsync(ProcessStage.Zone3_NgTransfer, ct, async () =>
+                {
+                    AddLog("[구간3] NG → 뒤쪽 적재", ProcessStage.Zone3_NgTransfer);
 
-            boltResults.Add(new BoltStepResult
+                    // 그리퍼로 PCB 픽업 → NG 적재 위치로 이동
+                    _ioService.Set(IoMap.Zone3_Gripper, true);
+                    await Task.Delay(200, ct);
+
+                    await _zone3Motion.MoveZ(0, 80.0);
+                    FireZonePos(3);
+                    await _zone3Motion.MoveY(CurrentRecipe.Zone3_NgStackY, 80.0);
+                    FireZonePos(3);
+                    await _zone3Motion.MoveZ(CurrentRecipe.Zone3_NgStackZ, 50.0);
+                    ct.ThrowIfCancellationRequested();
+                    FireZonePos(3);
+
+                    _ioService.Set(IoMap.Zone3_Gripper, false);
+                    await Task.Delay(150, ct);
+
+                    await _zone3Motion.MoveZ(0, 80.0);
+                    FireZonePos(3);
+
+                    NgStackCount++;
+                    NgStackUpdated?.Invoke(this, NgStackCount);
+                    AddLog($"[구간3] NG 적재 완료 ({NgStackCount}/{CurrentRecipe.NgStackMaxCount})",
+                        ProcessStage.Zone3_NgTransfer, LogLevel.Warning);
+
+                    if (NgStackCount >= CurrentRecipe.NgStackMaxCount)
+                    {
+                        AddLog($"[구간3] NG 적재 {NgStackCount}개 → 설비 알람! 작업자 확인 필요",
+                            ProcessStage.Zone3_NgTransfer, LogLevel.Error);
+                        NgStackAlarm?.Invoke(this, NgStackCount);
+                    }
+                });
+            }
+            else
             {
-                Point = bp,
-                ActualTorque = boltResult?.Torque ?? 0,
-                TorqueOk = boltResult?.Success ?? false,
-                VisionOk = visionOk
-            });
+                // Good → SMEMA 대기 → 배출
+                await DoStageAsync(ProcessStage.Zone3_SmemaWait, ct, async () =>
+                {
+                    AddLog("[구간3] SMEMA 신호 대기...", ProcessStage.Zone3_SmemaWait);
+                    await WaitForSensorAsync(IoMap.Smema_MachineReady, ct);
+                    AddLog("[구간3] SMEMA OK → 배출 준비", ProcessStage.Zone3_SmemaWait);
+                });
+
+                await DoStageAsync(ProcessStage.Zone3_Release, ct, async () =>
+                {
+                    AddLog("[구간3] 리프트 다운 → 스토퍼 해제 (배출)", ProcessStage.Zone3_Release);
+                    await ReleaseAsync(IoMap.Zone3_Stopper, IoMap.Zone3_Align, IoMap.Zone3_Lift, ct);
+                });
+
+                await DoStageAsync(ProcessStage.Zone3_Discharge, ct, async () =>
+                {
+                    AddLog("[구간3] 배출 중 (SMEMA BoardAvailable)", ProcessStage.Zone3_Discharge);
+                    _ioService.Set(IoMap.Smema_BoardAvailable, true);
+                    await Task.Delay(500, ct);
+                    _ioService.Set(IoMap.Smema_BoardAvailable, false);
+                    AddLog("[구간3] 배출 완료", ProcessStage.Zone3_Discharge);
+                });
+            }
+
+            // NG 경로일 때도 리프트 다운/스토퍼 해제 필요
+            if (inspectResult != InspectionResult.Good)
+            {
+                await DoStageAsync(ProcessStage.Zone3_Release, ct, async () =>
+                {
+                    AddLog("[구간3] 리프트 다운 → 스토퍼 해제", ProcessStage.Zone3_Release);
+                    await ReleaseAsync(IoMap.Zone3_Stopper, IoMap.Zone3_Align, IoMap.Zone3_Lift, ct);
+                });
+            }
+
+            // 사이클 통계 (구간3 기준으로 집계)
+            var elapsed = (DateTime.Now - cycleStart).TotalSeconds;
+            Stats.TotalCount++;
+            if (inspectResult == InspectionResult.Good) Stats.GoodCount++;
+            else Stats.NgCount++;
+            Stats.LastCycleTimeSeconds = elapsed;
+            Stats.AverageCycleTimeSeconds = Stats.AverageCycleTimeSeconds == 0
+                ? elapsed : Stats.AverageCycleTimeSeconds * 0.7 + elapsed * 0.3;
+
+            StatsUpdated?.Invoke(this, Stats);
+            Transition(ProcessStage.Complete, StageStatus.Done);
+
+            AddLog($"[구간3] 사이클 완료  CT:{elapsed:F1}s  누적:{Stats.TotalCount:N0}",
+                ProcessStage.Complete);
+
+            await Task.Delay(300, ct);
         }
-
-        // ── 최종 비전 검사 ─────────────────────────────────────────────────
-        InspectionResult finalResult = InspectionResult.Unknown;
-        await DoStageAsync(ProcessStage.FinalVisionInspect, ct, async () =>
-        {
-            AddLog("최종 비전 검사 시작", ProcessStage.FinalVisionInspect);
-            finalResult = await FinalVisionInspectAsync(boltResults, ct);
-            InspectionDone?.Invoke(this, finalResult);
-
-            var lvl  = finalResult == InspectionResult.Good ? LogLevel.Info : LogLevel.Warning;
-            var text = finalResult == InspectionResult.Good ? "▶ GOOD ◀" : "▶  NG  ◀";
-            AddLog($"최종 검사 결과: {text}", ProcessStage.FinalVisionInspect, lvl);
-        });
-
-        return finalResult;
     }
 
-    // ── 라우팅 페이즈 (NG / Good) ────────────────────────────────────────────
-    private async Task DoRoutePhaseAsync(
-        InspectionResult finalResult, List<BoltStepResult> boltResults,
-        DateTime cycleStart, CancellationToken ct)
+    // ══════════════════════════════════════════════════════════════════════════
+    // 공통 동작
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /// <summary>센서 입력 대기 (시뮬: 400ms 후 자동 ON)</summary>
+    private async Task WaitForSensorAsync(int sensorIndex, CancellationToken ct)
     {
-        if (finalResult != InspectionResult.Good)
-        {
-            // NG 경로
-            await DoStageAsync(ProcessStage.ConveyorToNg, ct, async () =>
-            {
-                AddLog("NG → 컨베이어 이동 → NG 스테이지", ProcessStage.ConveyorToNg);
-                await ConveyorMoveAsync(ct);
-            });
+        // TODO: while (!_ioService.GetIn(sensorIndex)) { await Task.Delay(50, ct); }
+        await Task.Delay(400, ct);
+    }
 
-            await DoStageAsync(ProcessStage.NgTransfer, ct, async () =>
-            {
-                AddLog("NG Transfer Y,Z 이동 → NG 적재 위치", ProcessStage.NgTransfer);
-                await NgTransferAsync(ct);
-
-                NgStackCount++;
-                NgStackUpdated?.Invoke(this, NgStackCount);
-                AddLog($"NG 적재 완료  ({NgStackCount}/{CurrentRecipe.NgStackAlarmCount})",
-                    ProcessStage.NgTransfer, LogLevel.Warning);
-
-                if (NgStackCount >= CurrentRecipe.NgStackAlarmCount)
-                {
-                    AddLog($"NG 적재 {NgStackCount}개 → 설비 알람! 작업자 확인 필요",
-                        ProcessStage.NgTransfer, LogLevel.Error);
-                    NgStackAlarm?.Invoke(this, NgStackCount);
-                    // TODO: IO 센서 확인 후 작업자 리셋 대기
-                }
-            });
-        }
-        else
-        {
-            // Good 경로
-            await DoStageAsync(ProcessStage.ConveyorToGood, ct, async () =>
-            {
-                AddLog("GOOD → 컨베이어 이동 → 다음 스테이지", ProcessStage.ConveyorToGood);
-                await ConveyorMoveAsync(ct);
-            });
-
-            await DoStageAsync(ProcessStage.SmemaWait, ct, async () =>
-            {
-                AddLog("뒤 설비 SMEMA 신호 대기 (Board Available)...", ProcessStage.SmemaWait);
-                await WaitSmemaAsync(ct);
-                AddLog("SMEMA OK → 배출 준비", ProcessStage.SmemaWait);
-            });
-
-            await DoStageAsync(ProcessStage.Discharge, ct, async () =>
-            {
-                AddLog("SMEMA에 따라 배출 (컨베이어 이동)", ProcessStage.Discharge);
-                await DischargeAsync(ct);
-                AddLog("배출 완료", ProcessStage.Discharge);
-            });
-        }
-
-        // ── 사이클 통계 ─────────────────────────────────────────────────────
-        var elapsed = (DateTime.Now - cycleStart).TotalSeconds;
-        Stats.TotalCount++;
-        if (finalResult == InspectionResult.Good) Stats.GoodCount++;
-        else Stats.NgCount++;
-        Stats.LastCycleTimeSeconds = elapsed;
-        Stats.AverageCycleTimeSeconds = Stats.AverageCycleTimeSeconds == 0
-            ? elapsed : Stats.AverageCycleTimeSeconds * 0.7 + elapsed * 0.3;
-
-        StatsUpdated?.Invoke(this, Stats);
-        Transition(ProcessStage.Complete, StageStatus.Done);
-
-        var ngFailed = boltResults.Count(r => !r.IsOk);
-        AddLog($"사이클 완료  CT:{elapsed:F1}s  누적:{Stats.TotalCount:N0}  볼트NG:{ngFailed}/{boltResults.Count}",
-            ProcessStage.Complete);
-
+    /// <summary>스토퍼 ON → 얼라인 ON → 리프트 UP</summary>
+    private async Task StopAlignLiftAsync(int stopper, int align, int lift, CancellationToken ct)
+    {
+        _ioService.Set(stopper, true);
+        await Task.Delay(200, ct);
+        _ioService.Set(align, true);
         await Task.Delay(300, ct);
-        Transition(ProcessStage.Idle, StageStatus.Idle);
+        _ioService.Set(lift, true);
+        await Task.Delay(500, ct);
+    }
+
+    /// <summary>리프트 DOWN → 얼라인 OFF → 스토퍼 OFF</summary>
+    private async Task ReleaseAsync(int stopper, int align, int lift, CancellationToken ct)
+    {
+        _ioService.Set(lift, false);
+        await Task.Delay(500, ct);
+        _ioService.Set(align, false);
+        await Task.Delay(200, ct);
+        _ioService.Set(stopper, false);
+        await Task.Delay(200, ct);
+    }
+
+    /// <summary>픽업 위치로 이동 → 그리퍼 닫기 → 배치 위치로 이동 → 그리퍼 열기</summary>
+    private async Task PickAndPlaceAsync(
+        IMotionService motion, AxisPos pick, AxisPos place,
+        int gripperIo, int zone, CancellationToken ct)
+    {
+        // 픽업 위치로 이동
+        await motion.MoveXY(pick.X, pick.Y, 120.0);
+        FireZonePos(zone);
+        await motion.MoveZ(pick.Z, 60.0);
+        ct.ThrowIfCancellationRequested();
+        FireZonePos(zone);
+
+        // 그리퍼 닫기 (PCB 픽업)
+        _ioService.Set(gripperIo, true);
+        await Task.Delay(200, ct);
+
+        // Z 복귀 → 배치 위치로 이동
+        await motion.MoveZ(0, 80.0);
+        FireZonePos(zone);
+        await motion.MoveXY(place.X, place.Y, 100.0);
+        FireZonePos(zone);
+        await motion.MoveZ(place.Z, 50.0);
+        ct.ThrowIfCancellationRequested();
+        FireZonePos(zone);
+
+        // 그리퍼 열기 (PCB 배치)
+        _ioService.Set(gripperIo, false);
+        await Task.Delay(150, ct);
+
+        // Z 복귀
+        await motion.MoveZ(0, 80.0);
+        FireZonePos(zone);
+    }
+
+    /// <summary>카메라 비전 검사 (볼트 유무)</summary>
+    private async Task<InspectionResult> VisionInspectAsync(CancellationToken ct)
+    {
+        // TODO: BaslerService 카메라로 볼트 유무 검사
+        await Task.Delay(500, ct);
+        return Random.Shared.NextDouble() > 0.15
+            ? InspectionResult.Good
+            : InspectionResult.Ng;
     }
 
     // ── 스테이지 실행 래퍼 ─────────────────────────────────────────────────
@@ -399,130 +530,30 @@ public class ProcessOrchestrator
         }
     }
 
-    // ── 개별 스테이지 구현 ──────────────────────────────────────────────────
-
-    private async Task WaitLineArrivalAsync(CancellationToken ct)
-    {
-        // 업스트림 2개 라인 모두 도착 확인 후 Line 1의 PCB를 Transfer
-        // Line 1과 Line 2는 독립 IO 센서로 각각 모니터링
-
-        // Line 1 도착 대기
-        // TODO: while (!_ioService.GetIn(IoMap.Line1Sensor)) { await Task.Delay(50, ct); }
-        await Task.Delay(400, ct);
-        Line1SensorChanged?.Invoke(this, true);
-        AddLog("Line 1 PCB 도착 확인", ProcessStage.LineArrivalCheck);
-
-        // Line 2 도착 대기 (Line 1과 거의 동시 or 약간의 지연)
-        // TODO: while (!_ioService.GetIn(IoMap.Line2Sensor)) { await Task.Delay(50, ct); }
-        await Task.Delay(300, ct);
-        Line2SensorChanged?.Invoke(this, true);
-        AddLog("Line 2 PCB 도착 확인 → 2개 라인 모두 준비 완료", ProcessStage.LineArrivalCheck);
-
-        // 두 라인 도착 완료 후 센서 리셋 (다음 사이클을 위해)
-        // TODO: _ioService.Set(IoMap.Line1ConveyorStop, true); etc.
-    }
-
-    private async Task<FiducialResult> FiducialCheckAsync(AxisPos pos, CancellationToken ct)
-    {
-        await _fiducialMotion.MoveXY(pos.X, pos.Y, 100.0);
-        await _fiducialMotion.MoveZ(pos.Z, 60.0);
-        ct.ThrowIfCancellationRequested();
-        FireFiducialPos();
-        return await _fiducialService.DetectFromCameraAsync(ct);
-    }
-
-    private async Task PickAndTransferAsync(FiducialResult? fiducial, CancellationToken ct)
-    {
-        double pickX = CurrentRecipe.PickPos.X + (fiducial?.OffsetX ?? 0);
-        double pickY = CurrentRecipe.PickPos.Y + (fiducial?.OffsetY ?? 0);
-
-        await _transferMotion.MoveXY(pickX, pickY, 120.0);
-        await _transferMotion.MoveZ(CurrentRecipe.PickPos.Z, 60.0);
-        ct.ThrowIfCancellationRequested();
-        FireTransferPos();
-
-        // TODO: 그리퍼 닫기 IO (PCB 픽업)
-        await Task.Delay(200, ct);
-
-        await _transferMotion.MoveZ(0, 80.0);
-        double placeX = CurrentRecipe.PlacePos.X + (fiducial?.OffsetX ?? 0);
-        double placeY = CurrentRecipe.PlacePos.Y + (fiducial?.OffsetY ?? 0);
-        await _transferMotion.MoveXY(placeX, placeY, 100.0);
-        await _transferMotion.MoveZ(CurrentRecipe.PlacePos.Z, 50.0);
-        ct.ThrowIfCancellationRequested();
-        FireTransferPos();
-
-        // TODO: 그리퍼 열기 IO (PCB 방열판 위에 배치)
-        await Task.Delay(150, ct);
-        await _transferMotion.MoveZ(0, 80.0);
-        FireTransferPos();
-    }
-
-    private async Task ConveyorMoveAsync(CancellationToken ct)
-    {
-        // TODO: IO 확정 후 컨베이어 구동 출력 ON, 도달 센서 대기, 정지
-        await Task.Delay(1000, ct);
-    }
-
-    private async Task<bool> BoltVisionInspectAsync(CancellationToken ct)
-    {
-        // TODO: BaslerService 카메라로 체결 위치 비전 검사
-        await Task.Delay(300, ct);
-        return Random.Shared.NextDouble() > 0.3; // 시뮬: 97% OK
-    }
-
-    private async Task<InspectionResult> FinalVisionInspectAsync(
-        List<BoltStepResult> results, CancellationToken ct)
-    {
-        await Task.Delay(500, ct);
-        return results.All(r => r.IsOk) ? InspectionResult.Good : InspectionResult.Ng;
-    }
-
-    private async Task NgTransferAsync(CancellationToken ct)
-    {
-        // NG Transfer: Y, Z 이동만 (X 고정)
-        await _transferMotion.MoveY(CurrentRecipe.NgStackY, 80.0);
-        await _transferMotion.MoveZ(CurrentRecipe.NgStackZ, 50.0);
-        ct.ThrowIfCancellationRequested();
-        FireTransferPos();
-
-        // TODO: PCB 릴리즈 IO
-        await Task.Delay(200, ct);
-
-        // TODO: IO 체크: NG 스택 센서 확인
-        await _transferMotion.MoveZ(0, 80.0);
-        FireTransferPos();
-    }
-
-    private async Task WaitSmemaAsync(CancellationToken ct)
-    {
-        // TODO: IO 확정 후 SMEMA MachineReady 신호 대기
-        await Task.Delay(600, ct);
-    }
-
-    private async Task DischargeAsync(CancellationToken ct)
-    {
-        // TODO: SMEMA BoardAvailable 신호 ON → 컨베이어 배출
-        await ConveyorMoveAsync(ct);
-    }
-
     // ── 헬퍼 ────────────────────────────────────────────────────────────────
     private void Transition(ProcessStage stage, StageStatus status)
     {
-        _currentStage = stage;
         StageChanged?.Invoke(this, new StageChangedEventArgs(stage, status));
     }
 
-    private void FireTransferPos()
+    private void FireZonePos(int zone)
     {
-        _transferMotion.GetPotision(out var x, out var y, out var z);
-        TransferPositionChanged?.Invoke(this, ((x ?? 0) / 1000.0, (y ?? 0) / 1000.0, (z ?? 0) / 1000.0));
-    }
+        var motion = zone switch
+        {
+            1 => _zone1Motion,
+            2 => _zone2Motion,
+            3 => _zone3Motion,
+            _ => throw new ArgumentOutOfRangeException(nameof(zone))
+        };
+        motion.GetPotision(out var x, out var y, out var z);
+        var pos = ((x ?? 0) / 1000.0, (y ?? 0) / 1000.0, (z ?? 0) / 1000.0);
 
-    private void FireFiducialPos()
-    {
-        _fiducialMotion.GetPotision(out var x, out var y, out var z);
-        FiducialPositionChanged?.Invoke(this, ((x ?? 0) / 1000.0, (y ?? 0) / 1000.0, (z ?? 0) / 1000.0));
+        switch (zone)
+        {
+            case 1: Zone1PositionChanged?.Invoke(this, pos); break;
+            case 2: Zone2PositionChanged?.Invoke(this, pos); break;
+            case 3: Zone3PositionChanged?.Invoke(this, pos); break;
+        }
     }
 
     private void AddLog(string message, ProcessStage stage, LogLevel level = LogLevel.Info)

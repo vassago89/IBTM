@@ -136,7 +136,6 @@ namespace IBTM.Device
 
         public async Task MoveZ(double z, double velocity)
         {
-            return;
             if (_z > z)
                 velocity = -velocity;
 

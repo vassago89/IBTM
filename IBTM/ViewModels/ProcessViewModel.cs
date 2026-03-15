@@ -8,13 +8,72 @@ using System.Windows.Threading;
 
 namespace IBTM.ViewModels;
 
-// ── 라우팅 경로 서브 스테이지 아이템 ──────────────────────────────────────
-public partial class RouteStageItem : ObservableObject
+// ── 구간별 2D 레이아웃 상태 ──────────────────────────────────────────────────
+public partial class ZoneVisualState : ObservableObject
 {
-    public ProcessStage Stage { get; init; }
-    public string Label { get; init; } = string.Empty;
+    private readonly double _canvasW, _canvasH;
+    private const double MaxCoord = 200.0;
+    private const double MaxZ = 30.0;
 
-    [ObservableProperty] private StageStatus _status = StageStatus.Idle;
+    public ZoneVisualState(double canvasW, double canvasH)
+    {
+        _canvasW = canvasW; _canvasH = canvasH;
+        HeadLeft = canvasW / 2 - 6;
+        HeadTop = canvasH / 2 - 6;
+    }
+
+    // 헤드 위치 (Canvas 좌표)
+    [ObservableProperty] private double _headLeft;
+    [ObservableProperty] private double _headTop;
+    [ObservableProperty] private double _headSize = 12;
+    [ObservableProperty] private double _zRatio;
+    [ObservableProperty] private string _coordText = "";
+
+    // 갠트리 브릿지 (X축 레일, Y축 따라 이동)
+    [ObservableProperty] private double _bridgeTop;
+
+    // 셔틀 상태
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LiftIndicatorVisibility))]
+    private bool _shuttlePresent;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LiftIndicatorVisibility))]
+    [NotifyPropertyChangedFor(nameof(ShuttleStrokeThickness))]
+    private bool _isLifted;
+
+    /// <summary>리프트 상태 표시 (▲) Visibility</summary>
+    public Visibility LiftIndicatorVisibility =>
+        ShuttlePresent && IsLifted ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>리프트 시 셔틀 테두리 두꺼워짐</summary>
+    public double ShuttleStrokeThickness => IsLifted ? 2.5 : 1.0;
+
+    // Z 게이지 (사이드뷰, 위→아래 채움)
+    [ObservableProperty] private double _zGaugeHeight;
+    [ObservableProperty] private double _zToolTop;
+
+    public void UpdatePosition(double xMm, double yMm, double zMm)
+    {
+        var size = Math.Clamp(10.0 + (zMm / MaxZ) * 16.0, 10.0, 26.0);
+        HeadSize = size;
+
+        var xNorm = Math.Clamp(xMm / MaxCoord, 0, 1);
+        var yNorm = Math.Clamp(yMm / MaxCoord, 0, 1);
+
+        // 헤드 XY (갠트리 프레임 내 작업 영역: x 12~198, y 8~92)
+        var xCanvas = 12 + xNorm * 186;
+        var yCanvas = 10 + yNorm * 160;
+
+        HeadLeft = xCanvas - size / 2;
+        HeadTop = yCanvas - size / 2;
+        BridgeTop = yCanvas - 2;   // 4px 브릿지 중심
+
+        ZRatio = Math.Clamp(zMm / MaxZ, 0, 1);
+        ZGaugeHeight = ZRatio * 156.0; // 156px 게이지 트랙
+        ZToolTop = 10 + ZGaugeHeight;  // 툴 암 위치 (게이지 상단 + 채움)
+        CoordText = $"X:{xMm:F0}  Y:{yMm:F0}  Z:{zMm:F0}";
+    }
 }
 
 // ── NG 스택 슬롯 (시각화용) ────────────────────────────────────────────────
@@ -52,19 +111,11 @@ public partial class ProcessViewModel : ObservableObject
     [ObservableProperty] private int _ngStackCount;
     [ObservableProperty] private bool _ngStackAlarm;
 
-    // ── 업스트림 라인 도착 센서 ───────────────────────────────────────────────
-    [ObservableProperty] private bool _isLine1Ready;
-    [ObservableProperty] private bool _isLine2Ready;
-
     // ── 라우팅 분기 ───────────────────────────────────────────────────────────
     [ObservableProperty] private InspectionResult _lastRoute = InspectionResult.Unknown;
     [ObservableProperty] private bool _isNgPath;
     [ObservableProperty] private bool _isGoodPath;
     [ObservableProperty] private string _lastRouteText = "──";
-
-    // ── 축 위치 ──────────────────────────────────────────────────────────────
-    [ObservableProperty] private string _transferPos = "X: ──.─── mm   Y: ──.─── mm   Z: ─.─── mm";
-    [ObservableProperty] private string _fiducialPos = "X: ──.─── mm   Y: ──.─── mm   Z: ─.─── mm";
 
     // ── 마지막 Fiducial 결과 ──────────────────────────────────────────────────
     [ObservableProperty] private string _lastFiducialResult = string.Empty;
@@ -72,22 +123,23 @@ public partial class ProcessViewModel : ObservableObject
     // ── 설정 ─────────────────────────────────────────────────────────────────
     [ObservableProperty] private double _targetTorque = 15.0;
 
+    // ── 2D 설비 레이아웃 ──────────────────────────────────────────────────────
+    //   각 Zone의 Gantry Canvas: 240×100 (로컬 좌표, Viewbox로 자동 스케일)
+    public ZoneVisualState Zone1Visual { get; } = new(240, 180);
+    public ZoneVisualState Zone2Visual { get; } = new(240, 180);
+    public ZoneVisualState Zone3Visual { get; } = new(240, 180);
+
     // ── 컬렉션 ───────────────────────────────────────────────────────────────
-    public ObservableCollection<StageCardViewModel> Stages { get; } = [];
-    public ObservableCollection<LogEntry> Logs { get; } = [];
-
-    // ── 라우팅 경로 서브 스테이지 ─────────────────────────────────────────────
-    public ObservableCollection<RouteStageItem> NgRoutePath   { get; } = [];
-    public ObservableCollection<RouteStageItem> GoodRoutePath { get; } = [];
-
-    // ── NG 스택 슬롯 (시각화용) ────────────────────────────────────────────────
+    public ObservableCollection<StageCardViewModel> Zone1Stages { get; } = [];
+    public ObservableCollection<StageCardViewModel> Zone2Stages { get; } = [];
+    public ObservableCollection<StageCardViewModel> Zone3Stages { get; } = [];
     public ObservableCollection<NgSlotViewModel> NgStackSlots { get; } = [];
 
     public ProcessViewModel(ProcessOrchestrator orchestrator)
     {
         _orchestrator = orchestrator;
         BuildStages();
-        BuildRoutePaths();
+        BuildNgSlots();
         SubscribeEvents();
 
         _uptimeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -95,80 +147,31 @@ public partial class ProcessViewModel : ObservableObject
         _uptimeTimer.Start();
     }
 
-    // ── 메인 공정 스테이지 카드 ─────────────────────────────────────────────
+    // ── 구간별 스테이지 카드 ──────────────────────────────────────────────────
     private void BuildStages()
     {
-        Stages.Add(new StageCardViewModel
-        {
-            Stage = ProcessStage.LineArrivalCheck,
-            Title = "라인 도착 체크",
-            Subtitle = "IO Sensor",
-            Icon = "⬥",
-            Info1 = "대기"
-        });
-        Stages.Add(new StageCardViewModel
-        {
-            Stage = ProcessStage.FiducialForPick,
-            Title = "Fiducial (픽업)",
-            Subtitle = "X,Y,Z + Camera",
-            Icon = "⊕",
-            Info1 = "대기"
-        });
-        Stages.Add(new StageCardViewModel
-        {
-            Stage = ProcessStage.PickAndTransfer,
-            Title = "픽업 → 방열판",
-            Subtitle = "Transfer X,Y,Z",
-            Icon = "→",
-            Info1 = "대기"
-        });
-        Stages.Add(new StageCardViewModel
-        {
-            Stage = ProcessStage.ConveyorToBoltStation,
-            Title = "컨베이어",
-            Subtitle = "→ 볼트 스테이션",
-            Icon = "⬦",
-            Info1 = "대기"
-        });
-        Stages.Add(new StageCardViewModel
-        {
-            Stage = ProcessStage.FiducialForBolt,
-            Title = "Fiducial (볼트)",
-            Subtitle = "X,Y,Z + Camera",
-            Icon = "⊕",
-            Info1 = "대기"
-        });
-        Stages.Add(new StageCardViewModel
-        {
-            Stage = ProcessStage.BoltTighten,
-            Title = "볼트 체결",
-            Subtitle = "체결 → 검사 반복",
-            Icon = "⚙",
-            Info1 = "대기"
-        });
-        Stages.Add(new StageCardViewModel
-        {
-            Stage = ProcessStage.FinalVisionInspect,
-            Title = "최종 검사",
-            Subtitle = "NG / GOOD 판정",
-            Icon = "◈",
-            Info1 = "대기",
-            IsLastCard = true
-        });
+        Zone1Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone1_WaitShuttle, Title = "셔틀 대기", Subtitle = "셔틀 + 앞장비 센서", Icon = "⬥" });
+        Zone1Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone1_StopAlignLift, Title = "정렬/리프트", Subtitle = "IO 제어", Icon = "⬦" });
+        Zone1Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone1_PickPlace, Title = "PCB 픽업", Subtitle = "2개 순차", Icon = "→" });
+        Zone1Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone1_Release, Title = "릴리즈", Subtitle = "리프트↓", Icon = "↓", IsLastCard = true });
+
+        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_WaitShuttle, Title = "셔틀 대기", Subtitle = "센서 감지", Icon = "⬥" });
+        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_StopAlignLift, Title = "정렬/리프트", Subtitle = "IO 제어", Icon = "⬦" });
+        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_Fiducial, Title = "Fiducial", Subtitle = "XYZ+Camera", Icon = "⊕" });
+        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_BoltTighten, Title = "볼트 체결", Subtitle = "Shoot→Tighten", Icon = "⚙" });
+        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_Release, Title = "릴리즈", Subtitle = "리프트↓", Icon = "↓", IsLastCard = true });
+
+        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_WaitShuttle, Title = "셔틀 대기", Subtitle = "센서 감지", Icon = "⬥" });
+        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_StopAlignLift, Title = "정렬/리프트", Subtitle = "IO 제어", Icon = "⬦" });
+        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_Inspect, Title = "카메라 검사", Subtitle = "볼트 유무", Icon = "◈" });
+        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_NgTransfer, Title = "NG 적재", Subtitle = "max 3", Icon = "✕" });
+        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_SmemaWait, Title = "SMEMA", Subtitle = "뒤 설비", Icon = "◇" });
+        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_Discharge, Title = "배출", Subtitle = "컨베이어", Icon = "▶", IsLastCard = true });
     }
 
-    // ── 라우팅 경로 서브 스테이지 구성 ────────────────────────────────────────
-    private void BuildRoutePaths()
+    private void BuildNgSlots()
     {
-        NgRoutePath.Add(new RouteStageItem { Stage = ProcessStage.ConveyorToNg,  Label = "Conveyor → NG" });
-        NgRoutePath.Add(new RouteStageItem { Stage = ProcessStage.NgTransfer,     Label = "Transfer Y,Z" });
-
-        GoodRoutePath.Add(new RouteStageItem { Stage = ProcessStage.ConveyorToGood, Label = "Conveyor" });
-        GoodRoutePath.Add(new RouteStageItem { Stage = ProcessStage.SmemaWait,      Label = "SMEMA Wait" });
-        GoodRoutePath.Add(new RouteStageItem { Stage = ProcessStage.Discharge,      Label = "Discharge" });
-
-        // NG 스택 슬롯 초기화 (레시피 기본값 3개)
-        int maxSlots = _orchestrator.CurrentRecipe.NgStackAlarmCount;
+        int maxSlots = _orchestrator.CurrentRecipe.NgStackMaxCount;
         for (int i = 0; i < maxSlots; i++)
             NgStackSlots.Add(new NgSlotViewModel());
     }
@@ -176,24 +179,22 @@ public partial class ProcessViewModel : ObservableObject
     // ── 이벤트 구독 ───────────────────────────────────────────────────────────
     private void SubscribeEvents()
     {
-        _orchestrator.StageChanged             += OnStageChanged;
-        _orchestrator.LogAdded                 += OnLogAdded;
-        _orchestrator.StatsUpdated             += OnStatsUpdated;
-        _orchestrator.TransferPositionChanged  += (_, p) =>
-            Application.Current.Dispatcher.Invoke(() => TransferPos = FormatPos(p));
-        _orchestrator.FiducialPositionChanged  += (_, p) =>
-            Application.Current.Dispatcher.Invoke(() => FiducialPos = FormatPos(p));
-        _orchestrator.FiducialDetected         += OnFiducialDetected;
-        _orchestrator.BoltCompleted            += OnBoltCompleted;
-        _orchestrator.BoltProgress             += OnBoltProgress;
-        _orchestrator.InspectionDone           += OnInspectionDone;
-        _orchestrator.RouteDecided             += OnRouteDecided;
-        _orchestrator.NgStackUpdated           += OnNgStackUpdated;
-        _orchestrator.NgStackAlarm             += OnNgStackAlarm;
-        _orchestrator.Line1SensorChanged       += (_, v) =>
-            Application.Current.Dispatcher.Invoke(() => { IsLine1Ready = v; UpdateLineArrivalCard(); });
-        _orchestrator.Line2SensorChanged       += (_, v) =>
-            Application.Current.Dispatcher.Invoke(() => { IsLine2Ready = v; UpdateLineArrivalCard(); });
+        _orchestrator.StageChanged += OnStageChanged;
+        _orchestrator.LogAdded += OnLogAdded;
+        _orchestrator.StatsUpdated += OnStatsUpdated;
+        _orchestrator.Zone1PositionChanged += (_, p) =>
+            Application.Current.Dispatcher.Invoke(() => Zone1Visual.UpdatePosition(p.X, p.Y, p.Z));
+        _orchestrator.Zone2PositionChanged += (_, p) =>
+            Application.Current.Dispatcher.Invoke(() => Zone2Visual.UpdatePosition(p.X, p.Y, p.Z));
+        _orchestrator.Zone3PositionChanged += (_, p) =>
+            Application.Current.Dispatcher.Invoke(() => Zone3Visual.UpdatePosition(p.X, p.Y, p.Z));
+        _orchestrator.FiducialDetected += OnFiducialDetected;
+        _orchestrator.BoltCompleted += OnBoltCompleted;
+        _orchestrator.BoltProgress += OnBoltProgress;
+        _orchestrator.InspectionDone += OnInspectionDone;
+        _orchestrator.RouteDecided += OnRouteDecided;
+        _orchestrator.NgStackUpdated += OnNgStackUpdated;
+        _orchestrator.NgStackAlarm += OnNgStackAlarm;
     }
 
     // ── StageChanged ─────────────────────────────────────────────────────────
@@ -203,91 +204,49 @@ public partial class ProcessViewModel : ObservableObject
         {
             IsError = e.Status == StageStatus.Error;
             StatusMessage = GetStatusMessage(e.Stage, e.Status);
-
-            // 메인 스테이지 카드 업데이트
-            UpdateMainCard(e.Stage, e.Status);
-
-            // 라우팅 경로 서브 스테이지 업데이트
-            UpdateRoutePath(e.Stage, e.Status);
-
-            // 새 픽업 사이클 시작 시 Transfer 경로 카드 초기화
-            if (e.Stage == ProcessStage.LineArrivalCheck && e.Status == StageStatus.Running)
-            {
-                IsLine1Ready = false;
-                IsLine2Ready = false;
-                var transferStages = new[]
-                {
-                    ProcessStage.LineArrivalCheck, ProcessStage.FiducialForPick,
-                    ProcessStage.PickAndTransfer,  ProcessStage.ConveyorToBoltStation
-                };
-                foreach (var card in Stages.Where(c => transferStages.Contains(c.Stage)))
-                {
-                    if (card.Status == StageStatus.Done) card.Status = StageStatus.Idle;
-                    card.Info1 = "대기";
-                    card.Info2 = string.Empty;
-                }
-                var lineCard = FindCard(ProcessStage.LineArrivalCheck);
-                if (lineCard != null)
-                {
-                    lineCard.Info1 = "Line 1 ⬜  Line 2 ⬜";
-                    lineCard.Info2 = "도착 대기 중...";
-                }
-            }
-
-            // 새 볼트 사이클 시작 시 Bolt 경로 카드 초기화
-            if (e.Stage == ProcessStage.FiducialForBolt && e.Status == StageStatus.Running)
-            {
-                var boltStages = new[]
-                {
-                    ProcessStage.FiducialForBolt, ProcessStage.BoltTighten, ProcessStage.FinalVisionInspect
-                };
-                foreach (var card in Stages.Where(c => boltStages.Contains(c.Stage)))
-                {
-                    if (card.Status == StageStatus.Done) card.Status = StageStatus.Idle;
-                }
-                // 라우팅 경로도 초기화
-                foreach (var item in NgRoutePath.Concat(GoodRoutePath))
-                    item.Status = StageStatus.Idle;
-                NgStackAlarm = false;
-                LastRoute = InspectionResult.Unknown;
-                IsNgPath = false;
-                IsGoodPath = false;
-                LastRouteText = "──";
-            }
-
-            // 전체 Idle 복귀
-            if (e.Stage == ProcessStage.Idle && e.Status == StageStatus.Idle)
-            {
-                foreach (var c in Stages) c.Status = StageStatus.Idle;
-                foreach (var item in NgRoutePath.Concat(GoodRoutePath))
-                    item.Status = StageStatus.Idle;
-            }
+            UpdateZoneCard(e.Stage, e.Status);
+            UpdateZoneVisualState(e.Stage, e.Status);
         });
     }
 
-    private void UpdateMainCard(ProcessStage stage, StageStatus status)
+    private void UpdateZoneCard(ProcessStage stage, StageStatus status)
     {
-        // 라우팅 스테이지는 라우팅 경로 아이템이 처리하므로 메인 카드에서 제외
-        var routingStages = new[]
-        {
-            ProcessStage.ConveyorToNg, ProcessStage.NgTransfer,
-            ProcessStage.ConveyorToGood, ProcessStage.SmemaWait, ProcessStage.Discharge
-        };
-        if (routingStages.Contains(stage)) return;
-
-        foreach (var card in Stages)
-        {
-            if (IsCardForStage(card.Stage, stage))
-                card.Status = status;
-        }
+        var allStages = Zone1Stages.Concat(Zone2Stages).Concat(Zone3Stages);
+        var card = allStages.FirstOrDefault(c => c.Stage == stage);
+        if (card != null) card.Status = status;
     }
 
-    private void UpdateRoutePath(ProcessStage stage, StageStatus status)
+    private void UpdateZoneVisualState(ProcessStage stage, StageStatus status)
     {
-        var ngItem   = NgRoutePath.FirstOrDefault(r => r.Stage == stage);
-        var goodItem = GoodRoutePath.FirstOrDefault(r => r.Stage == stage);
-        if (ngItem   != null) ngItem.Status   = status;
-        if (goodItem != null) goodItem.Status = status;
+        // 구간 1 셔틀 상태
+        if (stage == ProcessStage.Zone1_StopAlignLift && status == StageStatus.Running)
+            Zone1Visual.ShuttlePresent = true;
+        if (stage == ProcessStage.Zone1_StopAlignLift && status == StageStatus.Done)
+            Zone1Visual.IsLifted = true;
+        if (stage == ProcessStage.Zone1_Release && status == StageStatus.Running)
+            Zone1Visual.IsLifted = false;
+        if (stage == ProcessStage.Zone1_Release && status == StageStatus.Done)
+            Zone1Visual.ShuttlePresent = false;
+
+        // 구간 2 셔틀 상태
+        if (stage == ProcessStage.Zone2_StopAlignLift && status == StageStatus.Running)
+            Zone2Visual.ShuttlePresent = true;
+        if (stage == ProcessStage.Zone2_StopAlignLift && status == StageStatus.Done)
+            Zone2Visual.IsLifted = true;
+        if (stage == ProcessStage.Zone2_Release && status == StageStatus.Running)
+            Zone2Visual.IsLifted = false;
+        if (stage == ProcessStage.Zone2_Release && status == StageStatus.Done)
+            Zone2Visual.ShuttlePresent = false;
+
+        // 구간 3 셔틀 상태
+        if (stage == ProcessStage.Zone3_StopAlignLift && status == StageStatus.Running)
+            Zone3Visual.ShuttlePresent = true;
+        if (stage == ProcessStage.Zone3_StopAlignLift && status == StageStatus.Done)
+            Zone3Visual.IsLifted = true;
+        if (stage == ProcessStage.Zone3_Release && status == StageStatus.Running)
+            Zone3Visual.IsLifted = false;
+        if (stage == ProcessStage.Zone3_Release && status == StageStatus.Done)
+            Zone3Visual.ShuttlePresent = false;
     }
 
     // ── RouteDecided ─────────────────────────────────────────────────────────
@@ -296,63 +255,44 @@ public partial class ProcessViewModel : ObservableObject
         Application.Current.Dispatcher.Invoke(() =>
         {
             LastRoute = result;
-            IsNgPath   = result == InspectionResult.Ng;
-            IsGoodPath  = result == InspectionResult.Good;
+            IsNgPath = result == InspectionResult.Ng;
+            IsGoodPath = result == InspectionResult.Good;
             LastRouteText = result switch
             {
                 InspectionResult.Good => "GOOD",
-                InspectionResult.Ng   => "NG",
-                _                     => "──"
+                InspectionResult.Ng => "NG",
+                _ => "──"
             };
         });
     }
 
-    // ── NgStackUpdated ───────────────────────────────────────────────────────
     private void OnNgStackUpdated(object? sender, int count)
     {
-        Application.Current.Dispatcher.Invoke(() =>
-        {
-            NgStackCount = count;
-            UpdateNgStackSlots(count);
-        });
+        Application.Current.Dispatcher.Invoke(() => { NgStackCount = count; UpdateNgStackSlots(count); });
     }
 
     private void UpdateNgStackSlots(int count)
     {
-        int max = _orchestrator.CurrentRecipe.NgStackAlarmCount;
-        // 슬롯 수 조정
+        int max = _orchestrator.CurrentRecipe.NgStackMaxCount;
         while (NgStackSlots.Count < max) NgStackSlots.Add(new NgSlotViewModel());
         while (NgStackSlots.Count > max) NgStackSlots.RemoveAt(NgStackSlots.Count - 1);
-        // 채움 상태 갱신
         for (int i = 0; i < NgStackSlots.Count; i++)
             NgStackSlots[i].IsFilled = i < count;
     }
 
-    // ── 기타 이벤트 핸들러 ────────────────────────────────────────────────────
     private void OnFiducialDetected(object? sender, FiducialResult r)
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            var stage = _orchestrator.CurrentStage;
-            var cardStage = stage == ProcessStage.FiducialForPick
-                ? ProcessStage.FiducialForPick
-                : ProcessStage.FiducialForBolt;
-
-            var card = FindCard(cardStage);
+            var card = Zone2Stages.FirstOrDefault(c => c.Stage == ProcessStage.Zone2_Fiducial);
             if (card == null) return;
-
             if (r.Found)
             {
                 card.Info1 = $"dX: {r.OffsetX:+0.000;-0.000} mm";
                 card.Info2 = $"dY: {r.OffsetY:+0.000;-0.000} mm  ({r.Confidence:P0})";
                 LastFiducialResult = $"dX:{r.OffsetX:+0.000;-0.000}  dY:{r.OffsetY:+0.000;-0.000}";
             }
-            else
-            {
-                card.Info1 = "검출 실패";
-                card.Info2 = string.Empty;
-                LastFiducialResult = "검출 실패";
-            }
+            else { card.Info1 = "검출 실패"; card.Info2 = ""; LastFiducialResult = "검출 실패"; }
         });
     }
 
@@ -361,7 +301,7 @@ public partial class ProcessViewModel : ObservableObject
         Application.Current.Dispatcher.Invoke(() =>
         {
             BoltProgress = $"{e.BoltName}  {e.Current}/{e.Total}";
-            var card = FindCard(ProcessStage.BoltTighten);
+            var card = Zone2Stages.FirstOrDefault(c => c.Stage == ProcessStage.Zone2_BoltTighten);
             if (card != null) card.Info1 = $"볼트 {e.Current}/{e.Total}  [{e.BoltName}]";
         });
     }
@@ -370,7 +310,7 @@ public partial class ProcessViewModel : ObservableObject
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            var card = FindCard(ProcessStage.BoltTighten);
+            var card = Zone2Stages.FirstOrDefault(c => c.Stage == ProcessStage.Zone2_BoltTighten);
             if (card == null) return;
             card.Info2 = $"토크: {r.Torque:F2} Nm  {r.Message}";
             if (!r.Success) card.Status = StageStatus.Warning;
@@ -381,13 +321,13 @@ public partial class ProcessViewModel : ObservableObject
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            var card = FindCard(ProcessStage.FinalVisionInspect);
+            var card = Zone3Stages.FirstOrDefault(c => c.Stage == ProcessStage.Zone3_Inspect);
             if (card == null) return;
             card.Info1 = result switch
             {
-                InspectionResult.Good => "▶ GOOD ◀",
-                InspectionResult.Ng   => "▶  NG  ◀",
-                _                     => "UNKNOWN"
+                InspectionResult.Good => "GOOD",
+                InspectionResult.Ng => "NG",
+                _ => "?"
             };
             if (result == InspectionResult.Ng) card.Status = StageStatus.Warning;
         });
@@ -395,34 +335,20 @@ public partial class ProcessViewModel : ObservableObject
 
     private void OnNgStackAlarm(object? sender, int count)
     {
-        Application.Current.Dispatcher.Invoke(() =>
-        {
-            NgStackCount = count;
-            NgStackAlarm = true;
-            UpdateNgStackSlots(count);
-        });
+        Application.Current.Dispatcher.Invoke(() => { NgStackCount = count; NgStackAlarm = true; UpdateNgStackSlots(count); });
     }
 
-    private void OnLogAdded(object? sender, LogEntry entry)
-    {
-        Application.Current.Dispatcher.Invoke(() =>
-        {
-            Logs.Insert(0, entry);
-            if (Logs.Count > 500) Logs.RemoveAt(Logs.Count - 1);
-        });
-    }
+    private void OnLogAdded(object? sender, LogEntry entry) { }
 
     private void OnStatsUpdated(object? sender, ProductionStats stats)
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            TotalCount    = stats.TotalCount;
-            GoodCount     = stats.GoodCount;
-            NgCount       = stats.NgCount;
-            NgRate        = stats.NgRate;
+            TotalCount = stats.TotalCount; GoodCount = stats.GoodCount;
+            NgCount = stats.NgCount; NgRate = stats.NgRate;
             LastCycleTime = stats.LastCycleTimeSeconds;
-            AvgCycleTime  = stats.AverageCycleTimeSeconds;
-            NgStackCount  = _orchestrator.NgStackCount;
+            AvgCycleTime = stats.AverageCycleTimeSeconds;
+            NgStackCount = _orchestrator.NgStackCount;
         });
     }
 
@@ -435,12 +361,10 @@ public partial class ProcessViewModel : ObservableObject
         await _orchestrator.StartAsync();
         IsRunning = false;
     }
-
     private bool CanStart() => !IsRunning;
 
     [RelayCommand(CanExecute = nameof(CanStop))]
     private void Stop() => _orchestrator.Stop();
-
     private bool CanStop() => IsRunning;
 
     [RelayCommand]
@@ -450,64 +374,32 @@ public partial class ProcessViewModel : ObservableObject
     private void ResetNgStack()
     {
         _orchestrator.ResetNgStack();
-        NgStackCount = 0;
-        NgStackAlarm = false;
-        UpdateNgStackSlots(0);
+        NgStackCount = 0; NgStackAlarm = false; UpdateNgStackSlots(0);
     }
 
-    // ── 헬퍼 ─────────────────────────────────────────────────────────────────
     private static string GetStatusMessage(ProcessStage stage, StageStatus status)
     {
         if (status == StageStatus.Error) return $"오류 발생! [{stage}]";
         return stage switch
         {
-            ProcessStage.LineArrivalCheck      => "라인 PCB 도착 체크 중...",
-            ProcessStage.FiducialForPick       => "픽업용 Fiducial 검출 중 (X,Y,Z)...",
-            ProcessStage.PickAndTransfer       => "PCB 픽업 → 방열판 Transfer 중...",
-            ProcessStage.ConveyorToBoltStation => "컨베이어 → 볼트 체결 스테이션...",
-            ProcessStage.FiducialForBolt       => "볼트용 Fiducial 검출 중 (X,Y,Z)...",
-            ProcessStage.BoltTighten           => "볼트 체결 중 (X,Y,Z)...",
-            ProcessStage.BoltVisionInspect     => "체결 위치 비전 검사 중...",
-            ProcessStage.FinalVisionInspect    => "최종 비전 검사 중...",
-            ProcessStage.ConveyorToNg          => "NG → 컨베이어 이동...",
-            ProcessStage.NgTransfer            => "NG Transfer Y,Z → 적재...",
-            ProcessStage.ConveyorToGood        => "GOOD → 컨베이어 이동...",
-            ProcessStage.SmemaWait             => "SMEMA 신호 대기 중...",
-            ProcessStage.Discharge             => "배출 중...",
-            ProcessStage.Complete              => "사이클 완료",
-            _                                  => "대기 중"
-        };
-    }
-
-    private void UpdateLineArrivalCard()
-    {
-        var card = FindCard(ProcessStage.LineArrivalCheck);
-        if (card == null) return;
-        string l1 = IsLine1Ready ? "Line 1 ✔" : "Line 1 ⬜";
-        string l2 = IsLine2Ready ? "Line 2 ✔" : "Line 2 ⬜";
-        card.Info1 = $"{l1}   {l2}";
-        card.Info2 = (IsLine1Ready && IsLine2Ready) ? "2개 라인 준비 완료" : "도착 대기 중...";
-    }
-
-    private static string FormatPos((double X, double Y, double Z) p)
-        => $"X: {p.X,8:F3} mm   Y: {p.Y,8:F3} mm   Z: {p.Z,6:F3} mm";
-
-    private StageCardViewModel? FindCard(ProcessStage stage)
-        => Stages.FirstOrDefault(s => s.Stage == stage);
-
-    private static bool IsCardForStage(ProcessStage card, ProcessStage current)
-    {
-        return card switch
-        {
-            ProcessStage.LineArrivalCheck      => current == ProcessStage.LineArrivalCheck,
-            ProcessStage.FiducialForPick       => current == ProcessStage.FiducialForPick,
-            ProcessStage.PickAndTransfer       => current == ProcessStage.PickAndTransfer,
-            ProcessStage.ConveyorToBoltStation => current == ProcessStage.ConveyorToBoltStation,
-            ProcessStage.FiducialForBolt       => current == ProcessStage.FiducialForBolt,
-            ProcessStage.BoltTighten           => current is ProcessStage.BoltTighten
-                                                           or ProcessStage.BoltVisionInspect,
-            ProcessStage.FinalVisionInspect    => current == ProcessStage.FinalVisionInspect,
-            _ => false
+            ProcessStage.Zone1_WaitShuttle => "[구간1] 셔틀 대기...",
+            ProcessStage.Zone1_StopAlignLift => "[구간1] 정렬/리프트...",
+            ProcessStage.Zone1_PickPlace => "[구간1] PCB 픽업 중...",
+            ProcessStage.Zone1_Release => "[구간1] 릴리즈...",
+            ProcessStage.Zone2_WaitShuttle => "[구간2] 셔틀 대기...",
+            ProcessStage.Zone2_StopAlignLift => "[구간2] 정렬/리프트...",
+            ProcessStage.Zone2_Fiducial => "[구간2] Fiducial...",
+            ProcessStage.Zone2_BoltTighten => "[구간2] 볼트 체결 중...",
+            ProcessStage.Zone2_Release => "[구간2] 릴리즈...",
+            ProcessStage.Zone3_WaitShuttle => "[구간3] 셔틀 대기...",
+            ProcessStage.Zone3_StopAlignLift => "[구간3] 정렬/리프트...",
+            ProcessStage.Zone3_Inspect => "[구간3] 검사 중...",
+            ProcessStage.Zone3_NgTransfer => "[구간3] NG 적재...",
+            ProcessStage.Zone3_SmemaWait => "[구간3] SMEMA...",
+            ProcessStage.Zone3_Discharge => "[구간3] 배출...",
+            ProcessStage.Zone3_Release => "[구간3] 릴리즈...",
+            ProcessStage.Complete => "사이클 완료",
+            _ => "대기 중"
         };
     }
 }

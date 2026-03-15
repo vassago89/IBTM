@@ -1,46 +1,35 @@
 namespace IBTM.Models;
 
 /// <summary>
-/// 공정 스테이지 - SMT Inline 볼트 체결 설비
+/// 공정 스테이지 - 3구간 파이프라인
 /// </summary>
 public enum ProcessStage
 {
     Idle = 0,
 
-    // Step 1: 라인 도착 체크
-    LineArrivalCheck = 1,       // 2개 라인 PCB 도착 IO 체크
+    // ── 구간 1: 픽업 ───────────────────────────────────────────────────
+    Zone1_WaitShuttle = 101,        // 셔틀 도착 + 앞장비 뒤쪽 레인 센서 대기
+    Zone1_StopAlignLift = 102,      // 스토퍼 → 얼라인 → 리프트 업
+    Zone1_PickPlace = 103,          // 앞장비 셔틀에서 PCB 2개 픽업 → 배치
+    Zone1_Release = 104,            // 리프트 다운 → 스토퍼 해제
 
-    // Step 2: Fiducial 체크 (픽업용)
-    FiducialForPick = 2,        // 카메라 X,Y,Z 이동 → Fiducial 검출
+    // ── 구간 2: 볼트 체결 ──────────────────────────────────────────────
+    Zone2_WaitShuttle = 201,        // 셔틀 도착 대기
+    Zone2_StopAlignLift = 202,      // 스토퍼 → 얼라인 → 리프트 업
+    Zone2_Fiducial = 203,           // Fiducial 검출 (볼트 보정용)
+    Zone2_BoltTighten = 204,        // 볼트 체결 (레시피 N회 반복)
+    Zone2_Release = 205,            // 리프트 다운 → 스토퍼 해제
 
-    // Step 3: PCB 픽업 → 방열판 Transfer
-    PickAndTransfer = 3,        // 보정 좌표 적용 → 집어서 방열판 위에 (X,Y,Z)
+    // ── 구간 3: 검사 ──────────────────────────────────────────────────
+    Zone3_WaitShuttle = 301,        // 셔틀 도착 대기
+    Zone3_StopAlignLift = 302,      // 스토퍼 → 얼라인 → 리프트 업
+    Zone3_Inspect = 303,            // 카메라 검사 (볼트 유무)
+    Zone3_NgTransfer = 304,         // NG → 뒤쪽 적재 (max 3)
+    Zone3_SmemaWait = 305,          // Good → SMEMA 대기
+    Zone3_Discharge = 306,          // Good → 배출
+    Zone3_Release = 307,            // 리프트 다운 → 스토퍼 해제
 
-    // Step 4: 컨베이어 → 볼트 체결 스테이션
-    ConveyorToBoltStation = 4,  // 컨베이어 이동
-
-    // Step 5: Fiducial 체크 (볼트용)
-    FiducialForBolt = 5,        // 카메라 X,Y,Z 이동 → Fiducial 검출
-
-    // Step 6: 볼트 체결 (레시피 N회 반복)
-    BoltTighten = 6,            // 보정 볼트 위치 X,Y,Z → Shoot → Tighten
-
-    // Step 7: 체결 후 비전 검사 (매 볼트마다)
-    BoltVisionInspect = 7,      // 체결 위치 비전 검사
-
-    // Step 8: 최종 비전 검사
-    FinalVisionInspect = 8,     // 전체 검사 → NG/Good 판정
-
-    // NG 경로
-    ConveyorToNg = 9,
-    NgTransfer = 10,            // Y, Z 이동 → NG 적재
-
-    // Good 경로
-    ConveyorToGood = 11,
-    SmemaWait = 12,             // 뒤 설비 SMEMA 신호 대기
-    Discharge = 13,             // 배출
-
-    Complete = 14,
+    Complete = 900,
     Error = -1
 }
 
@@ -59,12 +48,6 @@ public enum InspectionResult
     Unknown,
     Good,
     Ng
-}
-
-public enum SourceLine
-{
-    Line1 = 1,
-    Line2 = 2
 }
 
 public enum LogLevel

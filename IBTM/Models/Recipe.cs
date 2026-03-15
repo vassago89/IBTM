@@ -20,32 +20,30 @@ public class AxisPos
 }
 
 /// <summary>
-/// 레시피: 설비 동작의 모든 위치/파라미터 정의
-/// 레시피별 볼트 수, 위치, 토크가 달라짐
+/// 레시피: 3구간 설비 동작의 모든 위치/파라미터 정의
 /// </summary>
 public class Recipe
 {
     public string Name { get; set; } = "Default";
 
-    // ── Fiducial 검출 위치 ─────────────────────────────────────────────────
-    /// <summary>픽업용 Fiducial 카메라 이동 위치</summary>
-    public AxisPos FiducialForPickPos { get; set; } = new() { X = 50.0, Y = 50.0, Z = 10.0 };
+    // ── 구간 1: 픽업 위치 ────────────────────────────────────────────
+    /// <summary>앞장비 셔틀에서 PCB 1번 픽업 위치</summary>
+    public AxisPos Zone1_PickPos1 { get; set; } = new() { X = 50.0, Y = 30.0, Z = 25.0 };
 
+    /// <summary>앞장비 셔틀에서 PCB 2번 픽업 위치</summary>
+    public AxisPos Zone1_PickPos2 { get; set; } = new() { X = 50.0, Y = 80.0, Z = 25.0 };
+
+    /// <summary>우리 셔틀에 PCB 1번 배치 위치</summary>
+    public AxisPos Zone1_PlacePos1 { get; set; } = new() { X = 150.0, Y = 30.0, Z = 25.0 };
+
+    /// <summary>우리 셔틀에 PCB 2번 배치 위치</summary>
+    public AxisPos Zone1_PlacePos2 { get; set; } = new() { X = 150.0, Y = 80.0, Z = 25.0 };
+
+    // ── 구간 2: 볼트 체결 ────────────────────────────────────────────
     /// <summary>볼트용 Fiducial 카메라 이동 위치</summary>
-    public AxisPos FiducialForBoltPos { get; set; } = new() { X = 50.0, Y = 50.0, Z = 10.0 };
+    public AxisPos Zone2_FiducialPos { get; set; } = new() { X = 50.0, Y = 50.0, Z = 10.0 };
 
-    // ── 픽업 / 방열판 배치 위치 ────────────────────────────────────────────
-    /// <summary>PCB 픽업 기준 위치 (Fiducial 보정값 적용 전)</summary>
-    public AxisPos PickPos { get; set; } = new() { X = 100.0, Y = 100.0, Z = 30.0 };
-
-    /// <summary>방열판 위 배치 기준 위치 (Fiducial 보정값 적용 전)</summary>
-    public AxisPos PlacePos { get; set; } = new() { X = 150.0, Y = 50.0, Z = 30.0 };
-
-    // ── 볼트 체결 포인트 목록 ──────────────────────────────────────────────
-    /// <summary>
-    /// 볼트 체결 순서 및 위치 목록
-    /// 체결 → 비전 검사를 이 순서대로 반복
-    /// </summary>
+    /// <summary>볼트 체결 포인트 목록 (체결 순서대로)</summary>
     public List<BoltPoint> BoltPoints { get; set; } =
     [
         new() { Name = "B1", X =  80.0, Y = 60.0, Z = 20.0, TargetTorqueNm = 15.0 },
@@ -54,13 +52,18 @@ public class Recipe
         new() { Name = "B4", X =  80.0, Y = 90.0, Z = 20.0, TargetTorqueNm = 15.0 },
     ];
 
-    // ── NG 적재 위치 (Y, Z 이동) ───────────────────────────────────────────
-    public double NgStackY { get; set; } = 200.0;
-    public double NgStackZ { get; set; } = 50.0;
-    /// <summary>NG 적재 최대 수량 초과 시 설비 알람</summary>
-    public int NgStackAlarmCount { get; set; } = 3;
+    // ── 구간 3: 검사 ────────────────────────────────────────────────
+    /// <summary>검사 카메라 이동 위치</summary>
+    public AxisPos Zone3_InspectPos { get; set; } = new() { X = 50.0, Y = 50.0, Z = 10.0 };
 
-    // ── SMEMA ──────────────────────────────────────────────────────────────
+    /// <summary>NG 적재 위치 (Y, Z 이동)</summary>
+    public double Zone3_NgStackY { get; set; } = 200.0;
+    public double Zone3_NgStackZ { get; set; } = 50.0;
+
+    /// <summary>NG 적재 최대 수량 (초과 시 알람)</summary>
+    public int NgStackMaxCount { get; set; } = 3;
+
+    // ── SMEMA ────────────────────────────────────────────────────────
     /// <summary>뒤 설비 SMEMA 신호 대기 타임아웃 (초)</summary>
     public int SmemaTimeoutSeconds { get; set; } = 30;
 }

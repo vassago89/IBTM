@@ -120,6 +120,23 @@ public class BoolToOpacityConverter : IValueConverter
         => throw new NotImplementedException();
 }
 
+// ── Z 게이지 Top 위치 (바 높이 → Canvas.Top) ─────────────────────────────────
+// 게이지가 아래에서 위로 채워지도록: Top = BaseTop + MaxHeight - fillHeight
+[ValueConversion(typeof(double), typeof(double))]
+public class ZGaugeTopConverter : IValueConverter
+{
+    public double GaugeTop { get; set; } = 30;
+    public double GaugeHeight { get; set; } = 60;
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        var fillHeight = value is double h ? h : 0.0;
+        return GaugeTop + GaugeHeight - fillHeight;
+    }
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
 // ── bool → NG/GOOD 채움 색상 (슬롯 시각화) ───────────────────────────────────
 [ValueConversion(typeof(bool), typeof(Brush))]
 public class NgSlotFillConverter : IValueConverter

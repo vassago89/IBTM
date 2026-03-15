@@ -4,7 +4,7 @@
         xmlns:vm="clr-namespace:IBTM.ViewModels"
         xmlns:views="clr-namespace:IBTM.Views"
         Title="IBTM — SMT Inline Control System"
-        Width="1440" Height="860"
+        WindowState="Maximized"
         MinWidth="1280" MinHeight="720"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource AppBgBrush}">
@@ -92,12 +92,17 @@
 
                         <StackPanel Orientation="Horizontal" Margin="0,2">
                             <Ellipse Width="7" Height="7" Fill="{StaticResource AccentGreenBrush}" VerticalAlignment="Center"/>
-                            <TextBlock Text="Transfer Axis" FontSize="11" Margin="8,0,0,0"
+                            <TextBlock Text="Zone1 Axis (픽업)" FontSize="11" Margin="8,0,0,0"
                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,2">
                             <Ellipse Width="7" Height="7" Fill="{StaticResource AccentGreenBrush}" VerticalAlignment="Center"/>
-                            <TextBlock Text="Fiducial Axis" FontSize="11" Margin="8,0,0,0"
+                            <TextBlock Text="Zone2 Axis (볼트)" FontSize="11" Margin="8,0,0,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource AccentGreenBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="Zone3 Axis (검사)" FontSize="11" Margin="8,0,0,0"
                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,2">
