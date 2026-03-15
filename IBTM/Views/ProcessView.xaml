@@ -204,6 +204,15 @@
             <!-- 설비 프레임 -->
             <Border BorderBrush="#2A2E40" BorderThickness="2" CornerRadius="6" Margin="8,4">
                 <Grid>
+                <!-- E-STOP 오버레이 -->
+                <Border Panel.ZIndex="100" CornerRadius="4"
+                        Background="#80200000" IsHitTestVisible="False"
+                        Visibility="{Binding IsError, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="⚠ E-STOP" FontSize="28" FontWeight="Bold"
+                               Foreground="#F85149" Opacity="0.7"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="70"/>   <!-- 앞장비 -->
                         <ColumnDefinition Width="*"/>    <!-- Zone 1 -->
@@ -337,8 +346,18 @@
                          앞장비
                          ══════════════════════════════════════════════════ -->
                     <Border Grid.Row="1" Grid.Column="0" Grid.RowSpan="4"
-                            BorderBrush="#252840" BorderThickness="1" CornerRadius="3"
-                            Background="#0C0E18" Margin="4,2">
+                            CornerRadius="3" Background="#0C0E18" Margin="4,2">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="#252840"/>
+                                <Setter Property="BorderThickness" Value="1"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PrevEquipReady}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="PREV" Foreground="#404060" FontSize="7" FontWeight="SemiBold"
                                        HorizontalAlignment="Center"/>
@@ -351,8 +370,20 @@
                                     <Rectangle Width="14" Height="6" Fill="#1E4080" RadiusX="1" RadiusY="1"/>
                                 </StackPanel>
                             </Border>
-                            <TextBlock Text="PCB×2" Foreground="#3A4070" FontSize="6"
-                                       HorizontalAlignment="Center" Margin="0,2,0,0"/>
+                            <TextBlock FontSize="6" HorizontalAlignment="Center" Margin="0,2,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="PCB×2"/>
+                                        <Setter Property="Foreground" Value="#3A4070"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding PrevEquipReady}" Value="True">
+                                                <Setter Property="Text" Value="READY"/>
+                                                <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
                         </StackPanel>
                     </Border>
 
@@ -536,26 +567,50 @@
                                            Foreground="#302818" FontWeight="Bold"/>
                                 <!-- B1: (80,60) → Canvas(86,58) -->
                                 <Ellipse Canvas.Left="84" Canvas.Top="56" Width="6" Height="6"
-                                         Stroke="{Binding CurrentBoltIndex, Converter={StaticResource BoltBrush0}}"
-                                         StrokeThickness="1.2" Fill="#0C0A08"/>
+                                         StrokeThickness="1.2" Fill="#0C0A08">
+                                    <Ellipse.Stroke>
+                                        <MultiBinding Converter="{StaticResource BoltBrush0}">
+                                            <Binding Path="CurrentBoltIndex"/>
+                                            <Binding Path="Bolt0Result"/>
+                                        </MultiBinding>
+                                    </Ellipse.Stroke>
+                                </Ellipse>
                                 <TextBlock Canvas.Left="78" Canvas.Top="50" Text="B1" FontSize="5"
                                            Foreground="#605030" FontWeight="Bold"/>
                                 <!-- B2: (120,60) → Canvas(124,58) -->
                                 <Ellipse Canvas.Left="121" Canvas.Top="56" Width="6" Height="6"
-                                         Stroke="{Binding CurrentBoltIndex, Converter={StaticResource BoltBrush1}}"
-                                         StrokeThickness="1.2" Fill="#0C0A08"/>
+                                         StrokeThickness="1.2" Fill="#0C0A08">
+                                    <Ellipse.Stroke>
+                                        <MultiBinding Converter="{StaticResource BoltBrush1}">
+                                            <Binding Path="CurrentBoltIndex"/>
+                                            <Binding Path="Bolt1Result"/>
+                                        </MultiBinding>
+                                    </Ellipse.Stroke>
+                                </Ellipse>
                                 <TextBlock Canvas.Left="128" Canvas.Top="50" Text="B2" FontSize="5"
                                            Foreground="#605030" FontWeight="Bold"/>
                                 <!-- B3: (120,90) → Canvas(124,82) -->
                                 <Ellipse Canvas.Left="121" Canvas.Top="80" Width="6" Height="6"
-                                         Stroke="{Binding CurrentBoltIndex, Converter={StaticResource BoltBrush2}}"
-                                         StrokeThickness="1.2" Fill="#0C0A08"/>
+                                         StrokeThickness="1.2" Fill="#0C0A08">
+                                    <Ellipse.Stroke>
+                                        <MultiBinding Converter="{StaticResource BoltBrush2}">
+                                            <Binding Path="CurrentBoltIndex"/>
+                                            <Binding Path="Bolt2Result"/>
+                                        </MultiBinding>
+                                    </Ellipse.Stroke>
+                                </Ellipse>
                                 <TextBlock Canvas.Left="128" Canvas.Top="74" Text="B3" FontSize="5"
                                            Foreground="#605030" FontWeight="Bold"/>
                                 <!-- B4: (80,90) → Canvas(86,82) -->
                                 <Ellipse Canvas.Left="84" Canvas.Top="80" Width="6" Height="6"
-                                         Stroke="{Binding CurrentBoltIndex, Converter={StaticResource BoltBrush3}}"
-                                         StrokeThickness="1.2" Fill="#0C0A08"/>
+                                         StrokeThickness="1.2" Fill="#0C0A08">
+                                    <Ellipse.Stroke>
+                                        <MultiBinding Converter="{StaticResource BoltBrush3}">
+                                            <Binding Path="CurrentBoltIndex"/>
+                                            <Binding Path="Bolt3Result"/>
+                                        </MultiBinding>
+                                    </Ellipse.Stroke>
+                                </Ellipse>
                                 <TextBlock Canvas.Left="78" Canvas.Top="74" Text="B4" FontSize="5"
                                            Foreground="#605030" FontWeight="Bold"/>
                                 <!-- 헤드 글로우 -->
@@ -848,12 +903,43 @@
                             <Run Text="{Binding NgStackCount, Mode=OneWay}"/><Run Text="/3"/>
                         </TextBlock>
 
-                        <!-- 뒷장비 -->
-                        <Border BorderBrush="#252840" BorderThickness="1" CornerRadius="3"
-                                Background="#0C0E18" Margin="0,8,0,0" Padding="6,4">
+                        <!-- 뒷장비 + SMEMA 상태 -->
+                        <Border CornerRadius="3" Margin="0,8,0,0" Padding="6,4">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="#0C0E18"/>
+                                    <Setter Property="BorderBrush" Value="#252840"/>
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SmemaWaiting}" Value="True">
+                                            <Setter Property="BorderBrush" Value="{StaticResource AccentOrangeBrush}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding SmemaReady}" Value="True">
+                                            <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
                             <StackPanel>
                                 <TextBlock Text="NEXT EQUIP" Foreground="#404060" FontSize="8" FontWeight="SemiBold"/>
-                                <TextBlock Text="SMEMA ►" Foreground="#303050" FontSize="8" Margin="0,2,0,0"/>
+                                <TextBlock FontSize="8" Margin="0,2,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="SMEMA ──"/>
+                                            <Setter Property="Foreground" Value="#303050"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SmemaWaiting}" Value="True">
+                                                    <Setter Property="Text" Value="SMEMA 대기..."/>
+                                                    <Setter Property="Foreground" Value="{StaticResource AccentOrangeBrush}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding SmemaReady}" Value="True">
+                                                    <Setter Property="Text" Value="SMEMA OK ►"/>
+                                                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </StackPanel>
                         </Border>
 
@@ -867,6 +953,7 @@
                             <Run Text="█ STP  ▲ LIFT"/>
                         </TextBlock>
                     </StackPanel>
+                </Grid>
                 </Grid>
             </Border>
         </Border>

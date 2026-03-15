@@ -132,6 +132,11 @@ public partial class ProcessViewModel : ObservableObject
     // ── 볼트 진행 ─────────────────────────────────────────────────────────────
     [ObservableProperty] private string _boltProgress = string.Empty;
     [ObservableProperty] private int _currentBoltIndex = -1;  // 0-based, -1=없음
+    // 볼트별 결과: 0=대기, 1=OK, -1=NG
+    [ObservableProperty] private int _bolt0Result;
+    [ObservableProperty] private int _bolt1Result;
+    [ObservableProperty] private int _bolt2Result;
+    [ObservableProperty] private int _bolt3Result;
     [ObservableProperty] private int _ngStackCount;
     [ObservableProperty] private bool _ngStackAlarm;
 
@@ -145,6 +150,11 @@ public partial class ProcessViewModel : ObservableObject
     [ObservableProperty] private bool _shuttleTransit12;  // Zone1→2 이동 중
     [ObservableProperty] private bool _shuttleTransit23;  // Zone2→3 이동 중
     [ObservableProperty] private bool _shuttleTransitOut;  // Zone3→배출 이동 중
+
+    // ── SMEMA / 이전장비 상태 ────────────────────────────────────────────────
+    [ObservableProperty] private bool _smemaWaiting;     // SMEMA 대기 중
+    [ObservableProperty] private bool _smemaReady;       // SMEMA 준비 완료
+    [ObservableProperty] private bool _prevEquipReady;   // 이전장비 PCB 준비
 
     // ── 존별 타이밍 ──────────────────────────────────────────────────────────
     [ObservableProperty] private string _zone1Timing = "";
@@ -258,6 +268,7 @@ public partial class ProcessViewModel : ObservableObject
             LastFiducialResult = string.Empty;
             CurrentBoltIndex = -1;
             BoltProgress = string.Empty;
+            Bolt0Result = 0; Bolt1Result = 0; Bolt2Result = 0; Bolt3Result = 0;
         }
         if (stage == ProcessStage.Zone3_WaitShuttle && status == StageStatus.Running)
         {
@@ -275,6 +286,12 @@ public partial class ProcessViewModel : ObservableObject
 
     private void UpdateZoneVisualState(ProcessStage stage, StageStatus status)
     {
+        // 이전장비 상태
+        if (stage == ProcessStage.Zone1_WaitShuttle && status == StageStatus.Running)
+            PrevEquipReady = false;
+        if (stage == ProcessStage.Zone1_StopAlignLift && status == StageStatus.Running)
+            PrevEquipReady = true;  // 센서 감지 → 준비 완료
+
         // 구간 1 셔틀 상태
         if (stage == ProcessStage.Zone1_StopAlignLift && status == StageStatus.Running)
         {
@@ -321,6 +338,14 @@ public partial class ProcessViewModel : ObservableObject
             Zone3Visual.IsLifted = false;
         if (stage == ProcessStage.Zone3_Release && status == StageStatus.Done)
             Zone3Visual.ShuttlePresent = false;
+
+        // SMEMA 상태
+        if (stage == ProcessStage.Zone3_SmemaWait && status == StageStatus.Running)
+        { SmemaWaiting = true; SmemaReady = false; }
+        if (stage == ProcessStage.Zone3_SmemaWait && status == StageStatus.Done)
+        { SmemaWaiting = false; SmemaReady = true; }
+        if (stage == ProcessStage.Zone3_Discharge && status == StageStatus.Running)
+            SmemaReady = false;
 
         // 구간3 배출 완료 시 잠깐 배출 이동 표시
         // NG 이송 완료 시 PCB 1개 감소
@@ -446,6 +471,16 @@ public partial class ProcessViewModel : ObservableObject
             if (card == null) return;
             card.Info2 = $"토크: {r.Torque:F2} Nm  {r.Message}";
             if (!r.Success) card.Status = StageStatus.Warning;
+
+            // 볼트별 결과 저장
+            var result = r.Success ? 1 : -1;
+            switch (CurrentBoltIndex)
+            {
+                case 0: Bolt0Result = result; break;
+                case 1: Bolt1Result = result; break;
+                case 2: Bolt2Result = result; break;
+                case 3: Bolt3Result = result; break;
+            }
         });
     }
 
