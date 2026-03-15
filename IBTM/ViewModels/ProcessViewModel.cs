@@ -233,23 +233,23 @@ public partial class ProcessViewModel : ObservableObject
     // ── 구간별 스테이지 카드 ──────────────────────────────────────────────────
     private void BuildStages()
     {
-        Zone1Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone1_WaitShuttle, Title = "셔틀 대기", Subtitle = "셔틀 + 앞장비 센서", Icon = "⬥" });
-        Zone1Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone1_StopAlignLift, Title = "정렬/리프트", Subtitle = "IO 제어", Icon = "⬦" });
-        Zone1Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone1_PickPlace, Title = "PCB 픽업", Subtitle = "2개 순차", Icon = "→" });
-        Zone1Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone1_Release, Title = "릴리즈", Subtitle = "리프트↓", Icon = "↓", IsLastCard = true });
+        Zone1Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone1_WaitShuttle, Title = "셔틀 대기", Subtitle = "센서 감지", Icon = "1" });
+        Zone1Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone1_StopAlignLift, Title = "정렬·리프트", Subtitle = "STP·ALN·LIFT", Icon = "2" });
+        Zone1Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone1_PickPlace, Title = "PCB 픽업", Subtitle = "2개 순차 배치", Icon = "3" });
+        Zone1Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone1_Release, Title = "릴리즈", Subtitle = "리프트 다운", Icon = "4", IsLastCard = true });
 
-        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_WaitShuttle, Title = "셔틀 대기", Subtitle = "센서 감지", Icon = "⬥" });
-        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_StopAlignLift, Title = "정렬/리프트", Subtitle = "IO 제어", Icon = "⬦" });
-        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_Fiducial, Title = "Fiducial", Subtitle = "XYZ+Camera", Icon = "⊕" });
-        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_BoltTighten, Title = "볼트 체결", Subtitle = "Shoot→Tighten", Icon = "⚙" });
-        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_Release, Title = "릴리즈", Subtitle = "리프트↓", Icon = "↓", IsLastCard = true });
+        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_WaitShuttle, Title = "셔틀 대기", Subtitle = "센서 감지", Icon = "1" });
+        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_StopAlignLift, Title = "정렬·리프트", Subtitle = "STP·ALN·LIFT", Icon = "2" });
+        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_Fiducial, Title = "Fiducial", Subtitle = "보정 검출", Icon = "3" });
+        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_BoltTighten, Title = "볼트 체결", Subtitle = "N회 반복", Icon = "4" });
+        Zone2Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone2_Release, Title = "릴리즈", Subtitle = "리프트 다운", Icon = "5", IsLastCard = true });
 
-        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_WaitShuttle, Title = "셔틀 대기", Subtitle = "센서 감지", Icon = "⬥" });
-        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_StopAlignLift, Title = "정렬/리프트", Subtitle = "IO 제어", Icon = "⬦" });
-        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_Inspect, Title = "카메라 검사", Subtitle = "볼트 유무", Icon = "◈" });
-        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_NgTransfer, Title = "NG 적재", Subtitle = "max 3", Icon = "✕" });
-        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_SmemaWait, Title = "SMEMA", Subtitle = "뒤 설비", Icon = "◇" });
-        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_Discharge, Title = "배출", Subtitle = "컨베이어", Icon = "▶", IsLastCard = true });
+        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_WaitShuttle, Title = "셔틀 대기", Subtitle = "센서 감지", Icon = "1" });
+        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_StopAlignLift, Title = "정렬·리프트", Subtitle = "STP·ALN·LIFT", Icon = "2" });
+        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_Inspect, Title = "검사", Subtitle = "볼트 유무 확인", Icon = "3" });
+        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_NgTransfer, Title = "NG 적재", Subtitle = "뒤쪽 이송", Icon = "4" });
+        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_SmemaWait, Title = "SMEMA", Subtitle = "뒤 설비 대기", Icon = "5" });
+        Zone3Stages.Add(new StageCardViewModel { Stage = ProcessStage.Zone3_Discharge, Title = "배출", Subtitle = "컨베이어 OUT", Icon = "6", IsLastCard = true });
     }
 
     private void BuildBoltMarkers()
