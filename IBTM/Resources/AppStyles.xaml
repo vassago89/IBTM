@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <!-- ══════════════════════════════════════════════════════════
          공정 시각화 전용 색상 팔레트 (ThemeMode=Dark 위에 커스텀)
@@ -25,6 +26,21 @@
     <SolidColorBrush x:Key="TextPrimaryBrush"   Color="#E6EDF3"/>
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="#8B949E"/>
     <SolidColorBrush x:Key="TextMutedBrush"     Color="#484F58"/>
+
+    <!-- 설비 레이아웃 -->
+    <SolidColorBrush x:Key="EquipBgBrush"       Color="#080A14"/>
+    <SolidColorBrush x:Key="EquipFrameBrush"    Color="#1E2238"/>
+    <SolidColorBrush x:Key="CanvasBgBrush"      Color="#0C0E1A"/>
+    <SolidColorBrush x:Key="PcbFillBrush"       Color="#1A5030"/>
+    <SolidColorBrush x:Key="PcbStrokeBrush"     Color="#2A8050"/>
+    <SolidColorBrush x:Key="RailTopBrush"       Color="#1A1E30"/>
+    <SolidColorBrush x:Key="RailBottomBrush"    Color="#252A40"/>
+
+    <!-- 설비 레이아웃 치수 -->
+    <sys:Double x:Key="GantryCanvasWidth">240</sys:Double>
+    <sys:Double x:Key="GantryCanvasHeight">180</sys:Double>
+    <sys:Double x:Key="PcbWidth">18</sys:Double>
+    <sys:Double x:Key="PcbHeight">10</sys:Double>
 
     <!-- ══════════════════════════════════════════════════════════
          사이드바 네비게이션 버튼 스타일

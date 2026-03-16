@@ -178,10 +178,10 @@
         </Border>
 
         <!-- Row 2: 2D 설비 레이아웃 (Grid 기반) -->
-        <Border Grid.Row="2" Background="#080A14"
+        <Border Grid.Row="2" Background="{StaticResource EquipBgBrush}"
                 BorderThickness="0,0,0,1" BorderBrush="{StaticResource DividerBrush}">
             <!-- 설비 프레임 -->
-            <Border BorderBrush="#1E2238" BorderThickness="1" CornerRadius="4" Margin="8,4">
+            <Border BorderBrush="{StaticResource EquipFrameBrush}" BorderThickness="1" CornerRadius="4" Margin="8,4">
                 <Grid>
                 <!-- E-STOP 오버레이 -->
                 <Border Panel.ZIndex="100" CornerRadius="4"
@@ -211,12 +211,12 @@
 
                     <!-- ── 컨베이어 레일 (전체 컬럼 관통, 듀얼 레일) ────── -->
                     <Grid Grid.Row="2" Grid.ColumnSpan="5">
-                        <Rectangle Fill="#1A1E30" Height="1.5" VerticalAlignment="Top" Margin="0,0.5"/>
-                        <Rectangle Fill="#252A40" Height="1" VerticalAlignment="Bottom" Margin="0,0.5"/>
+                        <Rectangle Fill="{StaticResource RailTopBrush}" Height="1.5" VerticalAlignment="Top" Margin="0,0.5"/>
+                        <Rectangle Fill="{StaticResource RailBottomBrush}" Height="1" VerticalAlignment="Bottom" Margin="0,0.5"/>
                     </Grid>
                     <Grid Grid.Row="4" Grid.ColumnSpan="5">
-                        <Rectangle Fill="#252A40" Height="1" VerticalAlignment="Top" Margin="0,0.5"/>
-                        <Rectangle Fill="#1A1E30" Height="1.5" VerticalAlignment="Bottom" Margin="0,0.5"/>
+                        <Rectangle Fill="{StaticResource RailBottomBrush}" Height="1" VerticalAlignment="Top" Margin="0,0.5"/>
+                        <Rectangle Fill="{StaticResource RailTopBrush}" Height="1.5" VerticalAlignment="Bottom" Margin="0,0.5"/>
                     </Grid>
                     <!-- 입구쪽 흐름 표시 -->
                     <Rectangle Grid.Row="3" Grid.Column="0" Width="20" Height="1"
@@ -317,11 +317,11 @@
                     <!-- ZONE 1 — 픽업 (Gripper 갠트리) -->
                     <TextBlock Grid.Row="0" Grid.Column="1" Text="Z1" FontSize="8" FontWeight="SemiBold"
                                Foreground="{StaticResource AccentBlueBrush}" Margin="6,2" VerticalAlignment="Center" Opacity="0.6"/>
-                    <Border Grid.Row="1" Grid.Column="1" Background="#0C0E1A"
+                    <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="{StaticResource AccentBlueBrush}" BorderThickness="1" Opacity="0.9"
                             CornerRadius="3" Margin="4,0">
                         <Viewbox Stretch="Fill">
-                            <Canvas Width="240" Height="180" ClipToBounds="True">
+                            <Canvas Width="{StaticResource GantryCanvasWidth}" Height="{StaticResource GantryCanvasHeight}" ClipToBounds="True">
                                 <!-- Y축 컬럼 레일 (좌/우) -->
                                 <Rectangle Canvas.Left="3" Canvas.Top="2" Width="7" Height="176"
                                            Fill="#111828" Stroke="#1E2840" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
@@ -427,10 +427,10 @@
                             <!-- PCB (동적, 그리퍼 배치 시 증가) -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
                                         Visibility="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
-                                <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
+                                <Rectangle Width="{StaticResource PcbWidth}" Height="{StaticResource PcbHeight}" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}" StrokeThickness="0.5"
                                            RadiusX="1" RadiusY="1" Margin="2,0"
                                            Visibility="{Binding Zone1Visual.Pcb1Visibility}"/>
-                                <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
+                                <Rectangle Width="{StaticResource PcbWidth}" Height="{StaticResource PcbHeight}" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}" StrokeThickness="0.5"
                                            RadiusX="1" RadiusY="1" Margin="2,0"
                                            Visibility="{Binding Zone1Visual.Pcb2Visibility}"/>
                             </StackPanel>
@@ -447,11 +447,11 @@
                     <!-- ZONE 2 — 볼트 체결 (Bolt Driver 갠트리) -->
                     <TextBlock Grid.Row="0" Grid.Column="2" Text="Z2" FontSize="8" FontWeight="SemiBold"
                                Foreground="{StaticResource AccentOrangeBrush}" Margin="6,2" VerticalAlignment="Center" Opacity="0.6"/>
-                    <Border Grid.Row="1" Grid.Column="2" Background="#0C0E1A"
+                    <Border Grid.Row="1" Grid.Column="2" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="{StaticResource AccentOrangeBrush}" BorderThickness="1" Opacity="0.9"
                             CornerRadius="3" Margin="4,0">
                         <Viewbox Stretch="Fill">
-                            <Canvas Width="240" Height="180" ClipToBounds="True">
+                            <Canvas Width="{StaticResource GantryCanvasWidth}" Height="{StaticResource GantryCanvasHeight}" ClipToBounds="True">
                                 <!-- Y축 컬럼 레일 (좌/우) -->
                                 <Rectangle Canvas.Left="3" Canvas.Top="2" Width="7" Height="176"
                                            Fill="#141820" Stroke="#1E2838" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
@@ -572,10 +572,10 @@
                                        Visibility="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
                                         Visibility="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
-                                <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
+                                <Rectangle Width="{StaticResource PcbWidth}" Height="{StaticResource PcbHeight}" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}" StrokeThickness="0.5"
                                            RadiusX="1" RadiusY="1" Margin="2,0"
                                            Visibility="{Binding Zone2Visual.Pcb1Visibility}"/>
-                                <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
+                                <Rectangle Width="{StaticResource PcbWidth}" Height="{StaticResource PcbHeight}" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}" StrokeThickness="0.5"
                                            RadiusX="1" RadiusY="1" Margin="2,0"
                                            Visibility="{Binding Zone2Visual.Pcb2Visibility}"/>
                             </StackPanel>
@@ -596,11 +596,11 @@
                     <!-- ZONE 3 — 검사 (Camera 갠트리) -->
                     <TextBlock Grid.Row="0" Grid.Column="3" Text="Z3" FontSize="8" FontWeight="SemiBold"
                                Foreground="{StaticResource AccentGreenBrush}" Margin="6,2" VerticalAlignment="Center" Opacity="0.6"/>
-                    <Border Grid.Row="1" Grid.Column="3" Background="#0C0E1A"
+                    <Border Grid.Row="1" Grid.Column="3" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="{StaticResource AccentGreenBrush}" BorderThickness="1" Opacity="0.9"
                             CornerRadius="3" Margin="4,0">
                         <Viewbox Stretch="Fill">
-                            <Canvas Width="240" Height="180" ClipToBounds="True">
+                            <Canvas Width="{StaticResource GantryCanvasWidth}" Height="{StaticResource GantryCanvasHeight}" ClipToBounds="True">
                                 <!-- Y축 컬럼 레일 -->
                                 <Rectangle Canvas.Left="3" Canvas.Top="2" Width="7" Height="176"
                                            Fill="#101820" Stroke="#1A2838" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
@@ -693,10 +693,10 @@
                                        Visibility="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
                                         Visibility="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
-                                <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
+                                <Rectangle Width="{StaticResource PcbWidth}" Height="{StaticResource PcbHeight}" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}" StrokeThickness="0.5"
                                            RadiusX="1" RadiusY="1" Margin="2,0"
                                            Visibility="{Binding Zone3Visual.Pcb1Visibility}"/>
-                                <Rectangle Width="18" Height="10" Fill="#1A5030" Stroke="#2A8050" StrokeThickness="0.5"
+                                <Rectangle Width="{StaticResource PcbWidth}" Height="{StaticResource PcbHeight}" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}" StrokeThickness="0.5"
                                            RadiusX="1" RadiusY="1" Margin="2,0"
                                            Visibility="{Binding Zone3Visual.Pcb2Visibility}"/>
                             </StackPanel>

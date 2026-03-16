@@ -11,8 +11,6 @@ namespace IBTM.ViewModels;
 // ── 볼트 마커 (캔버스 위 동적 표시) ──────────────────────────────────────────
 public partial class BoltMarkerViewModel : ObservableObject
 {
-    private const double MaxCoord = 200.0;
-
     public string Name { get; }
 
     // 캔버스 좌표 (240×180 기준)
@@ -35,24 +33,39 @@ public partial class BoltMarkerViewModel : ObservableObject
     public BoltMarkerViewModel(string name, double xMm, double yMm)
     {
         Name = name;
-        CanvasLeft = 12 + Math.Clamp(xMm / MaxCoord, 0, 1) * 186 - 3;
-        CanvasTop = 10 + Math.Clamp(yMm / MaxCoord, 0, 1) * 160 - 3;
+        var (cx, cy) = ZoneVisualState.MmToCanvas(xMm, yMm);
+        CanvasLeft = cx - 3;  // 마커 중심 보정 (6px 원)
+        CanvasTop = cy - 3;
     }
 }
 
 // ── 구간별 2D 레이아웃 상태 ──────────────────────────────────────────────────
 public partial class ZoneVisualState : ObservableObject
 {
-    private readonly double _canvasW, _canvasH;
     private const double MaxCoord = 200.0;
     private const double MaxZ = 60.0;
 
+    // 캔버스 작업 영역 (Y축 컬럼 안쪽)
+    private const double WorkX0 = 12.0, WorkXRange = 186.0;
+    private const double WorkY0 = 10.0, WorkYRange = 160.0;
+    private const double GaugeTrack = 156.0;
+
     public ZoneVisualState(double canvasW, double canvasH)
     {
-        _canvasW = canvasW; _canvasH = canvasH;
         HeadLeft = canvasW / 2 - 6;
         HeadTop = canvasH / 2 - 6;
     }
+
+    /// <summary>장비 mm 좌표 → 캔버스 픽셀 좌표 (static — 외부에서도 사용)</summary>
+    public static (double x, double y) MmToCanvas(double xMm, double yMm)
+    {
+        var xNorm = Math.Clamp(xMm / MaxCoord, 0, 1);
+        var yNorm = Math.Clamp(yMm / MaxCoord, 0, 1);
+        return (WorkX0 + xNorm * WorkXRange, WorkY0 + yNorm * WorkYRange);
+    }
+
+    /// <summary>장비 mm 좌표 → 캔버스 픽셀 좌표 (인스턴스 래퍼)</summary>
+    public (double x, double y) ToCanvas(double xMm, double yMm) => MmToCanvas(xMm, yMm);
 
     // 헤드 위치 (Canvas 좌표)
     [ObservableProperty] private double _headLeft;
@@ -119,12 +132,7 @@ public partial class ZoneVisualState : ObservableObject
         var size = Math.Clamp(10.0 + (zMm / MaxZ) * 16.0, 10.0, 26.0);
         HeadSize = size;
 
-        var xNorm = Math.Clamp(xMm / MaxCoord, 0, 1);
-        var yNorm = Math.Clamp(yMm / MaxCoord, 0, 1);
-
-        // 헤드 XY (갠트리 프레임 내 작업 영역: x 12~198, y 8~92)
-        var xCanvas = 12 + xNorm * 186;
-        var yCanvas = 10 + yNorm * 160;
+        var (xCanvas, yCanvas) = ToCanvas(xMm, yMm);
 
         HeadLeft = xCanvas - size / 2;
         HeadTop = yCanvas - size / 2;
@@ -133,8 +141,8 @@ public partial class ZoneVisualState : ObservableObject
         BridgeTop = yCanvas - 2;   // 4px 브릿지 중심
 
         ZRatio = Math.Clamp(zMm / MaxZ, 0, 1);
-        ZGaugeHeight = ZRatio * 156.0; // 156px 게이지 트랙
-        ZToolTop = 10 + ZGaugeHeight;  // 툴 암 위치 (게이지 상단 + 채움)
+        ZGaugeHeight = ZRatio * GaugeTrack;
+        ZToolTop = WorkY0 + ZGaugeHeight;
         CoordText = $"X:{xMm:F0}  Y:{yMm:F0}  Z:{zMm:F0}";
     }
 }
@@ -197,7 +205,7 @@ public partial class ProcessViewModel : ObservableObject
     [ObservableProperty] private string _zone1Timing = "";
     [ObservableProperty] private string _zone2Timing = "";
     [ObservableProperty] private string _zone3Timing = "";
-    private DateTime _zone1Start, _zone2Start, _zone3Start;
+    private readonly DateTime[] _zoneStarts = new DateTime[4]; // [1],[2],[3]
 
     // ── 마지막 Fiducial 결과 ──────────────────────────────────────────────────
     [ObservableProperty] private string _lastFiducialResult = string.Empty;
@@ -271,7 +279,6 @@ public partial class ProcessViewModel : ObservableObject
     private void SubscribeEvents()
     {
         _orchestrator.StageChanged += OnStageChanged;
-        _orchestrator.LogAdded += OnLogAdded;
         _orchestrator.StatsUpdated += OnStatsUpdated;
         _orchestrator.Zone1PositionChanged += (_, p) =>
             Application.Current.Dispatcher.Invoke(() => Zone1Visual.UpdatePosition(p.X, p.Y, p.Z));
@@ -405,23 +412,33 @@ public partial class ProcessViewModel : ObservableObject
             ShuttleTransitOut = false;
     }
 
+    /// <summary>ProcessStage → Zone 번호 (1~3), 해당 없으면 0</summary>
+    private static int GetZoneNumber(ProcessStage stage) => (int)stage / 100 switch
+    {
+        1 => 1, 2 => 2, 3 => 3, _ => 0
+    };
+
+    /// <summary>Zone 번호 → ZoneVisualState</summary>
+    private ZoneVisualState? GetZoneVisual(int zone) => zone switch
+    {
+        1 => Zone1Visual, 2 => Zone2Visual, 3 => Zone3Visual, _ => null
+    };
+
+    private void SetZoneTiming(int zone, string value)
+    {
+        switch (zone) { case 1: Zone1Timing = value; break; case 2: Zone2Timing = value; break; case 3: Zone3Timing = value; break; }
+    }
+
     private void UpdateZoneTiming(ProcessStage stage, StageStatus status)
     {
-        // 각 존 작업 시작 (StopAlignLift Running) ~ 완료 (Release Done) 시간 측정
-        if (stage == ProcessStage.Zone1_StopAlignLift && status == StageStatus.Running)
-            _zone1Start = DateTime.Now;
-        if (stage == ProcessStage.Zone1_Release && status == StageStatus.Done)
-            Zone1Timing = $"{(DateTime.Now - _zone1Start).TotalSeconds:F1}s";
+        int zone = GetZoneNumber(stage);
+        if (zone == 0) return;
 
-        if (stage == ProcessStage.Zone2_StopAlignLift && status == StageStatus.Running)
-            _zone2Start = DateTime.Now;
-        if (stage == ProcessStage.Zone2_Release && status == StageStatus.Done)
-            Zone2Timing = $"{(DateTime.Now - _zone2Start).TotalSeconds:F1}s";
-
-        if (stage == ProcessStage.Zone3_StopAlignLift && status == StageStatus.Running)
-            _zone3Start = DateTime.Now;
-        if (stage == ProcessStage.Zone3_Release && status == StageStatus.Done)
-            Zone3Timing = $"{(DateTime.Now - _zone3Start).TotalSeconds:F1}s";
+        var stageName = stage.ToString();
+        if (stageName.EndsWith("StopAlignLift") && status == StageStatus.Running)
+            _zoneStarts[zone] = DateTime.Now;
+        if (stageName.EndsWith("Release") && status == StageStatus.Done)
+            SetZoneTiming(zone, $"{(DateTime.Now - _zoneStarts[zone]).TotalSeconds:F1}s");
     }
 
     // ── RouteDecided ─────────────────────────────────────────────────────────
@@ -481,13 +498,9 @@ public partial class ProcessViewModel : ObservableObject
                 card.Info2 = $"dY: {r.OffsetY:+0.000;-0.000} mm  ({r.Confidence:P0})";
                 LastFiducialResult = $"dX:{r.OffsetX:+0.000;-0.000}  dY:{r.OffsetY:+0.000;-0.000}";
 
-                // 캔버스 좌표로 보정 오프셋 표시 (피듀셜 위치 기준 십자선)
-                const double maxCoord = 200.0;
+                // 캔버스 좌표로 보정 오프셋 표시 (피듀셜 위치 + 보정값)
                 var fidPos = _orchestrator.CurrentRecipe.Zone2_FiducialPos;
-                var baseX = 12 + Math.Clamp(fidPos.X / maxCoord, 0, 1) * 186;
-                var baseY = 10 + Math.Clamp(fidPos.Y / maxCoord, 0, 1) * 160;
-                var cx = baseX + (r.OffsetX / maxCoord) * 186;
-                var cy = baseY + (r.OffsetY / maxCoord) * 160;
+                var (cx, cy) = Zone2Visual.ToCanvas(fidPos.X + r.OffsetX, fidPos.Y + r.OffsetY);
                 Zone2Visual.FiducialOffsetLeft = cx;
                 Zone2Visual.FiducialOffsetTop = cy;
                 Zone2Visual.FiducialCrossH1 = cx - 8;
@@ -574,7 +587,6 @@ public partial class ProcessViewModel : ObservableObject
         });
     }
 
-    private void OnLogAdded(object? sender, LogEntry entry) { }
 
     private void OnStatsUpdated(object? sender, ProductionStats stats)
     {
