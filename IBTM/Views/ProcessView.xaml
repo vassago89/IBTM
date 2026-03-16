@@ -177,73 +177,70 @@
             </Grid>
         </Border>
 
-        <!-- Row 2: 2D 설비 레이아웃 (Grid 기반) -->
+        <!-- Row 2: 설비 시각화 (정면도) -->
         <Border Grid.Row="2" Background="{StaticResource EquipBgBrush}"
                 BorderThickness="0,0,0,1" BorderBrush="{StaticResource DividerBrush}">
-            <!-- 설비 프레임 -->
             <Border BorderBrush="{StaticResource EquipFrameBrush}" BorderThickness="1" CornerRadius="4" Margin="8,4">
                 <Grid>
                 <!-- E-STOP 오버레이 -->
                 <Border Panel.ZIndex="100" CornerRadius="4"
                         Background="#60180000" IsHitTestVisible="False"
                         Visibility="{Binding IsError, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="E-STOP" FontSize="22" FontWeight="Bold" FontFamily="Consolas"
-                               Foreground="#F85149" Opacity="0.5"
+                    <TextBlock Text="E-STOP" FontSize="28" FontWeight="Bold" FontFamily="Consolas"
+                               Foreground="#F85149" Opacity="0.6"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="70"/>   <!-- 앞장비 -->
-                        <ColumnDefinition Width="*"/>    <!-- Zone 1 -->
-                        <ColumnDefinition Width="*"/>    <!-- Zone 2 -->
-                        <ColumnDefinition Width="*"/>    <!-- Zone 3 -->
-                        <ColumnDefinition Width="130"/>  <!-- 우측 패널 -->
+                        <ColumnDefinition Width="70"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="130"/>
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="16"/>     <!-- Zone 라벨 -->
-                        <RowDefinition Height="*"/>      <!-- Gantry 영역 -->
-                        <RowDefinition Height="6"/>      <!-- 컨베이어 상단 레일 -->
-                        <RowDefinition Height="60"/>     <!-- Station (레일 사이) -->
-                        <RowDefinition Height="6"/>      <!-- 컨베이어 하단 레일 -->
-                        <RowDefinition Height="18"/>     <!-- 좌표 정보 -->
+                        <RowDefinition Height="22"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="8"/>
+                        <RowDefinition Height="76"/>
+                        <RowDefinition Height="8"/>
+                        <RowDefinition Height="20"/>
                     </Grid.RowDefinitions>
 
-
-                    <!-- ── 컨베이어 레일 (전체 컬럼 관통, 듀얼 레일) ────── -->
+                    <!-- ── 컨베이어 레일 (전체 관통, 프로파일 레일) ── -->
                     <Grid Grid.Row="2" Grid.ColumnSpan="5">
-                        <Rectangle Fill="{StaticResource RailTopBrush}" Height="1.5" VerticalAlignment="Top" Margin="0,0.5"/>
-                        <Rectangle Fill="{StaticResource RailBottomBrush}" Height="1" VerticalAlignment="Bottom" Margin="0,0.5"/>
+                        <Rectangle Fill="#222840" Height="3" VerticalAlignment="Center"/>
+                        <Rectangle Fill="{StaticResource RailTopBrush}" Height="1.5" VerticalAlignment="Top" Margin="0,1"/>
+                        <Rectangle Fill="#101420" Height="1" VerticalAlignment="Bottom"/>
                     </Grid>
                     <Grid Grid.Row="4" Grid.ColumnSpan="5">
-                        <Rectangle Fill="{StaticResource RailBottomBrush}" Height="1" VerticalAlignment="Top" Margin="0,0.5"/>
-                        <Rectangle Fill="{StaticResource RailTopBrush}" Height="1.5" VerticalAlignment="Bottom" Margin="0,0.5"/>
+                        <Rectangle Fill="#222840" Height="3" VerticalAlignment="Center"/>
+                        <Rectangle Fill="#101420" Height="1" VerticalAlignment="Top"/>
+                        <Rectangle Fill="{StaticResource RailTopBrush}" Height="1.5" VerticalAlignment="Bottom" Margin="0,1"/>
                     </Grid>
-                    <!-- 입구쪽 흐름 표시 -->
-                    <Rectangle Grid.Row="3" Grid.Column="0" Width="20" Height="1"
-                               HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,0,0"
-                               Fill="#1A2040" Opacity="0.5"/>
+                    <!-- 흐름 방향 화살표 (컨베이어 사이, L→R) -->
                     <StackPanel Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="3"
-                                Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,2">
+                                Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,3">
                         <StackPanel.Resources>
                             <Storyboard x:Key="FlowAnimation" RepeatBehavior="Forever">
                                 <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow1" Storyboard.TargetProperty="Opacity"
                                                               Duration="0:0:1.5" RepeatBehavior="Forever">
                                     <LinearDoubleKeyFrame KeyTime="0:0:0" Value="0.15"/>
-                                    <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.8"/>
+                                    <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.7"/>
                                     <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.15"/>
                                 </DoubleAnimationUsingKeyFrames>
                                 <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow2" Storyboard.TargetProperty="Opacity"
                                                               Duration="0:0:1.5" RepeatBehavior="Forever">
                                     <LinearDoubleKeyFrame KeyTime="0:0:0" Value="0.15"/>
                                     <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.15"/>
-                                    <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.8"/>
+                                    <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.7"/>
                                     <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0.15"/>
                                 </DoubleAnimationUsingKeyFrames>
                                 <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow3" Storyboard.TargetProperty="Opacity"
                                                               Duration="0:0:1.5" RepeatBehavior="Forever">
                                     <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.15"/>
                                     <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.15"/>
-                                    <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0.8"/>
+                                    <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0.7"/>
                                 </DoubleAnimationUsingKeyFrames>
                             </Storyboard>
                         </StackPanel.Resources>
@@ -268,26 +265,28 @@
                         <TextBlock x:Name="FlowArrow3" Text="►" FontSize="7" FontFamily="Consolas"
                                    Foreground="#505880" Opacity="0.15"/>
                     </StackPanel>
-                    <!-- 출구쪽 흐름 표시 -->
-                    <Rectangle Grid.Row="3" Grid.Column="4" Width="20" Height="1"
-                               HorizontalAlignment="Left" VerticalAlignment="Center" Margin="8,0,0,0"
-                               Fill="#1A2040" Opacity="0.5"/>
 
-                    <!-- 셔틀 이동 표시 -->
-                    <Rectangle Grid.Row="3" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center"
-                               Margin="0,0,-4,0" Width="20" Height="10" RadiusX="2" RadiusY="2"
-                               Fill="#1A2545" Stroke="#58A6FF" StrokeThickness="1"
-                               Visibility="{Binding ShuttleTransit12, Converter={StaticResource BoolToVis}}"/>
-                    <Rectangle Grid.Row="3" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center"
-                               Margin="0,0,-4,0" Width="20" Height="10" RadiusX="2" RadiusY="2"
-                               Fill="#2A2515" Stroke="#F0883E" StrokeThickness="1"
-                               Visibility="{Binding ShuttleTransit23, Converter={StaticResource BoolToVis}}"/>
-                    <Rectangle Grid.Row="3" Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Center"
-                               Margin="0,0,-4,0" Width="20" Height="10" RadiusX="2" RadiusY="2"
-                               Fill="#152A1A" Stroke="#3FB950" StrokeThickness="1"
-                               Visibility="{Binding ShuttleTransitOut, Converter={StaticResource BoolToVis}}"/>
+                    <!-- 셔틀 이동 표시 (Zone 간) -->
+                    <Border Grid.Row="3" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Margin="0,0,-6,0" Width="24" Height="14" CornerRadius="2"
+                            Background="#1A2545" BorderBrush="#58A6FF" BorderThickness="1"
+                            Visibility="{Binding ShuttleTransit12, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="►" FontSize="6" Foreground="#58A6FF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <Border Grid.Row="3" Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Margin="0,0,-6,0" Width="24" Height="14" CornerRadius="2"
+                            Background="#2A2515" BorderBrush="#F0883E" BorderThickness="1"
+                            Visibility="{Binding ShuttleTransit23, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="►" FontSize="6" Foreground="#F0883E" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <Border Grid.Row="3" Grid.Column="3" HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Margin="0,0,-6,0" Width="24" Height="14" CornerRadius="2"
+                            Background="#152A1A" BorderBrush="#3FB950" BorderThickness="1"
+                            Visibility="{Binding ShuttleTransitOut, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="►" FontSize="6" Foreground="#3FB950" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
 
-                    <!-- 앞장비 -->
+                    <!-- ── 앞장비 (IN) ── -->
                     <Border Grid.Row="1" Grid.Column="0" Grid.RowSpan="4"
                             CornerRadius="3" Background="#0C0E18" Margin="4,2">
                         <Border.Style>
@@ -302,129 +301,191 @@
                             </Style>
                         </Border.Style>
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="IN" Foreground="#303050" FontSize="8" FontWeight="SemiBold"
-                                       HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                            <TextBlock Text="IN" Foreground="#404060" FontSize="9" FontWeight="Bold"
+                                       HorizontalAlignment="Center" Margin="0,0,0,8"/>
                             <Border Background="#101428" BorderBrush="#252848" BorderThickness="1"
-                                    CornerRadius="2" Margin="4,0" Padding="4,3">
+                                    CornerRadius="2" Margin="4,0" Padding="6,4">
                                 <StackPanel>
-                                    <Rectangle Width="14" Height="5" Fill="#1A3060" RadiusX="1" RadiusY="1" Margin="0,0,0,2"/>
-                                    <Rectangle Width="14" Height="5" Fill="#1A3060" RadiusX="1" RadiusY="1"/>
+                                    <Rectangle Width="16" Height="6" Fill="#1A3060" RadiusX="1" RadiusY="1" Margin="0,0,0,3"/>
+                                    <Rectangle Width="16" Height="6" Fill="#1A3060" RadiusX="1" RadiusY="1"/>
                                 </StackPanel>
                             </Border>
+                            <TextBlock Text="PCB" Foreground="#303050" FontSize="6" FontWeight="SemiBold"
+                                       HorizontalAlignment="Center" Margin="0,4,0,0"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- ZONE 1 — 픽업 (Gripper 갠트리) -->
-                    <TextBlock Grid.Row="0" Grid.Column="1" Text="Z1" FontSize="8" FontWeight="SemiBold"
-                               Foreground="{StaticResource AccentBlueBrush}" Margin="6,2" VerticalAlignment="Center" Opacity="0.6"/>
+                    <!-- ═══════════════════ ZONE 1 — PICK (그리퍼 갠트리) ═══════════════════ -->
+                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="6,2" VerticalAlignment="Center">
+                        <TextBlock Text="ZONE 1" FontSize="8" FontWeight="Bold"
+                                   Foreground="{StaticResource AccentBlueBrush}" Opacity="0.8"/>
+                        <TextBlock Text="  PICK" FontSize="8"
+                                   Foreground="{StaticResource AccentBlueBrush}" Opacity="0.5"/>
+                    </StackPanel>
                     <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="{StaticResource AccentBlueBrush}" BorderThickness="1" Opacity="0.9"
                             CornerRadius="3" Margin="4,0">
                         <Viewbox Stretch="Fill">
                             <Canvas Width="{StaticResource GantryCanvasWidth}" Height="{StaticResource GantryCanvasHeight}" ClipToBounds="True">
-                                <!-- Y축 컬럼 레일 (좌/우) -->
-                                <Rectangle Canvas.Left="3" Canvas.Top="2" Width="7" Height="176"
-                                           Fill="#111828" Stroke="#1E2840" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
-                                <Rectangle Canvas.Left="200" Canvas.Top="2" Width="7" Height="176"
-                                           Fill="#111828" Stroke="#1E2840" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
-                                <!-- 리니어 가이드 (컬럼 위 점선) -->
-                                <Line X1="6.5" Y1="6" X2="6.5" Y2="174" Stroke="#1A2540" StrokeThickness="0.4" StrokeDashArray="1 3"/>
-                                <Line X1="203.5" Y1="6" X2="203.5" Y2="174" Stroke="#1A2540" StrokeThickness="0.4" StrokeDashArray="1 3"/>
-                                <!-- X축 브릿지 레일 (Y축 따라 이동) -->
-                                <Rectangle Canvas.Left="3" Canvas.Top="{Binding Zone1Visual.BridgeTop}"
-                                           Width="204" Height="4" Fill="#152030" Stroke="#1E2840" StrokeThickness="0.5"/>
+                                <!-- 갠트리 프레임 외곽 -->
+                                <Rectangle Canvas.Left="1" Canvas.Top="0" Width="208" Height="180"
+                                           Stroke="#151A2A" StrokeThickness="1" Fill="Transparent" RadiusX="2" RadiusY="2"/>
+                                <!-- Y축 컬럼 (좌/우 — 구조 부재) -->
+                                <Rectangle Canvas.Left="2" Canvas.Top="2" Width="10" Height="176"
+                                           Fill="#0E1428" Stroke="#1E2840" StrokeThickness="0.8" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="198" Canvas.Top="2" Width="10" Height="176"
+                                           Fill="#0E1428" Stroke="#1E2840" StrokeThickness="0.8" RadiusX="1" RadiusY="1"/>
+                                <!-- 컬럼 내부 LM가이드 -->
+                                <Rectangle Canvas.Left="5" Canvas.Top="6" Width="4" Height="168"
+                                           Fill="#0A1020" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="201" Canvas.Top="6" Width="4" Height="168"
+                                           Fill="#0A1020" RadiusX="1" RadiusY="1"/>
+                                <Line X1="7" Y1="8" X2="7" Y2="172" Stroke="#1A2540" StrokeThickness="0.5" StrokeDashArray="1 3"/>
+                                <Line X1="203" Y1="8" X2="203" Y2="172" Stroke="#1A2540" StrokeThickness="0.5" StrokeDashArray="1 3"/>
+                                <!-- 컬럼 마운팅 (상/하 플랜지) -->
+                                <Rectangle Canvas.Left="0" Canvas.Top="0" Width="14" Height="4"
+                                           Fill="#1A2040" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="196" Canvas.Top="0" Width="14" Height="4"
+                                           Fill="#1A2040" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="0" Canvas.Top="176" Width="14" Height="4"
+                                           Fill="#1A2040" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="196" Canvas.Top="176" Width="14" Height="4"
+                                           Fill="#1A2040" RadiusX="1" RadiusY="1"/>
+                                <!-- X축 브릿지 (빔 형태, Y축 따라 이동) -->
+                                <Rectangle Canvas.Left="2" Canvas.Top="{Binding Zone1Visual.BridgeTop}"
+                                           Width="206" Height="6" Fill="#152035" Stroke="#1E2840" StrokeThickness="0.8" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="14" Canvas.Top="{Binding Zone1Visual.BridgeTop}"
+                                           Width="182" Height="2" Fill="#1A2540" Margin="0,2,0,0"/>
+                                <!-- 작업 영역 라벨 -->
+                                <TextBlock Canvas.Left="36" Canvas.Top="14" Text="PICK" FontSize="8" FontWeight="Bold"
+                                           Foreground="#1A2860" Opacity="0.7"/>
+                                <TextBlock Canvas.Left="128" Canvas.Top="14" Text="PLACE" FontSize="8" FontWeight="Bold"
+                                           Foreground="#183060" Opacity="0.7"/>
                                 <!-- 작업 영역 (좌: 픽업, 우: 배치) -->
-                                <Rectangle Canvas.Left="30" Canvas.Top="20" Width="60" Height="70"
-                                           Stroke="#1A2860" StrokeThickness="0.5" StrokeDashArray="4 3"
-                                           Fill="Transparent" RadiusX="2" RadiusY="2"/>
-                                <Ellipse Canvas.Left="56" Canvas.Top="32" Width="4" Height="4"
-                                         Stroke="#2A4080" StrokeThickness="0.7" Fill="#0C1020"/>
-                                <Ellipse Canvas.Left="56" Canvas.Top="72" Width="4" Height="4"
-                                         Stroke="#2A4080" StrokeThickness="0.7" Fill="#0C1020"/>
-                                <Rectangle Canvas.Left="120" Canvas.Top="20" Width="60" Height="70"
-                                           Stroke="#183060" StrokeThickness="0.5" StrokeDashArray="4 3"
-                                           Fill="Transparent" RadiusX="2" RadiusY="2"/>
-                                <Ellipse Canvas.Left="149" Canvas.Top="32" Width="4" Height="4"
-                                         Stroke="#2A4080" StrokeThickness="0.7" Fill="#0C1020"/>
-                                <Ellipse Canvas.Left="149" Canvas.Top="72" Width="4" Height="4"
-                                         Stroke="#2A4080" StrokeThickness="0.7" Fill="#0C1020"/>
+                                <Rectangle Canvas.Left="25" Canvas.Top="26" Width="70" Height="80"
+                                           Stroke="#1A2860" StrokeThickness="0.7" StrokeDashArray="4 3"
+                                           Fill="#080C18" RadiusX="2" RadiusY="2"/>
+                                <!-- 픽업 위치 마커 (PCB 2개) -->
+                                <Rectangle Canvas.Left="35" Canvas.Top="34" Width="24" Height="14"
+                                           Stroke="#2A4080" StrokeThickness="0.5" Fill="#0C1428" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="35" Canvas.Top="62" Width="24" Height="14"
+                                           Stroke="#2A4080" StrokeThickness="0.5" Fill="#0C1428" RadiusX="1" RadiusY="1"/>
+                                <TextBlock Canvas.Left="63" Canvas.Top="36" Text="P1" FontSize="6" Foreground="#1A3060"/>
+                                <TextBlock Canvas.Left="63" Canvas.Top="64" Text="P2" FontSize="6" Foreground="#1A3060"/>
+                                <Rectangle Canvas.Left="115" Canvas.Top="26" Width="70" Height="80"
+                                           Stroke="#183060" StrokeThickness="0.7" StrokeDashArray="4 3"
+                                           Fill="#080C18" RadiusX="2" RadiusY="2"/>
+                                <!-- 배치 위치 마커 -->
+                                <Rectangle Canvas.Left="125" Canvas.Top="34" Width="24" Height="14"
+                                           Stroke="#2A4080" StrokeThickness="0.5" Fill="#0C1428" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="125" Canvas.Top="62" Width="24" Height="14"
+                                           Stroke="#2A4080" StrokeThickness="0.5" Fill="#0C1428" RadiusX="1" RadiusY="1"/>
+                                <TextBlock Canvas.Left="153" Canvas.Top="36" Text="L1" FontSize="6" Foreground="#1A3060"/>
+                                <TextBlock Canvas.Left="153" Canvas.Top="64" Text="L2" FontSize="6" Foreground="#1A3060"/>
                                 <!-- 헤드 글로우 -->
                                 <Ellipse Canvas.Left="{Binding Zone1Visual.HeadLeft}" Canvas.Top="{Binding Zone1Visual.HeadTop}"
                                          Width="{Binding Zone1Visual.HeadSize}" Height="{Binding Zone1Visual.HeadSize}"
-                                         Fill="#1858A6" Opacity="0.3">
-                                    <Ellipse.Effect><BlurEffect Radius="10"/></Ellipse.Effect>
+                                         Fill="#1858A6" Opacity="0.35">
+                                    <Ellipse.Effect><BlurEffect Radius="12"/></Ellipse.Effect>
                                 </Ellipse>
-                                <!-- 헤드 본체 (Gripper — 사각 형태) -->
+                                <!-- 헤드 본체 (Gripper — 사각형, 기계적) -->
                                 <Rectangle Canvas.Left="{Binding Zone1Visual.HeadLeft}" Canvas.Top="{Binding Zone1Visual.HeadTop}"
                                            Width="{Binding Zone1Visual.HeadSize}" Height="{Binding Zone1Visual.HeadSize}"
-                                           Fill="{StaticResource AccentBlueBrush}" Opacity="0.85" Stroke="White" StrokeThickness="1.5"
+                                           Fill="{StaticResource AccentBlueBrush}" Opacity="0.9" Stroke="White" StrokeThickness="1.5"
                                            RadiusX="2" RadiusY="2"/>
-                                <!-- 그리퍼 활성 표시 -->
+                                <!-- 그리퍼 활성 표시 (흡착 ON) -->
                                 <Ellipse Canvas.Left="{Binding Zone1Visual.HeadCenterLeft}" Canvas.Top="{Binding Zone1Visual.HeadCenterTop}"
                                          Width="6" Height="6" Margin="-1,-1,0,0"
                                          Stroke="White" StrokeThickness="1.5" Fill="Transparent"
                                          Visibility="{Binding Zone1Visual.GripperVisibility}"/>
                                 <!-- Z축 사이드 패널 -->
                                 <Rectangle Canvas.Left="212" Canvas.Top="2" Width="26" Height="176"
-                                           Fill="#080C18" Stroke="#1A2040" StrokeThickness="0.5" RadiusX="2" RadiusY="2"/>
-                                <!-- Z 컬럼 레일 -->
-                                <Rectangle Canvas.Left="218" Canvas.Top="10" Width="4" Height="156"
-                                           Fill="#101828" RadiusX="1" RadiusY="1"/>
-                                <!-- Z 채움 (위→아래, 깊이 표현) -->
-                                <Rectangle Canvas.Left="218" Canvas.Top="10" Width="4"
+                                           Fill="#080C18" Stroke="#1A2040" StrokeThickness="0.8" RadiusX="2" RadiusY="2"/>
+                                <TextBlock Canvas.Left="219" Canvas.Top="3" Text="Z" FontSize="7" FontWeight="Bold"
+                                           Foreground="#1A2540"/>
+                                <Rectangle Canvas.Left="218" Canvas.Top="14" Width="4" Height="152"
+                                           Fill="#0A1020" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="218" Canvas.Top="14" Width="4"
                                            Height="{Binding Zone1Visual.ZGaugeHeight}"
                                            Fill="{StaticResource AccentBlueBrush}" Opacity="0.5" RadiusX="1" RadiusY="1"/>
-                                <!-- Z 툴 암 (현재 깊이 위치) -->
                                 <Rectangle Canvas.Left="214" Canvas.Top="{Binding Zone1Visual.ZToolTop}"
                                            Width="16" Height="4"
                                            Fill="{StaticResource AccentBlueBrush}" Opacity="0.7" RadiusX="1" RadiusY="1"/>
                             </Canvas>
                         </Viewbox>
                     </Border>
-                    <!-- Station -->
-                    <Grid Grid.Row="3" Grid.Column="1" Margin="4,0">
+                    <!-- Station Z1 -->
+                    <Grid Grid.Row="3" Grid.Column="1" Margin="4,2">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="10"/>   <!-- STP 실린더 -->
-                            <ColumnDefinition Width="14"/>   <!-- ALN left -->
-                            <ColumnDefinition Width="*"/>    <!-- Lift + Shuttle + PCB -->
-                            <ColumnDefinition Width="14"/>   <!-- ALN right -->
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="18"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="18"/>
                         </Grid.ColumnDefinitions>
-                        <!-- 스토퍼 실린더 -->
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <Rectangle Width="6" Height="10" Fill="#183060" RadiusX="1" RadiusY="1"
+                        <!-- 스토퍼 (실린더 형태) -->
+                        <Grid Grid.Column="0" VerticalAlignment="Center">
+                            <Rectangle Width="10" Height="16" Fill="#142050" Stroke="#1E3070" StrokeThickness="0.8"
+                                       RadiusX="2" RadiusY="2"
                                        Opacity="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}"/>
-                            <Rectangle Width="3" Height="6" Fill="#102040" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                        <!-- 얼라인 (좌) — 삼각 푸셔 -->
-                        <Border Grid.Column="1" Margin="1,4" Background="#0E1830"
-                                BorderBrush="#183060" BorderThickness="0.5" CornerRadius="1"
-                                Opacity="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
-                            <TextBlock Text="▶" FontSize="7" Foreground="#2050A0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <!-- 얼라인 (우) — 삼각 푸셔 -->
-                        <Border Grid.Column="3" Margin="1,4" Background="#0E1830"
-                                BorderBrush="#183060" BorderThickness="0.5" CornerRadius="1"
-                                Opacity="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
-                            <TextBlock Text="◀" FontSize="7" Foreground="#2050A0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
+                            <Rectangle Width="4" Height="8" Fill="#0E1840" HorizontalAlignment="Center"
+                                       VerticalAlignment="Bottom" Margin="0,0,0,-6"/>
+                            <TextBlock Text="STP" FontSize="5" Foreground="#1E3070" HorizontalAlignment="Center"
+                                       VerticalAlignment="Bottom" Margin="0,0,0,-14"/>
+                        </Grid>
+                        <!-- 얼라인 (좌) -->
+                        <Grid Grid.Column="1" Margin="1,6"
+                              Opacity="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
+                            <Border Background="#0E1830" BorderBrush="#183060" BorderThickness="0.8" CornerRadius="2">
+                                <TextBlock Text="▶" FontSize="8" Foreground="#2050A0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="ALN" FontSize="5" Foreground="#183060" HorizontalAlignment="Center"
+                                       VerticalAlignment="Bottom" Margin="0,0,0,-10"/>
+                        </Grid>
+                        <!-- 얼라인 (우) -->
+                        <Grid Grid.Column="3" Margin="1,6"
+                              Opacity="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
+                            <Border Background="#0E1830" BorderBrush="#183060" BorderThickness="0.8" CornerRadius="2">
+                                <TextBlock Text="◀" FontSize="8" Foreground="#2050A0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </Grid>
                         <!-- 리프트 + 셔틀 + PCB -->
                         <Grid Grid.Column="2">
-                            <!-- 리프트 플랫폼 -->
-                            <Rectangle Stroke="#304060" StrokeThickness="1" StrokeDashArray="2 2"
-                                       Fill="Transparent" RadiusX="2" RadiusY="2" Margin="2,1"/>
-                            <!-- 리프트 업 글로우 -->
-                            <Rectangle Fill="#2858A6" Opacity="0.15" RadiusX="3" RadiusY="3" Margin="2,1"
-                                       Visibility="{Binding Zone1Visual.LiftIndicatorVisibility}">
-                                <Rectangle.Effect><BlurEffect Radius="6"/></Rectangle.Effect>
-                            </Rectangle>
-                            <TextBlock Text="▲" FontSize="8" Foreground="#58A6FF"
-                                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,1,0,0"
+                            <!-- 리프트 플랫폼 프레임 -->
+                            <Border BorderBrush="#304060" BorderThickness="1" CornerRadius="3" Margin="2,2">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Zone1Visual.IsLifted}" Value="True">
+                                                <Setter Property="Background" Value="#0C1A30"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+                            <!-- 리프트 업 표시 -->
+                            <TextBlock Text="LIFT ▲" FontSize="7" FontWeight="Bold" Foreground="#58A6FF"
+                                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,2,0,0"
                                        Visibility="{Binding Zone1Visual.LiftIndicatorVisibility}"/>
                             <!-- 셔틀 프레임 -->
-                            <Rectangle Fill="#1A2545" Stroke="#3A5580" RadiusX="2" RadiusY="2" Margin="6,4"
-                                       StrokeThickness="{Binding Zone1Visual.ShuttleStrokeThickness}"
-                                       Visibility="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}"/>
-                            <!-- PCB (동적, 그리퍼 배치 시 증가) -->
+                            <Border Margin="8,8,8,6" CornerRadius="3"
+                                    StrokeThickness="{Binding Zone1Visual.ShuttleStrokeThickness}"
+                                    Visibility="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#1A2545"/>
+                                        <Setter Property="BorderBrush" Value="#3A5580"/>
+                                        <Setter Property="BorderThickness" Value="1"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Zone1Visual.IsLifted}" Value="True">
+                                                <Setter Property="BorderThickness" Value="2"/>
+                                                <Setter Property="BorderBrush" Value="#5080B0"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+                            <!-- PCB -->
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
                                         Visibility="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
                                 <Rectangle Width="{StaticResource PcbWidth}" Height="{StaticResource PcbHeight}" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}" StrokeThickness="0.5"
@@ -444,31 +505,50 @@
                                    Foreground="{StaticResource AccentCyanBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
 
-                    <!-- ZONE 2 — 볼트 체결 (Bolt Driver 갠트리) -->
-                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Z2" FontSize="8" FontWeight="SemiBold"
-                               Foreground="{StaticResource AccentOrangeBrush}" Margin="6,2" VerticalAlignment="Center" Opacity="0.6"/>
+                    <!-- ═══════════════════ ZONE 2 — BOLT (볼트드라이버 갠트리) ═══════════════════ -->
+                    <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Margin="6,2" VerticalAlignment="Center">
+                        <TextBlock Text="ZONE 2" FontSize="8" FontWeight="Bold"
+                                   Foreground="{StaticResource AccentOrangeBrush}" Opacity="0.8"/>
+                        <TextBlock Text="  BOLT" FontSize="8"
+                                   Foreground="{StaticResource AccentOrangeBrush}" Opacity="0.5"/>
+                    </StackPanel>
                     <Border Grid.Row="1" Grid.Column="2" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="{StaticResource AccentOrangeBrush}" BorderThickness="1" Opacity="0.9"
                             CornerRadius="3" Margin="4,0">
                         <Viewbox Stretch="Fill">
                             <Canvas Width="{StaticResource GantryCanvasWidth}" Height="{StaticResource GantryCanvasHeight}" ClipToBounds="True">
-                                <!-- Y축 컬럼 레일 (좌/우) -->
-                                <Rectangle Canvas.Left="3" Canvas.Top="2" Width="7" Height="176"
-                                           Fill="#141820" Stroke="#1E2838" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
-                                <Rectangle Canvas.Left="200" Canvas.Top="2" Width="7" Height="176"
-                                           Fill="#141820" Stroke="#1E2838" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
-                                <!-- 리니어 가이드 -->
-                                <Line X1="6.5" Y1="6" X2="6.5" Y2="174" Stroke="#1E2030" StrokeThickness="0.4" StrokeDashArray="1 3"/>
-                                <Line X1="203.5" Y1="6" X2="203.5" Y2="174" Stroke="#1E2030" StrokeThickness="0.4" StrokeDashArray="1 3"/>
-                                <!-- X축 브릿지 레일 -->
-                                <Rectangle Canvas.Left="3" Canvas.Top="{Binding Zone2Visual.BridgeTop}"
-                                           Width="204" Height="4" Fill="#1A1E28" Stroke="#1E2838" StrokeThickness="0.5"/>
+                                <!-- 갠트리 프레임 외곽 -->
+                                <Rectangle Canvas.Left="1" Canvas.Top="0" Width="208" Height="180"
+                                           Stroke="#1A1820" StrokeThickness="1" Fill="Transparent" RadiusX="2" RadiusY="2"/>
+                                <!-- Y축 컬럼 -->
+                                <Rectangle Canvas.Left="2" Canvas.Top="2" Width="10" Height="176"
+                                           Fill="#141018" Stroke="#1E2838" StrokeThickness="0.8" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="198" Canvas.Top="2" Width="10" Height="176"
+                                           Fill="#141018" Stroke="#1E2838" StrokeThickness="0.8" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="5" Canvas.Top="6" Width="4" Height="168"
+                                           Fill="#0C0A14" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="201" Canvas.Top="6" Width="4" Height="168"
+                                           Fill="#0C0A14" RadiusX="1" RadiusY="1"/>
+                                <Line X1="7" Y1="8" X2="7" Y2="172" Stroke="#1E2030" StrokeThickness="0.5" StrokeDashArray="1 3"/>
+                                <Line X1="203" Y1="8" X2="203" Y2="172" Stroke="#1E2030" StrokeThickness="0.5" StrokeDashArray="1 3"/>
+                                <!-- 컬럼 마운팅 플랜지 -->
+                                <Rectangle Canvas.Left="0" Canvas.Top="0" Width="14" Height="4"
+                                           Fill="#1A1820" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="196" Canvas.Top="0" Width="14" Height="4"
+                                           Fill="#1A1820" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="0" Canvas.Top="176" Width="14" Height="4"
+                                           Fill="#1A1820" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="196" Canvas.Top="176" Width="14" Height="4"
+                                           Fill="#1A1820" RadiusX="1" RadiusY="1"/>
+                                <!-- X축 브릿지 -->
+                                <Rectangle Canvas.Left="2" Canvas.Top="{Binding Zone2Visual.BridgeTop}"
+                                           Width="206" Height="6" Fill="#1A1820" Stroke="#1E2838" StrokeThickness="0.8" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="14" Canvas.Top="{Binding Zone2Visual.BridgeTop}"
+                                           Width="182" Height="2" Fill="#201A28" Margin="0,2,0,0"/>
                                 <!-- 볼트 마커 (레시피 기반 동적) -->
                                 <ItemsControl ItemsSource="{Binding BoltMarkers}">
                                     <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <Canvas/>
-                                        </ItemsPanelTemplate>
+                                        <ItemsPanelTemplate><Canvas/></ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemContainerStyle>
                                         <Style TargetType="ContentPresenter">
@@ -479,12 +559,12 @@
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Grid>
-                                                <Ellipse Width="6" Height="6"
+                                                <Ellipse Width="7" Height="7"
                                                          Stroke="{Binding MarkerBrush}"
-                                                         StrokeThickness="1.2" Fill="#0C0A08"/>
-                                                <TextBlock Text="{Binding Name}" FontSize="5"
-                                                           Foreground="#605030" FontWeight="Bold"
-                                                           Margin="7,-3,0,0"/>
+                                                         StrokeThickness="1.3" Fill="#0C0A08"/>
+                                                <TextBlock Text="{Binding Name}" FontSize="6"
+                                                           Foreground="#605030" FontWeight="SemiBold"
+                                                           Margin="8,-2,0,0"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -492,84 +572,108 @@
                                 <!-- 헤드 글로우 -->
                                 <Ellipse Canvas.Left="{Binding Zone2Visual.HeadLeft}" Canvas.Top="{Binding Zone2Visual.HeadTop}"
                                          Width="{Binding Zone2Visual.HeadSize}" Height="{Binding Zone2Visual.HeadSize}"
-                                         Fill="#A06818" Opacity="0.3">
-                                    <Ellipse.Effect><BlurEffect Radius="10"/></Ellipse.Effect>
+                                         Fill="#A06818" Opacity="0.35">
+                                    <Ellipse.Effect><BlurEffect Radius="12"/></Ellipse.Effect>
                                 </Ellipse>
-                                <!-- 피듀셜 보정 위치 마커 (십자선, 시안색) -->
+                                <!-- 피듀셜 보정 십자선 -->
                                 <Ellipse Canvas.Left="{Binding Zone2Visual.FiducialOffsetLeft}" Canvas.Top="{Binding Zone2Visual.FiducialOffsetTop}"
                                          Width="8" Height="8" Margin="-4,-4,0,0"
                                          Stroke="{StaticResource AccentCyanBrush}" StrokeThickness="1" Fill="Transparent"
                                          Visibility="{Binding Zone2Visual.FiducialOffsetVisibility}"/>
-                                <!-- 십자선 가로 -->
                                 <Line X1="{Binding Zone2Visual.FiducialCrossH1}" Y1="{Binding Zone2Visual.FiducialOffsetTop}"
                                       X2="{Binding Zone2Visual.FiducialCrossH2}" Y2="{Binding Zone2Visual.FiducialOffsetTop}"
                                       Stroke="{StaticResource AccentCyanBrush}" StrokeThickness="0.5" StrokeDashArray="2 1"
                                       Visibility="{Binding Zone2Visual.FiducialOffsetVisibility}"/>
-                                <!-- 십자선 세로 -->
                                 <Line X1="{Binding Zone2Visual.FiducialOffsetLeft}" Y1="{Binding Zone2Visual.FiducialCrossV1}"
                                       X2="{Binding Zone2Visual.FiducialOffsetLeft}" Y2="{Binding Zone2Visual.FiducialCrossV2}"
                                       Stroke="{StaticResource AccentCyanBrush}" StrokeThickness="0.5" StrokeDashArray="2 1"
                                       Visibility="{Binding Zone2Visual.FiducialOffsetVisibility}"/>
-                                <!-- 헤드 본체 (Bolt Driver — 원형 + 중심점) -->
+                                <!-- 헤드 본체 (Bolt Driver — 원형) -->
                                 <Ellipse Canvas.Left="{Binding Zone2Visual.HeadLeft}" Canvas.Top="{Binding Zone2Visual.HeadTop}"
                                          Width="{Binding Zone2Visual.HeadSize}" Height="{Binding Zone2Visual.HeadSize}"
-                                         Fill="{StaticResource AccentOrangeBrush}" Opacity="0.85" Stroke="White" StrokeThickness="1.5"/>
-                                <!-- 볼트드라이버 중심점 (소켓 표시) -->
+                                         Fill="{StaticResource AccentOrangeBrush}" Opacity="0.9" Stroke="White" StrokeThickness="1.5"/>
+                                <!-- 소켓 중심 -->
                                 <Ellipse Canvas.Left="{Binding Zone2Visual.HeadCenterLeft}" Canvas.Top="{Binding Zone2Visual.HeadCenterTop}"
-                                         Width="4" Height="4" Fill="White" Opacity="0.6"/>
+                                         Width="4" Height="4" Fill="White" Opacity="0.7"/>
                                 <!-- Z축 사이드 패널 -->
                                 <Rectangle Canvas.Left="212" Canvas.Top="2" Width="26" Height="176"
-                                           Fill="#080C18" Stroke="#1E2838" StrokeThickness="0.5" RadiusX="2" RadiusY="2"/>
-                                <!-- Z 컬럼 레일 -->
-                                <Rectangle Canvas.Left="218" Canvas.Top="10" Width="4" Height="156"
-                                           Fill="#101828" RadiusX="1" RadiusY="1"/>
-                                <!-- Z 채움 -->
-                                <Rectangle Canvas.Left="218" Canvas.Top="10" Width="4"
+                                           Fill="#080C18" Stroke="#1E2838" StrokeThickness="0.8" RadiusX="2" RadiusY="2"/>
+                                <TextBlock Canvas.Left="219" Canvas.Top="3" Text="Z" FontSize="7" FontWeight="Bold"
+                                           Foreground="#1E1A28"/>
+                                <Rectangle Canvas.Left="218" Canvas.Top="14" Width="4" Height="152"
+                                           Fill="#0C0A14" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="218" Canvas.Top="14" Width="4"
                                            Height="{Binding Zone2Visual.ZGaugeHeight}"
                                            Fill="{StaticResource AccentOrangeBrush}" Opacity="0.5" RadiusX="1" RadiusY="1"/>
-                                <!-- Z 툴 암 -->
                                 <Rectangle Canvas.Left="214" Canvas.Top="{Binding Zone2Visual.ZToolTop}"
                                            Width="16" Height="4"
                                            Fill="{StaticResource AccentOrangeBrush}" Opacity="0.7" RadiusX="1" RadiusY="1"/>
                             </Canvas>
                         </Viewbox>
                     </Border>
-                    <!-- Station -->
-                    <Grid Grid.Row="3" Grid.Column="2" Margin="4,0">
+                    <!-- Station Z2 -->
+                    <Grid Grid.Row="3" Grid.Column="2" Margin="4,2">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="10"/>
-                            <ColumnDefinition Width="14"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="18"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="14"/>
+                            <ColumnDefinition Width="18"/>
                         </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <Rectangle Width="6" Height="10" Fill="#603810" RadiusX="1" RadiusY="1"
+                        <Grid Grid.Column="0" VerticalAlignment="Center">
+                            <Rectangle Width="10" Height="16" Fill="#402810" Stroke="#604018" StrokeThickness="0.8"
+                                       RadiusX="2" RadiusY="2"
                                        Opacity="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}"/>
-                            <Rectangle Width="3" Height="6" Fill="#402810" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                        <Border Grid.Column="1" Margin="1,4" Background="#1A1208"
-                                BorderBrush="#603810" BorderThickness="0.5" CornerRadius="1"
-                                Opacity="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
-                            <TextBlock Text="▶" FontSize="7" Foreground="#A06020" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <Border Grid.Column="3" Margin="1,4" Background="#1A1208"
-                                BorderBrush="#603810" BorderThickness="0.5" CornerRadius="1"
-                                Opacity="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
-                            <TextBlock Text="◀" FontSize="7" Foreground="#A06020" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
+                            <Rectangle Width="4" Height="8" Fill="#301A08" HorizontalAlignment="Center"
+                                       VerticalAlignment="Bottom" Margin="0,0,0,-6"/>
+                            <TextBlock Text="STP" FontSize="5" Foreground="#604018" HorizontalAlignment="Center"
+                                       VerticalAlignment="Bottom" Margin="0,0,0,-14"/>
+                        </Grid>
+                        <Grid Grid.Column="1" Margin="1,6"
+                              Opacity="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
+                            <Border Background="#1A1208" BorderBrush="#603810" BorderThickness="0.8" CornerRadius="2">
+                                <TextBlock Text="▶" FontSize="8" Foreground="#A06020" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="ALN" FontSize="5" Foreground="#603810" HorizontalAlignment="Center"
+                                       VerticalAlignment="Bottom" Margin="0,0,0,-10"/>
+                        </Grid>
+                        <Grid Grid.Column="3" Margin="1,6"
+                              Opacity="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
+                            <Border Background="#1A1208" BorderBrush="#603810" BorderThickness="0.8" CornerRadius="2">
+                                <TextBlock Text="◀" FontSize="8" Foreground="#A06020" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </Grid>
                         <Grid Grid.Column="2">
-                            <Rectangle Stroke="#604020" StrokeThickness="1" StrokeDashArray="2 2"
-                                       Fill="Transparent" RadiusX="2" RadiusY="2" Margin="2,1"/>
-                            <Rectangle Fill="#A06818" Opacity="0.15" RadiusX="3" RadiusY="3" Margin="2,1"
-                                       Visibility="{Binding Zone2Visual.LiftIndicatorVisibility}">
-                                <Rectangle.Effect><BlurEffect Radius="6"/></Rectangle.Effect>
-                            </Rectangle>
-                            <TextBlock Text="▲" FontSize="8" Foreground="#F0883E"
-                                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,1,0,0"
+                            <Border BorderBrush="#604020" BorderThickness="1" CornerRadius="3" Margin="2,2">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Zone2Visual.IsLifted}" Value="True">
+                                                <Setter Property="Background" Value="#1A1408"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+                            <TextBlock Text="LIFT ▲" FontSize="7" FontWeight="Bold" Foreground="#F0883E"
+                                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,2,0,0"
                                        Visibility="{Binding Zone2Visual.LiftIndicatorVisibility}"/>
-                            <Rectangle Fill="#2A2515" Stroke="#806030" RadiusX="2" RadiusY="2" Margin="6,4"
-                                       StrokeThickness="{Binding Zone2Visual.ShuttleStrokeThickness}"
-                                       Visibility="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}"/>
+                            <Border Margin="8,8,8,6" CornerRadius="3"
+                                    Visibility="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#2A2515"/>
+                                        <Setter Property="BorderBrush" Value="#806030"/>
+                                        <Setter Property="BorderThickness" Value="1"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Zone2Visual.IsLifted}" Value="True">
+                                                <Setter Property="BorderThickness" Value="2"/>
+                                                <Setter Property="BorderBrush" Value="#A08040"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
                                         Visibility="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
                                 <Rectangle Width="{StaticResource PcbWidth}" Height="{StaticResource PcbHeight}" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}" StrokeThickness="0.5"
@@ -581,8 +685,7 @@
                             </StackPanel>
                         </Grid>
                     </Grid>
-                    <StackPanel Grid.Row="5" Grid.Column="2" Orientation="Horizontal" Margin="6,1"
-                                VerticalAlignment="Center">
+                    <StackPanel Grid.Row="5" Grid.Column="2" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Zone2Visual.CoordText}" FontFamily="Consolas" FontSize="8"
                                    Foreground="{StaticResource AccentOrangeBrush}"/>
                         <TextBlock Text="{Binding BoltProgress}" FontFamily="Consolas" FontSize="8" FontWeight="Bold"
@@ -593,104 +696,155 @@
                                    Foreground="{StaticResource AccentCyanBrush}" Margin="6,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
 
-                    <!-- ZONE 3 — 검사 (Camera 갠트리) -->
-                    <TextBlock Grid.Row="0" Grid.Column="3" Text="Z3" FontSize="8" FontWeight="SemiBold"
-                               Foreground="{StaticResource AccentGreenBrush}" Margin="6,2" VerticalAlignment="Center" Opacity="0.6"/>
+                    <!-- ═══════════════════ ZONE 3 — INSPECT (카메라 갠트리) ═══════════════════ -->
+                    <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Horizontal" Margin="6,2" VerticalAlignment="Center">
+                        <TextBlock Text="ZONE 3" FontSize="8" FontWeight="Bold"
+                                   Foreground="{StaticResource AccentGreenBrush}" Opacity="0.8"/>
+                        <TextBlock Text="  INSPECT" FontSize="8"
+                                   Foreground="{StaticResource AccentGreenBrush}" Opacity="0.5"/>
+                    </StackPanel>
                     <Border Grid.Row="1" Grid.Column="3" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="{StaticResource AccentGreenBrush}" BorderThickness="1" Opacity="0.9"
                             CornerRadius="3" Margin="4,0">
                         <Viewbox Stretch="Fill">
                             <Canvas Width="{StaticResource GantryCanvasWidth}" Height="{StaticResource GantryCanvasHeight}" ClipToBounds="True">
-                                <!-- Y축 컬럼 레일 -->
-                                <Rectangle Canvas.Left="3" Canvas.Top="2" Width="7" Height="176"
-                                           Fill="#101820" Stroke="#1A2838" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
-                                <Rectangle Canvas.Left="200" Canvas.Top="2" Width="7" Height="176"
-                                           Fill="#101820" Stroke="#1A2838" StrokeThickness="0.5" RadiusX="1" RadiusY="1"/>
-                                <!-- 리니어 가이드 -->
-                                <Line X1="6.5" Y1="6" X2="6.5" Y2="174" Stroke="#142820" StrokeThickness="0.4" StrokeDashArray="1 3"/>
-                                <Line X1="203.5" Y1="6" X2="203.5" Y2="174" Stroke="#142820" StrokeThickness="0.4" StrokeDashArray="1 3"/>
-                                <!-- X축 브릿지 레일 -->
-                                <Rectangle Canvas.Left="3" Canvas.Top="{Binding Zone3Visual.BridgeTop}"
-                                           Width="204" Height="4" Fill="#101E18" Stroke="#1A2838" StrokeThickness="0.5"/>
-                                <!-- 검사 영역 아웃라인 -->
-                                <Rectangle Canvas.Left="40" Canvas.Top="30" Width="130" Height="120"
-                                           Stroke="#142818" StrokeThickness="0.5" StrokeDashArray="4 2" Fill="Transparent"
+                                <!-- 갠트리 프레임 외곽 -->
+                                <Rectangle Canvas.Left="1" Canvas.Top="0" Width="208" Height="180"
+                                           Stroke="#141E18" StrokeThickness="1" Fill="Transparent" RadiusX="2" RadiusY="2"/>
+                                <!-- Y축 컬럼 -->
+                                <Rectangle Canvas.Left="2" Canvas.Top="2" Width="10" Height="176"
+                                           Fill="#0C1810" Stroke="#1A2838" StrokeThickness="0.8" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="198" Canvas.Top="2" Width="10" Height="176"
+                                           Fill="#0C1810" Stroke="#1A2838" StrokeThickness="0.8" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="5" Canvas.Top="6" Width="4" Height="168"
+                                           Fill="#081410" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="201" Canvas.Top="6" Width="4" Height="168"
+                                           Fill="#081410" RadiusX="1" RadiusY="1"/>
+                                <Line X1="7" Y1="8" X2="7" Y2="172" Stroke="#142820" StrokeThickness="0.5" StrokeDashArray="1 3"/>
+                                <Line X1="203" Y1="8" X2="203" Y2="172" Stroke="#142820" StrokeThickness="0.5" StrokeDashArray="1 3"/>
+                                <!-- 컬럼 마운팅 플랜지 -->
+                                <Rectangle Canvas.Left="0" Canvas.Top="0" Width="14" Height="4"
+                                           Fill="#141E18" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="196" Canvas.Top="0" Width="14" Height="4"
+                                           Fill="#141E18" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="0" Canvas.Top="176" Width="14" Height="4"
+                                           Fill="#141E18" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="196" Canvas.Top="176" Width="14" Height="4"
+                                           Fill="#141E18" RadiusX="1" RadiusY="1"/>
+                                <!-- X축 브릿지 -->
+                                <Rectangle Canvas.Left="2" Canvas.Top="{Binding Zone3Visual.BridgeTop}"
+                                           Width="206" Height="6" Fill="#101E18" Stroke="#1A2838" StrokeThickness="0.8" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="14" Canvas.Top="{Binding Zone3Visual.BridgeTop}"
+                                           Width="182" Height="2" Fill="#142820" Margin="0,2,0,0"/>
+                                <!-- 검사 영역 -->
+                                <TextBlock Canvas.Left="65" Canvas.Top="24" Text="INSPECT AREA" FontSize="7" FontWeight="Bold"
+                                           Foreground="#142818" Opacity="0.8"/>
+                                <Rectangle Canvas.Left="35" Canvas.Top="34" Width="140" Height="110"
+                                           Stroke="#1A3020" StrokeThickness="0.7" StrokeDashArray="4 2" Fill="#060E0A"
                                            RadiusX="2" RadiusY="2"/>
                                 <!-- NG 적재 영역 -->
-                                <Rectangle Canvas.Left="20" Canvas.Top="164" Width="170" Height="10"
-                                           Stroke="#281010" StrokeThickness="0.4" StrokeDashArray="4 3"
-                                           Fill="Transparent" RadiusX="1" RadiusY="1"/>
+                                <TextBlock Canvas.Left="25" Canvas.Top="153" Text="NG STACK" FontSize="6"
+                                           Foreground="#281010" Opacity="0.8"/>
+                                <Rectangle Canvas.Left="20" Canvas.Top="162" Width="170" Height="12"
+                                           Stroke="#2A1010" StrokeThickness="0.5" StrokeDashArray="4 3"
+                                           Fill="#0A0808" RadiusX="1" RadiusY="1"/>
                                 <!-- 헤드 글로우 -->
                                 <Ellipse Canvas.Left="{Binding Zone3Visual.HeadLeft}" Canvas.Top="{Binding Zone3Visual.HeadTop}"
                                          Width="{Binding Zone3Visual.HeadSize}" Height="{Binding Zone3Visual.HeadSize}"
-                                         Fill="#18A038" Opacity="0.3">
-                                    <Ellipse.Effect><BlurEffect Radius="10"/></Ellipse.Effect>
+                                         Fill="#18A038" Opacity="0.35">
+                                    <Ellipse.Effect><BlurEffect Radius="12"/></Ellipse.Effect>
                                 </Ellipse>
-                                <!-- 헤드 본체 (Camera — 원형 + 내부 렌즈) -->
+                                <!-- 헤드 본체 (Camera — 원형) -->
                                 <Ellipse Canvas.Left="{Binding Zone3Visual.HeadLeft}" Canvas.Top="{Binding Zone3Visual.HeadTop}"
                                          Width="{Binding Zone3Visual.HeadSize}" Height="{Binding Zone3Visual.HeadSize}"
-                                         Fill="{StaticResource AccentGreenBrush}" Opacity="0.85" Stroke="White" StrokeThickness="1.5"/>
-                                <!-- 카메라 렌즈 (내부 원) -->
+                                         Fill="{StaticResource AccentGreenBrush}" Opacity="0.9" Stroke="White" StrokeThickness="1.5"/>
+                                <!-- 카메라 렌즈 -->
                                 <Ellipse Canvas.Left="{Binding Zone3Visual.HeadCenterLeft}" Canvas.Top="{Binding Zone3Visual.HeadCenterTop}"
                                          Width="4" Height="4" Stroke="White" StrokeThickness="0.8" Fill="Transparent" Opacity="0.7"/>
-                                <!-- 그리퍼 활성 표시 (NG 이송 시) -->
+                                <!-- 그리퍼 (NG 이송용) -->
                                 <Ellipse Canvas.Left="{Binding Zone3Visual.HeadCenterLeft}" Canvas.Top="{Binding Zone3Visual.HeadCenterTop}"
                                          Width="6" Height="6" Margin="-1,-1,0,0"
                                          Stroke="White" StrokeThickness="1.5" Fill="Transparent"
                                          Visibility="{Binding Zone3Visual.GripperVisibility}"/>
                                 <!-- Z축 사이드 패널 -->
                                 <Rectangle Canvas.Left="212" Canvas.Top="2" Width="26" Height="176"
-                                           Fill="#080C18" Stroke="#1A2838" StrokeThickness="0.5" RadiusX="2" RadiusY="2"/>
-                                <!-- Z 컬럼 레일 -->
-                                <Rectangle Canvas.Left="218" Canvas.Top="10" Width="4" Height="156"
-                                           Fill="#101828" RadiusX="1" RadiusY="1"/>
-                                <!-- Z 채움 -->
-                                <Rectangle Canvas.Left="218" Canvas.Top="10" Width="4"
+                                           Fill="#080C18" Stroke="#1A2838" StrokeThickness="0.8" RadiusX="2" RadiusY="2"/>
+                                <TextBlock Canvas.Left="219" Canvas.Top="3" Text="Z" FontSize="7" FontWeight="Bold"
+                                           Foreground="#142820"/>
+                                <Rectangle Canvas.Left="218" Canvas.Top="14" Width="4" Height="152"
+                                           Fill="#081410" RadiusX="1" RadiusY="1"/>
+                                <Rectangle Canvas.Left="218" Canvas.Top="14" Width="4"
                                            Height="{Binding Zone3Visual.ZGaugeHeight}"
                                            Fill="{StaticResource AccentGreenBrush}" Opacity="0.5" RadiusX="1" RadiusY="1"/>
-                                <!-- Z 툴 암 -->
                                 <Rectangle Canvas.Left="214" Canvas.Top="{Binding Zone3Visual.ZToolTop}"
                                            Width="16" Height="4"
                                            Fill="{StaticResource AccentGreenBrush}" Opacity="0.7" RadiusX="1" RadiusY="1"/>
                             </Canvas>
                         </Viewbox>
                     </Border>
-                    <!-- Station -->
-                    <Grid Grid.Row="3" Grid.Column="3" Margin="4,0">
+                    <!-- Station Z3 -->
+                    <Grid Grid.Row="3" Grid.Column="3" Margin="4,2">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="10"/>
-                            <ColumnDefinition Width="14"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="18"/>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="14"/>
+                            <ColumnDefinition Width="18"/>
                         </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <Rectangle Width="6" Height="10" Fill="#104020" RadiusX="1" RadiusY="1"
+                        <Grid Grid.Column="0" VerticalAlignment="Center">
+                            <Rectangle Width="10" Height="16" Fill="#0C3018" Stroke="#185028" StrokeThickness="0.8"
+                                       RadiusX="2" RadiusY="2"
                                        Opacity="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}"/>
-                            <Rectangle Width="3" Height="6" Fill="#082818" HorizontalAlignment="Center"/>
-                        </StackPanel>
-                        <Border Grid.Column="1" Margin="1,4" Background="#081A0E"
-                                BorderBrush="#104020" BorderThickness="0.5" CornerRadius="1"
-                                Opacity="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
-                            <TextBlock Text="▶" FontSize="7" Foreground="#208040" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <Border Grid.Column="3" Margin="1,4" Background="#081A0E"
-                                BorderBrush="#104020" BorderThickness="0.5" CornerRadius="1"
-                                Opacity="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
-                            <TextBlock Text="◀" FontSize="7" Foreground="#208040" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
+                            <Rectangle Width="4" Height="8" Fill="#082010" HorizontalAlignment="Center"
+                                       VerticalAlignment="Bottom" Margin="0,0,0,-6"/>
+                            <TextBlock Text="STP" FontSize="5" Foreground="#185028" HorizontalAlignment="Center"
+                                       VerticalAlignment="Bottom" Margin="0,0,0,-14"/>
+                        </Grid>
+                        <Grid Grid.Column="1" Margin="1,6"
+                              Opacity="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
+                            <Border Background="#081A0E" BorderBrush="#104020" BorderThickness="0.8" CornerRadius="2">
+                                <TextBlock Text="▶" FontSize="8" Foreground="#208040" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="ALN" FontSize="5" Foreground="#104020" HorizontalAlignment="Center"
+                                       VerticalAlignment="Bottom" Margin="0,0,0,-10"/>
+                        </Grid>
+                        <Grid Grid.Column="3" Margin="1,6"
+                              Opacity="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
+                            <Border Background="#081A0E" BorderBrush="#104020" BorderThickness="0.8" CornerRadius="2">
+                                <TextBlock Text="◀" FontSize="8" Foreground="#208040" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </Grid>
                         <Grid Grid.Column="2">
-                            <Rectangle Stroke="#206030" StrokeThickness="1" StrokeDashArray="2 2"
-                                       Fill="Transparent" RadiusX="2" RadiusY="2" Margin="2,1"/>
-                            <Rectangle Fill="#18A038" Opacity="0.15" RadiusX="3" RadiusY="3" Margin="2,1"
-                                       Visibility="{Binding Zone3Visual.LiftIndicatorVisibility}">
-                                <Rectangle.Effect><BlurEffect Radius="6"/></Rectangle.Effect>
-                            </Rectangle>
-                            <TextBlock Text="▲" FontSize="8" Foreground="#3FB950"
-                                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,1,0,0"
+                            <Border BorderBrush="#206030" BorderThickness="1" CornerRadius="3" Margin="2,2">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Zone3Visual.IsLifted}" Value="True">
+                                                <Setter Property="Background" Value="#081A10"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+                            <TextBlock Text="LIFT ▲" FontSize="7" FontWeight="Bold" Foreground="#3FB950"
+                                       HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,2,0,0"
                                        Visibility="{Binding Zone3Visual.LiftIndicatorVisibility}"/>
-                            <Rectangle Fill="#152A1A" Stroke="#308040" RadiusX="2" RadiusY="2" Margin="6,4"
-                                       StrokeThickness="{Binding Zone3Visual.ShuttleStrokeThickness}"
-                                       Visibility="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}"/>
+                            <Border Margin="8,8,8,6" CornerRadius="3"
+                                    Visibility="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="#152A1A"/>
+                                        <Setter Property="BorderBrush" Value="#308040"/>
+                                        <Setter Property="BorderThickness" Value="1"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Zone3Visual.IsLifted}" Value="True">
+                                                <Setter Property="BorderThickness" Value="2"/>
+                                                <Setter Property="BorderBrush" Value="#40A050"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center"
                                         Visibility="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
                                 <Rectangle Width="{StaticResource PcbWidth}" Height="{StaticResource PcbHeight}" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}" StrokeThickness="0.5"
@@ -709,7 +863,7 @@
                                    Foreground="{StaticResource AccentCyanBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
 
-                    <!-- 우측 패널 -->
+                    <!-- ── 우측 패널 (결과·NG·SMEMA) ── -->
                     <StackPanel Grid.Row="0" Grid.RowSpan="6" Grid.Column="4" Margin="8,4">
                         <!-- 결과 배지 -->
                         <Border Width="70" Height="34" CornerRadius="6" BorderThickness="1.5"
@@ -749,7 +903,7 @@
                         </Border>
 
                         <!-- NG 적재 -->
-                        <TextBlock Text="NG" Margin="0,8,0,3"
+                        <TextBlock Text="NG STACK" Margin="0,8,0,3"
                                    Foreground="{StaticResource AccentRedBrush}" FontSize="8" FontWeight="SemiBold" Opacity="0.7"/>
                         <ItemsControl ItemsSource="{Binding NgStackSlots}">
                             <ItemsControl.ItemsPanel>
@@ -781,15 +935,15 @@
                         <TextBlock FontSize="7" Margin="0,12,0,0">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
-                                    <Setter Property="Text" Value="OUT"/>
+                                    <Setter Property="Text" Value="SMEMA  OUT"/>
                                     <Setter Property="Foreground" Value="#282840"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding SmemaWaiting}" Value="True">
-                                            <Setter Property="Text" Value="OUT  WAIT"/>
+                                            <Setter Property="Text" Value="SMEMA  WAIT"/>
                                             <Setter Property="Foreground" Value="{StaticResource AccentOrangeBrush}"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding SmemaReady}" Value="True">
-                                            <Setter Property="Text" Value="OUT  OK"/>
+                                            <Setter Property="Text" Value="SMEMA  OK"/>
                                             <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
