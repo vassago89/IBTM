@@ -323,7 +323,7 @@
                                    Foreground="{StaticResource AccentBlueBrush}" Opacity="0.5"/>
                     </StackPanel>
                     <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource CanvasBgBrush}"
-                            BorderBrush="{StaticResource AccentBlueBrush}" BorderThickness="1" Opacity="0.9"
+                            BorderBrush="{StaticResource AccentBlueBrush}" BorderThickness="1"
                             CornerRadius="3" Margin="4,0">
                         <Viewbox Stretch="Fill">
                             <Canvas Width="{StaticResource GantryCanvasWidth}" Height="{StaticResource GantryCanvasHeight}" ClipToBounds="True">
@@ -469,7 +469,6 @@
                                        Visibility="{Binding Zone1Visual.LiftIndicatorVisibility}"/>
                             <!-- 셔틀 프레임 -->
                             <Border Margin="8,8,8,6" CornerRadius="3"
-                                    StrokeThickness="{Binding Zone1Visual.ShuttleStrokeThickness}"
                                     Visibility="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
                                 <Border.Style>
                                     <Style TargetType="Border">
@@ -513,7 +512,7 @@
                                    Foreground="{StaticResource AccentOrangeBrush}" Opacity="0.5"/>
                     </StackPanel>
                     <Border Grid.Row="1" Grid.Column="2" Background="{StaticResource CanvasBgBrush}"
-                            BorderBrush="{StaticResource AccentOrangeBrush}" BorderThickness="1" Opacity="0.9"
+                            BorderBrush="{StaticResource AccentOrangeBrush}" BorderThickness="1"
                             CornerRadius="3" Margin="4,0">
                         <Viewbox Stretch="Fill">
                             <Canvas Width="{StaticResource GantryCanvasWidth}" Height="{StaticResource GantryCanvasHeight}" ClipToBounds="True">
@@ -704,7 +703,7 @@
                                    Foreground="{StaticResource AccentGreenBrush}" Opacity="0.5"/>
                     </StackPanel>
                     <Border Grid.Row="1" Grid.Column="3" Background="{StaticResource CanvasBgBrush}"
-                            BorderBrush="{StaticResource AccentGreenBrush}" BorderThickness="1" Opacity="0.9"
+                            BorderBrush="{StaticResource AccentGreenBrush}" BorderThickness="1"
                             CornerRadius="3" Margin="4,0">
                         <Viewbox Stretch="Fill">
                             <Canvas Width="{StaticResource GantryCanvasWidth}" Height="{StaticResource GantryCanvasHeight}" ClipToBounds="True">
