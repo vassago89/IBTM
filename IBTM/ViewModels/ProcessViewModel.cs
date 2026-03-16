@@ -214,7 +214,7 @@ public partial class ProcessViewModel : ObservableObject
     [ObservableProperty] private double _targetTorque = 15.0;
 
     // ── 2D 설비 레이아웃 ──────────────────────────────────────────────────────
-    //   각 Zone의 Gantry Canvas: 240×100 (로컬 좌표, Viewbox로 자동 스케일)
+    //   각 Zone의 Gantry Canvas: 240×180 (로컬 좌표, Viewbox로 자동 스케일)
     public ZoneVisualState Zone1Visual { get; } = new(240, 180);
     public ZoneVisualState Zone2Visual { get; } = new(240, 180);
     public ZoneVisualState Zone3Visual { get; } = new(240, 180);
@@ -572,13 +572,7 @@ public partial class ProcessViewModel : ObservableObject
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            var visual = e.Zone switch
-            {
-                1 => Zone1Visual,
-                2 => Zone2Visual,
-                3 => Zone3Visual,
-                _ => null
-            };
+            var visual = GetZoneVisual(e.Zone);
             if (visual != null) visual.GripperActive = e.Active;
 
             // Zone 1: 그리퍼 OFF = PCB 배치 완료 → 셔틀 PCB 증가
@@ -586,7 +580,6 @@ public partial class ProcessViewModel : ObservableObject
                 Zone1Visual.PcbCount = Math.Min(2, Zone1Visual.PcbCount + 1);
         });
     }
-
 
     private void OnStatsUpdated(object? sender, ProductionStats stats)
     {
