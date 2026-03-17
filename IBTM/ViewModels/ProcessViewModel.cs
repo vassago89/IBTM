@@ -4,6 +4,7 @@ using IBTM.Models;
 using IBTM.Services;
 using System.Collections.ObjectModel;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace IBTM.ViewModels;
@@ -52,6 +53,16 @@ public partial class ZoneVisualState : ObservableObject
     private const double WorkX0 = 12.0, WorkXRange = 186.0;
     private const double WorkY0 = 10.0, WorkYRange = 160.0;
     private const double GaugeTrack = 156.0;
+
+    // ── 애니메이션 보간 ────────────────────────────────────────────────────
+    private const double AnimSpeed = 10.0;  // 감쇠 속도 (높을수록 빠른 수렴)
+    private const double SnapThreshold = 0.3; // mm 이하 차이면 즉시 스냅
+
+    private double _targetX, _targetY, _targetZ;
+    private double _currentX, _currentY, _currentZ;
+    private bool _animating;
+    private bool _initialized;
+    private DateTime _lastFrame;
 
     public ZoneVisualState(double canvasW, double canvasH)
     {
@@ -138,7 +149,73 @@ public partial class ZoneVisualState : ObservableObject
     [ObservableProperty] private double _crosshairV1;     // 수직선 Y1
     [ObservableProperty] private double _crosshairV2;     // 수직선 Y2
 
+    /// <summary>목표 좌표 설정 → 부드러운 애니메이션 시작</summary>
     public void UpdatePosition(double xMm, double yMm, double zMm)
+    {
+        _targetX = xMm;
+        _targetY = yMm;
+        _targetZ = zMm;
+
+        // 좌표 텍스트는 목표값 즉시 표시
+        CoordText = $"X:{xMm:F0}  Y:{yMm:F0}  Z:{zMm:F0}";
+
+        // 첫 호출이면 즉시 스냅 (초기 위치)
+        if (!_initialized)
+        {
+            _initialized = true;
+            _currentX = xMm; _currentY = yMm; _currentZ = zMm;
+            ApplyPosition(_currentX, _currentY, _currentZ);
+            return;
+        }
+
+        // 아주 작은 변화면 즉시 스냅
+        if (Math.Abs(_currentX - xMm) < SnapThreshold &&
+            Math.Abs(_currentY - yMm) < SnapThreshold &&
+            Math.Abs(_currentZ - zMm) < SnapThreshold)
+        {
+            _currentX = xMm; _currentY = yMm; _currentZ = zMm;
+            ApplyPosition(_currentX, _currentY, _currentZ);
+            return;
+        }
+
+        // 애니메이션 루프 시작
+        if (!_animating)
+        {
+            _animating = true;
+            _lastFrame = DateTime.Now;
+            CompositionTarget.Rendering += OnRendering;
+        }
+    }
+
+    private void OnRendering(object? sender, EventArgs e)
+    {
+        var now = DateTime.Now;
+        var dt = (now - _lastFrame).TotalSeconds;
+        _lastFrame = now;
+        if (dt <= 0 || dt > 0.1) dt = 0.016; // 프레임 보정 (최대 100ms)
+
+        // 지수 감쇠 보간: factor = 1 - e^(-speed * dt)
+        var factor = 1.0 - Math.Exp(-AnimSpeed * dt);
+        _currentX += (_targetX - _currentX) * factor;
+        _currentY += (_targetY - _currentY) * factor;
+        _currentZ += (_targetZ - _currentZ) * factor;
+
+        ApplyPosition(_currentX, _currentY, _currentZ);
+
+        // 목표 도달 시 애니메이션 중지
+        if (Math.Abs(_currentX - _targetX) < 0.1 &&
+            Math.Abs(_currentY - _targetY) < 0.1 &&
+            Math.Abs(_currentZ - _targetZ) < 0.1)
+        {
+            _currentX = _targetX; _currentY = _targetY; _currentZ = _targetZ;
+            ApplyPosition(_currentX, _currentY, _currentZ);
+            CompositionTarget.Rendering -= OnRendering;
+            _animating = false;
+        }
+    }
+
+    /// <summary>보간된 좌표를 UI 프로퍼티에 적용</summary>
+    private void ApplyPosition(double xMm, double yMm, double zMm)
     {
         var size = Math.Clamp(10.0 + (zMm / MaxZ) * 16.0, 10.0, 26.0);
         HeadSize = size;
@@ -162,7 +239,6 @@ public partial class ZoneVisualState : ObservableObject
         ZRatio = Math.Clamp(zMm / MaxZ, 0, 1);
         ZGaugeHeight = ZRatio * GaugeTrack;
         ZToolTop = WorkY0 + ZGaugeHeight;
-        CoordText = $"X:{xMm:F0}  Y:{yMm:F0}  Z:{zMm:F0}";
     }
 }
 
@@ -231,6 +307,9 @@ public partial class ProcessViewModel : ObservableObject
 
     // ── 설정 ─────────────────────────────────────────────────────────────────
     [ObservableProperty] private double _targetTorque = 15.0;
+
+    // ── 전시회 모드 (2D 레이아웃 풀스크린) ──────────────────────────────────────
+    [ObservableProperty] private bool _isExhibitionMode;
 
     // ── 2D 설비 레이아웃 ──────────────────────────────────────────────────────
     //   각 Zone의 Gantry Canvas: 240×180 (로컬 좌표, Viewbox로 자동 스케일)
@@ -632,6 +711,9 @@ public partial class ProcessViewModel : ObservableObject
 
     [RelayCommand]
     private void EStop() => _orchestrator.EStop();
+
+    [RelayCommand]
+    private void ToggleExhibitionMode() => IsExhibitionMode = !IsExhibitionMode;
 
     [RelayCommand]
     private void ResetNgStack()

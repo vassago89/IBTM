@@ -70,10 +70,43 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="56"/>
-            <RowDefinition Height="145"/>
+            <RowDefinition>
+                <RowDefinition.Style>
+                    <Style TargetType="RowDefinition">
+                        <Setter Property="Height" Value="56"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsExhibitionMode}" Value="True">
+                                <Setter Property="Height" Value="0"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </RowDefinition.Style>
+            </RowDefinition>
+            <RowDefinition>
+                <RowDefinition.Style>
+                    <Style TargetType="RowDefinition">
+                        <Setter Property="Height" Value="145"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsExhibitionMode}" Value="True">
+                                <Setter Property="Height" Value="0"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </RowDefinition.Style>
+            </RowDefinition>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="48"/>
+            <RowDefinition>
+                <RowDefinition.Style>
+                    <Style TargetType="RowDefinition">
+                        <Setter Property="Height" Value="48"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsExhibitionMode}" Value="True">
+                                <Setter Property="Height" Value="0"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </RowDefinition.Style>
+            </RowDefinition>
         </Grid.RowDefinitions>
 
         <!-- NG 스택 풀 — 전체 화면 알람 오버레이 -->
@@ -405,12 +438,15 @@
                                    Foreground="{StaticResource AccentCyanBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
 
-                    <!-- 셔틀 트랜짓 (Zone 1→2) — 펄스 애니메이션 -->
+                    <!-- 셔틀 트랜짓 (Zone 1→2) — 슬라이드 + 페이드 애니메이션 -->
                     <Border Grid.Row="1" Grid.Column="1" Panel.ZIndex="10"
-                            HorizontalAlignment="Right" VerticalAlignment="Center"
-                            Margin="0,0,-14,0" Width="36" Height="20" CornerRadius="4"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Width="36" Height="20" CornerRadius="4"
                             Background="#1A2545" BorderBrush="#58A6FF" BorderThickness="1.5"
                             Visibility="{Binding ShuttleTransit12, Converter={StaticResource BoolToVis}}">
+                        <Border.RenderTransform>
+                            <TranslateTransform/>
+                        </Border.RenderTransform>
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Style.Triggers>
@@ -419,7 +455,10 @@
                                             <BeginStoryboard>
                                                 <Storyboard RepeatBehavior="Forever">
                                                     <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                     From="0.4" To="1.0" Duration="0:0:0.5" AutoReverse="True"/>
+                                                                     From="0.3" To="1.0" Duration="0:0:0.6" AutoReverse="False"/>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                                     From="-40" To="40" Duration="0:0:1.2"
+                                                                     AutoReverse="False" EasingFunction="{x:Null}"/>
                                                 </Storyboard>
                                             </BeginStoryboard>
                                         </Trigger.EnterActions>
@@ -597,12 +636,15 @@
                                    Foreground="{StaticResource AccentCyanBrush}" Margin="6,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
 
-                    <!-- 셔틀 트랜짓 (Zone 2→3) -->
+                    <!-- 셔틀 트랜짓 (Zone 2→3) — 슬라이드 + 페이드 애니메이션 -->
                     <Border Grid.Row="1" Grid.Column="2" Panel.ZIndex="10"
-                            HorizontalAlignment="Right" VerticalAlignment="Center"
-                            Margin="0,0,-14,0" Width="36" Height="20" CornerRadius="4"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Width="36" Height="20" CornerRadius="4"
                             Background="#2A2515" BorderBrush="#F0883E" BorderThickness="1.5"
                             Visibility="{Binding ShuttleTransit23, Converter={StaticResource BoolToVis}}">
+                        <Border.RenderTransform>
+                            <TranslateTransform/>
+                        </Border.RenderTransform>
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Style.Triggers>
@@ -611,7 +653,10 @@
                                             <BeginStoryboard>
                                                 <Storyboard RepeatBehavior="Forever">
                                                     <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                     From="0.4" To="1.0" Duration="0:0:0.5" AutoReverse="True"/>
+                                                                     From="0.3" To="1.0" Duration="0:0:0.6" AutoReverse="False"/>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                                     From="-40" To="40" Duration="0:0:1.2"
+                                                                     AutoReverse="False" EasingFunction="{x:Null}"/>
                                                 </Storyboard>
                                             </BeginStoryboard>
                                         </Trigger.EnterActions>
@@ -761,12 +806,15 @@
                                    Foreground="{StaticResource AccentCyanBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
 
-                    <!-- 셔틀 배출 트랜짓 -->
+                    <!-- 셔틀 배출 트랜짓 — 슬라이드 + 페이드 애니메이션 -->
                     <Border Grid.Row="1" Grid.Column="3" Panel.ZIndex="10"
-                            HorizontalAlignment="Right" VerticalAlignment="Center"
-                            Margin="0,0,-14,0" Width="36" Height="20" CornerRadius="4"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Width="36" Height="20" CornerRadius="4"
                             Background="#152A1A" BorderBrush="#3FB950" BorderThickness="1.5"
                             Visibility="{Binding ShuttleTransitOut, Converter={StaticResource BoolToVis}}">
+                        <Border.RenderTransform>
+                            <TranslateTransform/>
+                        </Border.RenderTransform>
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Style.Triggers>
@@ -775,7 +823,10 @@
                                             <BeginStoryboard>
                                                 <Storyboard RepeatBehavior="Forever">
                                                     <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                     From="0.4" To="1.0" Duration="0:0:0.5" AutoReverse="True"/>
+                                                                     From="0.3" To="1.0" Duration="0:0:0.6" AutoReverse="False"/>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                                     From="-40" To="40" Duration="0:0:1.2"
+                                                                     AutoReverse="False" EasingFunction="{x:Null}"/>
                                                 </Storyboard>
                                             </BeginStoryboard>
                                         </Trigger.EnterActions>
@@ -942,7 +993,18 @@
                 <Button Content="E-STOP" Command="{Binding EStopCommand}" Style="{StaticResource DangerButtonStyle}" MinWidth="90" Margin="0,0,12,0"/>
                 <Button Content="NG 리셋" Command="{Binding ResetNgStackCommand}" Style="{StaticResource SecondaryButtonStyle}" MinWidth="70"
                         Visibility="{Binding NgStackAlarm, Converter={StaticResource BoolToVis}}"/>
+                <Button Content="전시회 모드" Command="{Binding ToggleExhibitionModeCommand}"
+                        Style="{StaticResource SecondaryButtonStyle}" MinWidth="80" Margin="20,0,0,0"/>
             </StackPanel>
         </Border>
+
+        <!-- 전시회 모드 해제 버튼 (우상단, 전시회 모드에서만 표시) -->
+        <Button Grid.Row="2" Panel.ZIndex="50"
+                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
+                Content="ESC" Command="{Binding ToggleExhibitionModeCommand}"
+                FontSize="9" FontFamily="Consolas" Foreground="#888"
+                Background="#20FFFFFF" BorderThickness="0" Padding="8,3"
+                Cursor="Hand" Opacity="0.5"
+                Visibility="{Binding IsExhibitionMode, Converter={StaticResource BoolToVis}}"/>
     </Grid>
 </UserControl>
