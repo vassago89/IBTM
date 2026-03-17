@@ -527,9 +527,12 @@
                                                 <Ellipse Width="9" Height="9"
                                                          Stroke="{Binding MarkerBrush}"
                                                          StrokeThickness="1.5" Fill="#0C0A08"/>
-                                                <TextBlock Text="{Binding Name}" FontSize="8"
-                                                           Foreground="#806838" FontWeight="SemiBold"
-                                                           Margin="11,-2,0,0"/>
+                                                <StackPanel Orientation="Horizontal" Margin="11,-2,0,0">
+                                                    <TextBlock Text="{Binding Name}" FontSize="8"
+                                                               Foreground="#806838" FontWeight="SemiBold"/>
+                                                    <TextBlock Text="{Binding TorqueText}" FontSize="7" FontFamily="Consolas"
+                                                               Foreground="{Binding MarkerBrush}" Margin="3,0,0,0"/>
+                                                </StackPanel>
                                             </Grid>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>

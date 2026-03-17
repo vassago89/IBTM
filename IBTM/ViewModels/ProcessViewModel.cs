@@ -22,6 +22,9 @@ public partial class BoltMarkerViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(MarkerBrush))]
     private int _state;
 
+    // 실측 토크값 (체결 완료 후 표시)
+    [ObservableProperty] private string _torqueText = string.Empty;
+
     public System.Windows.Media.Brush MarkerBrush => State switch
     {
         1  => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xF0, 0x88, 0x3E)), // 체결중: 주황
@@ -557,9 +560,12 @@ public partial class ProcessViewModel : ObservableObject
             card.Info2 = $"토크: {r.Torque:F2} Nm  {r.Message}";
             if (!r.Success) card.Status = StageStatus.Warning;
 
-            // 볼트 마커 결과 반영
+            // 볼트 마커 결과 반영 (토크값 포함)
             if (CurrentBoltIndex >= 0 && CurrentBoltIndex < BoltMarkers.Count)
+            {
                 BoltMarkers[CurrentBoltIndex].State = r.Success ? 2 : -1;
+                BoltMarkers[CurrentBoltIndex].TorqueText = $"{r.Torque:F1}";
+            }
         });
     }
 
