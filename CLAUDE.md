@@ -58,6 +58,7 @@ Interface-based design (`IMotionService`, `IIOService`, `IMotionConverter`, `IBo
 - **`ProcessViewModel`** — Main VM with `ZoneVisualState` objects for 2D equipment layout visualization. Tracks shuttle transit between zones (`ShuttleTransit12/23/Out`), zone timing (`Zone1/2/3Timing`), fiducial results, and route branching (`IsNgPath/IsGoodPath`). `BoltMarkers` (`ObservableCollection<BoltMarkerViewModel>`) — 레시피 `BoltPoints`에서 동적 생성, 볼트 개수는 생산 모델에 따라 다름. `NgStackSlots` (`ObservableCollection<NgSlotViewModel>`) — 레시피 `NgStackMaxCount`에서 동적 생성.
 - **`ZoneVisualState`** — Per-zone visual state with local Canvas coordinates (240×180). Constructor takes `(canvasW, canvasH)`. `UpdatePosition(xMm, yMm, zMm)` maps equipment coordinates to canvas coordinates (MaxCoord=200, MaxZ=60). Properties:
   - Head: `HeadLeft/Top/Size`, `HeadCenterLeft/Top` (중심점 좌표), `BridgeTop`
+  - Crosshair: `CrosshairLeft/Top` (중심), `CrosshairH1/H2` (수평선 X범위), `CrosshairV1/V2` (수직선 Y범위) — 헤드 위치 추적 보조선 (±30px, 캔버스 범위 클램프)
   - Shuttle: `ShuttlePresent`, `IsLifted`, `LiftIndicatorVisibility`, `ShuttleStrokeThickness`
   - PCB: `PcbCount`, `Pcb1Visibility`, `Pcb2Visibility` — Zone 1에서 배치 시 증가, Zone 3에서 NG 이송 시 감소
   - Gripper: `GripperActive`, `GripperVisibility` — 그리퍼 ON/OFF 시 GRIP 뱃지 표시
@@ -66,16 +67,18 @@ Interface-based design (`IMotionService`, `IIOService`, `IMotionConverter`, `IBo
 - **`StageCardViewModel`** — `StageStatus.Skipped` 지원. Zone 3 Good/NG 분기 시 안 쓰는 경로의 카드가 Skipped(흐린 회색)으로 표시.
 - **`ProcessView.xaml`** — 4-row layout: Stats bar → Stage cards (3 columns) → 2D equipment layout → Control buttons.
   - 2D layout uses **Grid** (5 columns × 6 rows) instead of absolute Canvas positioning. Zone columns use `Width="*"` for even distribution.
-  - Each zone's gantry area: `Viewbox > Canvas(240×180)` with local coordinates for head movement.
-  - Station area (conveyor level): inner Grid with columns for STP/ALN/Lift/Shuttle — all relative positioning.
-  - Conveyor rails span all columns via `Grid.ColumnSpan`. 가동 중 Storyboard 순차 페이드 애니메이션.
+  - Each zone's gantry area: `Viewbox Stretch="Uniform" > Canvas(240×180)` with local coordinates for head movement. Uniform stretch preserves aspect ratio (no distortion).
+  - Station elements (STP/ALN/Shuttle) are inside the Canvas at fixed coordinates — scaled uniformly with the canvas.
+  - 컨베이어 연결 레일: Zone 전체 관통하는 수평 `Rectangle` 2줄 (`Grid.ColumnSpan="3"`, VerticalAlignment Center ±27px). Zone 간 시각적 연속성 제공.
+  - 헤드 십자선: Zone별 색상 dashed Line 2개 (수평/수직), `CrosshairH1/H2/V1/V2` 바인딩. 헤드 이동 시 실시간 추적.
   - Zone 2 볼트 마커: `ItemsControl` + `BoltMarkers` 바인딩으로 레시피 기반 동적 렌더링. 각 마커는 `BoltMarkerViewModel`이 상태별 색상(`MarkerBrush`) 직접 제공.
   - Zone 2 볼트드라이버 헤드에 소켓 중심점, Zone 3 카메라 헤드에 렌즈 내부 원 표시.
   - Zone 2 피듀셜 보정 십자선 (가로/세로 Line 2개, 시안색 점선).
-  - Zone 사이 셔틀 이동 뱃지 (Transit12/23/Out) — Release 완료 → 다음 Zone 도착 전 표시. NG/Good 공통으로 Zone3 Release 시 배출 트랜짓 표시.
+  - Zone 사이 셔틀 트랜짓 뱃지 (Transit12/23/Out) — 36×20 펄스 애니메이션 (`► ► ►`, 0.5초 주기 Opacity 0.4↔1.0). Zone별 색상. Release 완료 → 다음 Zone 도착 전 표시.
   - NG 스택 슬롯: `ItemsControl` + `NgStackSlots` 바인딩으로 레시피 max 기반 동적 렌더링. 카운트 표시도 `NgStackMaxCount` 바인딩.
-  - Zone 3 캔버스에 NG 스택 적재 영역 마커.
+  - Zone 3 캔버스에 검사 영역 + NG 스택 적재 영역 dashed 마커.
   - 각 Zone 좌표 바에 마지막 작업 소요시간 표시 (병목 구간 파악).
+  - 우측 패널: 결과 배지(GOOD/NG), NG 스택 슬롯, SMEMA 상태, 컨베이어 흐름 순차 페이드 애니메이션.
   - To adjust layout proportions, modify Grid column `Width` / row `Height` values — no pixel coordinates to update.
 - ViewModels use `[ObservableProperty]` and `[RelayCommand]` from CommunityToolkit.Mvvm.
 - **`Converters/AppConverters.cs`** — Value converters including `ZGaugeTopConverter` for Z-axis gauge visualization. `StageStatus.Skipped` → 흐린 회색 border + 어두운 배경.
