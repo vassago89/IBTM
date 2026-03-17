@@ -70,43 +70,10 @@
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition>
-                <RowDefinition.Style>
-                    <Style TargetType="RowDefinition">
-                        <Setter Property="Height" Value="56"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsExhibitionMode}" Value="True">
-                                <Setter Property="Height" Value="0"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </RowDefinition.Style>
-            </RowDefinition>
-            <RowDefinition>
-                <RowDefinition.Style>
-                    <Style TargetType="RowDefinition">
-                        <Setter Property="Height" Value="145"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsExhibitionMode}" Value="True">
-                                <Setter Property="Height" Value="0"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </RowDefinition.Style>
-            </RowDefinition>
+            <RowDefinition Height="56"/>
+            <RowDefinition Height="145"/>
             <RowDefinition Height="*"/>
-            <RowDefinition>
-                <RowDefinition.Style>
-                    <Style TargetType="RowDefinition">
-                        <Setter Property="Height" Value="48"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsExhibitionMode}" Value="True">
-                                <Setter Property="Height" Value="0"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </RowDefinition.Style>
-            </RowDefinition>
+            <RowDefinition Height="48"/>
         </Grid.RowDefinitions>
 
         <!-- NG 스택 풀 — 전체 화면 알람 오버레이 -->
@@ -993,18 +960,7 @@
                 <Button Content="E-STOP" Command="{Binding EStopCommand}" Style="{StaticResource DangerButtonStyle}" MinWidth="90" Margin="0,0,12,0"/>
                 <Button Content="NG 리셋" Command="{Binding ResetNgStackCommand}" Style="{StaticResource SecondaryButtonStyle}" MinWidth="70"
                         Visibility="{Binding NgStackAlarm, Converter={StaticResource BoolToVis}}"/>
-                <Button Content="전시회 모드" Command="{Binding ToggleExhibitionModeCommand}"
-                        Style="{StaticResource SecondaryButtonStyle}" MinWidth="80" Margin="20,0,0,0"/>
             </StackPanel>
         </Border>
-
-        <!-- 전시회 모드 해제 버튼 (우상단, 전시회 모드에서만 표시) -->
-        <Button Grid.Row="2" Panel.ZIndex="50"
-                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8"
-                Content="ESC" Command="{Binding ToggleExhibitionModeCommand}"
-                FontSize="9" FontFamily="Consolas" Foreground="#888"
-                Background="#20FFFFFF" BorderThickness="0" Padding="8,3"
-                Cursor="Hand" Opacity="0.5"
-                Visibility="{Binding IsExhibitionMode, Converter={StaticResource BoolToVis}}"/>
     </Grid>
 </UserControl>

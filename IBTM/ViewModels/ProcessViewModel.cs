@@ -308,9 +308,6 @@ public partial class ProcessViewModel : ObservableObject
     // ── 설정 ─────────────────────────────────────────────────────────────────
     [ObservableProperty] private double _targetTorque = 15.0;
 
-    // ── 전시회 모드 (2D 레이아웃 풀스크린) ──────────────────────────────────────
-    [ObservableProperty] private bool _isExhibitionMode;
-
     // ── 2D 설비 레이아웃 ──────────────────────────────────────────────────────
     //   각 Zone의 Gantry Canvas: 240×180 (로컬 좌표, Viewbox로 자동 스케일)
     public ZoneVisualState Zone1Visual { get; } = new(240, 180);
@@ -711,9 +708,6 @@ public partial class ProcessViewModel : ObservableObject
 
     [RelayCommand]
     private void EStop() => _orchestrator.EStop();
-
-    [RelayCommand]
-    private void ToggleExhibitionMode() => IsExhibitionMode = !IsExhibitionMode;
 
     [RelayCommand]
     private void ResetNgStack()
