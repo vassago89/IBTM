@@ -127,6 +127,14 @@ public partial class ZoneVisualState : ObservableObject
     [ObservableProperty] private double _zGaugeHeight;
     [ObservableProperty] private double _zToolTop;
 
+    // 헤드 십자선 (디지털 트윈 — 위치 추적 보조선)
+    [ObservableProperty] private double _crosshairLeft;   // 중심 X
+    [ObservableProperty] private double _crosshairTop;    // 중심 Y
+    [ObservableProperty] private double _crosshairH1;     // 수평선 X1
+    [ObservableProperty] private double _crosshairH2;     // 수평선 X2
+    [ObservableProperty] private double _crosshairV1;     // 수직선 Y1
+    [ObservableProperty] private double _crosshairV2;     // 수직선 Y2
+
     public void UpdatePosition(double xMm, double yMm, double zMm)
     {
         var size = Math.Clamp(10.0 + (zMm / MaxZ) * 16.0, 10.0, 26.0);
@@ -139,6 +147,14 @@ public partial class ZoneVisualState : ObservableObject
         HeadCenterLeft = xCanvas - 2;  // 중심점 (4px 원)
         HeadCenterTop = yCanvas - 2;
         BridgeTop = yCanvas - 2;   // 4px 브릿지 중심
+
+        // 십자선 (헤드 중심에서 ±30px, 캔버스 범위 클램프)
+        CrosshairLeft = xCanvas;
+        CrosshairTop = yCanvas;
+        CrosshairH1 = Math.Max(8, xCanvas - 30);
+        CrosshairH2 = Math.Min(210, xCanvas + 30);
+        CrosshairV1 = Math.Max(0, yCanvas - 30);
+        CrosshairV2 = Math.Min(180, yCanvas + 30);
 
         ZRatio = Math.Clamp(zMm / MaxZ, 0, 1);
         ZGaugeHeight = ZRatio * GaugeTrack;
