@@ -37,12 +37,17 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
-                            <StackPanel Grid.Row="0" Orientation="Horizontal">
-                                <TextBlock Text="{Binding Icon}" FontSize="10" FontWeight="Bold" Margin="0,0,5,0"
-                                           Foreground="{Binding Status, Converter={StaticResource StatusToBrush}}"/>
-                                <TextBlock Text="{Binding Title}" FontSize="10.5" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                            </StackPanel>
+                            <Grid Grid.Row="0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Icon}" FontSize="10" FontWeight="Bold" Margin="0,0,5,0"
+                                               Foreground="{Binding Status, Converter={StaticResource StatusToBrush}}"/>
+                                    <TextBlock Text="{Binding Title}" FontSize="10.5" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <TextBlock Text="{Binding ElapsedText}" FontSize="8" FontFamily="Consolas"
+                                           Foreground="{StaticResource AccentCyanBrush}" Opacity="0.8"
+                                           HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            </Grid>
                             <TextBlock Grid.Row="1" Text="{Binding Subtitle}" FontSize="8.5"
                                        Foreground="{StaticResource TextSecondaryBrush}" Margin="0,2,0,0"/>
                             <StackPanel Grid.Row="2" Margin="0,6,0,0">

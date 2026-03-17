@@ -18,6 +18,10 @@ public partial class StageCardViewModel : ObservableObject
 
     [ObservableProperty] private double _indicatorOpacity = 1.0;
 
+    // 스테이지 소요시간
+    [ObservableProperty] private string _elapsedText = string.Empty;
+    private DateTime _startedAt;
+
     public ProcessStage Stage { get; init; }
     public string Icon { get; init; } = string.Empty;
 
@@ -37,9 +41,20 @@ public partial class StageCardViewModel : ObservableObject
     partial void OnStatusChanged(StageStatus value)
     {
         if (value == StageStatus.Running)
+        {
+            _startedAt = DateTime.Now;
+            ElapsedText = string.Empty;
             StartPulse();
+        }
         else
+        {
             StopPulse();
+            if (value == StageStatus.Done || value == StageStatus.Error || value == StageStatus.Warning)
+            {
+                var elapsed = (DateTime.Now - _startedAt).TotalSeconds;
+                ElapsedText = elapsed >= 10 ? $"{elapsed:F0}s" : $"{elapsed:F1}s";
+            }
+        }
     }
 
     private void StartPulse()
