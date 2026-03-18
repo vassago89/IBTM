@@ -61,6 +61,11 @@ public partial class ProcessViewModel : ObservableObject
     [ObservableProperty] private string _zone3Timing = "";
     private readonly DateTime[] _zoneStarts = new DateTime[4]; // [1],[2],[3]
 
+    // ── Zone 파이프라인 진행 도트 (●●●○○) ──────────────────────────────────
+    [ObservableProperty] private string _zone1Progress = "";
+    [ObservableProperty] private string _zone2Progress = "";
+    [ObservableProperty] private string _zone3Progress = "";
+
     // ── 마지막 Fiducial 결과 ──────────────────────────────────────────────────
     [ObservableProperty] private string _lastFiducialResult = string.Empty;
 
@@ -295,6 +300,14 @@ public partial class ProcessViewModel : ObservableObject
             _ => "?"
         };
         if (result == InspectionResult.Ng) card.Status = StageStatus.Warning;
+
+        // 캔버스에 검사 결과 오버레이
+        Zone3Visual.InspectResultText = result switch
+        {
+            InspectionResult.Good => "GOOD",
+            InspectionResult.Ng => "NG",
+            _ => ""
+        };
     });
 
     private void OnNgStackUpdated(object? sender, int count) =>
@@ -339,6 +352,7 @@ public partial class ProcessViewModel : ObservableObject
         }
 
         SetStageStatus(stage, status);
+        UpdateProgressDots(GetZoneNumber(stage));
     }
 
     private void ResetZoneCards(int zone)
@@ -364,6 +378,7 @@ public partial class ProcessViewModel : ObservableObject
         IsNgPath = false;
         IsGoodPath = false;
         LastRouteText = "──";
+        Zone3Visual.InspectResultText = "";
     }
 
     // ── 셔틀/리프트 상태 업데이트 ────────────────────────────────────────────
@@ -522,6 +537,32 @@ public partial class ProcessViewModel : ObservableObject
             ProcessStage.Zone3_Release       => "릴리즈",
             _ => ""
         };
+    }
+
+    // ── Zone 진행 도트 갱신 (●●●○○) ──────────────────────────────────────
+    private void UpdateProgressDots(int zone)
+    {
+        if (zone == 0) return;
+        var stages = GetZoneStages(zone);
+        var sb = new System.Text.StringBuilder();
+        foreach (var s in stages)
+        {
+            if (s.Status is StageStatus.Skipped) continue;
+            sb.Append(s.Status switch
+            {
+                StageStatus.Done    => "●",
+                StageStatus.Running => "◉",
+                StageStatus.Error   => "✕",
+                StageStatus.Warning => "▲",
+                _                   => "○"
+            });
+        }
+        switch (zone)
+        {
+            case 1: Zone1Progress = sb.ToString(); break;
+            case 2: Zone2Progress = sb.ToString(); break;
+            case 3: Zone3Progress = sb.ToString(); break;
+        }
     }
 
     private static string GetStatusMessage(ProcessStage stage, StageStatus status)

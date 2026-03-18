@@ -251,6 +251,43 @@
                      Stroke="White" StrokeThickness="1.5" Fill="Transparent"
                      Visibility="{Binding ZoneVisual.GripperVisibility, ElementName=Root}"/>
 
+            <!-- ═══ 검사 결과 오버레이 (Zone 3 Camera 전용) ═══ -->
+            <Border Canvas.Left="70" Canvas.Top="26" Width="80" Height="28"
+                    CornerRadius="4" Panel.ZIndex="20"
+                    Visibility="{Binding ZoneVisual.InspectResultVisibility, ElementName=Root}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="#C0002800"/>
+                        <Setter Property="BorderBrush" Value="#3FB950"/>
+                        <Setter Property="BorderThickness" Value="2"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ZoneVisual.InspectResultText,
+                                         RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type v:ZoneCanvasView}}}"
+                                         Value="NG">
+                                <Setter Property="Background" Value="#C0280000"/>
+                                <Setter Property="BorderBrush" Value="#F85149"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding ZoneVisual.InspectResultText, ElementName=Root}"
+                           FontSize="16" FontWeight="Bold" FontFamily="Consolas"
+                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="#3FB950"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ZoneVisual.InspectResultText,
+                                             RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type v:ZoneCanvasView}}}"
+                                             Value="NG">
+                                    <Setter Property="Foreground" Value="#F85149"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Border>
+
             <!-- ═══ 현재 동작 라벨 (캔버스 상단 중앙) ═══ -->
             <Border Canvas.Left="55" Canvas.Top="2" Width="110" Height="20"
                     CornerRadius="3" Background="#C0101020"

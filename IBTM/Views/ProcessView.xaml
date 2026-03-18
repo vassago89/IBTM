@@ -263,6 +263,9 @@
                                    Foreground="{StaticResource AccentBlueBrush}" Opacity="0.9"/>
                         <TextBlock Text="  PICK" FontSize="9"
                                    Foreground="{StaticResource AccentBlueBrush}" Opacity="0.5"/>
+                        <TextBlock Text="{Binding Zone1Progress}" FontSize="9" FontFamily="Consolas"
+                                   Foreground="{StaticResource AccentBlueBrush}" Margin="8,0,0,0" Opacity="0.8"
+                                   VerticalAlignment="Center"/>
                     </StackPanel>
                     <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="#1E3050" BorderThickness="1"
@@ -294,6 +297,9 @@
                                    Foreground="{StaticResource AccentOrangeBrush}" Opacity="0.9"/>
                         <TextBlock Text="  BOLT" FontSize="9"
                                    Foreground="{StaticResource AccentOrangeBrush}" Opacity="0.5"/>
+                        <TextBlock Text="{Binding Zone2Progress}" FontSize="9" FontFamily="Consolas"
+                                   Foreground="{StaticResource AccentOrangeBrush}" Margin="8,0,0,0" Opacity="0.8"
+                                   VerticalAlignment="Center"/>
                     </StackPanel>
                     <Border Grid.Row="1" Grid.Column="2" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="#302818" BorderThickness="1"
@@ -329,6 +335,9 @@
                                    Foreground="{StaticResource AccentGreenBrush}" Opacity="0.9"/>
                         <TextBlock Text="  INSPECT" FontSize="9"
                                    Foreground="{StaticResource AccentGreenBrush}" Opacity="0.5"/>
+                        <TextBlock Text="{Binding Zone3Progress}" FontSize="9" FontFamily="Consolas"
+                                   Foreground="{StaticResource AccentGreenBrush}" Margin="8,0,0,0" Opacity="0.8"
+                                   VerticalAlignment="Center"/>
                     </StackPanel>
                     <Border Grid.Row="1" Grid.Column="3" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="#183020" BorderThickness="1"
