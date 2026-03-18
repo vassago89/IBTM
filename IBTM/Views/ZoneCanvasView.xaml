@@ -1,0 +1,266 @@
+<UserControl x:Class="IBTM.Views.ZoneCanvasView"
+             x:Name="Root"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:IBTM.Converters"
+             xmlns:v="clr-namespace:IBTM.Views">
+
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter        x:Key="BoolToVis"/>
+        <conv:BoolToOpacityConverter           x:Key="BoolToOpacity"/>
+        <conv:EnumMatchToVisibilityConverter   x:Key="EnumToVis"/>
+
+        <!-- 폴백 리소스 (Theme 적용 전 크래시 방지, ApplyTheme()이 덮어씀) -->
+        <SolidColorBrush x:Key="Accent"          Color="#888"/>
+        <SolidColorBrush x:Key="GantryStroke"    Color="#222"/>
+        <SolidColorBrush x:Key="RailFill"        Color="#222"/>
+        <SolidColorBrush x:Key="BridgeFill"      Color="#333"/>
+        <SolidColorBrush x:Key="ConveyorBg"      Color="#080808"/>
+        <SolidColorBrush x:Key="ConveyorBorder"  Color="#333"/>
+        <SolidColorBrush x:Key="StopperFill"     Color="#333"/>
+        <SolidColorBrush x:Key="StopperFg"       Color="#666"/>
+        <SolidColorBrush x:Key="AlignBg"         Color="#111"/>
+        <SolidColorBrush x:Key="AlignBorder"     Color="#444"/>
+        <SolidColorBrush x:Key="AlignFg"         Color="#666"/>
+        <SolidColorBrush x:Key="ShuttleBg"       Color="#111"/>
+        <SolidColorBrush x:Key="ShuttleBorder"   Color="#444"/>
+        <SolidColorBrush x:Key="ShuttleLiftedBg" Color="#222"/>
+        <SolidColorBrush x:Key="HeadGlow"        Color="#666"/>
+        <SolidColorBrush x:Key="GaugeBg"         Color="#111"/>
+    </UserControl.Resources>
+
+    <Viewbox Stretch="Uniform">
+        <Canvas Width="240" Height="180" ClipToBounds="True">
+
+            <!-- ═══ 갠트리 프레임 ═══ -->
+            <Rectangle Canvas.Left="1" Canvas.Top="1" Width="218" Height="178"
+                       Stroke="{DynamicResource GantryStroke}" StrokeThickness="0.8"
+                       StrokeDashArray="6 3" Fill="Transparent"/>
+            <Rectangle Canvas.Left="2" Canvas.Top="0" Width="5" Height="180"
+                       Fill="{DynamicResource RailFill}"/>
+            <Rectangle Canvas.Left="213" Canvas.Top="0" Width="5" Height="180"
+                       Fill="{DynamicResource RailFill}"/>
+            <Rectangle Canvas.Left="2"
+                       Canvas.Top="{Binding ZoneVisual.BridgeTop, ElementName=Root}"
+                       Width="216" Height="4"
+                       Fill="{DynamicResource BridgeFill}"/>
+
+            <!-- ═══ 컨베이어 영역 ═══ -->
+            <Rectangle Canvas.Left="0" Canvas.Top="62" Width="220" Height="56"
+                       Fill="{DynamicResource ConveyorBg}"/>
+            <Rectangle Canvas.Left="0" Canvas.Top="62" Width="220" Height="2"
+                       Fill="{DynamicResource ConveyorBorder}"/>
+            <Rectangle Canvas.Left="0" Canvas.Top="116" Width="220" Height="2"
+                       Fill="{DynamicResource ConveyorBorder}"/>
+
+            <!-- ═══ 스토퍼 ═══ -->
+            <Rectangle Canvas.Left="10" Canvas.Top="68" Width="7" Height="44"
+                       Fill="{DynamicResource StopperFill}" RadiusX="1" RadiusY="1"
+                       Opacity="{Binding ZoneVisual.ShuttlePresent, ElementName=Root, Converter={StaticResource BoolToOpacity}}"/>
+            <TextBlock Canvas.Left="7" Canvas.Top="114" Text="STP" FontSize="9" FontWeight="SemiBold"
+                       Foreground="{DynamicResource StopperFg}"/>
+
+            <!-- ═══ 얼라인 좌/우 ═══ -->
+            <Border Canvas.Left="20" Canvas.Top="68" Width="12" Height="44"
+                    Background="{DynamicResource AlignBg}"
+                    BorderBrush="{DynamicResource AlignBorder}" BorderThickness="0.8" CornerRadius="1"
+                    Opacity="{Binding ZoneVisual.ShuttlePresent, ElementName=Root, Converter={StaticResource BoolToOpacity}}">
+                <TextBlock Text="▶" FontSize="10" Foreground="{DynamicResource AlignFg}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <Border Canvas.Left="192" Canvas.Top="68" Width="12" Height="44"
+                    Background="{DynamicResource AlignBg}"
+                    BorderBrush="{DynamicResource AlignBorder}" BorderThickness="0.8" CornerRadius="1"
+                    Opacity="{Binding ZoneVisual.ShuttlePresent, ElementName=Root, Converter={StaticResource BoolToOpacity}}">
+                <TextBlock Text="◀" FontSize="10" Foreground="{DynamicResource AlignFg}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <TextBlock Canvas.Left="19" Canvas.Top="114" Text="ALN" FontSize="8"
+                       Foreground="{DynamicResource AlignBorder}"/>
+            <TextBlock Canvas.Left="191" Canvas.Top="114" Text="ALN" FontSize="8"
+                       Foreground="{DynamicResource AlignBorder}"/>
+
+            <!-- ═══ 셔틀 ═══ -->
+            <Border Canvas.Left="36" Canvas.Top="70" Width="152" Height="40" CornerRadius="2"
+                    Visibility="{Binding ZoneVisual.ShuttlePresent, ElementName=Root, Converter={StaticResource BoolToVis}}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background"      Value="{DynamicResource ShuttleBg}"/>
+                        <Setter Property="BorderBrush"     Value="{DynamicResource ShuttleBorder}"/>
+                        <Setter Property="BorderThickness" Value="1"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ZoneVisual.IsLifted,
+                                         RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type v:ZoneCanvasView}}}"
+                                         Value="True">
+                                <Setter Property="BorderThickness" Value="2"/>
+                                <Setter Property="BorderBrush"     Value="{DynamicResource Accent}"/>
+                                <Setter Property="Background"      Value="{DynamicResource ShuttleLiftedBg}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Rectangle Width="36" Height="22"
+                               Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}"
+                               StrokeThickness="0.5" RadiusX="1" RadiusY="1" Margin="4,0"
+                               Visibility="{Binding ZoneVisual.Pcb1Visibility, ElementName=Root}"/>
+                    <Rectangle Width="36" Height="22"
+                               Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}"
+                               StrokeThickness="0.5" RadiusX="1" RadiusY="1" Margin="4,0"
+                               Visibility="{Binding ZoneVisual.Pcb2Visibility, ElementName=Root}"/>
+                </StackPanel>
+            </Border>
+            <TextBlock Canvas.Left="75" Canvas.Top="72" Text="LIFT ▲" FontSize="9" FontWeight="Bold"
+                       Foreground="{DynamicResource Accent}"
+                       Visibility="{Binding ZoneVisual.LiftIndicatorVisibility, ElementName=Root}"/>
+
+            <!-- ═══ Zone 2 전용: 검사 영역 마커 (Zone 3 Camera) ═══ -->
+            <Rectangle Canvas.Left="40" Canvas.Top="8" Width="130" Height="44"
+                       Stroke="#204030" StrokeThickness="0.7" StrokeDashArray="4 2"
+                       Fill="Transparent" RadiusX="2" RadiusY="2"
+                       Visibility="{Binding HeadType, ElementName=Root, Converter={StaticResource EnumToVis}, ConverterParameter=Camera}"/>
+            <TextBlock Canvas.Left="68" Canvas.Top="12" Text="INSPECT" FontSize="9" FontWeight="Bold"
+                       Foreground="#204030"
+                       Visibility="{Binding HeadType, ElementName=Root, Converter={StaticResource EnumToVis}, ConverterParameter=Camera}"/>
+            <Rectangle Canvas.Left="40" Canvas.Top="128" Width="130" Height="42"
+                       Stroke="#401818" StrokeThickness="0.7" StrokeDashArray="4 2"
+                       Fill="Transparent" RadiusX="2" RadiusY="2"
+                       Visibility="{Binding HeadType, ElementName=Root, Converter={StaticResource EnumToVis}, ConverterParameter=Camera}"/>
+            <TextBlock Canvas.Left="62" Canvas.Top="132" Text="NG STACK" FontSize="9" FontWeight="SemiBold"
+                       Foreground="#401818"
+                       Visibility="{Binding HeadType, ElementName=Root, Converter={StaticResource EnumToVis}, ConverterParameter=Camera}"/>
+
+            <!-- ═══ Zone 2 전용: 볼트 마커 ═══ -->
+            <ItemsControl ItemsSource="{Binding BoltMarkers}"
+                          Visibility="{Binding HeadType, ElementName=Root, Converter={StaticResource EnumToVis}, ConverterParameter=BoltDriver}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><Canvas/></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemContainerStyle>
+                    <Style TargetType="ContentPresenter">
+                        <Setter Property="Canvas.Left" Value="{Binding CanvasLeft}"/>
+                        <Setter Property="Canvas.Top"  Value="{Binding CanvasTop}"/>
+                    </Style>
+                </ItemsControl.ItemContainerStyle>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Ellipse Width="9" Height="9"
+                                     Stroke="{Binding MarkerBrush}" StrokeThickness="1.5" Fill="#0C0A08"/>
+                            <StackPanel Orientation="Horizontal" Margin="11,-2,0,0">
+                                <TextBlock Text="{Binding Name}" FontSize="8"
+                                           Foreground="#806838" FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding TorqueText}" FontSize="7" FontFamily="Consolas"
+                                           Foreground="{Binding MarkerBrush}" Margin="3,0,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- ═══ Zone 2 전용: 피듀셜 보정 십자선 ═══ -->
+            <Ellipse Canvas.Left="{Binding ZoneVisual.FiducialOffsetLeft, ElementName=Root}"
+                     Canvas.Top="{Binding ZoneVisual.FiducialOffsetTop, ElementName=Root}"
+                     Width="8" Height="8" Margin="-4,-4,0,0"
+                     Stroke="{StaticResource AccentCyanBrush}" StrokeThickness="1" Fill="Transparent"
+                     Visibility="{Binding ZoneVisual.FiducialOffsetVisibility, ElementName=Root}"/>
+            <Line X1="{Binding ZoneVisual.FiducialCrossH1, ElementName=Root}"
+                  Y1="{Binding ZoneVisual.FiducialOffsetTop, ElementName=Root}"
+                  X2="{Binding ZoneVisual.FiducialCrossH2, ElementName=Root}"
+                  Y2="{Binding ZoneVisual.FiducialOffsetTop, ElementName=Root}"
+                  Stroke="{StaticResource AccentCyanBrush}" StrokeThickness="0.5" StrokeDashArray="2 1"
+                  Visibility="{Binding ZoneVisual.FiducialOffsetVisibility, ElementName=Root}"/>
+            <Line X1="{Binding ZoneVisual.FiducialOffsetLeft, ElementName=Root}"
+                  Y1="{Binding ZoneVisual.FiducialCrossV1, ElementName=Root}"
+                  X2="{Binding ZoneVisual.FiducialOffsetLeft, ElementName=Root}"
+                  Y2="{Binding ZoneVisual.FiducialCrossV2, ElementName=Root}"
+                  Stroke="{StaticResource AccentCyanBrush}" StrokeThickness="0.5" StrokeDashArray="2 1"
+                  Visibility="{Binding ZoneVisual.FiducialOffsetVisibility, ElementName=Root}"/>
+
+            <!-- ═══ 헤드 십자선 (공통) ═══ -->
+            <Line X1="{Binding ZoneVisual.CrosshairH1, ElementName=Root}"
+                  Y1="{Binding ZoneVisual.CrosshairTop, ElementName=Root}"
+                  X2="{Binding ZoneVisual.CrosshairH2, ElementName=Root}"
+                  Y2="{Binding ZoneVisual.CrosshairTop, ElementName=Root}"
+                  Stroke="{DynamicResource Accent}" StrokeThickness="0.5" Opacity="0.35" StrokeDashArray="3 2"/>
+            <Line X1="{Binding ZoneVisual.CrosshairLeft, ElementName=Root}"
+                  Y1="{Binding ZoneVisual.CrosshairV1, ElementName=Root}"
+                  X2="{Binding ZoneVisual.CrosshairLeft, ElementName=Root}"
+                  Y2="{Binding ZoneVisual.CrosshairV2, ElementName=Root}"
+                  Stroke="{DynamicResource Accent}" StrokeThickness="0.5" Opacity="0.35" StrokeDashArray="3 2"/>
+
+            <!-- ═══ 헤드 글로우 (공통) ═══ -->
+            <Ellipse Canvas.Left="{Binding ZoneVisual.HeadLeft, ElementName=Root}"
+                     Canvas.Top="{Binding ZoneVisual.HeadTop, ElementName=Root}"
+                     Width="{Binding ZoneVisual.HeadSize, ElementName=Root}"
+                     Height="{Binding ZoneVisual.HeadSize, ElementName=Root}"
+                     Fill="{DynamicResource HeadGlow}" Opacity="0.5">
+                <Ellipse.Effect><BlurEffect Radius="18"/></Ellipse.Effect>
+            </Ellipse>
+
+            <!-- ═══ 헤드 본체: 사각형 (Gripper) ═══ -->
+            <Rectangle Canvas.Left="{Binding ZoneVisual.HeadLeft, ElementName=Root}"
+                       Canvas.Top="{Binding ZoneVisual.HeadTop, ElementName=Root}"
+                       Width="{Binding ZoneVisual.HeadSize, ElementName=Root}"
+                       Height="{Binding ZoneVisual.HeadSize, ElementName=Root}"
+                       Fill="{DynamicResource Accent}" Stroke="White" StrokeThickness="2"
+                       RadiusX="2" RadiusY="2"
+                       Visibility="{Binding HeadType, ElementName=Root, Converter={StaticResource EnumToVis}, ConverterParameter=Gripper}"/>
+
+            <!-- ═══ 헤드 본체: 원형 (BoltDriver / Camera) ═══ -->
+            <Ellipse Canvas.Left="{Binding ZoneVisual.HeadLeft, ElementName=Root}"
+                     Canvas.Top="{Binding ZoneVisual.HeadTop, ElementName=Root}"
+                     Width="{Binding ZoneVisual.HeadSize, ElementName=Root}"
+                     Height="{Binding ZoneVisual.HeadSize, ElementName=Root}"
+                     Fill="{DynamicResource Accent}" Stroke="White" StrokeThickness="2">
+                <Ellipse.Style>
+                    <Style TargetType="Ellipse">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HeadType,
+                                         RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type v:ZoneCanvasView}}}"
+                                         Value="BoltDriver">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding HeadType,
+                                         RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type v:ZoneCanvasView}}}"
+                                         Value="Camera">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Ellipse.Style>
+            </Ellipse>
+
+            <!-- 소켓 중심점 (BoltDriver) -->
+            <Ellipse Canvas.Left="{Binding ZoneVisual.HeadCenterLeft, ElementName=Root}"
+                     Canvas.Top="{Binding ZoneVisual.HeadCenterTop, ElementName=Root}"
+                     Width="4" Height="4" Fill="White" Opacity="0.8"
+                     Visibility="{Binding HeadType, ElementName=Root, Converter={StaticResource EnumToVis}, ConverterParameter=BoltDriver}"/>
+
+            <!-- 카메라 렌즈 링 (Camera) -->
+            <Ellipse Canvas.Left="{Binding ZoneVisual.HeadCenterLeft, ElementName=Root}"
+                     Canvas.Top="{Binding ZoneVisual.HeadCenterTop, ElementName=Root}"
+                     Width="4" Height="4" Stroke="White" StrokeThickness="1" Fill="Transparent" Opacity="0.8"
+                     Visibility="{Binding HeadType, ElementName=Root, Converter={StaticResource EnumToVis}, ConverterParameter=Camera}"/>
+
+            <!-- 그리퍼 활성 표시 (Gripper / Camera — ViewModel이 Visibility 제어) -->
+            <Ellipse Canvas.Left="{Binding ZoneVisual.HeadCenterLeft, ElementName=Root}"
+                     Canvas.Top="{Binding ZoneVisual.HeadCenterTop, ElementName=Root}"
+                     Width="6" Height="6" Margin="-1,-1,0,0"
+                     Stroke="White" StrokeThickness="1.5" Fill="Transparent"
+                     Visibility="{Binding ZoneVisual.GripperVisibility, ElementName=Root}"/>
+
+            <!-- ═══ Z 게이지 (공통) ═══ -->
+            <Rectangle Canvas.Left="222" Canvas.Top="10" Width="6" Height="160"
+                       Fill="{DynamicResource GaugeBg}" RadiusX="2" RadiusY="2"/>
+            <Rectangle Canvas.Left="222" Canvas.Top="10" Width="6"
+                       Height="{Binding ZoneVisual.ZGaugeHeight, ElementName=Root}"
+                       Fill="{DynamicResource Accent}" Opacity="0.6" RadiusX="2" RadiusY="2"/>
+            <Rectangle Canvas.Left="218"
+                       Canvas.Top="{Binding ZoneVisual.ZToolTop, ElementName=Root}"
+                       Width="14" Height="3"
+                       Fill="{DynamicResource Accent}" Opacity="0.8" RadiusX="1" RadiusY="1"/>
+        </Canvas>
+    </Viewbox>
+</UserControl>

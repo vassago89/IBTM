@@ -155,6 +155,16 @@ public class BoolToOpacityConverter : IValueConverter
         => throw new NotImplementedException();
 }
 
+// ── Enum 문자열 매칭 → Visibility ──────────────────────────────────────────
+[ValueConversion(typeof(object), typeof(Visibility))]
+public class EnumMatchToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value?.ToString() == parameter?.ToString() ? Visibility.Visible : Visibility.Collapsed;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
 // ── Z 게이지 Top 위치 (바 높이 → Canvas.Top) ─────────────────────────────────
 [ValueConversion(typeof(double), typeof(double))]
 public class ZGaugeTopConverter : IValueConverter

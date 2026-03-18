@@ -4,6 +4,7 @@
              xmlns:vm="clr-namespace:IBTM.ViewModels"
              xmlns:conv="clr-namespace:IBTM.Converters"
              xmlns:v="clr-namespace:IBTM.Views"
+             xmlns:models="clr-namespace:IBTM.Models"
              Background="{StaticResource AppBgBrush}">
 
     <UserControl.Resources>
@@ -13,6 +14,32 @@
         <conv:BoolToVisibilityConverter        x:Key="BoolToVis"/>
         <conv:InspectionResultToBrushConverter x:Key="InspResultToBrush"/>
         <conv:BoolToOpacityConverter           x:Key="BoolToOpacity"/>
+
+        <!-- Zone 색상 테마 -->
+        <models:ZoneTheme x:Key="Zone1Theme"
+            Accent="{StaticResource AccentBlueBrush}"
+            GantryStroke="#1A2848" RailFill="#182840" BridgeFill="#253860"
+            ConveyorBg="#080C18" ConveyorBorder="#2A3858"
+            StopperFill="#1A3060" StopperFg="#3060A0"
+            AlignBg="#0E1838" AlignBorder="#2050A0" AlignFg="#3070C0"
+            ShuttleBg="#141E38" ShuttleBorder="#3060A0" ShuttleLiftedBg="#1A2850"
+            HeadGlow="#2870C0" GaugeBg="#101828"/>
+        <models:ZoneTheme x:Key="Zone2Theme"
+            Accent="{StaticResource AccentOrangeBrush}"
+            GantryStroke="#281E10" RailFill="#281E10" BridgeFill="#38280E"
+            ConveyorBg="#0C0A06" ConveyorBorder="#3A2A18"
+            StopperFill="#382810" StopperFg="#A06020"
+            AlignBg="#141008" AlignBorder="#805020" AlignFg="#C07830"
+            ShuttleBg="#1A1808" ShuttleBorder="#806030" ShuttleLiftedBg="#281A08"
+            HeadGlow="#C08020" GaugeBg="#141010"/>
+        <models:ZoneTheme x:Key="Zone3Theme"
+            Accent="{StaticResource AccentGreenBrush}"
+            GantryStroke="#142818" RailFill="#142818" BridgeFill="#1E3818"
+            ConveyorBg="#060C08" ConveyorBorder="#1A3828"
+            StopperFill="#103818" StopperFg="#208040"
+            AlignBg="#081A0E" AlignBorder="#186030" AlignFg="#30A050"
+            ShuttleBg="#0C1A10" ShuttleBorder="#308040" ShuttleLiftedBg="#102A18"
+            HeadGlow="#20C050" GaugeBg="#081410"/>
 
         <!-- 스테이지 카드 템플릿 -->
         <DataTemplate x:Key="StageCardTemplate" DataType="{x:Type vm:StageCardViewModel}">
@@ -240,7 +267,8 @@
                     <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="#1E3050" BorderThickness="1"
                             CornerRadius="2" Margin="3,0" Panel.ZIndex="1">
-                        <v:Zone1CanvasView/>
+                        <v:ZoneCanvasView ZoneVisual="{Binding Zone1Visual}"
+                                         Theme="{StaticResource Zone1Theme}" HeadType="Gripper"/>
                     </Border>
                     <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Zone1Visual.CoordText}" FontFamily="Consolas" FontSize="8"
@@ -270,7 +298,8 @@
                     <Border Grid.Row="1" Grid.Column="2" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="#302818" BorderThickness="1"
                             CornerRadius="2" Margin="3,0" Panel.ZIndex="1">
-                        <v:Zone2CanvasView/>
+                        <v:ZoneCanvasView ZoneVisual="{Binding Zone2Visual}"
+                                         Theme="{StaticResource Zone2Theme}" HeadType="BoltDriver"/>
                     </Border>
                     <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Zone2Visual.CoordText}" FontFamily="Consolas" FontSize="8"
@@ -304,7 +333,8 @@
                     <Border Grid.Row="1" Grid.Column="3" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="#183020" BorderThickness="1"
                             CornerRadius="2" Margin="3,0" Panel.ZIndex="1">
-                        <v:Zone3CanvasView/>
+                        <v:ZoneCanvasView ZoneVisual="{Binding Zone3Visual}"
+                                         Theme="{StaticResource Zone3Theme}" HeadType="Camera"/>
                     </Border>
                     <StackPanel Grid.Row="2" Grid.Column="3" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Zone3Visual.CoordText}" FontFamily="Consolas" FontSize="8"
