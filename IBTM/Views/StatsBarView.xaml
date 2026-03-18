@@ -6,15 +6,16 @@
             BorderThickness="0,0,0,1" BorderBrush="{StaticResource DividerBrush}">
         <Grid Margin="20,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>  <!-- 0: LED -->
+                <ColumnDefinition Width="Auto"/>  <!-- 1: TOTAL -->
+                <ColumnDefinition Width="Auto"/>  <!-- 2: GOOD -->
+                <ColumnDefinition Width="Auto"/>  <!-- 3: NG -->
+                <ColumnDefinition Width="Auto"/>  <!-- 4: 구분선 -->
+                <ColumnDefinition Width="Auto"/>  <!-- 5: NG% -->
+                <ColumnDefinition Width="Auto"/>  <!-- 6: CT -->
+                <ColumnDefinition Width="Auto"/>  <!-- 7: UPTIME -->
+                <ColumnDefinition Width="*"/>     <!-- 공간 -->
+                <ColumnDefinition Width="Auto"/>  <!-- 9: 상태 메시지 -->
             </Grid.ColumnDefinitions>
 
             <!-- 가동 상태 표시등 -->
@@ -36,33 +37,39 @@
                 </Ellipse.Style>
             </Ellipse>
 
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,28,0">
+            <!-- 핵심 지표: TOTAL / GOOD / NG -->
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,24,0">
                 <TextBlock Text="TOTAL" Style="{StaticResource StatLabelStyle}"/>
-                <TextBlock Text="{Binding TotalCount, StringFormat='{}{0:N0}'}" Style="{StaticResource StatValueStyle}"/>
+                <TextBlock Text="{Binding TotalCount, StringFormat='{}{0:N0}'}" Style="{StaticResource StatValueStyle}" FontSize="22"/>
             </StackPanel>
-            <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="0,0,28,0">
-                <TextBlock Text="GOOD" Style="{StaticResource StatLabelStyle}"/>
-                <TextBlock Text="{Binding GoodCount, StringFormat='{}{0:N0}'}" Style="{StaticResource StatValueStyle}" Foreground="{StaticResource AccentGreenBrush}"/>
+            <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="0,0,24,0">
+                <TextBlock Text="GOOD" Style="{StaticResource StatLabelStyle}" Foreground="{StaticResource AccentGreenBrush}" Opacity="0.6"/>
+                <TextBlock Text="{Binding GoodCount, StringFormat='{}{0:N0}'}" Style="{StaticResource StatValueStyle}" FontSize="22" Foreground="{StaticResource AccentGreenBrush}"/>
             </StackPanel>
-            <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="0,0,28,0">
-                <TextBlock Text="NG" Style="{StaticResource StatLabelStyle}"/>
-                <TextBlock Text="{Binding NgCount, StringFormat='{}{0:N0}'}" Style="{StaticResource StatValueStyle}" Foreground="{StaticResource AccentRedBrush}"/>
+            <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="0,0,24,0">
+                <TextBlock Text="NG" Style="{StaticResource StatLabelStyle}" Foreground="{StaticResource AccentRedBrush}" Opacity="0.6"/>
+                <TextBlock Text="{Binding NgCount, StringFormat='{}{0:N0}'}" Style="{StaticResource StatValueStyle}" FontSize="22" Foreground="{StaticResource AccentRedBrush}"/>
             </StackPanel>
-            <StackPanel Grid.Column="4" VerticalAlignment="Center" Margin="0,0,28,0">
+
+            <!-- 구분선 -->
+            <Rectangle Grid.Column="4" Width="1" Height="28" VerticalAlignment="Center" Fill="{StaticResource DividerBrush}" Margin="4,0,16,0"/>
+
+            <!-- 보조 지표: NG% / CT / UPTIME -->
+            <StackPanel Grid.Column="5" VerticalAlignment="Center" Margin="0,0,24,0">
                 <TextBlock Text="NG%" Style="{StaticResource StatLabelStyle}"/>
                 <TextBlock Text="{Binding NgRate, StringFormat='{}{0:F2}%'}" Style="{StaticResource StatValueStyle}" Foreground="{StaticResource AccentOrangeBrush}"/>
             </StackPanel>
-            <StackPanel Grid.Column="5" VerticalAlignment="Center" Margin="0,0,28,0">
+            <StackPanel Grid.Column="6" VerticalAlignment="Center" Margin="0,0,24,0">
                 <TextBlock Text="CT" Style="{StaticResource StatLabelStyle}"/>
                 <TextBlock Text="{Binding LastCycleTime, StringFormat='{}{0:F1}s'}" Style="{StaticResource StatValueStyle}"/>
             </StackPanel>
-            <StackPanel Grid.Column="6" VerticalAlignment="Center">
+            <StackPanel Grid.Column="7" VerticalAlignment="Center">
                 <TextBlock Text="UPTIME" Style="{StaticResource StatLabelStyle}"/>
                 <TextBlock Text="{Binding Uptime}" Style="{StaticResource StatValueStyle}" FontSize="15" Foreground="{StaticResource TextSecondaryBrush}"/>
             </StackPanel>
 
-            <TextBlock Grid.Column="8" Text="{Binding StatusMessage}" VerticalAlignment="Center"
-                       Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
+            <TextBlock Grid.Column="9" Text="{Binding StatusMessage}" VerticalAlignment="Center"
+                       Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" FontWeight="SemiBold"/>
         </Grid>
     </Border>
 </UserControl>

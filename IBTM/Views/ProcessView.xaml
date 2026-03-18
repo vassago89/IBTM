@@ -217,21 +217,28 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="56"/>
                         <ColumnDefinition Width="120"/>
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="20"/>
+                        <RowDefinition Height="24"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="18"/>
                     </Grid.RowDefinitions>
 
-                    <!-- 컨베이어 연결 레일 (Zone 전체 관통) -->
-                    <Rectangle Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Panel.ZIndex="0"
-                               Height="2" VerticalAlignment="Center" Margin="0,-27,0,0"
-                               Fill="#1A2838" IsHitTestVisible="False"/>
-                    <Rectangle Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Panel.ZIndex="0"
-                               Height="2" VerticalAlignment="Center" Margin="0,27,0,0"
-                               Fill="#1A2838" IsHitTestVisible="False"/>
+                    <!-- 컨베이어 연결 레일 (IN ~ OUT 전체 관통) -->
+                    <Rectangle Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5" Panel.ZIndex="0"
+                               Height="4" VerticalAlignment="Center" Margin="0,-27,0,0"
+                               Fill="#1A2838" RadiusX="1" RadiusY="1" IsHitTestVisible="False"/>
+                    <Rectangle Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5" Panel.ZIndex="0"
+                               Height="4" VerticalAlignment="Center" Margin="0,27,0,0"
+                               Fill="#1A2838" RadiusX="1" RadiusY="1" IsHitTestVisible="False"/>
+                    <!-- 흐름 방향 화살표 (레일 사이) -->
+                    <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5" Panel.ZIndex="1"
+                               Text="►  ►  ►  ►  ►  ►  ►  ►  ►  ►  ►  ►"
+                               FontSize="7" FontFamily="Consolas" Foreground="#1A2838"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               IsHitTestVisible="False" Opacity="0.7"/>
 
                     <!-- 앞장비 (IN) -->
                     <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
@@ -259,10 +266,10 @@
                     </Border>
 
                     <!-- ZONE 1 — PICK -->
-                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
-                        <TextBlock Text="ZONE 1" FontSize="9" FontWeight="Bold"
+                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="6,2" VerticalAlignment="Center">
+                        <TextBlock Text="ZONE 1" FontSize="11" FontWeight="Bold"
                                    Foreground="{StaticResource AccentBlueBrush}" Opacity="0.9"/>
-                        <TextBlock Text="  PICK" FontSize="9"
+                        <TextBlock Text="  PICK" FontSize="10"
                                    Foreground="{StaticResource AccentBlueBrush}" Opacity="0.5"/>
                         <TextBlock Text="{Binding Zone1Progress}" FontSize="9" FontFamily="Consolas"
                                    Foreground="{StaticResource AccentBlueBrush}" Margin="8,0,0,0" Opacity="0.8"
@@ -293,10 +300,10 @@
                     </Border>
 
                     <!-- ZONE 2 — BOLT -->
-                    <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
-                        <TextBlock Text="ZONE 2" FontSize="9" FontWeight="Bold"
+                    <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Margin="6,2" VerticalAlignment="Center">
+                        <TextBlock Text="ZONE 2" FontSize="11" FontWeight="Bold"
                                    Foreground="{StaticResource AccentOrangeBrush}" Opacity="0.9"/>
-                        <TextBlock Text="  BOLT" FontSize="9"
+                        <TextBlock Text="  BOLT" FontSize="10"
                                    Foreground="{StaticResource AccentOrangeBrush}" Opacity="0.5"/>
                         <TextBlock Text="{Binding Zone2Progress}" FontSize="9" FontFamily="Consolas"
                                    Foreground="{StaticResource AccentOrangeBrush}" Margin="8,0,0,0" Opacity="0.8"
@@ -331,10 +338,10 @@
                     </Border>
 
                     <!-- ZONE 3 — INSPECT -->
-                    <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
-                        <TextBlock Text="ZONE 3" FontSize="9" FontWeight="Bold"
+                    <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Horizontal" Margin="6,2" VerticalAlignment="Center">
+                        <TextBlock Text="ZONE 3" FontSize="11" FontWeight="Bold"
                                    Foreground="{StaticResource AccentGreenBrush}" Opacity="0.9"/>
-                        <TextBlock Text="  INSPECT" FontSize="9"
+                        <TextBlock Text="  INSPECT" FontSize="10"
                                    Foreground="{StaticResource AccentGreenBrush}" Opacity="0.5"/>
                         <TextBlock Text="{Binding Zone3Progress}" FontSize="9" FontFamily="Consolas"
                                    Foreground="{StaticResource AccentGreenBrush}" Margin="8,0,0,0" Opacity="0.8"
@@ -364,8 +371,30 @@
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
 
+                    <!-- 뒷장비 (OUT) -->
+                    <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="4"
+                            CornerRadius="3" Background="#0C0E18" Margin="4,2">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="#303850"/>
+                                <Setter Property="BorderThickness" Value="1"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SmemaReady}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="OUT" Foreground="#506080" FontSize="11" FontWeight="Bold"
+                                       HorizontalAlignment="Center" Margin="0,0,0,6"/>
+                            <TextBlock Text="SMEMA" Foreground="#405070" FontSize="7" HorizontalAlignment="Center"/>
+                            <TextBlock Text="►" Foreground="#405070" FontSize="10" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- 우측 패널 (결과·NG·SMEMA) -->
-                    <v:ResultPanelView Grid.Row="0" Grid.RowSpan="3" Grid.Column="4"/>
+                    <v:ResultPanelView Grid.Row="0" Grid.RowSpan="3" Grid.Column="5"/>
                 </Grid>
                 </Grid>
             </Border>

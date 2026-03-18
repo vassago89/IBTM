@@ -9,8 +9,8 @@
     </UserControl.Resources>
 
     <StackPanel Margin="8,4">
-        <!-- 결과 배지 -->
-        <Border Width="70" Height="34" CornerRadius="6" BorderThickness="1.5"
+        <!-- 결과 배지 (크게) -->
+        <Border Width="100" Height="46" CornerRadius="8" BorderThickness="2"
                 HorizontalAlignment="Left">
             <Border.Style>
                 <Style TargetType="Border">
@@ -20,15 +20,25 @@
                         <DataTrigger Binding="{Binding IsNgPath}" Value="True">
                             <Setter Property="Background" Value="#2A1010"/>
                             <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
+                            <Setter Property="Effect">
+                                <Setter.Value>
+                                    <DropShadowEffect Color="#F85149" BlurRadius="16" ShadowDepth="0" Opacity="0.5"/>
+                                </Setter.Value>
+                            </Setter>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding IsGoodPath}" Value="True">
                             <Setter Property="Background" Value="#102A10"/>
                             <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+                            <Setter Property="Effect">
+                                <Setter.Value>
+                                    <DropShadowEffect Color="#3FB950" BlurRadius="16" ShadowDepth="0" Opacity="0.5"/>
+                                </Setter.Value>
+                            </Setter>
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
             </Border.Style>
-            <TextBlock Text="{Binding LastRouteText}" FontSize="13" FontWeight="Bold"
+            <TextBlock Text="{Binding LastRouteText}" FontSize="20" FontWeight="Bold" FontFamily="Consolas"
                        HorizontalAlignment="Center" VerticalAlignment="Center">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
@@ -47,21 +57,21 @@
         </Border>
 
         <!-- NG 적재 -->
-        <TextBlock Text="NG STACK" Margin="0,8,0,3"
-                   Foreground="{StaticResource AccentRedBrush}" FontSize="8" FontWeight="SemiBold" Opacity="0.7"/>
+        <TextBlock Text="NG STACK" Margin="0,10,0,4"
+                   Foreground="{StaticResource AccentRedBrush}" FontSize="9" FontWeight="Bold" Opacity="0.8"/>
         <ItemsControl ItemsSource="{Binding NgStackSlots}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <Rectangle Width="18" Height="18" Margin="0,0,3,0"
+                    <Rectangle Width="22" Height="22" Margin="0,0,3,0"
                                Stroke="#401818" StrokeThickness="1" RadiusX="2" RadiusY="2"
                                Fill="{Binding IsFilled, Converter={StaticResource NgSlotFill}}"/>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
-        <TextBlock FontFamily="Consolas" FontSize="8" Margin="0,2,0,0">
+        <TextBlock FontFamily="Consolas" FontSize="10" FontWeight="Bold" Margin="0,3,0,0">
             <TextBlock.Style>
                 <Style TargetType="TextBlock">
                     <Setter Property="Foreground" Value="#383850"/>
@@ -76,7 +86,7 @@
         </TextBlock>
 
         <!-- SMEMA -->
-        <TextBlock FontSize="7" Margin="0,12,0,0">
+        <TextBlock FontSize="9" FontWeight="SemiBold" Margin="0,14,0,0">
             <TextBlock.Style>
                 <Style TargetType="TextBlock">
                     <Setter Property="Text" Value="SMEMA  OUT"/>
