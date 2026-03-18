@@ -8,7 +8,7 @@ public partial class MainViewModel : ObservableObject
     private readonly ProcessViewModel _processViewModel;
 
     [ObservableProperty] private ObservableObject _currentPage;
-    [ObservableProperty] private string _currentPageName = "공정";
+    [ObservableProperty] private string _currentPageName = "Process";
 
     public MainViewModel(ProcessViewModel processViewModel)
     {
@@ -22,8 +22,8 @@ public partial class MainViewModel : ObservableObject
         CurrentPageName = page;
         CurrentPage = page switch
         {
-            "공정" => _processViewModel,
-            _     => _processViewModel   // 추후 ManualViewModel, SettingsViewModel 추가
+            "Process" => _processViewModel,
+            _         => _processViewModel   // 추후 ManualViewModel, SettingsViewModel 추가
         };
     }
 }

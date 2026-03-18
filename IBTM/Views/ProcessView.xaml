@@ -5,6 +5,7 @@
              xmlns:conv="clr-namespace:IBTM.Converters"
              xmlns:v="clr-namespace:IBTM.Views"
              xmlns:models="clr-namespace:IBTM.Models"
+             xmlns:loc="clr-namespace:IBTM.Localization"
              Background="{StaticResource AppBgBrush}">
 
     <UserControl.Resources>
@@ -139,13 +140,13 @@
                 <TextBlock Text="NG STACK FULL" FontSize="72" FontWeight="Bold" FontFamily="Consolas"
                            Foreground="White" HorizontalAlignment="Center"/>
                 <TextBlock HorizontalAlignment="Center" Margin="0,12,0,0" FontSize="28" Foreground="#FFB0B0">
-                    <Run Text="적재 "/>
+                    <Run Text="{Binding [NgAlarm_Loaded], Source={x:Static loc:Loc.Instance}, Mode=OneWay}"/>
                     <Run Text="{Binding NgStackCount, Mode=OneWay}"/>
                     <Run Text="/"/>
                     <Run Text="{Binding NgStackMaxCount, Mode=OneWay}"/>
-                    <Run Text="  —  리셋 후 재가동"/>
+                    <Run Text="{Binding [NgAlarm_ResetRestart], Source={x:Static loc:Loc.Instance}, Mode=OneWay}"/>
                 </TextBlock>
-                <Button Content="NG 리셋" Command="{Binding ResetNgStackCommand}"
+                <Button Content="{Binding [Btn_NgReset], Source={x:Static loc:Loc.Instance}}" Command="{Binding ResetNgStackCommand}"
                         Style="{StaticResource DangerButtonStyle}"
                         FontSize="24" Padding="40,16" Margin="0,40,0,0"
                         MinWidth="200"/>
@@ -380,11 +381,18 @@
                              VerticalAlignment="Center" FontSize="11" MinWidth="40" TextAlignment="Right"/>
                     <TextBlock Text="Nm" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="4,0,0,0"/>
                 </StackPanel>
-                <Button Content="시작" Command="{Binding StartCommand}" Style="{StaticResource PrimaryButtonStyle}" MinWidth="80" Margin="0,0,6,0"/>
-                <Button Content="정지" Command="{Binding StopCommand}" Style="{StaticResource SecondaryButtonStyle}" MinWidth="80" Margin="0,0,6,0"/>
-                <Button Content="E-STOP" Command="{Binding EStopCommand}" Style="{StaticResource DangerButtonStyle}" MinWidth="90" Margin="0,0,12,0"/>
-                <Button Content="NG 리셋" Command="{Binding ResetNgStackCommand}" Style="{StaticResource SecondaryButtonStyle}" MinWidth="70"
+                <Button Content="{Binding [Btn_Start], Source={x:Static loc:Loc.Instance}}" Command="{Binding StartCommand}" Style="{StaticResource PrimaryButtonStyle}" MinWidth="80" Margin="0,0,6,0"/>
+                <Button Content="{Binding [Btn_Stop], Source={x:Static loc:Loc.Instance}}" Command="{Binding StopCommand}" Style="{StaticResource SecondaryButtonStyle}" MinWidth="80" Margin="0,0,6,0"/>
+                <Button Content="{Binding [Btn_EStop], Source={x:Static loc:Loc.Instance}}" Command="{Binding EStopCommand}" Style="{StaticResource DangerButtonStyle}" MinWidth="90" Margin="0,0,12,0"/>
+                <Button Content="{Binding [Btn_NgReset], Source={x:Static loc:Loc.Instance}}" Command="{Binding ResetNgStackCommand}" Style="{StaticResource SecondaryButtonStyle}" MinWidth="70"
                         Visibility="{Binding NgStackAlarm, Converter={StaticResource BoolToVis}}"/>
+                <!-- Language toggle -->
+                <Border Margin="20,0,0,0" VerticalAlignment="Center">
+                    <Button Content="{Binding Language, Source={x:Static loc:Loc.Instance}}"
+                            Command="{Binding ToggleLanguageCommand}"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            MinWidth="46" FontFamily="Consolas" FontWeight="Bold" FontSize="10"/>
+                </Border>
             </StackPanel>
         </Border>
     </Grid>

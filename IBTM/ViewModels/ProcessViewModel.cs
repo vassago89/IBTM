@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using IBTM.Localization;
 using IBTM.Models;
 using IBTM.Services;
 using System.Collections.ObjectModel;
@@ -19,7 +20,7 @@ public partial class ProcessViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(StopCommand))]
     private bool _isRunning;
 
-    [ObservableProperty] private string _statusMessage = "대기 중";
+    [ObservableProperty] private string _statusMessage = "Waiting";
     [ObservableProperty] private bool _isError;
 
     // ── 생산 통계 ─────────────────────────────────────────────────────────────
@@ -130,23 +131,23 @@ public partial class ProcessViewModel : ObservableObject
     // ── 초기화 ───────────────────────────────────────────────────────────────
     private void BuildStages()
     {
-        Zone1Stages.Add(new() { Stage = ProcessStage.Zone1_WaitShuttle, Title = "셔틀 대기", Subtitle = "센서 감지", Icon = "1" });
-        Zone1Stages.Add(new() { Stage = ProcessStage.Zone1_StopAlignLift, Title = "정렬·리프트", Subtitle = "STP·ALN·LIFT", Icon = "2" });
-        Zone1Stages.Add(new() { Stage = ProcessStage.Zone1_PickPlace, Title = "PCB 픽업", Subtitle = "2개 순차 배치", Icon = "3" });
-        Zone1Stages.Add(new() { Stage = ProcessStage.Zone1_Release, Title = "릴리즈", Subtitle = "리프트 다운", Icon = "4", IsLastCard = true });
+        Zone1Stages.Add(new() { Stage = ProcessStage.Zone1_WaitShuttle, Title = Loc.S("Stage_WaitShuttle"), Subtitle = Loc.S("Sub_SensorDetect"), Icon = "1" });
+        Zone1Stages.Add(new() { Stage = ProcessStage.Zone1_StopAlignLift, Title = Loc.S("Stage_StopAlignLift"), Subtitle = Loc.S("Sub_StpAlnLift"), Icon = "2" });
+        Zone1Stages.Add(new() { Stage = ProcessStage.Zone1_PickPlace, Title = Loc.S("Stage_PickPlace"), Subtitle = Loc.S("Sub_Sequential2Pcb"), Icon = "3" });
+        Zone1Stages.Add(new() { Stage = ProcessStage.Zone1_Release, Title = Loc.S("Stage_Release"), Subtitle = Loc.S("Sub_LiftDown"), Icon = "4", IsLastCard = true });
 
-        Zone2Stages.Add(new() { Stage = ProcessStage.Zone2_WaitShuttle, Title = "셔틀 대기", Subtitle = "센서 감지", Icon = "1" });
-        Zone2Stages.Add(new() { Stage = ProcessStage.Zone2_StopAlignLift, Title = "정렬·리프트", Subtitle = "STP·ALN·LIFT", Icon = "2" });
-        Zone2Stages.Add(new() { Stage = ProcessStage.Zone2_Fiducial, Title = "Fiducial", Subtitle = "보정 검출", Icon = "3" });
-        Zone2Stages.Add(new() { Stage = ProcessStage.Zone2_BoltTighten, Title = "볼트 체결", Subtitle = "N회 반복", Icon = "4" });
-        Zone2Stages.Add(new() { Stage = ProcessStage.Zone2_Release, Title = "릴리즈", Subtitle = "리프트 다운", Icon = "5", IsLastCard = true });
+        Zone2Stages.Add(new() { Stage = ProcessStage.Zone2_WaitShuttle, Title = Loc.S("Stage_WaitShuttle"), Subtitle = Loc.S("Sub_SensorDetect"), Icon = "1" });
+        Zone2Stages.Add(new() { Stage = ProcessStage.Zone2_StopAlignLift, Title = Loc.S("Stage_StopAlignLift"), Subtitle = Loc.S("Sub_StpAlnLift"), Icon = "2" });
+        Zone2Stages.Add(new() { Stage = ProcessStage.Zone2_Fiducial, Title = Loc.S("Stage_Fiducial"), Subtitle = Loc.S("Sub_CorrectionDetect"), Icon = "3" });
+        Zone2Stages.Add(new() { Stage = ProcessStage.Zone2_BoltTighten, Title = Loc.S("Stage_BoltTighten"), Subtitle = Loc.S("Sub_NRepeat"), Icon = "4" });
+        Zone2Stages.Add(new() { Stage = ProcessStage.Zone2_Release, Title = Loc.S("Stage_Release"), Subtitle = Loc.S("Sub_LiftDown"), Icon = "5", IsLastCard = true });
 
-        Zone3Stages.Add(new() { Stage = ProcessStage.Zone3_WaitShuttle, Title = "셔틀 대기", Subtitle = "센서 감지", Icon = "1" });
-        Zone3Stages.Add(new() { Stage = ProcessStage.Zone3_StopAlignLift, Title = "정렬·리프트", Subtitle = "STP·ALN·LIFT", Icon = "2" });
-        Zone3Stages.Add(new() { Stage = ProcessStage.Zone3_Inspect, Title = "검사", Subtitle = "볼트 유무 확인", Icon = "3" });
-        Zone3Stages.Add(new() { Stage = ProcessStage.Zone3_NgTransfer, Title = "NG 적재", Subtitle = "뒤쪽 이송", Icon = "4" });
-        Zone3Stages.Add(new() { Stage = ProcessStage.Zone3_SmemaWait, Title = "SMEMA", Subtitle = "뒤 설비 대기", Icon = "5" });
-        Zone3Stages.Add(new() { Stage = ProcessStage.Zone3_Discharge, Title = "배출", Subtitle = "컨베이어 OUT", Icon = "6", IsLastCard = true });
+        Zone3Stages.Add(new() { Stage = ProcessStage.Zone3_WaitShuttle, Title = Loc.S("Stage_WaitShuttle"), Subtitle = Loc.S("Sub_SensorDetect"), Icon = "1" });
+        Zone3Stages.Add(new() { Stage = ProcessStage.Zone3_StopAlignLift, Title = Loc.S("Stage_StopAlignLift"), Subtitle = Loc.S("Sub_StpAlnLift"), Icon = "2" });
+        Zone3Stages.Add(new() { Stage = ProcessStage.Zone3_Inspect, Title = Loc.S("Stage_Inspect"), Subtitle = Loc.S("Sub_BoltPresence"), Icon = "3" });
+        Zone3Stages.Add(new() { Stage = ProcessStage.Zone3_NgTransfer, Title = Loc.S("Stage_NgTransfer"), Subtitle = Loc.S("Sub_RearTransfer"), Icon = "4" });
+        Zone3Stages.Add(new() { Stage = ProcessStage.Zone3_SmemaWait, Title = Loc.S("Stage_SmemaWait"), Subtitle = Loc.S("Sub_NextEquipWait"), Icon = "5" });
+        Zone3Stages.Add(new() { Stage = ProcessStage.Zone3_Discharge, Title = Loc.S("Stage_Discharge"), Subtitle = Loc.S("Sub_ConveyorOut"), Icon = "6", IsLastCard = true });
     }
 
     private void BuildBoltMarkers()
@@ -251,9 +252,9 @@ public partial class ProcessViewModel : ObservableObject
         }
         else
         {
-            card.Info1 = "검출 실패";
+            card.Info1 = Loc.S("Fiducial_Failed");
             card.Info2 = "";
-            LastFiducialResult = "검출 실패";
+            LastFiducialResult = Loc.S("Fiducial_Failed");
             Zone2Visual.FiducialOffsetVisibility = Visibility.Collapsed;
         }
     });
@@ -267,10 +268,10 @@ public partial class ProcessViewModel : ObservableObject
             BoltMarkers[CurrentBoltIndex].State = 1; // 체결중
 
         // 캔버스 라벨에 볼트 진행률 반영
-        Zone2Visual.ActivityLabel = $"볼트 {e.Current}/{e.Total}";
+        Zone2Visual.ActivityLabel = Loc.S("Act_BoltProgress", e.Current, e.Total);
 
         var card = FindStageCard(ProcessStage.Zone2_BoltTighten);
-        if (card != null) card.Info1 = $"볼트 {e.Current}/{e.Total}  [{e.BoltName}]";
+        if (card != null) card.Info1 = Loc.S("Bolt_Format", e.Current, e.Total, e.BoltName);
     });
 
     private void OnBoltCompleted(object? sender, BoltResult r) => RunOnUI(() =>
@@ -278,7 +279,7 @@ public partial class ProcessViewModel : ObservableObject
         var card = FindStageCard(ProcessStage.Zone2_BoltTighten);
         if (card == null) return;
 
-        card.Info2 = $"토크: {r.Torque:F2} Nm  {r.Message}";
+        card.Info2 = Loc.S("Torque_Format", r.Torque, r.Message);
         if (!r.Success) card.Status = StageStatus.Warning;
 
         if (CurrentBoltIndex >= 0 && CurrentBoltIndex < BoltMarkers.Count)
@@ -480,6 +481,63 @@ public partial class ProcessViewModel : ObservableObject
     private void EStop() => _orchestrator.EStop();
 
     [RelayCommand]
+    private void ToggleLanguage()
+    {
+        Loc.Instance.ToggleLanguage();
+        // 스테이지 카드 제목/부제 갱신
+        RebuildStageLabels();
+    }
+
+    private void RebuildStageLabels()
+    {
+        foreach (var stages in new[] { Zone1Stages, Zone2Stages, Zone3Stages })
+        {
+            foreach (var card in stages)
+            {
+                card.Title = GetStageTitle(card.Stage);
+                card.Subtitle = GetStageSubtitle(card.Stage);
+                OnPropertyChanged(nameof(card.StatusText));
+            }
+        }
+    }
+
+    private static string GetStageTitle(ProcessStage stage) => stage switch
+    {
+        ProcessStage.Zone1_WaitShuttle or ProcessStage.Zone2_WaitShuttle or ProcessStage.Zone3_WaitShuttle
+            => Loc.S("Stage_WaitShuttle"),
+        ProcessStage.Zone1_StopAlignLift or ProcessStage.Zone2_StopAlignLift or ProcessStage.Zone3_StopAlignLift
+            => Loc.S("Stage_StopAlignLift"),
+        ProcessStage.Zone1_PickPlace      => Loc.S("Stage_PickPlace"),
+        ProcessStage.Zone1_Release or ProcessStage.Zone2_Release or ProcessStage.Zone3_Release
+            => Loc.S("Stage_Release"),
+        ProcessStage.Zone2_Fiducial       => Loc.S("Stage_Fiducial"),
+        ProcessStage.Zone2_BoltTighten    => Loc.S("Stage_BoltTighten"),
+        ProcessStage.Zone3_Inspect        => Loc.S("Stage_Inspect"),
+        ProcessStage.Zone3_NgTransfer     => Loc.S("Stage_NgTransfer"),
+        ProcessStage.Zone3_SmemaWait      => Loc.S("Stage_SmemaWait"),
+        ProcessStage.Zone3_Discharge      => Loc.S("Stage_Discharge"),
+        _ => ""
+    };
+
+    private static string GetStageSubtitle(ProcessStage stage) => stage switch
+    {
+        ProcessStage.Zone1_WaitShuttle or ProcessStage.Zone2_WaitShuttle or ProcessStage.Zone3_WaitShuttle
+            => Loc.S("Sub_SensorDetect"),
+        ProcessStage.Zone1_StopAlignLift or ProcessStage.Zone2_StopAlignLift or ProcessStage.Zone3_StopAlignLift
+            => Loc.S("Sub_StpAlnLift"),
+        ProcessStage.Zone1_PickPlace      => Loc.S("Sub_Sequential2Pcb"),
+        ProcessStage.Zone1_Release or ProcessStage.Zone2_Release
+            => Loc.S("Sub_LiftDown"),
+        ProcessStage.Zone2_Fiducial       => Loc.S("Sub_CorrectionDetect"),
+        ProcessStage.Zone2_BoltTighten    => Loc.S("Sub_NRepeat"),
+        ProcessStage.Zone3_Inspect        => Loc.S("Sub_BoltPresence"),
+        ProcessStage.Zone3_NgTransfer     => Loc.S("Sub_RearTransfer"),
+        ProcessStage.Zone3_SmemaWait      => Loc.S("Sub_NextEquipWait"),
+        ProcessStage.Zone3_Discharge      => Loc.S("Sub_ConveyorOut"),
+        _ => ""
+    };
+
+    [RelayCommand]
     private void ResetNgStack()
     {
         _orchestrator.ResetNgStack();
@@ -497,7 +555,7 @@ public partial class ProcessViewModel : ObservableObject
 
         if (status == StageStatus.Error)
         {
-            visual.ActivityLabel = "오류";
+            visual.ActivityLabel = Loc.S("Act_Error");
             return;
         }
 
@@ -517,24 +575,24 @@ public partial class ProcessViewModel : ObservableObject
 
         visual.ActivityLabel = stage switch
         {
-            ProcessStage.Zone1_WaitShuttle   => "셔틀 대기",
-            ProcessStage.Zone1_StopAlignLift => "정렬·리프트",
-            ProcessStage.Zone1_PickPlace     => "PCB 픽업",
-            ProcessStage.Zone1_Release       => "릴리즈",
+            ProcessStage.Zone1_WaitShuttle   => Loc.S("Act_WaitShuttle"),
+            ProcessStage.Zone1_StopAlignLift => Loc.S("Act_AlignLift"),
+            ProcessStage.Zone1_PickPlace     => Loc.S("Act_PcbPick"),
+            ProcessStage.Zone1_Release       => Loc.S("Act_Release"),
 
-            ProcessStage.Zone2_WaitShuttle   => "셔틀 대기",
-            ProcessStage.Zone2_StopAlignLift => "정렬·리프트",
-            ProcessStage.Zone2_Fiducial      => "FIDUCIAL",
-            ProcessStage.Zone2_BoltTighten   => "볼트 체결",
-            ProcessStage.Zone2_Release       => "릴리즈",
+            ProcessStage.Zone2_WaitShuttle   => Loc.S("Act_WaitShuttle"),
+            ProcessStage.Zone2_StopAlignLift => Loc.S("Act_AlignLift"),
+            ProcessStage.Zone2_Fiducial      => Loc.S("Act_Fiducial"),
+            ProcessStage.Zone2_BoltTighten   => Loc.S("Act_BoltTighten"),
+            ProcessStage.Zone2_Release       => Loc.S("Act_Release"),
 
-            ProcessStage.Zone3_WaitShuttle   => "셔틀 대기",
-            ProcessStage.Zone3_StopAlignLift => "정렬·리프트",
-            ProcessStage.Zone3_Inspect       => "검사 중",
-            ProcessStage.Zone3_NgTransfer    => "NG 적재",
-            ProcessStage.Zone3_SmemaWait     => "SMEMA 대기",
-            ProcessStage.Zone3_Discharge     => "배출 중",
-            ProcessStage.Zone3_Release       => "릴리즈",
+            ProcessStage.Zone3_WaitShuttle   => Loc.S("Act_WaitShuttle"),
+            ProcessStage.Zone3_StopAlignLift => Loc.S("Act_AlignLift"),
+            ProcessStage.Zone3_Inspect       => Loc.S("Act_Inspecting"),
+            ProcessStage.Zone3_NgTransfer    => Loc.S("Act_NgTransfer"),
+            ProcessStage.Zone3_SmemaWait     => Loc.S("Act_SmemaWait"),
+            ProcessStage.Zone3_Discharge     => Loc.S("Act_Discharging"),
+            ProcessStage.Zone3_Release       => Loc.S("Act_Release"),
             _ => ""
         };
     }
@@ -567,27 +625,27 @@ public partial class ProcessViewModel : ObservableObject
 
     private static string GetStatusMessage(ProcessStage stage, StageStatus status)
     {
-        if (status == StageStatus.Error) return $"오류 발생! [{stage}]";
+        if (status == StageStatus.Error) return Loc.S("Stat_Error", stage);
         return stage switch
         {
-            ProcessStage.Zone1_WaitShuttle    => "[구간1] 셔틀 대기...",
-            ProcessStage.Zone1_StopAlignLift  => "[구간1] 정렬/리프트...",
-            ProcessStage.Zone1_PickPlace      => "[구간1] PCB 픽업 중...",
-            ProcessStage.Zone1_Release        => "[구간1] 릴리즈...",
-            ProcessStage.Zone2_WaitShuttle    => "[구간2] 셔틀 대기...",
-            ProcessStage.Zone2_StopAlignLift  => "[구간2] 정렬/리프트...",
-            ProcessStage.Zone2_Fiducial       => "[구간2] Fiducial...",
-            ProcessStage.Zone2_BoltTighten    => "[구간2] 볼트 체결 중...",
-            ProcessStage.Zone2_Release        => "[구간2] 릴리즈...",
-            ProcessStage.Zone3_WaitShuttle    => "[구간3] 셔틀 대기...",
-            ProcessStage.Zone3_StopAlignLift  => "[구간3] 정렬/리프트...",
-            ProcessStage.Zone3_Inspect        => "[구간3] 검사 중...",
-            ProcessStage.Zone3_NgTransfer     => "[구간3] NG 적재...",
-            ProcessStage.Zone3_SmemaWait      => "[구간3] SMEMA...",
-            ProcessStage.Zone3_Discharge      => "[구간3] 배출...",
-            ProcessStage.Zone3_Release        => "[구간3] 릴리즈...",
-            ProcessStage.Complete             => "사이클 완료",
-            _ => "대기 중"
+            ProcessStage.Zone1_WaitShuttle    => Loc.S("Stat_Z1_WaitShuttle"),
+            ProcessStage.Zone1_StopAlignLift  => Loc.S("Stat_Z1_AlignLift"),
+            ProcessStage.Zone1_PickPlace      => Loc.S("Stat_Z1_PickPlace"),
+            ProcessStage.Zone1_Release        => Loc.S("Stat_Z1_Release"),
+            ProcessStage.Zone2_WaitShuttle    => Loc.S("Stat_Z2_WaitShuttle"),
+            ProcessStage.Zone2_StopAlignLift  => Loc.S("Stat_Z2_AlignLift"),
+            ProcessStage.Zone2_Fiducial       => Loc.S("Stat_Z2_Fiducial"),
+            ProcessStage.Zone2_BoltTighten    => Loc.S("Stat_Z2_BoltTighten"),
+            ProcessStage.Zone2_Release        => Loc.S("Stat_Z2_Release"),
+            ProcessStage.Zone3_WaitShuttle    => Loc.S("Stat_Z3_WaitShuttle"),
+            ProcessStage.Zone3_StopAlignLift  => Loc.S("Stat_Z3_AlignLift"),
+            ProcessStage.Zone3_Inspect        => Loc.S("Stat_Z3_Inspect"),
+            ProcessStage.Zone3_NgTransfer     => Loc.S("Stat_Z3_NgTransfer"),
+            ProcessStage.Zone3_SmemaWait      => Loc.S("Stat_Z3_SmemaWait"),
+            ProcessStage.Zone3_Discharge      => Loc.S("Stat_Z3_Discharge"),
+            ProcessStage.Zone3_Release        => Loc.S("Stat_Z3_Release"),
+            ProcessStage.Complete             => Loc.S("Stat_CycleComplete"),
+            _ => Loc.S("Stat_Waiting")
         };
     }
 }

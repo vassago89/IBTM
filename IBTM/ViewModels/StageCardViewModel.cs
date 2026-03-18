@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using IBTM.Localization;
 using IBTM.Models;
 using System.Timers;
 
@@ -27,12 +28,12 @@ public partial class StageCardViewModel : ObservableObject
 
     public string StatusText => Status switch
     {
-        StageStatus.Running => "실행 중",
-        StageStatus.Done    => "완료",
-        StageStatus.Error   => "오류",
-        StageStatus.Warning => "경고",
-        StageStatus.Skipped => "스킵",
-        _                   => "대기"
+        StageStatus.Running => Loc.S("Card_Running"),
+        StageStatus.Done    => Loc.S("Card_Done"),
+        StageStatus.Error   => Loc.S("Card_Error"),
+        StageStatus.Warning => Loc.S("Card_Warning"),
+        StageStatus.Skipped => Loc.S("Card_Skipped"),
+        _                   => Loc.S("Card_Idle")
     };
 
     private System.Timers.Timer? _pulseTimer;
