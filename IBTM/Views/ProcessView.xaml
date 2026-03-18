@@ -215,8 +215,11 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="56"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="36"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="36"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="36"/>
                         <ColumnDefinition Width="56"/>
                         <ColumnDefinition Width="120"/>
                     </Grid.ColumnDefinitions>
@@ -227,14 +230,14 @@
                     </Grid.RowDefinitions>
 
                     <!-- 컨베이어 연결 레일 (IN ~ OUT 전체 관통) -->
-                    <Rectangle Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5" Panel.ZIndex="0"
+                    <Rectangle Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="8" Panel.ZIndex="0"
                                Height="4" VerticalAlignment="Center" Margin="0,-27,0,0"
                                Fill="#1A2838" RadiusX="1" RadiusY="1" IsHitTestVisible="False"/>
-                    <Rectangle Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5" Panel.ZIndex="0"
+                    <Rectangle Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="8" Panel.ZIndex="0"
                                Height="4" VerticalAlignment="Center" Margin="0,27,0,0"
                                Fill="#1A2838" RadiusX="1" RadiusY="1" IsHitTestVisible="False"/>
                     <!-- 흐름 방향 화살표 (레일 사이) -->
-                    <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="5" Panel.ZIndex="1"
+                    <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="8" Panel.ZIndex="1"
                                Text="►  ►  ►  ►  ►  ►  ►  ►  ►  ►  ►  ►"
                                FontSize="7" FontFamily="Consolas" Foreground="#1A2838"
                                HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -287,20 +290,21 @@
                         <TextBlock Text="{Binding Zone1Timing}" FontFamily="Consolas" FontSize="7" FontWeight="Bold"
                                    Foreground="{StaticResource AccentCyanBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
-                    <!-- 셔틀 트랜짓 Zone 1→2 -->
-                    <Border Grid.Row="1" Grid.Column="1" Panel.ZIndex="10"
+
+                    <!-- 셔틀 트랜짓 Zone 1→2 (전용 컬럼) -->
+                    <Border Grid.Row="1" Grid.Column="2" Panel.ZIndex="10"
                             HorizontalAlignment="Center" VerticalAlignment="Center"
-                            Width="36" Height="20" CornerRadius="4"
+                            Width="32" Height="22" CornerRadius="4"
                             Background="#1A2545" BorderBrush="#58A6FF" BorderThickness="1.5"
                             Style="{StaticResource TransitBorderStyle}"
                             Visibility="{Binding ShuttleTransit12, Converter={StaticResource BoolToVis}}">
                         <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
-                        <TextBlock Text="► ► ►" FontSize="8" FontFamily="Consolas" Foreground="#58A6FF"
+                        <TextBlock Text="► ►" FontSize="9" FontFamily="Consolas" Foreground="#58A6FF"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
 
                     <!-- ZONE 2 — BOLT -->
-                    <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Margin="6,2" VerticalAlignment="Center">
+                    <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Horizontal" Margin="6,2" VerticalAlignment="Center">
                         <TextBlock Text="ZONE 2" FontSize="11" FontWeight="Bold"
                                    Foreground="{StaticResource AccentOrangeBrush}" Opacity="0.9"/>
                         <TextBlock Text="  BOLT" FontSize="10"
@@ -309,13 +313,13 @@
                                    Foreground="{StaticResource AccentOrangeBrush}" Margin="8,0,0,0" Opacity="0.8"
                                    VerticalAlignment="Center"/>
                     </StackPanel>
-                    <Border Grid.Row="1" Grid.Column="2" Background="{StaticResource CanvasBgBrush}"
+                    <Border Grid.Row="1" Grid.Column="3" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="#302818" BorderThickness="1"
                             CornerRadius="2" Margin="3,0" Panel.ZIndex="1">
                         <v:ZoneCanvasView ZoneVisual="{Binding Zone2Visual}"
                                          Theme="{StaticResource Zone2Theme}" HeadType="BoltDriver"/>
                     </Border>
-                    <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
+                    <StackPanel Grid.Row="2" Grid.Column="3" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Zone2Visual.CoordText}" FontFamily="Consolas" FontSize="8"
                                    Foreground="{StaticResource AccentOrangeBrush}"/>
                         <TextBlock Text="{Binding BoltProgress}" FontFamily="Consolas" FontSize="8" FontWeight="Bold"
@@ -325,20 +329,21 @@
                         <TextBlock Text="{Binding Zone2Timing}" FontFamily="Consolas" FontSize="7" FontWeight="Bold"
                                    Foreground="{StaticResource AccentCyanBrush}" Margin="6,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
-                    <!-- 셔틀 트랜짓 Zone 2→3 -->
-                    <Border Grid.Row="1" Grid.Column="2" Panel.ZIndex="10"
+
+                    <!-- 셔틀 트랜짓 Zone 2→3 (전용 컬럼) -->
+                    <Border Grid.Row="1" Grid.Column="4" Panel.ZIndex="10"
                             HorizontalAlignment="Center" VerticalAlignment="Center"
-                            Width="36" Height="20" CornerRadius="4"
+                            Width="32" Height="22" CornerRadius="4"
                             Background="#2A2515" BorderBrush="#F0883E" BorderThickness="1.5"
                             Style="{StaticResource TransitBorderStyle}"
                             Visibility="{Binding ShuttleTransit23, Converter={StaticResource BoolToVis}}">
                         <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
-                        <TextBlock Text="► ► ►" FontSize="8" FontFamily="Consolas" Foreground="#F0883E"
+                        <TextBlock Text="► ►" FontSize="9" FontFamily="Consolas" Foreground="#F0883E"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
 
                     <!-- ZONE 3 — INSPECT -->
-                    <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Horizontal" Margin="6,2" VerticalAlignment="Center">
+                    <StackPanel Grid.Row="0" Grid.Column="5" Orientation="Horizontal" Margin="6,2" VerticalAlignment="Center">
                         <TextBlock Text="ZONE 3" FontSize="11" FontWeight="Bold"
                                    Foreground="{StaticResource AccentGreenBrush}" Opacity="0.9"/>
                         <TextBlock Text="  INSPECT" FontSize="10"
@@ -347,32 +352,33 @@
                                    Foreground="{StaticResource AccentGreenBrush}" Margin="8,0,0,0" Opacity="0.8"
                                    VerticalAlignment="Center"/>
                     </StackPanel>
-                    <Border Grid.Row="1" Grid.Column="3" Background="{StaticResource CanvasBgBrush}"
+                    <Border Grid.Row="1" Grid.Column="5" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="#183020" BorderThickness="1"
                             CornerRadius="2" Margin="3,0" Panel.ZIndex="1">
                         <v:ZoneCanvasView ZoneVisual="{Binding Zone3Visual}"
                                          Theme="{StaticResource Zone3Theme}" HeadType="Camera"/>
                     </Border>
-                    <StackPanel Grid.Row="2" Grid.Column="3" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
+                    <StackPanel Grid.Row="2" Grid.Column="5" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Zone3Visual.CoordText}" FontFamily="Consolas" FontSize="8"
                                    Foreground="{StaticResource AccentGreenBrush}"/>
                         <TextBlock Text="{Binding Zone3Timing}" FontFamily="Consolas" FontSize="7" FontWeight="Bold"
                                    Foreground="{StaticResource AccentCyanBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
-                    <!-- 셔틀 배출 트랜짓 -->
-                    <Border Grid.Row="1" Grid.Column="3" Panel.ZIndex="10"
+
+                    <!-- 셔틀 배출 트랜짓 (전용 컬럼) -->
+                    <Border Grid.Row="1" Grid.Column="6" Panel.ZIndex="10"
                             HorizontalAlignment="Center" VerticalAlignment="Center"
-                            Width="36" Height="20" CornerRadius="4"
+                            Width="32" Height="22" CornerRadius="4"
                             Background="#152A1A" BorderBrush="#3FB950" BorderThickness="1.5"
                             Style="{StaticResource TransitBorderStyle}"
                             Visibility="{Binding ShuttleTransitOut, Converter={StaticResource BoolToVis}}">
                         <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
-                        <TextBlock Text="► ► ►" FontSize="8" FontFamily="Consolas" Foreground="#3FB950"
+                        <TextBlock Text="► ►" FontSize="9" FontFamily="Consolas" Foreground="#3FB950"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
 
                     <!-- 뒷장비 (OUT) -->
-                    <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="4"
+                    <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="7"
                             CornerRadius="3" Background="#0C0E18" Margin="4,2">
                         <Border.Style>
                             <Style TargetType="Border">
@@ -394,7 +400,7 @@
                     </Border>
 
                     <!-- 우측 패널 (결과·NG·SMEMA) -->
-                    <v:ResultPanelView Grid.Row="0" Grid.RowSpan="3" Grid.Column="5"/>
+                    <v:ResultPanelView Grid.Row="0" Grid.RowSpan="3" Grid.Column="8"/>
                 </Grid>
                 </Grid>
             </Border>

@@ -250,28 +250,48 @@
                      Width="6" Height="6" Margin="-1,-1,0,0"
                      Stroke="White" StrokeThickness="1.5" Fill="Transparent"
                      Visibility="{Binding ZoneVisual.GripperVisibility, ElementName=Root}"/>
+            <!-- GRIP 뱃지 (그리퍼 ON 시 헤드 아래 표시) -->
+            <Border Canvas.Left="{Binding ZoneVisual.HeadCenterLeft, ElementName=Root}"
+                    Canvas.Top="{Binding ZoneVisual.HeadCenterTop, ElementName=Root}"
+                    Margin="-16,10,0,0" Width="36" Height="14" CornerRadius="3"
+                    Background="#D0FFFFFF" Panel.ZIndex="25"
+                    Visibility="{Binding ZoneVisual.GripperVisibility, ElementName=Root}">
+                <TextBlock Text="GRIP" FontSize="9" FontWeight="Bold" FontFamily="Consolas"
+                           Foreground="#1A1A2A"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
 
             <!-- ═══ 검사 결과 오버레이 (Zone 3 Camera 전용) ═══ -->
-            <Border Canvas.Left="70" Canvas.Top="26" Width="80" Height="28"
-                    CornerRadius="4" Panel.ZIndex="20"
+            <Border Canvas.Left="55" Canvas.Top="20" Width="110" Height="36"
+                    CornerRadius="6" Panel.ZIndex="20"
                     Visibility="{Binding ZoneVisual.InspectResultVisibility, ElementName=Root}">
                 <Border.Style>
                     <Style TargetType="Border">
-                        <Setter Property="Background" Value="#C0002800"/>
+                        <Setter Property="Background" Value="#D0002800"/>
                         <Setter Property="BorderBrush" Value="#3FB950"/>
-                        <Setter Property="BorderThickness" Value="2"/>
+                        <Setter Property="BorderThickness" Value="2.5"/>
+                        <Setter Property="Effect">
+                            <Setter.Value>
+                                <DropShadowEffect Color="#3FB950" BlurRadius="20" ShadowDepth="0" Opacity="0.6"/>
+                            </Setter.Value>
+                        </Setter>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding ZoneVisual.InspectResultText,
                                          RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type v:ZoneCanvasView}}}"
                                          Value="NG">
-                                <Setter Property="Background" Value="#C0280000"/>
+                                <Setter Property="Background" Value="#D0280000"/>
                                 <Setter Property="BorderBrush" Value="#F85149"/>
+                                <Setter Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect Color="#F85149" BlurRadius="20" ShadowDepth="0" Opacity="0.6"/>
+                                    </Setter.Value>
+                                </Setter>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
                 <TextBlock Text="{Binding ZoneVisual.InspectResultText, ElementName=Root}"
-                           FontSize="16" FontWeight="Bold" FontFamily="Consolas"
+                           FontSize="20" FontWeight="Bold" FontFamily="Consolas"
                            HorizontalAlignment="Center" VerticalAlignment="Center">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
