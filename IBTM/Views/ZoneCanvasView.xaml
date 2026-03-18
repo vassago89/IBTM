@@ -251,6 +251,17 @@
                      Stroke="White" StrokeThickness="1.5" Fill="Transparent"
                      Visibility="{Binding ZoneVisual.GripperVisibility, ElementName=Root}"/>
 
+            <!-- ═══ 현재 동작 라벨 (캔버스 상단 중앙) ═══ -->
+            <Border Canvas.Left="55" Canvas.Top="2" Width="110" Height="20"
+                    CornerRadius="3" Background="#C0101020"
+                    BorderBrush="{DynamicResource Accent}" BorderThickness="1.2"
+                    Visibility="{Binding ZoneVisual.ActivityVisibility, ElementName=Root}">
+                <TextBlock Text="{Binding ZoneVisual.ActivityLabel, ElementName=Root}"
+                           FontSize="11" FontWeight="Bold" FontFamily="Consolas"
+                           Foreground="White"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+
             <!-- ═══ Z 게이지 (공통) ═══ -->
             <Rectangle Canvas.Left="222" Canvas.Top="10" Width="6" Height="160"
                        Fill="{DynamicResource GaugeBg}" RadiusX="2" RadiusY="2"/>

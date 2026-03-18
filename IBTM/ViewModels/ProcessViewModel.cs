@@ -187,6 +187,7 @@ public partial class ProcessViewModel : ObservableObject
         UpdateZoneCard(e.Stage, e.Status);
         UpdateZoneVisualState(e.Stage, e.Status);
         UpdateZoneTiming(e.Stage, e.Status);
+        UpdateActivityLabel(e.Stage, e.Status);
     });
 
     private void OnStatsUpdated(object? sender, ProductionStats stats) => RunOnUI(() =>
@@ -259,6 +260,9 @@ public partial class ProcessViewModel : ObservableObject
 
         if (CurrentBoltIndex >= 0 && CurrentBoltIndex < BoltMarkers.Count)
             BoltMarkers[CurrentBoltIndex].State = 1; // 체결중
+
+        // 캔버스 라벨에 볼트 진행률 반영
+        Zone2Visual.ActivityLabel = $"볼트 {e.Current}/{e.Total}";
 
         var card = FindStageCard(ProcessStage.Zone2_BoltTighten);
         if (card != null) card.Info1 = $"볼트 {e.Current}/{e.Total}  [{e.BoltName}]";
@@ -467,6 +471,57 @@ public partial class ProcessViewModel : ObservableObject
         NgStackCount = 0;
         NgStackAlarm = false;
         SyncNgSlots(0);
+    }
+
+    // ── 캔버스 동작 라벨 갱신 ─────────────────────────────────────────────
+    private void UpdateActivityLabel(ProcessStage stage, StageStatus status)
+    {
+        int zone = GetZoneNumber(stage);
+        var visual = GetZoneVisual(zone);
+        if (visual == null) return;
+
+        if (status == StageStatus.Error)
+        {
+            visual.ActivityLabel = "오류";
+            return;
+        }
+
+        // Done 상태에서 릴리즈/배출 완료 시 라벨 제거
+        if (status == StageStatus.Done)
+        {
+            if (stage is ProcessStage.Zone1_Release or ProcessStage.Zone2_Release
+                or ProcessStage.Zone3_Release or ProcessStage.Zone3_Discharge
+                or ProcessStage.Complete)
+            {
+                visual.ActivityLabel = "";
+            }
+            return;
+        }
+
+        if (status != StageStatus.Running) return;
+
+        visual.ActivityLabel = stage switch
+        {
+            ProcessStage.Zone1_WaitShuttle   => "셔틀 대기",
+            ProcessStage.Zone1_StopAlignLift => "정렬·리프트",
+            ProcessStage.Zone1_PickPlace     => "PCB 픽업",
+            ProcessStage.Zone1_Release       => "릴리즈",
+
+            ProcessStage.Zone2_WaitShuttle   => "셔틀 대기",
+            ProcessStage.Zone2_StopAlignLift => "정렬·리프트",
+            ProcessStage.Zone2_Fiducial      => "FIDUCIAL",
+            ProcessStage.Zone2_BoltTighten   => "볼트 체결",
+            ProcessStage.Zone2_Release       => "릴리즈",
+
+            ProcessStage.Zone3_WaitShuttle   => "셔틀 대기",
+            ProcessStage.Zone3_StopAlignLift => "정렬·리프트",
+            ProcessStage.Zone3_Inspect       => "검사 중",
+            ProcessStage.Zone3_NgTransfer    => "NG 적재",
+            ProcessStage.Zone3_SmemaWait     => "SMEMA 대기",
+            ProcessStage.Zone3_Discharge     => "배출 중",
+            ProcessStage.Zone3_Release       => "릴리즈",
+            _ => ""
+        };
     }
 
     private static string GetStatusMessage(ProcessStage stage, StageStatus status)

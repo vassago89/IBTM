@@ -102,6 +102,14 @@ public partial class ZoneVisualState : ObservableObject
     [ObservableProperty] private double _zGaugeHeight;
     [ObservableProperty] private double _zToolTop;
 
+    // ── 현재 동작 라벨 (캔버스 오버레이) ─────────────────────────────────
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ActivityVisibility))]
+    private string _activityLabel = "";
+
+    public Visibility ActivityVisibility =>
+        string.IsNullOrEmpty(ActivityLabel) ? Visibility.Collapsed : Visibility.Visible;
+
     // ── 헤드 십자선 ─────────────────────────────────────────────────────
     [ObservableProperty] private double _crosshairLeft;
     [ObservableProperty] private double _crosshairTop;
