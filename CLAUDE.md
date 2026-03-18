@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-IBTM is a WPF desktop application (.NET 10.0) for an SMT (Surface Mount Technology) Inline Bolt Tightening Control System. It controls multi-axis motion, vision-based fiducial detection, and bolt tightening on a production line. Comments are written in Korean.
+IBTM is a WPF desktop application (.NET 10.0) for an SMT (Surface Mount Technology) Inline Bolt Tightening Control System. It controls multi-axis motion, vision-based fiducial detection, and bolt tightening on a production line. **Comments and XML doc comments are written in Korean. Do not translate comments to English.**
 
 ## Build & Run Commands
 
@@ -82,6 +82,18 @@ Interface-based design (`IMotionService`, `IIOService`, `IMotionConverter`, `IBo
   - To adjust layout proportions, modify Grid column `Width` / row `Height` values — no pixel coordinates to update.
 - ViewModels use `[ObservableProperty]` and `[RelayCommand]` from CommunityToolkit.Mvvm.
 - **`Converters/AppConverters.cs`** — Value converters including `ZGaugeTopConverter` for Z-axis gauge visualization. `StageStatus.Skipped` → 흐린 회색 border + 어두운 배경.
+
+### Localization (i18n)
+
+- **`Localization/Loc.cs`** — Dictionary-based singleton for runtime EN/KO language switching. Default language is English.
+  - XAML: `{Binding [Key], Source={x:Static loc:Loc.Instance}}` (indexer binding)
+  - C#: `Loc.S("Key")` or `Loc.S("Key", args)` for formatted strings
+  - `ToggleLanguage()` switches between EN↔KO at runtime without app restart
+  - `OnPropertyChanged("Item[]")` refreshes all XAML indexer bindings
+  - Key naming: `Btn_*`, `Stage_*`, `Sub_*`, `Act_*`, `Stat_*`, `Card_*`, `NgAlarm_*`, `Fiducial_*`, `Bolt_*`, `Torque_*`
+- **UI strings** (buttons, stage labels, status messages) go through `Loc` for localization
+- **Log messages** (`AddLog` in `ProcessOrchestrator`) are hardcoded in English (developer-facing, not localized)
+- **Code comments** stay in Korean — do not localize
 
 ### Vision
 
