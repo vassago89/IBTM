@@ -4,19 +4,6 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.Services;
 
-public class StageChangedEventArgs(ProcessStage stage, StageStatus status) : EventArgs
-{
-    public ProcessStage Stage { get; } = stage;
-    public StageStatus Status { get; } = status;
-}
-
-public class BoltProgressEventArgs(int current, int total, string boltName) : EventArgs
-{
-    public int Current { get; } = current;
-    public int Total { get; } = total;
-    public string BoltName { get; } = boltName;
-}
-
 /// <summary>
 /// 3구간 파이프라인 오케스트레이터
 ///
@@ -43,9 +30,7 @@ public class ProcessOrchestrator
     public event EventHandler<StageChangedEventArgs>? StageChanged;
     public event EventHandler<LogEntry>? LogAdded;
     public event EventHandler<ProductionStats>? StatsUpdated;
-    public event EventHandler<(double X, double Y, double Z)>? Zone1PositionChanged;
-    public event EventHandler<(double X, double Y, double Z)>? Zone2PositionChanged;
-    public event EventHandler<(double X, double Y, double Z)>? Zone3PositionChanged;
+    public event EventHandler<ZonePositionEventArgs>? ZonePositionChanged;
     public event EventHandler<FiducialResult>? FiducialDetected;
     public event EventHandler<BoltResult>? BoltCompleted;
     public event EventHandler<BoltProgressEventArgs>? BoltProgress;
@@ -543,23 +528,17 @@ public class ProcessOrchestrator
 
     private void FireZonePos(int zone)
     {
-        var motion = zone switch
-        {
-            1 => _zone1Motion,
-            2 => _zone2Motion,
-            3 => _zone3Motion,
-            _ => throw new ArgumentOutOfRangeException(nameof(zone))
-        };
+        var motion = GetMotion(zone);
         motion.GetPotision(out var x, out var y, out var z);
-        var pos = ((x ?? 0) / 1000.0, (y ?? 0) / 1000.0, (z ?? 0) / 1000.0);
-
-        switch (zone)
-        {
-            case 1: Zone1PositionChanged?.Invoke(this, pos); break;
-            case 2: Zone2PositionChanged?.Invoke(this, pos); break;
-            case 3: Zone3PositionChanged?.Invoke(this, pos); break;
-        }
+        ZonePositionChanged?.Invoke(this,
+            new ZonePositionEventArgs(zone, (x ?? 0) / 1000.0, (y ?? 0) / 1000.0, (z ?? 0) / 1000.0));
     }
+
+    private IMotionService GetMotion(int zone) => zone switch
+    {
+        1 => _zone1Motion, 2 => _zone2Motion, 3 => _zone3Motion,
+        _ => throw new ArgumentOutOfRangeException(nameof(zone))
+    };
 
     private void AddLog(string message, ProcessStage stage, LogLevel level = LogLevel.Info)
     {

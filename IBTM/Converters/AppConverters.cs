@@ -6,6 +6,39 @@ using System.Windows.Media;
 
 namespace IBTM.Converters;
 
+/// <summary>Frozen 브러시 팔레트 (매번 new 방지)</summary>
+internal static class Palette
+{
+    // 공통 색상
+    public static readonly Brush Blue    = Freeze(0x58, 0xA6, 0xFF);
+    public static readonly Brush Green   = Freeze(0x3F, 0xB9, 0x50);
+    public static readonly Brush Red     = Freeze(0xF8, 0x51, 0x49);
+    public static readonly Brush Orange  = Freeze(0xF0, 0x88, 0x3E);
+    public static readonly Brush Gray    = Freeze(0x48, 0x4F, 0x58);
+    public static readonly Brush DimGray = Freeze(0x38, 0x3C, 0x46);
+    public static readonly Brush Light   = Freeze(0xC9, 0xD1, 0xD9);
+    public static readonly Brush Muted   = Freeze(0x8B, 0x94, 0x9E);
+
+    // 카드 배경
+    public static readonly Brush BgBlue    = Freeze(0x1C, 0x2C, 0x54);
+    public static readonly Brush BgGreen   = Freeze(0x1A, 0x2E, 0x20);
+    public static readonly Brush BgRed     = Freeze(0x31, 0x1A, 0x1A);
+    public static readonly Brush BgOrange  = Freeze(0x30, 0x22, 0x14);
+    public static readonly Brush BgDim     = Freeze(0x14, 0x16, 0x1E);
+    public static readonly Brush BgDefault = Freeze(0x1C, 0x20, 0x33);
+
+    // NG 슬롯
+    public static readonly Brush SlotFilled = Red;
+    public static readonly Brush SlotEmpty  = Freeze(0x2D, 0x33, 0x3B);
+
+    private static SolidColorBrush Freeze(byte r, byte g, byte b)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
+        brush.Freeze();
+        return brush;
+    }
+}
+
 // ── StageStatus → Border/Icon 색상 ─────────────────────────────────────────
 [ValueConversion(typeof(StageStatus), typeof(Brush))]
 public class StageStatusToBrushConverter : IValueConverter
@@ -15,12 +48,12 @@ public class StageStatusToBrushConverter : IValueConverter
         if (value is not StageStatus status) return Brushes.Transparent;
         return status switch
         {
-            StageStatus.Running => new SolidColorBrush(Color.FromRgb(0x58, 0xA6, 0xFF)),  // #58A6FF 파랑
-            StageStatus.Done    => new SolidColorBrush(Color.FromRgb(0x3F, 0xB9, 0x50)),  // #3FB950 초록
-            StageStatus.Error   => new SolidColorBrush(Color.FromRgb(0xF8, 0x51, 0x49)),  // #F85149 빨강
-            StageStatus.Warning => new SolidColorBrush(Color.FromRgb(0xF0, 0x88, 0x3E)),  // #F0883E 주황
-            StageStatus.Skipped => new SolidColorBrush(Color.FromRgb(0x38, 0x3C, 0x46)),  // #383C46 흐린 회색
-            _                   => new SolidColorBrush(Color.FromRgb(0x48, 0x4F, 0x58))   // #484F58 회색
+            StageStatus.Running => Palette.Blue,
+            StageStatus.Done    => Palette.Green,
+            StageStatus.Error   => Palette.Red,
+            StageStatus.Warning => Palette.Orange,
+            StageStatus.Skipped => Palette.DimGray,
+            _                   => Palette.Gray
         };
     }
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -36,12 +69,12 @@ public class StageStatusToBackgroundConverter : IValueConverter
         if (value is not StageStatus status) return Brushes.Transparent;
         return status switch
         {
-            StageStatus.Running => new SolidColorBrush(Color.FromRgb(0x1C, 0x2C, 0x54)),  // 파란 틴트
-            StageStatus.Done    => new SolidColorBrush(Color.FromRgb(0x1A, 0x2E, 0x20)),  // 초록 틴트
-            StageStatus.Error   => new SolidColorBrush(Color.FromRgb(0x31, 0x1A, 0x1A)),  // 빨간 틴트
-            StageStatus.Warning => new SolidColorBrush(Color.FromRgb(0x30, 0x22, 0x14)),  // 주황 틴트
-            StageStatus.Skipped => new SolidColorBrush(Color.FromRgb(0x14, 0x16, 0x1E)),  // 어두운 틴트
-            _                   => new SolidColorBrush(Color.FromRgb(0x1C, 0x20, 0x33))   // 기본 카드색
+            StageStatus.Running => Palette.BgBlue,
+            StageStatus.Done    => Palette.BgGreen,
+            StageStatus.Error   => Palette.BgRed,
+            StageStatus.Warning => Palette.BgOrange,
+            StageStatus.Skipped => Palette.BgDim,
+            _                   => Palette.BgDefault
         };
     }
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -57,10 +90,10 @@ public class LogLevelToBrushConverter : IValueConverter
         if (value is not LogLevel level) return Brushes.White;
         return level switch
         {
-            LogLevel.Error   => new SolidColorBrush(Color.FromRgb(0xF8, 0x51, 0x49)),
-            LogLevel.Warning => new SolidColorBrush(Color.FromRgb(0xF0, 0x88, 0x3E)),
-            LogLevel.Info    => new SolidColorBrush(Color.FromRgb(0xC9, 0xD1, 0xD9)),
-            _                => new SolidColorBrush(Color.FromRgb(0x48, 0x4F, 0x58))
+            LogLevel.Error   => Palette.Red,
+            LogLevel.Warning => Palette.Orange,
+            LogLevel.Info    => Palette.Light,
+            _                => Palette.Gray
         };
     }
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -104,9 +137,9 @@ public class InspectionResultToBrushConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         var text = value?.ToString() ?? string.Empty;
-        if (text.Contains("GOOD")) return new SolidColorBrush(Color.FromRgb(0x3F, 0xB9, 0x50));
-        if (text.Contains("NG"))   return new SolidColorBrush(Color.FromRgb(0xF8, 0x51, 0x49));
-        return new SolidColorBrush(Color.FromRgb(0x8B, 0x94, 0x9E));
+        if (text.Contains("GOOD")) return Palette.Green;
+        if (text.Contains("NG"))   return Palette.Red;
+        return Palette.Muted;
     }
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotImplementedException();
@@ -123,7 +156,6 @@ public class BoolToOpacityConverter : IValueConverter
 }
 
 // ── Z 게이지 Top 위치 (바 높이 → Canvas.Top) ─────────────────────────────────
-// 게이지가 아래에서 위로 채워지도록: Top = BaseTop + MaxHeight - fillHeight
 [ValueConversion(typeof(double), typeof(double))]
 public class ZGaugeTopConverter : IValueConverter
 {
@@ -144,9 +176,7 @@ public class ZGaugeTopConverter : IValueConverter
 public class NgSlotFillConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => value is true
-            ? new SolidColorBrush(Color.FromRgb(0xF8, 0x51, 0x49))   // 채움: 빨강
-            : new SolidColorBrush(Color.FromRgb(0x2D, 0x33, 0x3B));  // 빈 칸: 어두운 회색
+        => value is true ? Palette.SlotFilled : Palette.SlotEmpty;
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => throw new NotImplementedException();
 }
