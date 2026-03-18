@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:IBTM.ViewModels"
              xmlns:conv="clr-namespace:IBTM.Converters"
+             xmlns:v="clr-namespace:IBTM.Views"
              Background="{StaticResource AppBgBrush}">
 
     <UserControl.Resources>
@@ -12,14 +13,6 @@
         <conv:BoolToVisibilityConverter        x:Key="BoolToVis"/>
         <conv:InspectionResultToBrushConverter x:Key="InspResultToBrush"/>
         <conv:BoolToOpacityConverter           x:Key="BoolToOpacity"/>
-        <conv:NgSlotFillConverter              x:Key="NgSlotFill"/>
-        <conv:ZGaugeTopConverter               x:Key="ZGaugeTop" GaugeTop="15" GaugeHeight="50"/>
-
-        <!-- 셔틀 트랜짓 펄스 애니메이션 -->
-        <Storyboard x:Key="TransitPulse" RepeatBehavior="Forever">
-            <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                             From="0.4" To="1.0" Duration="0:0:0.5" AutoReverse="True"/>
-        </Storyboard>
 
         <!-- 스테이지 카드 템플릿 -->
         <DataTemplate x:Key="StageCardTemplate" DataType="{x:Type vm:StageCardViewModel}">
@@ -66,6 +59,25 @@
                            Visibility="{Binding IsLastCard, Converter={StaticResource InvBoolToVis}}"/>
             </StackPanel>
         </DataTemplate>
+
+        <!-- 셔틀 트랜짓 스타일 (공통) -->
+        <Style x:Key="TransitBorderStyle" TargetType="Border">
+            <Style.Triggers>
+                <Trigger Property="IsVisible" Value="True">
+                    <Trigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard RepeatBehavior="Forever">
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 From="0.3" To="1.0" Duration="0:0:0.6" AutoReverse="False"/>
+                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                 From="-40" To="40" Duration="0:0:1.2"
+                                                 AutoReverse="False" EasingFunction="{x:Null}"/>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </Trigger.EnterActions>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid>
@@ -114,66 +126,7 @@
         </Border>
 
         <!-- Row 0: 통계 바 -->
-        <Border Grid.Row="0" Background="{StaticResource PanelBgBrush}"
-                BorderThickness="0,0,0,1" BorderBrush="{StaticResource DividerBrush}">
-            <Grid Margin="20,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <!-- 가동 상태 표시등 -->
-                <Ellipse Grid.Column="0" Width="14" Height="14" VerticalAlignment="Center" Margin="0,0,16,0">
-                    <Ellipse.Style>
-                        <Style TargetType="Ellipse">
-                            <Setter Property="Fill" Value="#2D333B"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                    <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
-                                    <Setter Property="Effect">
-                                        <Setter.Value>
-                                            <DropShadowEffect Color="#3FB950" BlurRadius="12" ShadowDepth="0"/>
-                                        </Setter.Value>
-                                    </Setter>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Ellipse.Style>
-                </Ellipse>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,28,0">
-                    <TextBlock Text="TOTAL" Style="{StaticResource StatLabelStyle}"/>
-                    <TextBlock Text="{Binding TotalCount, StringFormat='{}{0:N0}'}" Style="{StaticResource StatValueStyle}"/>
-                </StackPanel>
-                <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="0,0,28,0">
-                    <TextBlock Text="GOOD" Style="{StaticResource StatLabelStyle}"/>
-                    <TextBlock Text="{Binding GoodCount, StringFormat='{}{0:N0}'}" Style="{StaticResource StatValueStyle}" Foreground="{StaticResource AccentGreenBrush}"/>
-                </StackPanel>
-                <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="0,0,28,0">
-                    <TextBlock Text="NG" Style="{StaticResource StatLabelStyle}"/>
-                    <TextBlock Text="{Binding NgCount, StringFormat='{}{0:N0}'}" Style="{StaticResource StatValueStyle}" Foreground="{StaticResource AccentRedBrush}"/>
-                </StackPanel>
-                <StackPanel Grid.Column="4" VerticalAlignment="Center" Margin="0,0,28,0">
-                    <TextBlock Text="NG%" Style="{StaticResource StatLabelStyle}"/>
-                    <TextBlock Text="{Binding NgRate, StringFormat='{}{0:F2}%'}" Style="{StaticResource StatValueStyle}" Foreground="{StaticResource AccentOrangeBrush}"/>
-                </StackPanel>
-                <StackPanel Grid.Column="5" VerticalAlignment="Center" Margin="0,0,28,0">
-                    <TextBlock Text="CT" Style="{StaticResource StatLabelStyle}"/>
-                    <TextBlock Text="{Binding LastCycleTime, StringFormat='{}{0:F1}s'}" Style="{StaticResource StatValueStyle}"/>
-                </StackPanel>
-                <StackPanel Grid.Column="6" VerticalAlignment="Center">
-                    <TextBlock Text="UPTIME" Style="{StaticResource StatLabelStyle}"/>
-                    <TextBlock Text="{Binding Uptime}" Style="{StaticResource StatValueStyle}" FontSize="15" Foreground="{StaticResource TextSecondaryBrush}"/>
-                </StackPanel>
-                <TextBlock Grid.Column="8" Text="{Binding StatusMessage}" VerticalAlignment="Center"
-                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"/>
-            </Grid>
-        </Border>
+        <v:StatsBarView Grid.Row="0"/>
 
         <!-- Row 1: 3구간 스테이지 카드 -->
         <Border Grid.Row="1" Background="{StaticResource AppBgBrush}"
@@ -244,7 +197,7 @@
                         <RowDefinition Height="18"/>
                     </Grid.RowDefinitions>
 
-                    <!-- ── 컨베이어 연결 레일 (Zone 전체 관통) ── -->
+                    <!-- 컨베이어 연결 레일 (Zone 전체 관통) -->
                     <Rectangle Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" Panel.ZIndex="0"
                                Height="2" VerticalAlignment="Center" Margin="0,-27,0,0"
                                Fill="#1A2838" IsHitTestVisible="False"/>
@@ -252,7 +205,7 @@
                                Height="2" VerticalAlignment="Center" Margin="0,27,0,0"
                                Fill="#1A2838" IsHitTestVisible="False"/>
 
-                    <!-- ── 앞장비 (IN) ── -->
+                    <!-- 앞장비 (IN) -->
                     <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
                             CornerRadius="3" Background="#0C0E18" Margin="4,2">
                         <Border.Style>
@@ -277,7 +230,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- ═══════════════════ ZONE 1 — PICK ═══════════════════ -->
+                    <!-- ZONE 1 — PICK -->
                     <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
                         <TextBlock Text="ZONE 1" FontSize="9" FontWeight="Bold"
                                    Foreground="{StaticResource AccentBlueBrush}" Opacity="0.9"/>
@@ -287,157 +240,27 @@
                     <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="#1E3050" BorderThickness="1"
                             CornerRadius="2" Margin="3,0" Panel.ZIndex="1">
-                        <Viewbox Stretch="Uniform">
-                            <Canvas Width="240" Height="180" ClipToBounds="True">
-                                <!-- 갠트리 범위 -->
-                                <Rectangle Canvas.Left="1" Canvas.Top="1" Width="218" Height="178"
-                                           Stroke="#1A2848" StrokeThickness="0.8" StrokeDashArray="6 3" Fill="Transparent"/>
-                                <!-- Y축 레일 -->
-                                <Rectangle Canvas.Left="2" Canvas.Top="0" Width="5" Height="180" Fill="#182840"/>
-                                <Rectangle Canvas.Left="213" Canvas.Top="0" Width="5" Height="180" Fill="#182840"/>
-                                <!-- X축 브릿지 -->
-                                <Rectangle Canvas.Left="2" Canvas.Top="{Binding Zone1Visual.BridgeTop}"
-                                           Width="216" Height="4" Fill="#253860"/>
-
-                                <!-- 컨베이어 영역 -->
-                                <Rectangle Canvas.Left="0" Canvas.Top="62" Width="220" Height="56" Fill="#080C18"/>
-                                <Rectangle Canvas.Left="0" Canvas.Top="62" Width="220" Height="2" Fill="#2A3858"/>
-                                <Rectangle Canvas.Left="0" Canvas.Top="116" Width="220" Height="2" Fill="#2A3858"/>
-
-                                <!-- 스토퍼 -->
-                                <Rectangle Canvas.Left="10" Canvas.Top="68" Width="7" Height="44"
-                                           Fill="#1A3060" RadiusX="1" RadiusY="1"
-                                           Opacity="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}"/>
-                                <TextBlock Canvas.Left="7" Canvas.Top="114" Text="STP" FontSize="9" FontWeight="SemiBold"
-                                           Foreground="#3060A0"/>
-                                <!-- 얼라인 좌 -->
-                                <Border Canvas.Left="20" Canvas.Top="68" Width="12" Height="44"
-                                        Background="#0E1838" BorderBrush="#2050A0" BorderThickness="0.8" CornerRadius="1"
-                                        Opacity="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
-                                    <TextBlock Text="▶" FontSize="10" Foreground="#3070C0"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <!-- 얼라인 우 -->
-                                <Border Canvas.Left="192" Canvas.Top="68" Width="12" Height="44"
-                                        Background="#0E1838" BorderBrush="#2050A0" BorderThickness="0.8" CornerRadius="1"
-                                        Opacity="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
-                                    <TextBlock Text="◀" FontSize="10" Foreground="#3070C0"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <TextBlock Canvas.Left="19" Canvas.Top="114" Text="ALN" FontSize="8"
-                                           Foreground="#2050A0"/>
-                                <TextBlock Canvas.Left="191" Canvas.Top="114" Text="ALN" FontSize="8"
-                                           Foreground="#2050A0"/>
-
-                                <!-- 셔틀 -->
-                                <Border Canvas.Left="36" Canvas.Top="70" Width="152" Height="40" CornerRadius="2"
-                                        Visibility="{Binding Zone1Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="Background" Value="#141E38"/>
-                                            <Setter Property="BorderBrush" Value="#3060A0"/>
-                                            <Setter Property="BorderThickness" Value="1"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Zone1Visual.IsLifted}" Value="True">
-                                                    <Setter Property="BorderThickness" Value="2"/>
-                                                    <Setter Property="BorderBrush" Value="#58A6FF"/>
-                                                    <Setter Property="Background" Value="#1A2850"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <Rectangle Width="36" Height="22" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}"
-                                                   StrokeThickness="0.5" RadiusX="1" RadiusY="1" Margin="4,0"
-                                                   Visibility="{Binding Zone1Visual.Pcb1Visibility}"/>
-                                        <Rectangle Width="36" Height="22" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}"
-                                                   StrokeThickness="0.5" RadiusX="1" RadiusY="1" Margin="4,0"
-                                                   Visibility="{Binding Zone1Visual.Pcb2Visibility}"/>
-                                    </StackPanel>
-                                </Border>
-                                <!-- LIFT 표시 -->
-                                <TextBlock Canvas.Left="75" Canvas.Top="72" Text="LIFT ▲" FontSize="9" FontWeight="Bold"
-                                           Foreground="#58A6FF"
-                                           Visibility="{Binding Zone1Visual.LiftIndicatorVisibility}"/>
-
-                                <!-- 헤드 십자선 -->
-                                <Line X1="{Binding Zone1Visual.CrosshairH1}" Y1="{Binding Zone1Visual.CrosshairTop}"
-                                      X2="{Binding Zone1Visual.CrosshairH2}" Y2="{Binding Zone1Visual.CrosshairTop}"
-                                      Stroke="#58A6FF" StrokeThickness="0.5" Opacity="0.35" StrokeDashArray="3 2"/>
-                                <Line X1="{Binding Zone1Visual.CrosshairLeft}" Y1="{Binding Zone1Visual.CrosshairV1}"
-                                      X2="{Binding Zone1Visual.CrosshairLeft}" Y2="{Binding Zone1Visual.CrosshairV2}"
-                                      Stroke="#58A6FF" StrokeThickness="0.5" Opacity="0.35" StrokeDashArray="3 2"/>
-
-                                <!-- 헤드 글로우 -->
-                                <Ellipse Canvas.Left="{Binding Zone1Visual.HeadLeft}" Canvas.Top="{Binding Zone1Visual.HeadTop}"
-                                         Width="{Binding Zone1Visual.HeadSize}" Height="{Binding Zone1Visual.HeadSize}"
-                                         Fill="#2870C0" Opacity="0.5">
-                                    <Ellipse.Effect><BlurEffect Radius="18"/></Ellipse.Effect>
-                                </Ellipse>
-                                <!-- 헤드 본체 (Gripper — 사각형) -->
-                                <Rectangle Canvas.Left="{Binding Zone1Visual.HeadLeft}" Canvas.Top="{Binding Zone1Visual.HeadTop}"
-                                           Width="{Binding Zone1Visual.HeadSize}" Height="{Binding Zone1Visual.HeadSize}"
-                                           Fill="{StaticResource AccentBlueBrush}" Stroke="White" StrokeThickness="2"
-                                           RadiusX="2" RadiusY="2"/>
-                                <!-- 그리퍼 활성 -->
-                                <Ellipse Canvas.Left="{Binding Zone1Visual.HeadCenterLeft}" Canvas.Top="{Binding Zone1Visual.HeadCenterTop}"
-                                         Width="6" Height="6" Margin="-1,-1,0,0"
-                                         Stroke="White" StrokeThickness="1.5" Fill="Transparent"
-                                         Visibility="{Binding Zone1Visual.GripperVisibility}"/>
-
-                                <!-- Z 게이지 -->
-                                <Rectangle Canvas.Left="222" Canvas.Top="10" Width="6" Height="160"
-                                           Fill="#101828" RadiusX="2" RadiusY="2"/>
-                                <Rectangle Canvas.Left="222" Canvas.Top="10" Width="6"
-                                           Height="{Binding Zone1Visual.ZGaugeHeight}"
-                                           Fill="{StaticResource AccentBlueBrush}" Opacity="0.6" RadiusX="2" RadiusY="2"/>
-                                <Rectangle Canvas.Left="218" Canvas.Top="{Binding Zone1Visual.ZToolTop}"
-                                           Width="14" Height="3"
-                                           Fill="{StaticResource AccentBlueBrush}" Opacity="0.8" RadiusX="1" RadiusY="1"/>
-                            </Canvas>
-                        </Viewbox>
+                        <v:Zone1CanvasView/>
                     </Border>
-                    <!-- 좌표 + 타이밍 -->
                     <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Zone1Visual.CoordText}" FontFamily="Consolas" FontSize="8"
                                    Foreground="{StaticResource AccentBlueBrush}"/>
                         <TextBlock Text="{Binding Zone1Timing}" FontFamily="Consolas" FontSize="7" FontWeight="Bold"
                                    Foreground="{StaticResource AccentCyanBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
-
-                    <!-- 셔틀 트랜짓 (Zone 1→2) — 슬라이드 + 페이드 애니메이션 -->
+                    <!-- 셔틀 트랜짓 Zone 1→2 -->
                     <Border Grid.Row="1" Grid.Column="1" Panel.ZIndex="10"
                             HorizontalAlignment="Center" VerticalAlignment="Center"
                             Width="36" Height="20" CornerRadius="4"
                             Background="#1A2545" BorderBrush="#58A6FF" BorderThickness="1.5"
+                            Style="{StaticResource TransitBorderStyle}"
                             Visibility="{Binding ShuttleTransit12, Converter={StaticResource BoolToVis}}">
-                        <Border.RenderTransform>
-                            <TranslateTransform/>
-                        </Border.RenderTransform>
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Style.Triggers>
-                                    <Trigger Property="IsVisible" Value="True">
-                                        <Trigger.EnterActions>
-                                            <BeginStoryboard>
-                                                <Storyboard RepeatBehavior="Forever">
-                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                     From="0.3" To="1.0" Duration="0:0:0.6" AutoReverse="False"/>
-                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
-                                                                     From="-40" To="40" Duration="0:0:1.2"
-                                                                     AutoReverse="False" EasingFunction="{x:Null}"/>
-                                                </Storyboard>
-                                            </BeginStoryboard>
-                                        </Trigger.EnterActions>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
+                        <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
                         <TextBlock Text="► ► ►" FontSize="8" FontFamily="Consolas" Foreground="#58A6FF"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
 
-                    <!-- ═══════════════════ ZONE 2 — BOLT ═══════════════════ -->
+                    <!-- ZONE 2 — BOLT -->
                     <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
                         <TextBlock Text="ZONE 2" FontSize="9" FontWeight="Bold"
                                    Foreground="{StaticResource AccentOrangeBrush}" Opacity="0.9"/>
@@ -447,151 +270,8 @@
                     <Border Grid.Row="1" Grid.Column="2" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="#302818" BorderThickness="1"
                             CornerRadius="2" Margin="3,0" Panel.ZIndex="1">
-                        <Viewbox Stretch="Uniform">
-                            <Canvas Width="240" Height="180" ClipToBounds="True">
-                                <!-- 갠트리 범위 -->
-                                <Rectangle Canvas.Left="1" Canvas.Top="1" Width="218" Height="178"
-                                           Stroke="#281E10" StrokeThickness="0.8" StrokeDashArray="6 3" Fill="Transparent"/>
-                                <Rectangle Canvas.Left="2" Canvas.Top="0" Width="5" Height="180" Fill="#281E10"/>
-                                <Rectangle Canvas.Left="213" Canvas.Top="0" Width="5" Height="180" Fill="#281E10"/>
-                                <Rectangle Canvas.Left="2" Canvas.Top="{Binding Zone2Visual.BridgeTop}"
-                                           Width="216" Height="4" Fill="#38280E"/>
-
-                                <!-- 컨베이어 영역 -->
-                                <Rectangle Canvas.Left="0" Canvas.Top="62" Width="220" Height="56" Fill="#0C0A06"/>
-                                <Rectangle Canvas.Left="0" Canvas.Top="62" Width="220" Height="2" Fill="#3A2A18"/>
-                                <Rectangle Canvas.Left="0" Canvas.Top="116" Width="220" Height="2" Fill="#3A2A18"/>
-
-                                <!-- 스토퍼 -->
-                                <Rectangle Canvas.Left="10" Canvas.Top="68" Width="7" Height="44"
-                                           Fill="#382810" RadiusX="1" RadiusY="1"
-                                           Opacity="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}"/>
-                                <TextBlock Canvas.Left="7" Canvas.Top="114" Text="STP" FontSize="9" FontWeight="SemiBold"
-                                           Foreground="#A06020"/>
-                                <!-- 얼라인 -->
-                                <Border Canvas.Left="20" Canvas.Top="68" Width="12" Height="44"
-                                        Background="#141008" BorderBrush="#805020" BorderThickness="0.8" CornerRadius="1"
-                                        Opacity="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
-                                    <TextBlock Text="▶" FontSize="10" Foreground="#C07830"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <Border Canvas.Left="192" Canvas.Top="68" Width="12" Height="44"
-                                        Background="#141008" BorderBrush="#805020" BorderThickness="0.8" CornerRadius="1"
-                                        Opacity="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
-                                    <TextBlock Text="◀" FontSize="10" Foreground="#C07830"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <TextBlock Canvas.Left="19" Canvas.Top="114" Text="ALN" FontSize="8"
-                                           Foreground="#805020"/>
-                                <TextBlock Canvas.Left="191" Canvas.Top="114" Text="ALN" FontSize="8"
-                                           Foreground="#805020"/>
-
-                                <!-- 셔틀 -->
-                                <Border Canvas.Left="36" Canvas.Top="70" Width="152" Height="40" CornerRadius="2"
-                                        Visibility="{Binding Zone2Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="Background" Value="#1A1808"/>
-                                            <Setter Property="BorderBrush" Value="#806030"/>
-                                            <Setter Property="BorderThickness" Value="1"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Zone2Visual.IsLifted}" Value="True">
-                                                    <Setter Property="BorderThickness" Value="2"/>
-                                                    <Setter Property="BorderBrush" Value="#F0883E"/>
-                                                    <Setter Property="Background" Value="#281A08"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <Rectangle Width="36" Height="22" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}"
-                                                   StrokeThickness="0.5" RadiusX="1" RadiusY="1" Margin="4,0"
-                                                   Visibility="{Binding Zone2Visual.Pcb1Visibility}"/>
-                                        <Rectangle Width="36" Height="22" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}"
-                                                   StrokeThickness="0.5" RadiusX="1" RadiusY="1" Margin="4,0"
-                                                   Visibility="{Binding Zone2Visual.Pcb2Visibility}"/>
-                                    </StackPanel>
-                                </Border>
-                                <TextBlock Canvas.Left="75" Canvas.Top="72" Text="LIFT ▲" FontSize="9" FontWeight="Bold"
-                                           Foreground="#F0883E"
-                                           Visibility="{Binding Zone2Visual.LiftIndicatorVisibility}"/>
-
-                                <!-- 볼트 마커 -->
-                                <ItemsControl ItemsSource="{Binding BoltMarkers}">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate><Canvas/></ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemContainerStyle>
-                                        <Style TargetType="ContentPresenter">
-                                            <Setter Property="Canvas.Left" Value="{Binding CanvasLeft}"/>
-                                            <Setter Property="Canvas.Top" Value="{Binding CanvasTop}"/>
-                                        </Style>
-                                    </ItemsControl.ItemContainerStyle>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Grid>
-                                                <Ellipse Width="9" Height="9"
-                                                         Stroke="{Binding MarkerBrush}"
-                                                         StrokeThickness="1.5" Fill="#0C0A08"/>
-                                                <StackPanel Orientation="Horizontal" Margin="11,-2,0,0">
-                                                    <TextBlock Text="{Binding Name}" FontSize="8"
-                                                               Foreground="#806838" FontWeight="SemiBold"/>
-                                                    <TextBlock Text="{Binding TorqueText}" FontSize="7" FontFamily="Consolas"
-                                                               Foreground="{Binding MarkerBrush}" Margin="3,0,0,0"/>
-                                                </StackPanel>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-
-                                <!-- 피듀셜 보정 십자선 -->
-                                <Ellipse Canvas.Left="{Binding Zone2Visual.FiducialOffsetLeft}" Canvas.Top="{Binding Zone2Visual.FiducialOffsetTop}"
-                                         Width="8" Height="8" Margin="-4,-4,0,0"
-                                         Stroke="{StaticResource AccentCyanBrush}" StrokeThickness="1" Fill="Transparent"
-                                         Visibility="{Binding Zone2Visual.FiducialOffsetVisibility}"/>
-                                <Line X1="{Binding Zone2Visual.FiducialCrossH1}" Y1="{Binding Zone2Visual.FiducialOffsetTop}"
-                                      X2="{Binding Zone2Visual.FiducialCrossH2}" Y2="{Binding Zone2Visual.FiducialOffsetTop}"
-                                      Stroke="{StaticResource AccentCyanBrush}" StrokeThickness="0.5" StrokeDashArray="2 1"
-                                      Visibility="{Binding Zone2Visual.FiducialOffsetVisibility}"/>
-                                <Line X1="{Binding Zone2Visual.FiducialOffsetLeft}" Y1="{Binding Zone2Visual.FiducialCrossV1}"
-                                      X2="{Binding Zone2Visual.FiducialOffsetLeft}" Y2="{Binding Zone2Visual.FiducialCrossV2}"
-                                      Stroke="{StaticResource AccentCyanBrush}" StrokeThickness="0.5" StrokeDashArray="2 1"
-                                      Visibility="{Binding Zone2Visual.FiducialOffsetVisibility}"/>
-
-                                <!-- 헤드 십자선 -->
-                                <Line X1="{Binding Zone2Visual.CrosshairH1}" Y1="{Binding Zone2Visual.CrosshairTop}"
-                                      X2="{Binding Zone2Visual.CrosshairH2}" Y2="{Binding Zone2Visual.CrosshairTop}"
-                                      Stroke="#F0883E" StrokeThickness="0.5" Opacity="0.35" StrokeDashArray="3 2"/>
-                                <Line X1="{Binding Zone2Visual.CrosshairLeft}" Y1="{Binding Zone2Visual.CrosshairV1}"
-                                      X2="{Binding Zone2Visual.CrosshairLeft}" Y2="{Binding Zone2Visual.CrosshairV2}"
-                                      Stroke="#F0883E" StrokeThickness="0.5" Opacity="0.35" StrokeDashArray="3 2"/>
-
-                                <!-- 헤드 글로우 -->
-                                <Ellipse Canvas.Left="{Binding Zone2Visual.HeadLeft}" Canvas.Top="{Binding Zone2Visual.HeadTop}"
-                                         Width="{Binding Zone2Visual.HeadSize}" Height="{Binding Zone2Visual.HeadSize}"
-                                         Fill="#C08020" Opacity="0.5">
-                                    <Ellipse.Effect><BlurEffect Radius="18"/></Ellipse.Effect>
-                                </Ellipse>
-                                <!-- 헤드 본체 (Bolt Driver — 원형 + 소켓 중심점) -->
-                                <Ellipse Canvas.Left="{Binding Zone2Visual.HeadLeft}" Canvas.Top="{Binding Zone2Visual.HeadTop}"
-                                         Width="{Binding Zone2Visual.HeadSize}" Height="{Binding Zone2Visual.HeadSize}"
-                                         Fill="{StaticResource AccentOrangeBrush}" Stroke="White" StrokeThickness="2"/>
-                                <Ellipse Canvas.Left="{Binding Zone2Visual.HeadCenterLeft}" Canvas.Top="{Binding Zone2Visual.HeadCenterTop}"
-                                         Width="4" Height="4" Fill="White" Opacity="0.8"/>
-
-                                <!-- Z 게이지 -->
-                                <Rectangle Canvas.Left="222" Canvas.Top="10" Width="6" Height="160"
-                                           Fill="#141010" RadiusX="2" RadiusY="2"/>
-                                <Rectangle Canvas.Left="222" Canvas.Top="10" Width="6"
-                                           Height="{Binding Zone2Visual.ZGaugeHeight}"
-                                           Fill="{StaticResource AccentOrangeBrush}" Opacity="0.6" RadiusX="2" RadiusY="2"/>
-                                <Rectangle Canvas.Left="218" Canvas.Top="{Binding Zone2Visual.ZToolTop}"
-                                           Width="14" Height="3"
-                                           Fill="{StaticResource AccentOrangeBrush}" Opacity="0.8" RadiusX="1" RadiusY="1"/>
-                            </Canvas>
-                        </Viewbox>
+                        <v:Zone2CanvasView/>
                     </Border>
-                    <!-- 좌표 + 볼트 진행 -->
                     <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Zone2Visual.CoordText}" FontFamily="Consolas" FontSize="8"
                                    Foreground="{StaticResource AccentOrangeBrush}"/>
@@ -602,40 +282,19 @@
                         <TextBlock Text="{Binding Zone2Timing}" FontFamily="Consolas" FontSize="7" FontWeight="Bold"
                                    Foreground="{StaticResource AccentCyanBrush}" Margin="6,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
-
-                    <!-- 셔틀 트랜짓 (Zone 2→3) — 슬라이드 + 페이드 애니메이션 -->
+                    <!-- 셔틀 트랜짓 Zone 2→3 -->
                     <Border Grid.Row="1" Grid.Column="2" Panel.ZIndex="10"
                             HorizontalAlignment="Center" VerticalAlignment="Center"
                             Width="36" Height="20" CornerRadius="4"
                             Background="#2A2515" BorderBrush="#F0883E" BorderThickness="1.5"
+                            Style="{StaticResource TransitBorderStyle}"
                             Visibility="{Binding ShuttleTransit23, Converter={StaticResource BoolToVis}}">
-                        <Border.RenderTransform>
-                            <TranslateTransform/>
-                        </Border.RenderTransform>
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Style.Triggers>
-                                    <Trigger Property="IsVisible" Value="True">
-                                        <Trigger.EnterActions>
-                                            <BeginStoryboard>
-                                                <Storyboard RepeatBehavior="Forever">
-                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                     From="0.3" To="1.0" Duration="0:0:0.6" AutoReverse="False"/>
-                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
-                                                                     From="-40" To="40" Duration="0:0:1.2"
-                                                                     AutoReverse="False" EasingFunction="{x:Null}"/>
-                                                </Storyboard>
-                                            </BeginStoryboard>
-                                        </Trigger.EnterActions>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
+                        <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
                         <TextBlock Text="► ► ►" FontSize="8" FontFamily="Consolas" Foreground="#F0883E"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
 
-                    <!-- ═══════════════════ ZONE 3 — INSPECT ═══════════════════ -->
+                    <!-- ZONE 3 — INSPECT -->
                     <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
                         <TextBlock Text="ZONE 3" FontSize="9" FontWeight="Bold"
                                    Foreground="{StaticResource AccentGreenBrush}" Opacity="0.9"/>
@@ -645,301 +304,28 @@
                     <Border Grid.Row="1" Grid.Column="3" Background="{StaticResource CanvasBgBrush}"
                             BorderBrush="#183020" BorderThickness="1"
                             CornerRadius="2" Margin="3,0" Panel.ZIndex="1">
-                        <Viewbox Stretch="Uniform">
-                            <Canvas Width="240" Height="180" ClipToBounds="True">
-                                <!-- 갠트리 범위 -->
-                                <Rectangle Canvas.Left="1" Canvas.Top="1" Width="218" Height="178"
-                                           Stroke="#142818" StrokeThickness="0.8" StrokeDashArray="6 3" Fill="Transparent"/>
-                                <Rectangle Canvas.Left="2" Canvas.Top="0" Width="5" Height="180" Fill="#142818"/>
-                                <Rectangle Canvas.Left="213" Canvas.Top="0" Width="5" Height="180" Fill="#142818"/>
-                                <Rectangle Canvas.Left="2" Canvas.Top="{Binding Zone3Visual.BridgeTop}"
-                                           Width="216" Height="4" Fill="#1E3818"/>
-
-                                <!-- 컨베이어 영역 -->
-                                <Rectangle Canvas.Left="0" Canvas.Top="62" Width="220" Height="56" Fill="#060C08"/>
-                                <Rectangle Canvas.Left="0" Canvas.Top="62" Width="220" Height="2" Fill="#1A3828"/>
-                                <Rectangle Canvas.Left="0" Canvas.Top="116" Width="220" Height="2" Fill="#1A3828"/>
-
-                                <!-- 스토퍼 -->
-                                <Rectangle Canvas.Left="10" Canvas.Top="68" Width="7" Height="44"
-                                           Fill="#103818" RadiusX="1" RadiusY="1"
-                                           Opacity="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}"/>
-                                <TextBlock Canvas.Left="7" Canvas.Top="114" Text="STP" FontSize="9" FontWeight="SemiBold"
-                                           Foreground="#208040"/>
-                                <!-- 얼라인 -->
-                                <Border Canvas.Left="20" Canvas.Top="68" Width="12" Height="44"
-                                        Background="#081A0E" BorderBrush="#186030" BorderThickness="0.8" CornerRadius="1"
-                                        Opacity="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
-                                    <TextBlock Text="▶" FontSize="10" Foreground="#30A050"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <Border Canvas.Left="192" Canvas.Top="68" Width="12" Height="44"
-                                        Background="#081A0E" BorderBrush="#186030" BorderThickness="0.8" CornerRadius="1"
-                                        Opacity="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToOpacity}}">
-                                    <TextBlock Text="◀" FontSize="10" Foreground="#30A050"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                </Border>
-                                <TextBlock Canvas.Left="19" Canvas.Top="114" Text="ALN" FontSize="8"
-                                           Foreground="#186030"/>
-                                <TextBlock Canvas.Left="191" Canvas.Top="114" Text="ALN" FontSize="8"
-                                           Foreground="#186030"/>
-
-                                <!-- 셔틀 -->
-                                <Border Canvas.Left="36" Canvas.Top="70" Width="152" Height="40" CornerRadius="2"
-                                        Visibility="{Binding Zone3Visual.ShuttlePresent, Converter={StaticResource BoolToVis}}">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="Background" Value="#0C1A10"/>
-                                            <Setter Property="BorderBrush" Value="#308040"/>
-                                            <Setter Property="BorderThickness" Value="1"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Zone3Visual.IsLifted}" Value="True">
-                                                    <Setter Property="BorderThickness" Value="2"/>
-                                                    <Setter Property="BorderBrush" Value="#3FB950"/>
-                                                    <Setter Property="Background" Value="#102A18"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <Rectangle Width="36" Height="22" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}"
-                                                   StrokeThickness="0.5" RadiusX="1" RadiusY="1" Margin="4,0"
-                                                   Visibility="{Binding Zone3Visual.Pcb1Visibility}"/>
-                                        <Rectangle Width="36" Height="22" Fill="{StaticResource PcbFillBrush}" Stroke="{StaticResource PcbStrokeBrush}"
-                                                   StrokeThickness="0.5" RadiusX="1" RadiusY="1" Margin="4,0"
-                                                   Visibility="{Binding Zone3Visual.Pcb2Visibility}"/>
-                                    </StackPanel>
-                                </Border>
-                                <TextBlock Canvas.Left="75" Canvas.Top="72" Text="LIFT ▲" FontSize="9" FontWeight="Bold"
-                                           Foreground="#3FB950"
-                                           Visibility="{Binding Zone3Visual.LiftIndicatorVisibility}"/>
-
-                                <!-- 검사 영역 마커 -->
-                                <Rectangle Canvas.Left="40" Canvas.Top="8" Width="130" Height="44"
-                                           Stroke="#204030" StrokeThickness="0.7" StrokeDashArray="4 2"
-                                           Fill="Transparent" RadiusX="2" RadiusY="2"/>
-                                <TextBlock Canvas.Left="68" Canvas.Top="12" Text="INSPECT" FontSize="9" FontWeight="Bold"
-                                           Foreground="#204030"/>
-                                <!-- NG 적재 영역 -->
-                                <Rectangle Canvas.Left="40" Canvas.Top="128" Width="130" Height="42"
-                                           Stroke="#401818" StrokeThickness="0.7" StrokeDashArray="4 2"
-                                           Fill="Transparent" RadiusX="2" RadiusY="2"/>
-                                <TextBlock Canvas.Left="62" Canvas.Top="132" Text="NG STACK" FontSize="9" FontWeight="SemiBold"
-                                           Foreground="#401818"/>
-
-                                <!-- 헤드 십자선 -->
-                                <Line X1="{Binding Zone3Visual.CrosshairH1}" Y1="{Binding Zone3Visual.CrosshairTop}"
-                                      X2="{Binding Zone3Visual.CrosshairH2}" Y2="{Binding Zone3Visual.CrosshairTop}"
-                                      Stroke="#3FB950" StrokeThickness="0.5" Opacity="0.35" StrokeDashArray="3 2"/>
-                                <Line X1="{Binding Zone3Visual.CrosshairLeft}" Y1="{Binding Zone3Visual.CrosshairV1}"
-                                      X2="{Binding Zone3Visual.CrosshairLeft}" Y2="{Binding Zone3Visual.CrosshairV2}"
-                                      Stroke="#3FB950" StrokeThickness="0.5" Opacity="0.35" StrokeDashArray="3 2"/>
-
-                                <!-- 헤드 글로우 -->
-                                <Ellipse Canvas.Left="{Binding Zone3Visual.HeadLeft}" Canvas.Top="{Binding Zone3Visual.HeadTop}"
-                                         Width="{Binding Zone3Visual.HeadSize}" Height="{Binding Zone3Visual.HeadSize}"
-                                         Fill="#20C050" Opacity="0.5">
-                                    <Ellipse.Effect><BlurEffect Radius="18"/></Ellipse.Effect>
-                                </Ellipse>
-                                <!-- 헤드 본체 (Camera — 원형 + 렌즈) -->
-                                <Ellipse Canvas.Left="{Binding Zone3Visual.HeadLeft}" Canvas.Top="{Binding Zone3Visual.HeadTop}"
-                                         Width="{Binding Zone3Visual.HeadSize}" Height="{Binding Zone3Visual.HeadSize}"
-                                         Fill="{StaticResource AccentGreenBrush}" Stroke="White" StrokeThickness="2"/>
-                                <Ellipse Canvas.Left="{Binding Zone3Visual.HeadCenterLeft}" Canvas.Top="{Binding Zone3Visual.HeadCenterTop}"
-                                         Width="4" Height="4" Stroke="White" StrokeThickness="1" Fill="Transparent" Opacity="0.8"/>
-                                <!-- 그리퍼 (NG 이송) -->
-                                <Ellipse Canvas.Left="{Binding Zone3Visual.HeadCenterLeft}" Canvas.Top="{Binding Zone3Visual.HeadCenterTop}"
-                                         Width="6" Height="6" Margin="-1,-1,0,0"
-                                         Stroke="White" StrokeThickness="1.5" Fill="Transparent"
-                                         Visibility="{Binding Zone3Visual.GripperVisibility}"/>
-
-                                <!-- Z 게이지 -->
-                                <Rectangle Canvas.Left="222" Canvas.Top="10" Width="6" Height="160"
-                                           Fill="#081410" RadiusX="2" RadiusY="2"/>
-                                <Rectangle Canvas.Left="222" Canvas.Top="10" Width="6"
-                                           Height="{Binding Zone3Visual.ZGaugeHeight}"
-                                           Fill="{StaticResource AccentGreenBrush}" Opacity="0.6" RadiusX="2" RadiusY="2"/>
-                                <Rectangle Canvas.Left="218" Canvas.Top="{Binding Zone3Visual.ZToolTop}"
-                                           Width="14" Height="3"
-                                           Fill="{StaticResource AccentGreenBrush}" Opacity="0.8" RadiusX="1" RadiusY="1"/>
-                            </Canvas>
-                        </Viewbox>
+                        <v:Zone3CanvasView/>
                     </Border>
-                    <!-- 좌표 + 타이밍 -->
                     <StackPanel Grid.Row="2" Grid.Column="3" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
                         <TextBlock Text="{Binding Zone3Visual.CoordText}" FontFamily="Consolas" FontSize="8"
                                    Foreground="{StaticResource AccentGreenBrush}"/>
                         <TextBlock Text="{Binding Zone3Timing}" FontFamily="Consolas" FontSize="7" FontWeight="Bold"
                                    Foreground="{StaticResource AccentCyanBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
-
-                    <!-- 셔틀 배출 트랜짓 — 슬라이드 + 페이드 애니메이션 -->
+                    <!-- 셔틀 배출 트랜짓 -->
                     <Border Grid.Row="1" Grid.Column="3" Panel.ZIndex="10"
                             HorizontalAlignment="Center" VerticalAlignment="Center"
                             Width="36" Height="20" CornerRadius="4"
                             Background="#152A1A" BorderBrush="#3FB950" BorderThickness="1.5"
+                            Style="{StaticResource TransitBorderStyle}"
                             Visibility="{Binding ShuttleTransitOut, Converter={StaticResource BoolToVis}}">
-                        <Border.RenderTransform>
-                            <TranslateTransform/>
-                        </Border.RenderTransform>
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Style.Triggers>
-                                    <Trigger Property="IsVisible" Value="True">
-                                        <Trigger.EnterActions>
-                                            <BeginStoryboard>
-                                                <Storyboard RepeatBehavior="Forever">
-                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                                     From="0.3" To="1.0" Duration="0:0:0.6" AutoReverse="False"/>
-                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
-                                                                     From="-40" To="40" Duration="0:0:1.2"
-                                                                     AutoReverse="False" EasingFunction="{x:Null}"/>
-                                                </Storyboard>
-                                            </BeginStoryboard>
-                                        </Trigger.EnterActions>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
+                        <Border.RenderTransform><TranslateTransform/></Border.RenderTransform>
                         <TextBlock Text="► ► ►" FontSize="8" FontFamily="Consolas" Foreground="#3FB950"
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
 
-                    <!-- ── 우측 패널 (결과·NG·SMEMA) ── -->
-                    <StackPanel Grid.Row="0" Grid.RowSpan="3" Grid.Column="4" Margin="8,4">
-                        <!-- 결과 배지 -->
-                        <Border Width="70" Height="34" CornerRadius="6" BorderThickness="1.5"
-                                HorizontalAlignment="Left">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Background" Value="#1C2033"/>
-                                    <Setter Property="BorderBrush" Value="#303050"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsNgPath}" Value="True">
-                                            <Setter Property="Background" Value="#2A1010"/>
-                                            <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding IsGoodPath}" Value="True">
-                                            <Setter Property="Background" Value="#102A10"/>
-                                            <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <TextBlock Text="{Binding LastRouteText}" FontSize="13" FontWeight="Bold"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="#505070"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsNgPath}" Value="True">
-                                                <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsGoodPath}" Value="True">
-                                                <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Border>
-
-                        <!-- NG 적재 -->
-                        <TextBlock Text="NG STACK" Margin="0,8,0,3"
-                                   Foreground="{StaticResource AccentRedBrush}" FontSize="8" FontWeight="SemiBold" Opacity="0.7"/>
-                        <ItemsControl ItemsSource="{Binding NgStackSlots}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Rectangle Width="18" Height="18" Margin="0,0,3,0"
-                                               Stroke="#401818" StrokeThickness="1" RadiusX="2" RadiusY="2"
-                                               Fill="{Binding IsFilled, Converter={StaticResource NgSlotFill}}"/>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <TextBlock FontFamily="Consolas" FontSize="8" Margin="0,2,0,0">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="#383850"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding NgStackAlarm}" Value="True">
-                                            <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                            <Run Text="{Binding NgStackCount, Mode=OneWay}"/><Run Text="/"/><Run Text="{Binding NgStackMaxCount, Mode=OneWay}"/>
-                        </TextBlock>
-
-                        <!-- SMEMA -->
-                        <TextBlock FontSize="7" Margin="0,12,0,0">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Text" Value="SMEMA  OUT"/>
-                                    <Setter Property="Foreground" Value="#282840"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SmemaWaiting}" Value="True">
-                                            <Setter Property="Text" Value="SMEMA  WAIT"/>
-                                            <Setter Property="Foreground" Value="{StaticResource AccentOrangeBrush}"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding SmemaReady}" Value="True">
-                                            <Setter Property="Text" Value="SMEMA  OK"/>
-                                            <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-
-                        <!-- 컨베이어 흐름 애니메이션 -->
-                        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                            <StackPanel.Resources>
-                                <Storyboard x:Key="FlowAnimation" RepeatBehavior="Forever">
-                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow1" Storyboard.TargetProperty="Opacity"
-                                                                  Duration="0:0:1.5" RepeatBehavior="Forever">
-                                        <LinearDoubleKeyFrame KeyTime="0:0:0" Value="0.15"/>
-                                        <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.7"/>
-                                        <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.15"/>
-                                    </DoubleAnimationUsingKeyFrames>
-                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow2" Storyboard.TargetProperty="Opacity"
-                                                                  Duration="0:0:1.5" RepeatBehavior="Forever">
-                                        <LinearDoubleKeyFrame KeyTime="0:0:0" Value="0.15"/>
-                                        <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.15"/>
-                                        <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.7"/>
-                                        <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0.15"/>
-                                    </DoubleAnimationUsingKeyFrames>
-                                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow3" Storyboard.TargetProperty="Opacity"
-                                                                  Duration="0:0:1.5" RepeatBehavior="Forever">
-                                        <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.15"/>
-                                        <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.15"/>
-                                        <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0.7"/>
-                                    </DoubleAnimationUsingKeyFrames>
-                                </Storyboard>
-                            </StackPanel.Resources>
-                            <StackPanel.Style>
-                                <Style TargetType="StackPanel">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                                            <DataTrigger.EnterActions>
-                                                <BeginStoryboard x:Name="FlowSb" Storyboard="{StaticResource FlowAnimation}"/>
-                                            </DataTrigger.EnterActions>
-                                            <DataTrigger.ExitActions>
-                                                <StopStoryboard BeginStoryboardName="FlowSb"/>
-                                            </DataTrigger.ExitActions>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </StackPanel.Style>
-                            <TextBlock x:Name="FlowArrow1" Text="►" FontSize="8" FontFamily="Consolas"
-                                       Foreground="#506080" Opacity="0.15" Margin="0,0,4,0"/>
-                            <TextBlock x:Name="FlowArrow2" Text="►" FontSize="8" FontFamily="Consolas"
-                                       Foreground="#506080" Opacity="0.15" Margin="0,0,4,0"/>
-                            <TextBlock x:Name="FlowArrow3" Text="►" FontSize="8" FontFamily="Consolas"
-                                       Foreground="#506080" Opacity="0.15"/>
-                        </StackPanel>
-                    </StackPanel>
+                    <!-- 우측 패널 (결과·NG·SMEMA) -->
+                    <v:ResultPanelView Grid.Row="0" Grid.RowSpan="3" Grid.Column="4"/>
                 </Grid>
                 </Grid>
             </Border>
