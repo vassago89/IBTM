@@ -113,13 +113,10 @@ public partial class ZoneVisualState : ObservableObject
     // ── 검사 결과 오버레이 (Zone 3 전용) ─────────────────────────────────
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(InspectResultVisibility))]
-    [NotifyPropertyChangedFor(nameof(InspectResultColor))]
     private string _inspectResultText = "";
 
     public Visibility InspectResultVisibility =>
         string.IsNullOrEmpty(InspectResultText) ? Visibility.Collapsed : Visibility.Visible;
-
-    public string InspectResultColor => InspectResultText == "NG" ? "#F85149" : "#3FB950";
 
     // ── 헤드 십자선 ─────────────────────────────────────────────────────
     [ObservableProperty] private double _crosshairLeft;
