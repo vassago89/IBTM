@@ -13,6 +13,12 @@
         <DataTemplate DataType="{x:Type vm:ProcessViewModel}">
             <views:ProcessView/>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:TeachingViewModel}">
+            <views:TeachingView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+            <views:SettingsView/>
+        </DataTemplate>
     </Window.Resources>
 
     <Grid>
@@ -64,15 +70,17 @@
                                  Command="{Binding NavigateCommand}"
                                  CommandParameter="Process"/>
 
-                    <RadioButton Content="  &#x2699;  Manual Control"
+                    <RadioButton Content="  &#x25C9;  Teaching"
                                  GroupName="Navigation"
                                  Style="{StaticResource NavButtonStyle}"
-                                 IsEnabled="False"/>
+                                 Command="{Binding NavigateCommand}"
+                                 CommandParameter="Teaching"/>
 
-                    <RadioButton Content="  &#x25C8;  Settings"
+                    <RadioButton Content="  &#x2699;  Settings"
                                  GroupName="Navigation"
                                  Style="{StaticResource NavButtonStyle}"
-                                 IsEnabled="False"/>
+                                 Command="{Binding NavigateCommand}"
+                                 CommandParameter="Settings"/>
 
                     <RadioButton Content="  &#x2261;  Log Viewer"
                                  GroupName="Navigation"

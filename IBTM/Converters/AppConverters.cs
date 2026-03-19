@@ -181,6 +181,16 @@ public class ZGaugeTopConverter : IValueConverter
         => throw new NotImplementedException();
 }
 
+// ── double 값의 절반 (십자선 중앙 좌표용) ──────────────────────────────────
+public class HalfConverter : IValueConverter
+{
+    public static HalfConverter Instance { get; } = new();
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        => value is double d ? d / 2.0 : 0.0;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+}
+
 // ── bool → NG/GOOD 채움 색상 (슬롯 시각화) ───────────────────────────────────
 [ValueConversion(typeof(bool), typeof(Brush))]
 public class NgSlotFillConverter : IValueConverter

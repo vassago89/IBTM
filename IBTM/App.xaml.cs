@@ -1,4 +1,5 @@
 using IBTM.Device;
+using IBTM.Models;
 using IBTM.Services;
 using IBTM.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,9 +36,14 @@ public partial class App : Application
         services.AddSingleton<IFiducialService, FiducialService>();
         services.AddSingleton<IBoltService, StubBoltService>();
         services.AddSingleton<ProcessOrchestrator>();
+        services.AddSingleton<RecipeService>();
+        services.AddSingleton<ICameraStreamService, VirtualCameraStreamService>();
+        services.AddSingleton<MachineConfig>();
 
         // ── ViewModels ───────────────────────────────────────────────────────
         services.AddSingleton<ProcessViewModel>();
+        services.AddSingleton<SettingsViewModel>();
+        services.AddSingleton<TeachingViewModel>();
         services.AddSingleton<MainViewModel>();
 
         // ── Windows ──────────────────────────────────────────────────────────

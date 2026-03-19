@@ -1,0 +1,260 @@
+<UserControl x:Class="IBTM.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:IBTM.Localization"
+             xmlns:conv="clr-namespace:IBTM.Converters"
+             Background="{StaticResource AppBgBrush}"
+             Loaded="OnLoaded" Unloaded="OnUnloaded">
+
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis"/>
+    </UserControl.Resources>
+
+    <Grid Margin="24,16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 헤더 -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="{Binding [Settings_Title], Source={x:Static loc:Loc.Instance}}"
+                       FontSize="20" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+            <TextBlock Text="{Binding [Settings_Subtitle], Source={x:Static loc:Loc.Instance}}"
+                       FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <!-- 메인 컨텐츠 -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="280"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 좌측: Zone 기준점 캘리브레이션 -->
+            <Border Grid.Column="0" Background="{StaticResource PanelBgBrush}"
+                    CornerRadius="6" Margin="0,0,12,0" Padding="20,16">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="{Binding [Settings_ZoneOffset], Source={x:Static loc:Loc.Instance}}"
+                               FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,16"/>
+
+                    <!-- 3개 Zone 기준점 카드 -->
+                    <UniformGrid Grid.Row="1" Columns="3" Margin="0,0,0,16">
+                        <!-- Zone 1 -->
+                        <Border Background="{StaticResource EquipBgBrush}" CornerRadius="4"
+                                BorderBrush="#1E3050" BorderThickness="1" Margin="0,0,8,0" Padding="12,10">
+                            <StackPanel>
+                                <TextBlock Text="ZONE 1" FontSize="12" FontWeight="Bold"
+                                           Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,8"/>
+                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="X: "/><Run Text="{Binding Config.Zone1Ref.X, StringFormat=F3}"/>
+                                </TextBlock>
+                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="Y: "/><Run Text="{Binding Config.Zone1Ref.Y, StringFormat=F3}"/>
+                                </TextBlock>
+                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="Z: "/><Run Text="{Binding Config.Zone1Ref.Z, StringFormat=F3}"/>
+                                </TextBlock>
+                                <Ellipse Width="8" Height="8" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                         Fill="{StaticResource AccentGreenBrush}"
+                                         Visibility="{Binding Zone1RefRecorded, Converter={StaticResource BoolToVis}}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Zone 2 -->
+                        <Border Background="{StaticResource EquipBgBrush}" CornerRadius="4"
+                                BorderBrush="#302818" BorderThickness="1" Margin="4,0" Padding="12,10">
+                            <StackPanel>
+                                <TextBlock Text="ZONE 2" FontSize="12" FontWeight="Bold"
+                                           Foreground="{StaticResource AccentOrangeBrush}" Margin="0,0,0,8"/>
+                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="X: "/><Run Text="{Binding Config.Zone2Ref.X, StringFormat=F3}"/>
+                                </TextBlock>
+                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="Y: "/><Run Text="{Binding Config.Zone2Ref.Y, StringFormat=F3}"/>
+                                </TextBlock>
+                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="Z: "/><Run Text="{Binding Config.Zone2Ref.Z, StringFormat=F3}"/>
+                                </TextBlock>
+                                <Ellipse Width="8" Height="8" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                         Fill="{StaticResource AccentGreenBrush}"
+                                         Visibility="{Binding Zone2RefRecorded, Converter={StaticResource BoolToVis}}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Zone 3 -->
+                        <Border Background="{StaticResource EquipBgBrush}" CornerRadius="4"
+                                BorderBrush="#183020" BorderThickness="1" Margin="8,0,0,0" Padding="12,10">
+                            <StackPanel>
+                                <TextBlock Text="ZONE 3" FontSize="12" FontWeight="Bold"
+                                           Foreground="{StaticResource AccentGreenBrush}" Margin="0,0,0,8"/>
+                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="X: "/><Run Text="{Binding Config.Zone3Ref.X, StringFormat=F3}"/>
+                                </TextBlock>
+                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="Y: "/><Run Text="{Binding Config.Zone3Ref.Y, StringFormat=F3}"/>
+                                </TextBlock>
+                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="Z: "/><Run Text="{Binding Config.Zone3Ref.Z, StringFormat=F3}"/>
+                                </TextBlock>
+                                <Ellipse Width="8" Height="8" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                         Fill="{StaticResource AccentGreenBrush}"
+                                         Visibility="{Binding Zone3RefRecorded, Converter={StaticResource BoolToVis}}"/>
+                            </StackPanel>
+                        </Border>
+                    </UniformGrid>
+
+                    <!-- 오프셋 결과 + 버튼 -->
+                    <StackPanel Grid.Row="2">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <Button Content="{Binding [Settings_RecordRef], Source={x:Static loc:Loc.Instance}}"
+                                    Command="{Binding RecordRefCommand}"
+                                    Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,8,0"/>
+                            <Button Content="{Binding [Settings_ComputeOffset], Source={x:Static loc:Loc.Instance}}"
+                                    Command="{Binding ComputeOffsetsCommand}"
+                                    Style="{StaticResource SecondaryButtonStyle}" MinWidth="120"/>
+                        </StackPanel>
+                        <Border Background="{StaticResource EquipBgBrush}" CornerRadius="4" Padding="12,8">
+                            <TextBlock Text="{Binding OffsetResultText}" FontFamily="Consolas" FontSize="12"
+                                       Foreground="{StaticResource AccentCyanBrush}"/>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- 우측: 조그 + 좌표 + 레이저 -->
+            <StackPanel Grid.Column="1">
+                <!-- Zone 선택 -->
+                <Border Background="{StaticResource PanelBgBrush}" CornerRadius="6" Padding="16,12" Margin="0,0,0,8">
+                    <StackPanel>
+                        <TextBlock Text="{Binding [Settings_ZoneSelect], Source={x:Static loc:Loc.Instance}}"
+                                   FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"/>
+                        <UniformGrid Columns="3">
+                            <RadioButton Content="Zone 1" GroupName="SettingsZone" IsChecked="True"
+                                         Style="{StaticResource NavButtonStyle}"
+                                         Checked="Zone1_Checked"/>
+                            <RadioButton Content="Zone 2" GroupName="SettingsZone"
+                                         Style="{StaticResource NavButtonStyle}"
+                                         Checked="Zone2_Checked"/>
+                            <RadioButton Content="Zone 3" GroupName="SettingsZone"
+                                         Style="{StaticResource NavButtonStyle}"
+                                         Checked="Zone3_Checked"/>
+                        </UniformGrid>
+                    </StackPanel>
+                </Border>
+
+                <!-- 현재 좌표 -->
+                <Border Background="{StaticResource PanelBgBrush}" CornerRadius="6" Padding="16,12" Margin="0,0,0,8">
+                    <StackPanel>
+                        <TextBlock Text="{Binding [Settings_CurrentPos], Source={x:Static loc:Loc.Instance}}"
+                                   FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"/>
+                        <TextBlock FontFamily="Consolas" FontSize="16" Foreground="{StaticResource TextPrimaryBrush}">
+                            <Run Text="X: "/><Run Text="{Binding CurrentX, StringFormat=F3}"/>
+                        </TextBlock>
+                        <TextBlock FontFamily="Consolas" FontSize="16" Foreground="{StaticResource TextPrimaryBrush}">
+                            <Run Text="Y: "/><Run Text="{Binding CurrentY, StringFormat=F3}"/>
+                        </TextBlock>
+                        <TextBlock FontFamily="Consolas" FontSize="16" Foreground="{StaticResource TextPrimaryBrush}">
+                            <Run Text="Z: "/><Run Text="{Binding CurrentZ, StringFormat=F3}"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- 조그 패드 -->
+                <Border Background="{StaticResource PanelBgBrush}" CornerRadius="6" Padding="16,12" Margin="0,0,0,8">
+                    <StackPanel>
+                        <TextBlock Text="JOG" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"/>
+                        <Grid HorizontalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="48"/>
+                                <ColumnDefinition Width="48"/>
+                                <ColumnDefinition Width="48"/>
+                                <ColumnDefinition Width="16"/>
+                                <ColumnDefinition Width="48"/>
+                                <ColumnDefinition Width="48"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="40"/>
+                                <RowDefinition Height="40"/>
+                                <RowDefinition Height="40"/>
+                            </Grid.RowDefinitions>
+
+                            <Button Grid.Row="0" Grid.Column="1" Content="Y+" Style="{StaticResource SecondaryButtonStyle}"
+                                    PreviewMouseLeftButtonDown="JogYPlus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
+                            <Button Grid.Row="1" Grid.Column="0" Content="X-" Style="{StaticResource SecondaryButtonStyle}"
+                                    PreviewMouseLeftButtonDown="JogXMinus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
+                            <Button Grid.Row="1" Grid.Column="1" Content="■" Style="{StaticResource DangerButtonStyle}"
+                                    Command="{Binding JogStopCommand}" FontSize="14"/>
+                            <Button Grid.Row="1" Grid.Column="2" Content="X+" Style="{StaticResource SecondaryButtonStyle}"
+                                    PreviewMouseLeftButtonDown="JogXPlus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
+                            <Button Grid.Row="2" Grid.Column="1" Content="Y-" Style="{StaticResource SecondaryButtonStyle}"
+                                    PreviewMouseLeftButtonDown="JogYMinus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
+
+                            <Button Grid.Row="0" Grid.Column="4" Content="Z+" Style="{StaticResource SecondaryButtonStyle}"
+                                    PreviewMouseLeftButtonDown="JogZPlus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
+                            <Button Grid.Row="2" Grid.Column="4" Content="Z-" Style="{StaticResource SecondaryButtonStyle}"
+                                    PreviewMouseLeftButtonDown="JogZMinus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
+                        </Grid>
+
+                        <!-- 속도 선택 -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
+                            <RadioButton Content="1" GroupName="SettingsJogSpeed" Style="{StaticResource NavButtonStyle}"
+                                         Checked="SpeedSlow_Checked" MinWidth="40"/>
+                            <RadioButton Content="10" GroupName="SettingsJogSpeed" Style="{StaticResource NavButtonStyle}"
+                                         IsChecked="True" Checked="SpeedMed_Checked" MinWidth="40"/>
+                            <RadioButton Content="50" GroupName="SettingsJogSpeed" Style="{StaticResource NavButtonStyle}"
+                                         Checked="SpeedFast_Checked" MinWidth="40"/>
+                            <TextBlock Text="mm/s" FontSize="9" Foreground="{StaticResource TextMutedBrush}"
+                                       VerticalAlignment="Center" Margin="6,0,0,0"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- 레이저 -->
+                <Border Background="{StaticResource PanelBgBrush}" CornerRadius="6" Padding="16,12">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="10" Height="10" VerticalAlignment="Center" Margin="0,0,8,0">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="#401818"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding LaserOn}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource AccentRedBrush}"/>
+                                            <Setter Property="Effect">
+                                                <Setter.Value>
+                                                    <DropShadowEffect Color="#F85149" BlurRadius="8" ShadowDepth="0"/>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <Button Content="{Binding [Settings_Laser], Source={x:Static loc:Loc.Instance}}"
+                                Command="{Binding ToggleLaserCommand}"
+                                Style="{StaticResource SecondaryButtonStyle}" MinWidth="80"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
+
+        <!-- 하단: 저장/상태 -->
+        <Border Grid.Row="2" Margin="0,12,0,0">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="{Binding [Settings_Save], Source={x:Static loc:Loc.Instance}}"
+                        Command="{Binding SaveConfigCommand}"
+                        Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,8,0"/>
+                <TextBlock Text="{Binding StatusMessage}" FontSize="11"
+                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

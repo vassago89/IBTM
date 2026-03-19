@@ -34,4 +34,9 @@ public static class IoMap
     // ── SMEMA ────────────────────────────────────────────────────────
     public const int Smema_MachineReady = 40;     // 뒤 설비 준비 신호 (입력)
     public const int Smema_BoardAvailable = 41;   // 배출 준비 신호 (출력)
+
+    // ── 레이저 포인터 (티칭용) ──────────────────────────────────────
+    public const int Zone1_Laser = 15;            // 구간1 레이저 포인터 (출력)
+    public const int Zone2_Laser = 25;            // 구간2 레이저 포인터 (출력)
+    public const int Zone3_Laser = 35;            // 구간3 레이저 포인터 (출력)
 }
