@@ -5,6 +5,7 @@ using IBTM.Models;
 using IBTM.Services;
 using System.Collections.ObjectModel;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace IBTM.ViewModels;
@@ -69,6 +70,9 @@ public partial class ProcessViewModel : ObservableObject
 
     // ── 마지막 Fiducial 결과 ──────────────────────────────────────────────────
     [ObservableProperty] private string _lastFiducialResult = string.Empty;
+
+    // ── 검사 이미지 ────────────────────────────────────────────────────────────
+    [ObservableProperty] private ImageSource? _inspectionImage;
 
     // ── 설정 ─────────────────────────────────────────────────────────────────
     [ObservableProperty] private double _targetTorque = 15.0;
@@ -179,6 +183,7 @@ public partial class ProcessViewModel : ObservableObject
         _orchestrator.NgStackUpdated += OnNgStackUpdated;
         _orchestrator.NgStackAlarm += OnNgStackAlarm;
         _orchestrator.GripperChanged += OnGripperChanged;
+        _orchestrator.InspectionImageCaptured += OnInspectionImageCaptured;
     }
 
     // ── 이벤트 핸들러 ─────────────────────────────────────────────────────────
@@ -317,6 +322,9 @@ public partial class ProcessViewModel : ObservableObject
     private void OnNgStackAlarm(object? sender, int count) =>
         RunOnUI(() => { NgStackCount = count; NgStackAlarm = true; SyncNgSlots(count); });
 
+    private void OnInspectionImageCaptured(object? sender, ImageSource img) =>
+        RunOnUI(() => InspectionImage = img);
+
     private void OnGripperChanged(object? sender, (int Zone, bool Active) e) => RunOnUI(() =>
     {
         var visual = GetZoneVisual(e.Zone);
@@ -380,6 +388,7 @@ public partial class ProcessViewModel : ObservableObject
         IsGoodPath = false;
         LastRouteText = "──";
         Zone3Visual.InspectResultText = "";
+        InspectionImage = null;
     }
 
     // ── 셔틀/리프트 상태 업데이트 ────────────────────────────────────────────

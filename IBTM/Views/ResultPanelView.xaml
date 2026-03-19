@@ -9,6 +9,71 @@
     </UserControl.Resources>
 
     <StackPanel Margin="8,4">
+        <!-- 검사 이미지 썸네일 -->
+        <Border CornerRadius="4" BorderThickness="1" BorderBrush="#303050"
+                Background="#0C0C18" Height="120" Margin="0,0,0,6"
+                HorizontalAlignment="Stretch" ClipToBounds="True">
+            <Grid>
+                <Image Source="{Binding InspectionImage}" Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                <!-- 이미지 없을 때 플레이스홀더 -->
+                <TextBlock Text="INSPECT" FontSize="11" FontFamily="Consolas"
+                           Foreground="#282840" FontWeight="Bold"
+                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding InspectionImage}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <!-- 결과 오버레이 배지 -->
+                <Border Width="56" Height="22" CornerRadius="4" Margin="0,0,4,4"
+                        HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsGoodPath}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Setter Property="Background" Value="#CC102A10"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsNgPath}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Setter Property="Background" Value="#CC2A1010"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock Text="{Binding LastRouteText}" FontSize="12" FontWeight="Bold" FontFamily="Consolas"
+                               HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="Transparent"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsGoodPath}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsNgPath}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+            </Grid>
+        </Border>
+
         <!-- 결과 배지 (크게) -->
         <Border Width="100" Height="46" CornerRadius="8" BorderThickness="2"
                 HorizontalAlignment="Left">

@@ -1,6 +1,8 @@
 using IBTM.Device;
 using IBTM.Models;
 using Microsoft.Extensions.DependencyInjection;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace IBTM.Services;
 
@@ -39,6 +41,7 @@ public class ProcessOrchestrator
     public event EventHandler<int>? NgStackUpdated;
     public event EventHandler<int>? NgStackAlarm;
     public event EventHandler<(int Zone, bool Active)>? GripperChanged;
+    public event EventHandler<BitmapSource>? InspectionImageCaptured;
 
     // ── 상태 ────────────────────────────────────────────────────────────────
     public bool IsRunning => _cts is { IsCancellationRequested: false };
@@ -492,9 +495,60 @@ public class ProcessOrchestrator
     {
         // TODO: BaslerService 카메라로 볼트 유무 검사
         await Task.Delay(500, ct);
+
+        // 더미 검사 이미지 생성 (실제 카메라 연동 시 교체)
+        var img = CreateDummyInspectionImage();
+        InspectionImageCaptured?.Invoke(this, img);
+
         return Random.Shared.NextDouble() > 0.15
             ? InspectionResult.Good
             : InspectionResult.Ng;
+    }
+
+    /// <summary>시뮬레이션용 더미 검사 이미지 생성</summary>
+    private static BitmapSource CreateDummyInspectionImage()
+    {
+        const int w = 320, h = 240;
+        var bmp = new WriteableBitmap(w, h, 96, 96, PixelFormats.Bgr24, null);
+        var pixels = new byte[w * h * 3];
+        var rng = Random.Shared;
+
+        // 어두운 배경 + 노이즈 (카메라 시뮬레이션)
+        for (int i = 0; i < pixels.Length; i += 3)
+        {
+            byte v = (byte)(20 + rng.Next(15));
+            pixels[i] = v; pixels[i + 1] = v; pixels[i + 2] = v;
+        }
+
+        // 중앙에 밝은 사각형 (PCB 영역 시뮬레이션)
+        for (int y = 60; y < 180; y++)
+            for (int x = 80; x < 240; x++)
+            {
+                int idx = (y * w + x) * 3;
+                byte v = (byte)(60 + rng.Next(20));
+                pixels[idx] = v; pixels[idx + 1] = v; pixels[idx + 2] = v;
+            }
+
+        // 볼트 위치 시뮬레이션 (밝은 원형 점 4개)
+        int[][] bolts = [[120, 90], [200, 90], [120, 150], [200, 150]];
+        foreach (var b in bolts)
+            for (int dy = -6; dy <= 6; dy++)
+                for (int dx = -6; dx <= 6; dx++)
+                    if (dx * dx + dy * dy <= 36)
+                    {
+                        int px = b[0] + dx, py = b[1] + dy;
+                        if (px >= 0 && px < w && py >= 0 && py < h)
+                        {
+                            int idx = (py * w + px) * 3;
+                            pixels[idx] = (byte)(140 + rng.Next(30));
+                            pixels[idx + 1] = (byte)(140 + rng.Next(30));
+                            pixels[idx + 2] = (byte)(140 + rng.Next(30));
+                        }
+                    }
+
+        bmp.WritePixels(new System.Windows.Int32Rect(0, 0, w, h), pixels, w * 3, 0);
+        bmp.Freeze(); // 크로스스레드 안전
+        return bmp;
     }
 
     // ── 스테이지 실행 래퍼 ─────────────────────────────────────────────────
