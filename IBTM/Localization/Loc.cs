@@ -149,19 +149,70 @@ public partial class Loc : ObservableObject
 
         // ── Settings ────────────────────────────────────────────────
         ["Settings_Title"]          = "Settings",
-        ["Settings_Subtitle"]       = "Machine setup — Zone offset calibration",
+        ["Settings_Subtitle"]       = "Machine setup & configuration",
+        ["Settings_Save"]           = "Save Config",
+        ["Settings_Loaded"]         = "Config loaded",
+        ["Settings_Saved"]          = "Config saved",
+
+        // Settings 탭 이름
+        ["Settings_Tab_Calibration"]= "Calibration",
+        ["Settings_Tab_Motion"]     = "Motion",
+        ["Settings_Tab_Bolt"]       = "Bolt",
+        ["Settings_Tab_Vision"]     = "Vision",
+        ["Settings_Tab_IO"]         = "IO / Conveyor",
+        ["Settings_Tab_System"]     = "System",
+
+        // 캘리브레이션 탭
         ["Settings_ZoneOffset"]     = "Zone Offset Calibration",
         ["Settings_ZoneSelect"]     = "Zone",
         ["Settings_CurrentPos"]     = "Current Position",
         ["Settings_Laser"]          = "Laser",
         ["Settings_RecordRef"]      = "Record Ref",
         ["Settings_ComputeOffset"]  = "Compute Offsets",
-        ["Settings_Save"]           = "Save Config",
-        ["Settings_Loaded"]         = "Config loaded",
-        ["Settings_Saved"]          = "Config saved",
         ["Settings_RefRecorded"]    = "Zone {0} ref recorded",
         ["Settings_NeedAllRefs"]    = "Record all 3 zone references first",
         ["Settings_OffsetsComputed"]= "Offsets computed",
+
+        // 모션 탭
+        ["Settings_MotionZone"]     = "Zone Motion Parameters",
+        ["Settings_SpeedAccel"]     = "Speed / Acceleration",
+        ["Settings_SpeedXY"]        = "XY Speed (mm/s)",
+        ["Settings_SpeedZ"]         = "Z Speed (mm/s)",
+        ["Settings_Accel"]          = "Accel (mm/s²)",
+        ["Settings_Decel"]          = "Decel (mm/s²)",
+        ["Settings_SoftLimit"]      = "Soft Limits",
+        ["Settings_HomeOffset"]     = "Home Offset",
+
+        // 볼트 탭
+        ["Settings_BoltParams"]     = "Bolt Tightening Parameters",
+        ["Settings_DefaultTorque"]  = "Default Torque (Nm)",
+        ["Settings_TorqueTolerance"]= "Tolerance (Nm)",
+        ["Settings_DriverRpm"]      = "Driver RPM",
+        ["Settings_RetryCount"]     = "Retry Count",
+
+        // 비전 탭
+        ["Settings_CameraParams"]   = "Camera Parameters",
+        ["Settings_Exposure"]       = "Exposure (μs)",
+        ["Settings_Gain"]           = "Gain (dB)",
+        ["Settings_PixelsPerMm"]    = "Pixels/mm",
+        ["Settings_MatchThreshold"] = "Match Threshold",
+
+        // IO 탭
+        ["Settings_IOParams"]       = "IO / Conveyor Parameters",
+        ["Settings_SmemaTimeout"]   = "SMEMA Timeout (s)",
+        ["Settings_NgStackMax"]     = "NG Stack Max",
+        ["Settings_LiftDelay"]      = "Lift Delay (ms)",
+        ["Settings_AlignDelay"]     = "Align Delay (ms)",
+
+        // 시스템 탭
+        ["Settings_Language"]       = "Language",
+        ["Settings_ToggleLang"]     = "Toggle EN ↔ KO",
+        ["Settings_LangChanged"]    = "Language changed",
+        ["Settings_LogSettings"]    = "Log Settings",
+        ["Settings_LogLevel"]       = "Log Level",
+        ["Settings_LogRetention"]   = "Retention (days)",
+        ["Settings_SimMode"]        = "Simulation Mode",
+        ["Settings_SimModeDesc"]    = "Use virtual devices instead of real hardware",
     };
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -274,18 +325,69 @@ public partial class Loc : ObservableObject
 
         // ── Settings ────────────────────────────────────────────────
         ["Settings_Title"]          = "설정",
-        ["Settings_Subtitle"]       = "장비 셋업 — 구간 오프셋 캘리브레이션",
+        ["Settings_Subtitle"]       = "장비 셋업 및 환경설정",
+        ["Settings_Save"]           = "설정 저장",
+        ["Settings_Loaded"]         = "설정 로드 완료",
+        ["Settings_Saved"]          = "설정 저장 완료",
+
+        // Settings 탭 이름
+        ["Settings_Tab_Calibration"]= "캘리브레이션",
+        ["Settings_Tab_Motion"]     = "모션",
+        ["Settings_Tab_Bolt"]       = "볼트",
+        ["Settings_Tab_Vision"]     = "비전",
+        ["Settings_Tab_IO"]         = "IO / 컨베이어",
+        ["Settings_Tab_System"]     = "시스템",
+
+        // 캘리브레이션 탭
         ["Settings_ZoneOffset"]     = "구간 오프셋 캘리브레이션",
         ["Settings_ZoneSelect"]     = "구간",
         ["Settings_CurrentPos"]     = "현재 좌표",
         ["Settings_Laser"]          = "레이저",
         ["Settings_RecordRef"]      = "기준점 기록",
         ["Settings_ComputeOffset"]  = "오프셋 계산",
-        ["Settings_Save"]           = "설정 저장",
-        ["Settings_Loaded"]         = "설정 로드 완료",
-        ["Settings_Saved"]          = "설정 저장 완료",
         ["Settings_RefRecorded"]    = "구간 {0} 기준점 기록 완료",
         ["Settings_NeedAllRefs"]    = "3개 구간 기준점 모두 기록 필요",
         ["Settings_OffsetsComputed"]= "오프셋 계산 완료",
+
+        // 모션 탭
+        ["Settings_MotionZone"]     = "구간 모션 파라미터",
+        ["Settings_SpeedAccel"]     = "속도 / 가감속",
+        ["Settings_SpeedXY"]        = "XY 속도 (mm/s)",
+        ["Settings_SpeedZ"]         = "Z 속도 (mm/s)",
+        ["Settings_Accel"]          = "가속도 (mm/s²)",
+        ["Settings_Decel"]          = "감속도 (mm/s²)",
+        ["Settings_SoftLimit"]      = "소프트 리밋",
+        ["Settings_HomeOffset"]     = "홈 오프셋",
+
+        // 볼트 탭
+        ["Settings_BoltParams"]     = "볼트 체결 파라미터",
+        ["Settings_DefaultTorque"]  = "기본 토크 (Nm)",
+        ["Settings_TorqueTolerance"]= "허용오차 (Nm)",
+        ["Settings_DriverRpm"]      = "드라이버 RPM",
+        ["Settings_RetryCount"]     = "재시도 횟수",
+
+        // 비전 탭
+        ["Settings_CameraParams"]   = "카메라 파라미터",
+        ["Settings_Exposure"]       = "노출 (μs)",
+        ["Settings_Gain"]           = "게인 (dB)",
+        ["Settings_PixelsPerMm"]    = "픽셀/mm",
+        ["Settings_MatchThreshold"] = "매칭 임계값",
+
+        // IO 탭
+        ["Settings_IOParams"]       = "IO / 컨베이어 파라미터",
+        ["Settings_SmemaTimeout"]   = "SMEMA 타임아웃 (초)",
+        ["Settings_NgStackMax"]     = "NG 스택 최대",
+        ["Settings_LiftDelay"]      = "리프트 지연 (ms)",
+        ["Settings_AlignDelay"]     = "정렬 지연 (ms)",
+
+        // 시스템 탭
+        ["Settings_Language"]       = "언어",
+        ["Settings_ToggleLang"]     = "EN ↔ KO 전환",
+        ["Settings_LangChanged"]    = "언어 변경 완료",
+        ["Settings_LogSettings"]    = "로그 설정",
+        ["Settings_LogLevel"]       = "로그 레벨",
+        ["Settings_LogRetention"]   = "보관 기간 (일)",
+        ["Settings_SimMode"]        = "시뮬레이션 모드",
+        ["Settings_SimModeDesc"]    = "실제 장비 대신 가상 디바이스 사용",
     };
 }

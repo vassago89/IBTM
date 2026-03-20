@@ -20,6 +20,27 @@ public partial class SettingsView : UserControl
     private void OnUnloaded(object sender, RoutedEventArgs e) =>
         VM?.StopPolling();
 
+    // ── 탭 전환 ───────────────────────────────────────────────────
+    private void Tab0_Checked(object sender, RoutedEventArgs e) => SwitchTab(0);
+    private void Tab1_Checked(object sender, RoutedEventArgs e) => SwitchTab(1);
+    private void Tab2_Checked(object sender, RoutedEventArgs e) => SwitchTab(2);
+    private void Tab3_Checked(object sender, RoutedEventArgs e) => SwitchTab(3);
+    private void Tab4_Checked(object sender, RoutedEventArgs e) => SwitchTab(4);
+    private void Tab5_Checked(object sender, RoutedEventArgs e) => SwitchTab(5);
+
+    private void SwitchTab(int index)
+    {
+        if (VM != null) VM.SelectedTab = index;
+
+        // 모든 탭 Collapsed 후 선택된 탭만 Visible
+        if (TabCalibration != null) TabCalibration.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (TabMotion != null) TabMotion.Visibility = index == 1 ? Visibility.Visible : Visibility.Collapsed;
+        if (TabBolt != null) TabBolt.Visibility = index == 2 ? Visibility.Visible : Visibility.Collapsed;
+        if (TabVision != null) TabVision.Visibility = index == 3 ? Visibility.Visible : Visibility.Collapsed;
+        if (TabIO != null) TabIO.Visibility = index == 4 ? Visibility.Visible : Visibility.Collapsed;
+        if (TabSystem != null) TabSystem.Visibility = index == 5 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     // ── Zone 선택 ───────────────────────────────────────────────────
     private void Zone1_Checked(object sender, RoutedEventArgs e) { if (VM != null) VM.SelectedZone = 1; }
     private void Zone2_Checked(object sender, RoutedEventArgs e) { if (VM != null) VM.SelectedZone = 2; }

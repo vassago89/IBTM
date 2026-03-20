@@ -8,6 +8,34 @@
 
     <UserControl.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVis"/>
+        <!-- 탭 선택 스타일 헬퍼 -->
+        <Style x:Key="SettingFieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+        <Style x:Key="SettingFieldBox" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="MinWidth" Value="80"/>
+        </Style>
+        <Style x:Key="SettingSectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+        <Style x:Key="SettingCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource PanelBgBrush}"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="16,12"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
     </UserControl.Resources>
 
     <Grid Margin="24,16">
@@ -18,236 +46,565 @@
         </Grid.RowDefinitions>
 
         <!-- 헤더 -->
-        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+        <StackPanel Grid.Row="0" Margin="0,0,0,12">
             <TextBlock Text="{Binding [Settings_Title], Source={x:Static loc:Loc.Instance}}"
                        FontSize="20" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
             <TextBlock Text="{Binding [Settings_Subtitle], Source={x:Static loc:Loc.Instance}}"
                        FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
         </StackPanel>
 
-        <!-- 메인 컨텐츠 -->
+        <!-- 메인: 좌측 탭 목록 + 우측 컨텐츠 -->
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="160"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="280"/>
             </Grid.ColumnDefinitions>
 
-            <!-- 좌측: Zone 기준점 캘리브레이션 -->
+            <!-- 좌측: 탭 네비게이션 -->
             <Border Grid.Column="0" Background="{StaticResource PanelBgBrush}"
-                    CornerRadius="6" Margin="0,0,12,0" Padding="20,16">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+                    CornerRadius="6" Margin="0,0,8,0" Padding="4">
+                <StackPanel>
+                    <RadioButton Content="{Binding [Settings_Tab_Calibration], Source={x:Static loc:Loc.Instance}}"
+                                 GroupName="SettingsTab" IsChecked="True"
+                                 Style="{StaticResource NavButtonStyle}" Checked="Tab0_Checked"/>
+                    <RadioButton Content="{Binding [Settings_Tab_Motion], Source={x:Static loc:Loc.Instance}}"
+                                 GroupName="SettingsTab"
+                                 Style="{StaticResource NavButtonStyle}" Checked="Tab1_Checked"/>
+                    <RadioButton Content="{Binding [Settings_Tab_Bolt], Source={x:Static loc:Loc.Instance}}"
+                                 GroupName="SettingsTab"
+                                 Style="{StaticResource NavButtonStyle}" Checked="Tab2_Checked"/>
+                    <RadioButton Content="{Binding [Settings_Tab_Vision], Source={x:Static loc:Loc.Instance}}"
+                                 GroupName="SettingsTab"
+                                 Style="{StaticResource NavButtonStyle}" Checked="Tab3_Checked"/>
+                    <RadioButton Content="{Binding [Settings_Tab_IO], Source={x:Static loc:Loc.Instance}}"
+                                 GroupName="SettingsTab"
+                                 Style="{StaticResource NavButtonStyle}" Checked="Tab4_Checked"/>
+                    <RadioButton Content="{Binding [Settings_Tab_System], Source={x:Static loc:Loc.Instance}}"
+                                 GroupName="SettingsTab"
+                                 Style="{StaticResource NavButtonStyle}" Checked="Tab5_Checked"/>
+                </StackPanel>
+            </Border>
 
-                    <TextBlock Grid.Row="0" Text="{Binding [Settings_ZoneOffset], Source={x:Static loc:Loc.Instance}}"
-                               FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
-                               Margin="0,0,0,16"/>
+            <!-- 우측: 탭 컨텐츠 (Grid 오버레이로 Visibility 전환) -->
+            <Grid Grid.Column="1">
 
-                    <!-- 3개 Zone 기준점 카드 -->
-                    <UniformGrid Grid.Row="1" Columns="3" Margin="0,0,0,16">
-                        <!-- Zone 1 -->
-                        <Border Background="{StaticResource EquipBgBrush}" CornerRadius="4"
-                                BorderBrush="#1E3050" BorderThickness="1" Margin="0,0,8,0" Padding="12,10">
+                <!-- ═══ 탭 0: 캘리브레이션 ═══ -->
+                <Grid x:Name="TabCalibration">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="260"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Zone 기준점 카드 영역 -->
+                    <Border Grid.Column="0" Style="{StaticResource SettingCard}" Margin="0,0,8,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="{Binding [Settings_ZoneOffset], Source={x:Static loc:Loc.Instance}}"
+                                       Style="{StaticResource SettingSectionTitle}"/>
+
+                            <UniformGrid Grid.Row="1" Columns="3" Margin="0,0,0,16">
+                                <!-- Zone 1 -->
+                                <Border Background="{StaticResource EquipBgBrush}" CornerRadius="4"
+                                        BorderBrush="#1E3050" BorderThickness="1" Margin="0,0,8,0" Padding="12,10">
+                                    <StackPanel>
+                                        <TextBlock Text="ZONE 1" FontSize="12" FontWeight="Bold"
+                                                   Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,8"/>
+                                        <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                            <Run Text="X: "/><Run Text="{Binding Config.Zone1Ref.X, StringFormat=F3}"/>
+                                        </TextBlock>
+                                        <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                            <Run Text="Y: "/><Run Text="{Binding Config.Zone1Ref.Y, StringFormat=F3}"/>
+                                        </TextBlock>
+                                        <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                            <Run Text="Z: "/><Run Text="{Binding Config.Zone1Ref.Z, StringFormat=F3}"/>
+                                        </TextBlock>
+                                        <Ellipse Width="8" Height="8" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                                 Fill="{StaticResource AccentGreenBrush}"
+                                                 Visibility="{Binding Zone1RefRecorded, Converter={StaticResource BoolToVis}}"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Zone 2 -->
+                                <Border Background="{StaticResource EquipBgBrush}" CornerRadius="4"
+                                        BorderBrush="#302818" BorderThickness="1" Margin="4,0" Padding="12,10">
+                                    <StackPanel>
+                                        <TextBlock Text="ZONE 2" FontSize="12" FontWeight="Bold"
+                                                   Foreground="{StaticResource AccentOrangeBrush}" Margin="0,0,0,8"/>
+                                        <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                            <Run Text="X: "/><Run Text="{Binding Config.Zone2Ref.X, StringFormat=F3}"/>
+                                        </TextBlock>
+                                        <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                            <Run Text="Y: "/><Run Text="{Binding Config.Zone2Ref.Y, StringFormat=F3}"/>
+                                        </TextBlock>
+                                        <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                            <Run Text="Z: "/><Run Text="{Binding Config.Zone2Ref.Z, StringFormat=F3}"/>
+                                        </TextBlock>
+                                        <Ellipse Width="8" Height="8" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                                 Fill="{StaticResource AccentGreenBrush}"
+                                                 Visibility="{Binding Zone2RefRecorded, Converter={StaticResource BoolToVis}}"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Zone 3 -->
+                                <Border Background="{StaticResource EquipBgBrush}" CornerRadius="4"
+                                        BorderBrush="#183020" BorderThickness="1" Margin="8,0,0,0" Padding="12,10">
+                                    <StackPanel>
+                                        <TextBlock Text="ZONE 3" FontSize="12" FontWeight="Bold"
+                                                   Foreground="{StaticResource AccentGreenBrush}" Margin="0,0,0,8"/>
+                                        <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                            <Run Text="X: "/><Run Text="{Binding Config.Zone3Ref.X, StringFormat=F3}"/>
+                                        </TextBlock>
+                                        <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                            <Run Text="Y: "/><Run Text="{Binding Config.Zone3Ref.Y, StringFormat=F3}"/>
+                                        </TextBlock>
+                                        <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
+                                            <Run Text="Z: "/><Run Text="{Binding Config.Zone3Ref.Z, StringFormat=F3}"/>
+                                        </TextBlock>
+                                        <Ellipse Width="8" Height="8" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                                 Fill="{StaticResource AccentGreenBrush}"
+                                                 Visibility="{Binding Zone3RefRecorded, Converter={StaticResource BoolToVis}}"/>
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+
+                            <!-- 오프셋 결과 + 버튼 -->
+                            <StackPanel Grid.Row="2">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button Content="{Binding [Settings_RecordRef], Source={x:Static loc:Loc.Instance}}"
+                                            Command="{Binding RecordRefCommand}"
+                                            Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,8,0"/>
+                                    <Button Content="{Binding [Settings_ComputeOffset], Source={x:Static loc:Loc.Instance}}"
+                                            Command="{Binding ComputeOffsetsCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}" MinWidth="120"/>
+                                </StackPanel>
+                                <Border Background="{StaticResource EquipBgBrush}" CornerRadius="4" Padding="12,8">
+                                    <TextBlock Text="{Binding OffsetResultText}" FontFamily="Consolas" FontSize="12"
+                                               Foreground="{StaticResource AccentCyanBrush}"/>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- 캘리브레이션 우측: 조그+좌표+레이저 -->
+                    <StackPanel Grid.Column="1">
+                        <!-- Zone 선택 -->
+                        <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
-                                <TextBlock Text="ZONE 1" FontSize="12" FontWeight="Bold"
-                                           Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,8"/>
-                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="X: "/><Run Text="{Binding Config.Zone1Ref.X, StringFormat=F3}"/>
-                                </TextBlock>
-                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="Y: "/><Run Text="{Binding Config.Zone1Ref.Y, StringFormat=F3}"/>
-                                </TextBlock>
-                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="Z: "/><Run Text="{Binding Config.Zone1Ref.Z, StringFormat=F3}"/>
-                                </TextBlock>
-                                <Ellipse Width="8" Height="8" Margin="0,8,0,0" HorizontalAlignment="Left"
-                                         Fill="{StaticResource AccentGreenBrush}"
-                                         Visibility="{Binding Zone1RefRecorded, Converter={StaticResource BoolToVis}}"/>
+                                <TextBlock Text="{Binding [Settings_ZoneSelect], Source={x:Static loc:Loc.Instance}}"
+                                           Style="{StaticResource SettingFieldLabel}"/>
+                                <UniformGrid Columns="3">
+                                    <RadioButton Content="Zone 1" GroupName="SettingsZone" IsChecked="True"
+                                                 Style="{StaticResource NavButtonStyle}" Checked="Zone1_Checked"/>
+                                    <RadioButton Content="Zone 2" GroupName="SettingsZone"
+                                                 Style="{StaticResource NavButtonStyle}" Checked="Zone2_Checked"/>
+                                    <RadioButton Content="Zone 3" GroupName="SettingsZone"
+                                                 Style="{StaticResource NavButtonStyle}" Checked="Zone3_Checked"/>
+                                </UniformGrid>
                             </StackPanel>
                         </Border>
 
-                        <!-- Zone 2 -->
-                        <Border Background="{StaticResource EquipBgBrush}" CornerRadius="4"
-                                BorderBrush="#302818" BorderThickness="1" Margin="4,0" Padding="12,10">
+                        <!-- 현재 좌표 -->
+                        <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
-                                <TextBlock Text="ZONE 2" FontSize="12" FontWeight="Bold"
-                                           Foreground="{StaticResource AccentOrangeBrush}" Margin="0,0,0,8"/>
-                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="X: "/><Run Text="{Binding Config.Zone2Ref.X, StringFormat=F3}"/>
+                                <TextBlock Text="{Binding [Settings_CurrentPos], Source={x:Static loc:Loc.Instance}}"
+                                           Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBlock FontFamily="Consolas" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}">
+                                    <Run Text="X: "/><Run Text="{Binding CurrentX, StringFormat=F3}"/>
                                 </TextBlock>
-                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="Y: "/><Run Text="{Binding Config.Zone2Ref.Y, StringFormat=F3}"/>
+                                <TextBlock FontFamily="Consolas" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}">
+                                    <Run Text="Y: "/><Run Text="{Binding CurrentY, StringFormat=F3}"/>
                                 </TextBlock>
-                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="Z: "/><Run Text="{Binding Config.Zone2Ref.Z, StringFormat=F3}"/>
+                                <TextBlock FontFamily="Consolas" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}">
+                                    <Run Text="Z: "/><Run Text="{Binding CurrentZ, StringFormat=F3}"/>
                                 </TextBlock>
-                                <Ellipse Width="8" Height="8" Margin="0,8,0,0" HorizontalAlignment="Left"
-                                         Fill="{StaticResource AccentGreenBrush}"
-                                         Visibility="{Binding Zone2RefRecorded, Converter={StaticResource BoolToVis}}"/>
                             </StackPanel>
                         </Border>
 
-                        <!-- Zone 3 -->
-                        <Border Background="{StaticResource EquipBgBrush}" CornerRadius="4"
-                                BorderBrush="#183020" BorderThickness="1" Margin="8,0,0,0" Padding="12,10">
+                        <!-- 조그 패드 -->
+                        <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
-                                <TextBlock Text="ZONE 3" FontSize="12" FontWeight="Bold"
-                                           Foreground="{StaticResource AccentGreenBrush}" Margin="0,0,0,8"/>
-                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="X: "/><Run Text="{Binding Config.Zone3Ref.X, StringFormat=F3}"/>
-                                </TextBlock>
-                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="Y: "/><Run Text="{Binding Config.Zone3Ref.Y, StringFormat=F3}"/>
-                                </TextBlock>
-                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="Z: "/><Run Text="{Binding Config.Zone3Ref.Z, StringFormat=F3}"/>
-                                </TextBlock>
-                                <Ellipse Width="8" Height="8" Margin="0,8,0,0" HorizontalAlignment="Left"
-                                         Fill="{StaticResource AccentGreenBrush}"
-                                         Visibility="{Binding Zone3RefRecorded, Converter={StaticResource BoolToVis}}"/>
+                                <TextBlock Text="JOG" Style="{StaticResource SettingFieldLabel}"/>
+                                <Grid HorizontalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="44"/>
+                                        <ColumnDefinition Width="44"/>
+                                        <ColumnDefinition Width="44"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="44"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="36"/>
+                                        <RowDefinition Height="36"/>
+                                        <RowDefinition Height="36"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Button Grid.Row="0" Grid.Column="1" Content="Y+" Style="{StaticResource SecondaryButtonStyle}"
+                                            PreviewMouseLeftButtonDown="JogYPlus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
+                                    <Button Grid.Row="1" Grid.Column="0" Content="X-" Style="{StaticResource SecondaryButtonStyle}"
+                                            PreviewMouseLeftButtonDown="JogXMinus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
+                                    <Button Grid.Row="1" Grid.Column="1" Content="■" Style="{StaticResource DangerButtonStyle}"
+                                            Command="{Binding JogStopCommand}" FontSize="14"/>
+                                    <Button Grid.Row="1" Grid.Column="2" Content="X+" Style="{StaticResource SecondaryButtonStyle}"
+                                            PreviewMouseLeftButtonDown="JogXPlus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
+                                    <Button Grid.Row="2" Grid.Column="1" Content="Y-" Style="{StaticResource SecondaryButtonStyle}"
+                                            PreviewMouseLeftButtonDown="JogYMinus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
+
+                                    <Button Grid.Row="0" Grid.Column="4" Content="Z+" Style="{StaticResource SecondaryButtonStyle}"
+                                            PreviewMouseLeftButtonDown="JogZPlus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
+                                    <Button Grid.Row="2" Grid.Column="4" Content="Z-" Style="{StaticResource SecondaryButtonStyle}"
+                                            PreviewMouseLeftButtonDown="JogZMinus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
+                                </Grid>
+
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
+                                    <RadioButton Content="1" GroupName="SettingsJogSpeed" Style="{StaticResource NavButtonStyle}"
+                                                 Checked="SpeedSlow_Checked" MinWidth="36"/>
+                                    <RadioButton Content="10" GroupName="SettingsJogSpeed" Style="{StaticResource NavButtonStyle}"
+                                                 IsChecked="True" Checked="SpeedMed_Checked" MinWidth="36"/>
+                                    <RadioButton Content="50" GroupName="SettingsJogSpeed" Style="{StaticResource NavButtonStyle}"
+                                                 Checked="SpeedFast_Checked" MinWidth="36"/>
+                                    <TextBlock Text="mm/s" FontSize="9" Foreground="{StaticResource TextMutedBrush}"
+                                               VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
-                    </UniformGrid>
 
-                    <!-- 오프셋 결과 + 버튼 -->
-                    <StackPanel Grid.Row="2">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                            <Button Content="{Binding [Settings_RecordRef], Source={x:Static loc:Loc.Instance}}"
-                                    Command="{Binding RecordRefCommand}"
-                                    Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,8,0"/>
-                            <Button Content="{Binding [Settings_ComputeOffset], Source={x:Static loc:Loc.Instance}}"
-                                    Command="{Binding ComputeOffsetsCommand}"
-                                    Style="{StaticResource SecondaryButtonStyle}" MinWidth="120"/>
-                        </StackPanel>
-                        <Border Background="{StaticResource EquipBgBrush}" CornerRadius="4" Padding="12,8">
-                            <TextBlock Text="{Binding OffsetResultText}" FontFamily="Consolas" FontSize="12"
-                                       Foreground="{StaticResource AccentCyanBrush}"/>
+                        <!-- 레이저 -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="10" Height="10" VerticalAlignment="Center" Margin="0,0,8,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Fill" Value="#401818"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding LaserOn}" Value="True">
+                                                    <Setter Property="Fill" Value="{StaticResource AccentRedBrush}"/>
+                                                    <Setter Property="Effect">
+                                                        <Setter.Value>
+                                                            <DropShadowEffect Color="#F85149" BlurRadius="8" ShadowDepth="0"/>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <Button Content="{Binding [Settings_Laser], Source={x:Static loc:Loc.Instance}}"
+                                        Command="{Binding ToggleLaserCommand}"
+                                        Style="{StaticResource SecondaryButtonStyle}" MinWidth="80"/>
+                            </StackPanel>
                         </Border>
                     </StackPanel>
                 </Grid>
-            </Border>
 
-            <!-- 우측: 조그 + 좌표 + 레이저 -->
-            <StackPanel Grid.Column="1">
-                <!-- Zone 선택 -->
-                <Border Background="{StaticResource PanelBgBrush}" CornerRadius="6" Padding="16,12" Margin="0,0,0,8">
-                    <StackPanel>
-                        <TextBlock Text="{Binding [Settings_ZoneSelect], Source={x:Static loc:Loc.Instance}}"
-                                   FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"/>
-                        <UniformGrid Columns="3">
-                            <RadioButton Content="Zone 1" GroupName="SettingsZone" IsChecked="True"
-                                         Style="{StaticResource NavButtonStyle}"
-                                         Checked="Zone1_Checked"/>
-                            <RadioButton Content="Zone 2" GroupName="SettingsZone"
-                                         Style="{StaticResource NavButtonStyle}"
-                                         Checked="Zone2_Checked"/>
-                            <RadioButton Content="Zone 3" GroupName="SettingsZone"
-                                         Style="{StaticResource NavButtonStyle}"
-                                         Checked="Zone3_Checked"/>
-                        </UniformGrid>
+                <!-- ═══ 탭 1: 모션 설정 ═══ -->
+                <ScrollViewer x:Name="TabMotion" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,0,4,0">
+                        <!-- Zone 선택 -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [Settings_MotionZone], Source={x:Static loc:Loc.Instance}}"
+                                           Style="{StaticResource SettingSectionTitle}"/>
+                                <UniformGrid Columns="3" Margin="0,0,0,4">
+                                    <RadioButton Content="Zone 1" GroupName="MotionZone" IsChecked="True"
+                                                 Style="{StaticResource NavButtonStyle}" Checked="Zone1_Checked"/>
+                                    <RadioButton Content="Zone 2" GroupName="MotionZone"
+                                                 Style="{StaticResource NavButtonStyle}" Checked="Zone2_Checked"/>
+                                    <RadioButton Content="Zone 3" GroupName="MotionZone"
+                                                 Style="{StaticResource NavButtonStyle}" Checked="Zone3_Checked"/>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 속도/가감속 -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [Settings_SpeedAccel], Source={x:Static loc:Loc.Instance}}"
+                                           Style="{StaticResource SettingSectionTitle}"/>
+                                <UniformGrid Columns="2" Margin="0,0,0,0">
+                                    <StackPanel Margin="0,0,8,8">
+                                        <TextBlock Text="{Binding [Settings_SpeedXY], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding CurrentMotionParams.SpeedXY, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="8,0,0,8">
+                                        <TextBlock Text="{Binding [Settings_SpeedZ], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding CurrentMotionParams.SpeedZ, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,8,8">
+                                        <TextBlock Text="{Binding [Settings_Accel], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding CurrentMotionParams.Acceleration, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="8,0,0,8">
+                                        <TextBlock Text="{Binding [Settings_Decel], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding CurrentMotionParams.Deceleration, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 소프트 리밋 -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [Settings_SoftLimit], Source={x:Static loc:Loc.Instance}}"
+                                           Style="{StaticResource SettingSectionTitle}"/>
+                                <UniformGrid Columns="3" Margin="0,0,0,0">
+                                    <StackPanel Margin="0,0,8,8">
+                                        <TextBlock Text="X+ (mm)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding CurrentMotionParams.SoftLimitXPlus, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="4,0,4,8">
+                                        <TextBlock Text="Y+ (mm)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding CurrentMotionParams.SoftLimitYPlus, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="8,0,0,8">
+                                        <TextBlock Text="Z+ (mm)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding CurrentMotionParams.SoftLimitZPlus, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,8,0">
+                                        <TextBlock Text="X- (mm)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding CurrentMotionParams.SoftLimitXMinus, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="4,0,4,0">
+                                        <TextBlock Text="Y- (mm)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding CurrentMotionParams.SoftLimitYMinus, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="8,0,0,0">
+                                        <TextBlock Text="Z- (mm)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding CurrentMotionParams.SoftLimitZMinus, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 홈 오프셋 -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [Settings_HomeOffset], Source={x:Static loc:Loc.Instance}}"
+                                           Style="{StaticResource SettingSectionTitle}"/>
+                                <UniformGrid Columns="3">
+                                    <StackPanel Margin="0,0,8,0">
+                                        <TextBlock Text="X (mm)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding CurrentMotionParams.HomeOffsetX, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="4,0,4,0">
+                                        <TextBlock Text="Y (mm)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding CurrentMotionParams.HomeOffsetY, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="8,0,0,0">
+                                        <TextBlock Text="Z (mm)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding CurrentMotionParams.HomeOffsetZ, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                </Border>
+                </ScrollViewer>
 
-                <!-- 현재 좌표 -->
-                <Border Background="{StaticResource PanelBgBrush}" CornerRadius="6" Padding="16,12" Margin="0,0,0,8">
-                    <StackPanel>
-                        <TextBlock Text="{Binding [Settings_CurrentPos], Source={x:Static loc:Loc.Instance}}"
-                                   FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"/>
-                        <TextBlock FontFamily="Consolas" FontSize="16" Foreground="{StaticResource TextPrimaryBrush}">
-                            <Run Text="X: "/><Run Text="{Binding CurrentX, StringFormat=F3}"/>
-                        </TextBlock>
-                        <TextBlock FontFamily="Consolas" FontSize="16" Foreground="{StaticResource TextPrimaryBrush}">
-                            <Run Text="Y: "/><Run Text="{Binding CurrentY, StringFormat=F3}"/>
-                        </TextBlock>
-                        <TextBlock FontFamily="Consolas" FontSize="16" Foreground="{StaticResource TextPrimaryBrush}">
-                            <Run Text="Z: "/><Run Text="{Binding CurrentZ, StringFormat=F3}"/>
-                        </TextBlock>
+                <!-- ═══ 탭 2: 볼트 체결 설정 ═══ -->
+                <ScrollViewer x:Name="TabBolt" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,0,4,0">
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [Settings_BoltParams], Source={x:Static loc:Loc.Instance}}"
+                                           Style="{StaticResource SettingSectionTitle}"/>
+                                <UniformGrid Columns="2">
+                                    <StackPanel Margin="0,0,8,8">
+                                        <TextBlock Text="{Binding [Settings_DefaultTorque], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding Config.DefaultTorqueNm, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="8,0,0,8">
+                                        <TextBlock Text="{Binding [Settings_TorqueTolerance], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding Config.DefaultTorqueToleranceNm, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,8,0">
+                                        <TextBlock Text="{Binding [Settings_DriverRpm], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding Config.DriverRpm, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="8,0,0,0">
+                                        <TextBlock Text="{Binding [Settings_RetryCount], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding Config.BoltRetryCount, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                </Border>
+                </ScrollViewer>
 
-                <!-- 조그 패드 -->
-                <Border Background="{StaticResource PanelBgBrush}" CornerRadius="6" Padding="16,12" Margin="0,0,0,8">
-                    <StackPanel>
-                        <TextBlock Text="JOG" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"/>
-                        <Grid HorizontalAlignment="Center">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="48"/>
-                                <ColumnDefinition Width="48"/>
-                                <ColumnDefinition Width="48"/>
-                                <ColumnDefinition Width="16"/>
-                                <ColumnDefinition Width="48"/>
-                                <ColumnDefinition Width="48"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="40"/>
-                                <RowDefinition Height="40"/>
-                                <RowDefinition Height="40"/>
-                            </Grid.RowDefinitions>
-
-                            <Button Grid.Row="0" Grid.Column="1" Content="Y+" Style="{StaticResource SecondaryButtonStyle}"
-                                    PreviewMouseLeftButtonDown="JogYPlus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
-                            <Button Grid.Row="1" Grid.Column="0" Content="X-" Style="{StaticResource SecondaryButtonStyle}"
-                                    PreviewMouseLeftButtonDown="JogXMinus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
-                            <Button Grid.Row="1" Grid.Column="1" Content="■" Style="{StaticResource DangerButtonStyle}"
-                                    Command="{Binding JogStopCommand}" FontSize="14"/>
-                            <Button Grid.Row="1" Grid.Column="2" Content="X+" Style="{StaticResource SecondaryButtonStyle}"
-                                    PreviewMouseLeftButtonDown="JogXPlus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
-                            <Button Grid.Row="2" Grid.Column="1" Content="Y-" Style="{StaticResource SecondaryButtonStyle}"
-                                    PreviewMouseLeftButtonDown="JogYMinus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
-
-                            <Button Grid.Row="0" Grid.Column="4" Content="Z+" Style="{StaticResource SecondaryButtonStyle}"
-                                    PreviewMouseLeftButtonDown="JogZPlus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
-                            <Button Grid.Row="2" Grid.Column="4" Content="Z-" Style="{StaticResource SecondaryButtonStyle}"
-                                    PreviewMouseLeftButtonDown="JogZMinus_Down" PreviewMouseLeftButtonUp="Jog_Up"/>
-                        </Grid>
-
-                        <!-- 속도 선택 -->
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
-                            <RadioButton Content="1" GroupName="SettingsJogSpeed" Style="{StaticResource NavButtonStyle}"
-                                         Checked="SpeedSlow_Checked" MinWidth="40"/>
-                            <RadioButton Content="10" GroupName="SettingsJogSpeed" Style="{StaticResource NavButtonStyle}"
-                                         IsChecked="True" Checked="SpeedMed_Checked" MinWidth="40"/>
-                            <RadioButton Content="50" GroupName="SettingsJogSpeed" Style="{StaticResource NavButtonStyle}"
-                                         Checked="SpeedFast_Checked" MinWidth="40"/>
-                            <TextBlock Text="mm/s" FontSize="9" Foreground="{StaticResource TextMutedBrush}"
-                                       VerticalAlignment="Center" Margin="6,0,0,0"/>
-                        </StackPanel>
+                <!-- ═══ 탭 3: 비전 설정 ═══ -->
+                <ScrollViewer x:Name="TabVision" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,0,4,0">
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [Settings_CameraParams], Source={x:Static loc:Loc.Instance}}"
+                                           Style="{StaticResource SettingSectionTitle}"/>
+                                <UniformGrid Columns="2">
+                                    <StackPanel Margin="0,0,8,8">
+                                        <TextBlock Text="{Binding [Settings_Exposure], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding Config.CameraExposureUs, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="8,0,0,8">
+                                        <TextBlock Text="{Binding [Settings_Gain], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding Config.CameraGainDb, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,8,0">
+                                        <TextBlock Text="{Binding [Settings_PixelsPerMm], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding Config.PixelsPerMm, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="8,0,0,0">
+                                        <TextBlock Text="{Binding [Settings_MatchThreshold], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding Config.FiducialMatchThreshold, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                </Border>
+                </ScrollViewer>
 
-                <!-- 레이저 -->
-                <Border Background="{StaticResource PanelBgBrush}" CornerRadius="6" Padding="16,12">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="10" Height="10" VerticalAlignment="Center" Margin="0,0,8,0">
-                            <Ellipse.Style>
-                                <Style TargetType="Ellipse">
-                                    <Setter Property="Fill" Value="#401818"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding LaserOn}" Value="True">
-                                            <Setter Property="Fill" Value="{StaticResource AccentRedBrush}"/>
-                                            <Setter Property="Effect">
-                                                <Setter.Value>
-                                                    <DropShadowEffect Color="#F85149" BlurRadius="8" ShadowDepth="0"/>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Ellipse.Style>
-                        </Ellipse>
-                        <Button Content="{Binding [Settings_Laser], Source={x:Static loc:Loc.Instance}}"
-                                Command="{Binding ToggleLaserCommand}"
-                                Style="{StaticResource SecondaryButtonStyle}" MinWidth="80"/>
+                <!-- ═══ 탭 4: IO / 컨베이어 설정 ═══ -->
+                <ScrollViewer x:Name="TabIO" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,0,4,0">
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [Settings_IOParams], Source={x:Static loc:Loc.Instance}}"
+                                           Style="{StaticResource SettingSectionTitle}"/>
+                                <UniformGrid Columns="2">
+                                    <StackPanel Margin="0,0,8,8">
+                                        <TextBlock Text="{Binding [Settings_SmemaTimeout], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding Config.SmemaTimeoutSec, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="8,0,0,8">
+                                        <TextBlock Text="{Binding [Settings_NgStackMax], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding Config.NgStackMaxCount, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,8,0">
+                                        <TextBlock Text="{Binding [Settings_LiftDelay], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding Config.LiftSettleDelayMs, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="8,0,0,0">
+                                        <TextBlock Text="{Binding [Settings_AlignDelay], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding Config.AlignSettleDelayMs, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
-                </Border>
-            </StackPanel>
+                </ScrollViewer>
+
+                <!-- ═══ 탭 5: 시스템 설정 ═══ -->
+                <ScrollViewer x:Name="TabSystem" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="0,0,4,0">
+                        <!-- 언어 -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [Settings_Language], Source={x:Static loc:Loc.Instance}}"
+                                           Style="{StaticResource SettingSectionTitle}"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="{Binding [Settings_ToggleLang], Source={x:Static loc:Loc.Instance}}"
+                                            Command="{Binding ToggleLanguageCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}" MinWidth="120"/>
+                                    <TextBlock VerticalAlignment="Center" Margin="12,0,0,0"
+                                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
+                                        <Run Text="Current: "/><Run Text="{Binding Source={x:Static loc:Loc.Instance}, Path=Language}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 로그 -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [Settings_LogSettings], Source={x:Static loc:Loc.Instance}}"
+                                           Style="{StaticResource SettingSectionTitle}"/>
+                                <UniformGrid Columns="2">
+                                    <StackPanel Margin="0,0,8,0">
+                                        <TextBlock Text="{Binding [Settings_LogLevel], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <ComboBox SelectedIndex="{Binding Config.LogLevel}" MinWidth="120"
+                                                  Background="{StaticResource EquipBgBrush}"
+                                                  Foreground="{StaticResource TextPrimaryBrush}"
+                                                  BorderBrush="{StaticResource CardBorderBrush}">
+                                            <ComboBoxItem Content="Debug"/>
+                                            <ComboBoxItem Content="Info"/>
+                                            <ComboBoxItem Content="Warning"/>
+                                            <ComboBoxItem Content="Error"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Margin="8,0,0,0">
+                                        <TextBlock Text="{Binding [Settings_LogRetention], Source={x:Static loc:Loc.Instance}}"
+                                                   Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox Text="{Binding Config.LogRetentionDays, UpdateSourceTrigger=PropertyChanged}"
+                                                 Style="{StaticResource SettingFieldBox}"/>
+                                    </StackPanel>
+                                </UniformGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 시뮬레이션 모드 -->
+                        <Border Style="{StaticResource SettingCard}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding [Settings_SimMode], Source={x:Static loc:Loc.Instance}}"
+                                           Style="{StaticResource SettingSectionTitle}"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <CheckBox IsChecked="{Binding Config.SimulationMode}" VerticalAlignment="Center"/>
+                                    <TextBlock Text="{Binding [Settings_SimModeDesc], Source={x:Static loc:Loc.Instance}}"
+                                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                               VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+            </Grid>
         </Grid>
 
         <!-- 하단: 저장/상태 -->
-        <Border Grid.Row="2" Margin="0,12,0,0">
+        <Border Grid.Row="2" Margin="0,8,0,0">
             <StackPanel Orientation="Horizontal">
                 <Button Content="{Binding [Settings_Save], Source={x:Static loc:Loc.Instance}}"
                         Command="{Binding SaveConfigCommand}"

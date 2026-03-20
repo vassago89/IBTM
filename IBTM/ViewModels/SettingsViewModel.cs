@@ -10,8 +10,8 @@ using System.Windows.Threading;
 namespace IBTM.ViewModels;
 
 /// <summary>
-/// 장비 설정 ViewModel — Zone 오프셋 캘리브레이션, 카메라 캘리브레이션
-/// 장비 셋업 시 1회 사용, MachineConfig.json으로 저장
+/// 장비 설정 ViewModel — 탭 기반 전체 설정
+/// 캘리브레이션, 모션, 볼트, 비전, IO, 시스템 설정
 /// </summary>
 public partial class SettingsViewModel : ObservableObject
 {
@@ -25,8 +25,14 @@ public partial class SettingsViewModel : ObservableObject
     // ── 장비 설정 ───────────────────────────────────────────────────
     [ObservableProperty] private MachineConfig _config = new();
 
-    // ── Zone 선택 ───────────────────────────────────────────────────
+    // ── 탭 선택 ─────────────────────────────────────────────────────
+    [ObservableProperty] private int _selectedTab;
+
+    // ── Zone 선택 (캘리브레이션/모션 탭 공용) ─────────────────────────
     [ObservableProperty] private int _selectedZone = 1;
+
+    // ── 모션 탭: 선택된 Zone의 파라미터 ──────────────────────────────
+    [ObservableProperty] private ZoneMotionParams _currentMotionParams = new();
 
     // ── 현재 좌표 (폴링) ────────────────────────────────────────────
     [ObservableProperty] private double _currentX;
@@ -51,6 +57,9 @@ public partial class SettingsViewModel : ObservableObject
 
     // ── 상태 메시지 ─────────────────────────────────────────────────
     [ObservableProperty] private string _statusMessage = "";
+
+    // ── 시스템: 언어 선택 ───────────────────────────────────────────
+    [ObservableProperty] private bool _isKorean;
 
     public SettingsViewModel(
         [FromKeyedServices("zone1")] IMotionService zone1,
@@ -94,6 +103,8 @@ public partial class SettingsViewModel : ObservableObject
         Config = await _recipeService.LoadConfigAsync();
         UpdateRefStatus();
         UpdateOffsetText();
+        SyncMotionParams();
+        IsKorean = Config.Language == "ko";
         _posTimer.Start();
         StatusMessage = Loc.S("Settings_Loaded");
     }
@@ -112,6 +123,15 @@ public partial class SettingsViewModel : ObservableObject
         // Zone 변경 시 레이저 끄기
         if (LaserOn) ToggleLaser();
         CurrentMotion.Stop();
+        SyncMotionParams();
+    }
+
+    // ── 모션 탭: Zone 모션 파라미터 동기화 ───────────────────────────
+
+    private void SyncMotionParams()
+    {
+        CurrentMotionParams = Config.GetMotionParams(SelectedZone);
+        OnPropertyChanged(nameof(CurrentMotionParams));
     }
 
     // ── 조그 ────────────────────────────────────────────────────────
@@ -133,7 +153,7 @@ public partial class SettingsViewModel : ObservableObject
         _ioService.Set(LaserIoIndex, LaserOn);
     }
 
-    // ── 기준점 기록 ─────────────────────────────────────────────────
+    // ── 캘리브레이션: 기준점 기록 ───────────────────────────────────
 
     [RelayCommand]
     private void RecordRef()
@@ -163,6 +183,25 @@ public partial class SettingsViewModel : ObservableObject
         Config.ComputeOffsets();
         UpdateOffsetText();
         StatusMessage = Loc.S("Settings_OffsetsComputed");
+    }
+
+    // ── 시스템: 언어 전환 ───────────────────────────────────────────
+
+    [RelayCommand]
+    private void ToggleLanguage()
+    {
+        Loc.Instance.ToggleLanguage();
+        IsKorean = !IsKorean;
+        Config.Language = IsKorean ? "ko" : "en";
+        StatusMessage = Loc.S("Settings_LangChanged");
+    }
+
+    // ── 시스템: 로그 레벨 변경 ──────────────────────────────────────
+
+    partial void OnSelectedTabChanged(int value)
+    {
+        // 탭 변경 시 모션 파라미터 동기화
+        if (value == 1) SyncMotionParams();
     }
 
     // ── 헬퍼 ────────────────────────────────────────────────────────
