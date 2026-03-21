@@ -10,15 +10,15 @@
 
     <StackPanel Margin="8,4">
         <!-- 검사 이미지 썸네일 -->
-        <Border CornerRadius="4" BorderThickness="1" BorderBrush="#303050"
-                Background="#0C0C18" Height="120" Margin="0,0,0,6"
+        <Border CornerRadius="4" BorderThickness="1" BorderBrush="#404040"
+                Background="#252525" Height="120" Margin="0,0,0,6"
                 HorizontalAlignment="Stretch" ClipToBounds="True">
             <Grid>
                 <Image Source="{Binding InspectionImage}" Stretch="Uniform"
                        RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                 <!-- 이미지 없을 때 플레이스홀더 -->
-                <TextBlock Text="INSPECT" FontSize="11" FontFamily="Consolas"
-                           Foreground="#282840" FontWeight="Bold"
+                <TextBlock Text="INSPECT" FontSize="11"
+                           Foreground="#505050" FontWeight="SemiBold"
                            HorizontalAlignment="Center" VerticalAlignment="Center">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
@@ -85,8 +85,8 @@
         </Border>
 
         <!-- NG 적재 -->
-        <TextBlock Text="NG STACK" Margin="0,6,0,4"
-                   Foreground="{StaticResource AccentRedBrush}" FontSize="9" FontWeight="Bold" Opacity="0.8"/>
+        <TextBlock Text="NG STACK" Style="{StaticResource SectionHeaderStyle}"
+                   Foreground="{StaticResource AccentRedBrush}" Margin="0,6,0,4" Opacity="0.8"/>
         <ItemsControl ItemsSource="{Binding NgStackSlots}">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
@@ -94,7 +94,7 @@
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
                     <Rectangle Width="22" Height="22" Margin="0,0,3,0"
-                               Stroke="#401818" StrokeThickness="1" RadiusX="2" RadiusY="2"
+                               Stroke="#4A3030" StrokeThickness="1" RadiusX="3" RadiusY="3"
                                Fill="{Binding IsFilled, Converter={StaticResource NgSlotFill}}"/>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
@@ -102,7 +102,7 @@
         <TextBlock FontFamily="Consolas" FontSize="10" FontWeight="Bold" Margin="0,3,0,0">
             <TextBlock.Style>
                 <Style TargetType="TextBlock">
-                    <Setter Property="Foreground" Value="#383850"/>
+                    <Setter Property="Foreground" Value="#606060"/>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding NgStackAlarm}" Value="True">
                             <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
@@ -118,7 +118,7 @@
             <TextBlock.Style>
                 <Style TargetType="TextBlock">
                     <Setter Property="Text" Value="SMEMA  OUT"/>
-                    <Setter Property="Foreground" Value="#282840"/>
+                    <Setter Property="Foreground" Value="#606060"/>
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding SmemaWaiting}" Value="True">
                             <Setter Property="Text" Value="SMEMA  WAIT"/>
@@ -133,51 +133,5 @@
             </TextBlock.Style>
         </TextBlock>
 
-        <!-- 컨베이어 흐름 애니메이션 -->
-        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-            <StackPanel.Resources>
-                <Storyboard x:Key="FlowAnimation" RepeatBehavior="Forever">
-                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow1" Storyboard.TargetProperty="Opacity"
-                                                  Duration="0:0:1.5" RepeatBehavior="Forever">
-                        <LinearDoubleKeyFrame KeyTime="0:0:0" Value="0.15"/>
-                        <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.7"/>
-                        <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.15"/>
-                    </DoubleAnimationUsingKeyFrames>
-                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow2" Storyboard.TargetProperty="Opacity"
-                                                  Duration="0:0:1.5" RepeatBehavior="Forever">
-                        <LinearDoubleKeyFrame KeyTime="0:0:0" Value="0.15"/>
-                        <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.15"/>
-                        <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.7"/>
-                        <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0.15"/>
-                    </DoubleAnimationUsingKeyFrames>
-                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow3" Storyboard.TargetProperty="Opacity"
-                                                  Duration="0:0:1.5" RepeatBehavior="Forever">
-                        <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.15"/>
-                        <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.15"/>
-                        <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0.7"/>
-                    </DoubleAnimationUsingKeyFrames>
-                </Storyboard>
-            </StackPanel.Resources>
-            <StackPanel.Style>
-                <Style TargetType="StackPanel">
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
-                            <DataTrigger.EnterActions>
-                                <BeginStoryboard x:Name="FlowSb" Storyboard="{StaticResource FlowAnimation}"/>
-                            </DataTrigger.EnterActions>
-                            <DataTrigger.ExitActions>
-                                <StopStoryboard BeginStoryboardName="FlowSb"/>
-                            </DataTrigger.ExitActions>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </StackPanel.Style>
-            <TextBlock x:Name="FlowArrow1" Text="►" FontSize="8" FontFamily="Consolas"
-                       Foreground="#506080" Opacity="0.15" Margin="0,0,4,0"/>
-            <TextBlock x:Name="FlowArrow2" Text="►" FontSize="8" FontFamily="Consolas"
-                       Foreground="#506080" Opacity="0.15" Margin="0,0,4,0"/>
-            <TextBlock x:Name="FlowArrow3" Text="►" FontSize="8" FontFamily="Consolas"
-                       Foreground="#506080" Opacity="0.15"/>
-        </StackPanel>
     </StackPanel>
 </UserControl>

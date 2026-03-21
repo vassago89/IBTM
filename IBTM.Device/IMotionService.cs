@@ -8,6 +8,9 @@ namespace IBTM.Device
 {
     public interface IMotionService
     {
+        /// <summary>이동 중 위치 변경 이벤트 (x, y, z — 마이크로미터 단위)</summary>
+        event EventHandler<MotionPositionEventArgs>? PositionChanged;
+
         void Initialize(int? axisX, int? axisY, int? axisZ);
 
         void On();

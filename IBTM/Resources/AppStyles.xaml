@@ -3,38 +3,38 @@
                     xmlns:sys="clr-namespace:System;assembly=System.Runtime">
 
     <!-- ══════════════════════════════════════════════════════════
-         공정 시각화 전용 색상 팔레트 (ThemeMode=Dark 위에 커스텀)
+         WPF Fluent Dark — Windows 11 스타일 색상 팔레트
          ══════════════════════════════════════════════════════════ -->
 
-    <!-- 앱 배경 / 패널 -->
-    <SolidColorBrush x:Key="AppBgBrush"      Color="#0D1117"/>
-    <SolidColorBrush x:Key="SidebarBgBrush"  Color="#010409"/>
-    <SolidColorBrush x:Key="PanelBgBrush"    Color="#161B22"/>
-    <SolidColorBrush x:Key="CardBgBrush"     Color="#1C2033"/>
-    <SolidColorBrush x:Key="CardBorderBrush" Color="#30363D"/>
-    <SolidColorBrush x:Key="DividerBrush"    Color="#21262D"/>
+    <!-- 앱 배경 / 패널 (Mica-like) -->
+    <SolidColorBrush x:Key="AppBgBrush"      Color="#202020"/>
+    <SolidColorBrush x:Key="SidebarBgBrush"   Color="#2D2D2D"/>
+    <SolidColorBrush x:Key="PanelBgBrush"     Color="#2D2D2D"/>
+    <SolidColorBrush x:Key="CardBgBrush"      Color="#383838"/>
+    <SolidColorBrush x:Key="CardBorderBrush"  Color="#4A4A4A"/>
+    <SolidColorBrush x:Key="DividerBrush"     Color="#3A3A3A"/>
 
-    <!-- 강조색 -->
-    <SolidColorBrush x:Key="AccentBlueBrush"   Color="#58A6FF"/>
-    <SolidColorBrush x:Key="AccentGreenBrush"  Color="#3FB950"/>
-    <SolidColorBrush x:Key="AccentRedBrush"    Color="#F85149"/>
-    <SolidColorBrush x:Key="AccentOrangeBrush" Color="#F0883E"/>
-    <SolidColorBrush x:Key="AccentYellowBrush" Color="#D29922"/>
-    <SolidColorBrush x:Key="AccentCyanBrush"   Color="#39D353"/>
+    <!-- 강조색 (Windows 11 Accent) -->
+    <SolidColorBrush x:Key="AccentBlueBrush"   Color="#60CDFF"/>
+    <SolidColorBrush x:Key="AccentGreenBrush"  Color="#6CCB5F"/>
+    <SolidColorBrush x:Key="AccentRedBrush"    Color="#FF6B6B"/>
+    <SolidColorBrush x:Key="AccentOrangeBrush" Color="#FCB75D"/>
+    <SolidColorBrush x:Key="AccentYellowBrush" Color="#F5D565"/>
+    <SolidColorBrush x:Key="AccentCyanBrush"   Color="#4CC2FF"/>
 
     <!-- 텍스트 -->
-    <SolidColorBrush x:Key="TextPrimaryBrush"   Color="#E6EDF3"/>
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#8B949E"/>
-    <SolidColorBrush x:Key="TextMutedBrush"     Color="#484F58"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush"   Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#9E9E9E"/>
+    <SolidColorBrush x:Key="TextMutedBrush"     Color="#6E6E6E"/>
 
     <!-- 설비 레이아웃 -->
-    <SolidColorBrush x:Key="EquipBgBrush"       Color="#080A14"/>
-    <SolidColorBrush x:Key="EquipFrameBrush"    Color="#1E2238"/>
-    <SolidColorBrush x:Key="CanvasBgBrush"      Color="#0C0E1A"/>
-    <SolidColorBrush x:Key="PcbFillBrush"       Color="#1A5030"/>
-    <SolidColorBrush x:Key="PcbStrokeBrush"     Color="#2A8050"/>
-    <SolidColorBrush x:Key="RailTopBrush"       Color="#1A1E30"/>
-    <SolidColorBrush x:Key="RailBottomBrush"    Color="#252A40"/>
+    <SolidColorBrush x:Key="EquipBgBrush"       Color="#1A1A1A"/>
+    <SolidColorBrush x:Key="EquipFrameBrush"    Color="#3A3A3A"/>
+    <SolidColorBrush x:Key="CanvasBgBrush"      Color="#1E1E1E"/>
+    <SolidColorBrush x:Key="PcbFillBrush"       Color="#1B4332"/>
+    <SolidColorBrush x:Key="PcbStrokeBrush"     Color="#2D6A4F"/>
+    <SolidColorBrush x:Key="RailTopBrush"       Color="#303030"/>
+    <SolidColorBrush x:Key="RailBottomBrush"    Color="#3A3A3A"/>
 
     <!-- 설비 레이아웃 치수 -->
     <sys:Double x:Key="GantryCanvasWidth">240</sys:Double>
@@ -43,40 +43,72 @@
     <sys:Double x:Key="PcbHeight">10</sys:Double>
 
     <!-- ══════════════════════════════════════════════════════════
-         사이드바 네비게이션 버튼 스타일
+         공통 Border / Panel 스타일
+         ══════════════════════════════════════════════════════════ -->
+
+    <!-- Fluent 카드 (4px radius, 1px border) -->
+    <Style x:Key="CardStyle" TargetType="Border">
+        <Setter Property="Background"      Value="{StaticResource CardBgBrush}"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource CardBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius"    Value="4"/>
+        <Setter Property="Padding"         Value="12"/>
+    </Style>
+
+    <!-- 상단/하단 바 패널 -->
+    <Style x:Key="BarPanelStyle" TargetType="Border">
+        <Setter Property="Background"      Value="{StaticResource PanelBgBrush}"/>
+        <Setter Property="BorderBrush"     Value="{StaticResource DividerBrush}"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    </Style>
+
+    <!-- 디바이스 상태 LED (6px 원) -->
+    <Style x:Key="StatusLedStyle" TargetType="Ellipse">
+        <Setter Property="Width"             Value="6"/>
+        <Setter Property="Height"            Value="6"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- ══════════════════════════════════════════════════════════
+         사이드바 네비게이션 버튼 (Fluent NavigationView 스타일)
          ══════════════════════════════════════════════════════════ -->
     <Style x:Key="NavButtonStyle" TargetType="RadioButton">
         <Setter Property="Background"   Value="Transparent"/>
         <Setter Property="Foreground"   Value="{StaticResource TextSecondaryBrush}"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Height"       Value="52"/>
+        <Setter Property="Height"       Value="40"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
-        <Setter Property="Padding"      Value="20,0,0,0"/>
+        <Setter Property="Padding"      Value="16,0,0,0"/>
         <Setter Property="FontSize"     Value="13"/>
         <Setter Property="Cursor"       Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="RadioButton">
                     <Border x:Name="Root" Background="Transparent"
-                            BorderThickness="3,0,0,0"
-                            BorderBrush="Transparent"
+                            CornerRadius="4" Margin="4,1"
                             Padding="{TemplateBinding Padding}">
-                        <ContentPresenter VerticalAlignment="Center"/>
+                        <Grid>
+                            <Rectangle x:Name="Indicator" Width="3" Height="16"
+                                       HorizontalAlignment="Left" Margin="-12,0,0,0"
+                                       RadiusX="1.5" RadiusY="1.5"
+                                       Fill="Transparent"/>
+                            <ContentPresenter VerticalAlignment="Center"/>
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="Root" Property="Background"
-                                    Value="#15FFFFFF"/>
+                                    Value="#10FFFFFF"/>
                             <Setter Property="Foreground"
                                     Value="{StaticResource TextPrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Root" Property="Background"
-                                    Value="#1A58A6FF"/>
-                            <Setter TargetName="Root" Property="BorderBrush"
+                                    Value="#18FFFFFF"/>
+                            <Setter TargetName="Indicator" Property="Fill"
                                     Value="{StaticResource AccentBlueBrush}"/>
                             <Setter Property="Foreground"
-                                    Value="{StaticResource AccentBlueBrush}"/>
+                                    Value="{StaticResource TextPrimaryBrush}"/>
                             <Setter Property="FontWeight" Value="SemiBold"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -86,30 +118,123 @@
     </Style>
 
     <!-- ══════════════════════════════════════════════════════════
-         통계 항목 텍스트 스타일
+         TextBlock 기본 스타일 (Fluent Typography)
          ══════════════════════════════════════════════════════════ -->
-    <Style x:Key="StatLabelStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-        <Setter Property="FontSize"   Value="10"/>
-        <Setter Property="Margin"     Value="0,0,0,2"/>
+
+    <!-- 큰 제목 (페이지 타이틀) -->
+    <Style x:Key="TitleStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="FontSize"   Value="28"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
 
-    <Style x:Key="StatValueStyle" TargetType="TextBlock">
+    <!-- 중간 제목 (섹션 헤더) -->
+    <Style x:Key="SubtitleStyle" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="FontSize"   Value="18"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="FontFamily" Value="Consolas"/>
+    </Style>
+
+    <!-- 본문 -->
+    <Style x:Key="BodyStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="FontSize"   Value="13"/>
+    </Style>
+
+    <!-- 보조 텍스트 -->
+    <Style x:Key="CaptionStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="FontSize"   Value="11"/>
+    </Style>
+
+    <!-- 흐린 라벨 (카테고리, 단위 등) -->
+    <Style x:Key="LabelStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="FontSize"   Value="10"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- 강조 값 (숫자, 코드) -->
+    <Style x:Key="MonoStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="FontSize"   Value="13"/>
+        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
+    </Style>
+
+    <!-- 큰 숫자 표시 (통계 등) -->
+    <Style x:Key="DisplayStyle" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="FontSize"   Value="22"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- Zone 라벨 (ZONE 1 PICK 등) -->
+    <Style x:Key="ZoneTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontSize"   Value="11"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Opacity"    Value="0.9"/>
+    </Style>
+
+    <!-- Zone 서브라벨 (PICK, BOLT, INSPECT) -->
+    <Style x:Key="ZoneSubtitleStyle" TargetType="TextBlock">
+        <Setter Property="FontSize"   Value="10"/>
+        <Setter Property="Opacity"    Value="0.5"/>
+    </Style>
+
+    <!-- Zone 좌표/진행률 -->
+    <Style x:Key="ZoneInfoStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
+        <Setter Property="FontSize"   Value="8"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- 디바이스 상태 아이템 -->
+    <Style x:Key="DeviceStatusStyle" TargetType="TextBlock">
+        <Setter Property="FontSize"   Value="11"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="Margin"     Value="8,0,0,0"/>
+    </Style>
+
+    <!-- 패널 섹션 헤더 (NG STACK, SMEMA, DEVICE 등) -->
+    <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+        <Setter Property="FontSize"   Value="9"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+    </Style>
+
+    <!-- IN/OUT 박스 라벨 -->
+    <Style x:Key="BoxLabelStyle" TargetType="TextBlock">
+        <Setter Property="FontSize"   Value="11"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#808080"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- 오버레이 텍스트 (E-STOP, NG STACK FULL 등) -->
+    <Style x:Key="OverlayTextStyle" TargetType="TextBlock">
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
     </Style>
 
     <!-- ══════════════════════════════════════════════════════════
-         제어 버튼 스타일
+         통계 항목 텍스트 스타일
+         ══════════════════════════════════════════════════════════ -->
+    <Style x:Key="StatLabelStyle" TargetType="TextBlock" BasedOn="{StaticResource LabelStyle}">
+        <Setter Property="Margin" Value="0,0,0,2"/>
+    </Style>
+
+    <Style x:Key="StatValueStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtitleStyle}"/>
+
+    <!-- ══════════════════════════════════════════════════════════
+         제어 버튼 (Fluent Button 스타일)
          ══════════════════════════════════════════════════════════ -->
     <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-        <Setter Property="Background"   Value="#238636"/>
+        <Setter Property="Background"   Value="#0078D4"/>
         <Setter Property="Foreground"   Value="#FFFFFF"/>
-        <Setter Property="BorderBrush"  Value="#2EA043"/>
+        <Setter Property="BorderBrush"  Value="#0078D4"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding"      Value="20,8"/>
+        <Setter Property="Padding"      Value="20,7"/>
         <Setter Property="FontSize"     Value="13"/>
         <Setter Property="FontWeight"   Value="SemiBold"/>
         <Setter Property="Cursor"       Value="Hand"/>
@@ -120,19 +245,21 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="6"
+                            CornerRadius="4"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#2EA043"/>
+                            <Setter TargetName="Root" Property="Background" Value="#1A8AD4"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#1A8AD4"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#1B6F27"/>
+                            <Setter TargetName="Root" Property="Background" Value="#006CBE"/>
+                            <Setter TargetName="Root" Property="Opacity" Value="0.9"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
+                            <Setter TargetName="Root" Property="Opacity" Value="0.35"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -141,13 +268,13 @@
     </Style>
 
     <Style x:Key="DangerButtonStyle" TargetType="Button">
-        <Setter Property="Background"   Value="#8B1A1A"/>
+        <Setter Property="Background"   Value="#C42B1C"/>
         <Setter Property="Foreground"   Value="#FFFFFF"/>
-        <Setter Property="BorderBrush"  Value="#F85149"/>
+        <Setter Property="BorderBrush"  Value="#C42B1C"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding"      Value="20,8"/>
+        <Setter Property="Padding"      Value="20,7"/>
         <Setter Property="FontSize"     Value="13"/>
-        <Setter Property="FontWeight"   Value="Bold"/>
+        <Setter Property="FontWeight"   Value="SemiBold"/>
         <Setter Property="Cursor"       Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -156,16 +283,16 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="6"
+                            CornerRadius="4"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#A62020"/>
+                            <Setter TargetName="Root" Property="Background" Value="#D83B2C"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#F85149"/>
+                            <Setter TargetName="Root" Property="Background" Value="#A62016"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -174,11 +301,11 @@
     </Style>
 
     <Style x:Key="SecondaryButtonStyle" TargetType="Button">
-        <Setter Property="Background"   Value="Transparent"/>
-        <Setter Property="Foreground"   Value="{StaticResource TextSecondaryBrush}"/>
-        <Setter Property="BorderBrush"  Value="{StaticResource CardBorderBrush}"/>
+        <Setter Property="Background"   Value="#383838"/>
+        <Setter Property="Foreground"   Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="BorderBrush"  Value="#555555"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding"      Value="20,8"/>
+        <Setter Property="Padding"      Value="20,7"/>
         <Setter Property="FontSize"     Value="13"/>
         <Setter Property="Cursor"       Value="Hand"/>
         <Setter Property="Template">
@@ -188,17 +315,19 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="6"
+                            CornerRadius="4"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#15FFFFFF"/>
-                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                            <Setter TargetName="Root" Property="Background" Value="#444444"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#333333"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
+                            <Setter TargetName="Root" Property="Opacity" Value="0.35"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -224,12 +353,12 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ListBoxItem">
-                    <Border x:Name="Root" Background="Transparent" Padding="4,3">
+                    <Border x:Name="Root" Background="Transparent" Padding="4,3" CornerRadius="2">
                         <ContentPresenter/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#0CFFFFFF"/>
+                            <Setter TargetName="Root" Property="Background" Value="#0AFFFFFF"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

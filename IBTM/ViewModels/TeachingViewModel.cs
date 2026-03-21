@@ -322,13 +322,13 @@ public partial class TeachingViewModel : ObservableObject
         _allPoints.Clear();
         var r = CurrentRecipe;
 
-        // ── Zone 1: 픽업 (Full XYZ, 독립) ──────────────────────────
-        AddPoint("PickPos1", "Zone1_Pick", 1, r.Zone1_PickPos1, TeachMode.Full);
-        AddPoint("PickPos2", "Zone1_Pick", 1, r.Zone1_PickPos2, TeachMode.Full);
+        // ── Zone 1: PCB 픽업 (Full XYZ, 상부 PCB 라인) ───────────
+        AddPoint("PcbPick1", "Zone1_PcbPick", 1, r.Zone1_PcbPick1, TeachMode.Full);
+        AddPoint("PcbPick2", "Zone1_PcbPick", 1, r.Zone1_PcbPick2, TeachMode.Full);
 
-        // ── Zone 1: 내려놓기 (Z만, X,Y는 Zone 3 오프셋) ─────────────
-        AddPoint("PlacePos1", "Zone1_Place_Z", 1, r.Zone1_PlacePos1, TeachMode.ZOnly);
-        AddPoint("PlacePos2", "Zone1_Place_Z", 1, r.Zone1_PlacePos2, TeachMode.ZOnly);
+        // ── Zone 1: PCB 배치 (Z만, X,Y는 Zone 3 오프셋) ──────────
+        AddPoint("PcbPlace1", "Zone1_PcbPlace_Z", 1, r.Zone1_PcbPlace1, TeachMode.ZOnly);
+        AddPoint("PcbPlace2", "Zone1_PcbPlace_Z", 1, r.Zone1_PcbPlace2, TeachMode.ZOnly);
 
         // ── Zone 2: 피듀셜 (Full XYZ, 독립) ─────────────────────────
         AddPoint("Fiducial", "Zone2_Fiducial", 2, r.Zone2_FiducialPos, TeachMode.Full);
@@ -352,11 +352,11 @@ public partial class TeachingViewModel : ObservableObject
         AddPoint("NgPlace", "Zone3_NgPlace", 3, r.Zone3_NgPlacePos, TeachMode.Full);
 
         // ── Zone 3: Place 마스터 XY (→ offset → Zone 1) ──────────────
-        // Zone 1 Place 좌표를 Zone 3 좌표로 역변환하여 표시
-        var place1Zone3 = Zone1ToZone3(r.Zone1_PlacePos1);
-        var place2Zone3 = Zone1ToZone3(r.Zone1_PlacePos2);
-        AddPoint("PlacePos1", "Zone3_PlaceRef", 3, place1Zone3, TeachMode.XYOnly);
-        AddPoint("PlacePos2", "Zone3_PlaceRef", 3, place2Zone3, TeachMode.XYOnly);
+        // Zone 1 PcbPlace 좌표를 Zone 3 좌표로 역변환하여 표시
+        var place1Zone3 = Zone1ToZone3(r.Zone1_PcbPlace1);
+        var place2Zone3 = Zone1ToZone3(r.Zone1_PcbPlace2);
+        AddPoint("PcbPlace1", "Zone3_PlaceRef", 3, place1Zone3, TeachMode.XYOnly);
+        AddPoint("PcbPlace2", "Zone3_PlaceRef", 3, place2Zone3, TeachMode.XYOnly);
 
         // ── Zone 3: Bolt 마스터 XY (→ offset → Zone 2) ───────────────
         foreach (var bp in r.BoltPoints)
@@ -429,16 +429,16 @@ public partial class TeachingViewModel : ObservableObject
 
         switch (pt.Category)
         {
-            // ── Zone 1 독립 포인트 ──────────────────────────────────
-            case "Zone1_Pick":
-                if (pt.Name == "PickPos1") CurrentRecipe.Zone1_PickPos1 = pos;
-                else CurrentRecipe.Zone1_PickPos2 = pos;
+            // ── Zone 1 PCB 픽업 (상부 PCB 라인) ─────────────────────────
+            case "Zone1_PcbPick":
+                if (pt.Name == "PcbPick1") CurrentRecipe.Zone1_PcbPick1 = pos;
+                else CurrentRecipe.Zone1_PcbPick2 = pos;
                 break;
 
-            // ── Zone 1 Place Z만 (X,Y는 Zone 3에서 설정됨) ──────────
-            case "Zone1_Place_Z":
-                if (pt.Name == "PlacePos1") CurrentRecipe.Zone1_PlacePos1.Z = pt.Z;
-                else CurrentRecipe.Zone1_PlacePos2.Z = pt.Z;
+            // ── Zone 1 PCB 배치 Z만 (셔틀 캐리어 위) ─────────────────────
+            case "Zone1_PcbPlace_Z":
+                if (pt.Name == "PcbPlace1") CurrentRecipe.Zone1_PcbPlace1.Z = pt.Z;
+                else CurrentRecipe.Zone1_PcbPlace2.Z = pt.Z;
                 break;
 
             // ── Zone 2 독립 포인트 ──────────────────────────────────
@@ -467,19 +467,18 @@ public partial class TeachingViewModel : ObservableObject
             case "Zone3_PlaceRef":
             {
                 var zone1Pos = Zone3ToZone1(pos);
-                if (pt.Name == "PlacePos1")
+                if (pt.Name == "PcbPlace1")
                 {
-                    CurrentRecipe.Zone1_PlacePos1.X = zone1Pos.X;
-                    CurrentRecipe.Zone1_PlacePos1.Y = zone1Pos.Y;
-                    // Zone 1 포인트의 표시 좌표도 갱신
-                    var z1Pt = _allPoints.FirstOrDefault(p => p.Name == "PlacePos1" && p.Category == "Zone1_Place_Z");
+                    CurrentRecipe.Zone1_PcbPlace1.X = zone1Pos.X;
+                    CurrentRecipe.Zone1_PcbPlace1.Y = zone1Pos.Y;
+                    var z1Pt = _allPoints.FirstOrDefault(p => p.Name == "PcbPlace1" && p.Category == "Zone1_PcbPlace_Z");
                     if (z1Pt != null) { z1Pt.X = zone1Pos.X; z1Pt.Y = zone1Pos.Y; }
                 }
                 else
                 {
-                    CurrentRecipe.Zone1_PlacePos2.X = zone1Pos.X;
-                    CurrentRecipe.Zone1_PlacePos2.Y = zone1Pos.Y;
-                    var z1Pt = _allPoints.FirstOrDefault(p => p.Name == "PlacePos2" && p.Category == "Zone1_Place_Z");
+                    CurrentRecipe.Zone1_PcbPlace2.X = zone1Pos.X;
+                    CurrentRecipe.Zone1_PcbPlace2.Y = zone1Pos.Y;
+                    var z1Pt = _allPoints.FirstOrDefault(p => p.Name == "PcbPlace2" && p.Category == "Zone1_PcbPlace_Z");
                     if (z1Pt != null) { z1Pt.X = zone1Pos.X; z1Pt.Y = zone1Pos.Y; }
                 }
                 break;

@@ -10,6 +10,8 @@ namespace IBTM.Device
 {
     public partial class AjinMotionService : IMotionService
     {
+        public event EventHandler<MotionPositionEventArgs>? PositionChanged;
+
         private int? _axisX;
         private int? _axisY;
         private int? _axisZ;

@@ -9,27 +9,27 @@ namespace IBTM.Converters;
 /// <summary>Frozen 브러시 팔레트 (매번 new 방지)</summary>
 internal static class Palette
 {
-    // 공통 색상
-    public static readonly Brush Blue    = Freeze(0x58, 0xA6, 0xFF);
-    public static readonly Brush Green   = Freeze(0x3F, 0xB9, 0x50);
-    public static readonly Brush Red     = Freeze(0xF8, 0x51, 0x49);
-    public static readonly Brush Orange  = Freeze(0xF0, 0x88, 0x3E);
-    public static readonly Brush Gray    = Freeze(0x48, 0x4F, 0x58);
-    public static readonly Brush DimGray = Freeze(0x38, 0x3C, 0x46);
-    public static readonly Brush Light   = Freeze(0xC9, 0xD1, 0xD9);
-    public static readonly Brush Muted   = Freeze(0x8B, 0x94, 0x9E);
+    // 공통 색상 (Fluent Dark)
+    public static readonly Brush Blue    = Freeze(0x60, 0xCD, 0xFF);
+    public static readonly Brush Green   = Freeze(0x6C, 0xCB, 0x5F);
+    public static readonly Brush Red     = Freeze(0xFF, 0x6B, 0x6B);
+    public static readonly Brush Orange  = Freeze(0xFC, 0xB7, 0x5D);
+    public static readonly Brush Gray    = Freeze(0x6E, 0x6E, 0x6E);
+    public static readonly Brush DimGray = Freeze(0x4A, 0x4A, 0x4A);
+    public static readonly Brush Light   = Freeze(0xF0, 0xF0, 0xF0);
+    public static readonly Brush Muted   = Freeze(0x9E, 0x9E, 0x9E);
 
-    // 카드 배경
-    public static readonly Brush BgBlue    = Freeze(0x1C, 0x2C, 0x54);
-    public static readonly Brush BgGreen   = Freeze(0x1A, 0x2E, 0x20);
-    public static readonly Brush BgRed     = Freeze(0x31, 0x1A, 0x1A);
-    public static readonly Brush BgOrange  = Freeze(0x30, 0x22, 0x14);
-    public static readonly Brush BgDim     = Freeze(0x14, 0x16, 0x1E);
-    public static readonly Brush BgDefault = Freeze(0x1C, 0x20, 0x33);
+    // 카드 배경 (Fluent Dark)
+    public static readonly Brush BgBlue    = Freeze(0x1A, 0x30, 0x48);
+    public static readonly Brush BgGreen   = Freeze(0x1A, 0x32, 0x20);
+    public static readonly Brush BgRed     = Freeze(0x38, 0x1A, 0x1A);
+    public static readonly Brush BgOrange  = Freeze(0x38, 0x28, 0x18);
+    public static readonly Brush BgDim     = Freeze(0x28, 0x28, 0x28);
+    public static readonly Brush BgDefault = Freeze(0x38, 0x38, 0x38);
 
     // NG 슬롯
     public static readonly Brush SlotFilled = Red;
-    public static readonly Brush SlotEmpty  = Freeze(0x2D, 0x33, 0x3B);
+    public static readonly Brush SlotEmpty  = Freeze(0x3A, 0x3A, 0x3A);
 
     private static SolidColorBrush Freeze(byte r, byte g, byte b)
     {

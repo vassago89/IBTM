@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(magick convert:*)",
+      "Bash(powershell -Command \"Add-Type -AssemblyName System.Drawing; $bmp = [System.Drawing.Bitmap]::new\\('C:\\\\git\\\\IBTM\\\\1.bmp'\\); $bmp.Save\\('C:\\\\git\\\\IBTM\\\\1.png', [System.Drawing.Imaging.ImageFormat]::Png\\); $bmp.Dispose\\(\\)\" 2>&1)",
+      "Bash(powershell -Command \"Add-Type -AssemblyName System.Drawing; [System.Drawing.Bitmap]::new\\('C:\\\\\\\\git\\\\\\\\IBTM\\\\\\\\1.bmp'\\).Save\\('C:\\\\\\\\git\\\\\\\\IBTM\\\\\\\\1.png', [System.Drawing.Imaging.ImageFormat]::Png\\)\" 2>&1)",
+      "Bash(powershell -File - <<'PS1'\nAdd-Type -AssemblyName System.Drawing\n$bmp = New-Object System.Drawing.Bitmap\\(\"C:\\\\git\\\\IBTM\\\\1.bmp\"\\)\n$bmp.Save\\(\"C:\\\\git\\\\IBTM\\\\1.png\", [System.Drawing.Imaging.ImageFormat]::Png\\)\n$bmp.Dispose\\(\\)\nPS1)"
+    ]
+  }
+}

@@ -94,6 +94,7 @@ public partial class ProcessViewModel : ObservableObject
         BuildStages();
         BuildNgSlots();
         BuildBoltMarkers();
+        UpdateZoneLayouts();
         SubscribeEvents();
 
         _uptimeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -106,7 +107,7 @@ public partial class ProcessViewModel : ObservableObject
         Application.Current.Dispatcher.Invoke(action);
 
     // ── Zone 번호 ↔ 인스턴스 매핑 ────────────────────────────────────────────
-    private static int GetZoneNumber(ProcessStage stage) => (int)stage / 100 switch
+    private static int GetZoneNumber(ProcessStage stage) => ((int)stage / 100) switch
     {
         1 => 1, 2 => 2, 3 => 3, _ => 0
     };
@@ -157,8 +158,16 @@ public partial class ProcessViewModel : ObservableObject
     private void BuildBoltMarkers()
     {
         BoltMarkers.Clear();
-        foreach (var bp in _orchestrator.CurrentRecipe.BoltPoints)
-            BoltMarkers.Add(new BoltMarkerViewModel(bp.Name, bp.X, bp.Y));
+        var recipe = _orchestrator.CurrentRecipe;
+        var pcbCenters = new[]
+        {
+            (X: recipe.Zone2_Pcb1CenterX, Y: recipe.Zone2_PcbCenterY, Label: "P1"),
+            (X: recipe.Zone2_Pcb2CenterX, Y: recipe.Zone2_PcbCenterY, Label: "P2"),
+        };
+        foreach (var pcb in pcbCenters)
+            foreach (var bp in recipe.BoltPoints)
+                BoltMarkers.Add(new BoltMarkerViewModel(
+                    $"{pcb.Label}-{bp.Name}", pcb.X + bp.X, pcb.Y + bp.Y));
     }
 
     private void BuildNgSlots()
@@ -167,6 +176,19 @@ public partial class ProcessViewModel : ObservableObject
         NgStackMaxCount = maxSlots;
         for (int i = 0; i < maxSlots; i++)
             NgStackSlots.Add(new NgSlotViewModel());
+    }
+
+    /// <summary>레시피 좌표 기반으로 Zone별 레이아웃 요소 위치 갱신</summary>
+    private void UpdateZoneLayouts()
+    {
+        var r = _orchestrator.CurrentRecipe;
+        Zone1Visual.UpdateZone1Layout(
+            r.Zone1_PcbPick1.X, r.Zone1_PcbPick1.Y,
+            r.Zone1_PcbPick2.X, r.Zone1_PcbPick2.Y,
+            r.Zone1_PcbPlace1.X, r.Zone1_PcbPlace1.Y,
+            r.Zone1_PcbPlace2.X, r.Zone1_PcbPlace2.Y);
+        Zone3Visual.UpdateZone3Layout(
+            r.Zone3_NgPlacePos.X, r.Zone3_NgPlacePos.Y);
     }
 
     // ── 이벤트 구독 ───────────────────────────────────────────────────────────
@@ -183,6 +205,7 @@ public partial class ProcessViewModel : ObservableObject
         _orchestrator.NgStackUpdated += OnNgStackUpdated;
         _orchestrator.NgStackAlarm += OnNgStackAlarm;
         _orchestrator.GripperChanged += OnGripperChanged;
+        _orchestrator.PcbPlaced += OnPcbPlaced;
         _orchestrator.InspectionImageCaptured += OnInspectionImageCaptured;
     }
 
@@ -329,10 +352,11 @@ public partial class ProcessViewModel : ObservableObject
     {
         var visual = GetZoneVisual(e.Zone);
         if (visual != null) visual.GripperActive = e.Active;
+    });
 
-        // Zone 1: 그리퍼 OFF = PCB 배치 완료 → 셔틀 PCB 증가
-        if (e.Zone == 1 && !e.Active)
-            Zone1Visual.PcbCount = Math.Min(2, Zone1Visual.PcbCount + 1);
+    private void OnPcbPlaced(object? sender, EventArgs e) => RunOnUI(() =>
+    {
+        Zone1Visual.PcbCount = Math.Min(2, Zone1Visual.PcbCount + 1);
     });
 
     // ── 스테이지 카드 헬퍼 ──────────────────────────────────────────────────
@@ -436,6 +460,7 @@ public partial class ProcessViewModel : ObservableObject
         if (stage == stopAlignLift && status == StageStatus.Running)
         {
             visual.ShuttlePresent = true;
+            visual.CarrierCount = 2; // 캐리어는 셔틀에 실려서 진입
             visual.PcbCount = arrivalPcbCount;
             onArrival?.Invoke();
         }

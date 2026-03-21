@@ -9,8 +9,6 @@ namespace IBTM.Localization;
 /// </summary>
 public partial class Loc : ObservableObject
 {
-    public static Loc Instance { get; } = new();
-
     private Dictionary<string, string> _current;
     private string _currentLanguage = "en";
 
@@ -394,4 +392,7 @@ public partial class Loc : ObservableObject
         ["Settings_SimMode"]        = "시뮬레이션 모드",
         ["Settings_SimModeDesc"]    = "실제 장비 대신 가상 디바이스 사용",
     };
+
+    // Instance는 En/Ko 딕셔너리 초기화 이후에 생성해야 함 (정적 필드 초기화 순서)
+    public static Loc Instance { get; } = new();
 }

@@ -1,6 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using System.Windows;
-using System.Windows.Media;
 
 namespace IBTM.ViewModels;
 
@@ -20,16 +19,6 @@ public partial class ZoneVisualState : ObservableObject
     private const double CanvasXMin = 8.0, CanvasXMax = 210.0;
     private const double CanvasYMin = 0.0, CanvasYMax = 180.0;
 
-    // ── 애니메이션 보간 ────────────────────────────────────────────────────
-    private const double AnimSpeed = 10.0;    // 감쇠 속도 (높을수록 빠른 수렴)
-    private const double SnapThreshold = 0.3; // mm 이하 차이면 즉시 스냅
-    private const double ConvergeThreshold = 0.1;
-
-    private double _targetX, _targetY, _targetZ;
-    private double _currentX, _currentY, _currentZ;
-    private bool _animating;
-    private bool _initialized;
-    private DateTime _lastFrame;
 
     public ZoneVisualState(double canvasW, double canvasH)
     {
@@ -79,15 +68,81 @@ public partial class ZoneVisualState : ObservableObject
     private bool _isLifted;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Carrier1Visibility))]
+    [NotifyPropertyChangedFor(nameof(Carrier2Visibility))]
+    private int _carrierCount;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Pcb1Visibility))]
     [NotifyPropertyChangedFor(nameof(Pcb2Visibility))]
     private int _pcbCount = 2;
 
+    public Visibility Carrier1Visibility => CarrierCount >= 1 ? Visibility.Visible : Visibility.Collapsed;
+    public Visibility Carrier2Visibility => CarrierCount >= 2 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility Pcb1Visibility => PcbCount >= 1 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility Pcb2Visibility => PcbCount >= 2 ? Visibility.Visible : Visibility.Collapsed;
     public Visibility LiftIndicatorVisibility =>
         ShuttlePresent && IsLifted ? Visibility.Visible : Visibility.Collapsed;
     public double ShuttleStrokeThickness => IsLifted ? 2.5 : 1.0;
+
+    // ── 레시피 기반 레이아웃 위치 (캔버스 좌표) ──────────────────────────
+    // Zone 1: 상부 PCB 라인 영역
+    [ObservableProperty] private double _pcbAreaTop;
+    [ObservableProperty] private double _pcbLabelTop;
+    [ObservableProperty] private double _pcb1Left;
+    [ObservableProperty] private double _pcb1Top;
+    [ObservableProperty] private double _pcb2Left;
+    [ObservableProperty] private double _pcb2Top;
+    // Zone 1: 셔틀 위 캐리어/PCB 위치
+    [ObservableProperty] private double _shuttleCarrier1Left;
+    [ObservableProperty] private double _shuttleCarrier1Top;
+    [ObservableProperty] private double _shuttleCarrier2Left;
+    [ObservableProperty] private double _shuttleCarrier2Top;
+    [ObservableProperty] private double _shuttlePcb1Left;
+    [ObservableProperty] private double _shuttlePcb1Top;
+    [ObservableProperty] private double _shuttlePcb2Left;
+    [ObservableProperty] private double _shuttlePcb2Top;
+    // Zone 3: NG 적재 영역
+    [ObservableProperty] private double _ngAreaTop;
+    [ObservableProperty] private double _ngLabelTop;
+
+    /// <summary>Zone 1 레시피 좌표 기반 레이아웃 갱신</summary>
+    public void UpdateZone1Layout(
+        double pcb1X, double pcb1Y, double pcb2X, double pcb2Y,
+        double place1X, double place1Y, double place2X, double place2Y)
+    {
+        // 상부 PCB 라인 영역 (PcbPick Y 기준)
+        var (px1, py) = MmToCanvas(pcb1X, pcb1Y);
+        var (px2, _) = MmToCanvas(pcb2X, pcb2Y);
+        PcbAreaTop = py - 22;
+        PcbLabelTop = py - 19;
+        Pcb1Left = px1 - 18;
+        Pcb1Top = py - 6;
+        Pcb2Left = px2 - 18;
+        Pcb2Top = py - 6;
+
+        // 셔틀 위 캐리어 (PcbPlace 기준, 캐리어는 셔틀에 실려서 진입)
+        var (sx1, sy) = MmToCanvas(place1X, place1Y);
+        var (sx2, _2) = MmToCanvas(place2X, place2Y);
+        ShuttleCarrier1Left = sx1 - 22;
+        ShuttleCarrier1Top = sy - 17;
+        ShuttleCarrier2Left = sx2 - 22;
+        ShuttleCarrier2Top = sy - 17;
+
+        // 셔틀 위 PCB (캐리어보다 약간 작게)
+        ShuttlePcb1Left = sx1 - 19;
+        ShuttlePcb1Top = sy - 14;
+        ShuttlePcb2Left = sx2 - 19;
+        ShuttlePcb2Top = sy - 14;
+    }
+
+    /// <summary>Zone 3 레시피 좌표 기반 NG 영역 위치 갱신</summary>
+    public void UpdateZone3Layout(double ngPlaceX, double ngPlaceY)
+    {
+        var (_, ny) = MmToCanvas(ngPlaceX, ngPlaceY);
+        NgAreaTop = ny - 22;
+        NgLabelTop = ny - 18;
+    }
 
     // ── 피듀셜 보정 오프셋 ──────────────────────────────────────────────
     [ObservableProperty] private double _fiducialOffsetLeft;
@@ -128,77 +183,17 @@ public partial class ZoneVisualState : ObservableObject
 
     // ── 위치 갱신 ───────────────────────────────────────────────────────
 
-    /// <summary>목표 좌표 설정 → 부드러운 애니메이션 시작</summary>
+    /// <summary>좌표 즉시 반영</summary>
     public void UpdatePosition(double xMm, double yMm, double zMm)
     {
-        _targetX = xMm;
-        _targetY = yMm;
-        _targetZ = zMm;
-
         CoordText = $"X:{xMm:F0}  Y:{yMm:F0}  Z:{zMm:F0}";
-
-        if (!_initialized)
-        {
-            _initialized = true;
-            SnapToTarget();
-            return;
-        }
-
-        if (IsCloseEnough(_currentX, xMm, SnapThreshold) &&
-            IsCloseEnough(_currentY, yMm, SnapThreshold) &&
-            IsCloseEnough(_currentZ, zMm, SnapThreshold))
-        {
-            SnapToTarget();
-            return;
-        }
-
-        if (!_animating)
-        {
-            _animating = true;
-            _lastFrame = DateTime.Now;
-            CompositionTarget.Rendering += OnRendering;
-        }
+        ApplyPosition(xMm, yMm, zMm);
     }
-
-    private void OnRendering(object? sender, EventArgs e)
-    {
-        var now = DateTime.Now;
-        var dt = (now - _lastFrame).TotalSeconds;
-        _lastFrame = now;
-        if (dt <= 0 || dt > 0.1) dt = 0.016;
-
-        var factor = 1.0 - Math.Exp(-AnimSpeed * dt);
-        _currentX += (_targetX - _currentX) * factor;
-        _currentY += (_targetY - _currentY) * factor;
-        _currentZ += (_targetZ - _currentZ) * factor;
-
-        ApplyPosition(_currentX, _currentY, _currentZ);
-
-        if (IsCloseEnough(_currentX, _targetX, ConvergeThreshold) &&
-            IsCloseEnough(_currentY, _targetY, ConvergeThreshold) &&
-            IsCloseEnough(_currentZ, _targetZ, ConvergeThreshold))
-        {
-            SnapToTarget();
-            CompositionTarget.Rendering -= OnRendering;
-            _animating = false;
-        }
-    }
-
-    private void SnapToTarget()
-    {
-        _currentX = _targetX;
-        _currentY = _targetY;
-        _currentZ = _targetZ;
-        ApplyPosition(_currentX, _currentY, _currentZ);
-    }
-
-    private static bool IsCloseEnough(double a, double b, double threshold) =>
-        Math.Abs(a - b) < threshold;
 
     /// <summary>보간된 좌표를 UI 프로퍼티에 적용</summary>
     private void ApplyPosition(double xMm, double yMm, double zMm)
     {
-        var size = Math.Clamp(10.0 + (zMm / MaxZ) * 16.0, 10.0, 26.0);
+        var size = Math.Clamp(26.0 - (zMm / MaxZ) * 16.0, 10.0, 26.0);
         HeadSize = size;
 
         var (xCanvas, yCanvas) = ToCanvas(xMm, yMm);

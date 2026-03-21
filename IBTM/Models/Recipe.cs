@@ -26,41 +26,47 @@ public class Recipe
 {
     public string Name { get; set; } = "Default";
 
-    // ── 구간 1: 픽업 위치 ────────────────────────────────────────────
-    /// <summary>앞장비 셔틀에서 PCB 1번 픽업 위치</summary>
-    public AxisPos Zone1_PickPos1 { get; set; } = new() { X = 50.0, Y = 30.0, Z = 25.0 };
+    // ── 구간 1: PCB 픽업/배치 위치 ──────────────────────────────────
+    // 셔틀이 캐리어를 싣고 SMEMA로 진입 → 상부 PCB 라인에서 PCB 픽업 → 셔틀 캐리어 위에 배치
+    // 셔틀에 2세트: 좌측(X≈75) + 우측(X≈130)
 
-    /// <summary>앞장비 셔틀에서 PCB 2번 픽업 위치</summary>
-    public AxisPos Zone1_PickPos2 { get; set; } = new() { X = 50.0, Y = 80.0, Z = 25.0 };
+    /// <summary>상부 PCB 라인에서 1번 PCB 픽업</summary>
+    public AxisPos Zone1_PcbPick1 { get; set; } = new() { X = 75.0, Y = 25.0, Z = 25.0 };
+    /// <summary>셔틀 좌측 캐리어 위에 1번 PCB 배치</summary>
+    public AxisPos Zone1_PcbPlace1 { get; set; } = new() { X = 75.0, Y = 95.0, Z = 20.0 };
 
-    /// <summary>우리 셔틀에 PCB 1번 배치 위치</summary>
-    public AxisPos Zone1_PlacePos1 { get; set; } = new() { X = 150.0, Y = 30.0, Z = 25.0 };
-
-    /// <summary>우리 셔틀에 PCB 2번 배치 위치</summary>
-    public AxisPos Zone1_PlacePos2 { get; set; } = new() { X = 150.0, Y = 80.0, Z = 25.0 };
+    /// <summary>상부 PCB 라인에서 2번 PCB 픽업</summary>
+    public AxisPos Zone1_PcbPick2 { get; set; } = new() { X = 130.0, Y = 25.0, Z = 25.0 };
+    /// <summary>셔틀 우측 캐리어 위에 2번 PCB 배치</summary>
+    public AxisPos Zone1_PcbPlace2 { get; set; } = new() { X = 130.0, Y = 95.0, Z = 20.0 };
 
     // ── 구간 2: 볼트 체결 ────────────────────────────────────────────
     /// <summary>볼트용 Fiducial 카메라 이동 위치</summary>
-    public AxisPos Zone2_FiducialPos { get; set; } = new() { X = 50.0, Y = 50.0, Z = 10.0 };
+    public AxisPos Zone2_FiducialPos { get; set; } = new() { X = 70.0, Y = 85.0, Z = 10.0 };
 
-    /// <summary>볼트 체결 포인트 목록 (체결 순서대로)</summary>
+    /// <summary>PCB 중심 좌표 (셔틀 위 2개 PCB의 X위치)</summary>
+    public double Zone2_Pcb1CenterX { get; set; } = 75.0;
+    public double Zone2_Pcb2CenterX { get; set; } = 130.0;
+    public double Zone2_PcbCenterY { get; set; } = 95.0;
+
+    /// <summary>볼트 체결 포인트 (PCB 중심 기준 상대좌표, 체결 순서대로)</summary>
     public List<BoltPoint> BoltPoints { get; set; } =
     [
-        new() { Name = "B1", X =  80.0, Y = 60.0, Z = 20.0, TargetTorqueNm = 15.0 },
-        new() { Name = "B2", X = 120.0, Y = 60.0, Z = 20.0, TargetTorqueNm = 15.0 },
-        new() { Name = "B3", X = 120.0, Y = 90.0, Z = 20.0, TargetTorqueNm = 15.0 },
-        new() { Name = "B4", X =  80.0, Y = 90.0, Z = 20.0, TargetTorqueNm = 15.0 },
+        new() { Name = "B1", X = -10.0, Y = -10.0, Z = 20.0, TargetTorqueNm = 15.0 },
+        new() { Name = "B2", X =  10.0, Y = -10.0, Z = 20.0, TargetTorqueNm = 15.0 },
+        new() { Name = "B3", X =  10.0, Y =  10.0, Z = 20.0, TargetTorqueNm = 15.0 },
+        new() { Name = "B4", X = -10.0, Y =  10.0, Z = 20.0, TargetTorqueNm = 15.0 },
     ];
 
     // ── 구간 3: 검사 ────────────────────────────────────────────────
     /// <summary>검사 카메라 이동 위치</summary>
-    public AxisPos Zone3_InspectPos { get; set; } = new() { X = 50.0, Y = 50.0, Z = 10.0 };
+    public AxisPos Zone3_InspectPos { get; set; } = new() { X = 100.0, Y = 95.0, Z = 10.0 };
 
     /// <summary>NG PCB 픽업 위치 (셔틀 위 PCB를 집는 위치)</summary>
-    public AxisPos Zone3_NgPickupPos { get; set; } = new() { X = 50.0, Y = 50.0, Z = 20.0 };
+    public AxisPos Zone3_NgPickupPos { get; set; } = new() { X = 100.0, Y = 95.0, Z = 20.0 };
 
-    /// <summary>NG 버퍼 적재 위치 (NG 스택에 놓는 위치)</summary>
-    public AxisPos Zone3_NgPlacePos { get; set; } = new() { X = 50.0, Y = 200.0, Z = 50.0 };
+    /// <summary>NG 버퍼 적재 위치 (위쪽 NG 스택에 놓는 위치)</summary>
+    public AxisPos Zone3_NgPlacePos { get; set; } = new() { X = 100.0, Y = 25.0, Z = 30.0 };
 
     /// <summary>NG 적재 최대 수량 (초과 시 알람)</summary>
     public int NgStackMaxCount { get; set; } = 3;

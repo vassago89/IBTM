@@ -8,6 +8,8 @@ namespace IBTM.Device
 {
     public class VirtualMotionService : IMotionService
     {
+        public event EventHandler<MotionPositionEventArgs>? PositionChanged;
+
         private int? _axisX;
         private int? _axisY;
         private int? _axisZ;
@@ -62,8 +64,10 @@ namespace IBTM.Device
                     if (Move(ref _x, x, velocity))
                         break;
 
+                    FirePositionChanged();
                     await Task.Delay(_delayMS);
                 }
+                FirePositionChanged();
             });
         }
         public async Task MoveXY(double x, double y, double velocity, params IMotionConverter[] converters)
@@ -103,10 +107,12 @@ namespace IBTM.Device
                         break;
 
                     done &= Move(ref _y, y, velocityY);
+                    FirePositionChanged();
                     await Task.Delay(_delayMS);
                     if (done)
                         break;
                 }
+                FirePositionChanged();
             });
         }
 
@@ -129,8 +135,10 @@ namespace IBTM.Device
                     if (Move(ref _y, y, velocity))
                         break;
 
+                    FirePositionChanged();
                     await Task.Delay(_delayMS);
                 }
+                FirePositionChanged();
             });
         }
 
@@ -150,11 +158,19 @@ namespace IBTM.Device
                     if (Move(ref _z, z, velocity))
                         break;
 
+                    FirePositionChanged();
                     await Task.Delay(_delayMS);
                 }
+                FirePositionChanged();
             });
         }
 
+
+        private void FirePositionChanged()
+        {
+            PositionChanged?.Invoke(this,
+                new MotionPositionEventArgs(_x * 1000, _y * 1000, _z * 1000));
+        }
 
         private bool Move(ref double current, double position, double velocity)
         {
