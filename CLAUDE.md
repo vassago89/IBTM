@@ -16,6 +16,16 @@ dotnet clean              # Clean build artifacts
 
 Solution file: `IBTM.slnx` (modern format). No test projects or linting tools are configured.
 
+## Verification Requirements
+
+**코드 변경 후 반드시 아래 단계를 수행할 것:**
+
+1. **.NET SDK 설치 확인** — `dotnet --version`으로 .NET 10.0 SDK가 설치되어 있는지 확인. 없으면 설치.
+2. **빌드 확인** — `dotnet build`로 컴파일 에러 없이 빌드되는지 확인.
+3. **실제 뷰 확인** — `dotnet run --project IBTM`으로 WPF 앱을 실행하여 UI가 정상 렌더링되는지 확인. XAML 바인딩 오류, 런타임 예외 없는지 점검.
+
+SDK가 설치되지 않은 환경에서는 빌드/실행 검증 없이 코드를 커밋하지 말 것.
+
 ## Solution Structure
 
 - **IBTM/** — Main WPF application (MVVM pattern using CommunityToolkit.Mvvm + Microsoft.Extensions.DependencyInjection)
