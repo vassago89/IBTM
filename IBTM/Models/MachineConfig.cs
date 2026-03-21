@@ -82,6 +82,35 @@ public class MachineConfig
 
     // ── 메서드 ────────────────────────────────────────────────────
 
+    /// <summary>다른 인스턴스의 값을 이 인스턴스에 복사 (DI 싱글턴 유지용)</summary>
+    public void CopyFrom(MachineConfig src)
+    {
+        Zone1Ref = src.Zone1Ref;
+        Zone2Ref = src.Zone2Ref;
+        Zone3Ref = src.Zone3Ref;
+        Offset3To1 = src.Offset3To1;
+        Offset3To2 = src.Offset3To2;
+        Zone1Motion = src.Zone1Motion;
+        Zone2Motion = src.Zone2Motion;
+        Zone3Motion = src.Zone3Motion;
+        DefaultTorqueNm = src.DefaultTorqueNm;
+        DefaultTorqueToleranceNm = src.DefaultTorqueToleranceNm;
+        DriverRpm = src.DriverRpm;
+        BoltRetryCount = src.BoltRetryCount;
+        PixelsPerMm = src.PixelsPerMm;
+        CameraExposureUs = src.CameraExposureUs;
+        CameraGainDb = src.CameraGainDb;
+        FiducialMatchThreshold = src.FiducialMatchThreshold;
+        SmemaTimeoutSec = src.SmemaTimeoutSec;
+        LiftSettleDelayMs = src.LiftSettleDelayMs;
+        AlignSettleDelayMs = src.AlignSettleDelayMs;
+        NgStackMaxCount = src.NgStackMaxCount;
+        Language = src.Language;
+        LogLevel = src.LogLevel;
+        LogRetentionDays = src.LogRetentionDays;
+        SimulationMode = src.SimulationMode;
+    }
+
     /// <summary>기준점 3개로 오프셋 자동 계산</summary>
     public void ComputeOffsets()
     {

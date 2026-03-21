@@ -1,3 +1,4 @@
+using IBTM.Models;
 using OpenCvSharp;
 
 namespace IBTM.Services;
@@ -8,11 +9,13 @@ namespace IBTM.Services;
 /// </summary>
 public class FiducialService : IFiducialService, IDisposable
 {
+    private readonly MachineConfig _config;
     private Mat? _template;
 
-    // 카메라 캘리브레이션: 픽셀당 mm (실측 후 조정 필요)
-    private const double PixelsPerMm = 50.0;
-    private const double MatchThreshold = 0.75;
+    public FiducialService(MachineConfig config)
+    {
+        _config = config;
+    }
 
     public void LoadTemplate(string templatePath)
     {
@@ -60,7 +63,7 @@ public class FiducialService : IFiducialService, IDisposable
             Cv2.MatchTemplate(gray, _template, result, TemplateMatchModes.CCoeffNormed);
             Cv2.MinMaxLoc(result, out _, out double maxVal, out _, out Point maxLoc);
 
-            if (maxVal < MatchThreshold)
+            if (maxVal < _config.FiducialMatchThreshold)
                 return new FiducialResult(false, 0, 0, maxVal);
 
             // 이미지 중심 대비 검출 위치 → mm 오프셋 계산
@@ -69,8 +72,8 @@ public class FiducialService : IFiducialService, IDisposable
             double foundX = maxLoc.X + _template.Width / 2.0;
             double foundY = maxLoc.Y + _template.Height / 2.0;
 
-            double offsetX = (foundX - centerX) / PixelsPerMm;
-            double offsetY = (foundY - centerY) / PixelsPerMm;
+            double offsetX = (foundX - centerX) / _config.PixelsPerMm;
+            double offsetY = (foundY - centerY) / _config.PixelsPerMm;
 
             return new FiducialResult(true, offsetX, offsetY, maxVal);
         }

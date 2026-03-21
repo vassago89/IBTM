@@ -23,7 +23,7 @@ public partial class SettingsViewModel : ObservableObject
     private readonly DispatcherTimer _posTimer;
 
     // ── 장비 설정 ───────────────────────────────────────────────────
-    [ObservableProperty] private MachineConfig _config = new();
+    [ObservableProperty] private MachineConfig _config;
 
     // ── 탭 선택 ─────────────────────────────────────────────────────
     [ObservableProperty] private int _selectedTab;
@@ -66,13 +66,15 @@ public partial class SettingsViewModel : ObservableObject
         [FromKeyedServices("zone2")] IMotionService zone2,
         [FromKeyedServices("zone3")] IMotionService zone3,
         IIOService ioService,
-        RecipeService recipeService)
+        RecipeService recipeService,
+        MachineConfig machineConfig)
     {
         _zone1Motion = zone1;
         _zone2Motion = zone2;
         _zone3Motion = zone3;
         _ioService = ioService;
         _recipeService = recipeService;
+        _config = machineConfig;
 
         // 좌표 폴링 타이머 (100ms)
         _posTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
@@ -100,7 +102,9 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand]
     private async Task LoadConfigAsync()
     {
-        Config = await _recipeService.LoadConfigAsync();
+        var loaded = await _recipeService.LoadConfigAsync();
+        Config.CopyFrom(loaded);
+        OnPropertyChanged(nameof(Config));
         UpdateRefStatus();
         UpdateOffsetText();
         SyncMotionParams();
