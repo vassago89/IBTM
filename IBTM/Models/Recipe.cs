@@ -56,9 +56,11 @@ public class Recipe
     /// <summary>검사 카메라 이동 위치</summary>
     public AxisPos Zone3_InspectPos { get; set; } = new() { X = 50.0, Y = 50.0, Z = 10.0 };
 
-    /// <summary>NG 적재 위치 (Y, Z 이동)</summary>
-    public double Zone3_NgStackY { get; set; } = 200.0;
-    public double Zone3_NgStackZ { get; set; } = 50.0;
+    /// <summary>NG PCB 픽업 위치 (셔틀 위 PCB를 집는 위치)</summary>
+    public AxisPos Zone3_NgPickupPos { get; set; } = new() { X = 50.0, Y = 50.0, Z = 20.0 };
+
+    /// <summary>NG 버퍼 적재 위치 (NG 스택에 놓는 위치)</summary>
+    public AxisPos Zone3_NgPlacePos { get; set; } = new() { X = 50.0, Y = 200.0, Z = 50.0 };
 
     /// <summary>NG 적재 최대 수량 (초과 시 알람)</summary>
     public int NgStackMaxCount { get; set; } = 3;

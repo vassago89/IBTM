@@ -333,16 +333,26 @@ public class ProcessOrchestrator
                 {
                     AddLog("[Zone3] NG → rear stack transfer", ProcessStage.Zone3_NgTransfer);
 
-                    // 그리퍼로 PCB 픽업 → NG 적재 위치로 이동
+                    // NG PCB 픽업 위치로 이동 → 그리퍼 픽업
+                    var pickPos = CurrentRecipe.Zone3_NgPickupPos;
+                    await _zone3Motion.MoveZ(0, 80.0);
+                    FireZonePos(3);
+                    await _zone3Motion.MoveXY(pickPos.X, pickPos.Y, 80.0);
+                    FireZonePos(3);
+                    await _zone3Motion.MoveZ(pickPos.Z, 50.0);
+                    FireZonePos(3);
+
                     _ioService.Set(IoMap.Zone3_Gripper, true);
                     GripperChanged?.Invoke(this, (3, true));
                     await Task.Delay(200, ct);
 
+                    // NG 버퍼 적재 위치로 이동 → 내려놓기
+                    var placePos = CurrentRecipe.Zone3_NgPlacePos;
                     await _zone3Motion.MoveZ(0, 80.0);
                     FireZonePos(3);
-                    await _zone3Motion.MoveY(CurrentRecipe.Zone3_NgStackY, 80.0);
+                    await _zone3Motion.MoveXY(placePos.X, placePos.Y, 80.0);
                     FireZonePos(3);
-                    await _zone3Motion.MoveZ(CurrentRecipe.Zone3_NgStackZ, 50.0);
+                    await _zone3Motion.MoveZ(placePos.Z, 50.0);
                     ct.ThrowIfCancellationRequested();
                     FireZonePos(3);
 

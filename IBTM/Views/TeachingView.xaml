@@ -211,7 +211,7 @@
                     <TextBlock Grid.Row="0" Text="{Binding [Teach_Points], Source={x:Static loc:Loc.Instance}}"
                                FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"/>
 
-                    <ListView Grid.Row="1" ItemsSource="{Binding TeachingPoints}"
+                    <ListView Grid.Row="1" ItemsSource="{Binding FilteredPoints}"
                               SelectedItem="{Binding SelectedPoint}"
                               Background="Transparent" BorderThickness="0">
                         <ListView.ItemTemplate>
@@ -229,6 +229,12 @@
                                             </Style>
                                         </Ellipse.Style>
                                     </Ellipse>
+                                    <!-- TeachMode 배지 -->
+                                    <Border Background="#282840" CornerRadius="2" Padding="3,1" Margin="0,0,4,0"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ModeLabel}" FontFamily="Consolas" FontSize="8"
+                                                   Foreground="{StaticResource AccentCyanBrush}"/>
+                                    </Border>
                                     <TextBlock Text="{Binding Name}" FontFamily="Consolas" FontSize="11"
                                                Foreground="{StaticResource TextPrimaryBrush}" Width="70"/>
                                     <TextBlock FontFamily="Consolas" FontSize="10"

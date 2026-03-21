@@ -13,8 +13,7 @@ using System.Windows.Threading;
 namespace IBTM.ViewModels;
 
 /// <summary>
-/// 티칭 ViewModel — Zone 3 카메라 라이브뷰 + 조그 + 볼트 위치 티칭
-/// 모델 변경 시 사용, 레시피 JSON 저장/로드
+/// 티칭 ViewModel — Zone별 분리 티칭 + Zone 3 오프셋 기반 XY 자동 변환
 /// </summary>
 public partial class TeachingViewModel : ObservableObject
 {
@@ -26,6 +25,9 @@ public partial class TeachingViewModel : ObservableObject
     private readonly RecipeService _recipeService;
     private readonly MachineConfig _machineConfig;
     private readonly DispatcherTimer _posTimer;
+
+    // ── 전체 포인트 (내부용) ──────────────────────────────────────
+    private readonly List<TeachingPoint> _allPoints = [];
 
     // ── 레시피 ──────────────────────────────────────────────────────
     [ObservableProperty] private Recipe _currentRecipe = new();
@@ -51,8 +53,8 @@ public partial class TeachingViewModel : ObservableObject
     // ── 레이저 ──────────────────────────────────────────────────────
     [ObservableProperty] private bool _laserOn;
 
-    // ── 티칭 포인트 ─────────────────────────────────────────────────
-    public ObservableCollection<TeachingPoint> TeachingPoints { get; } = [];
+    // ── 현재 Zone의 필터된 포인트 ──────────────────────────────────
+    public ObservableCollection<TeachingPoint> FilteredPoints { get; } = [];
     [ObservableProperty] private TeachingPoint? _selectedPoint;
 
     // ── 레시피 파일 목록 ────────────────────────────────────────────
@@ -114,6 +116,8 @@ public partial class TeachingViewModel : ObservableObject
         // Zone 3 아니면 카메라 끄기
         if (value != 3 && IsCameraLive)
             ToggleLiveView();
+
+        RefreshFilteredPoints();
     }
 
     // ── 조그 ────────────────────────────────────────────────────────
@@ -150,15 +154,12 @@ public partial class TeachingViewModel : ObservableObject
     {
         if (SelectedZone != 3) return;
 
-        // 이미지 중심 기준 픽셀 오프셋
         double offsetPx = clickPos.X - _cameraService.ImageWidth / 2.0;
         double offsetPy = clickPos.Y - _cameraService.ImageHeight / 2.0;
 
-        // mm 변환
         double offsetMmX = offsetPx / _machineConfig.PixelsPerMm;
         double offsetMmY = offsetPy / _machineConfig.PixelsPerMm;
 
-        // 현재 위치 + 오프셋으로 이동
         double targetX = CurrentX + offsetMmX;
         double targetY = CurrentY + offsetMmY;
 
@@ -200,7 +201,7 @@ public partial class TeachingViewModel : ObservableObject
             _ => _zone3Motion,
         };
 
-        await motion.MoveZ(0, 80.0); // Z 안전 높이
+        await motion.MoveZ(0, 80.0);
         await motion.MoveXY(SelectedPoint.X, SelectedPoint.Y, 50.0);
         await motion.MoveZ(SelectedPoint.Z, 30.0);
         StatusMessage = Loc.S("Teach_MovedTo", SelectedPoint.Name);
@@ -210,29 +211,45 @@ public partial class TeachingViewModel : ObservableObject
     private void AddBoltPoint()
     {
         int idx = CurrentRecipe.BoltPoints.Count + 1;
-        var bp = new BoltPoint { Name = $"B{idx}", TargetTorqueNm = 15.0 };
+        var bp = new BoltPoint { Name = $"B{idx}", TargetTorqueNm = _machineConfig.DefaultTorqueNm };
         CurrentRecipe.BoltPoints.Add(bp);
 
-        TeachingPoints.Add(new TeachingPoint
+        // Zone 2 Z-only 포인트 추가
+        _allPoints.Add(new TeachingPoint
         {
             Name = bp.Name,
-            Category = "Zone2_Bolt",
+            Category = "Zone2_Bolt_Z",
             Zone = 2,
+            TeachMode = TeachMode.ZOnly,
             TargetTorqueNm = bp.TargetTorqueNm,
         });
-        StatusMessage = $"Added {bp.Name}";
+
+        // Zone 3 XY 마스터 포인트 추가
+        _allPoints.Add(new TeachingPoint
+        {
+            Name = $"{bp.Name}",
+            Category = "Zone3_BoltRef",
+            Zone = 3,
+            TeachMode = TeachMode.XYOnly,
+        });
+
+        RefreshFilteredPoints();
+        StatusMessage = Loc.S("Teach_BoltAdded", bp.Name);
     }
 
     [RelayCommand]
     private void RemoveBoltPoint()
     {
-        if (SelectedPoint is not { Category: "Zone2_Bolt" }) return;
+        if (SelectedPoint is not ({ Category: "Zone2_Bolt_Z" } or { Category: "Zone3_BoltRef" }))
+            return;
 
         var bpName = SelectedPoint.Name;
         CurrentRecipe.BoltPoints.RemoveAll(b => b.Name == bpName);
-        TeachingPoints.Remove(SelectedPoint);
+        _allPoints.RemoveAll(p =>
+            p.Name == bpName && (p.Category == "Zone2_Bolt_Z" || p.Category == "Zone3_BoltRef"));
         SelectedPoint = null;
-        StatusMessage = $"Removed {bpName}";
+        RefreshFilteredPoints();
+        StatusMessage = Loc.S("Teach_BoltRemoved", bpName);
     }
 
     // ── 레시피 저장/로드 ────────────────────────────────────────────
@@ -270,70 +287,187 @@ public partial class TeachingViewModel : ObservableObject
 
     private void BuildTeachingPoints()
     {
-        TeachingPoints.Clear();
+        _allPoints.Clear();
         var r = CurrentRecipe;
 
-        // Zone 1 — 픽/플레이스
-        AddPoint("PickPos1", "Zone1_Pick", 1, r.Zone1_PickPos1);
-        AddPoint("PickPos2", "Zone1_Pick", 1, r.Zone1_PickPos2);
-        AddPoint("PlacePos1", "Zone1_Place", 1, r.Zone1_PlacePos1);
-        AddPoint("PlacePos2", "Zone1_Place", 1, r.Zone1_PlacePos2);
+        // ── Zone 1: 픽업 (Full XYZ, 독립) ──────────────────────────
+        AddPoint("PickPos1", "Zone1_Pick", 1, r.Zone1_PickPos1, TeachMode.Full);
+        AddPoint("PickPos2", "Zone1_Pick", 1, r.Zone1_PickPos2, TeachMode.Full);
 
-        // Zone 2 — 피듀셜 + 볼트
-        AddPoint("Fiducial", "Zone2_Fiducial", 2, r.Zone2_FiducialPos);
+        // ── Zone 1: 내려놓기 (Z만, X,Y는 Zone 3 오프셋) ─────────────
+        AddPoint("PlacePos1", "Zone1_Place_Z", 1, r.Zone1_PlacePos1, TeachMode.ZOnly);
+        AddPoint("PlacePos2", "Zone1_Place_Z", 1, r.Zone1_PlacePos2, TeachMode.ZOnly);
+
+        // ── Zone 2: 피듀셜 (Full XYZ, 독립) ─────────────────────────
+        AddPoint("Fiducial", "Zone2_Fiducial", 2, r.Zone2_FiducialPos, TeachMode.Full);
+
+        // ── Zone 2: 볼트 (Z만, X,Y는 Zone 3 오프셋) ─────────────────
         foreach (var bp in r.BoltPoints)
-            TeachingPoints.Add(new TeachingPoint
+            _allPoints.Add(new TeachingPoint
             {
                 Name = bp.Name,
-                Category = "Zone2_Bolt",
+                Category = "Zone2_Bolt_Z",
                 Zone = 2,
+                TeachMode = TeachMode.ZOnly,
                 X = bp.X, Y = bp.Y, Z = bp.Z,
-                IsTaught = bp.X != 0 || bp.Y != 0,
+                IsTaught = bp.Z != 0,
                 TargetTorqueNm = bp.TargetTorqueNm,
             });
 
-        // Zone 3 — 검사
-        AddPoint("InspectPos", "Zone3_Inspect", 3, r.Zone3_InspectPos);
+        // ── Zone 3: 검사/NG (Full XYZ) ──────────────────────────────
+        AddPoint("InspectPos", "Zone3_Inspect", 3, r.Zone3_InspectPos, TeachMode.Full);
+        AddPoint("NgPickup", "Zone3_NgPickup", 3, r.Zone3_NgPickupPos, TeachMode.Full);
+        AddPoint("NgPlace", "Zone3_NgPlace", 3, r.Zone3_NgPlacePos, TeachMode.Full);
+
+        // ── Zone 3: Place 마스터 XY (→ offset → Zone 1) ──────────────
+        // Zone 1 Place 좌표를 Zone 3 좌표로 역변환하여 표시
+        var place1Zone3 = Zone1ToZone3(r.Zone1_PlacePos1);
+        var place2Zone3 = Zone1ToZone3(r.Zone1_PlacePos2);
+        AddPoint("PlacePos1", "Zone3_PlaceRef", 3, place1Zone3, TeachMode.XYOnly);
+        AddPoint("PlacePos2", "Zone3_PlaceRef", 3, place2Zone3, TeachMode.XYOnly);
+
+        // ── Zone 3: Bolt 마스터 XY (→ offset → Zone 2) ───────────────
+        foreach (var bp in r.BoltPoints)
+        {
+            var boltZone3 = Zone2ToZone3(new AxisPos { X = bp.X, Y = bp.Y });
+            _allPoints.Add(new TeachingPoint
+            {
+                Name = bp.Name,
+                Category = "Zone3_BoltRef",
+                Zone = 3,
+                TeachMode = TeachMode.XYOnly,
+                X = boltZone3.X, Y = boltZone3.Y,
+                IsTaught = bp.X != 0 || bp.Y != 0,
+            });
+        }
+
+        RefreshFilteredPoints();
     }
 
-    private void AddPoint(string name, string category, int zone, AxisPos pos)
+    private void AddPoint(string name, string category, int zone, AxisPos pos, TeachMode mode)
     {
-        TeachingPoints.Add(new TeachingPoint
+        _allPoints.Add(new TeachingPoint
         {
             Name = name,
             Category = category,
             Zone = zone,
+            TeachMode = mode,
             X = pos.X, Y = pos.Y, Z = pos.Z,
-            IsTaught = pos.X != 0 || pos.Y != 0,
+            IsTaught = pos.X != 0 || pos.Y != 0 || pos.Z != 0,
         });
     }
 
-    /// <summary>티칭 포인트 좌표를 레시피에 반영</summary>
+    /// <summary>현재 Zone에 해당하는 포인트만 필터링</summary>
+    private void RefreshFilteredPoints()
+    {
+        FilteredPoints.Clear();
+        foreach (var pt in _allPoints.Where(p => p.Zone == SelectedZone))
+            FilteredPoints.Add(pt);
+        SelectedPoint = FilteredPoints.FirstOrDefault();
+    }
+
+    // ── 좌표 변환 헬퍼 ──────────────────────────────────────────────
+
+    /// <summary>Zone 3 좌표 → Zone 1 좌표 (MachineConfig 오프셋 적용)</summary>
+    private AxisPos Zone3ToZone1(AxisPos zone3Pos) => _machineConfig.ToZone1(zone3Pos);
+
+    /// <summary>Zone 3 좌표 → Zone 2 좌표 (MachineConfig 오프셋 적용)</summary>
+    private AxisPos Zone3ToZone2(AxisPos zone3Pos) => _machineConfig.ToZone2(zone3Pos);
+
+    /// <summary>Zone 1 좌표 → Zone 3 좌표 (역변환)</summary>
+    private AxisPos Zone1ToZone3(AxisPos zone1Pos) => new()
+    {
+        X = zone1Pos.X + _machineConfig.Offset3To1.X,
+        Y = zone1Pos.Y + _machineConfig.Offset3To1.Y,
+        Z = zone1Pos.Z + _machineConfig.Offset3To1.Z,
+    };
+
+    /// <summary>Zone 2 좌표 → Zone 3 좌표 (역변환)</summary>
+    private AxisPos Zone2ToZone3(AxisPos zone2Pos) => new()
+    {
+        X = zone2Pos.X + _machineConfig.Offset3To2.X,
+        Y = zone2Pos.Y + _machineConfig.Offset3To2.Y,
+        Z = zone2Pos.Z + _machineConfig.Offset3To2.Z,
+    };
+
+    /// <summary>티칭 포인트 좌표를 레시피에 반영 + 오프셋 자동 전파</summary>
     private void ApplyPointToRecipe(TeachingPoint pt)
     {
         var pos = new AxisPos { X = pt.X, Y = pt.Y, Z = pt.Z };
 
-        // Zone 3 기준 좌표 → 다른 Zone 오프셋 적용
         switch (pt.Category)
         {
+            // ── Zone 1 독립 포인트 ──────────────────────────────────
             case "Zone1_Pick":
                 if (pt.Name == "PickPos1") CurrentRecipe.Zone1_PickPos1 = pos;
                 else CurrentRecipe.Zone1_PickPos2 = pos;
                 break;
-            case "Zone1_Place":
-                if (pt.Name == "PlacePos1") CurrentRecipe.Zone1_PlacePos1 = pos;
-                else CurrentRecipe.Zone1_PlacePos2 = pos;
+
+            // ── Zone 1 Place Z만 (X,Y는 Zone 3에서 설정됨) ──────────
+            case "Zone1_Place_Z":
+                if (pt.Name == "PlacePos1") CurrentRecipe.Zone1_PlacePos1.Z = pt.Z;
+                else CurrentRecipe.Zone1_PlacePos2.Z = pt.Z;
                 break;
+
+            // ── Zone 2 독립 포인트 ──────────────────────────────────
             case "Zone2_Fiducial":
                 CurrentRecipe.Zone2_FiducialPos = pos;
                 break;
-            case "Zone2_Bolt":
+
+            // ── Zone 2 Bolt Z만 ─────────────────────────────────────
+            case "Zone2_Bolt_Z":
                 var bp = CurrentRecipe.BoltPoints.FirstOrDefault(b => b.Name == pt.Name);
-                if (bp != null) { bp.X = pt.X; bp.Y = pt.Y; bp.Z = pt.Z; }
+                if (bp != null) bp.Z = pt.Z;
                 break;
+
+            // ── Zone 3 자체 포인트 ──────────────────────────────────
             case "Zone3_Inspect":
                 CurrentRecipe.Zone3_InspectPos = pos;
                 break;
+            case "Zone3_NgPickup":
+                CurrentRecipe.Zone3_NgPickupPos = pos;
+                break;
+            case "Zone3_NgPlace":
+                CurrentRecipe.Zone3_NgPlacePos = pos;
+                break;
+
+            // ── Zone 3 Place 마스터 XY → Zone 1 오프셋 자동 적용 ─────
+            case "Zone3_PlaceRef":
+            {
+                var zone1Pos = Zone3ToZone1(pos);
+                if (pt.Name == "PlacePos1")
+                {
+                    CurrentRecipe.Zone1_PlacePos1.X = zone1Pos.X;
+                    CurrentRecipe.Zone1_PlacePos1.Y = zone1Pos.Y;
+                    // Zone 1 포인트의 표시 좌표도 갱신
+                    var z1Pt = _allPoints.FirstOrDefault(p => p.Name == "PlacePos1" && p.Category == "Zone1_Place_Z");
+                    if (z1Pt != null) { z1Pt.X = zone1Pos.X; z1Pt.Y = zone1Pos.Y; }
+                }
+                else
+                {
+                    CurrentRecipe.Zone1_PlacePos2.X = zone1Pos.X;
+                    CurrentRecipe.Zone1_PlacePos2.Y = zone1Pos.Y;
+                    var z1Pt = _allPoints.FirstOrDefault(p => p.Name == "PlacePos2" && p.Category == "Zone1_Place_Z");
+                    if (z1Pt != null) { z1Pt.X = zone1Pos.X; z1Pt.Y = zone1Pos.Y; }
+                }
+                break;
+            }
+
+            // ── Zone 3 Bolt 마스터 XY → Zone 2 오프셋 자동 적용 ──────
+            case "Zone3_BoltRef":
+            {
+                var zone2Pos = Zone3ToZone2(pos);
+                var boltPt = CurrentRecipe.BoltPoints.FirstOrDefault(b => b.Name == pt.Name);
+                if (boltPt != null)
+                {
+                    boltPt.X = zone2Pos.X;
+                    boltPt.Y = zone2Pos.Y;
+                    // Zone 2 Z-only 포인트의 표시 좌표도 갱신
+                    var z2Pt = _allPoints.FirstOrDefault(p => p.Name == pt.Name && p.Category == "Zone2_Bolt_Z");
+                    if (z2Pt != null) { z2Pt.X = zone2Pos.X; z2Pt.Y = zone2Pos.Y; }
+                }
+                break;
+            }
         }
     }
 

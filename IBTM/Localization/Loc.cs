@@ -146,6 +146,8 @@ public partial class Loc : ObservableObject
         ["Teach_RecipeSaved"]   = "Recipe saved: {0}",
         ["Teach_RecipeLoaded"]  = "Recipe loaded: {0}",
         ["Teach_NewRecipe"]     = "New recipe created",
+        ["Teach_BoltAdded"]     = "Bolt added: {0}",
+        ["Teach_BoltRemoved"]   = "Bolt removed: {0}",
 
         // ── Settings ────────────────────────────────────────────────
         ["Settings_Title"]          = "Settings",
@@ -322,6 +324,8 @@ public partial class Loc : ObservableObject
         ["Teach_RecipeSaved"]   = "레시피 저장: {0}",
         ["Teach_RecipeLoaded"]  = "레시피 로드: {0}",
         ["Teach_NewRecipe"]     = "신규 레시피 생성",
+        ["Teach_BoltAdded"]     = "볼트 추가: {0}",
+        ["Teach_BoltRemoved"]   = "볼트 삭제: {0}",
 
         // ── Settings ────────────────────────────────────────────────
         ["Settings_Title"]          = "설정",
