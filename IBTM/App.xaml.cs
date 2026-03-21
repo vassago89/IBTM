@@ -1,4 +1,5 @@
 using IBTM.Device;
+using IBTM.Models;
 using IBTM.Services;
 using IBTM.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,9 +36,15 @@ public partial class App : Application
         services.AddSingleton<IFiducialService, FiducialService>();
         services.AddSingleton<IBoltService, StubBoltService>();
         services.AddSingleton<ProcessOrchestrator>();
+        services.AddSingleton<RecipeService>();
+        services.AddKeyedSingleton<ICameraStreamService, VirtualCameraStreamService>("zone2"); // 구간2: 피듀셜 카메라
+        services.AddKeyedSingleton<ICameraStreamService, VirtualCameraStreamService>("zone3"); // 구간3: 검사 카메라
+        services.AddSingleton<MachineConfig>();
 
         // ── ViewModels ───────────────────────────────────────────────────────
         services.AddSingleton<ProcessViewModel>();
+        services.AddSingleton<SettingsViewModel>();
+        services.AddSingleton<TeachingViewModel>();
         services.AddSingleton<MainViewModel>();
 
         // ── Windows ──────────────────────────────────────────────────────────

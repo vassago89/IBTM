@@ -1,0 +1,183 @@
+<UserControl x:Class="IBTM.Views.ResultPanelView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:IBTM.Converters">
+
+    <UserControl.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVis"/>
+        <conv:NgSlotFillConverter       x:Key="NgSlotFill"/>
+    </UserControl.Resources>
+
+    <StackPanel Margin="8,4">
+        <!-- 검사 이미지 썸네일 -->
+        <Border CornerRadius="4" BorderThickness="1" BorderBrush="#303050"
+                Background="#0C0C18" Height="120" Margin="0,0,0,6"
+                HorizontalAlignment="Stretch" ClipToBounds="True">
+            <Grid>
+                <Image Source="{Binding InspectionImage}" Stretch="Uniform"
+                       RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                <!-- 이미지 없을 때 플레이스홀더 -->
+                <TextBlock Text="INSPECT" FontSize="11" FontFamily="Consolas"
+                           Foreground="#282840" FontWeight="Bold"
+                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding InspectionImage}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <!-- 결과 오버레이 배지 -->
+                <Border Width="68" Height="28" CornerRadius="6" Margin="0,0,6,6"
+                        HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Background" Value="Transparent"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsGoodPath}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Setter Property="Background" Value="#DD102A10"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+                                    <Setter Property="BorderThickness" Value="2"/>
+                                    <Setter Property="Effect">
+                                        <Setter.Value>
+                                            <DropShadowEffect Color="#3FB950" BlurRadius="12" ShadowDepth="0" Opacity="0.6"/>
+                                        </Setter.Value>
+                                    </Setter>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsNgPath}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Setter Property="Background" Value="#DD2A1010"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
+                                    <Setter Property="BorderThickness" Value="2"/>
+                                    <Setter Property="Effect">
+                                        <Setter.Value>
+                                            <DropShadowEffect Color="#F85149" BlurRadius="12" ShadowDepth="0" Opacity="0.6"/>
+                                        </Setter.Value>
+                                    </Setter>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock Text="{Binding LastRouteText}" FontSize="14" FontWeight="Bold" FontFamily="Consolas"
+                               HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="Transparent"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsGoodPath}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsNgPath}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- NG 적재 -->
+        <TextBlock Text="NG STACK" Margin="0,6,0,4"
+                   Foreground="{StaticResource AccentRedBrush}" FontSize="9" FontWeight="Bold" Opacity="0.8"/>
+        <ItemsControl ItemsSource="{Binding NgStackSlots}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                    <Rectangle Width="22" Height="22" Margin="0,0,3,0"
+                               Stroke="#401818" StrokeThickness="1" RadiusX="2" RadiusY="2"
+                               Fill="{Binding IsFilled, Converter={StaticResource NgSlotFill}}"/>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock FontFamily="Consolas" FontSize="10" FontWeight="Bold" Margin="0,3,0,0">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Foreground" Value="#383850"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding NgStackAlarm}" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+            <Run Text="{Binding NgStackCount, Mode=OneWay}"/><Run Text="/"/><Run Text="{Binding NgStackMaxCount, Mode=OneWay}"/>
+        </TextBlock>
+
+        <!-- SMEMA -->
+        <TextBlock FontSize="9" FontWeight="SemiBold" Margin="0,14,0,0">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Setter Property="Text" Value="SMEMA  OUT"/>
+                    <Setter Property="Foreground" Value="#282840"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding SmemaWaiting}" Value="True">
+                            <Setter Property="Text" Value="SMEMA  WAIT"/>
+                            <Setter Property="Foreground" Value="{StaticResource AccentOrangeBrush}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding SmemaReady}" Value="True">
+                            <Setter Property="Text" Value="SMEMA  OK"/>
+                            <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+
+        <!-- 컨베이어 흐름 애니메이션 -->
+        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+            <StackPanel.Resources>
+                <Storyboard x:Key="FlowAnimation" RepeatBehavior="Forever">
+                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow1" Storyboard.TargetProperty="Opacity"
+                                                  Duration="0:0:1.5" RepeatBehavior="Forever">
+                        <LinearDoubleKeyFrame KeyTime="0:0:0" Value="0.15"/>
+                        <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.7"/>
+                        <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.15"/>
+                    </DoubleAnimationUsingKeyFrames>
+                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow2" Storyboard.TargetProperty="Opacity"
+                                                  Duration="0:0:1.5" RepeatBehavior="Forever">
+                        <LinearDoubleKeyFrame KeyTime="0:0:0" Value="0.15"/>
+                        <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.15"/>
+                        <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.7"/>
+                        <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0.15"/>
+                    </DoubleAnimationUsingKeyFrames>
+                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="FlowArrow3" Storyboard.TargetProperty="Opacity"
+                                                  Duration="0:0:1.5" RepeatBehavior="Forever">
+                        <LinearDoubleKeyFrame KeyTime="0:0:0.5" Value="0.15"/>
+                        <LinearDoubleKeyFrame KeyTime="0:0:1" Value="0.15"/>
+                        <LinearDoubleKeyFrame KeyTime="0:0:1.5" Value="0.7"/>
+                    </DoubleAnimationUsingKeyFrames>
+                </Storyboard>
+            </StackPanel.Resources>
+            <StackPanel.Style>
+                <Style TargetType="StackPanel">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard x:Name="FlowSb" Storyboard="{StaticResource FlowAnimation}"/>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="FlowSb"/>
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </StackPanel.Style>
+            <TextBlock x:Name="FlowArrow1" Text="►" FontSize="8" FontFamily="Consolas"
+                       Foreground="#506080" Opacity="0.15" Margin="0,0,4,0"/>
+            <TextBlock x:Name="FlowArrow2" Text="►" FontSize="8" FontFamily="Consolas"
+                       Foreground="#506080" Opacity="0.15" Margin="0,0,4,0"/>
+            <TextBlock x:Name="FlowArrow3" Text="►" FontSize="8" FontFamily="Consolas"
+                       Foreground="#506080" Opacity="0.15"/>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

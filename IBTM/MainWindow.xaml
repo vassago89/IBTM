@@ -13,6 +13,12 @@
         <DataTemplate DataType="{x:Type vm:ProcessViewModel}">
             <views:ProcessView/>
         </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:TeachingViewModel}">
+            <views:TeachingView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+            <views:SettingsView/>
+        </DataTemplate>
     </Window.Resources>
 
     <Grid>
@@ -57,24 +63,26 @@
                                FontSize="10" FontWeight="SemiBold"
                                Foreground="{StaticResource TextMutedBrush}"/>
 
-                    <RadioButton Content="  &#x25BA;  공정 모니터"
+                    <RadioButton Content="  &#x25BA;  Process Monitor"
                                  GroupName="Navigation"
                                  IsChecked="True"
                                  Style="{StaticResource NavButtonStyle}"
                                  Command="{Binding NavigateCommand}"
-                                 CommandParameter="공정"/>
+                                 CommandParameter="Process"/>
 
-                    <RadioButton Content="  &#x2699;  수동 조작"
+                    <RadioButton Content="  &#x25C9;  Teaching"
                                  GroupName="Navigation"
                                  Style="{StaticResource NavButtonStyle}"
-                                 IsEnabled="False"/>
+                                 Command="{Binding NavigateCommand}"
+                                 CommandParameter="Teaching"/>
 
-                    <RadioButton Content="  &#x25C8;  설정"
+                    <RadioButton Content="  &#x2699;  Settings"
                                  GroupName="Navigation"
                                  Style="{StaticResource NavButtonStyle}"
-                                 IsEnabled="False"/>
+                                 Command="{Binding NavigateCommand}"
+                                 CommandParameter="Settings"/>
 
-                    <RadioButton Content="  &#x2261;  로그 뷰어"
+                    <RadioButton Content="  &#x2261;  Log Viewer"
                                  GroupName="Navigation"
                                  Style="{StaticResource NavButtonStyle}"
                                  IsEnabled="False"/>
@@ -92,17 +100,17 @@
 
                         <StackPanel Orientation="Horizontal" Margin="0,2">
                             <Ellipse Width="7" Height="7" Fill="{StaticResource AccentGreenBrush}" VerticalAlignment="Center"/>
-                            <TextBlock Text="Zone1 Axis (픽업)" FontSize="11" Margin="8,0,0,0"
+                            <TextBlock Text="Zone1 Axis (Pick)" FontSize="11" Margin="8,0,0,0"
                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,2">
                             <Ellipse Width="7" Height="7" Fill="{StaticResource AccentGreenBrush}" VerticalAlignment="Center"/>
-                            <TextBlock Text="Zone2 Axis (볼트)" FontSize="11" Margin="8,0,0,0"
+                            <TextBlock Text="Zone2 Axis (Bolt)" FontSize="11" Margin="8,0,0,0"
                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,2">
                             <Ellipse Width="7" Height="7" Fill="{StaticResource AccentGreenBrush}" VerticalAlignment="Center"/>
-                            <TextBlock Text="Zone3 Axis (검사)" FontSize="11" Margin="8,0,0,0"
+                            <TextBlock Text="Zone3 Axis (Inspect)" FontSize="11" Margin="8,0,0,0"
                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,2">

@@ -40,7 +40,8 @@ public enum StageStatus
     Running,
     Done,
     Error,
-    Warning
+    Warning,
+    Skipped
 }
 
 public enum InspectionResult
