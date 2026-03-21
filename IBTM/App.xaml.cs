@@ -37,7 +37,8 @@ public partial class App : Application
         services.AddSingleton<IBoltService, StubBoltService>();
         services.AddSingleton<ProcessOrchestrator>();
         services.AddSingleton<RecipeService>();
-        services.AddSingleton<ICameraStreamService, VirtualCameraStreamService>();
+        services.AddKeyedSingleton<ICameraStreamService, VirtualCameraStreamService>("zone2"); // 구간2: 피듀셜 카메라
+        services.AddKeyedSingleton<ICameraStreamService, VirtualCameraStreamService>("zone3"); // 구간3: 검사 카메라
         services.AddSingleton<MachineConfig>();
 
         // ── ViewModels ───────────────────────────────────────────────────────

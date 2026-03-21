@@ -21,7 +21,8 @@ public partial class TeachingViewModel : ObservableObject
     private readonly IMotionService _zone2Motion;
     private readonly IMotionService _zone3Motion;
     private readonly IIOService _ioService;
-    private readonly ICameraStreamService _cameraService;
+    private readonly ICameraStreamService _zone2Camera;
+    private readonly ICameraStreamService _zone3Camera;
     private readonly RecipeService _recipeService;
     private readonly MachineConfig _machineConfig;
     private readonly DispatcherTimer _posTimer;
@@ -63,12 +64,21 @@ public partial class TeachingViewModel : ObservableObject
     // ── 상태 메시지 ─────────────────────────────────────────────────
     [ObservableProperty] private string _statusMessage = "";
 
+    /// <summary>현재 Zone의 카메라 (Zone 2 또는 3, Zone 1은 카메라 없음)</summary>
+    private ICameraStreamService? CurrentCamera => SelectedZone switch
+    {
+        2 => _zone2Camera,
+        3 => _zone3Camera,
+        _ => null,
+    };
+
     public TeachingViewModel(
         [FromKeyedServices("zone1")] IMotionService zone1,
         [FromKeyedServices("zone2")] IMotionService zone2,
         [FromKeyedServices("zone3")] IMotionService zone3,
         IIOService ioService,
-        ICameraStreamService cameraService,
+        [FromKeyedServices("zone2")] ICameraStreamService zone2Camera,
+        [FromKeyedServices("zone3")] ICameraStreamService zone3Camera,
         RecipeService recipeService,
         MachineConfig machineConfig)
     {
@@ -76,12 +86,16 @@ public partial class TeachingViewModel : ObservableObject
         _zone2Motion = zone2;
         _zone3Motion = zone3;
         _ioService = ioService;
-        _cameraService = cameraService;
+        _zone2Camera = zone2Camera;
+        _zone3Camera = zone3Camera;
         _recipeService = recipeService;
         _machineConfig = machineConfig;
 
-        _cameraService.FrameReady += img =>
-            Application.Current.Dispatcher.Invoke(() => LiveImage = img);
+        // 두 카메라 모두 프레임 수신 연결
+        _zone2Camera.FrameReady += img =>
+            Application.Current.Dispatcher.Invoke(() => { if (SelectedZone == 2) LiveImage = img; });
+        _zone3Camera.FrameReady += img =>
+            Application.Current.Dispatcher.Invoke(() => { if (SelectedZone == 3) LiveImage = img; });
 
         _posTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         _posTimer.Tick += (_, _) => PollPosition();
@@ -108,14 +122,30 @@ public partial class TeachingViewModel : ObservableObject
 
     // ── Zone 변경 ───────────────────────────────────────────────────
 
-    partial void OnSelectedZoneChanged(int value)
+    partial void OnSelectedZoneChanged(int oldValue, int newValue)
     {
         if (LaserOn) ToggleLaser();
         CurrentMotion.Stop();
 
-        // Zone 3 아니면 카메라 끄기
-        if (value != 3 && IsCameraLive)
-            ToggleLiveView();
+        // 카메라: 이전 Zone 카메라 끄고, 새 Zone에 카메라 없으면 OFF
+        if (IsCameraLive)
+        {
+            // 이전 Zone 카메라 정지
+            var prevCam = oldValue switch { 2 => _zone2Camera, 3 => _zone3Camera, _ => (ICameraStreamService?)null };
+            prevCam?.StopLiveView();
+
+            if (CurrentCamera != null)
+            {
+                // 새 Zone에도 카메라가 있으면 전환
+                CurrentCamera.StartLiveView();
+            }
+            else
+            {
+                // Zone 1 등 카메라 없는 Zone이면 OFF
+                IsCameraLive = false;
+                LiveImage = null;
+            }
+        }
 
         RefreshFilteredPoints();
     }
@@ -135,27 +165,29 @@ public partial class TeachingViewModel : ObservableObject
     [RelayCommand]
     private void ToggleLiveView()
     {
+        if (CurrentCamera == null) return;
+
         if (IsCameraLive)
         {
-            _cameraService.StopLiveView();
+            CurrentCamera.StopLiveView();
             IsCameraLive = false;
             LiveImage = null;
         }
         else
         {
-            _cameraService.StartLiveView();
+            CurrentCamera.StartLiveView();
             IsCameraLive = true;
         }
     }
 
-    /// <summary>카메라 이미지 클릭 → 픽셀→mm 변환 → 이동</summary>
+    /// <summary>카메라 이미지 클릭 → 픽셀→mm 변환 → 이동 (Zone 2, 3)</summary>
     [RelayCommand]
     private async Task CameraClickAsync(Point clickPos)
     {
-        if (SelectedZone != 3) return;
+        if (CurrentCamera == null) return;
 
-        double offsetPx = clickPos.X - _cameraService.ImageWidth / 2.0;
-        double offsetPy = clickPos.Y - _cameraService.ImageHeight / 2.0;
+        double offsetPx = clickPos.X - CurrentCamera.ImageWidth / 2.0;
+        double offsetPy = clickPos.Y - CurrentCamera.ImageHeight / 2.0;
 
         double offsetMmX = offsetPx / _machineConfig.PixelsPerMm;
         double offsetMmY = offsetPy / _machineConfig.PixelsPerMm;
@@ -163,7 +195,7 @@ public partial class TeachingViewModel : ObservableObject
         double targetX = CurrentX + offsetMmX;
         double targetY = CurrentY + offsetMmY;
 
-        await _zone3Motion.MoveXY(targetX, targetY, 50.0);
+        await CurrentMotion.MoveXY(targetX, targetY, 50.0);
         StatusMessage = $"Move → X:{targetX:F3} Y:{targetY:F3}";
     }
 
@@ -493,7 +525,14 @@ public partial class TeachingViewModel : ObservableObject
     public void StopPolling()
     {
         _posTimer.Stop();
-        if (IsCameraLive) ToggleLiveView();
+        // 모든 카메라 정리
+        if (IsCameraLive)
+        {
+            _zone2Camera.StopLiveView();
+            _zone3Camera.StopLiveView();
+            IsCameraLive = false;
+            LiveImage = null;
+        }
         if (LaserOn)
         {
             _ioService.Set(LaserIoIndex, false);
