@@ -1,0 +1,17 @@
+global using IBTM.Application.Abstractions;
+global using IBTM.Application.Process;
+global using IBTM.Composition;
+global using IBTM.Device.Abstractions;
+global using IBTM.Device.Simulation;
+global using IBTM.Domain.Configuration;
+global using IBTM.Domain.Process;
+global using IBTM.Domain.Recipes;
+global using IBTM.Infrastructure.Persistence;
+global using IBTM.Infrastructure.Simulation;
+global using IBTM.Infrastructure.Vision;
+global using IBTM.Presentation.Localization;
+global using IBTM.Presentation.Mappers;
+global using IBTM.Presentation.Models;
+global using IBTM.Presentation.Shell;
+global using IBTM.Presentation.ViewModels;
+global using IBTM.Presentation.Views;

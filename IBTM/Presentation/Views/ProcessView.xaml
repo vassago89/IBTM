@@ -1,0 +1,302 @@
+<UserControl x:Class="IBTM.Presentation.Views.ProcessView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:IBTM.Presentation.ViewModels"
+             xmlns:conv="clr-namespace:IBTM.Presentation.Converters"
+             xmlns:v="clr-namespace:IBTM.Presentation.Views"
+             xmlns:models="clr-namespace:IBTM.Presentation.Models"
+             xmlns:loc="clr-namespace:IBTM.Presentation.Localization"
+             Background="{StaticResource AppBgBrush}">
+
+    <UserControl.Resources>
+        <conv:StageStatusToBrushConverter      x:Key="StatusToBrush"/>
+        <conv:StageStatusToBackgroundConverter x:Key="StatusToBg"/>
+        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
+        <conv:BoolToVisibilityConverter        x:Key="BoolToVis"/>
+        <conv:InspectionResultToBrushConverter x:Key="InspResultToBrush"/>
+        <conv:BoolToOpacityConverter           x:Key="BoolToOpacity"/>
+
+        <!-- Zone 색상 테마 (Fluent Dark) -->
+        <models:ZoneTheme x:Key="Zone1Theme"
+            Accent="{StaticResource AccentBlueBrush}"
+            GantryStroke="#3A4A5A" RailFill="#2E3E4E" BridgeFill="#3A4858"
+            ConveyorBg="#1A2230" ConveyorBorder="#3A4A5A"
+            StopperFill="#2A3A50" StopperFg="#60CDFF"
+            AlignBg="#1E2A38" AlignBorder="#3A5A7A" AlignFg="#60CDFF"
+            ShuttleBg="#1E2838" ShuttleBorder="#4A6A8A" ShuttleLiftedBg="#243248"
+            HeadGlow="#4090D0" GaugeBg="#1A2430"/>
+        <models:ZoneTheme x:Key="Zone2Theme"
+            Accent="{StaticResource AccentOrangeBrush}"
+            GantryStroke="#4A3A2A" RailFill="#3E2E1E" BridgeFill="#4A3828"
+            ConveyorBg="#221A10" ConveyorBorder="#4A3A2A"
+            StopperFill="#3A2A18" StopperFg="#FCB75D"
+            AlignBg="#281E14" AlignBorder="#6A4A2A" AlignFg="#FCB75D"
+            ShuttleBg="#28201A" ShuttleBorder="#7A5A30" ShuttleLiftedBg="#322818"
+            HeadGlow="#D09030" GaugeBg="#201810"/>
+        <models:ZoneTheme x:Key="Zone3Theme"
+            Accent="{StaticResource AccentGreenBrush}"
+            GantryStroke="#2A4A32" RailFill="#1E3E24" BridgeFill="#2A4830"
+            ConveyorBg="#142218" ConveyorBorder="#2A4A32"
+            StopperFill="#1A3820" StopperFg="#6CCB5F"
+            AlignBg="#182A1E" AlignBorder="#2A5A30" AlignFg="#6CCB5F"
+            ShuttleBg="#1A2A1E" ShuttleBorder="#3A6A40" ShuttleLiftedBg="#223A28"
+            HeadGlow="#40B050" GaugeBg="#142018"/>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="56"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="48"/>
+        </Grid.RowDefinitions>
+
+        <!-- NG 스택 풀 — 전체 화면 알람 오버레이 -->
+        <Border Grid.RowSpan="3" Panel.ZIndex="999"
+                Background="#C0180000" IsHitTestVisible="True"
+                Visibility="{Binding State.NgStackAlarm, Converter={StaticResource BoolToVis}}">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <TextBlock Text="NG STACK FULL" FontSize="72"
+                           Style="{StaticResource OverlayTextStyle}" Foreground="White"/>
+                <TextBlock HorizontalAlignment="Center" Margin="0,12,0,0" FontSize="28" Foreground="#FFB0B0">
+                    <Run Text="{Binding [NgAlarm_Loaded], Source={x:Static loc:Loc.Instance}, Mode=OneWay}"/>
+                    <Run Text="{Binding State.NgStackCount, Mode=OneWay}"/>
+                    <Run Text="/"/>
+                    <Run Text="{Binding State.NgStackMaxCount, Mode=OneWay}"/>
+                    <Run Text="{Binding [NgAlarm_ResetRestart], Source={x:Static loc:Loc.Instance}, Mode=OneWay}"/>
+                </TextBlock>
+                <Button Content="{Binding [Btn_NgReset], Source={x:Static loc:Loc.Instance}}" Command="{Binding ResetNgStackCommand}"
+                        Style="{StaticResource DangerButtonStyle}"
+                        FontSize="24" Padding="40,16" Margin="0,40,0,0"
+                        MinWidth="200"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Row 0: 통계 바 -->
+        <v:StatsBarView Grid.Row="0"/>
+
+        <!-- Row 1: 설비 평면도 (Top-down Digital Twin) -->
+        <Border Grid.Row="1" Background="{StaticResource EquipBgBrush}"
+                BorderThickness="0,0,0,1" BorderBrush="{StaticResource DividerBrush}">
+            <Border BorderBrush="{StaticResource EquipFrameBrush}" BorderThickness="1" CornerRadius="4" Margin="8,4">
+                <Grid>
+                <!-- E-STOP 오버레이 -->
+                <Border Panel.ZIndex="100" CornerRadius="4"
+                        Background="#60180000" IsHitTestVisible="False"
+                        Visibility="{Binding State.IsError, Converter={StaticResource BoolToVis}}">
+                    <TextBlock Text="E-STOP" FontSize="28"
+                               Style="{StaticResource OverlayTextStyle}"
+                               Foreground="{StaticResource AccentRedBrush}" Opacity="0.6"
+                               VerticalAlignment="Center"/>
+                </Border>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="56"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="36"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="36"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="36"/>
+                        <ColumnDefinition Width="56"/>
+                        <ColumnDefinition Width="200"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="24"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="18"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 컨베이어 연결 레일 (IN ~ OUT 전체 관통) -->
+                    <Rectangle Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="8" Panel.ZIndex="0"
+                               Height="3" VerticalAlignment="Center" Margin="0,-27,0,0"
+                               Fill="#2A3040" RadiusX="1.5" RadiusY="1.5" IsHitTestVisible="False"/>
+                    <Rectangle Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="8" Panel.ZIndex="0"
+                               Height="3" VerticalAlignment="Center" Margin="0,27,0,0"
+                               Fill="#2A3040" RadiusX="1.5" RadiusY="1.5" IsHitTestVisible="False"/>
+                    <!-- 흐름 방향 화살표 (레일 사이) -->
+                    <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="8" Panel.ZIndex="1"
+                               Text="›   ›   ›   ›   ›   ›   ›   ›   ›   ›   ›   ›"
+                               FontSize="8" Foreground="#3A4050"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               IsHitTestVisible="False" Opacity="0.6"/>
+
+                    <!-- 앞장비 (IN) -->
+                    <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="0"
+                            CornerRadius="4" Background="#252525" Margin="4,2">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="#404040"/>
+                                <Setter Property="BorderThickness" Value="1"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding State.PrevEquipReady}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="IN" Style="{StaticResource BoxLabelStyle}" Margin="0,0,0,6"/>
+                            <StackPanel>
+                                <Rectangle Width="22" Height="9" Fill="#2A4060" RadiusX="2" RadiusY="2" Margin="0,0,0,3"/>
+                                <Rectangle Width="22" Height="9" Fill="#2A4060" RadiusX="2" RadiusY="2"/>
+                            </StackPanel>
+                            <TextBlock Text="PCB" Foreground="#606060" FontSize="8" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ZONE 1 — PICK -->
+                    <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="6,2" VerticalAlignment="Center">
+                        <TextBlock Text="ZONE 1" Style="{StaticResource ZoneTitleStyle}"
+                                   Foreground="{StaticResource AccentBlueBrush}"/>
+                        <TextBlock Text="  PICK" Style="{StaticResource ZoneSubtitleStyle}"
+                                   Foreground="{StaticResource AccentBlueBrush}"/>
+                        <TextBlock Text="{Binding State.Zone1.Progress}" Style="{StaticResource ZoneInfoStyle}"
+                                   Foreground="{StaticResource AccentBlueBrush}" FontSize="9" Margin="8,0,0,0" Opacity="0.8"/>
+                    </StackPanel>
+                    <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource CanvasBgBrush}"
+                            BorderBrush="#3A4A5A" BorderThickness="1"
+                            CornerRadius="4" Margin="3,0" Panel.ZIndex="1">
+                        <v:ZoneCanvasView ZoneVisual="{Binding State.Zone1.Visual}"
+                                         Theme="{StaticResource Zone1Theme}" HeadType="Gripper"/>
+                    </Border>
+                    <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding State.Zone1.Visual.CoordText}" Style="{StaticResource ZoneInfoStyle}"
+                                   Foreground="{StaticResource AccentBlueBrush}"/>
+                        <TextBlock Text="{Binding State.Zone1.Timing}" Style="{StaticResource ZoneInfoStyle}"
+                                   FontSize="7" FontWeight="Bold"
+                                   Foreground="{StaticResource AccentCyanBrush}" Margin="8,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- 셔틀 트랜짓 Zone 1→2 (전용 컬럼) -->
+                    <Border Grid.Row="1" Grid.Column="2" Panel.ZIndex="10"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Width="32" Height="22" CornerRadius="4"
+                            Background="#20354555" BorderBrush="#60CDFF" BorderThickness="1"
+                            Visibility="{Binding State.ShuttleTransit12, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="› ›" FontSize="10" Foreground="#60CDFF"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+
+                    <!-- ZONE 2 — BOLT -->
+                    <StackPanel Grid.Row="0" Grid.Column="3" Orientation="Horizontal" Margin="6,2" VerticalAlignment="Center">
+                        <TextBlock Text="ZONE 2" Style="{StaticResource ZoneTitleStyle}"
+                                   Foreground="{StaticResource AccentOrangeBrush}"/>
+                        <TextBlock Text="  BOLT" Style="{StaticResource ZoneSubtitleStyle}"
+                                   Foreground="{StaticResource AccentOrangeBrush}"/>
+                        <TextBlock Text="{Binding State.Zone2.Progress}" Style="{StaticResource ZoneInfoStyle}"
+                                   Foreground="{StaticResource AccentOrangeBrush}" FontSize="9" Margin="8,0,0,0" Opacity="0.8"/>
+                    </StackPanel>
+                    <Border Grid.Row="1" Grid.Column="3" Background="{StaticResource CanvasBgBrush}"
+                            BorderBrush="#4A3A2A" BorderThickness="1"
+                            CornerRadius="4" Margin="3,0" Panel.ZIndex="1">
+                        <v:ZoneCanvasView ZoneVisual="{Binding State.Zone2.Visual}"
+                                         Theme="{StaticResource Zone2Theme}" HeadType="BoltDriver"/>
+                    </Border>
+                    <StackPanel Grid.Row="2" Grid.Column="3" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding State.Zone2.Visual.CoordText}" Style="{StaticResource ZoneInfoStyle}"
+                                   Foreground="{StaticResource AccentOrangeBrush}"/>
+                        <TextBlock Text="{Binding State.BoltProgress}" Style="{StaticResource ZoneInfoStyle}"
+                                   FontWeight="Bold" Foreground="{StaticResource AccentOrangeBrush}" Margin="8,0,0,0"/>
+                        <TextBlock Text="{Binding State.LastFiducialResult}" Style="{StaticResource ZoneInfoStyle}"
+                                   FontSize="7" Foreground="{StaticResource AccentCyanBrush}" Margin="8,0,0,0"/>
+                        <TextBlock Text="{Binding State.Zone2.Timing}" Style="{StaticResource ZoneInfoStyle}"
+                                   FontSize="7" FontWeight="Bold"
+                                   Foreground="{StaticResource AccentCyanBrush}" Margin="6,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- 셔틀 트랜짓 Zone 2→3 (전용 컬럼) -->
+                    <Border Grid.Row="1" Grid.Column="4" Panel.ZIndex="10"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Width="32" Height="22" CornerRadius="4"
+                            Background="#20453520" BorderBrush="#FCB75D" BorderThickness="1"
+                            Visibility="{Binding State.ShuttleTransit23, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="› ›" FontSize="10" Foreground="#FCB75D"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+
+                    <!-- ZONE 3 — INSPECT -->
+                    <StackPanel Grid.Row="0" Grid.Column="5" Orientation="Horizontal" Margin="6,2" VerticalAlignment="Center">
+                        <TextBlock Text="ZONE 3" Style="{StaticResource ZoneTitleStyle}"
+                                   Foreground="{StaticResource AccentGreenBrush}"/>
+                        <TextBlock Text="  INSPECT" Style="{StaticResource ZoneSubtitleStyle}"
+                                   Foreground="{StaticResource AccentGreenBrush}"/>
+                        <TextBlock Text="{Binding State.Zone3.Progress}" Style="{StaticResource ZoneInfoStyle}"
+                                   Foreground="{StaticResource AccentGreenBrush}" FontSize="9" Margin="8,0,0,0" Opacity="0.8"/>
+                    </StackPanel>
+                    <Border Grid.Row="1" Grid.Column="5" Background="{StaticResource CanvasBgBrush}"
+                            BorderBrush="#2A4A32" BorderThickness="1"
+                            CornerRadius="4" Margin="3,0" Panel.ZIndex="1">
+                        <v:ZoneCanvasView ZoneVisual="{Binding State.Zone3.Visual}"
+                                         Theme="{StaticResource Zone3Theme}" HeadType="Camera"/>
+                    </Border>
+                    <StackPanel Grid.Row="2" Grid.Column="5" Orientation="Horizontal" Margin="6,1" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding State.Zone3.Visual.CoordText}" Style="{StaticResource ZoneInfoStyle}"
+                                   Foreground="{StaticResource AccentGreenBrush}"/>
+                        <TextBlock Text="{Binding State.Zone3.Timing}" Style="{StaticResource ZoneInfoStyle}"
+                                   FontSize="7" FontWeight="Bold"
+                                   Foreground="{StaticResource AccentCyanBrush}" Margin="8,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- 셔틀 배출 트랜짓 (전용 컬럼) -->
+                    <Border Grid.Row="1" Grid.Column="6" Panel.ZIndex="10"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Width="32" Height="22" CornerRadius="4"
+                            Background="#20204A28" BorderBrush="#6CCB5F" BorderThickness="1"
+                            Visibility="{Binding State.ShuttleTransitOut, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="› ›" FontSize="10" Foreground="#6CCB5F"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+
+                    <!-- 뒷장비 (OUT) -->
+                    <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="7"
+                            CornerRadius="4" Background="#252525" Margin="4,2">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush" Value="#404040"/>
+                                <Setter Property="BorderThickness" Value="1"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding State.SmemaReady}" Value="True">
+                                        <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="OUT" Style="{StaticResource BoxLabelStyle}" Margin="0,0,0,6"/>
+                            <TextBlock Text="SMEMA" Foreground="#606060" FontSize="7" HorizontalAlignment="Center"/>
+                            <TextBlock Text="›" Foreground="#606060" FontSize="12" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 우측 패널 (결과·NG·SMEMA) -->
+                    <v:ResultPanelView Grid.Row="0" Grid.RowSpan="3" Grid.Column="8"/>
+                </Grid>
+                </Grid>
+            </Border>
+        </Border>
+
+        <!-- Row 2: 제어 버튼 -->
+        <Border Grid.Row="2" Style="{StaticResource BarPanelStyle}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0">
+                <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
+                    <TextBlock Text="Torque" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="0,0,6,0"/>
+                    <TextBox Text="{Binding TargetTorque, StringFormat='{}{0:F1}', UpdateSourceTrigger=LostFocus}"
+                             VerticalAlignment="Center" FontSize="11" MinWidth="40" TextAlignment="Right"/>
+                    <TextBlock Text="Nm" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}" FontSize="10" Margin="4,0,0,0"/>
+                </StackPanel>
+                <Button Content="{Binding [Btn_Start], Source={x:Static loc:Loc.Instance}}" Command="{Binding StartCommand}" Style="{StaticResource PrimaryButtonStyle}" MinWidth="80" Margin="0,0,6,0"/>
+                <Button Content="{Binding [Btn_Stop], Source={x:Static loc:Loc.Instance}}" Command="{Binding StopCommand}" Style="{StaticResource SecondaryButtonStyle}" MinWidth="80" Margin="0,0,6,0"/>
+                <Button Content="{Binding [Btn_EStop], Source={x:Static loc:Loc.Instance}}" Command="{Binding EStopCommand}" Style="{StaticResource DangerButtonStyle}" MinWidth="90" Margin="0,0,12,0"/>
+                <Button Content="{Binding [Btn_NgReset], Source={x:Static loc:Loc.Instance}}" Command="{Binding ResetNgStackCommand}" Style="{StaticResource SecondaryButtonStyle}" MinWidth="70"
+                        Visibility="{Binding State.NgStackAlarm, Converter={StaticResource BoolToVis}}"/>
+                <!-- Language toggle -->
+                <Border Margin="20,0,0,0" VerticalAlignment="Center">
+                    <Button Content="{Binding Language, Source={x:Static loc:Loc.Instance}}"
+                            Command="{Binding ToggleLanguageCommand}"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            MinWidth="46" FontFamily="Consolas" FontWeight="Bold" FontSize="10"/>
+                </Border>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
