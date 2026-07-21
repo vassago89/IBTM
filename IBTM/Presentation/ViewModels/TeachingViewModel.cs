@@ -32,8 +32,8 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
 
     private readonly IMotionService[] _motions;
     private readonly IIoService _io;
-    private readonly ICameraStreamService _zone2Camera;
-    private readonly ICameraStreamService _zone3Camera;
+    private readonly ICameraStreamService _boltFasteningCamera;
+    private readonly ICameraStreamService _inspectionCamera;
     private readonly RecipeService _recipes;
     private readonly MachineConfig _config;
     private readonly TeachingPointMapper _pointMapper;
@@ -50,7 +50,7 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(ToggleLiveViewCommand))]
     [NotifyCanExecuteChangedFor(nameof(CameraClickCommand))]
     [NotifyCanExecuteChangedFor(nameof(AddBoltPointCommand))]
-    private int _selectedZone = 3;
+    private int _selectedStation = 3;
 
     [ObservableProperty] private double _currentX;
     [ObservableProperty] private double _currentY;
@@ -73,21 +73,21 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
     [ObservableProperty] private string _statusMessage = string.Empty;
 
     public TeachingViewModel(
-        [FromKeyedServices(1)] IMotionService zone1,
-        [FromKeyedServices(2)] IMotionService zone2,
-        [FromKeyedServices(3)] IMotionService zone3,
+        [FromKeyedServices(1)] IMotionService pcbPlacementMotion,
+        [FromKeyedServices(2)] IMotionService boltFasteningMotion,
+        [FromKeyedServices(3)] IMotionService inspectionMotion,
         IIoService io,
-        [FromKeyedServices(2)] ICameraStreamService zone2Camera,
-        [FromKeyedServices(3)] ICameraStreamService zone3Camera,
+        [FromKeyedServices(2)] ICameraStreamService boltFasteningCamera,
+        [FromKeyedServices(3)] ICameraStreamService inspectionCamera,
         RecipeService recipes,
         MachineConfig config,
         TeachingPointMapper pointMapper,
         ProcessOrchestrator orchestrator)
     {
-        _motions = [zone1, zone2, zone3];
+        _motions = [pcbPlacementMotion, boltFasteningMotion, inspectionMotion];
         _io = io;
-        _zone2Camera = zone2Camera;
-        _zone3Camera = zone3Camera;
+        _boltFasteningCamera = boltFasteningCamera;
+        _inspectionCamera = inspectionCamera;
         _recipes = recipes;
         _config = config;
         _pointMapper = pointMapper;
@@ -95,11 +95,11 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
         CurrentRecipe = orchestrator.CurrentRecipe;
         RecipeName = CurrentRecipe.Name;
 
-        zone1.PositionChanged += OnZone1PositionChanged;
-        zone2.PositionChanged += OnZone2PositionChanged;
-        zone3.PositionChanged += OnZone3PositionChanged;
-        zone2Camera.FrameReady += OnZone2FrameReady;
-        zone3Camera.FrameReady += OnZone3FrameReady;
+        pcbPlacementMotion.PositionChanged += OnPcbPlacementPositionChanged;
+        boltFasteningMotion.PositionChanged += OnBoltFasteningPositionChanged;
+        inspectionMotion.PositionChanged += OnInspectionPositionChanged;
+        boltFasteningCamera.FrameReady += OnBoltFasteningFrameReady;
+        inspectionCamera.FrameReady += OnInspectionFrameReady;
 
         BuildTeachingPoints();
         RefreshRecipeFiles();
@@ -109,14 +109,14 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
     public ObservableCollection<string> RecipeFiles { get; } = [];
     public double JogSpeed => JogSpeeds[JogSpeedIndex];
 
-    private IMotionService CurrentMotion => GetMotion(SelectedZone);
-    private ICameraStreamService? CurrentCamera => GetCamera(SelectedZone);
-    private int LaserChannel => LaserChannels[SelectedZone - 1];
+    private IMotionService CurrentMotion => GetMotion(SelectedStation);
+    private ICameraStreamService? CurrentCamera => GetCamera(SelectedStation);
+    private int LaserChannel => LaserChannels[SelectedStation - 1];
 
     partial void OnCurrentRecipeChanged(Recipe value) =>
         _orchestrator.CurrentRecipe = value;
 
-    partial void OnSelectedZoneChanged(int oldValue, int newValue)
+    partial void OnSelectedStationChanged(int oldValue, int newValue)
     {
         if (LaserOn)
         {
@@ -174,7 +174,7 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
     private async Task CameraClickAsync(Point clickPosition)
     {
         var camera = CurrentCamera!;
-        var pixelsPerMm = SelectedZone == 2
+        var pixelsPerMm = SelectedStation == 2
             ? _config.BoltFastening.PixelsPerMm
             : _config.Inspection.PixelsPerMm;
         var targetX = CurrentX + ((clickPosition.X - (camera.ImageWidth / 2.0)) / pixelsPerMm);
@@ -183,7 +183,7 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
         await CurrentMotion.MoveToXYAsync(
             targetX,
             targetY,
-            GetMotionSettings(SelectedZone).SpeedXY);
+            GetMotionSettings(SelectedStation).SpeedXY);
         StatusMessage = $"Move → X:{targetX:F3} Y:{targetY:F3}";
     }
 
@@ -212,8 +212,8 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
     private async Task MoveToPointAsync()
     {
         var point = SelectedPoint!;
-        var motion = GetMotion(point.Zone);
-        var settings = GetMotionSettings(point.Zone);
+        var motion = GetMotion(point.Station);
+        var settings = GetMotionSettings(point.Station);
 
         await motion.MoveToZAsync(0, settings.SpeedZ);
         await motion.MoveToXYAsync(point.X, point.Y, settings.SpeedXY);
@@ -237,7 +237,7 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
         StatusMessage = $"Bolt added: {bolt.Name}";
     }
 
-    private bool CanAddBoltPoint() => SelectedZone is 2 or 3;
+    private bool CanAddBoltPoint() => SelectedStation is 2 or 3;
 
     [RelayCommand(CanExecute = nameof(CanRemoveBoltPoint))]
     private void RemoveBoltPoint()
@@ -249,8 +249,8 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
     }
 
     private bool CanRemoveBoltPoint() =>
-        SelectedPoint?.Kind is TeachingPointKind.Zone2BoltZ
-            or TeachingPointKind.Zone3BoltReference;
+        SelectedPoint?.Kind is TeachingPointKind.BoltZ
+            or TeachingPointKind.BoltReference;
 
     [RelayCommand(CanExecute = nameof(CanSaveRecipe))]
     private async Task SaveRecipeAsync()
@@ -334,28 +334,28 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         Deactivate();
-        _motions[0].PositionChanged -= OnZone1PositionChanged;
-        _motions[1].PositionChanged -= OnZone2PositionChanged;
-        _motions[2].PositionChanged -= OnZone3PositionChanged;
-        _zone2Camera.FrameReady -= OnZone2FrameReady;
-        _zone3Camera.FrameReady -= OnZone3FrameReady;
+        _motions[0].PositionChanged -= OnPcbPlacementPositionChanged;
+        _motions[1].PositionChanged -= OnBoltFasteningPositionChanged;
+        _motions[2].PositionChanged -= OnInspectionPositionChanged;
+        _boltFasteningCamera.FrameReady -= OnBoltFasteningFrameReady;
+        _inspectionCamera.FrameReady -= OnInspectionFrameReady;
     }
 
-    private IMotionService GetMotion(int zone) => _motions[zone - 1];
+    private IMotionService GetMotion(int station) => _motions[station - 1];
 
-    private ICameraStreamService? GetCamera(int zone) => zone switch
+    private ICameraStreamService? GetCamera(int station) => station switch
     {
-        2 => _zone2Camera,
-        3 => _zone3Camera,
+        2 => _boltFasteningCamera,
+        3 => _inspectionCamera,
         _ => null,
     };
 
-    private ZoneMotionParams GetMotionSettings(int zone) => zone switch
+    private StationMotionSettings GetMotionSettings(int station) => station switch
     {
         1 => _config.PcbPlacementMotion,
         2 => _config.BoltFastening.Motion,
         3 => _config.Inspection.Motion,
-        _ => throw new ArgumentOutOfRangeException(nameof(zone)),
+        _ => throw new ArgumentOutOfRangeException(nameof(station)),
     };
 
     private void BuildTeachingPoints()
@@ -368,7 +368,7 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
     private void RefreshFilteredPoints()
     {
         FilteredPoints.Clear();
-        foreach (var point in _allPoints.Where(point => point.Zone == SelectedZone))
+        foreach (var point in _allPoints.Where(point => point.Station == SelectedStation))
         {
             FilteredPoints.Add(point);
         }
@@ -393,19 +393,19 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
         CurrentZ = current.Z;
     }
 
-    private void OnZone1PositionChanged(double x, double y, double z) =>
+    private void OnPcbPlacementPositionChanged(double x, double y, double z) =>
         ApplyPosition(1, x, y, z);
 
-    private void OnZone2PositionChanged(double x, double y, double z) =>
+    private void OnBoltFasteningPositionChanged(double x, double y, double z) =>
         ApplyPosition(2, x, y, z);
 
-    private void OnZone3PositionChanged(double x, double y, double z) =>
+    private void OnInspectionPositionChanged(double x, double y, double z) =>
         ApplyPosition(3, x, y, z);
 
-    private void ApplyPosition(int zone, double x, double y, double z) =>
+    private void ApplyPosition(int station, double x, double y, double z) =>
         RunOnUi(() =>
         {
-            if (SelectedZone == zone)
+            if (SelectedStation == station)
             {
                 CurrentX = x;
                 CurrentY = y;
@@ -413,14 +413,14 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
             }
         });
 
-    private void OnZone2FrameReady(ImageFrame frame) => UpdateLiveImage(2, frame);
+    private void OnBoltFasteningFrameReady(ImageFrame frame) => UpdateLiveImage(2, frame);
 
-    private void OnZone3FrameReady(ImageFrame frame) => UpdateLiveImage(3, frame);
+    private void OnInspectionFrameReady(ImageFrame frame) => UpdateLiveImage(3, frame);
 
-    private void UpdateLiveImage(int zone, ImageFrame frame) =>
+    private void UpdateLiveImage(int station, ImageFrame frame) =>
         RunOnUi(() =>
         {
-            if (SelectedZone == zone)
+            if (SelectedStation == station)
             {
                 LiveImage = frame.ToImageSource();
             }

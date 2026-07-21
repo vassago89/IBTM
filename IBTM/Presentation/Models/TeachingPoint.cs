@@ -12,22 +12,22 @@ public enum TeachMode
 
 public enum TeachingPointKind
 {
-    Zone1PcbPick,
-    Zone1PcbPlaceZ,
-    Zone2Fiducial,
-    Zone2BoltZ,
-    Zone3Inspection,
-    Zone3NgPickup,
-    Zone3NgPlace,
-    Zone3PlaceReference,
-    Zone3BoltReference,
+    PcbPick,
+    PcbPlaceZ,
+    Fiducial,
+    BoltZ,
+    Inspection,
+    NgCarrierPickup,
+    NgStack,
+    PcbPlaceReference,
+    BoltReference,
 }
 
 public partial class TeachingPoint : ObservableObject
 {
     public string Name { get; init; } = string.Empty;
     public TeachingPointKind Kind { get; init; }
-    public int Zone { get; init; }
+    public int Station { get; init; }
     public TeachMode TeachMode { get; init; }
 
     [ObservableProperty] private double _x;

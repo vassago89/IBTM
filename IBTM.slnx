@@ -5,6 +5,7 @@
   <Project Path="IBTM.Stations.BoltFastening/IBTM.Stations.BoltFastening.csproj" />
   <Project Path="IBTM.Stations.Inspection/IBTM.Stations.Inspection.csproj" />
   <Project Path="IBTM.Stations.PcbPlacement/IBTM.Stations.PcbPlacement.csproj" />
+  <Project Path="IBTM.Transport/IBTM.Transport.csproj" />
   <Project Path="IBTM.Virtual/IBTM.Virtual.csproj" />
   <Project Path="IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj" />
   <Project Path="IBTM/IBTM.csproj" />

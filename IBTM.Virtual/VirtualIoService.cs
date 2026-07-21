@@ -5,45 +5,46 @@ using IBTM.Device;
 using IBTM.Stations.BoltFastening;
 using IBTM.Stations.Inspection;
 using IBTM.Stations.PcbPlacement;
+using IBTM.Transport;
 
 namespace IBTM.Virtual;
 
 public sealed class VirtualIoService : IIoService
 {
-    private static readonly int[] ReadyInputs =
+    private static readonly int[] CarrierJigPresentInputChannels =
     [
-        PcbPlacementStation.ShuttlePresentInputChannel,
-        PcbPlacementStation.PcbAvailableInputChannel,
-        BoltFasteningStation.ShuttlePresentInputChannel,
-        InspectionStation.ShuttlePresentInputChannel,
-        InspectionStation.SmemaReadyInputChannel,
+        PcbPlacementStation.CarrierJigPresentInputChannel,
+        BoltFasteningStation.CarrierJigPresentInputChannel,
+        InspectionStation.CarrierJigPresentInputChannel,
+    ];
+
+    private static readonly int[] StopperUpOutputChannels =
+    [
+        PcbPlacementStation.StopperUpOutputChannel,
+        BoltFasteningStation.StopperUpOutputChannel,
+        InspectionStation.StopperUpOutputChannel,
     ];
 
     private static readonly int[] FeedbackChannels =
     [
-        PcbPlacementStation.StopperChannel,
-        PcbPlacementStation.AlignChannel,
-        PcbPlacementStation.LiftChannel,
         PcbPlacementStation.GripperChannel,
-        BoltFasteningStation.StopperChannel,
-        BoltFasteningStation.AlignChannel,
-        BoltFasteningStation.LiftChannel,
-        InspectionStation.StopperChannel,
-        InspectionStation.AlignChannel,
-        InspectionStation.LiftChannel,
         InspectionStation.GripperChannel,
     ];
 
     private readonly bool[] _inputs = new bool[64];
     private readonly bool[] _outputs = new bool[64];
+    private bool _conveyorRunning;
 
     private event Action<int, bool>? InputChanged;
 
     public void Initialize()
     {
-        foreach (var channel in ReadyInputs)
+        SetInput(PcbPlacementStation.PcbAvailableInputChannel, true);
+        SetInput(Conveyor.UpstreamBoardAvailableInputChannel, true);
+        SetInput(Conveyor.DownstreamMachineReadyInputChannel, true);
+        foreach (var channel in CarrierJigPresentInputChannels)
         {
-            SetInput(channel, true);
+            SetInput(channel, false);
         }
     }
 
@@ -101,6 +102,24 @@ public sealed class VirtualIoService : IIoService
     {
         _outputs[channel] = value;
 
+        var stationIndex = Array.IndexOf(StopperUpOutputChannels, channel);
+        if (stationIndex >= 0 && value && _conveyorRunning)
+        {
+            ReleaseCarrierJig(stationIndex);
+        }
+        else if (channel == Conveyor.UpstreamMachineReadyOutputChannel && !value)
+        {
+            SetInput(Conveyor.UpstreamBoardAvailableInputChannel, true);
+        }
+
+        if (channel == InspectionStation.GripperChannel
+            && value
+            && _outputs[InspectionStation.BackupPlateUpOutputChannel]
+            && _inputs[InspectionStation.CarrierJigPresentInputChannel])
+        {
+            SetInput(InspectionStation.CarrierJigPresentInputChannel, false);
+        }
+
         foreach (var feedbackChannel in FeedbackChannels)
         {
             if (feedbackChannel == channel)
@@ -121,4 +140,45 @@ public sealed class VirtualIoService : IIoService
             }
         }
     }
+
+    private void ReleaseCarrierJig(int stationIndex)
+    {
+        var currentInputChannel = CarrierJigPresentInputChannels[stationIndex];
+        if (!_inputs[currentInputChannel])
+        {
+            throw new InvalidOperationException($"Station {stationIndex + 1} has no carrier jig.");
+        }
+
+        if (stationIndex < CarrierJigPresentInputChannels.Length - 1)
+        {
+            var destinationInputChannel = CarrierJigPresentInputChannels[stationIndex + 1];
+            if (_inputs[destinationInputChannel])
+            {
+                throw new InvalidOperationException($"Station {stationIndex + 2} is occupied.");
+            }
+        }
+
+        SetInput(currentInputChannel, false);
+
+        if (stationIndex < CarrierJigPresentInputChannels.Length - 1)
+        {
+            SetInput(CarrierJigPresentInputChannels[stationIndex + 1], true);
+        }
+
+    }
+
+    internal void StartConveyor()
+    {
+        _conveyorRunning = true;
+
+        if (_outputs[Conveyor.UpstreamMachineReadyOutputChannel]
+            && _inputs[Conveyor.UpstreamBoardAvailableInputChannel]
+            && !_inputs[PcbPlacementStation.CarrierJigPresentInputChannel])
+        {
+            SetInput(Conveyor.UpstreamBoardAvailableInputChannel, false);
+            SetInput(PcbPlacementStation.CarrierJigPresentInputChannel, true);
+        }
+    }
+
+    internal void StopConveyor() => _conveyorRunning = false;
 }

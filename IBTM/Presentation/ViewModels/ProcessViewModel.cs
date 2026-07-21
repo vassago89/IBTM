@@ -49,12 +49,12 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
     [ObservableProperty] private double _ngRate;
     [ObservableProperty] private double _lastCycleTime;
 
-    [ObservableProperty] private string _zone1Activity = "Waiting";
-    [ObservableProperty] private string _zone2Activity = "Waiting";
-    [ObservableProperty] private string _zone3Activity = "Waiting";
-    [ObservableProperty] private string _zone1Position = "X 0.000   Y 0.000   Z 0.000";
-    [ObservableProperty] private string _zone2Position = "X 0.000   Y 0.000   Z 0.000";
-    [ObservableProperty] private string _zone3Position = "X 0.000   Y 0.000   Z 0.000";
+    [ObservableProperty] private string _pcbPlacementActivity = "Waiting";
+    [ObservableProperty] private string _boltFasteningActivity = "Waiting";
+    [ObservableProperty] private string _inspectionActivity = "Waiting";
+    [ObservableProperty] private string _pcbPlacementPosition = "X 0.000   Y 0.000   Z 0.000";
+    [ObservableProperty] private string _boltFasteningPosition = "X 0.000   Y 0.000   Z 0.000";
+    [ObservableProperty] private string _inspectionPosition = "X 0.000   Y 0.000   Z 0.000";
 
     [ObservableProperty] private string _boltProgress = string.Empty;
     [ObservableProperty] private string _lastBoltResult = string.Empty;
@@ -128,7 +128,7 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
     {
         _events.StageChanged -= OnStageChanged;
         _events.StatsUpdated -= OnStatsUpdated;
-        _events.ZonePositionChanged -= OnZonePositionChanged;
+        _events.StationPositionChanged -= OnStationPositionChanged;
         _events.FiducialDetected -= OnFiducialDetected;
         _events.BoltCompleted -= OnBoltCompleted;
         _events.BoltProgress -= OnBoltProgress;
@@ -140,7 +140,7 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
     {
         _events.StageChanged += OnStageChanged;
         _events.StatsUpdated += OnStatsUpdated;
-        _events.ZonePositionChanged += OnZonePositionChanged;
+        _events.StationPositionChanged += OnStationPositionChanged;
         _events.FiducialDetected += OnFiducialDetected;
         _events.BoltCompleted += OnBoltCompleted;
         _events.BoltProgress += OnBoltProgress;
@@ -173,7 +173,7 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
         }
 
         var definition = ProcessStageCatalog.Get(stage);
-        SetActivity(definition.Zone, status switch
+        SetActivity(definition.Station, status switch
         {
             StageStatus.Running => definition.ActivityText,
             StageStatus.Done => "Complete",
@@ -181,14 +181,10 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
             _ => "Stopped",
         });
 
-        if (stage == InspectionStages.SmemaWait)
+        if (stage == InspectionStages.SendCarrierJig)
         {
             SmemaWaiting = status == StageStatus.Running;
             SmemaReady = status == StageStatus.Done;
-        }
-        else if (stage == InspectionStages.Discharge && status == StageStatus.Running)
-        {
-            SmemaReady = false;
         }
     }
 
@@ -204,15 +200,15 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
             NgStackMaxCount = _orchestrator.NgStackCapacity;
         });
 
-    private void OnZonePositionChanged(int zone, double x, double y, double z) =>
+    private void OnStationPositionChanged(int station, double x, double y, double z) =>
         RunOnUi(() =>
         {
             var position = $"X {x:F3}   Y {y:F3}   Z {z:F3}";
-            switch (zone)
+            switch (station)
             {
-                case 1: Zone1Position = position; break;
-                case 2: Zone2Position = position; break;
-                case 3: Zone3Position = position; break;
+                case 1: PcbPlacementPosition = position; break;
+                case 2: BoltFasteningPosition = position; break;
+                case 3: InspectionPosition = position; break;
             }
         });
 
@@ -245,13 +241,13 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
             NgStackAlarm = alarm;
         });
 
-    private void SetActivity(int zone, string activity)
+    private void SetActivity(int station, string activity)
     {
-        switch (zone)
+        switch (station)
         {
-            case 1: Zone1Activity = activity; break;
-            case 2: Zone2Activity = activity; break;
-            case 3: Zone3Activity = activity; break;
+            case 1: PcbPlacementActivity = activity; break;
+            case 2: BoltFasteningActivity = activity; break;
+            case 3: InspectionActivity = activity; break;
         }
     }
 

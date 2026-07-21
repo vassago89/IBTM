@@ -60,16 +60,16 @@
                             </Grid.ColumnDefinitions>
 
                             <StackPanel Margin="0,0,24,0">
-                                <TextBlock Text="Zone" Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBlock Text="Station" Style="{StaticResource SettingFieldLabel}"/>
                                 <UniformGrid Columns="3">
-                                    <RadioButton Content="1" GroupName="SettingsZone"
-                                                 IsChecked="{Binding SelectedZone, Mode=TwoWay, Converter={StaticResource IntEquals}, ConverterParameter=1}"
+                                    <RadioButton Content="PCB" GroupName="SettingsStation"
+                                                 IsChecked="{Binding SelectedStation, Mode=TwoWay, Converter={StaticResource IntEquals}, ConverterParameter=1}"
                                                  Style="{StaticResource NavButtonStyle}"/>
-                                    <RadioButton Content="2" GroupName="SettingsZone"
-                                                 IsChecked="{Binding SelectedZone, Mode=TwoWay, Converter={StaticResource IntEquals}, ConverterParameter=2}"
+                                    <RadioButton Content="BOLT" GroupName="SettingsStation"
+                                                 IsChecked="{Binding SelectedStation, Mode=TwoWay, Converter={StaticResource IntEquals}, ConverterParameter=2}"
                                                  Style="{StaticResource NavButtonStyle}"/>
-                                    <RadioButton Content="3" GroupName="SettingsZone"
-                                                 IsChecked="{Binding SelectedZone, Mode=TwoWay, Converter={StaticResource IntEquals}, ConverterParameter=3}"
+                                    <RadioButton Content="INSPECT" GroupName="SettingsStation"
+                                                 IsChecked="{Binding SelectedStation, Mode=TwoWay, Converter={StaticResource IntEquals}, ConverterParameter=3}"
                                                  Style="{StaticResource NavButtonStyle}"/>
                                 </UniformGrid>
                                 <Button Content="Laser" Command="{Binding ToggleLaserCommand}"
@@ -148,35 +148,35 @@
 
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>
-                        <TextBlock Text="Zone Calibration" Style="{StaticResource SettingSectionTitle}"/>
+                        <TextBlock Text="Station Calibration" Style="{StaticResource SettingSectionTitle}"/>
                         <UniformGrid Columns="3" Margin="0,0,0,14">
                             <StackPanel Margin="0,0,16,0">
-                                <TextBlock Text="ZONE 1 REFERENCE" Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBlock Text="PCB PLACEMENT REFERENCE" Style="{StaticResource SettingFieldLabel}"/>
                                 <TextBlock FontFamily="Cascadia Mono, Consolas" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="X "/><Run Text="{Binding Config.Calibration.Zone1Ref.X, StringFormat=F3}"/>
-                                    <Run Text="   Y "/><Run Text="{Binding Config.Calibration.Zone1Ref.Y, StringFormat=F3}"/>
-                                    <Run Text="   Z "/><Run Text="{Binding Config.Calibration.Zone1Ref.Z, StringFormat=F3}"/>
+                                    <Run Text="X "/><Run Text="{Binding Config.Calibration.PcbPlacementReference.X, StringFormat=F3}"/>
+                                    <Run Text="   Y "/><Run Text="{Binding Config.Calibration.PcbPlacementReference.Y, StringFormat=F3}"/>
+                                    <Run Text="   Z "/><Run Text="{Binding Config.Calibration.PcbPlacementReference.Z, StringFormat=F3}"/>
                                 </TextBlock>
                             </StackPanel>
                             <StackPanel Margin="8,0">
-                                <TextBlock Text="ZONE 2 REFERENCE" Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBlock Text="BOLT FASTENING REFERENCE" Style="{StaticResource SettingFieldLabel}"/>
                                 <TextBlock FontFamily="Cascadia Mono, Consolas" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="X "/><Run Text="{Binding Config.Calibration.Zone2Ref.X, StringFormat=F3}"/>
-                                    <Run Text="   Y "/><Run Text="{Binding Config.Calibration.Zone2Ref.Y, StringFormat=F3}"/>
-                                    <Run Text="   Z "/><Run Text="{Binding Config.Calibration.Zone2Ref.Z, StringFormat=F3}"/>
+                                    <Run Text="X "/><Run Text="{Binding Config.Calibration.BoltFasteningReference.X, StringFormat=F3}"/>
+                                    <Run Text="   Y "/><Run Text="{Binding Config.Calibration.BoltFasteningReference.Y, StringFormat=F3}"/>
+                                    <Run Text="   Z "/><Run Text="{Binding Config.Calibration.BoltFasteningReference.Z, StringFormat=F3}"/>
                                 </TextBlock>
                             </StackPanel>
                             <StackPanel Margin="16,0,0,0">
-                                <TextBlock Text="ZONE 3 REFERENCE" Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBlock Text="INSPECTION REFERENCE" Style="{StaticResource SettingFieldLabel}"/>
                                 <TextBlock FontFamily="Cascadia Mono, Consolas" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="X "/><Run Text="{Binding Config.Calibration.Zone3Ref.X, StringFormat=F3}"/>
-                                    <Run Text="   Y "/><Run Text="{Binding Config.Calibration.Zone3Ref.Y, StringFormat=F3}"/>
-                                    <Run Text="   Z "/><Run Text="{Binding Config.Calibration.Zone3Ref.Z, StringFormat=F3}"/>
+                                    <Run Text="X "/><Run Text="{Binding Config.Calibration.InspectionReference.X, StringFormat=F3}"/>
+                                    <Run Text="   Y "/><Run Text="{Binding Config.Calibration.InspectionReference.Y, StringFormat=F3}"/>
+                                    <Run Text="   Z "/><Run Text="{Binding Config.Calibration.InspectionReference.Z, StringFormat=F3}"/>
                                 </TextBlock>
                             </StackPanel>
                         </UniformGrid>
                         <StackPanel Orientation="Horizontal">
-                            <Button Content="Record Selected Zone" Command="{Binding RecordRefCommand}"
+                            <Button Content="Record Selected Station" Command="{Binding RecordRefCommand}"
                                     Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,8,0"/>
                             <Button Content="Compute Offsets" Command="{Binding ComputeOffsetsCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,16,0"/>
@@ -190,7 +190,7 @@
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>
                         <TextBlock Text="Motion" Style="{StaticResource SettingSectionTitle}"/>
-                        <UniformGrid Columns="2">
+                        <UniformGrid Columns="3">
                             <StackPanel Margin="0,0,8,0">
                                 <TextBlock Text="XY Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
                                 <TextBox Text="{Binding CurrentMotionParams.SpeedXY, UpdateSourceTrigger=PropertyChanged}"
@@ -199,6 +199,11 @@
                             <StackPanel Margin="8,0,0,0">
                                 <TextBlock Text="Z Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
                                 <TextBox Text="{Binding CurrentMotionParams.SpeedZ, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource SettingFieldBox}"/>
+                            </StackPanel>
+                            <StackPanel Margin="16,0,0,0">
+                                <TextBlock Text="Conveyor Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBox Text="{Binding Config.Conveyor.Velocity, UpdateSourceTrigger=PropertyChanged}"
                                          Style="{StaticResource SettingFieldBox}"/>
                             </StackPanel>
                         </UniformGrid>
@@ -220,10 +225,10 @@
                     <Border Style="{StaticResource SettingCard}" Margin="6,0,6,12">
                         <StackPanel>
                             <TextBlock Text="Vision" Style="{StaticResource SettingSectionTitle}"/>
-                            <TextBlock Text="Zone 2 Pixels/mm" Style="{StaticResource SettingFieldLabel}"/>
+                            <TextBlock Text="Bolt Fastening Pixels/mm" Style="{StaticResource SettingFieldLabel}"/>
                             <TextBox Text="{Binding Config.BoltFastening.PixelsPerMm, UpdateSourceTrigger=PropertyChanged}"
                                      Style="{StaticResource SettingFieldBox}" Margin="0,0,0,10"/>
-                            <TextBlock Text="Zone 3 Pixels/mm" Style="{StaticResource SettingFieldLabel}"/>
+                            <TextBlock Text="Inspection Pixels/mm" Style="{StaticResource SettingFieldLabel}"/>
                             <TextBox Text="{Binding Config.Inspection.PixelsPerMm, UpdateSourceTrigger=PropertyChanged}"
                                      Style="{StaticResource SettingFieldBox}"/>
                         </StackPanel>

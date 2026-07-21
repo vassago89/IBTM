@@ -1,24 +1,25 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core.Geometry;
 using IBTM.Core.Machine;
 using IBTM.Core.Process;
 using IBTM.Device;
+using IBTM.Transport;
 
 namespace IBTM.Stations.Inspection;
 
 public sealed class InspectionStation : IDisposable
 {
-    public const int ShuttlePresentInputChannel = 30;
-    public const int StopperChannel = 31;
-    public const int AlignChannel = 32;
-    public const int LiftChannel = 33;
+    public const int CarrierJigPresentInputChannel = 30;
+    public const int StopperUpOutputChannel = 31;
+    public const int BackupPlateUpOutputChannel = 33;
     public const int GripperChannel = 34;
     public const int LaserChannel = 35;
-    public const int SmemaReadyInputChannel = 40;
-    public const int BoardAvailableChannel = 41;
 
-    private readonly StationOperations _machine;
+    private readonly IMotionService _motion;
+    private readonly IIoService _io;
+    private readonly StationMotionSettings _motionSettings;
     private readonly ProcessEvents _events;
     private readonly IInspectionService _inspection;
     private readonly InspectionOptions _options;
@@ -30,47 +31,47 @@ public sealed class InspectionStation : IDisposable
         ProcessEvents events,
         IInspectionService inspection)
     {
-        _machine = new StationOperations(3, motion, io, options.Motion, events);
+        _motion = motion;
+        _io = io;
+        _motionSettings = options.Motion;
         _events = events;
         _inspection = inspection;
         _options = options;
+        CarrierJigPositioner = new CarrierJigPositioner(
+            io,
+            CarrierJigPresentInputChannel,
+            StopperUpOutputChannel,
+            BackupPlateUpOutputChannel);
+        _motion.PositionChanged += OnPositionChanged;
     }
 
     public int NgStackCount { get; private set; }
     public int NgStackCapacity => _options.NgStackMaxCount;
+    public CarrierJigPositioner CarrierJigPositioner { get; }
 
-    public void Initialize() => _machine.Initialize();
+    public void Initialize()
+    {
+        _motion.Initialize();
+        CarrierJigPositioner.Initialize();
+    }
 
-    public async Task<InspectionResult> RunAsync(
+    public async Task<InspectionResult> ProcessAsync(
         InspectionRecipe recipe,
         CancellationToken cancellationToken)
     {
         await _events.RunStageAsync(
-            InspectionStages.WaitShuttle,
+            InspectionStages.PositionCarrierJig,
             cancellationToken,
-            token => _machine.WaitForInputAsync(ShuttlePresentInputChannel, token));
-
-        await _events.RunStageAsync(
-            InspectionStages.StopAlignLift,
-            cancellationToken,
-            token => _machine.StopAlignLiftAsync(
-                StopperChannel,
-                AlignChannel,
-                LiftChannel,
-                token));
+            CarrierJigPositioner.PositionAsync);
 
         var result = await _events.RunStageAsync(
             InspectionStages.Inspect,
             cancellationToken,
             token => InspectAsync(recipe, token));
 
-        if (result == InspectionResult.Good)
+        if (result == InspectionResult.Ng)
         {
-            await RunGoodRouteAsync(cancellationToken);
-        }
-        else
-        {
-            await RunNgRouteAsync(recipe, cancellationToken);
+            await StackNgCarrierJigAsync(recipe, cancellationToken);
         }
 
         return result;
@@ -82,71 +83,81 @@ public sealed class InspectionStation : IDisposable
         _events.NgStack(0, alarm: false);
     }
 
-    public void Stop() => _machine.Stop();
+    public void Stop() => _motion.Stop();
 
-    public void EmergencyStop() => _machine.EmergencyStop();
+    public void EmergencyStop() => _motion.EmergencyStop();
 
-    public void Dispose() => _machine.Dispose();
+    public void Dispose() => _motion.PositionChanged -= OnPositionChanged;
 
     private async Task<InspectionResult> InspectAsync(
         InspectionRecipe recipe,
         CancellationToken cancellationToken)
     {
-        await _machine.MoveToPositionAsync(recipe.InspectPosition, cancellationToken);
+        await MoveToPositionAsync(recipe.InspectPosition, cancellationToken);
 
         var outcome = await _inspection.InspectAsync(cancellationToken);
         _events.Inspection(outcome);
         return outcome.Result;
     }
 
-    private async Task RunNgRouteAsync(
+    private Task StackNgCarrierJigAsync(
         InspectionRecipe recipe,
-        CancellationToken cancellationToken)
-    {
-        await _events.RunStageAsync(
-            InspectionStages.NgTransfer,
+        CancellationToken cancellationToken) =>
+        _events.RunStageAsync(
+            InspectionStages.StackNgCarrierJig,
             cancellationToken,
             async token =>
             {
-                await _machine.PickAndPlaceAsync(
-                    recipe.NgPickupPosition,
-                    recipe.NgPlacePosition,
-                    GripperChannel,
+                await PickAndPlaceAsync(
+                    recipe.NgCarrierPickupPosition,
+                    recipe.NgStackPosition,
                     token);
+                await CarrierJigPositioner.CompleteRemovalAsync(token);
 
                 NgStackCount++;
-                var alarm = NgStackCount >= NgStackCapacity;
-                _events.NgStack(NgStackCount, alarm);
+                _events.NgStack(NgStackCount, NgStackCount >= NgStackCapacity);
             });
 
-        await ReleaseAsync(cancellationToken);
-    }
-
-    private async Task RunGoodRouteAsync(CancellationToken cancellationToken)
+    private async Task PickAndPlaceAsync(
+        AxisPos pickPosition,
+        AxisPos placePosition,
+        CancellationToken cancellationToken)
     {
-        await _events.RunStageAsync(
-            InspectionStages.SmemaWait,
-            cancellationToken,
-            token => _machine.WaitForInputAsync(SmemaReadyInputChannel, token));
+        await MoveToPositionAsync(pickPosition, cancellationToken);
+        _io.SetOutput(GripperChannel, true);
+        await _io.WaitForInputAsync(GripperChannel, true, cancellationToken);
 
-        await ReleaseAsync(cancellationToken);
+        await MoveToZAsync(0, cancellationToken);
+        await _motion.MoveToXYAsync(
+            placePosition.X,
+            placePosition.Y,
+            _motionSettings.SpeedXY,
+            cancellationToken);
+        await MoveToZAsync(placePosition.Z, cancellationToken);
 
-        await _events.RunStageAsync(
-            InspectionStages.Discharge,
-            cancellationToken,
-            token => _machine.PulseOutputAsync(
-                    BoardAvailableChannel,
-                    TimeSpan.FromMilliseconds(500),
-                    token));
+        _io.SetOutput(GripperChannel, false);
+        await _io.WaitForInputAsync(GripperChannel, false, cancellationToken);
+        await MoveToZAsync(0, cancellationToken);
     }
 
-    private Task ReleaseAsync(CancellationToken cancellationToken) =>
-        _events.RunStageAsync(
-            InspectionStages.Release,
-            cancellationToken,
-            token => _machine.ReleaseAsync(
-                StopperChannel,
-                AlignChannel,
-                LiftChannel,
-                token));
+    private async Task MoveToPositionAsync(
+        AxisPos position,
+        CancellationToken cancellationToken)
+    {
+        await _motion.MoveToXYAsync(
+            position.X,
+            position.Y,
+            _motionSettings.SpeedXY,
+            cancellationToken);
+        await MoveToZAsync(position.Z, cancellationToken);
+    }
+
+    private Task MoveToZAsync(double position, CancellationToken cancellationToken) =>
+        _motion.MoveToZAsync(
+            position,
+            _motionSettings.SpeedZ,
+            cancellationToken);
+
+    private void OnPositionChanged(double x, double y, double z) =>
+        _events.Position(3, x, y, z);
 }

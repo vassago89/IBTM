@@ -8,6 +8,7 @@ using IBTM.Presentation.ViewModels;
 using IBTM.Stations.BoltFastening;
 using IBTM.Stations.Inspection;
 using IBTM.Stations.PcbPlacement;
+using IBTM.Transport;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,13 +19,17 @@ public static class DependencyInjection
     public static IServiceCollection AddIbtmApplication(this IServiceCollection services)
     {
         services.AddSingleton(provider => provider.GetRequiredService<MachineConfig>().PcbPlacementMotion);
+        services.AddSingleton(provider => provider.GetRequiredService<MachineConfig>().Conveyor);
         services.AddSingleton(provider => provider.GetRequiredService<MachineConfig>().BoltFastening);
         services.AddSingleton(provider => provider.GetRequiredService<MachineConfig>().Inspection);
 
         services.AddKeyedSingleton<IMotionService, VirtualMotionService>(1);
         services.AddKeyedSingleton<IMotionService, VirtualMotionService>(2);
         services.AddKeyedSingleton<IMotionService, VirtualMotionService>(3);
-        services.AddSingleton<IIoService, VirtualIoService>();
+        services.AddSingleton<VirtualIoService>();
+        services.AddSingleton<IIoService>(provider => provider.GetRequiredService<VirtualIoService>());
+        services.AddSingleton<IConveyorServo, VirtualConveyorServo>();
+        services.AddSingleton<Conveyor>();
 
         services.AddSingleton<IFiducialService, VirtualFiducialService>();
         services.AddSingleton<IBoltService, VirtualBoltService>();

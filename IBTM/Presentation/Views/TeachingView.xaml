@@ -84,17 +84,17 @@
             <StackPanel Grid.Column="0" Margin="0,0,12,0">
                 <Border Style="{StaticResource SectionStyle}">
                     <StackPanel>
-                        <TextBlock Text="Zone"
+                        <TextBlock Text="Station"
                                    FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8"/>
                         <UniformGrid Columns="3">
-                            <RadioButton Content="Zone 1" GroupName="TeachZone"
-                                         IsChecked="{Binding SelectedZone, Mode=TwoWay, Converter={StaticResource IntEquals}, ConverterParameter=1}"
+                            <RadioButton Content="PCB" GroupName="TeachStation"
+                                         IsChecked="{Binding SelectedStation, Mode=TwoWay, Converter={StaticResource IntEquals}, ConverterParameter=1}"
                                          Style="{StaticResource NavButtonStyle}"/>
-                            <RadioButton Content="Zone 2" GroupName="TeachZone"
-                                         IsChecked="{Binding SelectedZone, Mode=TwoWay, Converter={StaticResource IntEquals}, ConverterParameter=2}"
+                            <RadioButton Content="BOLT" GroupName="TeachStation"
+                                         IsChecked="{Binding SelectedStation, Mode=TwoWay, Converter={StaticResource IntEquals}, ConverterParameter=2}"
                                          Style="{StaticResource NavButtonStyle}"/>
-                            <RadioButton Content="Zone 3" GroupName="TeachZone"
-                                         IsChecked="{Binding SelectedZone, Mode=TwoWay, Converter={StaticResource IntEquals}, ConverterParameter=3}"
+                            <RadioButton Content="INSPECT" GroupName="TeachStation"
+                                         IsChecked="{Binding SelectedStation, Mode=TwoWay, Converter={StaticResource IntEquals}, ConverterParameter=3}"
                                          Style="{StaticResource NavButtonStyle}"/>
                         </UniformGrid>
                     </StackPanel>

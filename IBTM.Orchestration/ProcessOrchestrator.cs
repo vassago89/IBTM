@@ -7,14 +7,14 @@ using IBTM.Device;
 using IBTM.Stations.BoltFastening;
 using IBTM.Stations.Inspection;
 using IBTM.Stations.PcbPlacement;
+using IBTM.Transport;
 
 namespace IBTM.Orchestration;
 
 public sealed class ProcessOrchestrator : IDisposable
 {
-    private const int ConveyorChannel = 0;
-
     private readonly IIoService _io;
+    private readonly Conveyor _conveyor;
     private readonly PcbPlacementStation _pcbPlacement;
     private readonly BoltFasteningStation _boltFastening;
     private readonly InspectionStation _inspection;
@@ -25,12 +25,14 @@ public sealed class ProcessOrchestrator : IDisposable
 
     public ProcessOrchestrator(
         IIoService io,
+        Conveyor conveyor,
         PcbPlacementStation pcbPlacement,
         BoltFasteningStation boltFastening,
         InspectionStation inspection,
         ProcessEvents events)
     {
         _io = io;
+        _conveyor = conveyor;
         _pcbPlacement = pcbPlacement;
         _boltFastening = boltFastening;
         _inspection = inspection;
@@ -44,6 +46,7 @@ public sealed class ProcessOrchestrator : IDisposable
     public void Initialize()
     {
         _io.Initialize();
+        _conveyor.Initialize();
         _pcbPlacement.Initialize();
         _boltFastening.Initialize();
         _inspection.Initialize();
@@ -91,6 +94,7 @@ public sealed class ProcessOrchestrator : IDisposable
         _pcbPlacement.EmergencyStop();
         _boltFastening.EmergencyStop();
         _inspection.EmergencyStop();
+        _conveyor.EmergencyStop();
         _io.TurnOffAll();
         _events.Stage(SystemStages.Idle, StageStatus.Error);
     }
@@ -113,19 +117,87 @@ public sealed class ProcessOrchestrator : IDisposable
 
     private async Task RunPipelineAsync(CancellationToken cancellationToken)
     {
-        _io.SetOutput(ConveyorChannel, true);
+        using var pipelineCancellation =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var token = pipelineCancellation.Token;
+        var pcbPlacement = RunPcbPlacementLoopAsync(token);
+        var boltFastening = RunBoltFasteningLoopAsync(token);
+        var inspection = RunInspectionLoopAsync(token);
+        Task[] workers = [pcbPlacement, boltFastening, inspection];
 
+        var completed = await Task.WhenAny(workers);
+        pipelineCancellation.Cancel();
+
+        if (ReferenceEquals(completed, inspection) && inspection.IsCompletedSuccessfully)
+        {
+            try
+            {
+                await Task.WhenAll(workers);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+            }
+
+            return;
+        }
+
+        await Task.WhenAll(workers);
+    }
+
+    private async Task RunPcbPlacementLoopAsync(CancellationToken cancellationToken)
+    {
         while (true)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var recipe = CurrentRecipe;
-            var cycleTimer = Stopwatch.StartNew();
+            await _events.RunStageAsync(
+                PcbPlacementStages.ReceiveCarrierJig,
+                cancellationToken,
+                token => _conveyor.ReceiveAsync(
+                    _pcbPlacement.CarrierJigPositioner,
+                    token));
+            await _pcbPlacement.ProcessAsync(
+                CurrentRecipe.PcbPlacement,
+                cancellationToken);
+            await _conveyor.TransferAsync(
+                _pcbPlacement.CarrierJigPositioner,
+                _boltFastening.CarrierJigPositioner,
+                cancellationToken);
+        }
+    }
 
-            await _pcbPlacement.RunAsync(recipe.PcbPlacement, cancellationToken);
-            await _boltFastening.RunAsync(recipe.BoltFastening, cancellationToken);
-            var result = await _inspection.RunAsync(recipe.Inspection, cancellationToken);
+    private async Task RunBoltFasteningLoopAsync(CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            await _boltFastening.ProcessAsync(
+                CurrentRecipe.BoltFastening,
+                cancellationToken);
+            await _conveyor.TransferAsync(
+                _boltFastening.CarrierJigPositioner,
+                _inspection.CarrierJigPositioner,
+                cancellationToken);
+        }
+    }
+
+    private async Task RunInspectionLoopAsync(CancellationToken cancellationToken)
+    {
+        var cycleTimer = Stopwatch.StartNew();
+        while (true)
+        {
+            var result = await _inspection.ProcessAsync(
+                CurrentRecipe.Inspection,
+                cancellationToken);
+            if (result == InspectionResult.Good)
+            {
+                await _events.RunStageAsync(
+                    InspectionStages.SendCarrierJig,
+                    cancellationToken,
+                    token => _conveyor.SendAsync(
+                        _inspection.CarrierJigPositioner,
+                        token));
+            }
 
             CompleteCycle(result, cycleTimer.Elapsed.TotalSeconds);
+            cycleTimer.Restart();
             if (NgStackCount >= NgStackCapacity)
             {
                 return;
@@ -155,6 +227,7 @@ public sealed class ProcessOrchestrator : IDisposable
         _pcbPlacement.Stop();
         _boltFastening.Stop();
         _inspection.Stop();
+        _conveyor.Stop();
         _io.TurnOffAll();
     }
 }

@@ -5,18 +5,19 @@ using IBTM.Core.Geometry;
 using IBTM.Core.Machine;
 using IBTM.Core.Process;
 using IBTM.Device;
+using IBTM.Transport;
 
 namespace IBTM.Stations.BoltFastening;
 
 public sealed class BoltFasteningStation : IDisposable
 {
-    public const int ShuttlePresentInputChannel = 20;
-    public const int StopperChannel = 21;
-    public const int AlignChannel = 22;
-    public const int LiftChannel = 23;
+    public const int CarrierJigPresentInputChannel = 20;
+    public const int StopperUpOutputChannel = 21;
+    public const int BackupPlateUpOutputChannel = 23;
     public const int LaserChannel = 25;
 
-    private readonly StationOperations _machine;
+    private readonly IMotionService _motion;
+    private readonly StationMotionSettings _motionSettings;
     private readonly ProcessEvents _events;
     private readonly IFiducialService _fiducial;
     private readonly IBoltService _boltController;
@@ -30,35 +31,39 @@ public sealed class BoltFasteningStation : IDisposable
         IFiducialService fiducial,
         IBoltService boltController)
     {
-        _machine = new StationOperations(2, motion, io, options.Motion, events);
+        _motion = motion;
+        _motionSettings = options.Motion;
         _events = events;
         _fiducial = fiducial;
         _boltController = boltController;
         _options = options;
+        CarrierJigPositioner = new CarrierJigPositioner(
+            io,
+            CarrierJigPresentInputChannel,
+            StopperUpOutputChannel,
+            BackupPlateUpOutputChannel);
+        _motion.PositionChanged += OnPositionChanged;
     }
 
-    public void Initialize() => _machine.Initialize();
+    public CarrierJigPositioner CarrierJigPositioner { get; }
+
+    public void Initialize()
+    {
+        _motion.Initialize();
+        CarrierJigPositioner.Initialize();
+    }
 
     public Task PrepareAsync(CancellationToken cancellationToken) =>
         _boltController.InitializeAsync(cancellationToken);
 
-    public async Task RunAsync(
+    public async Task ProcessAsync(
         BoltFasteningRecipe recipe,
         CancellationToken cancellationToken)
     {
         await _events.RunStageAsync(
-            BoltFasteningStages.WaitShuttle,
+            BoltFasteningStages.PositionCarrierJig,
             cancellationToken,
-            token => _machine.WaitForInputAsync(ShuttlePresentInputChannel, token));
-
-        await _events.RunStageAsync(
-            BoltFasteningStages.StopAlignLift,
-            cancellationToken,
-            token => _machine.StopAlignLiftAsync(
-                StopperChannel,
-                AlignChannel,
-                LiftChannel,
-                token));
+            CarrierJigPositioner.PositionAsync);
 
         var fiducial = await _events.RunStageAsync(
             BoltFasteningStages.Fiducial,
@@ -69,28 +74,19 @@ public sealed class BoltFasteningStation : IDisposable
             BoltFasteningStages.Tighten,
             cancellationToken,
             token => TightenBoltsAsync(recipe, fiducial, token));
-
-        await _events.RunStageAsync(
-            BoltFasteningStages.Release,
-            cancellationToken,
-            token => _machine.ReleaseAsync(
-                StopperChannel,
-                AlignChannel,
-                LiftChannel,
-                token));
     }
 
-    public void Stop() => _machine.Stop();
+    public void Stop() => _motion.Stop();
 
-    public void EmergencyStop() => _machine.EmergencyStop();
+    public void EmergencyStop() => _motion.EmergencyStop();
 
-    public void Dispose() => _machine.Dispose();
+    public void Dispose() => _motion.PositionChanged -= OnPositionChanged;
 
     private async Task<FiducialResult> DetectFiducialAsync(
         BoltFasteningRecipe recipe,
         CancellationToken cancellationToken)
     {
-        await _machine.MoveToPositionAsync(recipe.FiducialPosition, cancellationToken);
+        await MoveToPositionAsync(recipe.FiducialPosition, cancellationToken);
 
         var result = await _fiducial.DetectFromCameraAsync(cancellationToken);
         _events.Fiducial(result);
@@ -131,11 +127,11 @@ public sealed class BoltFasteningStation : IDisposable
                 };
 
                 _events.BoltProgressed(boltIndex, totalBolts, boltLabel);
-                await _machine.MoveToPositionAsync(position, cancellationToken);
+                await MoveToPositionAsync(position, cancellationToken);
 
                 await _boltController.ShootAsync(cancellationToken);
                 _events.Bolt(await TightenAsync(boltPoint.TargetTorqueNm, cancellationToken));
-                await _machine.MoveToZAsync(0, cancellationToken);
+                await MoveToZAsync(0, cancellationToken);
             }
         }
     }
@@ -153,4 +149,25 @@ public sealed class BoltFasteningStation : IDisposable
             }
         }
     }
+
+    private async Task MoveToPositionAsync(
+        AxisPos position,
+        CancellationToken cancellationToken)
+    {
+        await _motion.MoveToXYAsync(
+            position.X,
+            position.Y,
+            _motionSettings.SpeedXY,
+            cancellationToken);
+        await MoveToZAsync(position.Z, cancellationToken);
+    }
+
+    private Task MoveToZAsync(double position, CancellationToken cancellationToken) =>
+        _motion.MoveToZAsync(
+            position,
+            _motionSettings.SpeedZ,
+            cancellationToken);
+
+    private void OnPositionChanged(double x, double y, double z) =>
+        _events.Position(2, x, y, z);
 }

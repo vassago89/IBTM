@@ -8,7 +8,7 @@ public sealed class ProcessEvents
 {
     public event Action<string, StageStatus>? StageChanged;
     public event Action<ProductionStats>? StatsUpdated;
-    public event Action<int, double, double, double>? ZonePositionChanged;
+    public event Action<int, double, double, double>? StationPositionChanged;
     public event Action<FiducialResult>? FiducialDetected;
     public event Action<BoltResult>? BoltCompleted;
     public event Action<int, int, string>? BoltProgress;
@@ -18,8 +18,8 @@ public sealed class ProcessEvents
     public void Stage(string stage, StageStatus status) => StageChanged?.Invoke(stage, status);
 
     public void Stats(ProductionStats stats) => StatsUpdated?.Invoke(stats);
-    public void Position(int zone, double x, double y, double z) =>
-        ZonePositionChanged?.Invoke(zone, x, y, z);
+    public void Position(int station, double x, double y, double z) =>
+        StationPositionChanged?.Invoke(station, x, y, z);
 
     public void Fiducial(FiducialResult result) => FiducialDetected?.Invoke(result);
     public void Bolt(BoltResult result) => BoltCompleted?.Invoke(result);

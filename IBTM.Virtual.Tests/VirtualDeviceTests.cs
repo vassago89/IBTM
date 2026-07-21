@@ -1,10 +1,12 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core.Process;
 using IBTM.Device;
 using IBTM.Stations.BoltFastening;
 using IBTM.Stations.Inspection;
 using IBTM.Stations.PcbPlacement;
+using IBTM.Transport;
 using IBTM.Virtual;
 using Xunit;
 
@@ -34,19 +36,95 @@ public sealed class VirtualDeviceTests
         var io = new VirtualIoService();
         io.Initialize();
 
-        Assert.True(io.GetInput(PcbPlacementStation.ShuttlePresentInputChannel));
+        Assert.False(io.GetInput(PcbPlacementStation.CarrierJigPresentInputChannel));
         Assert.True(io.GetInput(PcbPlacementStation.PcbAvailableInputChannel));
-        Assert.True(io.GetInput(BoltFasteningStation.ShuttlePresentInputChannel));
-        Assert.True(io.GetInput(InspectionStation.ShuttlePresentInputChannel));
-        Assert.True(io.GetInput(InspectionStation.SmemaReadyInputChannel));
+        Assert.False(io.GetInput(BoltFasteningStation.CarrierJigPresentInputChannel));
+        Assert.False(io.GetInput(InspectionStation.CarrierJigPresentInputChannel));
+        Assert.True(io.GetInput(Conveyor.UpstreamBoardAvailableInputChannel));
+        Assert.True(io.GetInput(Conveyor.DownstreamMachineReadyInputChannel));
 
-        io.SetOutput(PcbPlacementStation.LiftChannel, true);
-        await io.WaitForInputAsync(PcbPlacementStation.LiftChannel, true);
-        Assert.True(io.GetInput(PcbPlacementStation.LiftChannel));
+        io.SetOutput(PcbPlacementStation.GripperChannel, true);
+        await io.WaitForInputAsync(PcbPlacementStation.GripperChannel, true);
+        Assert.True(io.GetInput(PcbPlacementStation.GripperChannel));
 
-        io.SetOutput(PcbPlacementStation.LiftChannel, false);
-        await io.WaitForInputAsync(PcbPlacementStation.LiftChannel, false);
-        Assert.False(io.GetInput(PcbPlacementStation.LiftChannel));
+        io.SetOutput(PcbPlacementStation.GripperChannel, false);
+        await io.WaitForInputAsync(PcbPlacementStation.GripperChannel, false);
+        Assert.False(io.GetInput(PcbPlacementStation.GripperChannel));
+    }
+
+    [Fact]
+    public async Task ConveyorMovesOneCarrierJigAtATimeAcrossOccupiedStations()
+    {
+        var io = new VirtualIoService();
+        var servo = new VirtualConveyorServo(io);
+        using var conveyor = new Conveyor(
+            servo,
+            io,
+            new ConveyorSettings { Velocity = 100 });
+        var pcbPlacement = new CarrierJigPositioner(
+            io,
+            PcbPlacementStation.CarrierJigPresentInputChannel,
+            PcbPlacementStation.StopperUpOutputChannel,
+            PcbPlacementStation.BackupPlateUpOutputChannel);
+        var boltFastening = new CarrierJigPositioner(
+            io,
+            BoltFasteningStation.CarrierJigPresentInputChannel,
+            BoltFasteningStation.StopperUpOutputChannel,
+            BoltFasteningStation.BackupPlateUpOutputChannel);
+        var inspection = new CarrierJigPositioner(
+            io,
+            InspectionStation.CarrierJigPresentInputChannel,
+            InspectionStation.StopperUpOutputChannel,
+            InspectionStation.BackupPlateUpOutputChannel);
+
+        io.Initialize();
+        conveyor.Initialize();
+        pcbPlacement.Initialize();
+        boltFastening.Initialize();
+        inspection.Initialize();
+
+        await conveyor.ReceiveAsync(pcbPlacement, CancellationToken.None);
+        Assert.True(io.GetInput(PcbPlacementStation.CarrierJigPresentInputChannel));
+        Assert.False(io.GetOutput(Conveyor.UpstreamMachineReadyOutputChannel));
+
+        await conveyor.TransferAsync(
+            pcbPlacement,
+            boltFastening,
+            CancellationToken.None);
+        Assert.False(io.GetInput(PcbPlacementStation.CarrierJigPresentInputChannel));
+        Assert.True(io.GetInput(BoltFasteningStation.CarrierJigPresentInputChannel));
+        Assert.False(io.GetInput(InspectionStation.CarrierJigPresentInputChannel));
+
+        await conveyor.ReceiveAsync(pcbPlacement, CancellationToken.None);
+        Assert.True(io.GetInput(PcbPlacementStation.CarrierJigPresentInputChannel));
+        Assert.True(io.GetInput(BoltFasteningStation.CarrierJigPresentInputChannel));
+
+        await conveyor.TransferAsync(
+            boltFastening,
+            inspection,
+            CancellationToken.None);
+        Assert.True(io.GetInput(PcbPlacementStation.CarrierJigPresentInputChannel));
+        Assert.False(io.GetInput(BoltFasteningStation.CarrierJigPresentInputChannel));
+        Assert.True(io.GetInput(InspectionStation.CarrierJigPresentInputChannel));
+
+        await conveyor.TransferAsync(
+            pcbPlacement,
+            boltFastening,
+            CancellationToken.None);
+        Assert.False(io.GetInput(PcbPlacementStation.CarrierJigPresentInputChannel));
+        Assert.True(io.GetInput(BoltFasteningStation.CarrierJigPresentInputChannel));
+        Assert.True(io.GetInput(InspectionStation.CarrierJigPresentInputChannel));
+
+        await conveyor.SendAsync(inspection, CancellationToken.None);
+        Assert.False(io.GetInput(PcbPlacementStation.CarrierJigPresentInputChannel));
+        Assert.True(io.GetInput(BoltFasteningStation.CarrierJigPresentInputChannel));
+        Assert.False(io.GetInput(InspectionStation.CarrierJigPresentInputChannel));
+
+        Assert.False(servo.IsRunning);
+        Assert.False(io.GetOutput(Conveyor.DownstreamBoardAvailableOutputChannel));
+        Assert.False(io.GetOutput(PcbPlacementStation.StopperUpOutputChannel));
+        Assert.False(io.GetOutput(BoltFasteningStation.StopperUpOutputChannel));
+        Assert.False(io.GetOutput(InspectionStation.StopperUpOutputChannel));
     }
 
     [Fact]

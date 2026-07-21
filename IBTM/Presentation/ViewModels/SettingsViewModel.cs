@@ -28,7 +28,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentMotionParams))]
-    private int _selectedZone = 1;
+    private int _selectedStation = 1;
 
     [ObservableProperty] private double _currentX;
     [ObservableProperty] private double _currentY;
@@ -38,49 +38,49 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ComputeOffsetsCommand))]
-    private bool _zone1RefRecorded;
+    private bool _pcbPlacementReferenceRecorded;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ComputeOffsetsCommand))]
-    private bool _zone2RefRecorded;
+    private bool _boltFasteningReferenceRecorded;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ComputeOffsetsCommand))]
-    private bool _zone3RefRecorded;
+    private bool _inspectionReferenceRecorded;
 
     [ObservableProperty] private string _offsetResultText = "—";
     [ObservableProperty] private string _statusMessage = string.Empty;
 
     public SettingsViewModel(
-        [FromKeyedServices(1)] IMotionService zone1,
-        [FromKeyedServices(2)] IMotionService zone2,
-        [FromKeyedServices(3)] IMotionService zone3,
+        [FromKeyedServices(1)] IMotionService pcbPlacementMotion,
+        [FromKeyedServices(2)] IMotionService boltFasteningMotion,
+        [FromKeyedServices(3)] IMotionService inspectionMotion,
         IIoService io,
         RecipeService recipes,
         MachineConfig config)
     {
-        _motions = [zone1, zone2, zone3];
+        _motions = [pcbPlacementMotion, boltFasteningMotion, inspectionMotion];
         _io = io;
         _recipes = recipes;
         Config = config;
 
-        zone1.PositionChanged += OnZone1PositionChanged;
-        zone2.PositionChanged += OnZone2PositionChanged;
-        zone3.PositionChanged += OnZone3PositionChanged;
+        pcbPlacementMotion.PositionChanged += OnPcbPlacementPositionChanged;
+        boltFasteningMotion.PositionChanged += OnBoltFasteningPositionChanged;
+        inspectionMotion.PositionChanged += OnInspectionPositionChanged;
     }
 
     public MachineConfig Config { get; }
     public double JogSpeed => JogSpeeds[JogSpeedIndex];
-    public ZoneMotionParams CurrentMotionParams => SelectedZone switch
+    public StationMotionSettings CurrentMotionParams => SelectedStation switch
     {
         1 => Config.PcbPlacementMotion,
         2 => Config.BoltFastening.Motion,
         3 => Config.Inspection.Motion,
-        _ => throw new ArgumentOutOfRangeException(nameof(SelectedZone)),
+        _ => throw new ArgumentOutOfRangeException(nameof(SelectedStation)),
     };
 
-    private IMotionService CurrentMotion => _motions[SelectedZone - 1];
-    private int LaserChannel => LaserChannels[SelectedZone - 1];
+    private IMotionService CurrentMotion => _motions[SelectedStation - 1];
+    private int LaserChannel => LaserChannels[SelectedStation - 1];
 
     public void Activate()
     {
@@ -90,7 +90,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         StatusMessage = "Configuration loaded";
     }
 
-    partial void OnSelectedZoneChanged(int oldValue, int newValue)
+    partial void OnSelectedStationChanged(int oldValue, int newValue)
     {
         if (LaserOn)
         {
@@ -138,24 +138,24 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         var current = CurrentMotion.GetPosition();
         var position = new AxisPos { X = current.X, Y = current.Y, Z = current.Z };
 
-        switch (SelectedZone)
+        switch (SelectedStation)
         {
             case 1:
-                Config.Calibration.Zone1Ref = position;
-                Zone1RefRecorded = true;
+                Config.Calibration.PcbPlacementReference = position;
+                PcbPlacementReferenceRecorded = true;
                 break;
             case 2:
-                Config.Calibration.Zone2Ref = position;
-                Zone2RefRecorded = true;
+                Config.Calibration.BoltFasteningReference = position;
+                BoltFasteningReferenceRecorded = true;
                 break;
             case 3:
-                Config.Calibration.Zone3Ref = position;
-                Zone3RefRecorded = true;
+                Config.Calibration.InspectionReference = position;
+                InspectionReferenceRecorded = true;
                 break;
         }
 
         OnPropertyChanged(nameof(Config));
-        StatusMessage = $"Zone {SelectedZone} reference recorded";
+        StatusMessage = $"Station {SelectedStation} reference recorded";
     }
 
     [RelayCommand(CanExecute = nameof(CanComputeOffsets))]
@@ -168,7 +168,9 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     }
 
     private bool CanComputeOffsets() =>
-        Zone1RefRecorded && Zone2RefRecorded && Zone3RefRecorded;
+        PcbPlacementReferenceRecorded
+        && BoltFasteningReferenceRecorded
+        && InspectionReferenceRecorded;
 
     public void Deactivate()
     {
@@ -187,16 +189,16 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         Deactivate();
-        _motions[0].PositionChanged -= OnZone1PositionChanged;
-        _motions[1].PositionChanged -= OnZone2PositionChanged;
-        _motions[2].PositionChanged -= OnZone3PositionChanged;
+        _motions[0].PositionChanged -= OnPcbPlacementPositionChanged;
+        _motions[1].PositionChanged -= OnBoltFasteningPositionChanged;
+        _motions[2].PositionChanged -= OnInspectionPositionChanged;
     }
 
     private void UpdateReferenceStatus()
     {
-        Zone1RefRecorded = IsSet(Config.Calibration.Zone1Ref);
-        Zone2RefRecorded = IsSet(Config.Calibration.Zone2Ref);
-        Zone3RefRecorded = IsSet(Config.Calibration.Zone3Ref);
+        PcbPlacementReferenceRecorded = IsSet(Config.Calibration.PcbPlacementReference);
+        BoltFasteningReferenceRecorded = IsSet(Config.Calibration.BoltFasteningReference);
+        InspectionReferenceRecorded = IsSet(Config.Calibration.InspectionReference);
     }
 
     private static bool IsSet(AxisPos position) =>
@@ -204,8 +206,10 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
     private void UpdateOffsetText() =>
         OffsetResultText =
-            $"3→1: dX={Config.Calibration.Offset3To1.X:F3} dY={Config.Calibration.Offset3To1.Y:F3}  "
-            + $"3→2: dX={Config.Calibration.Offset3To2.X:F3} dY={Config.Calibration.Offset3To2.Y:F3}";
+            $"Inspection → PCB: dX={Config.Calibration.InspectionToPcbPlacementOffset.X:F3} "
+            + $"dY={Config.Calibration.InspectionToPcbPlacementOffset.Y:F3}  "
+            + $"Inspection → Bolt: dX={Config.Calibration.InspectionToBoltFasteningOffset.X:F3} "
+            + $"dY={Config.Calibration.InspectionToBoltFasteningOffset.Y:F3}";
 
     private void RefreshPosition()
     {
@@ -215,19 +219,19 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         CurrentZ = current.Z;
     }
 
-    private void OnZone1PositionChanged(double x, double y, double z) =>
+    private void OnPcbPlacementPositionChanged(double x, double y, double z) =>
         ApplyPosition(1, x, y, z);
 
-    private void OnZone2PositionChanged(double x, double y, double z) =>
+    private void OnBoltFasteningPositionChanged(double x, double y, double z) =>
         ApplyPosition(2, x, y, z);
 
-    private void OnZone3PositionChanged(double x, double y, double z) =>
+    private void OnInspectionPositionChanged(double x, double y, double z) =>
         ApplyPosition(3, x, y, z);
 
-    private void ApplyPosition(int zone, double x, double y, double z) =>
+    private void ApplyPosition(int station, double x, double y, double z) =>
         RunOnUi(() =>
         {
-            if (SelectedZone == zone)
+            if (SelectedStation == station)
             {
                 CurrentX = x;
                 CurrentY = y;

@@ -1,89 +1,123 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core.Geometry;
 using IBTM.Core.Machine;
 using IBTM.Core.Process;
 using IBTM.Device;
+using IBTM.Transport;
 
 namespace IBTM.Stations.PcbPlacement;
 
 public sealed class PcbPlacementStation : IDisposable
 {
-    public const int ShuttlePresentInputChannel = 10;
-    public const int StopperChannel = 11;
-    public const int AlignChannel = 12;
-    public const int LiftChannel = 13;
+    public const int CarrierJigPresentInputChannel = 10;
+    public const int StopperUpOutputChannel = 11;
+    public const int BackupPlateUpOutputChannel = 13;
     public const int GripperChannel = 14;
     public const int LaserChannel = 15;
     public const int PcbAvailableInputChannel = 16;
 
-    private readonly StationOperations _machine;
+    private readonly IMotionService _motion;
+    private readonly IIoService _io;
+    private readonly StationMotionSettings _motionSettings;
     private readonly ProcessEvents _events;
 
     public PcbPlacementStation(
         IMotionService motion,
         IIoService io,
-        ZoneMotionParams motionParams,
+        StationMotionSettings motionSettings,
         ProcessEvents events)
     {
-        _machine = new StationOperations(1, motion, io, motionParams, events);
+        _motion = motion;
+        _io = io;
+        _motionSettings = motionSettings;
         _events = events;
+        CarrierJigPositioner = new CarrierJigPositioner(
+            io,
+            CarrierJigPresentInputChannel,
+            StopperUpOutputChannel,
+            BackupPlateUpOutputChannel);
+        _motion.PositionChanged += OnPositionChanged;
     }
 
-    public void Initialize() => _machine.Initialize();
+    public CarrierJigPositioner CarrierJigPositioner { get; }
 
-    public async Task RunAsync(
+    public void Initialize()
+    {
+        _motion.Initialize();
+        CarrierJigPositioner.Initialize();
+    }
+
+    public async Task ProcessAsync(
         PcbPlacementRecipe recipe,
         CancellationToken cancellationToken)
     {
         await _events.RunStageAsync(
-            PcbPlacementStages.WaitShuttle,
+            PcbPlacementStages.PositionCarrierJig,
             cancellationToken,
             async token =>
             {
-                await _machine.WaitForInputAsync(ShuttlePresentInputChannel, token);
-                await _machine.WaitForInputAsync(PcbAvailableInputChannel, token);
+                await CarrierJigPositioner.PositionAsync(token);
+                await _io.WaitForInputAsync(PcbAvailableInputChannel, true, token);
             });
-
-        await _events.RunStageAsync(
-            PcbPlacementStages.StopAlignLift,
-            cancellationToken,
-            token => _machine.StopAlignLiftAsync(
-                StopperChannel,
-                AlignChannel,
-                LiftChannel,
-                token));
 
         await _events.RunStageAsync(
             PcbPlacementStages.PickPlace,
             cancellationToken,
             async token =>
             {
-                await _machine.PickAndPlaceAsync(
-                    recipe.PcbPick1,
-                    recipe.PcbPlace1,
-                    GripperChannel,
-                    token);
-                await _machine.PickAndPlaceAsync(
-                    recipe.PcbPick2,
-                    recipe.PcbPlace2,
-                    GripperChannel,
-                    token);
+                await PickAndPlaceAsync(recipe.PcbPick1, recipe.PcbPlace1, token);
+                await PickAndPlaceAsync(recipe.PcbPick2, recipe.PcbPlace2, token);
             });
-
-        await _events.RunStageAsync(
-            PcbPlacementStages.Release,
-            cancellationToken,
-            token => _machine.ReleaseAsync(
-                StopperChannel,
-                AlignChannel,
-                LiftChannel,
-                token));
     }
 
-    public void Stop() => _machine.Stop();
+    public void Stop() => _motion.Stop();
 
-    public void EmergencyStop() => _machine.EmergencyStop();
+    public void EmergencyStop() => _motion.EmergencyStop();
 
-    public void Dispose() => _machine.Dispose();
+    public void Dispose() => _motion.PositionChanged -= OnPositionChanged;
+
+    private async Task PickAndPlaceAsync(
+        AxisPos pickPosition,
+        AxisPos placePosition,
+        CancellationToken cancellationToken)
+    {
+        await MoveToPositionAsync(pickPosition, cancellationToken);
+        _io.SetOutput(GripperChannel, true);
+        await _io.WaitForInputAsync(GripperChannel, true, cancellationToken);
+
+        await MoveToZAsync(0, cancellationToken);
+        await _motion.MoveToXYAsync(
+            placePosition.X,
+            placePosition.Y,
+            _motionSettings.SpeedXY,
+            cancellationToken);
+        await MoveToZAsync(placePosition.Z, cancellationToken);
+
+        _io.SetOutput(GripperChannel, false);
+        await _io.WaitForInputAsync(GripperChannel, false, cancellationToken);
+        await MoveToZAsync(0, cancellationToken);
+    }
+
+    private async Task MoveToPositionAsync(
+        AxisPos position,
+        CancellationToken cancellationToken)
+    {
+        await _motion.MoveToXYAsync(
+            position.X,
+            position.Y,
+            _motionSettings.SpeedXY,
+            cancellationToken);
+        await MoveToZAsync(position.Z, cancellationToken);
+    }
+
+    private Task MoveToZAsync(double position, CancellationToken cancellationToken) =>
+        _motion.MoveToZAsync(
+            position,
+            _motionSettings.SpeedZ,
+            cancellationToken);
+
+    private void OnPositionChanged(double x, double y, double z) =>
+        _events.Position(1, x, y, z);
 }

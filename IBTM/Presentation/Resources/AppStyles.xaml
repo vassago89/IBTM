@@ -78,13 +78,13 @@
         <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
 
-    <Style x:Key="ZoneTitleStyle" TargetType="TextBlock">
+    <Style x:Key="StationTitleStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="11"/>
         <Setter Property="FontWeight" Value="Bold"/>
         <Setter Property="Opacity" Value="0.9"/>
     </Style>
 
-    <Style x:Key="ZoneSubtitleStyle" TargetType="TextBlock">
+    <Style x:Key="StationSubtitleStyle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="10"/>
         <Setter Property="Opacity" Value="0.5"/>
     </Style>
