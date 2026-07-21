@@ -33,10 +33,16 @@ public sealed class TeachingPointMapper(MachineConfig config)
         }));
 
         points.Add(Create(
-            "InspectPos",
+            "Pcb1Inspection",
             TeachingPointKind.Inspection,
             3,
-            recipe.Inspection.InspectPosition,
+            recipe.Inspection.Pcb1InspectionPosition,
+            TeachMode.Full));
+        points.Add(Create(
+            "Pcb2Inspection",
+            TeachingPointKind.Inspection,
+            3,
+            recipe.Inspection.Pcb2InspectionPosition,
             TeachMode.Full));
         points.Add(Create(
             "NgCarrierPickup",
@@ -115,7 +121,14 @@ public sealed class TeachingPointMapper(MachineConfig config)
                 break;
 
             case TeachingPointKind.Inspection:
-                recipe.Inspection.InspectPosition = position;
+                if (point.Name == "Pcb1Inspection")
+                {
+                    recipe.Inspection.Pcb1InspectionPosition = position;
+                }
+                else
+                {
+                    recipe.Inspection.Pcb2InspectionPosition = position;
+                }
                 break;
 
             case TeachingPointKind.NgCarrierPickup:

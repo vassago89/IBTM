@@ -8,6 +8,7 @@ public interface ICameraStreamService
 
     int ImageWidth { get; }
     int ImageHeight { get; }
+    ImageFrame Capture();
     void StartLiveView();
     void StopLiveView();
 }

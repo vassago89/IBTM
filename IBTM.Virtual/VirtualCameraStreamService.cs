@@ -9,12 +9,27 @@ public sealed class VirtualCameraStreamService : ICameraStreamService, IDisposab
 {
     private static readonly TimeSpan FrameInterval = TimeSpan.FromMilliseconds(66);
 
+    private readonly bool _inspection;
     private CancellationTokenSource? _stream;
+
+    public VirtualCameraStreamService(bool inspection)
+    {
+        _inspection = inspection;
+    }
 
     public event Action<ImageFrame>? FrameReady;
 
     public int ImageWidth => VirtualImageFactory.Width;
     public int ImageHeight => VirtualImageFactory.Height;
+    public int CaptureCount { get; private set; }
+
+    public ImageFrame Capture()
+    {
+        CaptureCount++;
+        return _inspection
+            ? VirtualImageFactory.CreateInspectionFrame()
+            : VirtualImageFactory.CreateCameraFrame();
+    }
 
     public void StartLiveView()
     {
@@ -41,7 +56,7 @@ public sealed class VirtualCameraStreamService : ICameraStreamService, IDisposab
         {
             while (true)
             {
-                FrameReady?.Invoke(VirtualImageFactory.CreateCameraFrame());
+                FrameReady?.Invoke(Capture());
                 await Task.Delay(FrameInterval, stream.Token);
             }
         }

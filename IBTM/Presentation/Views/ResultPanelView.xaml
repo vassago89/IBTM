@@ -66,6 +66,18 @@
             </Grid>
         </Border>
 
+        <Grid Margin="0,2,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Pcb1InspectionResult}" FontSize="10" FontFamily="Consolas"
+                       Foreground="{StaticResource TextSecondaryBrush}"/>
+            <TextBlock Grid.Column="1" Text="{Binding Pcb2InspectionResult}" FontSize="10"
+                       FontFamily="Consolas" HorizontalAlignment="Right"
+                       Foreground="{StaticResource TextSecondaryBrush}"/>
+        </Grid>
+
         <TextBlock Text="NG STACK" Style="{StaticResource SectionHeaderStyle}"
                    Foreground="{StaticResource AccentRedBrush}" Margin="0,6,0,4" Opacity="0.8"/>
         <ProgressBar Height="8" Minimum="0"

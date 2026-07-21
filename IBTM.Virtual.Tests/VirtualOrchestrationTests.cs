@@ -21,6 +21,8 @@ public sealed class VirtualOrchestrationTests
         using var pcbPlacementMotion = new VirtualMotionService();
         using var boltFasteningMotion = new VirtualMotionService();
         using var inspectionMotion = new VirtualMotionService();
+        using var boltFasteningCamera = new VirtualCameraStreamService(inspection: false);
+        using var inspectionCamera = new VirtualCameraStreamService(inspection: true);
         var conveyorServo = new VirtualConveyorServo(io);
         using var conveyor = new Conveyor(
             conveyorServo,
@@ -40,7 +42,7 @@ public sealed class VirtualOrchestrationTests
                 Motion = new StationMotionSettings { SpeedXY = 10_000, SpeedZ = 10_000 },
             },
             events,
-            new VirtualFiducialService(),
+            boltFasteningCamera,
             new VirtualBoltService());
         using var inspection = new InspectionStation(
             inspectionMotion,
@@ -50,7 +52,7 @@ public sealed class VirtualOrchestrationTests
                 Motion = new StationMotionSettings { SpeedXY = 10_000, SpeedZ = 10_000 },
             },
             events,
-            new VirtualInspectionService());
+            inspectionCamera);
         using var orchestrator = new ProcessOrchestrator(
             io,
             conveyor,

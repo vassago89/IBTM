@@ -66,6 +66,8 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _isGoodPath;
     [ObservableProperty] private string _lastRouteText = "—";
     [ObservableProperty] private ImageSource? _inspectionImage;
+    [ObservableProperty] private string _pcb1InspectionResult = "—";
+    [ObservableProperty] private string _pcb2InspectionResult = "—";
     [ObservableProperty] private bool _smemaWaiting;
     [ObservableProperty] private bool _smemaReady;
 
@@ -224,11 +226,16 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
     private void OnBoltProgress(int current, int total, string boltName) =>
         RunOnUi(() => BoltProgress = $"{boltName}   {current}/{total}");
 
-    private void OnInspectionCompleted(InspectionOutcome outcome) =>
+    private void OnInspectionCompleted(CarrierInspectionResult result) =>
         RunOnUi(() =>
         {
-            InspectionImage = outcome.Image.ToImageSource();
-            IsGoodPath = outcome.Result == InspectionResult.Good;
+            var displayed = result.Pcb1.Result == InspectionResult.Ng
+                ? result.Pcb1
+                : result.Pcb2;
+            InspectionImage = displayed.Image.ToImageSource();
+            Pcb1InspectionResult = $"PCB 1  {result.Pcb1.Result.ToString().ToUpperInvariant()}";
+            Pcb2InspectionResult = $"PCB 2  {result.Pcb2.Result.ToString().ToUpperInvariant()}";
+            IsGoodPath = result.Result == InspectionResult.Good;
             IsNgPath = !IsGoodPath;
             LastRouteText = IsGoodPath ? "GOOD" : "NG";
         });

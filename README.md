@@ -50,8 +50,8 @@ Conveyor를 Run하고, 출발 Station의 Backup Plate를 내리고 Stopper를 �
 Carrier Jig 감지 신호가 켜지는 즉시 Conveyor를 Stop합니다. 고정 거리 위치 이동은 하지
 않습니다.
 
-Station 3의 판정과 생산 수량은 Carrier Jig 단위입니다. PCB를 여러 번 검사하더라도 하나라도
-NG이면 Carrier Jig 전체를 NG Stack으로 옮기고 후단으로 보내지 않습니다. GOOD Carrier Jig만
+Station 3은 PCB 1과 PCB 2를 각각 검사하지만 판정과 생산 수량은 Carrier Jig 단위입니다.
+두 PCB 중 하나라도 NG이면 Carrier Jig 전체를 NG Stack으로 옮기고 후단으로 보내지 않습니다. GOOD Carrier Jig만
 후단에 `Board Available`을 출력하고 `Machine Ready`를 받은 뒤 양쪽 Conveyor를 함께 운전해
 배출합니다. 각 Station은 Carrier Jig를 감지하면 Backup Plate를 올려 Conveyor에서 분리한 뒤
 공정을 수행합니다.
@@ -72,6 +72,7 @@ NG이면 Carrier Jig 전체를 NG Stack으로 옮기고 후단으로 보내지 �
 | `PcbPlacementStation` | Carrier Jig 위치 결정 후 PCB 픽업·배치 공정을 실행함 |
 | `BoltFasteningStation` | Carrier Jig 위치 결정, Fiducial 검출, 볼트 체결을 실행함 |
 | `InspectionStation` | 검사 결과를 Carrier Jig 단위로 판정하고 GOOD 배출 또는 NG Jig 적재를 실행함 |
+| `CarrierInspectionResult` | PCB 1·2 검사 결과를 보관하고 Carrier Jig 최종 판정을 계산함 |
 | `ProcessOrchestrator` | 세 Station 작업을 병렬 실행하고 Conveyor 이송, 정지, 통계를 조율함 |
 | `ProcessEvents` | Stage 실행 상태를 열고 닫고 공정 결과를 UI에 전달함 |
 | `StationMotionSettings` | Station의 XY/Z 속도 값만 보관함 |

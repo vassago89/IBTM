@@ -11,6 +11,8 @@ namespace IBTM.Stations.Inspection;
 
 public sealed class InspectionStation : IDisposable
 {
+    private const int MinimumFeaturePixels = 400;
+
     public const int CarrierJigPresentInputChannel = 30;
     public const int StopperUpOutputChannel = 31;
     public const int BackupPlateUpOutputChannel = 33;
@@ -21,7 +23,7 @@ public sealed class InspectionStation : IDisposable
     private readonly IIoService _io;
     private readonly StationMotionSettings _motionSettings;
     private readonly ProcessEvents _events;
-    private readonly IInspectionService _inspection;
+    private readonly ICameraStreamService _camera;
     private readonly InspectionOptions _options;
 
     public InspectionStation(
@@ -29,13 +31,13 @@ public sealed class InspectionStation : IDisposable
         IIoService io,
         InspectionOptions options,
         ProcessEvents events,
-        IInspectionService inspection)
+        ICameraStreamService camera)
     {
         _motion = motion;
         _io = io;
         _motionSettings = options.Motion;
         _events = events;
-        _inspection = inspection;
+        _camera = camera;
         _options = options;
         CarrierJigPositioner = new CarrierJigPositioner(
             io,
@@ -55,7 +57,7 @@ public sealed class InspectionStation : IDisposable
         CarrierJigPositioner.Initialize();
     }
 
-    public async Task<InspectionResult> ProcessAsync(
+    public async Task<CarrierInspectionResult> ProcessAsync(
         InspectionRecipe recipe,
         CancellationToken cancellationToken)
     {
@@ -69,7 +71,7 @@ public sealed class InspectionStation : IDisposable
             cancellationToken,
             token => InspectAsync(recipe, token));
 
-        if (result == InspectionResult.Ng)
+        if (result.Result == InspectionResult.Ng)
         {
             await StackNgCarrierJigAsync(recipe, cancellationToken);
         }
@@ -89,15 +91,47 @@ public sealed class InspectionStation : IDisposable
 
     public void Dispose() => _motion.PositionChanged -= OnPositionChanged;
 
-    private async Task<InspectionResult> InspectAsync(
+    private async Task<CarrierInspectionResult> InspectAsync(
         InspectionRecipe recipe,
         CancellationToken cancellationToken)
     {
-        await MoveToPositionAsync(recipe.InspectPosition, cancellationToken);
+        var pcb1 = await InspectPcbAsync(
+            recipe.Pcb1InspectionPosition,
+            cancellationToken);
+        var pcb2 = await InspectPcbAsync(
+            recipe.Pcb2InspectionPosition,
+            cancellationToken);
+        var result = new CarrierInspectionResult(pcb1, pcb2);
+        _events.Inspection(result);
+        return result;
+    }
 
-        var outcome = await _inspection.InspectAsync(cancellationToken);
-        _events.Inspection(outcome);
-        return outcome.Result;
+    private async Task<InspectionOutcome> InspectPcbAsync(
+        AxisPos position,
+        CancellationToken cancellationToken)
+    {
+        await MoveToPositionAsync(position, cancellationToken);
+
+        var image = _camera.Capture();
+        var featurePixels = 0;
+        for (var y = 0; y < image.Height; y++)
+        {
+            for (var x = 0; x < image.Width; x++)
+            {
+                var index = (y * image.Stride) + (x * 3);
+                if (image.Pixels[index] >= 100
+                    && image.Pixels[index + 1] >= 100
+                    && image.Pixels[index + 2] >= 100)
+                {
+                    featurePixels++;
+                }
+            }
+        }
+
+        var result = featurePixels >= MinimumFeaturePixels
+            ? InspectionResult.Good
+            : InspectionResult.Ng;
+        return new InspectionOutcome(result, image);
     }
 
     private Task StackNgCarrierJigAsync(

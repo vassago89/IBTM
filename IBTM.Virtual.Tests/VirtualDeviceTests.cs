@@ -160,7 +160,7 @@ public sealed class VirtualDeviceTests
     [Fact]
     public async Task CameraStreamsFramesUntilStopped()
     {
-        using var camera = new VirtualCameraStreamService();
+        using var camera = new VirtualCameraStreamService(inspection: false);
         var received = new TaskCompletionSource<ImageFrame>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         camera.FrameReady += frame => received.TrySetResult(frame);
@@ -176,13 +176,15 @@ public sealed class VirtualDeviceTests
     }
 
     [Fact]
-    public async Task FiducialReturnsDetectedOffset()
+    public void CameraCapturesInspectionImage()
     {
-        var result = await new VirtualFiducialService().DetectFromCameraAsync();
+        using var camera = new VirtualCameraStreamService(inspection: true);
 
-        Assert.True(result.Found);
-        Assert.InRange(result.OffsetX, -0.2, 0.2);
-        Assert.InRange(result.OffsetY, -0.2, 0.2);
+        var image = camera.Capture();
+
+        Assert.Equal(camera.ImageWidth, image.Width);
+        Assert.Equal(camera.ImageHeight, image.Height);
+        Assert.Equal(image.Stride * image.Height, image.Pixels.Length);
     }
 
     [Fact]
@@ -200,13 +202,13 @@ public sealed class VirtualDeviceTests
     }
 
     [Fact]
-    public async Task InspectionReturnsResultAndImage()
+    public void CarrierInspectionIsNgWhenEitherPcbIsNg()
     {
-        var outcome = await new VirtualInspectionService().InspectAsync();
+        var image = new ImageFrame(1, 1, 1, [0]);
+        var result = new CarrierInspectionResult(
+            new InspectionOutcome(InspectionResult.Good, image),
+            new InspectionOutcome(InspectionResult.Ng, image));
 
-        Assert.True(outcome.Result is InspectionResult.Good or InspectionResult.Ng);
-        Assert.Equal(
-            outcome.Image.Stride * outcome.Image.Height,
-            outcome.Image.Pixels.Length);
+        Assert.Equal(InspectionResult.Ng, result.Result);
     }
 }

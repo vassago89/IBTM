@@ -19,7 +19,7 @@ public sealed class BoltFasteningStation : IDisposable
     private readonly IMotionService _motion;
     private readonly StationMotionSettings _motionSettings;
     private readonly ProcessEvents _events;
-    private readonly IFiducialService _fiducial;
+    private readonly ICameraStreamService _camera;
     private readonly IBoltService _boltController;
     private readonly BoltFasteningOptions _options;
 
@@ -28,13 +28,13 @@ public sealed class BoltFasteningStation : IDisposable
         IIoService io,
         BoltFasteningOptions options,
         ProcessEvents events,
-        IFiducialService fiducial,
+        ICameraStreamService camera,
         IBoltService boltController)
     {
         _motion = motion;
         _motionSettings = options.Motion;
         _events = events;
-        _fiducial = fiducial;
+        _camera = camera;
         _boltController = boltController;
         _options = options;
         CarrierJigPositioner = new CarrierJigPositioner(
@@ -88,7 +88,7 @@ public sealed class BoltFasteningStation : IDisposable
     {
         await MoveToPositionAsync(recipe.FiducialPosition, cancellationToken);
 
-        var result = await _fiducial.DetectFromCameraAsync(cancellationToken);
+        var result = DetectFiducial(_camera.Capture());
         _events.Fiducial(result);
 
         if (!result.Found)
@@ -97,6 +97,42 @@ public sealed class BoltFasteningStation : IDisposable
         }
 
         return result;
+    }
+
+    private FiducialResult DetectFiducial(ImageFrame image)
+    {
+        long xTotal = 0;
+        long yTotal = 0;
+        var count = 0;
+
+        for (var y = 0; y < image.Height; y++)
+        {
+            for (var x = 0; x < image.Width; x++)
+            {
+                var index = (y * image.Stride) + (x * 3);
+                var blue = image.Pixels[index];
+                var green = image.Pixels[index + 1];
+                var red = image.Pixels[index + 2];
+                if (green <= blue + 50 || green <= red + 50)
+                {
+                    continue;
+                }
+
+                xTotal += x;
+                yTotal += y;
+                count++;
+            }
+        }
+
+        if (count == 0)
+        {
+            return new FiducialResult(false, 0, 0);
+        }
+
+        return new FiducialResult(
+            true,
+            ((xTotal / (double)count) - (image.Width / 2.0)) / _options.PixelsPerMm,
+            ((yTotal / (double)count) - (image.Height / 2.0)) / _options.PixelsPerMm);
     }
 
     private async Task TightenBoltsAsync(

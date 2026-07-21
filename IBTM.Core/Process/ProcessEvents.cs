@@ -12,7 +12,7 @@ public sealed class ProcessEvents
     public event Action<FiducialResult>? FiducialDetected;
     public event Action<BoltResult>? BoltCompleted;
     public event Action<int, int, string>? BoltProgress;
-    public event Action<InspectionOutcome>? InspectionCompleted;
+    public event Action<CarrierInspectionResult>? InspectionCompleted;
     public event Action<int, bool>? NgStackChanged;
 
     public void Stage(string stage, StageStatus status) => StageChanged?.Invoke(stage, status);
@@ -26,8 +26,8 @@ public sealed class ProcessEvents
     public void BoltProgressed(int current, int total, string boltName) =>
         BoltProgress?.Invoke(current, total, boltName);
 
-    public void Inspection(InspectionOutcome outcome) =>
-        InspectionCompleted?.Invoke(outcome);
+    public void Inspection(CarrierInspectionResult result) =>
+        InspectionCompleted?.Invoke(result);
 
     public void NgStack(int count, bool alarm) => NgStackChanged?.Invoke(count, alarm);
 

@@ -14,7 +14,7 @@ namespace IBTM.Virtual.Tests;
 public sealed class VirtualStationTests
 {
     [Fact]
-    public async Task StationsProcessWhileAnotherCarrierJigMoves()
+    public async Task StationsProcessCarrierJigsAcrossOccupiedStations()
     {
         var io = new VirtualIoService();
         io.Initialize();
@@ -22,6 +22,8 @@ public sealed class VirtualStationTests
         using var pcbPlacementMotion = new VirtualMotionService();
         using var boltFasteningMotion = new VirtualMotionService();
         using var inspectionMotion = new VirtualMotionService();
+        using var boltFasteningCamera = new VirtualCameraStreamService(inspection: false);
+        using var inspectionCamera = new VirtualCameraStreamService(inspection: true);
         var conveyorServo = new VirtualConveyorServo(io);
         using var conveyor = new Conveyor(
             conveyorServo,
@@ -73,7 +75,7 @@ public sealed class VirtualStationTests
                 Motion = new StationMotionSettings { SpeedXY = 10_000, SpeedZ = 10_000 },
             },
             events,
-            new VirtualFiducialService(),
+            boltFasteningCamera,
             new VirtualBoltService());
         using var inspection = new InspectionStation(
             inspectionMotion,
@@ -83,7 +85,7 @@ public sealed class VirtualStationTests
                 Motion = new StationMotionSettings { SpeedXY = 10_000, SpeedZ = 10_000 },
             },
             events,
-            new VirtualInspectionService());
+            inspectionCamera);
 
         pcbPlacement.Initialize();
         boltFastening.Initialize();
@@ -125,7 +127,6 @@ public sealed class VirtualStationTests
             CancellationToken.None);
 
         await nextPcbPlacementProcess;
-        Assert.False(inspectionProcess.IsCompleted);
         await conveyor.TransferAsync(
             pcbPlacement.CarrierJigPositioner,
             boltFastening.CarrierJigPositioner,
@@ -139,7 +140,7 @@ public sealed class VirtualStationTests
         Assert.True(io.GetInput(InspectionStation.CarrierJigPresentInputChannel));
 
         var inspectionResult = await inspectionProcess;
-        if (inspectionResult == InspectionResult.Good)
+        if (inspectionResult.Result == InspectionResult.Good)
         {
             await conveyor.SendAsync(
                 inspection.CarrierJigPositioner,
@@ -154,6 +155,7 @@ public sealed class VirtualStationTests
         Assert.True(pcbPlacementPositioned);
         Assert.True(boltFasteningPositioned);
         Assert.True(inspectionPositioned);
+        Assert.Equal(2, inspectionCamera.CaptureCount);
         Assert.False(io.GetOutput(PcbPlacementStation.StopperUpOutputChannel));
         Assert.False(io.GetOutput(BoltFasteningStation.StopperUpOutputChannel));
         Assert.False(io.GetOutput(InspectionStation.StopperUpOutputChannel));

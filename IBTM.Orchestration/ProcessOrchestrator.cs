@@ -186,7 +186,7 @@ public sealed class ProcessOrchestrator : IDisposable
             var result = await _inspection.ProcessAsync(
                 CurrentRecipe.Inspection,
                 cancellationToken);
-            if (result == InspectionResult.Good)
+            if (result.Result == InspectionResult.Good)
             {
                 await _events.RunStageAsync(
                     InspectionStages.SendCarrierJig,
@@ -196,7 +196,7 @@ public sealed class ProcessOrchestrator : IDisposable
                         token));
             }
 
-            CompleteCycle(result, cycleTimer.Elapsed.TotalSeconds);
+            CompleteCycle(result.Result, cycleTimer.Elapsed.TotalSeconds);
             cycleTimer.Restart();
             if (NgStackCount >= NgStackCapacity)
             {

@@ -31,24 +31,27 @@ public static class DependencyInjection
         services.AddSingleton<IConveyorServo, VirtualConveyorServo>();
         services.AddSingleton<Conveyor>();
 
-        services.AddSingleton<IFiducialService, VirtualFiducialService>();
         services.AddSingleton<IBoltService, VirtualBoltService>();
-        services.AddSingleton<IInspectionService, VirtualInspectionService>();
+        services.AddKeyedSingleton<ICameraStreamService>(
+            2,
+            (_, _) => new VirtualCameraStreamService(inspection: false));
+        services.AddKeyedSingleton<ICameraStreamService>(
+            3,
+            (_, _) => new VirtualCameraStreamService(inspection: true));
         services.AddSingleton<ProcessEvents>();
         services.AddSingleton(provider => ActivatorUtilities.CreateInstance<PcbPlacementStation>(
             provider,
             provider.GetRequiredKeyedService<IMotionService>(1)));
         services.AddSingleton(provider => ActivatorUtilities.CreateInstance<BoltFasteningStation>(
             provider,
-            provider.GetRequiredKeyedService<IMotionService>(2)));
+            provider.GetRequiredKeyedService<IMotionService>(2),
+            provider.GetRequiredKeyedService<ICameraStreamService>(2)));
         services.AddSingleton(provider => ActivatorUtilities.CreateInstance<InspectionStation>(
             provider,
-            provider.GetRequiredKeyedService<IMotionService>(3)));
+            provider.GetRequiredKeyedService<IMotionService>(3),
+            provider.GetRequiredKeyedService<ICameraStreamService>(3)));
         services.AddSingleton<TeachingPointMapper>();
         services.AddSingleton<ProcessOrchestrator>();
-        services.AddKeyedSingleton<ICameraStreamService, VirtualCameraStreamService>(2);
-        services.AddKeyedSingleton<ICameraStreamService, VirtualCameraStreamService>(3);
-
         services.AddSingleton<ProcessViewModel>();
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<TeachingViewModel>();
