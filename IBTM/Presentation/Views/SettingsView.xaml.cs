@@ -14,10 +14,10 @@ public partial class SettingsView : UserControl
 
     // ── 라이프사이클 ────────────────────────────────────────────────
     private void OnLoaded(object sender, RoutedEventArgs e) =>
-        VM?.LoadConfigCommand.Execute(null);
+        VM?.Activate();
 
     private void OnUnloaded(object sender, RoutedEventArgs e) =>
-        VM?.StopPolling();
+        VM?.Deactivate();
 
     // ── 탭 전환 ───────────────────────────────────────────────────
     private void Tab0_Checked(object sender, RoutedEventArgs e) => SwitchTab(0);
@@ -29,8 +29,6 @@ public partial class SettingsView : UserControl
 
     private void SwitchTab(int index)
     {
-        if (VM != null) VM.SelectedTab = index;
-
         // 모든 탭 Collapsed 후 선택된 탭만 Visible
         if (TabCalibration != null) TabCalibration.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (TabMotion != null) TabMotion.Visibility = index == 1 ? Visibility.Visible : Visibility.Collapsed;

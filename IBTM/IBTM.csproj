@@ -11,12 +11,15 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
-    <PackageReference Include="OpenCvSharp4" Version="4.10.0.20241108" />
-    <PackageReference Include="OpenCvSharp4.runtime.win" Version="4.10.0.20241108" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\IBTM.Core\IBTM.Core.csproj" />
     <ProjectReference Include="..\IBTM.Device\IBTM.Device.csproj" />
+    <ProjectReference Include="..\IBTM.Orchestration\IBTM.Orchestration.csproj" />
+    <ProjectReference Include="..\IBTM.Stations.BoltFastening\IBTM.Stations.BoltFastening.csproj" />
+    <ProjectReference Include="..\IBTM.Stations.Inspection\IBTM.Stations.Inspection.csproj" />
+    <ProjectReference Include="..\IBTM.Stations.PcbPlacement\IBTM.Stations.PcbPlacement.csproj" />
   </ItemGroup>
 
 </Project>

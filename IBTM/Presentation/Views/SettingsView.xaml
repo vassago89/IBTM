@@ -115,13 +115,13 @@
                                         <TextBlock Text="ZONE 1" FontSize="12" FontWeight="Bold"
                                                    Foreground="{StaticResource AccentBlueBrush}" Margin="0,0,0,8"/>
                                         <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                            <Run Text="X: "/><Run Text="{Binding Config.Zone1Ref.X, StringFormat=F3}"/>
+                                            <Run Text="X: "/><Run Text="{Binding Config.Calibration.Zone1Ref.X, StringFormat=F3}"/>
                                         </TextBlock>
                                         <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                            <Run Text="Y: "/><Run Text="{Binding Config.Zone1Ref.Y, StringFormat=F3}"/>
+                                            <Run Text="Y: "/><Run Text="{Binding Config.Calibration.Zone1Ref.Y, StringFormat=F3}"/>
                                         </TextBlock>
                                         <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                            <Run Text="Z: "/><Run Text="{Binding Config.Zone1Ref.Z, StringFormat=F3}"/>
+                                            <Run Text="Z: "/><Run Text="{Binding Config.Calibration.Zone1Ref.Z, StringFormat=F3}"/>
                                         </TextBlock>
                                         <Ellipse Width="8" Height="8" Margin="0,8,0,0" HorizontalAlignment="Left"
                                                  Fill="{StaticResource AccentGreenBrush}"
@@ -136,13 +136,13 @@
                                         <TextBlock Text="ZONE 2" FontSize="12" FontWeight="Bold"
                                                    Foreground="{StaticResource AccentOrangeBrush}" Margin="0,0,0,8"/>
                                         <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                            <Run Text="X: "/><Run Text="{Binding Config.Zone2Ref.X, StringFormat=F3}"/>
+                                            <Run Text="X: "/><Run Text="{Binding Config.Calibration.Zone2Ref.X, StringFormat=F3}"/>
                                         </TextBlock>
                                         <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                            <Run Text="Y: "/><Run Text="{Binding Config.Zone2Ref.Y, StringFormat=F3}"/>
+                                            <Run Text="Y: "/><Run Text="{Binding Config.Calibration.Zone2Ref.Y, StringFormat=F3}"/>
                                         </TextBlock>
                                         <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                            <Run Text="Z: "/><Run Text="{Binding Config.Zone2Ref.Z, StringFormat=F3}"/>
+                                            <Run Text="Z: "/><Run Text="{Binding Config.Calibration.Zone2Ref.Z, StringFormat=F3}"/>
                                         </TextBlock>
                                         <Ellipse Width="8" Height="8" Margin="0,8,0,0" HorizontalAlignment="Left"
                                                  Fill="{StaticResource AccentGreenBrush}"
@@ -157,13 +157,13 @@
                                         <TextBlock Text="ZONE 3" FontSize="12" FontWeight="Bold"
                                                    Foreground="{StaticResource AccentGreenBrush}" Margin="0,0,0,8"/>
                                         <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                            <Run Text="X: "/><Run Text="{Binding Config.Zone3Ref.X, StringFormat=F3}"/>
+                                            <Run Text="X: "/><Run Text="{Binding Config.Calibration.Zone3Ref.X, StringFormat=F3}"/>
                                         </TextBlock>
                                         <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                            <Run Text="Y: "/><Run Text="{Binding Config.Zone3Ref.Y, StringFormat=F3}"/>
+                                            <Run Text="Y: "/><Run Text="{Binding Config.Calibration.Zone3Ref.Y, StringFormat=F3}"/>
                                         </TextBlock>
                                         <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}">
-                                            <Run Text="Z: "/><Run Text="{Binding Config.Zone3Ref.Z, StringFormat=F3}"/>
+                                            <Run Text="Z: "/><Run Text="{Binding Config.Calibration.Zone3Ref.Z, StringFormat=F3}"/>
                                         </TextBlock>
                                         <Ellipse Width="8" Height="8" Margin="0,8,0,0" HorizontalAlignment="Left"
                                                  Fill="{StaticResource AccentGreenBrush}"
@@ -432,25 +432,13 @@
                                     <StackPanel Margin="0,0,8,8">
                                         <TextBlock Text="{Binding [Settings_DefaultTorque], Source={x:Static loc:Loc.Instance}}"
                                                    Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding Config.DefaultTorqueNm, UpdateSourceTrigger=PropertyChanged}"
-                                                 Style="{StaticResource SettingFieldBox}"/>
-                                    </StackPanel>
-                                    <StackPanel Margin="8,0,0,8">
-                                        <TextBlock Text="{Binding [Settings_TorqueTolerance], Source={x:Static loc:Loc.Instance}}"
-                                                   Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding Config.DefaultTorqueToleranceNm, UpdateSourceTrigger=PropertyChanged}"
-                                                 Style="{StaticResource SettingFieldBox}"/>
-                                    </StackPanel>
-                                    <StackPanel Margin="0,0,8,0">
-                                        <TextBlock Text="{Binding [Settings_DriverRpm], Source={x:Static loc:Loc.Instance}}"
-                                                   Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding Config.DriverRpm, UpdateSourceTrigger=PropertyChanged}"
+                                        <TextBox Text="{Binding Config.BoltFastening.DefaultTorqueNm, UpdateSourceTrigger=PropertyChanged}"
                                                  Style="{StaticResource SettingFieldBox}"/>
                                     </StackPanel>
                                     <StackPanel Margin="8,0,0,0">
                                         <TextBlock Text="{Binding [Settings_RetryCount], Source={x:Static loc:Loc.Instance}}"
                                                    Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding Config.BoltRetryCount, UpdateSourceTrigger=PropertyChanged}"
+                                        <TextBox Text="{Binding Config.BoltFastening.RetryCount, UpdateSourceTrigger=PropertyChanged}"
                                                  Style="{StaticResource SettingFieldBox}"/>
                                     </StackPanel>
                                 </UniformGrid>
@@ -467,28 +455,10 @@
                                 <TextBlock Text="{Binding [Settings_CameraParams], Source={x:Static loc:Loc.Instance}}"
                                            Style="{StaticResource SettingSectionTitle}"/>
                                 <UniformGrid Columns="2">
-                                    <StackPanel Margin="0,0,8,8">
-                                        <TextBlock Text="{Binding [Settings_Exposure], Source={x:Static loc:Loc.Instance}}"
-                                                   Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding Config.CameraExposureUs, UpdateSourceTrigger=PropertyChanged}"
-                                                 Style="{StaticResource SettingFieldBox}"/>
-                                    </StackPanel>
-                                    <StackPanel Margin="8,0,0,8">
-                                        <TextBlock Text="{Binding [Settings_Gain], Source={x:Static loc:Loc.Instance}}"
-                                                   Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding Config.CameraGainDb, UpdateSourceTrigger=PropertyChanged}"
-                                                 Style="{StaticResource SettingFieldBox}"/>
-                                    </StackPanel>
                                     <StackPanel Margin="0,0,8,0">
                                         <TextBlock Text="{Binding [Settings_PixelsPerMm], Source={x:Static loc:Loc.Instance}}"
                                                    Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding Config.PixelsPerMm, UpdateSourceTrigger=PropertyChanged}"
-                                                 Style="{StaticResource SettingFieldBox}"/>
-                                    </StackPanel>
-                                    <StackPanel Margin="8,0,0,0">
-                                        <TextBlock Text="{Binding [Settings_MatchThreshold], Source={x:Static loc:Loc.Instance}}"
-                                                   Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding Config.FiducialMatchThreshold, UpdateSourceTrigger=PropertyChanged}"
+                                        <TextBox Text="{Binding Config.BoltFastening.PixelsPerMm, UpdateSourceTrigger=PropertyChanged}"
                                                  Style="{StaticResource SettingFieldBox}"/>
                                     </StackPanel>
                                 </UniformGrid>
@@ -505,28 +475,22 @@
                                 <TextBlock Text="{Binding [Settings_IOParams], Source={x:Static loc:Loc.Instance}}"
                                            Style="{StaticResource SettingSectionTitle}"/>
                                 <UniformGrid Columns="2">
-                                    <StackPanel Margin="0,0,8,8">
-                                        <TextBlock Text="{Binding [Settings_SmemaTimeout], Source={x:Static loc:Loc.Instance}}"
-                                                   Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding Config.SmemaTimeoutSec, UpdateSourceTrigger=PropertyChanged}"
-                                                 Style="{StaticResource SettingFieldBox}"/>
-                                    </StackPanel>
                                     <StackPanel Margin="8,0,0,8">
                                         <TextBlock Text="{Binding [Settings_NgStackMax], Source={x:Static loc:Loc.Instance}}"
                                                    Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding Config.NgStackMaxCount, UpdateSourceTrigger=PropertyChanged}"
+                                        <TextBox Text="{Binding Config.Inspection.NgStackMaxCount, UpdateSourceTrigger=PropertyChanged}"
                                                  Style="{StaticResource SettingFieldBox}"/>
                                     </StackPanel>
                                     <StackPanel Margin="0,0,8,0">
                                         <TextBlock Text="{Binding [Settings_LiftDelay], Source={x:Static loc:Loc.Instance}}"
                                                    Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding Config.LiftSettleDelayMs, UpdateSourceTrigger=PropertyChanged}"
+                                        <TextBox Text="{Binding Config.Runtime.LiftSettleDelayMs, UpdateSourceTrigger=PropertyChanged}"
                                                  Style="{StaticResource SettingFieldBox}"/>
                                     </StackPanel>
                                     <StackPanel Margin="8,0,0,0">
                                         <TextBlock Text="{Binding [Settings_AlignDelay], Source={x:Static loc:Loc.Instance}}"
                                                    Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding Config.AlignSettleDelayMs, UpdateSourceTrigger=PropertyChanged}"
+                                        <TextBox Text="{Binding Config.Runtime.AlignSettleDelayMs, UpdateSourceTrigger=PropertyChanged}"
                                                  Style="{StaticResource SettingFieldBox}"/>
                                     </StackPanel>
                                 </UniformGrid>
@@ -555,48 +519,6 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- 로그 -->
-                        <Border Style="{StaticResource SettingCard}">
-                            <StackPanel>
-                                <TextBlock Text="{Binding [Settings_LogSettings], Source={x:Static loc:Loc.Instance}}"
-                                           Style="{StaticResource SettingSectionTitle}"/>
-                                <UniformGrid Columns="2">
-                                    <StackPanel Margin="0,0,8,0">
-                                        <TextBlock Text="{Binding [Settings_LogLevel], Source={x:Static loc:Loc.Instance}}"
-                                                   Style="{StaticResource SettingFieldLabel}"/>
-                                        <ComboBox SelectedIndex="{Binding Config.LogLevel}" MinWidth="120"
-                                                  Background="{StaticResource EquipBgBrush}"
-                                                  Foreground="{StaticResource TextPrimaryBrush}"
-                                                  BorderBrush="{StaticResource CardBorderBrush}">
-                                            <ComboBoxItem Content="Debug"/>
-                                            <ComboBoxItem Content="Info"/>
-                                            <ComboBoxItem Content="Warning"/>
-                                            <ComboBoxItem Content="Error"/>
-                                        </ComboBox>
-                                    </StackPanel>
-                                    <StackPanel Margin="8,0,0,0">
-                                        <TextBlock Text="{Binding [Settings_LogRetention], Source={x:Static loc:Loc.Instance}}"
-                                                   Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding Config.LogRetentionDays, UpdateSourceTrigger=PropertyChanged}"
-                                                 Style="{StaticResource SettingFieldBox}"/>
-                                    </StackPanel>
-                                </UniformGrid>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- 시뮬레이션 모드 -->
-                        <Border Style="{StaticResource SettingCard}">
-                            <StackPanel>
-                                <TextBlock Text="{Binding [Settings_SimMode], Source={x:Static loc:Loc.Instance}}"
-                                           Style="{StaticResource SettingSectionTitle}"/>
-                                <StackPanel Orientation="Horizontal">
-                                    <CheckBox IsChecked="{Binding Config.SimulationMode}" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding [Settings_SimModeDesc], Source={x:Static loc:Loc.Instance}}"
-                                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
-                                               VerticalAlignment="Center" Margin="8,0,0,0"/>
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
                     </StackPanel>
                 </ScrollViewer>
 

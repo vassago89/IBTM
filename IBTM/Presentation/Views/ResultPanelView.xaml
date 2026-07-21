@@ -4,7 +4,6 @@
              xmlns:conv="clr-namespace:IBTM.Presentation.Converters">
 
     <UserControl.Resources>
-        <conv:BoolToVisibilityConverter x:Key="BoolToVis"/>
         <conv:NgSlotFillConverter       x:Key="NgSlotFill"/>
     </UserControl.Resources>
 

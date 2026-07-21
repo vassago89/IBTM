@@ -1,6 +1,6 @@
-using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Windows;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace IBTM.Presentation.ViewModels;
 
@@ -160,7 +160,6 @@ public partial class ZoneVisualState : ObservableObject
 
     // ── Z 게이지 ────────────────────────────────────────────────────────
     [ObservableProperty] private double _zGaugeHeight;
-    [ObservableProperty] private double _zToolTop;
 
     // ── 현재 동작 라벨 (캔버스 오버레이) ─────────────────────────────────
     [ObservableProperty]
@@ -218,6 +217,5 @@ public partial class ZoneVisualState : ObservableObject
 
         ZRatio = Math.Clamp(zMm / MaxZ, 0, 1);
         ZGaugeHeight = ZRatio * GaugeTrack;
-        ZToolTop = WorkY0 + ZGaugeHeight;
     }
 }

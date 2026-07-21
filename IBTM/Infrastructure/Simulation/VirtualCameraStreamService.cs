@@ -1,6 +1,3 @@
-using System.Windows.Media;
-using System.Windows.Threading;
-
 namespace IBTM.Infrastructure.Simulation;
 
 /// <summary>Fifteen-frame-per-second camera simulator for teaching screens.</summary>
@@ -8,11 +5,12 @@ public sealed class VirtualCameraStreamService : ICameraStreamService, IDisposab
 {
     private static readonly TimeSpan FrameInterval = TimeSpan.FromMilliseconds(66);
 
-    private DispatcherTimer? _timer;
+    private Timer? _timer;
+    private bool _isLive;
 
-    public event Action<ImageSource>? FrameReady;
+    public event Action<ImageFrame>? FrameReady;
 
-    public bool IsLive => _timer?.IsEnabled == true;
+    public bool IsLive => _isLive;
     public int ImageWidth => SimulatedImageFactory.Width;
     public int ImageHeight => SimulatedImageFactory.Height;
 
@@ -23,34 +21,24 @@ public sealed class VirtualCameraStreamService : ICameraStreamService, IDisposab
             return;
         }
 
-        _timer ??= CreateTimer();
-        _timer.Start();
+        _timer ??= new Timer(OnTimerTick);
+        _timer.Change(TimeSpan.Zero, FrameInterval);
+        _isLive = true;
     }
 
     public void StopLiveView()
     {
-        _timer?.Stop();
+        _timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        _isLive = false;
     }
 
     public void Dispose()
     {
-        if (_timer is null)
-        {
-            return;
-        }
-
-        _timer.Stop();
-        _timer.Tick -= OnTimerTick;
+        _timer?.Dispose();
         _timer = null;
+        _isLive = false;
     }
 
-    private DispatcherTimer CreateTimer()
-    {
-        var timer = new DispatcherTimer { Interval = FrameInterval };
-        timer.Tick += OnTimerTick;
-        return timer;
-    }
-
-    private void OnTimerTick(object? sender, EventArgs e) =>
+    private void OnTimerTick(object? state) =>
         FrameReady?.Invoke(SimulatedImageFactory.CreateCameraFrame(drawCrosshair: true));
 }

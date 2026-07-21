@@ -10,7 +10,6 @@ public partial class MainViewModel : ObservableObject
     private readonly SettingsViewModel _settingsViewModel;
 
     [ObservableProperty] private ObservableObject _currentPage;
-    [ObservableProperty] private string _currentPageName = "Process";
 
     public MainViewModel(
         ProcessViewModel processViewModel,
@@ -26,13 +25,11 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Navigate(string page)
     {
-        var (pageName, viewModel) = page switch
+        CurrentPage = page switch
         {
-            "Teaching" => ("Teaching", (ObservableObject)_teachingViewModel),
-            "Settings" => ("Settings", _settingsViewModel),
-            _ => ("Process", _processViewModel),
+            "Teaching" => _teachingViewModel,
+            "Settings" => _settingsViewModel,
+            _ => _processViewModel,
         };
-        CurrentPageName = pageName;
-        CurrentPage = viewModel;
     }
 }

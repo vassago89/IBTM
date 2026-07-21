@@ -26,7 +26,6 @@
         <SolidColorBrush x:Key="ShuttleBorder"   Color="#444"/>
         <SolidColorBrush x:Key="ShuttleLiftedBg" Color="#222"/>
         <SolidColorBrush x:Key="HeadGlow"        Color="#666"/>
-        <SolidColorBrush x:Key="GaugeBg"         Color="#111"/>
     </UserControl.Resources>
 
     <Viewbox Stretch="Uniform">

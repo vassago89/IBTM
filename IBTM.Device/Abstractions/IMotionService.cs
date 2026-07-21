@@ -10,20 +10,9 @@ public interface IMotionService
 
     void InitializeAxes(int? axisX, int? axisY, int? axisZ);
     void Enable();
-    void Disable();
 
     Task MoveToXYAsync(
         double x,
-        double y,
-        double velocity,
-        CancellationToken cancellationToken = default);
-
-    Task MoveToXAsync(
-        double x,
-        double velocity,
-        CancellationToken cancellationToken = default);
-
-    Task MoveToYAsync(
         double y,
         double velocity,
         CancellationToken cancellationToken = default);
@@ -41,14 +30,4 @@ public interface IMotionService
     void EmergencyStop();
 
     MotionPosition GetPosition();
-
-    Task<bool> HomeXAsync(double velocity, CancellationToken cancellationToken = default);
-    Task<bool> HomeYAsync(double velocity, CancellationToken cancellationToken = default);
-    Task<bool> HomeZAsync(double velocity, CancellationToken cancellationToken = default);
-
-    void ResetAlarm();
-
-    MotionStatus? GetXStatus();
-    MotionStatus? GetYStatus();
-    MotionStatus? GetZStatus();
 }

@@ -1,13 +1,12 @@
-using CommunityToolkit.Mvvm.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Media;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace IBTM.Presentation.ViewModels;
 
-public partial class ProcessZoneState(int number) : ObservableObject
+public partial class ProcessZoneState : ObservableObject
 {
-    public int Number { get; } = number;
     public ZoneVisualState Visual { get; } = new();
 
     [ObservableProperty] private string _timing = string.Empty;
@@ -54,26 +53,38 @@ public partial class ProcessPresentationState : ObservableObject
     [ObservableProperty] private bool _smemaReady;
     [ObservableProperty] private bool _prevEquipReady;
 
-    public ProcessZoneState Zone1 { get; } = new(1);
-    public ProcessZoneState Zone2 { get; } = new(2);
-    public ProcessZoneState Zone3 { get; } = new(3);
+    public ProcessZoneState Zone1 { get; } = new();
+    public ProcessZoneState Zone2 { get; } = new();
+    public ProcessZoneState Zone3 { get; } = new();
     public ObservableCollection<NgSlotViewModel> NgStackSlots { get; } = [];
 
     public ProcessPresentationState(Recipe recipe, int ngStackCapacity)
     {
         _zones = [Zone1, Zone2, Zone3];
-        BuildBoltMarkers(recipe);
         SetNgStackCapacity(ngStackCapacity);
-        UpdateZoneLayouts(recipe);
+        ApplyRecipe(recipe);
     }
 
     public void ApplyPosition(ZonePositionEventArgs position) =>
         Zone(position.Zone).Visual.UpdatePosition(position.X, position.Y, position.Z);
 
+    public void ApplyRecipe(Recipe recipe)
+    {
+        BuildBoltMarkers(recipe);
+        UpdateZoneLayouts(recipe);
+    }
+
     public void ApplyStage(StageChangedEventArgs change, Recipe recipe)
     {
         IsError = change.Status == StageStatus.Error;
         StatusMessage = GetStatusMessage(change.Stage, change.Status);
+        if (change.Stage == SystemStages.Idle
+            || change.Stage == SystemStages.Complete
+            || change.Stage == SystemStages.Error)
+        {
+            return;
+        }
+
         UpdateStage(change.Stage, change.Status, recipe);
         UpdateMachineVisual(change.Stage, change.Status);
         UpdateTiming(change.Stage, change.Status);
@@ -87,6 +98,7 @@ public partial class ProcessPresentationState : ObservableObject
         NgCount = stats.NgCount;
         NgRate = stats.NgRate;
         LastCycleTime = stats.LastCycleTimeSeconds;
+        Uptime = stats.UptimeFormatted;
         NgStackCount = ngStackCount;
         SetNgStackCapacity(ngStackCapacity);
     }
@@ -100,17 +112,17 @@ public partial class ProcessPresentationState : ObservableObject
         {
             InspectionResult.Good => "GOOD",
             InspectionResult.Ng => "NG",
-            _ => "──",
+            _ => throw new ArgumentOutOfRangeException(nameof(result)),
         };
 
         if (result == InspectionResult.Good)
         {
-            _stages.Set(ProcessStage.Zone3_NgTransfer, StageStatus.Skipped);
+            _stages.Set(InspectionStages.NgTransfer, StageStatus.Skipped);
         }
         else if (result == InspectionResult.Ng)
         {
-            _stages.Set(ProcessStage.Zone3_SmemaWait, StageStatus.Skipped);
-            _stages.Set(ProcessStage.Zone3_Discharge, StageStatus.Skipped);
+            _stages.Set(InspectionStages.SmemaWait, StageStatus.Skipped);
+            _stages.Set(InspectionStages.Discharge, StageStatus.Skipped);
         }
 
         Zone3.Progress = _stages.Progress(3);
@@ -127,7 +139,7 @@ public partial class ProcessPresentationState : ObservableObject
 
         LastFiducialResult =
             $"dX:{result.OffsetX:+0.000;-0.000}  dY:{result.OffsetY:+0.000;-0.000}";
-        var fiducial = recipe.Zone2_FiducialPos;
+        var fiducial = recipe.BoltFastening.FiducialPosition;
         var (canvasX, canvasY) = Zone2.Visual.ToCanvas(
             fiducial.X + result.OffsetX,
             fiducial.Y + result.OffsetY);
@@ -163,7 +175,7 @@ public partial class ProcessPresentationState : ObservableObject
         {
             InspectionResult.Good => "GOOD",
             InspectionResult.Ng => "NG",
-            _ => string.Empty,
+            _ => throw new ArgumentOutOfRangeException(nameof(result)),
         };
     }
 
@@ -180,12 +192,9 @@ public partial class ProcessPresentationState : ObservableObject
     public void ApplyGripper((int Zone, bool Active) state) =>
         Zone(state.Zone).Visual.GripperActive = state.Active;
 
-    public void PcbPlaced() =>
-        Zone1.Visual.PcbCount = Math.Min(2, Zone1.Visual.PcbCount + 1);
+    public void PcbPlaced() => Zone1.Visual.PcbCount++;
 
     public void ResetNgStack() => UpdateNgStack(0, alarm: false, NgStackMaxCount);
-
-    public void UpdateUptime(string uptime) => Uptime = uptime;
 
     private ProcessZoneState Zone(int number) => _zones[number - 1];
 
@@ -194,13 +203,13 @@ public partial class ProcessPresentationState : ObservableObject
         Zone2.Visual.BoltMarkers.Clear();
         var pcbCenters = new[]
         {
-            (X: recipe.Zone2_Pcb1CenterX, Y: recipe.Zone2_PcbCenterY, Label: "P1"),
-            (X: recipe.Zone2_Pcb2CenterX, Y: recipe.Zone2_PcbCenterY, Label: "P2"),
+            (X: recipe.BoltFastening.Pcb1CenterX, Y: recipe.BoltFastening.PcbCenterY, Label: "P1"),
+            (X: recipe.BoltFastening.Pcb2CenterX, Y: recipe.BoltFastening.PcbCenterY, Label: "P2"),
         };
 
         foreach (var pcb in pcbCenters)
         {
-            foreach (var bolt in recipe.BoltPoints)
+            foreach (var bolt in recipe.BoltFastening.BoltPoints)
             {
                 Zone2.Visual.BoltMarkers.Add(new BoltMarkerViewModel(
                     $"{pcb.Label}-{bolt.Name}",
@@ -235,45 +244,45 @@ public partial class ProcessPresentationState : ObservableObject
     private void UpdateZoneLayouts(Recipe recipe)
     {
         Zone1.Visual.UpdateZone1Layout(
-            recipe.Zone1_PcbPick1.X,
-            recipe.Zone1_PcbPick1.Y,
-            recipe.Zone1_PcbPick2.X,
-            recipe.Zone1_PcbPick2.Y,
-            recipe.Zone1_PcbPlace1.X,
-            recipe.Zone1_PcbPlace1.Y,
-            recipe.Zone1_PcbPlace2.X,
-            recipe.Zone1_PcbPlace2.Y);
+            recipe.PcbPlacement.PcbPick1.X,
+            recipe.PcbPlacement.PcbPick1.Y,
+            recipe.PcbPlacement.PcbPick2.X,
+            recipe.PcbPlacement.PcbPick2.Y,
+            recipe.PcbPlacement.PcbPlace1.X,
+            recipe.PcbPlacement.PcbPlace1.Y,
+            recipe.PcbPlacement.PcbPlace2.X,
+            recipe.PcbPlacement.PcbPlace2.Y);
         Zone3.Visual.UpdateZone3Layout(
-            recipe.Zone3_NgPlacePos.X,
-            recipe.Zone3_NgPlacePos.Y);
+            recipe.Inspection.NgPlacePosition.X,
+            recipe.Inspection.NgPlacePosition.Y);
     }
 
     private void UpdateStage(ProcessStage stage, StageStatus status, Recipe recipe)
     {
         if (status == StageStatus.Running)
         {
-            if (stage == ProcessStage.Zone1_WaitShuttle)
+            if (stage == PcbPlacementStages.WaitShuttle)
             {
                 _stages.Reset(1);
             }
-            else if (stage == ProcessStage.Zone2_WaitShuttle)
+            else if (stage == BoltFasteningStages.WaitShuttle)
             {
                 ResetZone2(recipe);
             }
-            else if (stage == ProcessStage.Zone3_WaitShuttle)
+            else if (stage == InspectionStages.WaitShuttle)
             {
                 ResetZone3();
             }
         }
 
         var effectiveStatus = status;
-        if (stage == ProcessStage.Zone2_BoltTighten
+        if (stage == BoltFasteningStages.Tighten
             && status == StageStatus.Done
             && _boltStageHasWarning)
         {
             effectiveStatus = StageStatus.Warning;
         }
-        else if (stage == ProcessStage.Zone3_Inspect
+        else if (stage == InspectionStages.Inspect
                  && status == StageStatus.Done
                  && _lastRoute == InspectionResult.Ng)
         {
@@ -281,11 +290,8 @@ public partial class ProcessPresentationState : ObservableObject
         }
 
         _stages.Set(stage, effectiveStatus);
-        var definition = ProcessStageCatalog.Find(stage);
-        if (definition is not null)
-        {
-            Zone(definition.Zone).Progress = _stages.Progress(definition.Zone);
-        }
+        var definition = ProcessStageCatalog.Get(stage);
+        Zone(definition.Zone).Progress = _stages.Progress(definition.Zone);
     }
 
     private void ResetZone2(Recipe recipe)
@@ -312,100 +318,100 @@ public partial class ProcessPresentationState : ObservableObject
 
     private void UpdateMachineVisual(ProcessStage stage, StageStatus status)
     {
-        if (stage == ProcessStage.Zone1_WaitShuttle && status == StageStatus.Running)
+        if (stage == PcbPlacementStages.WaitShuttle && status == StageStatus.Running)
         {
             PrevEquipReady = false;
         }
-        else if (stage == ProcessStage.Zone1_StopAlignLift && status == StageStatus.Running)
+        else if (stage == PcbPlacementStages.StopAlignLift && status == StageStatus.Running)
         {
             PrevEquipReady = true;
         }
 
-        UpdateShuttle(stage, status, Zone1, arrivalPcbCount: 0,
-            onRelease: () => ShuttleTransit12 = true);
-        UpdateShuttle(stage, status, Zone2, arrivalPcbCount: 2,
-            onRelease: () => ShuttleTransit23 = true,
-            onArrival: () => ShuttleTransit12 = false);
-        UpdateShuttle(stage, status, Zone3, arrivalPcbCount: 2,
-            onRelease: () => ShuttleTransitOut = true,
-            onArrival: () => ShuttleTransit23 = false);
+        UpdateShuttle(stage, status);
 
-        if (stage == ProcessStage.Zone3_SmemaWait && status == StageStatus.Running)
+        if (stage == InspectionStages.SmemaWait && status == StageStatus.Running)
         {
             SmemaWaiting = true;
             SmemaReady = false;
         }
-        else if (stage == ProcessStage.Zone3_SmemaWait && status == StageStatus.Done)
+        else if (stage == InspectionStages.SmemaWait && status == StageStatus.Done)
         {
             SmemaWaiting = false;
             SmemaReady = true;
         }
-        else if (stage == ProcessStage.Zone3_Discharge && status == StageStatus.Running)
+        else if (stage == InspectionStages.Discharge && status == StageStatus.Running)
         {
             SmemaReady = false;
         }
 
-        if (stage == ProcessStage.Zone3_NgTransfer && status == StageStatus.Done)
+        if (stage == InspectionStages.NgTransfer && status == StageStatus.Done)
         {
-            Zone3.Visual.PcbCount = Math.Max(0, Zone3.Visual.PcbCount - 1);
+            Zone3.Visual.PcbCount--;
         }
 
-        if (stage == ProcessStage.Zone3_WaitShuttle && status == StageStatus.Running)
+        if (stage == InspectionStages.WaitShuttle && status == StageStatus.Running)
         {
             ShuttleTransitOut = false;
         }
     }
 
-    private static void UpdateShuttle(
-        ProcessStage stage,
-        StageStatus status,
-        ProcessZoneState zone,
-        int arrivalPcbCount,
-        Action onRelease,
-        Action? onArrival = null)
+    private void UpdateShuttle(ProcessStage stage, StageStatus status)
     {
-        var definition = ProcessStageCatalog.Find(stage);
-        if (definition?.Zone != zone.Number)
-        {
-            return;
-        }
+        var definition = ProcessStageCatalog.Get(stage);
+        var zone = Zone(definition.Zone);
 
-        if (definition.StartsZoneTiming && status == StageStatus.Running)
+        if (definition.ArrivesShuttle && status == StageStatus.Running)
         {
             zone.Visual.ShuttlePresent = true;
             zone.Visual.CarrierCount = 2;
-            zone.Visual.PcbCount = arrivalPcbCount;
-            onArrival?.Invoke();
+            zone.Visual.PcbCount = definition.Zone == 1 ? 0 : 2;
+            if (definition.Zone == 2)
+            {
+                ShuttleTransit12 = false;
+            }
+            else if (definition.Zone == 3)
+            {
+                ShuttleTransit23 = false;
+            }
         }
-        else if (definition.StartsZoneTiming && status == StageStatus.Done)
+        else if (definition.ArrivesShuttle && status == StageStatus.Done)
         {
             zone.Visual.IsLifted = true;
         }
-        else if (definition.CompletesZoneTiming && status == StageStatus.Running)
+        else if (definition.ReleasesShuttle && status == StageStatus.Running)
         {
             zone.Visual.IsLifted = false;
         }
-        else if (definition.CompletesZoneTiming && status == StageStatus.Done)
+        else if (definition.ReleasesShuttle && status == StageStatus.Done)
         {
             zone.Visual.ShuttlePresent = false;
-            onRelease();
+            if (definition.Zone == 1)
+            {
+                ShuttleTransit12 = true;
+            }
+            else if (definition.Zone == 2)
+            {
+                ShuttleTransit23 = true;
+            }
+            else
+            {
+                ShuttleTransitOut = true;
+            }
         }
     }
 
     private void UpdateTiming(ProcessStage stage, StageStatus status)
     {
-        var definition = ProcessStageCatalog.Find(stage);
-        if (definition is null)
-        {
-            return;
-        }
-
+        var definition = ProcessStageCatalog.Get(stage);
         var zone = Zone(definition.Zone);
         if (definition.StartsZoneTiming && status == StageStatus.Running)
         {
             zone.StartedAt = DateTime.Now;
         }
-        else if (definition.CompletesZoneTiming && status == StageStatus.Done)
+        else if (definition.CompletesZoneTiming
+                 && status == StageStatus.Done
+                 && !(stage == InspectionStages.Release
+                      && _lastRoute == InspectionResult.Good))
         {
             zone.Timing = $"{(DateTime.Now - zone.StartedAt).TotalSeconds:F1}s";
         }
@@ -413,22 +419,17 @@ public partial class ProcessPresentationState : ObservableObject
 
     private void UpdateActivity(ProcessStage stage, StageStatus status)
     {
-        var definition = ProcessStageCatalog.Find(stage);
-        if (definition is null)
-        {
-            return;
-        }
-
+        var definition = ProcessStageCatalog.Get(stage);
         var visual = Zone(definition.Zone).Visual;
         if (status == StageStatus.Error)
         {
             visual.ActivityLabel = Loc.S("Act_Error");
         }
         else if (status == StageStatus.Done
-                 && stage is ProcessStage.Zone1_Release
-                     or ProcessStage.Zone2_Release
-                     or ProcessStage.Zone3_Release
-                     or ProcessStage.Zone3_Discharge)
+                 && (stage == PcbPlacementStages.Release
+                     || stage == BoltFasteningStages.Release
+                     || stage == InspectionStages.Release
+                     || stage == InspectionStages.Discharge))
         {
             visual.ActivityLabel = string.Empty;
         }
@@ -445,14 +446,16 @@ public partial class ProcessPresentationState : ObservableObject
             return Loc.S("Stat_Error", stage);
         }
 
-        if (stage == ProcessStage.Complete)
+        if (stage == SystemStages.Complete)
         {
             return Loc.S("Stat_CycleComplete");
         }
 
-        var definition = ProcessStageCatalog.Find(stage);
-        return definition is null
-            ? Loc.S("Stat_Waiting")
-            : Loc.S(definition.StatusKey);
+        if (stage == SystemStages.Idle)
+        {
+            return Loc.S("Stat_Waiting");
+        }
+
+        return Loc.S(ProcessStageCatalog.Get(stage).StatusKey);
     }
 }

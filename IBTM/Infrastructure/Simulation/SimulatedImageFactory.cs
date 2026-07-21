@@ -1,7 +1,3 @@
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-
 namespace IBTM.Infrastructure.Simulation;
 
 internal static class SimulatedImageFactory
@@ -11,7 +7,7 @@ internal static class SimulatedImageFactory
 
     private const int BytesPerPixel = 3;
 
-    public static BitmapSource CreateCameraFrame(bool drawCrosshair)
+    public static ImageFrame CreateCameraFrame(bool drawCrosshair)
     {
         var pixels = new byte[Width * Height * BytesPerPixel];
         FillNoise(pixels, 18, 12);
@@ -30,7 +26,7 @@ internal static class SimulatedImageFactory
         return CreateBitmap(pixels);
     }
 
-    public static BitmapSource CreateInspectionFrame()
+    public static ImageFrame CreateInspectionFrame()
     {
         var pixels = new byte[Width * Height * BytesPerPixel];
         FillNoise(pixels, 20, 15);
@@ -137,21 +133,6 @@ internal static class SimulatedImageFactory
         pixels[index + 2] = red;
     }
 
-    private static BitmapSource CreateBitmap(byte[] pixels)
-    {
-        var bitmap = new WriteableBitmap(
-            Width,
-            Height,
-            96,
-            96,
-            PixelFormats.Bgr24,
-            palette: null);
-        bitmap.WritePixels(
-            new Int32Rect(0, 0, Width, Height),
-            pixels,
-            Width * BytesPerPixel,
-            offset: 0);
-        bitmap.Freeze();
-        return bitmap;
-    }
+    private static ImageFrame CreateBitmap(byte[] pixels) =>
+        new(Width, Height, Width * BytesPerPixel, pixels);
 }

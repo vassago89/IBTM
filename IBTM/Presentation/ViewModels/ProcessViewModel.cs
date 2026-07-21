@@ -1,8 +1,7 @@
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using System.Windows;
 using System.Windows.Media;
-using System.Windows.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace IBTM.Presentation.ViewModels;
 
@@ -10,29 +9,29 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
 {
     private readonly ProcessOrchestrator _orchestrator;
     private readonly ProcessEventHub _events;
-    private readonly DispatcherTimer _uptimeTimer;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StartCommand))]
     [NotifyCanExecuteChangedFor(nameof(StopCommand))]
     private bool _isRunning;
 
-    [ObservableProperty] private double _targetTorque = 15.0;
+    [ObservableProperty] private double _targetTorque;
 
     public ProcessPresentationState State { get; }
 
-    public ProcessViewModel(ProcessOrchestrator orchestrator, ProcessEventHub events)
+    public ProcessViewModel(
+        ProcessOrchestrator orchestrator,
+        ProcessEventHub events,
+        BoltFasteningOptions boltOptions)
     {
         _orchestrator = orchestrator;
         _events = events;
+        TargetTorque = boltOptions.DefaultTorqueNm;
         State = new ProcessPresentationState(
             orchestrator.CurrentRecipe,
             orchestrator.NgStackCapacity);
         SubscribeEvents();
-
-        _uptimeTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _uptimeTimer.Tick += OnUptimeTimerTick;
-        _uptimeTimer.Start();
+        _orchestrator.RecipeChanged += OnRecipeChanged;
     }
 
     [RelayCommand(CanExecute = nameof(CanStart))]
@@ -41,7 +40,7 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
         IsRunning = true;
         try
         {
-            _orchestrator.CurrentRecipe.BoltPoints.ForEach(
+            _orchestrator.CurrentRecipe.BoltFastening.BoltPoints.ForEach(
                 bolt => bolt.TargetTorqueNm = TargetTorque);
             await _orchestrator.StartAsync();
         }
@@ -68,26 +67,21 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
     private void ResetNgStack()
     {
         _orchestrator.ResetNgStack();
-        State.ResetNgStack();
     }
 
     public void Dispose()
     {
-        _uptimeTimer.Stop();
-        _uptimeTimer.Tick -= OnUptimeTimerTick;
         _events.StageChanged -= OnStageChanged;
         _events.StatsUpdated -= OnStatsUpdated;
         _events.ZonePositionChanged -= OnZonePositionChanged;
         _events.FiducialDetected -= OnFiducialDetected;
         _events.BoltCompleted -= OnBoltCompleted;
         _events.BoltProgress -= OnBoltProgress;
-        _events.InspectionDone -= OnInspectionDone;
-        _events.RouteDecided -= OnRouteDecided;
-        _events.NgStackUpdated -= OnNgStackUpdated;
-        _events.NgStackAlarm -= OnNgStackAlarm;
+        _events.InspectionCompleted -= OnInspectionCompleted;
+        _events.NgStackChanged -= OnNgStackChanged;
         _events.GripperChanged -= OnGripperChanged;
         _events.PcbPlaced -= OnPcbPlaced;
-        _events.InspectionImageCaptured -= OnInspectionImageCaptured;
+        _orchestrator.RecipeChanged -= OnRecipeChanged;
     }
 
     private void SubscribeEvents()
@@ -98,19 +92,16 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
         _events.FiducialDetected += OnFiducialDetected;
         _events.BoltCompleted += OnBoltCompleted;
         _events.BoltProgress += OnBoltProgress;
-        _events.InspectionDone += OnInspectionDone;
-        _events.RouteDecided += OnRouteDecided;
-        _events.NgStackUpdated += OnNgStackUpdated;
-        _events.NgStackAlarm += OnNgStackAlarm;
+        _events.InspectionCompleted += OnInspectionCompleted;
+        _events.NgStackChanged += OnNgStackChanged;
         _events.GripperChanged += OnGripperChanged;
         _events.PcbPlaced += OnPcbPlaced;
-        _events.InspectionImageCaptured += OnInspectionImageCaptured;
     }
 
     private static void RunOnUi(Action action)
     {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess())
+        var dispatcher = System.Windows.Application.Current.Dispatcher;
+        if (dispatcher.CheckAccess())
         {
             action();
         }
@@ -122,6 +113,9 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
 
     private void OnStageChanged(object? sender, StageChangedEventArgs change) =>
         RunOnUi(() => State.ApplyStage(change, _orchestrator.CurrentRecipe));
+
+    private void OnRecipeChanged(object? sender, Recipe recipe) =>
+        RunOnUi(() => State.ApplyRecipe(recipe));
 
     private void OnStatsUpdated(object? sender, ProductionStats stats) =>
         RunOnUi(() => State.ApplyStats(
@@ -141,22 +135,18 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
     private void OnBoltProgress(object? sender, BoltProgressEventArgs progress) =>
         RunOnUi(() => State.ApplyBoltProgress(progress));
 
-    private void OnInspectionDone(object? sender, InspectionResult result) =>
-        RunOnUi(() => State.ApplyInspection(result));
+    private void OnInspectionCompleted(object? sender, InspectionOutcome outcome) =>
+        RunOnUi(() =>
+        {
+            State.CaptureInspectionImage(outcome.Image.ToImageSource());
+            State.ApplyInspection(outcome.Result);
+            State.ApplyRoute(outcome.Result);
+        });
 
-    private void OnRouteDecided(object? sender, InspectionResult result) =>
-        RunOnUi(() => State.ApplyRoute(result));
-
-    private void OnNgStackUpdated(object? sender, int count) =>
+    private void OnNgStackChanged(object? sender, NgStackState state) =>
         RunOnUi(() => State.UpdateNgStack(
-            count,
-            State.NgStackAlarm,
-            _orchestrator.NgStackCapacity));
-
-    private void OnNgStackAlarm(object? sender, int count) =>
-        RunOnUi(() => State.UpdateNgStack(
-            count,
-            alarm: true,
+            state.Count,
+            state.Alarm,
             _orchestrator.NgStackCapacity));
 
     private void OnGripperChanged(object? sender, (int Zone, bool Active) state) =>
@@ -164,10 +154,4 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
 
     private void OnPcbPlaced(object? sender, EventArgs eventArgs) =>
         RunOnUi(State.PcbPlaced);
-
-    private void OnInspectionImageCaptured(object? sender, ImageSource image) =>
-        RunOnUi(() => State.CaptureInspectionImage(image));
-
-    private void OnUptimeTimerTick(object? sender, EventArgs eventArgs) =>
-        State.UpdateUptime(_orchestrator.Stats.UptimeFormatted);
 }

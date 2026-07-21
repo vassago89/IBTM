@@ -7,26 +7,29 @@ public static class DependencyInjection
     public static IServiceCollection AddIbtmApplication(this IServiceCollection services)
     {
         services.AddSingleton<MachineConfig>();
-        services.AddKeyedSingleton<IMotionService, VirtualMotionService>(ZoneServiceKeys.Zone1);
-        services.AddKeyedSingleton<IMotionService, VirtualMotionService>(ZoneServiceKeys.Zone2);
-        services.AddKeyedSingleton<IMotionService, VirtualMotionService>(ZoneServiceKeys.Zone3);
+        services.AddSingleton(provider => provider.GetRequiredService<MachineConfig>().Runtime);
+        services.AddSingleton(provider => provider.GetRequiredService<MachineConfig>().PcbPlacement);
+        services.AddSingleton(provider => provider.GetRequiredService<MachineConfig>().BoltFastening);
+        services.AddSingleton(provider => provider.GetRequiredService<MachineConfig>().Inspection);
+
+        services.AddKeyedSingleton<IMotionService, VirtualMotionService>(PcbPlacementModule.ServiceKey);
+        services.AddKeyedSingleton<IMotionService, VirtualMotionService>(BoltFasteningModule.ServiceKey);
+        services.AddKeyedSingleton<IMotionService, VirtualMotionService>(InspectionModule.ServiceKey);
         services.AddSingleton<IIOService, VirtualIoService>();
 
-        services.AddSingleton<IFiducialService, FiducialService>();
+        services.AddSingleton<IFiducialService, SimulatedFiducialService>();
         services.AddSingleton<IBoltService, StubBoltService>();
         services.AddSingleton<IInspectionService, SimulatedInspectionService>();
         services.AddSingleton<ProcessEventHub>();
         services.AddSingleton<ProcessStageRunner>();
-        services.AddSingleton<MachineOperations>();
-        services.AddSingleton<BoltTighteningService>();
-        services.AddSingleton<Zone1Workflow>();
-        services.AddSingleton<Zone2Workflow>();
-        services.AddSingleton<Zone3Workflow>();
+        services.AddPcbPlacementStation();
+        services.AddBoltFasteningStation();
+        services.AddInspectionStation();
         services.AddSingleton<TeachingPointMapper>();
         services.AddSingleton<ProcessOrchestrator>();
         services.AddSingleton<RecipeService>();
-        services.AddKeyedSingleton<ICameraStreamService, VirtualCameraStreamService>(ZoneServiceKeys.Zone2);
-        services.AddKeyedSingleton<ICameraStreamService, VirtualCameraStreamService>(ZoneServiceKeys.Zone3);
+        services.AddKeyedSingleton<ICameraStreamService, VirtualCameraStreamService>(BoltFasteningModule.ServiceKey);
+        services.AddKeyedSingleton<ICameraStreamService, VirtualCameraStreamService>(InspectionModule.ServiceKey);
 
         services.AddSingleton<ProcessViewModel>();
         services.AddSingleton<SettingsViewModel>();

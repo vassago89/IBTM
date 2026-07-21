@@ -15,8 +15,8 @@ public partial class TeachingView : UserControl
     private TeachingViewModel? VM => DataContext as TeachingViewModel;
 
     // ── 라이프사이클 ────────────────────────────────────────────────
-    private void OnLoaded(object sender, RoutedEventArgs e) => VM?.StartPolling();
-    private void OnUnloaded(object sender, RoutedEventArgs e) => VM?.StopPolling();
+    private void OnLoaded(object sender, RoutedEventArgs e) => VM?.Activate();
+    private void OnUnloaded(object sender, RoutedEventArgs e) => VM?.Deactivate();
 
     // ── Zone 선택 ───────────────────────────────────────────────────
     private void Zone1_Checked(object sender, RoutedEventArgs e) { if (VM != null) VM.SelectedZone = 1; }

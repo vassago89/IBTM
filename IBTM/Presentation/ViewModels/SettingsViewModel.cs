@@ -1,7 +1,8 @@
+using System.IO;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
-using System.Windows.Threading;
 
 namespace IBTM.Presentation.ViewModels;
 
@@ -14,15 +15,9 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly IMotionService[] _motions;
     private readonly IIOService _ioService;
     private readonly RecipeService _recipeService;
-    private readonly DispatcherTimer _posTimer;
-    private bool _isConfigLoaded;
-    private bool _disposed;
 
     // ── 장비 설정 ───────────────────────────────────────────────────
     [ObservableProperty] private MachineConfig _config;
-
-    // ── 탭 선택 ─────────────────────────────────────────────────────
-    [ObservableProperty] private int _selectedTab;
 
     // ── Zone 선택 (캘리브레이션/모션 탭 공용) ─────────────────────────
     [ObservableProperty] private int _selectedZone = 1;
@@ -39,7 +34,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     [ObservableProperty] private int _jogSpeedIndex = 1;
     private static readonly double[] JogSpeeds = [1.0, 10.0, 50.0];
     private static readonly int[] LaserChannels =
-        [IoMap.Zone1_Laser, IoMap.Zone2_Laser, IoMap.Zone3_Laser];
+        [PcbPlacementChannels.Laser, BoltFasteningChannels.Laser, InspectionChannels.Laser];
     public double JogSpeed => JogSpeeds[JogSpeedIndex];
 
     // ── 레이저 ──────────────────────────────────────────────────────
@@ -60,9 +55,9 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     [ObservableProperty] private bool _isKorean;
 
     public SettingsViewModel(
-        [FromKeyedServices(ZoneServiceKeys.Zone1)] IMotionService zone1,
-        [FromKeyedServices(ZoneServiceKeys.Zone2)] IMotionService zone2,
-        [FromKeyedServices(ZoneServiceKeys.Zone3)] IMotionService zone3,
+        [FromKeyedServices(PcbPlacementModule.ServiceKey)] IMotionService zone1,
+        [FromKeyedServices(BoltFasteningModule.ServiceKey)] IMotionService zone2,
+        [FromKeyedServices(InspectionModule.ServiceKey)] IMotionService zone3,
         IIOService ioService,
         RecipeService recipeService,
         MachineConfig machineConfig)
@@ -71,10 +66,9 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         _ioService = ioService;
         _recipeService = recipeService;
         _config = machineConfig;
-
-        // 좌표 폴링 타이머 (100ms)
-        _posTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-        _posTimer.Tick += OnPositionTimerTick;
+        zone1.PositionChanged += OnZone1PositionChanged;
+        zone2.PositionChanged += OnZone2PositionChanged;
+        zone3.PositionChanged += OnZone3PositionChanged;
     }
 
     private IMotionService CurrentMotion => GetMotion(SelectedZone);
@@ -87,31 +81,15 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
 
     // ── 라이프사이클 ────────────────────────────────────────────────
 
-    [RelayCommand]
-    private async Task LoadConfigAsync()
+    public void Activate()
     {
-        try
-        {
-            if (!_isConfigLoaded)
-            {
-                var loaded = await _recipeService.LoadConfigAsync();
-                Config.CopyFrom(loaded);
-                OnPropertyChanged(nameof(Config));
-                UpdateRefStatus();
-                UpdateOffsetText();
-                SyncMotionParams();
-                Loc.Instance.SetLanguage(Config.Language);
-                IsKorean = Loc.Instance.Language == "KO";
-                _isConfigLoaded = true;
-            }
-
-            _posTimer.Start();
-            StatusMessage = Loc.S("Settings_Loaded");
-        }
-        catch (Exception exception)
-        {
-            StatusMessage = $"Config load failed: {exception.Message}";
-        }
+        OnPropertyChanged(nameof(Config));
+        UpdateRefStatus();
+        UpdateOffsetText();
+        SyncMotionParams();
+        IsKorean = Loc.Instance.Language == "KO";
+        RefreshPosition();
+        StatusMessage = Loc.S("Settings_Loaded");
     }
 
     [RelayCommand]
@@ -122,7 +100,8 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             await _recipeService.SaveConfigAsync(Config);
             StatusMessage = Loc.S("Settings_Saved");
         }
-        catch (Exception exception)
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException)
         {
             StatusMessage = $"Config save failed: {exception.Message}";
         }
@@ -139,6 +118,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         }
         GetMotion(oldValue).Stop();
         SyncMotionParams();
+        RefreshPosition();
     }
 
     // ── 모션 탭: Zone 모션 파라미터 동기화 ───────────────────────────
@@ -176,16 +156,17 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         var current = CurrentMotion.GetPosition();
         var pos = new AxisPos
         {
-            X = current.X ?? 0,
-            Y = current.Y ?? 0,
-            Z = current.Z ?? 0,
+            X = current.X!.Value,
+            Y = current.Y!.Value,
+            Z = current.Z!.Value,
         };
 
         switch (SelectedZone)
         {
-            case 1: Config.Zone1Ref = pos; Zone1RefRecorded = true; break;
-            case 2: Config.Zone2Ref = pos; Zone2RefRecorded = true; break;
-            case 3: Config.Zone3Ref = pos; Zone3RefRecorded = true; break;
+            case 1: Config.Calibration.Zone1Ref = pos; Zone1RefRecorded = true; break;
+            case 2: Config.Calibration.Zone2Ref = pos; Zone2RefRecorded = true; break;
+            case 3: Config.Calibration.Zone3Ref = pos; Zone3RefRecorded = true; break;
+            default: throw new ArgumentOutOfRangeException(nameof(SelectedZone));
         }
 
         StatusMessage = Loc.S("Settings_RefRecorded", SelectedZone);
@@ -200,7 +181,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             return;
         }
 
-        Config.ComputeOffsets();
+        Config.Calibration.ComputeOffsets();
         UpdateOffsetText();
         StatusMessage = Loc.S("Settings_OffsetsComputed");
     }
@@ -212,44 +193,35 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     {
         Loc.Instance.ToggleLanguage();
         IsKorean = Loc.Instance.Language == "KO";
-        Config.Language = IsKorean ? "ko" : "en";
+        Config.System.Language = IsKorean ? "ko" : "en";
         StatusMessage = Loc.S("Settings_LangChanged");
-    }
-
-    // ── 시스템: 로그 레벨 변경 ──────────────────────────────────────
-
-    partial void OnSelectedTabChanged(int value)
-    {
-        // 탭 변경 시 모션 파라미터 동기화
-        if (value == 1) SyncMotionParams();
     }
 
     // ── 헬퍼 ────────────────────────────────────────────────────────
 
-    private void PollPosition()
+    private void RefreshPosition()
     {
         var current = CurrentMotion.GetPosition();
-        CurrentX = current.X ?? 0;
-        CurrentY = current.Y ?? 0;
-        CurrentZ = current.Z ?? 0;
+        CurrentX = current.X!.Value;
+        CurrentY = current.Y!.Value;
+        CurrentZ = current.Z!.Value;
     }
 
     private void UpdateRefStatus()
     {
-        Zone1RefRecorded = Config.Zone1Ref.X != 0 || Config.Zone1Ref.Y != 0;
-        Zone2RefRecorded = Config.Zone2Ref.X != 0 || Config.Zone2Ref.Y != 0;
-        Zone3RefRecorded = Config.Zone3Ref.X != 0 || Config.Zone3Ref.Y != 0;
+        Zone1RefRecorded = Config.Calibration.Zone1Ref.X != 0 || Config.Calibration.Zone1Ref.Y != 0;
+        Zone2RefRecorded = Config.Calibration.Zone2Ref.X != 0 || Config.Calibration.Zone2Ref.Y != 0;
+        Zone3RefRecorded = Config.Calibration.Zone3Ref.X != 0 || Config.Calibration.Zone3Ref.Y != 0;
     }
 
     private void UpdateOffsetText()
     {
-        OffsetResultText = $"3→1: dX={Config.Offset3To1.X:F3} dY={Config.Offset3To1.Y:F3}  " +
-                           $"3→2: dX={Config.Offset3To2.X:F3} dY={Config.Offset3To2.Y:F3}";
+        OffsetResultText = $"3→1: dX={Config.Calibration.Offset3To1.X:F3} dY={Config.Calibration.Offset3To1.Y:F3}  " +
+                           $"3→2: dX={Config.Calibration.Offset3To2.X:F3} dY={Config.Calibration.Offset3To2.Y:F3}";
     }
 
-    public void StopPolling()
+    public void Deactivate()
     {
-        _posTimer.Stop();
         if (LaserOn)
         {
             _ioService.SetOutput(LaserIoIndex, false);
@@ -257,19 +229,33 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         }
     }
 
-    public void StartPolling() => _posTimer.Start();
-
     public void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        StopPolling();
-        _posTimer.Tick -= OnPositionTimerTick;
+        Deactivate();
+        _motions[0].PositionChanged -= OnZone1PositionChanged;
+        _motions[1].PositionChanged -= OnZone2PositionChanged;
+        _motions[2].PositionChanged -= OnZone3PositionChanged;
     }
 
-    private void OnPositionTimerTick(object? sender, EventArgs e) => PollPosition();
+    private void OnZone1PositionChanged(object? sender, MotionPositionEventArgs position) =>
+        ApplyPosition(1, position);
+
+    private void OnZone2PositionChanged(object? sender, MotionPositionEventArgs position) =>
+        ApplyPosition(2, position);
+
+    private void OnZone3PositionChanged(object? sender, MotionPositionEventArgs position) =>
+        ApplyPosition(3, position);
+
+    private void ApplyPosition(int zone, MotionPositionEventArgs position) =>
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            if (SelectedZone != zone)
+            {
+                return;
+            }
+
+            CurrentX = position.X;
+            CurrentY = position.Y;
+            CurrentZ = position.Z;
+        });
 }

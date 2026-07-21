@@ -6,14 +6,4 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-    <PackageReference Include="System.IO.Ports" Version="10.0.3" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="Basler.Pylon">
-      <HintPath>Vendor\Basler\Basler.Pylon.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
 </Project>

@@ -7,7 +7,6 @@
              Loaded="OnLoaded" Unloaded="OnUnloaded">
 
     <UserControl.Resources>
-        <conv:BoolToVisibilityConverter x:Key="BoolToVis"/>
     </UserControl.Resources>
 
     <Grid Margin="24,16">

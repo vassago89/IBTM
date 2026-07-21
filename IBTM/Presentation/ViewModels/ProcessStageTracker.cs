@@ -6,18 +6,11 @@ public sealed class ProcessStageTracker
 {
     private readonly Dictionary<ProcessStage, StageStatus> _statuses =
         ProcessStageCatalog.All
-            .Where(definition => definition.ShowInProgress)
             .ToDictionary(definition => definition.Stage, _ => StageStatus.Idle);
 
     public StageStatus this[ProcessStage stage] => _statuses[stage];
 
-    public void Set(ProcessStage stage, StageStatus status)
-    {
-        if (_statuses.ContainsKey(stage))
-        {
-            _statuses[stage] = status;
-        }
-    }
+    public void Set(ProcessStage stage, StageStatus status) => _statuses[stage] = status;
 
     public void Reset(int zone)
     {
@@ -44,7 +37,8 @@ public sealed class ProcessStageTracker
                 StageStatus.Running => "◉",
                 StageStatus.Error => "✕",
                 StageStatus.Warning => "▲",
-                _ => "○",
+                StageStatus.Idle => "○",
+                _ => throw new ArgumentOutOfRangeException(nameof(status)),
             });
         }
 

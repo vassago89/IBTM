@@ -1,10 +1,11 @@
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Text.Json;
+using System.Windows;
+using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
-using System.Collections.ObjectModel;
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Threading;
 
 namespace IBTM.Presentation.ViewModels;
 
@@ -20,8 +21,6 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
     private readonly MachineConfig _machineConfig;
     private readonly TeachingPointMapper _pointMapper;
     private readonly ProcessOrchestrator _orchestrator;
-    private readonly DispatcherTimer _posTimer;
-    private bool _disposed;
 
     // ── 전체 포인트 (내부용) ──────────────────────────────────────
     private readonly List<TeachingPoint> _allPoints = [];
@@ -42,7 +41,7 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
     [ObservableProperty] private int _jogSpeedIndex = 1;
     private static readonly double[] JogSpeeds = [1.0, 10.0, 50.0];
     private static readonly int[] LaserChannels =
-        [IoMap.Zone1_Laser, IoMap.Zone2_Laser, IoMap.Zone3_Laser];
+        [PcbPlacementChannels.Laser, BoltFasteningChannels.Laser, InspectionChannels.Laser];
     public double JogSpeed => JogSpeeds[JogSpeedIndex];
 
     // ── 카메라 라이브 뷰 ────────────────────────────────────────────
@@ -66,12 +65,12 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
     private ICameraStreamService? CurrentCamera => GetCamera(SelectedZone);
 
     public TeachingViewModel(
-        [FromKeyedServices(ZoneServiceKeys.Zone1)] IMotionService zone1,
-        [FromKeyedServices(ZoneServiceKeys.Zone2)] IMotionService zone2,
-        [FromKeyedServices(ZoneServiceKeys.Zone3)] IMotionService zone3,
+        [FromKeyedServices(PcbPlacementModule.ServiceKey)] IMotionService zone1,
+        [FromKeyedServices(BoltFasteningModule.ServiceKey)] IMotionService zone2,
+        [FromKeyedServices(InspectionModule.ServiceKey)] IMotionService zone3,
         IIOService ioService,
-        [FromKeyedServices(ZoneServiceKeys.Zone2)] ICameraStreamService zone2Camera,
-        [FromKeyedServices(ZoneServiceKeys.Zone3)] ICameraStreamService zone3Camera,
+        [FromKeyedServices(BoltFasteningModule.ServiceKey)] ICameraStreamService zone2Camera,
+        [FromKeyedServices(InspectionModule.ServiceKey)] ICameraStreamService zone3Camera,
         RecipeService recipeService,
         MachineConfig machineConfig,
         TeachingPointMapper pointMapper,
@@ -90,9 +89,9 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
         // 두 카메라 모두 프레임 수신 연결
         zone2Camera.FrameReady += OnZone2FrameReady;
         zone3Camera.FrameReady += OnZone3FrameReady;
-
-        _posTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-        _posTimer.Tick += OnPositionTimerTick;
+        zone1.PositionChanged += OnZone1PositionChanged;
+        zone2.PositionChanged += OnZone2PositionChanged;
+        zone3.PositionChanged += OnZone3PositionChanged;
 
         BuildTeachingPoints();
         RefreshRecipeFiles();
@@ -113,22 +112,25 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
 
     private void UpdateLiveImage(int zone, ImageSource image)
     {
-        void Apply()
+        RunOnUi(() =>
         {
             if (SelectedZone == zone)
             {
                 LiveImage = image;
             }
-        }
+        });
+    }
 
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is null || dispatcher.CheckAccess())
+    private static void RunOnUi(Action action)
+    {
+        var dispatcher = Application.Current.Dispatcher;
+        if (dispatcher.CheckAccess())
         {
-            Apply();
+            action();
         }
         else
         {
-            dispatcher.BeginInvoke(Apply);
+            dispatcher.BeginInvoke(action);
         }
     }
 
@@ -164,6 +166,7 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
         }
 
         RefreshFilteredPoints();
+        RefreshPosition();
     }
 
     // ── 조그 ────────────────────────────────────────────────────────
@@ -205,8 +208,8 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
         double offsetPx = clickPos.X - CurrentCamera.ImageWidth / 2.0;
         double offsetPy = clickPos.Y - CurrentCamera.ImageHeight / 2.0;
 
-        double offsetMmX = offsetPx / _machineConfig.PixelsPerMm;
-        double offsetMmY = offsetPy / _machineConfig.PixelsPerMm;
+        double offsetMmX = offsetPx / _machineConfig.BoltFastening.PixelsPerMm;
+        double offsetMmY = offsetPy / _machineConfig.BoltFastening.PixelsPerMm;
 
         double targetX = CurrentX + offsetMmX;
         double targetY = CurrentY + offsetMmY;
@@ -232,7 +235,7 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
         if (SelectedPoint == null) return;
 
         var current = CurrentMotion.GetPosition();
-        SelectedPoint.Teach(current.X ?? 0, current.Y ?? 0, current.Z ?? 0);
+        SelectedPoint.Teach(current.X!.Value, current.Y!.Value, current.Z!.Value);
         _pointMapper.Apply(CurrentRecipe, _allPoints, SelectedPoint);
         StatusMessage = Loc.S("Teach_Recorded", SelectedPoint.Name);
     }
@@ -253,9 +256,9 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void AddBoltPoint()
     {
-        int idx = CurrentRecipe.BoltPoints.Count + 1;
-        var bp = new BoltPoint { Name = $"B{idx}", TargetTorqueNm = _machineConfig.DefaultTorqueNm };
-        CurrentRecipe.BoltPoints.Add(bp);
+        int idx = CurrentRecipe.BoltFastening.BoltPoints.Count + 1;
+        var bp = new BoltPoint { Name = $"B{idx}", TargetTorqueNm = _machineConfig.BoltFastening.DefaultTorqueNm };
+        CurrentRecipe.BoltFastening.BoltPoints.Add(bp);
 
         // Zone 2 Z-only 포인트 추가
         _allPoints.Add(new TeachingPoint
@@ -288,7 +291,7 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
             return;
 
         var bpName = SelectedPoint.Name;
-        CurrentRecipe.BoltPoints.RemoveAll(b => b.Name == bpName);
+        CurrentRecipe.BoltFastening.BoltPoints.RemoveAll(b => b.Name == bpName);
         _allPoints.RemoveAll(p =>
             p.Name == bpName
             && p.Kind is TeachingPointKind.Zone2BoltZ or TeachingPointKind.Zone3BoltReference);
@@ -311,7 +314,10 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
             RefreshRecipeFiles();
             StatusMessage = Loc.S("Teach_RecipeSaved", RecipeName);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (
+            exception is IOException
+                or UnauthorizedAccessException
+                or ArgumentException)
         {
             StatusMessage = $"Recipe save failed: {exception.Message}";
         }
@@ -329,7 +335,11 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
             BuildTeachingPoints();
             StatusMessage = Loc.S("Teach_RecipeLoaded", RecipeName);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (
+            exception is IOException
+                or UnauthorizedAccessException
+                or JsonException
+                or ArgumentException)
         {
             StatusMessage = $"Recipe load failed: {exception.Message}";
         }
@@ -371,19 +381,18 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
 
     // ── 헬퍼 ────────────────────────────────────────────────────────
 
-    private void PollPosition()
+    private void RefreshPosition()
     {
         var current = CurrentMotion.GetPosition();
-        CurrentX = current.X ?? 0;
-        CurrentY = current.Y ?? 0;
-        CurrentZ = current.Z ?? 0;
+        CurrentX = current.X!.Value;
+        CurrentY = current.Y!.Value;
+        CurrentZ = current.Z!.Value;
     }
 
-    public void StartPolling() => _posTimer.Start();
+    public void Activate() => RefreshPosition();
 
-    public void StopPolling()
+    public void Deactivate()
     {
-        _posTimer.Stop();
         // 모든 카메라 정리
         if (IsCameraLive)
         {
@@ -401,19 +410,36 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        StopPolling();
-        _posTimer.Tick -= OnPositionTimerTick;
+        Deactivate();
+        _motions[0].PositionChanged -= OnZone1PositionChanged;
+        _motions[1].PositionChanged -= OnZone2PositionChanged;
+        _motions[2].PositionChanged -= OnZone3PositionChanged;
         _cameras[1]!.FrameReady -= OnZone2FrameReady;
         _cameras[2]!.FrameReady -= OnZone3FrameReady;
     }
 
-    private void OnPositionTimerTick(object? sender, EventArgs e) => PollPosition();
-    private void OnZone2FrameReady(ImageSource image) => UpdateLiveImage(2, image);
-    private void OnZone3FrameReady(ImageSource image) => UpdateLiveImage(3, image);
+    private void OnZone1PositionChanged(object? sender, MotionPositionEventArgs position) =>
+        ApplyPosition(1, position);
+
+    private void OnZone2PositionChanged(object? sender, MotionPositionEventArgs position) =>
+        ApplyPosition(2, position);
+
+    private void OnZone3PositionChanged(object? sender, MotionPositionEventArgs position) =>
+        ApplyPosition(3, position);
+
+    private void ApplyPosition(int zone, MotionPositionEventArgs position) =>
+        RunOnUi(() =>
+        {
+            if (SelectedZone != zone)
+            {
+                return;
+            }
+
+            CurrentX = position.X;
+            CurrentY = position.Y;
+            CurrentZ = position.Z;
+        });
+
+    private void OnZone2FrameReady(ImageFrame frame) => UpdateLiveImage(2, frame.ToImageSource());
+    private void OnZone3FrameReady(ImageFrame frame) => UpdateLiveImage(3, frame.ToImageSource());
 }

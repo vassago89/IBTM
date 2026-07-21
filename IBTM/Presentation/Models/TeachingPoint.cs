@@ -53,15 +53,13 @@ public partial class TeachingPoint : ObservableObject
     /// <summary>볼트 포인트일 때 목표 토크</summary>
     public double? TargetTorqueNm { get; set; }
 
-    /// <summary>볼트 포인트일 때 토크 허용 오차</summary>
-    public double? TorqueTolerance { get; set; }
-
     /// <summary>TeachMode 표시 텍스트</summary>
     public string ModeLabel => TeachMode switch
     {
+        TeachMode.Full => "XYZ",
         TeachMode.XYOnly => "XY",
         TeachMode.ZOnly => "Z",
-        _ => "XYZ",
+        _ => throw new ArgumentOutOfRangeException(nameof(TeachMode)),
     };
 
     /// <summary>현재 좌표로 티칭 (TeachMode에 따라 부분 업데이트)</summary>
@@ -75,9 +73,11 @@ public partial class TeachingPoint : ObservableObject
             case TeachMode.ZOnly:
                 Z = z;
                 break;
-            default:
+            case TeachMode.Full:
                 X = x; Y = y; Z = z;
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(TeachMode));
         }
         IsTaught = true;
     }

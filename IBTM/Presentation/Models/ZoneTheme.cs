@@ -36,6 +36,4 @@ public class ZoneTheme
     // 헤드
     public Brush HeadGlow { get; set; } = Brushes.Gray;
 
-    // Z 게이지
-    public Brush GaugeBg { get; set; } = Brushes.Black;
 }

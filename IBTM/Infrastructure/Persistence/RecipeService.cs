@@ -51,19 +51,20 @@ public sealed class RecipeService
             FileShare.Read,
             bufferSize: 4_096,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        return await JsonSerializer.DeserializeAsync<Recipe>(
-                   stream,
-                   JsonOptions,
-                   cancellationToken)
+        using var document = await JsonDocument.ParseAsync(
+            stream,
+            cancellationToken: cancellationToken);
+        var recipe = document.RootElement.TryGetProperty(nameof(Recipe.PcbPlacement), out _)
+            ? document.RootElement.Deserialize<Recipe>(JsonOptions)
+            : document.RootElement.Deserialize<LegacyRecipe>(JsonOptions)?.ToCurrent();
+        return recipe
                ?? throw new InvalidDataException($"Recipe '{safePath}' is empty or invalid.");
     }
 
     public IReadOnlyList<string> GetRecipeFiles() =>
-        Directory.Exists(RecipeDirectory)
-            ? Directory.GetFiles(RecipeDirectory, "*.json")
-                .Order(StringComparer.OrdinalIgnoreCase)
-                .ToArray()
-            : [];
+        Directory.GetFiles(RecipeDirectory, "*.json")
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     public Task SaveConfigAsync(
         MachineConfig config,
@@ -87,10 +88,13 @@ public sealed class RecipeService
             FileShare.Read,
             bufferSize: 4_096,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        return await JsonSerializer.DeserializeAsync<MachineConfig>(
-                   stream,
-                   JsonOptions,
-                   cancellationToken)
+        using var document = await JsonDocument.ParseAsync(
+            stream,
+            cancellationToken: cancellationToken);
+        var config = document.RootElement.TryGetProperty(nameof(MachineConfig.Runtime), out _)
+            ? document.RootElement.Deserialize<MachineConfig>(JsonOptions)
+            : document.RootElement.Deserialize<LegacyMachineConfig>(JsonOptions)?.ToCurrent();
+        return config
                ?? throw new InvalidDataException("MachineConfig.json is empty or invalid.");
     }
 

@@ -5,39 +5,6 @@ using System.Windows.Media;
 
 namespace IBTM.Presentation.Converters;
 
-/// <summary>Frozen 브러시 팔레트 (매번 new 방지)</summary>
-internal static class Palette
-{
-    // 공통 색상 (Fluent Dark)
-    public static readonly Brush Blue = Freeze(0x60, 0xCD, 0xFF);
-    public static readonly Brush Green = Freeze(0x6C, 0xCB, 0x5F);
-    public static readonly Brush Red = Freeze(0xFF, 0x6B, 0x6B);
-    public static readonly Brush Orange = Freeze(0xFC, 0xB7, 0x5D);
-    public static readonly Brush Gray = Freeze(0x6E, 0x6E, 0x6E);
-    public static readonly Brush DimGray = Freeze(0x4A, 0x4A, 0x4A);
-    public static readonly Brush Light = Freeze(0xF0, 0xF0, 0xF0);
-    public static readonly Brush Muted = Freeze(0x9E, 0x9E, 0x9E);
-
-    // 카드 배경 (Fluent Dark)
-    public static readonly Brush BgBlue = Freeze(0x1A, 0x30, 0x48);
-    public static readonly Brush BgGreen = Freeze(0x1A, 0x32, 0x20);
-    public static readonly Brush BgRed = Freeze(0x38, 0x1A, 0x1A);
-    public static readonly Brush BgOrange = Freeze(0x38, 0x28, 0x18);
-    public static readonly Brush BgDim = Freeze(0x28, 0x28, 0x28);
-    public static readonly Brush BgDefault = Freeze(0x38, 0x38, 0x38);
-
-    // NG 슬롯
-    public static readonly Brush SlotFilled = Red;
-    public static readonly Brush SlotEmpty = Freeze(0x3A, 0x3A, 0x3A);
-
-    private static SolidColorBrush Freeze(byte r, byte g, byte b)
-    {
-        var brush = new SolidColorBrush(Color.FromRgb(r, g, b));
-        brush.Freeze();
-        return brush;
-    }
-}
-
 public abstract class OneWayValueConverter : IValueConverter
 {
     public abstract object Convert(
@@ -53,140 +20,50 @@ public abstract class OneWayValueConverter : IValueConverter
         CultureInfo culture) => Binding.DoNothing;
 }
 
-// ── StageStatus → Border/Icon 색상 ─────────────────────────────────────────
-[ValueConversion(typeof(StageStatus), typeof(Brush))]
-public class StageStatusToBrushConverter : OneWayValueConverter
-{
-    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-    {
-        if (value is not StageStatus status) return Brushes.Transparent;
-        return status switch
-        {
-            StageStatus.Running => Palette.Blue,
-            StageStatus.Done => Palette.Green,
-            StageStatus.Error => Palette.Red,
-            StageStatus.Warning => Palette.Orange,
-            StageStatus.Skipped => Palette.DimGray,
-            _ => Palette.Gray
-        };
-    }
-}
-
-// ── StageStatus → 카드 배경색 ──────────────────────────────────────────────
-[ValueConversion(typeof(StageStatus), typeof(Brush))]
-public class StageStatusToBackgroundConverter : OneWayValueConverter
-{
-    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-    {
-        if (value is not StageStatus status) return Brushes.Transparent;
-        return status switch
-        {
-            StageStatus.Running => Palette.BgBlue,
-            StageStatus.Done => Palette.BgGreen,
-            StageStatus.Error => Palette.BgRed,
-            StageStatus.Warning => Palette.BgOrange,
-            StageStatus.Skipped => Palette.BgDim,
-            _ => Palette.BgDefault
-        };
-    }
-}
-
-// ── LogLevel → 색상 ────────────────────────────────────────────────────────
-[ValueConversion(typeof(LogLevel), typeof(Brush))]
-public class LogLevelToBrushConverter : OneWayValueConverter
-{
-    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-    {
-        if (value is not LogLevel level) return Brushes.White;
-        return level switch
-        {
-            LogLevel.Error => Palette.Red,
-            LogLevel.Warning => Palette.Orange,
-            LogLevel.Info => Palette.Light,
-            _ => Palette.Gray
-        };
-    }
-}
-
-// ── bool 반전 → Visibility ─────────────────────────────────────────────────
-[ValueConversion(typeof(bool), typeof(Visibility))]
-public class InverseBoolToVisibilityConverter : OneWayValueConverter
-{
-    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => value is true ? Visibility.Collapsed : Visibility.Visible;
-}
-
-// ── bool → Visibility ─────────────────────────────────────────────────────
 [ValueConversion(typeof(bool), typeof(Visibility))]
 public class BoolToVisibilityConverter : OneWayValueConverter
 {
-    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => value is true ? Visibility.Visible : Visibility.Collapsed;
+    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is true ? Visibility.Visible : Visibility.Collapsed;
 }
 
-// ── StageStatus → 텍스트 굵기 ─────────────────────────────────────────────
-[ValueConversion(typeof(StageStatus), typeof(FontWeight))]
-public class StageStatusToFontWeightConverter : OneWayValueConverter
-{
-    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => value is StageStatus.Running ? FontWeights.Bold : FontWeights.Normal;
-}
-
-// ── InspectionResult → 색상 ───────────────────────────────────────────────
-[ValueConversion(typeof(string), typeof(Brush))]
-public class InspectionResultToBrushConverter : OneWayValueConverter
-{
-    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-    {
-        var text = value?.ToString() ?? string.Empty;
-        if (text.Contains("GOOD")) return Palette.Green;
-        if (text.Contains("NG")) return Palette.Red;
-        return Palette.Muted;
-    }
-}
-
-// ── bool → 불투명도 (활성: 1.0 / 비활성: 0.28) ─────────────────────────────
 [ValueConversion(typeof(bool), typeof(double))]
 public class BoolToOpacityConverter : OneWayValueConverter
 {
-    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => value is true ? 1.0 : 0.28;
+    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is true ? 1.0 : 0.28;
 }
 
-// ── Enum 문자열 매칭 → Visibility ──────────────────────────────────────────
 [ValueConversion(typeof(object), typeof(Visibility))]
 public class EnumMatchToVisibilityConverter : OneWayValueConverter
 {
-    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => value?.ToString() == parameter?.ToString() ? Visibility.Visible : Visibility.Collapsed;
+    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value?.ToString() == parameter?.ToString()
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 }
 
-// ── Z 게이지 Top 위치 (바 높이 → Canvas.Top) ─────────────────────────────────
-[ValueConversion(typeof(double), typeof(double))]
-public class ZGaugeTopConverter : OneWayValueConverter
-{
-    public double GaugeTop { get; set; } = 30;
-    public double GaugeHeight { get; set; } = 60;
-
-    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-    {
-        var fillHeight = value is double h ? h : 0.0;
-        return GaugeTop + GaugeHeight - fillHeight;
-    }
-}
-
-// ── double 값의 절반 (십자선 중앙 좌표용) ──────────────────────────────────
 public class HalfConverter : OneWayValueConverter
 {
     public static HalfConverter Instance { get; } = new();
-    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => value is double d ? d / 2.0 : 0.0;
+
+    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is double number ? number / 2.0 : 0.0;
 }
 
-// ── bool → NG/GOOD 채움 색상 (슬롯 시각화) ───────────────────────────────────
 [ValueConversion(typeof(bool), typeof(Brush))]
 public class NgSlotFillConverter : OneWayValueConverter
 {
-    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        => value is true ? Palette.SlotFilled : Palette.SlotEmpty;
+    private static readonly Brush Filled = CreateBrush(0xFF, 0x6B, 0x6B);
+    private static readonly Brush Empty = CreateBrush(0x3A, 0x3A, 0x3A);
+
+    public override object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is true ? Filled : Empty;
+
+    private static Brush CreateBrush(byte red, byte green, byte blue)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(red, green, blue));
+        brush.Freeze();
+        return brush;
+    }
 }

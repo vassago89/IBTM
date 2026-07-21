@@ -9,12 +9,7 @@
              Background="{StaticResource AppBgBrush}">
 
     <UserControl.Resources>
-        <conv:StageStatusToBrushConverter      x:Key="StatusToBrush"/>
-        <conv:StageStatusToBackgroundConverter x:Key="StatusToBg"/>
-        <conv:InverseBoolToVisibilityConverter x:Key="InvBoolToVis"/>
         <conv:BoolToVisibilityConverter        x:Key="BoolToVis"/>
-        <conv:InspectionResultToBrushConverter x:Key="InspResultToBrush"/>
-        <conv:BoolToOpacityConverter           x:Key="BoolToOpacity"/>
 
         <!-- Zone 색상 테마 (Fluent Dark) -->
         <models:ZoneTheme x:Key="Zone1Theme"
@@ -24,7 +19,7 @@
             StopperFill="#2A3A50" StopperFg="#60CDFF"
             AlignBg="#1E2A38" AlignBorder="#3A5A7A" AlignFg="#60CDFF"
             ShuttleBg="#1E2838" ShuttleBorder="#4A6A8A" ShuttleLiftedBg="#243248"
-            HeadGlow="#4090D0" GaugeBg="#1A2430"/>
+            HeadGlow="#4090D0"/>
         <models:ZoneTheme x:Key="Zone2Theme"
             Accent="{StaticResource AccentOrangeBrush}"
             GantryStroke="#4A3A2A" RailFill="#3E2E1E" BridgeFill="#4A3828"
@@ -32,7 +27,7 @@
             StopperFill="#3A2A18" StopperFg="#FCB75D"
             AlignBg="#281E14" AlignBorder="#6A4A2A" AlignFg="#FCB75D"
             ShuttleBg="#28201A" ShuttleBorder="#7A5A30" ShuttleLiftedBg="#322818"
-            HeadGlow="#D09030" GaugeBg="#201810"/>
+            HeadGlow="#D09030"/>
         <models:ZoneTheme x:Key="Zone3Theme"
             Accent="{StaticResource AccentGreenBrush}"
             GantryStroke="#2A4A32" RailFill="#1E3E24" BridgeFill="#2A4830"
@@ -40,7 +35,7 @@
             StopperFill="#1A3820" StopperFg="#6CCB5F"
             AlignBg="#182A1E" AlignBorder="#2A5A30" AlignFg="#6CCB5F"
             ShuttleBg="#1A2A1E" ShuttleBorder="#3A6A40" ShuttleLiftedBg="#223A28"
-            HeadGlow="#40B050" GaugeBg="#142018"/>
+            HeadGlow="#40B050"/>
     </UserControl.Resources>
 
     <Grid>

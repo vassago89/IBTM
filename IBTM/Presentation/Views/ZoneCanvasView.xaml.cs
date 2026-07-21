@@ -65,6 +65,5 @@ public partial class ZoneCanvasView : UserControl
         Resources["ShuttleBorder"] = t.ShuttleBorder;
         Resources["ShuttleLiftedBg"] = t.ShuttleLiftedBg;
         Resources["HeadGlow"] = t.HeadGlow;
-        Resources["GaugeBg"] = t.GaugeBg;
     }
 }

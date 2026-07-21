@@ -41,33 +41,12 @@ public sealed class VirtualMotionService : IMotionService, IDisposable
         }
     }
 
-    public void Disable()
-    {
-        Stop();
-        lock (_sync)
-        {
-            _servoOn = false;
-        }
-    }
-
     public Task MoveToXYAsync(
         double x,
         double y,
         double velocity,
         CancellationToken cancellationToken = default) =>
         MoveToAsync(x, y, null, velocity, cancellationToken);
-
-    public Task MoveToXAsync(
-        double x,
-        double velocity,
-        CancellationToken cancellationToken = default) =>
-        MoveToAsync(x, null, null, velocity, cancellationToken);
-
-    public Task MoveToYAsync(
-        double y,
-        double velocity,
-        CancellationToken cancellationToken = default) =>
-        MoveToAsync(null, y, null, velocity, cancellationToken);
 
     public Task MoveToZAsync(
         double z,
@@ -99,53 +78,6 @@ public sealed class VirtualMotionService : IMotionService, IDisposable
                 _axisZ.HasValue ? _z : null);
         }
     }
-
-    public async Task<bool> HomeXAsync(
-        double velocity,
-        CancellationToken cancellationToken = default)
-    {
-        if (_axisX is null)
-        {
-            return false;
-        }
-
-        await MoveToXAsync(0, velocity, cancellationToken);
-        return true;
-    }
-
-    public async Task<bool> HomeYAsync(
-        double velocity,
-        CancellationToken cancellationToken = default)
-    {
-        if (_axisY is null)
-        {
-            return false;
-        }
-
-        await MoveToYAsync(0, velocity, cancellationToken);
-        return true;
-    }
-
-    public async Task<bool> HomeZAsync(
-        double velocity,
-        CancellationToken cancellationToken = default)
-    {
-        if (_axisZ is null)
-        {
-            return false;
-        }
-
-        await MoveToZAsync(0, velocity, cancellationToken);
-        return true;
-    }
-
-    public void ResetAlarm()
-    {
-    }
-
-    public MotionStatus? GetXStatus() => GetStatus(_axisX);
-    public MotionStatus? GetYStatus() => GetStatus(_axisY);
-    public MotionStatus? GetZStatus() => GetStatus(_axisZ);
 
     public void Dispose()
     {
@@ -329,18 +261,6 @@ public sealed class VirtualMotionService : IMotionService, IDisposable
             this,
             new MotionPositionEventArgs(position.X, position.Y, position.Z));
     }
-
-    private MotionStatus? GetStatus(int? axis) => axis is null
-        ? null
-        : new MotionStatus(
-            IsOriginDone: true,
-            IsServoOn: _servoOn,
-            IsEmergency: false,
-            IsAlarm: false,
-            IsInPosition: true,
-            IsHome: false,
-            IsLimitPositive: false,
-            IsLimitNegative: false);
 
     private void ValidateAxes(double? x, double? y, double? z)
     {
