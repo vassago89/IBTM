@@ -1,175 +1,148 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using IBTM.Configuration;
+using IBTM.Core.Machine;
+using IBTM.Device;
+using IBTM.Infrastructure.Persistence;
+using IBTM.Orchestration;
+using IBTM.Presentation.Imaging;
+using IBTM.Presentation.Mappers;
+using IBTM.Presentation.Models;
+using IBTM.Stations.BoltFastening;
+using IBTM.Stations.Inspection;
+using IBTM.Stations.PcbPlacement;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.Presentation.ViewModels;
 
-/// <summary>
-/// 티칭 ViewModel — Zone별 분리 티칭 + Zone 3 오프셋 기반 XY 자동 변환
-/// </summary>
 public partial class TeachingViewModel : ObservableObject, IDisposable
 {
+    private static readonly double[] JogSpeeds = [1.0, 10.0, 50.0];
+    private static readonly int[] LaserChannels =
+        [PcbPlacementStation.LaserChannel, BoltFasteningStation.LaserChannel, InspectionStation.LaserChannel];
+
     private readonly IMotionService[] _motions;
-    private readonly IIOService _ioService;
-    private readonly ICameraStreamService?[] _cameras;
-    private readonly RecipeService _recipeService;
-    private readonly MachineConfig _machineConfig;
+    private readonly IIoService _io;
+    private readonly ICameraStreamService _zone2Camera;
+    private readonly ICameraStreamService _zone3Camera;
+    private readonly RecipeService _recipes;
+    private readonly MachineConfig _config;
     private readonly TeachingPointMapper _pointMapper;
     private readonly ProcessOrchestrator _orchestrator;
-
-    // ── 전체 포인트 (내부용) ──────────────────────────────────────
     private readonly List<TeachingPoint> _allPoints = [];
 
-    // ── 레시피 ──────────────────────────────────────────────────────
     [ObservableProperty] private Recipe _currentRecipe = new();
-    [ObservableProperty] private string _recipeName = "Default";
 
-    // ── Zone 선택 ───────────────────────────────────────────────────
-    [ObservableProperty] private int _selectedZone = 3;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveRecipeCommand))]
+    private string _recipeName = "Default";
 
-    // ── 현재 좌표 (폴링) ────────────────────────────────────────────
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ToggleLiveViewCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CameraClickCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AddBoltPointCommand))]
+    private int _selectedZone = 3;
+
     [ObservableProperty] private double _currentX;
     [ObservableProperty] private double _currentY;
     [ObservableProperty] private double _currentZ;
-
-    // ── 조그 ────────────────────────────────────────────────────────
     [ObservableProperty] private int _jogSpeedIndex = 1;
-    private static readonly double[] JogSpeeds = [1.0, 10.0, 50.0];
-    private static readonly int[] LaserChannels =
-        [PcbPlacementChannels.Laser, BoltFasteningChannels.Laser, InspectionChannels.Laser];
-    public double JogSpeed => JogSpeeds[JogSpeedIndex];
-
-    // ── 카메라 라이브 뷰 ────────────────────────────────────────────
     [ObservableProperty] private ImageSource? _liveImage;
-    [ObservableProperty] private bool _isCameraLive;
 
-    // ── 레이저 ──────────────────────────────────────────────────────
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CameraClickCommand))]
+    private bool _isCameraLive;
+
     [ObservableProperty] private bool _laserOn;
 
-    // ── 현재 Zone의 필터된 포인트 ──────────────────────────────────
-    public ObservableCollection<TeachingPoint> FilteredPoints { get; } = [];
-    [ObservableProperty] private TeachingPoint? _selectedPoint;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(TeachCurrentPositionCommand))]
+    [NotifyCanExecuteChangedFor(nameof(MoveToPointCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RemoveBoltPointCommand))]
+    private TeachingPoint? _selectedPoint;
 
-    // ── 레시피 파일 목록 ────────────────────────────────────────────
-    public ObservableCollection<string> RecipeFiles { get; } = [];
-
-    // ── 상태 메시지 ─────────────────────────────────────────────────
-    [ObservableProperty] private string _statusMessage = "";
-
-    /// <summary>현재 Zone의 카메라 (Zone 2 또는 3, Zone 1은 카메라 없음)</summary>
-    private ICameraStreamService? CurrentCamera => GetCamera(SelectedZone);
+    [ObservableProperty] private string _statusMessage = string.Empty;
 
     public TeachingViewModel(
-        [FromKeyedServices(PcbPlacementModule.ServiceKey)] IMotionService zone1,
-        [FromKeyedServices(BoltFasteningModule.ServiceKey)] IMotionService zone2,
-        [FromKeyedServices(InspectionModule.ServiceKey)] IMotionService zone3,
-        IIOService ioService,
-        [FromKeyedServices(BoltFasteningModule.ServiceKey)] ICameraStreamService zone2Camera,
-        [FromKeyedServices(InspectionModule.ServiceKey)] ICameraStreamService zone3Camera,
-        RecipeService recipeService,
-        MachineConfig machineConfig,
+        [FromKeyedServices(1)] IMotionService zone1,
+        [FromKeyedServices(2)] IMotionService zone2,
+        [FromKeyedServices(3)] IMotionService zone3,
+        IIoService io,
+        [FromKeyedServices(2)] ICameraStreamService zone2Camera,
+        [FromKeyedServices(3)] ICameraStreamService zone3Camera,
+        RecipeService recipes,
+        MachineConfig config,
         TeachingPointMapper pointMapper,
         ProcessOrchestrator orchestrator)
     {
         _motions = [zone1, zone2, zone3];
-        _ioService = ioService;
-        _cameras = [null, zone2Camera, zone3Camera];
-        _recipeService = recipeService;
-        _machineConfig = machineConfig;
+        _io = io;
+        _zone2Camera = zone2Camera;
+        _zone3Camera = zone3Camera;
+        _recipes = recipes;
+        _config = config;
         _pointMapper = pointMapper;
         _orchestrator = orchestrator;
         CurrentRecipe = orchestrator.CurrentRecipe;
         RecipeName = CurrentRecipe.Name;
 
-        // 두 카메라 모두 프레임 수신 연결
-        zone2Camera.FrameReady += OnZone2FrameReady;
-        zone3Camera.FrameReady += OnZone3FrameReady;
         zone1.PositionChanged += OnZone1PositionChanged;
         zone2.PositionChanged += OnZone2PositionChanged;
         zone3.PositionChanged += OnZone3PositionChanged;
+        zone2Camera.FrameReady += OnZone2FrameReady;
+        zone3Camera.FrameReady += OnZone3FrameReady;
 
         BuildTeachingPoints();
         RefreshRecipeFiles();
     }
 
-    private IMotionService CurrentMotion => GetMotion(SelectedZone);
+    public ObservableCollection<TeachingPoint> FilteredPoints { get; } = [];
+    public ObservableCollection<string> RecipeFiles { get; } = [];
+    public double JogSpeed => JogSpeeds[JogSpeedIndex];
 
-    private int LaserIoIndex => GetLaserChannel(SelectedZone);
+    private IMotionService CurrentMotion => GetMotion(SelectedZone);
+    private ICameraStreamService? CurrentCamera => GetCamera(SelectedZone);
+    private int LaserChannel => LaserChannels[SelectedZone - 1];
 
     partial void OnCurrentRecipeChanged(Recipe value) =>
         _orchestrator.CurrentRecipe = value;
-
-    private IMotionService GetMotion(int zone) => _motions[zone - 1];
-
-    private ICameraStreamService? GetCamera(int zone) => _cameras[zone - 1];
-
-    private static int GetLaserChannel(int zone) => LaserChannels[zone - 1];
-
-    private void UpdateLiveImage(int zone, ImageSource image)
-    {
-        RunOnUi(() =>
-        {
-            if (SelectedZone == zone)
-            {
-                LiveImage = image;
-            }
-        });
-    }
-
-    private static void RunOnUi(Action action)
-    {
-        var dispatcher = Application.Current.Dispatcher;
-        if (dispatcher.CheckAccess())
-        {
-            action();
-        }
-        else
-        {
-            dispatcher.BeginInvoke(action);
-        }
-    }
-
-    // ── Zone 변경 ───────────────────────────────────────────────────
 
     partial void OnSelectedZoneChanged(int oldValue, int newValue)
     {
         if (LaserOn)
         {
-            _ioService.SetOutput(GetLaserChannel(oldValue), false);
+            _io.SetOutput(LaserChannels[oldValue - 1], false);
             LaserOn = false;
         }
+
         GetMotion(oldValue).Stop();
 
-        // 카메라: 이전 Zone 카메라 끄고, 새 Zone에 카메라 없으면 OFF
         if (IsCameraLive)
         {
-            // 이전 Zone 카메라 정지
-            var prevCam = GetCamera(oldValue);
-            prevCam?.StopLiveView();
-
-            if (CurrentCamera != null)
+            GetCamera(oldValue)?.StopLiveView();
+            if (CurrentCamera is null)
             {
-                // 새 Zone에도 카메라가 있으면 전환
-                CurrentCamera.StartLiveView();
+                IsCameraLive = false;
+                LiveImage = null;
             }
             else
             {
-                // Zone 1 등 카메라 없는 Zone이면 OFF
-                IsCameraLive = false;
-                LiveImage = null;
+                CurrentCamera.StartLiveView();
             }
         }
 
         RefreshFilteredPoints();
         RefreshPosition();
     }
-
-    // ── 조그 ────────────────────────────────────────────────────────
 
     [RelayCommand] private void JogXPlus() => CurrentMotion.JogX(JogSpeed);
     [RelayCommand] private void JogXMinus() => CurrentMotion.JogX(-JogSpeed);
@@ -179,140 +152,116 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
     [RelayCommand] private void JogZMinus() => CurrentMotion.JogZ(-JogSpeed);
     [RelayCommand] private void JogStop() => CurrentMotion.Stop();
 
-    // ── 카메라 ──────────────────────────────────────────────────────
-
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanToggleLiveView))]
     private void ToggleLiveView()
     {
-        if (CurrentCamera == null) return;
-
         if (IsCameraLive)
         {
-            CurrentCamera.StopLiveView();
-            IsCameraLive = false;
+            CurrentCamera!.StopLiveView();
             LiveImage = null;
         }
         else
         {
-            CurrentCamera.StartLiveView();
-            IsCameraLive = true;
+            CurrentCamera!.StartLiveView();
         }
+
+        IsCameraLive = !IsCameraLive;
     }
 
-    /// <summary>카메라 이미지 클릭 → 픽셀→mm 변환 → 이동 (Zone 2, 3)</summary>
-    [RelayCommand]
-    private async Task CameraClickAsync(Point clickPos)
+    private bool CanToggleLiveView() => CurrentCamera is not null;
+
+    [RelayCommand(CanExecute = nameof(CanUseCamera))]
+    private async Task CameraClickAsync(Point clickPosition)
     {
-        if (CurrentCamera == null) return;
+        var camera = CurrentCamera!;
+        var pixelsPerMm = SelectedZone == 2
+            ? _config.BoltFastening.PixelsPerMm
+            : _config.Inspection.PixelsPerMm;
+        var targetX = CurrentX + ((clickPosition.X - (camera.ImageWidth / 2.0)) / pixelsPerMm);
+        var targetY = CurrentY + ((clickPosition.Y - (camera.ImageHeight / 2.0)) / pixelsPerMm);
 
-        double offsetPx = clickPos.X - CurrentCamera.ImageWidth / 2.0;
-        double offsetPy = clickPos.Y - CurrentCamera.ImageHeight / 2.0;
-
-        double offsetMmX = offsetPx / _machineConfig.BoltFastening.PixelsPerMm;
-        double offsetMmY = offsetPy / _machineConfig.BoltFastening.PixelsPerMm;
-
-        double targetX = CurrentX + offsetMmX;
-        double targetY = CurrentY + offsetMmY;
-
-        await CurrentMotion.MoveToXYAsync(targetX, targetY, 50.0);
+        await CurrentMotion.MoveToXYAsync(
+            targetX,
+            targetY,
+            GetMotionSettings(SelectedZone).SpeedXY);
         StatusMessage = $"Move → X:{targetX:F3} Y:{targetY:F3}";
     }
 
-    // ── 레이저 ──────────────────────────────────────────────────────
+    private bool CanUseCamera() => IsCameraLive && CurrentCamera is not null;
 
     [RelayCommand]
     private void ToggleLaser()
     {
         LaserOn = !LaserOn;
-        _ioService.SetOutput(LaserIoIndex, LaserOn);
+        _io.SetOutput(LaserChannel, LaserOn);
     }
 
-    // ── 티칭 ────────────────────────────────────────────────────────
-
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
     private void TeachCurrentPosition()
     {
-        if (SelectedPoint == null) return;
-
         var current = CurrentMotion.GetPosition();
-        SelectedPoint.Teach(current.X!.Value, current.Y!.Value, current.Z!.Value);
+        SelectedPoint!.Teach(current.X, current.Y, current.Z);
         _pointMapper.Apply(CurrentRecipe, _allPoints, SelectedPoint);
-        StatusMessage = Loc.S("Teach_Recorded", SelectedPoint.Name);
+        MoveToPointCommand.NotifyCanExecuteChanged();
+        StatusMessage = $"Taught: {SelectedPoint.Name}";
     }
 
-    [RelayCommand]
+    private bool CanTeachCurrentPosition() => SelectedPoint is not null;
+
+    [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
     private async Task MoveToPointAsync()
     {
-        if (SelectedPoint == null || !SelectedPoint.IsTaught) return;
+        var point = SelectedPoint!;
+        var motion = GetMotion(point.Zone);
+        var settings = GetMotionSettings(point.Zone);
 
-        var motion = GetMotion(SelectedPoint.Zone);
-
-        await motion.MoveToZAsync(0, 80.0);
-        await motion.MoveToXYAsync(SelectedPoint.X, SelectedPoint.Y, 50.0);
-        await motion.MoveToZAsync(SelectedPoint.Z, 30.0);
-        StatusMessage = Loc.S("Teach_MovedTo", SelectedPoint.Name);
+        await motion.MoveToZAsync(0, settings.SpeedZ);
+        await motion.MoveToXYAsync(point.X, point.Y, settings.SpeedXY);
+        await motion.MoveToZAsync(point.Z, settings.SpeedZ);
+        StatusMessage = $"Moved to: {point.Name}";
     }
 
-    [RelayCommand]
+    private bool CanMoveToPoint() => SelectedPoint?.IsTaught == true;
+
+    [RelayCommand(CanExecute = nameof(CanAddBoltPoint))]
     private void AddBoltPoint()
     {
-        int idx = CurrentRecipe.BoltFastening.BoltPoints.Count + 1;
-        var bp = new BoltPoint { Name = $"B{idx}", TargetTorqueNm = _machineConfig.BoltFastening.DefaultTorqueNm };
-        CurrentRecipe.BoltFastening.BoltPoints.Add(bp);
-
-        // Zone 2 Z-only 포인트 추가
-        _allPoints.Add(new TeachingPoint
+        var index = CurrentRecipe.BoltFastening.BoltPoints.Count + 1;
+        var bolt = new BoltPoint
         {
-            Name = bp.Name,
-            Kind = TeachingPointKind.Zone2BoltZ,
-            Zone = 2,
-            TeachMode = TeachMode.ZOnly,
-            TargetTorqueNm = bp.TargetTorqueNm,
-        });
-
-        // Zone 3 XY 마스터 포인트 추가
-        _allPoints.Add(new TeachingPoint
-        {
-            Name = $"{bp.Name}",
-            Kind = TeachingPointKind.Zone3BoltReference,
-            Zone = 3,
-            TeachMode = TeachMode.XYOnly,
-        });
-
-        RefreshFilteredPoints();
-        StatusMessage = Loc.S("Teach_BoltAdded", bp.Name);
+            Name = $"B{index}",
+            TargetTorqueNm = _config.BoltFastening.DefaultTorqueNm,
+        };
+        CurrentRecipe.BoltFastening.BoltPoints.Add(bolt);
+        BuildTeachingPoints();
+        StatusMessage = $"Bolt added: {bolt.Name}";
     }
 
-    [RelayCommand]
+    private bool CanAddBoltPoint() => SelectedZone is 2 or 3;
+
+    [RelayCommand(CanExecute = nameof(CanRemoveBoltPoint))]
     private void RemoveBoltPoint()
     {
-        if (SelectedPoint is not ({ Kind: TeachingPointKind.Zone2BoltZ }
-            or { Kind: TeachingPointKind.Zone3BoltReference }))
-            return;
-
-        var bpName = SelectedPoint.Name;
-        CurrentRecipe.BoltFastening.BoltPoints.RemoveAll(b => b.Name == bpName);
-        _allPoints.RemoveAll(p =>
-            p.Name == bpName
-            && p.Kind is TeachingPointKind.Zone2BoltZ or TeachingPointKind.Zone3BoltReference);
-        SelectedPoint = null;
-        RefreshFilteredPoints();
-        StatusMessage = Loc.S("Teach_BoltRemoved", bpName);
+        var name = SelectedPoint!.Name;
+        CurrentRecipe.BoltFastening.BoltPoints.RemoveAll(bolt => bolt.Name == name);
+        BuildTeachingPoints();
+        StatusMessage = $"Bolt removed: {name}";
     }
 
-    // ── 레시피 저장/로드 ────────────────────────────────────────────
+    private bool CanRemoveBoltPoint() =>
+        SelectedPoint?.Kind is TeachingPointKind.Zone2BoltZ
+            or TeachingPointKind.Zone3BoltReference;
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSaveRecipe))]
     private async Task SaveRecipeAsync()
     {
         try
         {
-            var normalizedName = RecipeName.Trim();
-            CurrentRecipe.Name = normalizedName;
+            CurrentRecipe.Name = RecipeName.Trim();
             RecipeName = CurrentRecipe.Name;
-            await _recipeService.SaveRecipeAsync(CurrentRecipe);
+            await _recipes.SaveRecipeAsync(CurrentRecipe);
             RefreshRecipeFiles();
-            StatusMessage = Loc.S("Teach_RecipeSaved", RecipeName);
+            StatusMessage = $"Recipe saved: {RecipeName}";
         }
         catch (Exception exception) when (
             exception is IOException
@@ -323,17 +272,22 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
         }
     }
 
+    private bool CanSaveRecipe() => !string.IsNullOrWhiteSpace(RecipeName);
+
     [RelayCommand]
-    private async Task LoadRecipeAsync(string? filePath)
+    private async Task LoadRecipeAsync(string? fileName)
     {
-        if (string.IsNullOrEmpty(filePath)) return;
+        if (string.IsNullOrEmpty(fileName))
+        {
+            return;
+        }
 
         try
         {
-            CurrentRecipe = await _recipeService.LoadRecipeAsync(filePath);
+            CurrentRecipe = await _recipes.LoadRecipeAsync(fileName);
             RecipeName = CurrentRecipe.Name;
             BuildTeachingPoints();
-            StatusMessage = Loc.S("Teach_RecipeLoaded", RecipeName);
+            StatusMessage = $"Recipe loaded: {RecipeName}";
         }
         catch (Exception exception) when (
             exception is IOException
@@ -348,62 +302,31 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void NewRecipe()
     {
-        RecipeName = "New";
-        CurrentRecipe = new Recipe { Name = RecipeName };
+        CurrentRecipe = new Recipe { Name = "New" };
+        RecipeName = CurrentRecipe.Name;
         BuildTeachingPoints();
-        StatusMessage = Loc.S("Teach_NewRecipe");
-    }
-
-    // ── 티칭 포인트 빌드 ────────────────────────────────────────────
-
-    private void BuildTeachingPoints()
-    {
-        _allPoints.Clear();
-        _allPoints.AddRange(_pointMapper.Build(CurrentRecipe));
-        RefreshFilteredPoints();
-    }
-
-    /// <summary>현재 Zone에 해당하는 포인트만 필터링</summary>
-    private void RefreshFilteredPoints()
-    {
-        FilteredPoints.Clear();
-        foreach (var pt in _allPoints.Where(p => p.Zone == SelectedZone))
-            FilteredPoints.Add(pt);
-        SelectedPoint = FilteredPoints.FirstOrDefault();
-    }
-
-    private void RefreshRecipeFiles()
-    {
-        RecipeFiles.Clear();
-        foreach (var f in _recipeService.GetRecipeFiles())
-            RecipeFiles.Add(f);
-    }
-
-    // ── 헬퍼 ────────────────────────────────────────────────────────
-
-    private void RefreshPosition()
-    {
-        var current = CurrentMotion.GetPosition();
-        CurrentX = current.X!.Value;
-        CurrentY = current.Y!.Value;
-        CurrentZ = current.Z!.Value;
+        StatusMessage = "New recipe created";
     }
 
     public void Activate() => RefreshPosition();
 
     public void Deactivate()
     {
-        // 모든 카메라 정리
+        foreach (var motion in _motions)
+        {
+            motion.Stop();
+        }
+
         if (IsCameraLive)
         {
-            _cameras[1]!.StopLiveView();
-            _cameras[2]!.StopLiveView();
+            CurrentCamera?.StopLiveView();
             IsCameraLive = false;
             LiveImage = null;
         }
+
         if (LaserOn)
         {
-            _ioService.SetOutput(LaserIoIndex, false);
+            _io.SetOutput(LaserChannel, false);
             LaserOn = false;
         }
     }
@@ -414,32 +337,105 @@ public partial class TeachingViewModel : ObservableObject, IDisposable
         _motions[0].PositionChanged -= OnZone1PositionChanged;
         _motions[1].PositionChanged -= OnZone2PositionChanged;
         _motions[2].PositionChanged -= OnZone3PositionChanged;
-        _cameras[1]!.FrameReady -= OnZone2FrameReady;
-        _cameras[2]!.FrameReady -= OnZone3FrameReady;
+        _zone2Camera.FrameReady -= OnZone2FrameReady;
+        _zone3Camera.FrameReady -= OnZone3FrameReady;
     }
 
-    private void OnZone1PositionChanged(object? sender, MotionPositionEventArgs position) =>
-        ApplyPosition(1, position);
+    private IMotionService GetMotion(int zone) => _motions[zone - 1];
 
-    private void OnZone2PositionChanged(object? sender, MotionPositionEventArgs position) =>
-        ApplyPosition(2, position);
+    private ICameraStreamService? GetCamera(int zone) => zone switch
+    {
+        2 => _zone2Camera,
+        3 => _zone3Camera,
+        _ => null,
+    };
 
-    private void OnZone3PositionChanged(object? sender, MotionPositionEventArgs position) =>
-        ApplyPosition(3, position);
+    private ZoneMotionParams GetMotionSettings(int zone) => zone switch
+    {
+        1 => _config.PcbPlacementMotion,
+        2 => _config.BoltFastening.Motion,
+        3 => _config.Inspection.Motion,
+        _ => throw new ArgumentOutOfRangeException(nameof(zone)),
+    };
 
-    private void ApplyPosition(int zone, MotionPositionEventArgs position) =>
+    private void BuildTeachingPoints()
+    {
+        _allPoints.Clear();
+        _allPoints.AddRange(_pointMapper.Build(CurrentRecipe));
+        RefreshFilteredPoints();
+    }
+
+    private void RefreshFilteredPoints()
+    {
+        FilteredPoints.Clear();
+        foreach (var point in _allPoints.Where(point => point.Zone == SelectedZone))
+        {
+            FilteredPoints.Add(point);
+        }
+
+        SelectedPoint = FilteredPoints.FirstOrDefault();
+    }
+
+    private void RefreshRecipeFiles()
+    {
+        RecipeFiles.Clear();
+        foreach (var fileName in _recipes.GetRecipeFiles())
+        {
+            RecipeFiles.Add(fileName);
+        }
+    }
+
+    private void RefreshPosition()
+    {
+        var current = CurrentMotion.GetPosition();
+        CurrentX = current.X;
+        CurrentY = current.Y;
+        CurrentZ = current.Z;
+    }
+
+    private void OnZone1PositionChanged(double x, double y, double z) =>
+        ApplyPosition(1, x, y, z);
+
+    private void OnZone2PositionChanged(double x, double y, double z) =>
+        ApplyPosition(2, x, y, z);
+
+    private void OnZone3PositionChanged(double x, double y, double z) =>
+        ApplyPosition(3, x, y, z);
+
+    private void ApplyPosition(int zone, double x, double y, double z) =>
         RunOnUi(() =>
         {
-            if (SelectedZone != zone)
+            if (SelectedZone == zone)
             {
-                return;
+                CurrentX = x;
+                CurrentY = y;
+                CurrentZ = z;
             }
-
-            CurrentX = position.X;
-            CurrentY = position.Y;
-            CurrentZ = position.Z;
         });
 
-    private void OnZone2FrameReady(ImageFrame frame) => UpdateLiveImage(2, frame.ToImageSource());
-    private void OnZone3FrameReady(ImageFrame frame) => UpdateLiveImage(3, frame.ToImageSource());
+    private void OnZone2FrameReady(ImageFrame frame) => UpdateLiveImage(2, frame);
+
+    private void OnZone3FrameReady(ImageFrame frame) => UpdateLiveImage(3, frame);
+
+    private void UpdateLiveImage(int zone, ImageFrame frame) =>
+        RunOnUi(() =>
+        {
+            if (SelectedZone == zone)
+            {
+                LiveImage = frame.ToImageSource();
+            }
+        });
+
+    private static void RunOnUi(Action action)
+    {
+        var dispatcher = Application.Current.Dispatcher;
+        if (dispatcher.CheckAccess())
+        {
+            action();
+        }
+        else
+        {
+            dispatcher.BeginInvoke(action);
+        }
+    }
 }

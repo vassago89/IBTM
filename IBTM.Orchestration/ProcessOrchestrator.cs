@@ -1,27 +1,34 @@
+using System;
 using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
+using IBTM.Core.Process;
+using IBTM.Device;
+using IBTM.Stations.BoltFastening;
+using IBTM.Stations.Inspection;
+using IBTM.Stations.PcbPlacement;
 
 namespace IBTM.Orchestration;
 
 public sealed class ProcessOrchestrator : IDisposable
 {
     private const int ConveyorChannel = 0;
-    private static readonly TimeSpan ConveyorTransferDelay = TimeSpan.FromMilliseconds(800);
-    private static readonly TimeSpan OutputTransitionDelay = TimeSpan.FromMilliseconds(200);
 
-    private readonly IIOService _io;
-    private readonly IPcbPlacementStation _pcbPlacement;
-    private readonly IBoltFasteningStation _boltFastening;
-    private readonly IInspectionStation _inspection;
-    private readonly ProcessEventHub _events;
-    private Recipe _currentRecipe = new();
+    private readonly IIoService _io;
+    private readonly PcbPlacementStation _pcbPlacement;
+    private readonly BoltFasteningStation _boltFastening;
+    private readonly InspectionStation _inspection;
+    private readonly ProcessEvents _events;
+    private readonly ProductionStats _stats = new();
     private CancellationTokenSource? _runCancellation;
+    private bool _emergencyStopped;
 
     public ProcessOrchestrator(
-        IIOService io,
-        IPcbPlacementStation pcbPlacement,
-        IBoltFasteningStation boltFastening,
-        IInspectionStation inspection,
-        ProcessEventHub events)
+        IIoService io,
+        PcbPlacementStation pcbPlacement,
+        BoltFasteningStation boltFastening,
+        InspectionStation inspection,
+        ProcessEvents events)
     {
         _io = io;
         _pcbPlacement = pcbPlacement;
@@ -30,18 +37,7 @@ public sealed class ProcessOrchestrator : IDisposable
         _events = events;
     }
 
-    public ProductionStats Stats { get; } = new();
-    public Recipe CurrentRecipe
-    {
-        get => _currentRecipe;
-        set
-        {
-            _currentRecipe = value;
-            RecipeChanged?.Invoke(this, value);
-        }
-    }
-
-    public event EventHandler<Recipe>? RecipeChanged;
+    public Recipe CurrentRecipe { get; set; } = new();
     public int NgStackCount => _inspection.NgStackCount;
     public int NgStackCapacity => _inspection.NgStackCapacity;
 
@@ -51,7 +47,6 @@ public sealed class ProcessOrchestrator : IDisposable
         _pcbPlacement.Initialize();
         _boltFastening.Initialize();
         _inspection.Initialize();
-        Stats.StartTime = DateTime.Now;
     }
 
     public async Task StartAsync()
@@ -66,7 +61,10 @@ public sealed class ProcessOrchestrator : IDisposable
         }
         catch (OperationCanceledException) when (runCancellation.IsCancellationRequested)
         {
-            _events.Stage(SystemStages.Idle, StageStatus.Idle);
+            if (!_emergencyStopped)
+            {
+                _events.Stage(SystemStages.Idle, StageStatus.Idle);
+            }
         }
         catch (Exception)
         {
@@ -88,12 +86,21 @@ public sealed class ProcessOrchestrator : IDisposable
 
     public void EmergencyStop()
     {
+        _emergencyStopped = true;
         _runCancellation?.Cancel();
         _pcbPlacement.EmergencyStop();
         _boltFastening.EmergencyStop();
         _inspection.EmergencyStop();
         _io.TurnOffAll();
         _events.Stage(SystemStages.Idle, StageStatus.Error);
+    }
+
+    public void Reset()
+    {
+        _runCancellation?.Cancel();
+        StopEquipment();
+        _emergencyStopped = false;
+        _events.Stage(SystemStages.Idle, StageStatus.Idle);
     }
 
     public void ResetNgStack() => _inspection.ResetNgStack();
@@ -106,6 +113,8 @@ public sealed class ProcessOrchestrator : IDisposable
 
     private async Task RunPipelineAsync(CancellationToken cancellationToken)
     {
+        _io.SetOutput(ConveyorChannel, true);
+
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -113,46 +122,31 @@ public sealed class ProcessOrchestrator : IDisposable
             var cycleTimer = Stopwatch.StartNew();
 
             await _pcbPlacement.RunAsync(recipe.PcbPlacement, cancellationToken);
-            await TransferConveyorAsync(cancellationToken);
             await _boltFastening.RunAsync(recipe.BoltFastening, cancellationToken);
-            await TransferConveyorAsync(cancellationToken);
             var result = await _inspection.RunAsync(recipe.Inspection, cancellationToken);
-            await TransferConveyorAsync(cancellationToken);
 
             CompleteCycle(result, cycleTimer.Elapsed.TotalSeconds);
-            await Task.Delay(TimeSpan.FromMilliseconds(300), cancellationToken);
+            if (NgStackCount >= NgStackCapacity)
+            {
+                return;
+            }
         }
-    }
-
-    private async Task TransferConveyorAsync(CancellationToken cancellationToken)
-    {
-        _io.SetOutput(ConveyorChannel, true);
-        try
-        {
-            await Task.Delay(ConveyorTransferDelay, cancellationToken);
-        }
-        finally
-        {
-            _io.SetOutput(ConveyorChannel, false);
-        }
-
-        await Task.Delay(OutputTransitionDelay, cancellationToken);
     }
 
     private void CompleteCycle(InspectionResult result, double elapsedSeconds)
     {
-        Stats.TotalCount++;
+        _stats.TotalCount++;
         if (result == InspectionResult.Good)
         {
-            Stats.GoodCount++;
+            _stats.GoodCount++;
         }
         else
         {
-            Stats.NgCount++;
+            _stats.NgCount++;
         }
 
-        Stats.LastCycleTimeSeconds = elapsedSeconds;
-        _events.Stats(Stats);
+        _stats.LastCycleTimeSeconds = elapsedSeconds;
+        _events.Stats(_stats);
         _events.Stage(SystemStages.Complete, StageStatus.Done);
     }
 

@@ -1,26 +1,36 @@
-using Microsoft.Extensions.DependencyInjection;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using IBTM.Core.Machine;
+using IBTM.Core.Process;
+using IBTM.Device;
 
 namespace IBTM.Stations.Inspection;
 
-internal sealed class InspectionStation : IInspectionStation, IDisposable
+public sealed class InspectionStation : IDisposable
 {
+    public const int ShuttlePresentInputChannel = 30;
+    public const int StopperChannel = 31;
+    public const int AlignChannel = 32;
+    public const int LiftChannel = 33;
+    public const int GripperChannel = 34;
+    public const int LaserChannel = 35;
+    public const int SmemaReadyInputChannel = 40;
+    public const int BoardAvailableChannel = 41;
+
     private readonly StationOperations _machine;
-    private readonly ProcessStageRunner _stages;
-    private readonly ProcessEventHub _events;
+    private readonly ProcessEvents _events;
     private readonly IInspectionService _inspection;
     private readonly InspectionOptions _options;
 
     public InspectionStation(
-        [FromKeyedServices(InspectionModule.ServiceKey)] IMotionService motion,
-        IIOService io,
+        IMotionService motion,
+        IIoService io,
         InspectionOptions options,
-        MachineRuntimeSettings runtime,
-        ProcessStageRunner stages,
-        ProcessEventHub events,
+        ProcessEvents events,
         IInspectionService inspection)
     {
-        _machine = new StationOperations(3, motion, io, options.Motion, runtime, events);
-        _stages = stages;
+        _machine = new StationOperations(3, motion, io, options.Motion, events);
         _events = events;
         _inspection = inspection;
         _options = options;
@@ -29,27 +39,27 @@ internal sealed class InspectionStation : IInspectionStation, IDisposable
     public int NgStackCount { get; private set; }
     public int NgStackCapacity => _options.NgStackMaxCount;
 
-    public void Initialize() => _machine.Initialize(6, 7, 8);
+    public void Initialize() => _machine.Initialize();
 
     public async Task<InspectionResult> RunAsync(
         InspectionRecipe recipe,
         CancellationToken cancellationToken)
     {
-        await _stages.RunAsync(
+        await _events.RunStageAsync(
             InspectionStages.WaitShuttle,
             cancellationToken,
-            token => _machine.WaitForSignalAsync(token));
+            token => _machine.WaitForInputAsync(ShuttlePresentInputChannel, token));
 
-        await _stages.RunAsync(
+        await _events.RunStageAsync(
             InspectionStages.StopAlignLift,
             cancellationToken,
             token => _machine.StopAlignLiftAsync(
-                InspectionChannels.Stopper,
-                InspectionChannels.Align,
-                InspectionChannels.Lift,
+                StopperChannel,
+                AlignChannel,
+                LiftChannel,
                 token));
 
-        var result = await _stages.RunAsync(
+        var result = await _events.RunStageAsync(
             InspectionStages.Inspect,
             cancellationToken,
             token => InspectAsync(recipe, token));
@@ -58,13 +68,9 @@ internal sealed class InspectionStation : IInspectionStation, IDisposable
         {
             await RunGoodRouteAsync(cancellationToken);
         }
-        else if (result == InspectionResult.Ng)
-        {
-            await RunNgRouteAsync(recipe, cancellationToken);
-        }
         else
         {
-            throw new InvalidOperationException("Inspection returned no routing result.");
+            await RunNgRouteAsync(recipe, cancellationToken);
         }
 
         return result;
@@ -73,7 +79,7 @@ internal sealed class InspectionStation : IInspectionStation, IDisposable
     public void ResetNgStack()
     {
         NgStackCount = 0;
-        _events.NgStack(new NgStackState(0, Alarm: false));
+        _events.NgStack(0, alarm: false);
     }
 
     public void Stop() => _machine.Stop();
@@ -97,7 +103,7 @@ internal sealed class InspectionStation : IInspectionStation, IDisposable
         InspectionRecipe recipe,
         CancellationToken cancellationToken)
     {
-        await _stages.RunAsync(
+        await _events.RunStageAsync(
             InspectionStages.NgTransfer,
             cancellationToken,
             async token =>
@@ -105,12 +111,12 @@ internal sealed class InspectionStation : IInspectionStation, IDisposable
                 await _machine.PickAndPlaceAsync(
                     recipe.NgPickupPosition,
                     recipe.NgPlacePosition,
-                    InspectionChannels.Gripper,
+                    GripperChannel,
                     token);
 
                 NgStackCount++;
                 var alarm = NgStackCount >= NgStackCapacity;
-                _events.NgStack(new NgStackState(NgStackCount, alarm));
+                _events.NgStack(NgStackCount, alarm);
             });
 
         await ReleaseAsync(cancellationToken);
@@ -118,29 +124,29 @@ internal sealed class InspectionStation : IInspectionStation, IDisposable
 
     private async Task RunGoodRouteAsync(CancellationToken cancellationToken)
     {
-        await _stages.RunAsync(
+        await _events.RunStageAsync(
             InspectionStages.SmemaWait,
             cancellationToken,
-            token => _machine.WaitForSignalAsync(token));
+            token => _machine.WaitForInputAsync(SmemaReadyInputChannel, token));
 
         await ReleaseAsync(cancellationToken);
 
-        await _stages.RunAsync(
+        await _events.RunStageAsync(
             InspectionStages.Discharge,
             cancellationToken,
             token => _machine.PulseOutputAsync(
-                    InspectionChannels.BoardAvailable,
+                    BoardAvailableChannel,
                     TimeSpan.FromMilliseconds(500),
                     token));
     }
 
     private Task ReleaseAsync(CancellationToken cancellationToken) =>
-        _stages.RunAsync(
+        _events.RunStageAsync(
             InspectionStages.Release,
             cancellationToken,
             token => _machine.ReleaseAsync(
-                InspectionChannels.Stopper,
-                InspectionChannels.Align,
-                InspectionChannels.Lift,
+                StopperChannel,
+                AlignChannel,
+                LiftChannel,
                 token));
 }

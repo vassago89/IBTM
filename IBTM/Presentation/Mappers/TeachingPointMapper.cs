@@ -1,7 +1,12 @@
+using System.Collections.Generic;
+using System.Linq;
+using IBTM.Configuration;
+using IBTM.Core.Geometry;
+using IBTM.Orchestration;
+using IBTM.Presentation.Models;
 
 namespace IBTM.Presentation.Mappers;
 
-/// <summary>Maps recipe coordinates to editable teaching points and back.</summary>
 public sealed class TeachingPointMapper(MachineConfig config)
 {
     public List<TeachingPoint> Build(Recipe recipe)
@@ -25,7 +30,6 @@ public sealed class TeachingPointMapper(MachineConfig config)
             Y = bolt.Y,
             Z = bolt.Z,
             IsTaught = bolt.Z != 0,
-            TargetTorqueNm = bolt.TargetTorqueNm,
         }));
 
         points.Add(Create(
@@ -50,18 +54,19 @@ public sealed class TeachingPointMapper(MachineConfig config)
             "PcbPlace1",
             TeachingPointKind.Zone3PlaceReference,
             3,
-            config.FromZone1ToZone3(recipe.PcbPlacement.PcbPlace1),
+            config.Calibration.FromZone1ToZone3(recipe.PcbPlacement.PcbPlace1),
             TeachMode.XYOnly));
         points.Add(Create(
             "PcbPlace2",
             TeachingPointKind.Zone3PlaceReference,
             3,
-            config.FromZone1ToZone3(recipe.PcbPlacement.PcbPlace2),
+            config.Calibration.FromZone1ToZone3(recipe.PcbPlacement.PcbPlace2),
             TeachMode.XYOnly));
 
         points.AddRange(recipe.BoltFastening.BoltPoints.Select(bolt =>
         {
-            var position = config.FromZone2ToZone3(new AxisPos { X = bolt.X, Y = bolt.Y });
+            var position = config.Calibration.FromZone2ToZone3(
+                new AxisPos { X = bolt.X, Y = bolt.Y });
             return new TeachingPoint
             {
                 Name = bolt.Name,
@@ -129,8 +134,6 @@ public sealed class TeachingPointMapper(MachineConfig config)
                 ApplyBoltReference(recipe, points, point, position);
                 break;
 
-            default:
-                throw new ArgumentOutOfRangeException(nameof(point.Kind));
         }
     }
 
@@ -160,7 +163,7 @@ public sealed class TeachingPointMapper(MachineConfig config)
         var target = point.Name == "PcbPlace1"
             ? recipe.PcbPlacement.PcbPlace1
             : recipe.PcbPlacement.PcbPlace2;
-        var transformed = config.ToZone1(position);
+        var transformed = config.Calibration.ToZone1(position);
         target.X = transformed.X;
         target.Y = transformed.Y;
 
@@ -177,7 +180,7 @@ public sealed class TeachingPointMapper(MachineConfig config)
         TeachingPoint point,
         AxisPos position)
     {
-        var transformed = config.ToZone2(position);
+        var transformed = config.Calibration.ToZone2(position);
         var bolt = recipe.BoltFastening.BoltPoints.Single(candidate => candidate.Name == point.Name);
         bolt.X = transformed.X;
         bolt.Y = transformed.Y;

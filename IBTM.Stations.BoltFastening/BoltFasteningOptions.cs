@@ -1,3 +1,5 @@
+using IBTM.Core.Machine;
+
 namespace IBTM.Stations.BoltFastening;
 
 public sealed class BoltFasteningOptions
@@ -6,12 +8,4 @@ public sealed class BoltFasteningOptions
     public double DefaultTorqueNm { get; set; } = 15.0;
     public int RetryCount { get; set; } = 2;
     public double PixelsPerMm { get; set; } = 50.0;
-
-    public void CopyFrom(BoltFasteningOptions source)
-    {
-        Motion.CopyFrom(source.Motion);
-        DefaultTorqueNm = source.DefaultTorqueNm;
-        RetryCount = source.RetryCount;
-        PixelsPerMm = source.PixelsPerMm;
-    }
 }

@@ -1,99 +1,90 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using IBTM.Configuration;
+using IBTM.Orchestration;
 
 namespace IBTM.Infrastructure.Persistence;
 
-/// <summary>Persists recipes and machine configuration under the application directory.</summary>
 public sealed class RecipeService
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.General)
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
-        AllowTrailingCommas = true,
-        PropertyNameCaseInsensitive = true,
         WriteIndented = true,
     };
 
+    private readonly string _recipeDirectory =
+        Path.Combine(AppContext.BaseDirectory, "Recipes");
+    private readonly string _configFilePath =
+        Path.Combine(AppContext.BaseDirectory, "MachineConfig.json");
+
     public RecipeService()
-        : this(AppContext.BaseDirectory)
     {
+        Directory.CreateDirectory(_recipeDirectory);
     }
-
-    public RecipeService(string baseDirectory)
-    {
-        RecipeDirectory = Path.GetFullPath(Path.Combine(baseDirectory, "Recipes"));
-        ConfigFilePath = Path.GetFullPath(Path.Combine(baseDirectory, "MachineConfig.json"));
-        Directory.CreateDirectory(RecipeDirectory);
-    }
-
-    public string RecipeDirectory { get; }
-    public string ConfigFilePath { get; }
 
     public Task SaveRecipeAsync(
         Recipe recipe,
-        CancellationToken cancellationToken = default)
-    {
-        var fileName = GetRecipeFileName(recipe.Name);
-        return WriteJsonAtomicallyAsync(
-            Path.Combine(RecipeDirectory, fileName),
+        CancellationToken cancellationToken = default) =>
+        WriteJsonAtomicallyAsync(
+            Path.Combine(_recipeDirectory, GetRecipeFileName(recipe.Name)),
             recipe,
             cancellationToken);
-    }
 
     public async Task<Recipe> LoadRecipeAsync(
-        string filePath,
+        string fileName,
         CancellationToken cancellationToken = default)
     {
-        var safePath = GetPathInsideRecipeDirectory(filePath);
+        var filePath = Path.Combine(_recipeDirectory, fileName);
         await using var stream = new FileStream(
-            safePath,
+            filePath,
             FileMode.Open,
             FileAccess.Read,
             FileShare.Read,
             bufferSize: 4_096,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        using var document = await JsonDocument.ParseAsync(
+        var recipe = await JsonSerializer.DeserializeAsync<Recipe>(
             stream,
-            cancellationToken: cancellationToken);
-        var recipe = document.RootElement.TryGetProperty(nameof(Recipe.PcbPlacement), out _)
-            ? document.RootElement.Deserialize<Recipe>(JsonOptions)
-            : document.RootElement.Deserialize<LegacyRecipe>(JsonOptions)?.ToCurrent();
+            JsonOptions,
+            cancellationToken);
         return recipe
-               ?? throw new InvalidDataException($"Recipe '{safePath}' is empty or invalid.");
+               ?? throw new InvalidDataException($"Recipe '{fileName}' is empty or invalid.");
     }
 
     public IReadOnlyList<string> GetRecipeFiles() =>
-        Directory.GetFiles(RecipeDirectory, "*.json")
+        Directory.GetFiles(_recipeDirectory, "*.json")
+            .Select(path => new FileInfo(path).Name)
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
     public Task SaveConfigAsync(
         MachineConfig config,
-        CancellationToken cancellationToken = default)
-    {
-        return WriteJsonAtomicallyAsync(ConfigFilePath, config, cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        WriteJsonAtomicallyAsync(_configFilePath, config, cancellationToken);
 
     public async Task<MachineConfig> LoadConfigAsync(
         CancellationToken cancellationToken = default)
     {
-        if (!File.Exists(ConfigFilePath))
+        if (!File.Exists(_configFilePath))
         {
             return new MachineConfig();
         }
 
         await using var stream = new FileStream(
-            ConfigFilePath,
+            _configFilePath,
             FileMode.Open,
             FileAccess.Read,
             FileShare.Read,
             bufferSize: 4_096,
             FileOptions.Asynchronous | FileOptions.SequentialScan);
-        using var document = await JsonDocument.ParseAsync(
+        var config = await JsonSerializer.DeserializeAsync<MachineConfig>(
             stream,
-            cancellationToken: cancellationToken);
-        var config = document.RootElement.TryGetProperty(nameof(MachineConfig.Runtime), out _)
-            ? document.RootElement.Deserialize<MachineConfig>(JsonOptions)
-            : document.RootElement.Deserialize<LegacyMachineConfig>(JsonOptions)?.ToCurrent();
+            JsonOptions,
+            cancellationToken);
         return config
                ?? throw new InvalidDataException("MachineConfig.json is empty or invalid.");
     }
@@ -146,20 +137,5 @@ public sealed class RecipeService
         }
 
         return $"{trimmedName}.json";
-    }
-
-    private string GetPathInsideRecipeDirectory(string filePath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
-        var fullPath = Path.GetFullPath(filePath);
-        var relativePath = Path.GetRelativePath(RecipeDirectory, fullPath);
-        if (relativePath == ".."
-            || relativePath.StartsWith($"..{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
-            || Path.IsPathRooted(relativePath))
-        {
-            throw new ArgumentException("Recipe path must be inside the recipe directory.", nameof(filePath));
-        }
-
-        return fullPath;
     }
 }

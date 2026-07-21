@@ -1,39 +1,36 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using IBTM.Core.Geometry;
+using IBTM.Core.Process;
+using IBTM.Device;
+
 namespace IBTM.Core.Machine;
 
 public sealed class StationOperations : IDisposable
 {
-    private static readonly TimeSpan SimulatedSensorDelay = TimeSpan.FromMilliseconds(400);
-    private static readonly TimeSpan OutputTransitionDelay = TimeSpan.FromMilliseconds(200);
-
     private readonly int _stationNumber;
     private readonly IMotionService _motion;
-    private readonly IIOService _io;
+    private readonly IIoService _io;
     private readonly ZoneMotionParams _motionParams;
-    private readonly MachineRuntimeSettings _runtime;
-    private readonly ProcessEventHub _events;
+    private readonly ProcessEvents _events;
 
     public StationOperations(
         int stationNumber,
         IMotionService motion,
-        IIOService io,
+        IIoService io,
         ZoneMotionParams motionParams,
-        MachineRuntimeSettings runtime,
-        ProcessEventHub events)
+        ProcessEvents events)
     {
         _stationNumber = stationNumber;
         _motion = motion;
         _io = io;
         _motionParams = motionParams;
-        _runtime = runtime;
         _events = events;
         _motion.PositionChanged += OnPositionChanged;
     }
 
-    public void Initialize(int xAxis, int yAxis, int zAxis)
-    {
-        _motion.InitializeAxes(xAxis, yAxis, zAxis);
-        _motion.Enable();
-    }
+    public void Initialize() => _motion.Initialize();
 
     public async Task MoveToPositionAsync(
         AxisPos position,
@@ -57,8 +54,8 @@ public sealed class StationOperations : IDisposable
         CancellationToken cancellationToken)
     {
         await MoveToPositionAsync(pickPosition, cancellationToken);
-        SetGripper(gripperChannel, active: true);
-        await Task.Delay(OutputTransitionDelay, cancellationToken);
+        _io.SetOutput(gripperChannel, true);
+        await _io.WaitForInputAsync(gripperChannel, true, cancellationToken);
 
         await _motion.MoveToZAsync(0, _motionParams.SpeedZ, cancellationToken);
         await _motion.MoveToXYAsync(
@@ -68,13 +65,13 @@ public sealed class StationOperations : IDisposable
             cancellationToken);
         await _motion.MoveToZAsync(placePosition.Z, _motionParams.SpeedZ, cancellationToken);
 
-        SetGripper(gripperChannel, active: false);
-        await Task.Delay(TimeSpan.FromMilliseconds(150), cancellationToken);
+        _io.SetOutput(gripperChannel, false);
+        await _io.WaitForInputAsync(gripperChannel, false, cancellationToken);
         await _motion.MoveToZAsync(0, _motionParams.SpeedZ, cancellationToken);
     }
 
-    public Task WaitForSignalAsync(CancellationToken cancellationToken) =>
-        Task.Delay(SimulatedSensorDelay, cancellationToken);
+    public Task WaitForInputAsync(int channel, CancellationToken cancellationToken) =>
+        _io.WaitForInputAsync(channel, true, cancellationToken);
 
     public async Task StopAlignLiftAsync(
         int stopperChannel,
@@ -83,11 +80,11 @@ public sealed class StationOperations : IDisposable
         CancellationToken cancellationToken)
     {
         _io.SetOutput(stopperChannel, true);
-        await Task.Delay(OutputTransitionDelay, cancellationToken);
+        await _io.WaitForInputAsync(stopperChannel, true, cancellationToken);
         _io.SetOutput(alignChannel, true);
-        await Task.Delay(TimeSpan.FromMilliseconds(_runtime.AlignSettleDelayMs), cancellationToken);
+        await _io.WaitForInputAsync(alignChannel, true, cancellationToken);
         _io.SetOutput(liftChannel, true);
-        await Task.Delay(TimeSpan.FromMilliseconds(_runtime.LiftSettleDelayMs), cancellationToken);
+        await _io.WaitForInputAsync(liftChannel, true, cancellationToken);
     }
 
     public async Task ReleaseAsync(
@@ -97,11 +94,11 @@ public sealed class StationOperations : IDisposable
         CancellationToken cancellationToken)
     {
         _io.SetOutput(liftChannel, false);
-        await Task.Delay(TimeSpan.FromMilliseconds(_runtime.LiftSettleDelayMs), cancellationToken);
+        await _io.WaitForInputAsync(liftChannel, false, cancellationToken);
         _io.SetOutput(alignChannel, false);
-        await Task.Delay(OutputTransitionDelay, cancellationToken);
+        await _io.WaitForInputAsync(alignChannel, false, cancellationToken);
         _io.SetOutput(stopperChannel, false);
-        await Task.Delay(OutputTransitionDelay, cancellationToken);
+        await _io.WaitForInputAsync(stopperChannel, false, cancellationToken);
     }
 
     public async Task PulseOutputAsync(
@@ -126,16 +123,6 @@ public sealed class StationOperations : IDisposable
 
     public void Dispose() => _motion.PositionChanged -= OnPositionChanged;
 
-    private void SetGripper(int channel, bool active)
-    {
-        _io.SetOutput(channel, active);
-        _events.Gripper((_stationNumber, active));
-    }
-
-    private void OnPositionChanged(object? sender, MotionPositionEventArgs position) =>
-        _events.Position(new ZonePositionEventArgs(
-            _stationNumber,
-            position.X,
-            position.Y,
-            position.Z));
+    private void OnPositionChanged(double x, double y, double z) =>
+        _events.Position(_stationNumber, x, y, z);
 }

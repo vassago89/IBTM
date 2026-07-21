@@ -1,4 +1,8 @@
 using System.Windows;
+using IBTM.Composition;
+using IBTM.Infrastructure.Persistence;
+using IBTM.Orchestration;
+using IBTM.Presentation.Shell;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM;
@@ -11,7 +15,13 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
-        var services = new ServiceCollection().AddIbtmApplication();
+        var recipeService = new RecipeService();
+        var config = recipeService.LoadConfigAsync().GetAwaiter().GetResult();
+
+        var services = new ServiceCollection()
+            .AddSingleton(config)
+            .AddSingleton(recipeService)
+            .AddIbtmApplication();
         _serviceProvider = services.BuildServiceProvider(
             new ServiceProviderOptions
             {
@@ -19,7 +29,6 @@ public partial class App : System.Windows.Application
                 ValidateScopes = true,
             });
 
-        LoadMachineConfig(_serviceProvider);
         _serviceProvider.GetRequiredService<ProcessOrchestrator>().Initialize();
         var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
         mainWindow.Show();
@@ -29,13 +38,5 @@ public partial class App : System.Windows.Application
     {
         _serviceProvider.Dispose();
         base.OnExit(e);
-    }
-
-    private static void LoadMachineConfig(IServiceProvider services)
-    {
-        var recipeService = services.GetRequiredService<RecipeService>();
-        var loaded = recipeService.LoadConfigAsync().GetAwaiter().GetResult();
-        services.GetRequiredService<MachineConfig>().CopyFrom(loaded);
-        Loc.Instance.SetLanguage(loaded.System.Language);
     }
 }

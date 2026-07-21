@@ -1,3 +1,5 @@
+using IBTM.Core.Geometry;
+
 namespace IBTM.Stations.Inspection;
 
 public sealed class InspectionRecipe

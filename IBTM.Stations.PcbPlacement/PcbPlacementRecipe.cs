@@ -1,3 +1,5 @@
+using IBTM.Core.Geometry;
+
 namespace IBTM.Stations.PcbPlacement;
 
 public sealed class PcbPlacementRecipe

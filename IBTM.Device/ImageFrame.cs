@@ -1,4 +1,4 @@
-namespace IBTM.Core.Abstractions;
+namespace IBTM.Device;
 
 public sealed record ImageFrame(
     int Width,

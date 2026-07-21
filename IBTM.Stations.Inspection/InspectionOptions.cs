@@ -1,13 +1,10 @@
+using IBTM.Core.Machine;
+
 namespace IBTM.Stations.Inspection;
 
 public sealed class InspectionOptions
 {
     public ZoneMotionParams Motion { get; set; } = new();
     public int NgStackMaxCount { get; set; } = 3;
-
-    public void CopyFrom(InspectionOptions source)
-    {
-        Motion.CopyFrom(source.Motion);
-        NgStackMaxCount = source.NgStackMaxCount;
-    }
+    public double PixelsPerMm { get; set; } = 50.0;
 }

@@ -1,38 +1,87 @@
+using System;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using IBTM.Core.Process;
+using IBTM.Orchestration;
+using IBTM.Presentation.Imaging;
+using IBTM.Presentation.Models;
+using IBTM.Stations.BoltFastening;
+using IBTM.Stations.Inspection;
 
 namespace IBTM.Presentation.ViewModels;
 
 public partial class ProcessViewModel : ObservableObject, IDisposable
 {
     private readonly ProcessOrchestrator _orchestrator;
-    private readonly ProcessEventHub _events;
+    private readonly ProcessEvents _events;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StartCommand))]
     [NotifyCanExecuteChangedFor(nameof(StopCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetNgStackCommand))]
+    [NotifyPropertyChangedFor(nameof(ManualControlsEnabled))]
     private bool _isRunning;
 
-    [ObservableProperty] private double _targetTorque;
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StartCommand))]
+    private double _targetTorque;
 
-    public ProcessPresentationState State { get; }
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StartCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetCommand))]
+    [NotifyPropertyChangedFor(nameof(ManualControlsEnabled))]
+    private bool _isError;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StartCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetNgStackCommand))]
+    [NotifyPropertyChangedFor(nameof(ManualControlsEnabled))]
+    private bool _ngStackAlarm;
+
+    [ObservableProperty] private string _statusMessage = "Waiting";
+    [ObservableProperty] private int _totalCount;
+    [ObservableProperty] private int _goodCount;
+    [ObservableProperty] private int _ngCount;
+    [ObservableProperty] private double _ngRate;
+    [ObservableProperty] private double _lastCycleTime;
+
+    [ObservableProperty] private string _zone1Activity = "Waiting";
+    [ObservableProperty] private string _zone2Activity = "Waiting";
+    [ObservableProperty] private string _zone3Activity = "Waiting";
+    [ObservableProperty] private string _zone1Position = "X 0.000   Y 0.000   Z 0.000";
+    [ObservableProperty] private string _zone2Position = "X 0.000   Y 0.000   Z 0.000";
+    [ObservableProperty] private string _zone3Position = "X 0.000   Y 0.000   Z 0.000";
+
+    [ObservableProperty] private string _boltProgress = string.Empty;
+    [ObservableProperty] private string _lastBoltResult = string.Empty;
+    [ObservableProperty] private string _lastFiducialResult = string.Empty;
+
+    [ObservableProperty] private int _ngStackCount;
+    [ObservableProperty] private int _ngStackMaxCount;
+    [ObservableProperty] private bool _isNgPath;
+    [ObservableProperty] private bool _isGoodPath;
+    [ObservableProperty] private string _lastRouteText = "—";
+    [ObservableProperty] private ImageSource? _inspectionImage;
+    [ObservableProperty] private bool _smemaWaiting;
+    [ObservableProperty] private bool _smemaReady;
 
     public ProcessViewModel(
         ProcessOrchestrator orchestrator,
-        ProcessEventHub events,
+        ProcessEvents events,
         BoltFasteningOptions boltOptions)
     {
         _orchestrator = orchestrator;
         _events = events;
         TargetTorque = boltOptions.DefaultTorqueNm;
-        State = new ProcessPresentationState(
-            orchestrator.CurrentRecipe,
-            orchestrator.NgStackCapacity);
+        NgStackMaxCount = orchestrator.NgStackCapacity;
         SubscribeEvents();
-        _orchestrator.RecipeChanged += OnRecipeChanged;
     }
+
+    public bool ManualControlsEnabled => !IsRunning && !IsError && !NgStackAlarm;
 
     [RelayCommand(CanExecute = nameof(CanStart))]
     private async Task StartAsync()
@@ -50,7 +99,12 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
         }
     }
 
-    private bool CanStart() => !IsRunning;
+    private bool CanStart() =>
+        !IsRunning
+        && !IsError
+        && !NgStackAlarm
+        && double.IsFinite(TargetTorque)
+        && TargetTorque > 0;
 
     [RelayCommand(CanExecute = nameof(CanStop))]
     private void Stop() => _orchestrator.Stop();
@@ -60,14 +114,15 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void EStop() => _orchestrator.EmergencyStop();
 
-    [RelayCommand]
-    private void ToggleLanguage() => Loc.Instance.ToggleLanguage();
+    [RelayCommand(CanExecute = nameof(CanReset))]
+    private void Reset() => _orchestrator.Reset();
 
-    [RelayCommand]
-    private void ResetNgStack()
-    {
-        _orchestrator.ResetNgStack();
-    }
+    private bool CanReset() => !IsRunning && IsError;
+
+    [RelayCommand(CanExecute = nameof(CanResetNgStack))]
+    private void ResetNgStack() => _orchestrator.ResetNgStack();
+
+    private bool CanResetNgStack() => !IsRunning && NgStackAlarm;
 
     public void Dispose()
     {
@@ -79,9 +134,6 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
         _events.BoltProgress -= OnBoltProgress;
         _events.InspectionCompleted -= OnInspectionCompleted;
         _events.NgStackChanged -= OnNgStackChanged;
-        _events.GripperChanged -= OnGripperChanged;
-        _events.PcbPlaced -= OnPcbPlaced;
-        _orchestrator.RecipeChanged -= OnRecipeChanged;
     }
 
     private void SubscribeEvents()
@@ -94,13 +146,140 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
         _events.BoltProgress += OnBoltProgress;
         _events.InspectionCompleted += OnInspectionCompleted;
         _events.NgStackChanged += OnNgStackChanged;
-        _events.GripperChanged += OnGripperChanged;
-        _events.PcbPlaced += OnPcbPlaced;
+    }
+
+    private void OnStageChanged(string stage, StageStatus status) =>
+        RunOnUi(() => ApplyStage(stage, status));
+
+    private void ApplyStage(string stage, StageStatus status)
+    {
+        if (status == StageStatus.Error)
+        {
+            IsError = true;
+        }
+        else if (stage == SystemStages.Idle && status == StageStatus.Idle)
+        {
+            IsError = false;
+        }
+
+        if (!IsError || status == StageStatus.Error || stage == SystemStages.Idle)
+        {
+            StatusMessage = GetStatusMessage(stage, status);
+        }
+
+        if (stage is SystemStages.Idle or SystemStages.Complete or SystemStages.Error)
+        {
+            return;
+        }
+
+        var definition = ProcessStageCatalog.Get(stage);
+        SetActivity(definition.Zone, status switch
+        {
+            StageStatus.Running => definition.ActivityText,
+            StageStatus.Done => "Complete",
+            StageStatus.Error => "Error",
+            _ => "Stopped",
+        });
+
+        if (stage == InspectionStages.SmemaWait)
+        {
+            SmemaWaiting = status == StageStatus.Running;
+            SmemaReady = status == StageStatus.Done;
+        }
+        else if (stage == InspectionStages.Discharge && status == StageStatus.Running)
+        {
+            SmemaReady = false;
+        }
+    }
+
+    private void OnStatsUpdated(ProductionStats stats) =>
+        RunOnUi(() =>
+        {
+            TotalCount = stats.TotalCount;
+            GoodCount = stats.GoodCount;
+            NgCount = stats.NgCount;
+            NgRate = stats.NgRate;
+            LastCycleTime = stats.LastCycleTimeSeconds;
+            NgStackCount = _orchestrator.NgStackCount;
+            NgStackMaxCount = _orchestrator.NgStackCapacity;
+        });
+
+    private void OnZonePositionChanged(int zone, double x, double y, double z) =>
+        RunOnUi(() =>
+        {
+            var position = $"X {x:F3}   Y {y:F3}   Z {z:F3}";
+            switch (zone)
+            {
+                case 1: Zone1Position = position; break;
+                case 2: Zone2Position = position; break;
+                case 3: Zone3Position = position; break;
+            }
+        });
+
+    private void OnFiducialDetected(FiducialResult result) =>
+        RunOnUi(() => LastFiducialResult = result.Found
+            ? $"dX {result.OffsetX:+0.000;-0.000}   dY {result.OffsetY:+0.000;-0.000}"
+            : "Detection failed");
+
+    private void OnBoltCompleted(BoltResult result) =>
+        RunOnUi(() => LastBoltResult =
+            $"{(result.Success ? "PASS" : "FAIL")}   {result.Torque:F1} Nm");
+
+    private void OnBoltProgress(int current, int total, string boltName) =>
+        RunOnUi(() => BoltProgress = $"{boltName}   {current}/{total}");
+
+    private void OnInspectionCompleted(InspectionOutcome outcome) =>
+        RunOnUi(() =>
+        {
+            InspectionImage = outcome.Image.ToImageSource();
+            IsGoodPath = outcome.Result == InspectionResult.Good;
+            IsNgPath = !IsGoodPath;
+            LastRouteText = IsGoodPath ? "GOOD" : "NG";
+        });
+
+    private void OnNgStackChanged(int count, bool alarm) =>
+        RunOnUi(() =>
+        {
+            NgStackCount = count;
+            NgStackMaxCount = _orchestrator.NgStackCapacity;
+            NgStackAlarm = alarm;
+        });
+
+    private void SetActivity(int zone, string activity)
+    {
+        switch (zone)
+        {
+            case 1: Zone1Activity = activity; break;
+            case 2: Zone2Activity = activity; break;
+            case 3: Zone3Activity = activity; break;
+        }
+    }
+
+    private static string GetStatusMessage(string stage, StageStatus status)
+    {
+        if (status == StageStatus.Error)
+        {
+            return stage == SystemStages.Idle
+                ? "Emergency stop active"
+                : $"Error [{stage}]";
+        }
+
+        if (status == StageStatus.Idle && stage != SystemStages.Idle)
+        {
+            return "Stopped";
+        }
+
+        return stage switch
+        {
+            SystemStages.Idle => "Waiting",
+            SystemStages.Complete => "Cycle complete",
+            _ => ProcessStageCatalog.Get(stage).StatusText,
+        };
     }
 
     private static void RunOnUi(Action action)
     {
-        var dispatcher = System.Windows.Application.Current.Dispatcher;
+        var dispatcher = Application.Current.Dispatcher;
         if (dispatcher.CheckAccess())
         {
             action();
@@ -110,48 +289,4 @@ public partial class ProcessViewModel : ObservableObject, IDisposable
             dispatcher.BeginInvoke(action);
         }
     }
-
-    private void OnStageChanged(object? sender, StageChangedEventArgs change) =>
-        RunOnUi(() => State.ApplyStage(change, _orchestrator.CurrentRecipe));
-
-    private void OnRecipeChanged(object? sender, Recipe recipe) =>
-        RunOnUi(() => State.ApplyRecipe(recipe));
-
-    private void OnStatsUpdated(object? sender, ProductionStats stats) =>
-        RunOnUi(() => State.ApplyStats(
-            stats,
-            _orchestrator.NgStackCount,
-            _orchestrator.NgStackCapacity));
-
-    private void OnZonePositionChanged(object? sender, ZonePositionEventArgs position) =>
-        RunOnUi(() => State.ApplyPosition(position));
-
-    private void OnFiducialDetected(object? sender, FiducialResult result) =>
-        RunOnUi(() => State.ApplyFiducial(result, _orchestrator.CurrentRecipe));
-
-    private void OnBoltCompleted(object? sender, BoltResult result) =>
-        RunOnUi(() => State.ApplyBoltResult(result));
-
-    private void OnBoltProgress(object? sender, BoltProgressEventArgs progress) =>
-        RunOnUi(() => State.ApplyBoltProgress(progress));
-
-    private void OnInspectionCompleted(object? sender, InspectionOutcome outcome) =>
-        RunOnUi(() =>
-        {
-            State.CaptureInspectionImage(outcome.Image.ToImageSource());
-            State.ApplyInspection(outcome.Result);
-            State.ApplyRoute(outcome.Result);
-        });
-
-    private void OnNgStackChanged(object? sender, NgStackState state) =>
-        RunOnUi(() => State.UpdateNgStack(
-            state.Count,
-            state.Alarm,
-            _orchestrator.NgStackCapacity));
-
-    private void OnGripperChanged(object? sender, (int Zone, bool Active) state) =>
-        RunOnUi(() => State.ApplyGripper(state));
-
-    private void OnPcbPlaced(object? sender, EventArgs eventArgs) =>
-        RunOnUi(State.PcbPlaced);
 }

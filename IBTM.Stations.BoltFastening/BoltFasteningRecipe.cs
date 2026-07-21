@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using IBTM.Core.Geometry;
+
 namespace IBTM.Stations.BoltFastening;
 
 public sealed class BoltPoint

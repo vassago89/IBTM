@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -20,9 +21,10 @@ public partial class MainViewModel : ObservableObject
         _teachingViewModel = teachingViewModel;
         _settingsViewModel = settingsViewModel;
         _currentPage = processViewModel;
+        _processViewModel.PropertyChanged += OnProcessPropertyChanged;
     }
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanNavigate))]
     private void Navigate(string page)
     {
         CurrentPage = page switch
@@ -31,5 +33,16 @@ public partial class MainViewModel : ObservableObject
             "Settings" => _settingsViewModel,
             _ => _processViewModel,
         };
+    }
+
+    private bool CanNavigate(string page) =>
+        page == "Process" || _processViewModel.ManualControlsEnabled;
+
+    private void OnProcessPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ProcessViewModel.ManualControlsEnabled))
+        {
+            NavigateCommand.NotifyCanExecuteChanged();
+        }
     }
 }

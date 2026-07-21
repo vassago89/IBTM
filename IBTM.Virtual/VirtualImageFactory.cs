@@ -1,29 +1,35 @@
-namespace IBTM.Infrastructure.Simulation;
+using System;
+using IBTM.Device;
 
-internal static class SimulatedImageFactory
+namespace IBTM.Virtual;
+
+internal static class VirtualImageFactory
 {
     public const int Width = 320;
     public const int Height = 240;
 
     private const int BytesPerPixel = 3;
+    private static readonly (int X, int Y)[] BoltCentres =
+    [
+        (120, 90),
+        (200, 90),
+        (120, 150),
+        (200, 150),
+    ];
 
-    public static ImageFrame CreateCameraFrame(bool drawCrosshair)
+    public static ImageFrame CreateCameraFrame()
     {
         var pixels = new byte[Width * Height * BytesPerPixel];
         FillNoise(pixels, 18, 12);
         FillRectangle(pixels, 60, 50, 260, 190, 45, 15);
-
-        if (drawCrosshair)
-        {
-            DrawCrosshair(pixels);
-        }
+        DrawCrosshair(pixels);
 
         foreach (var (x, y) in BoltCentres)
         {
-            DrawNoisyCircle(pixels, x, y, radius: 5, minimum: 120, variation: 30);
+            DrawCircle(pixels, x, y, 5, 120, 30);
         }
 
-        return CreateBitmap(pixels);
+        return CreateFrame(pixels);
     }
 
     public static ImageFrame CreateInspectionFrame()
@@ -34,19 +40,11 @@ internal static class SimulatedImageFactory
 
         foreach (var (x, y) in BoltCentres)
         {
-            DrawNoisyCircle(pixels, x, y, radius: 6, minimum: 140, variation: 30);
+            DrawCircle(pixels, x, y, 6, 140, 30);
         }
 
-        return CreateBitmap(pixels);
+        return CreateFrame(pixels);
     }
-
-    private static readonly (int X, int Y)[] BoltCentres =
-    [
-        (120, 90),
-        (200, 90),
-        (120, 150),
-        (200, 150),
-    ];
 
     private static void FillNoise(byte[] pixels, byte minimum, int variation)
     {
@@ -85,16 +83,16 @@ internal static class SimulatedImageFactory
 
         for (var x = 0; x < Width; x++)
         {
-            SetPixel(pixels, x, centreY, blue: 80, green: 160, red: 0);
+            SetPixel(pixels, x, centreY, 80, 160, 0);
         }
 
         for (var y = 0; y < Height; y++)
         {
-            SetPixel(pixels, centreX, y, blue: 80, green: 160, red: 0);
+            SetPixel(pixels, centreX, y, 80, 160, 0);
         }
     }
 
-    private static void DrawNoisyCircle(
+    private static void DrawCircle(
         byte[] pixels,
         int centreX,
         int centreY,
@@ -102,25 +100,15 @@ internal static class SimulatedImageFactory
         byte minimum,
         int variation)
     {
-        var radiusSquared = radius * radius;
-        for (var offsetY = -radius; offsetY <= radius; offsetY++)
+        for (var y = -radius; y <= radius; y++)
         {
-            for (var offsetX = -radius; offsetX <= radius; offsetX++)
+            for (var x = -radius; x <= radius; x++)
             {
-                if ((offsetX * offsetX) + (offsetY * offsetY) > radiusSquared)
+                if ((x * x) + (y * y) <= radius * radius)
                 {
-                    continue;
+                    var value = (byte)(minimum + Random.Shared.Next(variation));
+                    SetPixel(pixels, centreX + x, centreY + y, value, value, value);
                 }
-
-                var x = centreX + offsetX;
-                var y = centreY + offsetY;
-                if (x is < 0 or >= Width || y is < 0 or >= Height)
-                {
-                    continue;
-                }
-
-                var value = (byte)(minimum + Random.Shared.Next(variation));
-                SetPixel(pixels, x, y, value, value, value);
             }
         }
     }
@@ -133,6 +121,6 @@ internal static class SimulatedImageFactory
         pixels[index + 2] = red;
     }
 
-    private static ImageFrame CreateBitmap(byte[] pixels) =>
+    private static ImageFrame CreateFrame(byte[] pixels) =>
         new(Width, Height, Width * BytesPerPixel, pixels);
 }

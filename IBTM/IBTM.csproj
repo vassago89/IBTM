@@ -4,7 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
+    <ImplicitUsings>disable</ImplicitUsings>
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
@@ -20,6 +20,7 @@
     <ProjectReference Include="..\IBTM.Stations.BoltFastening\IBTM.Stations.BoltFastening.csproj" />
     <ProjectReference Include="..\IBTM.Stations.Inspection\IBTM.Stations.Inspection.csproj" />
     <ProjectReference Include="..\IBTM.Stations.PcbPlacement\IBTM.Stations.PcbPlacement.csproj" />
+    <ProjectReference Include="..\IBTM.Virtual\IBTM.Virtual.csproj" />
   </ItemGroup>
 
 </Project>

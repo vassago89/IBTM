@@ -1,66 +1,83 @@
-using Microsoft.Extensions.DependencyInjection;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using IBTM.Core.Machine;
+using IBTM.Core.Process;
+using IBTM.Device;
 
 namespace IBTM.Stations.PcbPlacement;
 
-internal sealed class PcbPlacementStation : IPcbPlacementStation, IDisposable
+public sealed class PcbPlacementStation : IDisposable
 {
+    public const int ShuttlePresentInputChannel = 10;
+    public const int StopperChannel = 11;
+    public const int AlignChannel = 12;
+    public const int LiftChannel = 13;
+    public const int GripperChannel = 14;
+    public const int LaserChannel = 15;
+    public const int PcbAvailableInputChannel = 16;
+
     private readonly StationOperations _machine;
-    private readonly ProcessStageRunner _stages;
-    private readonly ProcessEventHub _events;
+    private readonly ProcessEvents _events;
 
     public PcbPlacementStation(
-        [FromKeyedServices(PcbPlacementModule.ServiceKey)] IMotionService motion,
-        IIOService io,
-        PcbPlacementOptions options,
-        MachineRuntimeSettings runtime,
-        ProcessStageRunner stages,
-        ProcessEventHub events)
+        IMotionService motion,
+        IIoService io,
+        ZoneMotionParams motionParams,
+        ProcessEvents events)
     {
-        _machine = new StationOperations(1, motion, io, options.Motion, runtime, events);
-        _stages = stages;
+        _machine = new StationOperations(1, motion, io, motionParams, events);
         _events = events;
     }
 
-    public void Initialize() => _machine.Initialize(0, 1, 2);
+    public void Initialize() => _machine.Initialize();
 
     public async Task RunAsync(
         PcbPlacementRecipe recipe,
         CancellationToken cancellationToken)
     {
-        await _stages.RunAsync(
+        await _events.RunStageAsync(
             PcbPlacementStages.WaitShuttle,
             cancellationToken,
             async token =>
             {
-                await _machine.WaitForSignalAsync(token);
-                await _machine.WaitForSignalAsync(token);
+                await _machine.WaitForInputAsync(ShuttlePresentInputChannel, token);
+                await _machine.WaitForInputAsync(PcbAvailableInputChannel, token);
             });
 
-        await _stages.RunAsync(
+        await _events.RunStageAsync(
             PcbPlacementStages.StopAlignLift,
             cancellationToken,
             token => _machine.StopAlignLiftAsync(
-                PcbPlacementChannels.Stopper,
-                PcbPlacementChannels.Align,
-                PcbPlacementChannels.Lift,
+                StopperChannel,
+                AlignChannel,
+                LiftChannel,
                 token));
 
-        await _stages.RunAsync(
+        await _events.RunStageAsync(
             PcbPlacementStages.PickPlace,
             cancellationToken,
             async token =>
             {
-                await PickAndPlaceAsync(recipe.PcbPick1, recipe.PcbPlace1, token);
-                await PickAndPlaceAsync(recipe.PcbPick2, recipe.PcbPlace2, token);
+                await _machine.PickAndPlaceAsync(
+                    recipe.PcbPick1,
+                    recipe.PcbPlace1,
+                    GripperChannel,
+                    token);
+                await _machine.PickAndPlaceAsync(
+                    recipe.PcbPick2,
+                    recipe.PcbPlace2,
+                    GripperChannel,
+                    token);
             });
 
-        await _stages.RunAsync(
+        await _events.RunStageAsync(
             PcbPlacementStages.Release,
             cancellationToken,
             token => _machine.ReleaseAsync(
-                PcbPlacementChannels.Stopper,
-                PcbPlacementChannels.Align,
-                PcbPlacementChannels.Lift,
+                StopperChannel,
+                AlignChannel,
+                LiftChannel,
                 token));
     }
 
@@ -69,17 +86,4 @@ internal sealed class PcbPlacementStation : IPcbPlacementStation, IDisposable
     public void EmergencyStop() => _machine.EmergencyStop();
 
     public void Dispose() => _machine.Dispose();
-
-    private async Task PickAndPlaceAsync(
-        AxisPos pickPosition,
-        AxisPos placePosition,
-        CancellationToken cancellationToken)
-    {
-        await _machine.PickAndPlaceAsync(
-            pickPosition,
-            placePosition,
-            PcbPlacementChannels.Gripper,
-            cancellationToken);
-        _events.PcbWasPlaced();
-    }
 }

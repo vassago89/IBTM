@@ -1,75 +1,82 @@
-using Microsoft.Extensions.DependencyInjection;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using IBTM.Core.Geometry;
+using IBTM.Core.Machine;
+using IBTM.Core.Process;
+using IBTM.Device;
 
 namespace IBTM.Stations.BoltFastening;
 
-internal sealed class BoltFasteningStation : IBoltFasteningStation, IDisposable
+public sealed class BoltFasteningStation : IDisposable
 {
+    public const int ShuttlePresentInputChannel = 20;
+    public const int StopperChannel = 21;
+    public const int AlignChannel = 22;
+    public const int LiftChannel = 23;
+    public const int LaserChannel = 25;
+
     private readonly StationOperations _machine;
-    private readonly ProcessStageRunner _stages;
-    private readonly ProcessEventHub _events;
+    private readonly ProcessEvents _events;
     private readonly IFiducialService _fiducial;
-    private readonly BoltTighteningService _boltTightening;
+    private readonly IBoltService _boltController;
+    private readonly BoltFasteningOptions _options;
 
     public BoltFasteningStation(
-        [FromKeyedServices(BoltFasteningModule.ServiceKey)] IMotionService motion,
-        IIOService io,
+        IMotionService motion,
+        IIoService io,
         BoltFasteningOptions options,
-        MachineRuntimeSettings runtime,
-        ProcessStageRunner stages,
-        ProcessEventHub events,
+        ProcessEvents events,
         IFiducialService fiducial,
         IBoltService boltController)
     {
-        _machine = new StationOperations(2, motion, io, options.Motion, runtime, events);
-        _stages = stages;
+        _machine = new StationOperations(2, motion, io, options.Motion, events);
         _events = events;
         _fiducial = fiducial;
-        _boltTightening = new BoltTighteningService(_machine, boltController, options);
-
-        _boltTightening.ProgressChanged += OnBoltProgressChanged;
-        _boltTightening.BoltCompleted += OnBoltCompleted;
+        _boltController = boltController;
+        _options = options;
     }
 
-    public void Initialize() => _machine.Initialize(3, 4, 5);
+    public void Initialize() => _machine.Initialize();
 
     public Task PrepareAsync(CancellationToken cancellationToken) =>
-        _boltTightening.InitializeAsync(cancellationToken);
+        _boltController.InitializeAsync(cancellationToken);
 
     public async Task RunAsync(
         BoltFasteningRecipe recipe,
         CancellationToken cancellationToken)
     {
-        await _stages.RunAsync(
+        await _events.RunStageAsync(
             BoltFasteningStages.WaitShuttle,
             cancellationToken,
-            token => _machine.WaitForSignalAsync(token));
+            token => _machine.WaitForInputAsync(ShuttlePresentInputChannel, token));
 
-        await _stages.RunAsync(
+        await _events.RunStageAsync(
             BoltFasteningStages.StopAlignLift,
             cancellationToken,
             token => _machine.StopAlignLiftAsync(
-                BoltFasteningChannels.Stopper,
-                BoltFasteningChannels.Align,
-                BoltFasteningChannels.Lift,
+                StopperChannel,
+                AlignChannel,
+                LiftChannel,
                 token));
 
-        var fiducial = await _stages.RunAsync(
+        var fiducial = await _events.RunStageAsync(
             BoltFasteningStages.Fiducial,
             cancellationToken,
             token => DetectFiducialAsync(recipe, token));
 
-        await _stages.RunAsync(
+        await _events.RunStageAsync(
             BoltFasteningStages.Tighten,
             cancellationToken,
-            token => _boltTightening.RunAsync(recipe, fiducial, token));
+            token => TightenBoltsAsync(recipe, fiducial, token));
 
-        await _stages.RunAsync(
+        await _events.RunStageAsync(
             BoltFasteningStages.Release,
             cancellationToken,
             token => _machine.ReleaseAsync(
-                BoltFasteningChannels.Stopper,
-                BoltFasteningChannels.Align,
-                BoltFasteningChannels.Lift,
+                StopperChannel,
+                AlignChannel,
+                LiftChannel,
                 token));
     }
 
@@ -77,12 +84,7 @@ internal sealed class BoltFasteningStation : IBoltFasteningStation, IDisposable
 
     public void EmergencyStop() => _machine.EmergencyStop();
 
-    public void Dispose()
-    {
-        _boltTightening.ProgressChanged -= OnBoltProgressChanged;
-        _boltTightening.BoltCompleted -= OnBoltCompleted;
-        _machine.Dispose();
-    }
+    public void Dispose() => _machine.Dispose();
 
     private async Task<FiducialResult> DetectFiducialAsync(
         BoltFasteningRecipe recipe,
@@ -101,8 +103,54 @@ internal sealed class BoltFasteningStation : IBoltFasteningStation, IDisposable
         return result;
     }
 
-    private void OnBoltProgressChanged(object? sender, BoltProgressEventArgs progress) =>
-        _events.BoltProgressed(progress);
+    private async Task TightenBoltsAsync(
+        BoltFasteningRecipe recipe,
+        FiducialResult fiducial,
+        CancellationToken cancellationToken)
+    {
+        var pcbCentres = new[]
+        {
+            (X: recipe.Pcb1CenterX, Y: recipe.PcbCenterY, Label: "PCB1"),
+            (X: recipe.Pcb2CenterX, Y: recipe.PcbCenterY, Label: "PCB2"),
+        };
+        var totalBolts = recipe.BoltPoints.Count * pcbCentres.Length;
+        var boltIndex = 0;
 
-    private void OnBoltCompleted(object? sender, BoltResult result) => _events.Bolt(result);
+        foreach (var pcb in pcbCentres)
+        {
+            foreach (var boltPoint in recipe.BoltPoints)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                boltIndex++;
+                var boltLabel = $"{pcb.Label}-{boltPoint.Name}";
+                var position = new AxisPos
+                {
+                    X = pcb.X + boltPoint.X + fiducial.OffsetX,
+                    Y = pcb.Y + boltPoint.Y + fiducial.OffsetY,
+                    Z = boltPoint.Z,
+                };
+
+                _events.BoltProgressed(boltIndex, totalBolts, boltLabel);
+                await _machine.MoveToPositionAsync(position, cancellationToken);
+
+                await _boltController.ShootAsync(cancellationToken);
+                _events.Bolt(await TightenAsync(boltPoint.TargetTorqueNm, cancellationToken));
+                await _machine.MoveToZAsync(0, cancellationToken);
+            }
+        }
+    }
+
+    private async Task<BoltResult> TightenAsync(
+        double targetTorque,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            var result = await _boltController.TightenAsync(targetTorque, cancellationToken);
+            if (result.Success || attempt >= _options.RetryCount)
+            {
+                return result;
+            }
+        }
+    }
 }

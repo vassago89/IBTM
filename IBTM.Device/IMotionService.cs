@@ -1,33 +1,27 @@
-namespace IBTM.Device.Abstractions;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 
-/// <summary>
-/// Controls one three-axis motion group. All positions and velocities use millimetres.
-/// Absolute move methods complete only after the requested position has been reached.
-/// </summary>
+namespace IBTM.Device;
+
 public interface IMotionService
 {
-    event EventHandler<MotionPositionEventArgs>? PositionChanged;
+    event Action<double, double, double>? PositionChanged;
 
-    void InitializeAxes(int? axisX, int? axisY, int? axisZ);
-    void Enable();
-
+    void Initialize();
     Task MoveToXYAsync(
         double x,
         double y,
         double velocity,
         CancellationToken cancellationToken = default);
-
     Task MoveToZAsync(
         double z,
         double velocity,
         CancellationToken cancellationToken = default);
-
     void JogX(double velocity);
     void JogY(double velocity);
     void JogZ(double velocity);
-
     void Stop();
     void EmergencyStop();
-
-    MotionPosition GetPosition();
+    (double X, double Y, double Z) GetPosition();
 }

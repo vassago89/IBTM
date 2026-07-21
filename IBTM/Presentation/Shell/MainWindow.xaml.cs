@@ -1,4 +1,5 @@
 using System.Windows;
+using IBTM.Presentation.ViewModels;
 
 namespace IBTM.Presentation.Shell;
 

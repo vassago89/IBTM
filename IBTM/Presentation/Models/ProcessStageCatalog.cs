@@ -1,45 +1,40 @@
+using System.Linq;
+using IBTM.Stations.BoltFastening;
+using IBTM.Stations.Inspection;
+using IBTM.Stations.PcbPlacement;
+
 namespace IBTM.Presentation.Models;
 
-public sealed record ProcessStageDefinition(
-    ProcessStage Stage,
+internal sealed record ProcessStageDefinition(
+    string Stage,
     int Zone,
-    string ActivityKey,
-    string StatusKey,
-    bool ShowInProgress = true,
-    bool ArrivesShuttle = false,
-    bool ReleasesShuttle = false,
-    bool StartsZoneTiming = false,
-    bool CompletesZoneTiming = false);
+    string ActivityText,
+    string StatusText);
 
-public static class ProcessStageCatalog
+internal static class ProcessStageCatalog
 {
-    public static IReadOnlyList<ProcessStageDefinition> All { get; } =
+    private static readonly ProcessStageDefinition[] Definitions =
     [
-        new(PcbPlacementStages.WaitShuttle, 1, "Act_WaitShuttle", "Stat_Z1_WaitShuttle"),
-        new(PcbPlacementStages.StopAlignLift, 1, "Act_AlignLift", "Stat_Z1_AlignLift", ArrivesShuttle: true, StartsZoneTiming: true),
-        new(PcbPlacementStages.PickPlace, 1, "Act_PcbPick", "Stat_Z1_PickPlace"),
-        new(PcbPlacementStages.Release, 1, "Act_Release", "Stat_Z1_Release", ReleasesShuttle: true, CompletesZoneTiming: true),
+        new(PcbPlacementStages.WaitShuttle, 1, "WAIT SHUTTLE", "[Zone 1] Waiting for shuttle"),
+        new(PcbPlacementStages.StopAlignLift, 1, "ALIGN · LIFT", "[Zone 1] Aligning and lifting"),
+        new(PcbPlacementStages.PickPlace, 1, "PCB PICK", "[Zone 1] Picking PCB"),
+        new(PcbPlacementStages.Release, 1, "RELEASE", "[Zone 1] Releasing shuttle"),
 
-        new(BoltFasteningStages.WaitShuttle, 2, "Act_WaitShuttle", "Stat_Z2_WaitShuttle"),
-        new(BoltFasteningStages.StopAlignLift, 2, "Act_AlignLift", "Stat_Z2_AlignLift", ArrivesShuttle: true, StartsZoneTiming: true),
-        new(BoltFasteningStages.Fiducial, 2, "Act_Fiducial", "Stat_Z2_Fiducial"),
-        new(BoltFasteningStages.Tighten, 2, "Act_BoltTighten", "Stat_Z2_BoltTighten"),
-        new(BoltFasteningStages.Release, 2, "Act_Release", "Stat_Z2_Release", ReleasesShuttle: true, CompletesZoneTiming: true),
+        new(BoltFasteningStages.WaitShuttle, 2, "WAIT SHUTTLE", "[Zone 2] Waiting for shuttle"),
+        new(BoltFasteningStages.StopAlignLift, 2, "ALIGN · LIFT", "[Zone 2] Aligning and lifting"),
+        new(BoltFasteningStages.Fiducial, 2, "FIDUCIAL", "[Zone 2] Detecting fiducial"),
+        new(BoltFasteningStages.Tighten, 2, "BOLT TIGHTEN", "[Zone 2] Tightening bolts"),
+        new(BoltFasteningStages.Release, 2, "RELEASE", "[Zone 2] Releasing shuttle"),
 
-        new(InspectionStages.WaitShuttle, 3, "Act_WaitShuttle", "Stat_Z3_WaitShuttle"),
-        new(InspectionStages.StopAlignLift, 3, "Act_AlignLift", "Stat_Z3_AlignLift", ArrivesShuttle: true, StartsZoneTiming: true),
-        new(InspectionStages.Inspect, 3, "Act_Inspecting", "Stat_Z3_Inspect"),
-        new(InspectionStages.NgTransfer, 3, "Act_NgTransfer", "Stat_Z3_NgTransfer"),
-        new(InspectionStages.SmemaWait, 3, "Act_SmemaWait", "Stat_Z3_SmemaWait"),
-        new(InspectionStages.Discharge, 3, "Act_Discharging", "Stat_Z3_Discharge", CompletesZoneTiming: true),
-        new(InspectionStages.Release, 3, "Act_Release", "Stat_Z3_Release", ShowInProgress: false, ReleasesShuttle: true, CompletesZoneTiming: true),
+        new(InspectionStages.WaitShuttle, 3, "WAIT SHUTTLE", "[Zone 3] Waiting for shuttle"),
+        new(InspectionStages.StopAlignLift, 3, "ALIGN · LIFT", "[Zone 3] Aligning and lifting"),
+        new(InspectionStages.Inspect, 3, "INSPECTING", "[Zone 3] Inspecting"),
+        new(InspectionStages.NgTransfer, 3, "NG TRANSFER", "[Zone 3] Transferring NG"),
+        new(InspectionStages.SmemaWait, 3, "SMEMA WAIT", "[Zone 3] Waiting for SMEMA"),
+        new(InspectionStages.Discharge, 3, "DISCHARGE", "[Zone 3] Discharging"),
+        new(InspectionStages.Release, 3, "RELEASE", "[Zone 3] Releasing shuttle"),
     ];
 
-    private static readonly IReadOnlyDictionary<ProcessStage, ProcessStageDefinition> ByStage =
-        All.ToDictionary(definition => definition.Stage);
-
-    public static ProcessStageDefinition Get(ProcessStage stage) => ByStage[stage];
-
-    public static IEnumerable<ProcessStageDefinition> GetProgressStages(int zone) =>
-        All.Where(definition => definition.Zone == zone && definition.ShowInProgress);
+    public static ProcessStageDefinition Get(string stage) =>
+        Definitions.Single(definition => definition.Stage == stage);
 }

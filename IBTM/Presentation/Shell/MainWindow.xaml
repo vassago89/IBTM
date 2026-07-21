@@ -7,6 +7,8 @@
         WindowState="Maximized"
         MinWidth="1280" MinHeight="720"
         WindowStartupLocation="CenterScreen"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
         Background="{StaticResource AppBgBrush}">
 
     <Window.Resources>
@@ -23,13 +25,10 @@
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="160"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- ═════════════════════════════════════
-             사이드바 (Fluent NavigationView 스타일)
-             ═════════════════════════════════════ -->
         <Border Grid.Column="0"
                 Background="{StaticResource SidebarBgBrush}"
                 BorderThickness="0,0,1,0"
@@ -41,86 +40,57 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <!-- 로고 -->
-                <Border Grid.Row="0" Padding="16,16,16,12">
+                <Border Grid.Row="0" Padding="18,22,18,18">
                     <StackPanel>
                         <TextBlock Text="IBTM"
-                                   FontSize="20" FontWeight="Bold"
+                                   FontSize="19" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextPrimaryBrush}"/>
-                        <TextBlock Text="SMT Inline Control"
+                        <TextBlock Text="CONTROL SYSTEM"
                                    FontSize="10"
                                    Foreground="{StaticResource TextMutedBrush}"
-                                   Margin="0,2,0,0"/>
+                                   Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
 
-                <!-- 네비게이션 -->
-                <StackPanel Grid.Row="1" Margin="0,4">
-                    <RadioButton Content="  Process Monitor"
+                <StackPanel Grid.Row="1" Margin="0,8">
+                    <TextBlock Text="WORKSPACE" Style="{StaticResource SectionHeaderStyle}"
+                               Margin="18,0,18,8"/>
+                    <RadioButton Content="Process Monitor"
                                  GroupName="Navigation"
                                  IsChecked="True"
                                  Style="{StaticResource NavButtonStyle}"
                                  Command="{Binding NavigateCommand}"
                                  CommandParameter="Process"/>
 
-                    <RadioButton Content="  Teaching"
+                    <RadioButton Content="Teaching"
                                  GroupName="Navigation"
                                  Style="{StaticResource NavButtonStyle}"
                                  Command="{Binding NavigateCommand}"
                                  CommandParameter="Teaching"/>
 
-                    <RadioButton Content="  Settings"
+                    <RadioButton Content="Settings"
                                  GroupName="Navigation"
                                  Style="{StaticResource NavButtonStyle}"
                                  Command="{Binding NavigateCommand}"
                                  CommandParameter="Settings"/>
-
-                    <RadioButton Content="  Log Viewer"
-                                 GroupName="Navigation"
-                                 Style="{StaticResource NavButtonStyle}"
-                                 IsEnabled="False"/>
                 </StackPanel>
 
-                <!-- 하단 디바이스 상태 -->
-                <Border Grid.Row="2"
-                        BorderThickness="0,1,0,0"
-                        BorderBrush="{StaticResource DividerBrush}"
-                        Padding="16,12">
+                <Border Grid.Row="2" Margin="12" Padding="12,10"
+                        Background="{StaticResource CardBgBrush}"
+                        BorderBrush="{StaticResource CardBorderBrush}"
+                        BorderThickness="1" CornerRadius="8">
                     <StackPanel>
-                        <TextBlock Text="DEVICE" Style="{StaticResource SectionHeaderStyle}"
-                                   Margin="0,0,0,8"/>
-
-                        <StackPanel Orientation="Horizontal" Margin="0,3">
-                            <Ellipse Style="{StaticResource StatusLedStyle}" Fill="{StaticResource AccentGreenBrush}"/>
-                            <TextBlock Text="Zone1 Axis (Pick)" Style="{StaticResource DeviceStatusStyle}"/>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,3">
-                            <Ellipse Style="{StaticResource StatusLedStyle}" Fill="{StaticResource AccentGreenBrush}"/>
-                            <TextBlock Text="Zone2 Axis (Bolt)" Style="{StaticResource DeviceStatusStyle}"/>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,3">
-                            <Ellipse Style="{StaticResource StatusLedStyle}" Fill="{StaticResource AccentGreenBrush}"/>
-                            <TextBlock Text="Zone3 Axis (Inspect)" Style="{StaticResource DeviceStatusStyle}"/>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,3">
-                            <Ellipse Style="{StaticResource StatusLedStyle}" Fill="{StaticResource AccentYellowBrush}"/>
-                            <TextBlock Text="IO (Virtual)" Style="{StaticResource DeviceStatusStyle}"/>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,3">
-                            <Ellipse Style="{StaticResource StatusLedStyle}" Fill="{StaticResource AccentYellowBrush}"/>
-                            <TextBlock Text="Bolt Ctrl (Stub)" Style="{StaticResource DeviceStatusStyle}"/>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,3">
-                            <Ellipse Style="{StaticResource StatusLedStyle}" Fill="{StaticResource AccentYellowBrush}"/>
-                            <TextBlock Text="Camera (Sim)" Style="{StaticResource DeviceStatusStyle}"/>
-                        </StackPanel>
+                        <TextBlock Text="SIMULATION" Style="{StaticResource SectionHeaderStyle}"/>
+                        <TextBlock Text="Motion · IO · Vision" FontSize="10"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0"/>
                     </StackPanel>
                 </Border>
             </Grid>
         </Border>
 
-        <!-- 메인 콘텐츠 -->
         <ContentControl Grid.Column="1"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch"
                         Content="{Binding CurrentPage}"/>
     </Grid>
 </Window>
