@@ -5,51 +5,45 @@ using IBTM.Device;
 
 namespace IBTM.Transport;
 
-public sealed class Conveyor : IDisposable
+public sealed class Conveyor(
+    IConveyorServo servo,
+    IIoService io,
+    ConveyorSettings settings) : IDisposable
 {
-    public const int UpstreamBoardAvailableInputChannel = 1;
-    public const int UpstreamMachineReadyOutputChannel = 2;
-    public const int DownstreamMachineReadyInputChannel = 40;
-    public const int DownstreamBoardAvailableOutputChannel = 41;
-
-    private readonly IConveyorServo _servo;
-    private readonly IIoService _io;
-    private readonly ConveyorSettings _settings;
     private readonly SemaphoreSlim _transferGate = new(1, 1);
 
-    public Conveyor(
-        IConveyorServo servo,
-        IIoService io,
-        ConveyorSettings settings)
-    {
-        _servo = servo;
-        _io = io;
-        _settings = settings;
-    }
+    public void Initialize() => servo.Initialize();
 
-    public void Initialize() => _servo.Initialize();
+    public AxisState GetAxisState() => servo.GetAxisState();
+
+    public void ResetAlarm() => servo.ResetAlarm();
 
     public async Task ReceiveAsync(
         CarrierJigPositioner destination,
         CancellationToken cancellationToken)
     {
         await destination.WaitUntilEmptyAsync(cancellationToken);
-        await _io.WaitForInputAsync(
-            UpstreamBoardAvailableInputChannel,
+        await io.WaitForInputAsync(
+            InputIo.MainLaneUpstreamBoardAvailable,
             true,
             cancellationToken);
         await _transferGate.WaitAsync(cancellationToken);
 
         try
         {
-            _io.SetOutput(UpstreamMachineReadyOutputChannel, true);
-            _servo.Run(_settings.Velocity);
+            io.SetOutput(OutputIo.MainLaneUpstreamMachineReady, true);
+            servo.Run(settings.Velocity);
             await destination.WaitUntilPresentAsync(cancellationToken);
+            servo.Stop();
+            await io.WaitForInputAsync(
+                InputIo.MainLaneUpstreamBoardAvailable,
+                false,
+                cancellationToken);
         }
         finally
         {
-            _servo.Stop();
-            _io.SetOutput(UpstreamMachineReadyOutputChannel, false);
+            servo.Stop();
+            io.SetOutput(OutputIo.MainLaneUpstreamMachineReady, false);
             _transferGate.Release();
         }
     }
@@ -64,13 +58,13 @@ public sealed class Conveyor : IDisposable
 
         try
         {
-            _servo.Run(_settings.Velocity);
+            servo.Run(settings.Velocity);
             await source.ReleaseAsync(cancellationToken);
             await destination.WaitUntilPresentAsync(cancellationToken);
         }
         finally
         {
-            _servo.Stop();
+            servo.Stop();
             _transferGate.Release();
         }
     }
@@ -79,42 +73,47 @@ public sealed class Conveyor : IDisposable
         CarrierJigPositioner source,
         CancellationToken cancellationToken)
     {
-        _io.SetOutput(DownstreamBoardAvailableOutputChannel, true);
+        io.SetOutput(OutputIo.MainLaneDownstreamBoardAvailable, true);
 
         try
         {
-            await _io.WaitForInputAsync(
-                DownstreamMachineReadyInputChannel,
+            await io.WaitForInputAsync(
+                InputIo.MainLaneDownstreamMachineReady,
                 true,
                 cancellationToken);
             await _transferGate.WaitAsync(cancellationToken);
 
             try
             {
-                _servo.Run(_settings.Velocity);
+                servo.Run(settings.Velocity);
                 await source.ReleaseAsync(cancellationToken);
+                io.SetOutput(OutputIo.MainLaneDownstreamBoardAvailable, false);
+                await io.WaitForInputAsync(
+                    InputIo.MainLaneDownstreamMachineReady,
+                    false,
+                    cancellationToken);
             }
             finally
             {
-                _servo.Stop();
+                servo.Stop();
                 _transferGate.Release();
             }
         }
         finally
         {
-            _io.SetOutput(DownstreamBoardAvailableOutputChannel, false);
+            io.SetOutput(OutputIo.MainLaneDownstreamBoardAvailable, false);
         }
     }
 
     public void Stop()
     {
-        _servo.Stop();
+        servo.Stop();
         ResetSmema();
     }
 
     public void EmergencyStop()
     {
-        _servo.EmergencyStop();
+        servo.EmergencyStop();
         ResetSmema();
     }
 
@@ -122,8 +121,7 @@ public sealed class Conveyor : IDisposable
 
     private void ResetSmema()
     {
-        _io.SetOutput(UpstreamMachineReadyOutputChannel, false);
-        _io.SetOutput(DownstreamBoardAvailableOutputChannel, false);
+        io.SetOutput(OutputIo.MainLaneUpstreamMachineReady, false);
+        io.SetOutput(OutputIo.MainLaneDownstreamBoardAvailable, false);
     }
-
 }

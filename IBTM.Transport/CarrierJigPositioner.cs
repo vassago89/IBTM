@@ -4,55 +4,73 @@ using IBTM.Device;
 
 namespace IBTM.Transport;
 
-public sealed class CarrierJigPositioner
+public sealed class CarrierJigPositioner(
+    IIoService io,
+    InputIo presentInput,
+    OutputIo stopperUpOutput,
+    OutputIo backupPlateUpOutput)
 {
-    private readonly IIoService _io;
-    private readonly int _presentInputChannel;
-    private readonly int _stopperUpOutputChannel;
-    private readonly int _backupPlateUpOutputChannel;
-
-    public CarrierJigPositioner(
-        IIoService io,
-        int presentInputChannel,
-        int stopperUpOutputChannel,
-        int backupPlateUpOutputChannel)
-    {
-        _io = io;
-        _presentInputChannel = presentInputChannel;
-        _stopperUpOutputChannel = stopperUpOutputChannel;
-        _backupPlateUpOutputChannel = backupPlateUpOutputChannel;
-    }
-
     public void Initialize()
     {
-        _io.SetOutput(_stopperUpOutputChannel, false);
-        _io.SetOutput(_backupPlateUpOutputChannel, false);
+        io.SetOutput(stopperUpOutput, false);
+        io.SetOutput(backupPlateUpOutput, false);
     }
 
     public async Task PositionAsync(CancellationToken cancellationToken)
     {
         await WaitUntilPresentAsync(cancellationToken);
-        _io.SetOutput(_backupPlateUpOutputChannel, true);
+        await io.SetOutputAndWaitAsync(
+            backupPlateUpOutput,
+            true,
+            cancellationToken);
     }
 
     public Task WaitUntilPresentAsync(CancellationToken cancellationToken) =>
-        _io.WaitForInputAsync(_presentInputChannel, true, cancellationToken);
+        io.WaitForInputAsync(presentInput, true, cancellationToken);
 
-    public Task WaitUntilEmptyAsync(CancellationToken cancellationToken) =>
-        _io.WaitForInputAsync(_presentInputChannel, false, cancellationToken);
+    public async Task WaitUntilEmptyAsync(CancellationToken cancellationToken)
+    {
+        await WaitUntilCarrierLeavesAsync(cancellationToken);
+        await io.WaitForOutputFeedbackAsync(
+            backupPlateUpOutput,
+            false,
+            cancellationToken);
+        await io.WaitForOutputFeedbackAsync(
+            stopperUpOutput,
+            false,
+            cancellationToken);
+    }
 
     public async Task CompleteRemovalAsync(CancellationToken cancellationToken)
     {
-        await WaitUntilEmptyAsync(cancellationToken);
-        _io.SetOutput(_backupPlateUpOutputChannel, false);
-        _io.SetOutput(_stopperUpOutputChannel, false);
+        await WaitUntilCarrierLeavesAsync(cancellationToken);
+        await io.SetOutputAndWaitAsync(
+            backupPlateUpOutput,
+            false,
+            cancellationToken);
+        await io.SetOutputAndWaitAsync(
+            stopperUpOutput,
+            false,
+            cancellationToken);
     }
 
     internal async Task ReleaseAsync(CancellationToken cancellationToken)
     {
-        _io.SetOutput(_backupPlateUpOutputChannel, false);
-        _io.SetOutput(_stopperUpOutputChannel, true);
-        await WaitUntilEmptyAsync(cancellationToken);
-        _io.SetOutput(_stopperUpOutputChannel, false);
+        await io.SetOutputAndWaitAsync(
+            backupPlateUpOutput,
+            false,
+            cancellationToken);
+        await io.SetOutputAndWaitAsync(
+            stopperUpOutput,
+            true,
+            cancellationToken);
+        await WaitUntilCarrierLeavesAsync(cancellationToken);
+        await io.SetOutputAndWaitAsync(
+            stopperUpOutput,
+            false,
+            cancellationToken);
     }
+
+    private Task WaitUntilCarrierLeavesAsync(CancellationToken cancellationToken) =>
+        io.WaitForInputAsync(presentInput, false, cancellationToken);
 }

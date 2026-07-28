@@ -1,11 +1,21 @@
 using System.Collections.Generic;
-using IBTM.Core.Geometry;
+using System.Text.Json.Serialization;
+using IBTM.Core;
 
 namespace IBTM.Stations.BoltFastening;
 
+[JsonConverter(typeof(JsonStringEnumConverter<BoltType>))]
+public enum BoltType
+{
+    Standard,
+    Loctite,
+}
+
 public sealed class BoltPoint
 {
-    public string Name { get; set; } = string.Empty;
+    public int Number { get; set; }
+    [JsonIgnore] public string Name => $"B{Number}";
+    public BoltType BoltType { get; set; }
     public double X { get; set; }
     public double Y { get; set; }
     public double Z { get; set; }
@@ -14,15 +24,13 @@ public sealed class BoltPoint
 
 public sealed class BoltFasteningRecipe
 {
-    public AxisPos FiducialPosition { get; set; } = new() { X = 70.0, Y = 85.0, Z = 10.0 };
-    public double Pcb1CenterX { get; set; } = 75.0;
-    public double Pcb2CenterX { get; set; } = 130.0;
-    public double PcbCenterY { get; set; } = 95.0;
+    public AxisPos Pcb1Reference { get; set; } = new() { X = 75.0, Y = 95.0 };
+    public AxisPos Pcb2Reference { get; set; } = new() { X = 130.0, Y = 95.0 };
     public List<BoltPoint> BoltPoints { get; set; } =
     [
-        new() { Name = "B1", X = -10.0, Y = -10.0, Z = 20.0, TargetTorqueNm = 15.0 },
-        new() { Name = "B2", X = 10.0, Y = -10.0, Z = 20.0, TargetTorqueNm = 15.0 },
-        new() { Name = "B3", X = 10.0, Y = 10.0, Z = 20.0, TargetTorqueNm = 15.0 },
-        new() { Name = "B4", X = -10.0, Y = 10.0, Z = 20.0, TargetTorqueNm = 15.0 },
+        new() { Number = 1, X = -10.0, Y = -10.0, Z = 20.0, TargetTorqueNm = 15.0 },
+        new() { Number = 2, X = 10.0, Y = -10.0, Z = 20.0, TargetTorqueNm = 15.0 },
+        new() { Number = 3, X = 10.0, Y = 10.0, Z = 20.0, TargetTorqueNm = 15.0 },
+        new() { Number = 4, X = -10.0, Y = 10.0, Z = 20.0, TargetTorqueNm = 15.0 },
     ];
 }

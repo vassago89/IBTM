@@ -1,77 +1,53 @@
-using System;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.Core.Geometry;
-using IBTM.Core.Machine;
-using IBTM.Core.Process;
+using IBTM.Core;
 using IBTM.Device;
 using IBTM.Transport;
 
 namespace IBTM.Stations.Inspection;
 
-public sealed class InspectionStation : IDisposable
+public sealed class InspectionStation(
+    MotionService motion,
+    IIoService io,
+    InspectionSettings settings,
+    ProcessEvents events,
+    ICameraStreamService camera,
+    ILightController light,
+    LightingSettings lighting)
 {
     private const int MinimumFeaturePixels = 400;
 
-    public const int CarrierJigPresentInputChannel = 30;
-    public const int StopperUpOutputChannel = 31;
-    public const int BackupPlateUpOutputChannel = 33;
-    public const int GripperChannel = 34;
-    public const int LaserChannel = 35;
-
-    private readonly IMotionService _motion;
-    private readonly IIoService _io;
-    private readonly StationMotionSettings _motionSettings;
-    private readonly ProcessEvents _events;
-    private readonly ICameraStreamService _camera;
-    private readonly InspectionOptions _options;
-
-    public InspectionStation(
-        IMotionService motion,
-        IIoService io,
-        InspectionOptions options,
-        ProcessEvents events,
-        ICameraStreamService camera)
-    {
-        _motion = motion;
-        _io = io;
-        _motionSettings = options.Motion;
-        _events = events;
-        _camera = camera;
-        _options = options;
-        CarrierJigPositioner = new CarrierJigPositioner(
-            io,
-            CarrierJigPresentInputChannel,
-            StopperUpOutputChannel,
-            BackupPlateUpOutputChannel);
-        _motion.PositionChanged += OnPositionChanged;
-    }
-
     public int NgStackCount { get; private set; }
-    public int NgStackCapacity => _options.NgStackMaxCount;
-    public CarrierJigPositioner CarrierJigPositioner { get; }
+    public int NgStackCapacity => settings.NgStackMaxCount;
+    public CarrierJigPositioner CarrierJigPositioner { get; } = new(
+        io,
+        InputIo.InspectionCarrierJigPresent,
+        OutputIo.InspectionStopperUp,
+        OutputIo.InspectionBackupPlateUp);
 
     public void Initialize()
     {
-        _motion.Initialize();
+        motion.Initialize();
+        camera.Initialize();
         CarrierJigPositioner.Initialize();
     }
 
     public async Task<CarrierInspectionResult> ProcessAsync(
         InspectionRecipe recipe,
+        CarrierJigState carrierJig,
         CancellationToken cancellationToken)
     {
-        await _events.RunStageAsync(
-            InspectionStages.PositionCarrierJig,
+        await events.RunStageAsync(
+            ProcessStage.PositionInspectionCarrierJig,
             cancellationToken,
             CarrierJigPositioner.PositionAsync);
 
-        var result = await _events.RunStageAsync(
-            InspectionStages.Inspect,
+        var result = await events.RunStageAsync(
+            ProcessStage.Inspect,
             cancellationToken,
-            token => InspectAsync(recipe, token));
+            token => InspectAsync(recipe, carrierJig, token));
 
-        if (result.Result == InspectionResult.Ng)
+        if (result.OverallResult == InspectionResult.Ng)
         {
             await StackNgCarrierJigAsync(recipe, cancellationToken);
         }
@@ -82,37 +58,56 @@ public sealed class InspectionStation : IDisposable
     public void ResetNgStack()
     {
         NgStackCount = 0;
-        _events.NgStack(0, alarm: false);
+        events.NgStack(0, alarm: false);
     }
 
-    public void Stop() => _motion.Stop();
+    public void Stop() => motion.Stop();
 
-    public void EmergencyStop() => _motion.EmergencyStop();
-
-    public void Dispose() => _motion.PositionChanged -= OnPositionChanged;
+    public void EmergencyStop() => motion.EmergencyStop();
 
     private async Task<CarrierInspectionResult> InspectAsync(
         InspectionRecipe recipe,
+        CarrierJigState carrierJig,
         CancellationToken cancellationToken)
     {
-        var pcb1 = await InspectPcbAsync(
-            recipe.Pcb1InspectionPosition,
-            cancellationToken);
-        var pcb2 = await InspectPcbAsync(
-            recipe.Pcb2InspectionPosition,
-            cancellationToken);
+        var pcb1 = carrierJig.Pcb1Present
+            ? await InspectPcbAsync(
+                recipe.Pcb1InspectionPosition,
+                cancellationToken)
+            : new PcbInspectionResult(InspectionResult.Missing, null);
+        var pcb2 = carrierJig.Pcb2Present
+            ? await InspectPcbAsync(
+                recipe.Pcb2InspectionPosition,
+                cancellationToken)
+            : new PcbInspectionResult(InspectionResult.Missing, null);
         var result = new CarrierInspectionResult(pcb1, pcb2);
-        _events.Inspection(result);
+        events.Inspection(result);
         return result;
     }
 
-    private async Task<InspectionOutcome> InspectPcbAsync(
+    private async Task<PcbInspectionResult> InspectPcbAsync(
         AxisPos position,
         CancellationToken cancellationToken)
     {
-        await MoveToPositionAsync(position, cancellationToken);
+        await motion.MoveToAsync(
+            position.X,
+            position.Y,
+            position.Z,
+            cancellationToken);
 
-        var image = _camera.Capture();
+        light.SetLevel(lighting.InspectionChannel, lighting.InspectionLevel);
+        light.TurnOn(lighting.InspectionChannel);
+        ImageFrame image;
+        try
+        {
+            image = camera.Capture();
+        }
+        finally
+        {
+            light.TurnOff(lighting.InspectionChannel);
+            await motion.MoveToSafeZAsync(cancellationToken);
+        }
+
         var featurePixels = 0;
         for (var y = 0; y < image.Height; y++)
         {
@@ -131,14 +126,14 @@ public sealed class InspectionStation : IDisposable
         var result = featurePixels >= MinimumFeaturePixels
             ? InspectionResult.Good
             : InspectionResult.Ng;
-        return new InspectionOutcome(result, image);
+        return new PcbInspectionResult(result, image);
     }
 
     private Task StackNgCarrierJigAsync(
         InspectionRecipe recipe,
         CancellationToken cancellationToken) =>
-        _events.RunStageAsync(
-            InspectionStages.StackNgCarrierJig,
+        events.RunStageAsync(
+            ProcessStage.StackNgCarrierJig,
             cancellationToken,
             async token =>
             {
@@ -149,7 +144,7 @@ public sealed class InspectionStation : IDisposable
                 await CarrierJigPositioner.CompleteRemovalAsync(token);
 
                 NgStackCount++;
-                _events.NgStack(NgStackCount, NgStackCount >= NgStackCapacity);
+                events.NgStack(NgStackCount, NgStackCount >= NgStackCapacity);
             });
 
     private async Task PickAndPlaceAsync(
@@ -157,41 +152,26 @@ public sealed class InspectionStation : IDisposable
         AxisPos placePosition,
         CancellationToken cancellationToken)
     {
-        await MoveToPositionAsync(pickPosition, cancellationToken);
-        _io.SetOutput(GripperChannel, true);
-        await _io.WaitForInputAsync(GripperChannel, true, cancellationToken);
+        await motion.MoveToAsync(
+            pickPosition.X,
+            pickPosition.Y,
+            pickPosition.Z,
+            cancellationToken);
+        await io.SetOutputAndWaitAsync(
+            OutputIo.InspectionGripper,
+            true,
+            cancellationToken);
 
-        await MoveToZAsync(0, cancellationToken);
-        await _motion.MoveToXYAsync(
+        await motion.MoveToAsync(
             placePosition.X,
             placePosition.Y,
-            _motionSettings.SpeedXY,
+            placePosition.Z,
             cancellationToken);
-        await MoveToZAsync(placePosition.Z, cancellationToken);
 
-        _io.SetOutput(GripperChannel, false);
-        await _io.WaitForInputAsync(GripperChannel, false, cancellationToken);
-        await MoveToZAsync(0, cancellationToken);
+        await io.SetOutputAndWaitAsync(
+            OutputIo.InspectionGripper,
+            false,
+            cancellationToken);
+        await motion.MoveToSafeZAsync(cancellationToken);
     }
-
-    private async Task MoveToPositionAsync(
-        AxisPos position,
-        CancellationToken cancellationToken)
-    {
-        await _motion.MoveToXYAsync(
-            position.X,
-            position.Y,
-            _motionSettings.SpeedXY,
-            cancellationToken);
-        await MoveToZAsync(position.Z, cancellationToken);
-    }
-
-    private Task MoveToZAsync(double position, CancellationToken cancellationToken) =>
-        _motion.MoveToZAsync(
-            position,
-            _motionSettings.SpeedZ,
-            cancellationToken);
-
-    private void OnPositionChanged(double x, double y, double z) =>
-        _events.Position(3, x, y, z);
 }

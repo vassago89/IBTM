@@ -1,103 +1,125 @@
 # IBTM
 
-세 개의 독립 검사 Station과 하나의 공용 Conveyor를 조율하는 .NET 10 WPF 애플리케이션입니다.
+IBTM is a .NET 10 WPF machine-control application for a three-station carrier-jig line.
+The stations work independently while sharing one servo conveyor.
 
-- Station 1 · PCB Placement: PCB 픽업 및 배치
-- Station 2 · Bolt Fastening: Fiducial 보정 및 볼트 체결
-- Station 3 · Inspection: 비전 검사 후 GOOD 배출 또는 NG 적재
+## Process
 
-## 프로젝트 구조
+1. `PcbSupply` receives a two-PCB carrier, picks one PCB, keeps it in the supply
+   gripper, and rotates the handler to the handoff position. This handler has only
+   X and Z motion axes.
+2. `PcbPlacement` grips the PCB directly from the rotated supply handler. The supply
+   gripper releases only after the placement gripper confirms pickup. The placement
+   handler moves to the first fiducial position before allowing the supply handler
+   to return home. It then captures both fiducials, averages the X/Y corrections,
+   and places the PCB in its housing.
+3. `BoltFastening` moves one shared XYZ mechanism and selects either the standard
+   blow-fed head or the separately supplied Loctite head for each bolt point.
+4. `Inspection` captures both PCB positions and either sends the carrier jig
+   downstream or moves the complete carrier jig to the NG stack.
+
+The conveyor moves only one carrier jig at a time. A carrier jig lifted by a station
+backup plate is mechanically separated from the conveyor, so another carrier jig can
+move between other stations.
+
+The supply and placement grippers each have a dedicated PCB-presence input in
+addition to their open/closed feedback. A missing PCB at the supply handler skips
+that handoff. A missing PCB at the placement handler skips alignment and placement;
+fiducial failure with a detected PCB is an alarm.
+
+## Projects
 
 ```text
-IBTM/                               WPF Host, 통합 설정, 화면, DI
-IBTM.Core/                          좌표, 공정 이벤트, 공통 데이터
-IBTM.Device/                        모션·IO·카메라 장치 계약
-IBTM.Transport/                     서보 Conveyor, SMEMA, Station별 Carrier Jig 위치 결정
-IBTM.Stations.PcbPlacement/         PCB 배치 공정
-IBTM.Stations.BoltFastening/        Fiducial 및 볼트 체결 공정
-IBTM.Stations.Inspection/           검사와 GOOD/NG 분기 공정
-IBTM.Orchestration/                 병렬 공정 실행과 전체 사이클 수명 주기
-IBTM.Virtual/                       가상 장비와 가상 Conveyor 신호
-IBTM.Virtual.Tests/                 가상 설비 통합 동작 검증
+IBTM/                               WPF host, settings, persistence, DI, UI
+IBTM.Core/                          Shared coordinates, process events, results
+IBTM.Device/                        Hardware boundaries, motion safety, maps, lighting
+IBTM.Ajin/                          AJIN motion, I/O, and conveyor implementations
+IBTM.Hik/                           Hik area-camera implementation
+IBTM.Transport/                     Conveyor and carrier-jig positioning
+IBTM.PcbSupply/                     Upstream PCB carrier, rotation, and direct handoff
+IBTM.Stations.PcbPlacement/         PCB pickup, two-point XY alignment, placement
+IBTM.Stations.BoltFastening/        Bolt pattern execution
+IBTM.Stations.Inspection/           Inspection, downstream transfer, NG stacking
+IBTM.Sequence/                      Concurrent station loops and machine lifecycle
+IBTM.Virtual/                       Virtual hardware
+IBTM.Virtual.Tests/                 Virtual machine and sequence tests
 ```
 
-의존성은 설비 구조와 같은 방향으로만 흐릅니다.
+Station projects do not reference one another. `IBTM.Sequence` coordinates their
+process flow, and `IBTM.Transport` owns the shared conveyor behavior.
+
+## Teaching model
+
+Each mechanism owns its directly taught positions. PCB placement stores both housing
+positions, bolt fastening stores both PCB references plus a shared relative bolt
+pattern, and inspection stores its own capture positions. No shared calibration or
+cross-station coordinate conversion is applied implicitly.
+
+Alignment-camera positions are separate machine motions:
 
 ```text
-IBTM Host
-    ├─ IBTM.Virtual
-    └─ IBTM.Orchestration
-          ├─ IBTM.Stations.PcbPlacement ─┐
-          ├─ IBTM.Stations.BoltFastening ├─ IBTM.Core ─ IBTM.Device
-          ├─ IBTM.Stations.Inspection ───┘
-          └─ IBTM.Transport ──────────────────────── IBTM.Device
+Pick PCB
+  -> rotate supply handler
+  -> direct gripper-to-gripper handoff
+  -> Fiducial 1 capture
+  -> Fiducial 2 capture
+  -> average X/Y correction
+  -> taught PCB place position + correction
 ```
 
-Station 프로젝트는 서로 참조하지 않습니다. 각 Station은 자기 Recipe, Options,
-Stage, IO 주소와 공정 순서를 소유합니다. 공용 Conveyor와 각 Station에 설치된
-Stopper·Backup Plate는 `IBTM.Transport`가 소유합니다. 장치 구현을 교체해야 하는
-모션, IO, 카메라, 검사기 경계에만 인터페이스를 둡니다.
+The alignment camera does not calculate PCB rotation or scale.
 
-## 설비 동작
+## Hardware configuration
 
-Conveyor는 한 개의 서보 축이며 동시에 Carrier Jig 하나만 이송합니다. Station 1은 전단
-`Board Available` 신호를 기다린 뒤 `Machine Ready`를 출력하고 Conveyor를 일정 속도로
-운전합니다. 전단 Conveyor도 함께 운전하며, Station 1 감지 신호가 켜지면 우리 Conveyor를
-정지합니다.
+Logical `InputIo`, `OutputIo`, and `MachineAxis` values map to physical channel
+numbers in `MachineSettings.json`. Hardware and camera drivers are selected
+independently:
 
-내부 Station 간 이송도 같은 속도 운전 방식입니다. 목적지가 비어 있는지 확인한 뒤
-Conveyor를 Run하고, 출발 Station의 Backup Plate를 내리고 Stopper를 올립니다. 목적지
-Carrier Jig 감지 신호가 켜지는 즉시 Conveyor를 Stop합니다. 고정 거리 위치 이동은 하지
-않습니다.
+- `Driver`: `Virtual` or `Ajin`
+- `CameraDriver`: `Virtual` or `Hik`
 
-Station 3은 PCB 1과 PCB 2를 각각 검사하지만 판정과 생산 수량은 Carrier Jig 단위입니다.
-두 PCB 중 하나라도 NG이면 Carrier Jig 전체를 NG Stack으로 옮기고 후단으로 보내지 않습니다. GOOD Carrier Jig만
-후단에 `Board Available`을 출력하고 `Machine Ready`를 받은 뒤 양쪽 Conveyor를 함께 운전해
-배출합니다. 각 Station은 Carrier Jig를 감지하면 Backup Plate를 올려 Conveyor에서 분리한 뒤
-공정을 수행합니다.
+There are two cameras: `AlignmentCamera` and `InspectionCamera`.
 
-다른 Station의 Carrier Jig는 Backup Plate로 들려 있으므로 이송 중에도 공정을 계속할 수
-있습니다. 따라서 세 Station 감지 입력은 동시에 켜질 수 있지만 Conveyor 이송은 항상
-하나씩 실행됩니다. 모든 이송은 목적지 Carrier Jig 감지 신호가 꺼져 있을 때만 시작하므로
-앞 Carrier Jig가 빠지기 전에 다음 Carrier Jig가 들어와 충돌할 수 없습니다.
+`Hardware.OutputFeedbacks` pairs every pneumatic output with the input state that
+confirms its ON and OFF motion. Each pair has its own timeout in milliseconds.
+Grippers, stoppers, backup plates, and the supply rotation use this map. SMEMA,
+lasers, tower lamps, and the buzzer have no direct actuator feedback and are not
+included. A feedback timeout marks the active process stage as an alarm and stops
+the automatic sequence.
 
-## 클래스 이름과 책임
+The bolt-fastening mechanism has one shared motion and two heads mounted at fixed
+X/Y offsets. Each head has its own tightening controller and feeder controller.
+`StandardHead` uses blow feeding; `LoctiteHead` uses a separate non-shooting supply.
+Recipes select `Standard` or `Loctite` for every bolt point. The application currently
+uses the virtual bolt-head implementation; vendor controller and feeder drivers are
+added when their protocols are selected.
 
-| 클래스 | 책임 |
-| --- | --- |
-| `IConveyorServo` | 실제 Conveyor 서보의 초기화, 속도 운전, 정지 경계 |
-| `Conveyor` | 서보 속도 운전, SMEMA 반입·반출, 단일 이송과 목적지 Empty 조건을 조율함 |
-| `ConveyorSettings` | Conveyor 운전 속도만 보관함 |
-| `CarrierJigPositioner` | 한 Station의 Carrier Jig 감지, Stopper, Backup Plate를 제어함 |
-| `PcbPlacementStation` | Carrier Jig 위치 결정 후 PCB 픽업·배치 공정을 실행함 |
-| `BoltFasteningStation` | Carrier Jig 위치 결정, Fiducial 검출, 볼트 체결을 실행함 |
-| `InspectionStation` | 검사 결과를 Carrier Jig 단위로 판정하고 GOOD 배출 또는 NG Jig 적재를 실행함 |
-| `CarrierInspectionResult` | PCB 1·2 검사 결과를 보관하고 Carrier Jig 최종 판정을 계산함 |
-| `ProcessOrchestrator` | 세 Station 작업을 병렬 실행하고 Conveyor 이송, 정지, 통계를 조율함 |
-| `ProcessEvents` | Stage 실행 상태를 열고 닫고 공정 결과를 UI에 전달함 |
-| `StationMotionSettings` | Station의 XY/Z 속도 값만 보관함 |
-| `TeachingPointMapper` | Recipe 좌표와 화면의 Teaching Point를 변환함 |
-| `VirtualConveyorServo` | 속도 운전형 Conveyor 서보를 재현함 |
-| `VirtualIoService` | SMEMA, Carrier Jig 이동과 액추에이터 피드백을 재현함 |
+Every automatic horizontal move follows the same motion order:
+`SafeZ -> X/XY -> work Z -> SafeZ`. `SafeZ` is configured for each mechanism.
+Manual horizontal jog is enabled only while that mechanism is at `SafeZ`.
+`MotionService` enforces this below the stations and UI. AJIN and Virtual expose
+their raw XY commands only as protected implementation methods.
 
-공통 Station 인터페이스, 범용 하드웨어 래퍼, Station 등록 모듈 같은 중간 계층은 두지
-않습니다. 각 Station 클래스가 자기 모션과 공정용 IO를 직접 사용합니다. 공통 클래스로
-분리한 것은 실제로 공유되는 Conveyor와 반복 설치되는 Carrier Jig 위치 결정 장치뿐입니다.
+The process monitor shows live supply and placement handler positions over the
+machine's top-view layout. The shared conveyor and carrier jig are shown on the
+lower lane, and key PCB, gripper, housing, camera, and conveyor states change with
+the machine. The Settings screen contains the complete mapped I/O and axis view.
 
-카메라와 검사 결과는 WPF 타입 대신 `ImageFrame`으로 전달합니다. `ImageSource` 변환은
-Host의 Presentation 경계에서만 수행합니다. 설정과 Recipe는 현재 모델로 바로 읽으며
-이전 이름이나 알 수 없는 형식을 추정해 보정하지 않습니다. 등록되지 않은 Stage와
-지원하지 않는 값은 기본값으로 숨기지 않고 즉시 실패합니다.
+One MOVS light controller drives two independent lights. Channel 1 is used for
+alignment and channel 2 for inspection by default; each channel has its own level.
+Its serial protocol is:
 
-공정 좌표와 속도 단위는 `mm`, `mm/s`입니다.
+```text
+19200 baud
+:L{channel}{level:000}\r\n
+:O{channel}\r\n
+:F{channel}\r\n
+```
 
-## 실행
+## Build
 
 ```powershell
-dotnet restore IBTM.slnx
 dotnet build IBTM.slnx --configuration Release
+dotnet test IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj --configuration Release
 dotnet run --project IBTM/IBTM.csproj
 ```
-
-현재 실행 구성은 `IBTM.Virtual`의 모션, IO, 카메라, Fiducial, 검사, 볼트 구현을
-사용합니다. 실제 장치를 연결할 때는 `IBTM.Device`의 계약 구현과 DI 등록만 교체합니다.

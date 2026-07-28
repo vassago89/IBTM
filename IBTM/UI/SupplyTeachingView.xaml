@@ -1,0 +1,439 @@
+<UserControl x:Class="IBTM.UI.SupplyTeachingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
+             Background="{StaticResource AppBgBrush}"
+             Loaded="OnLoaded"
+             Unloaded="OnUnloaded">
+
+    <UserControl.Resources>
+        <CollectionViewSource x:Key="GroupedPoints" Source="{Binding Points}">
+            <CollectionViewSource.GroupDescriptions>
+                <PropertyGroupDescription PropertyName="SectionLabel"/>
+            </CollectionViewSource.GroupDescriptions>
+        </CollectionViewSource>
+    </UserControl.Resources>
+
+    <Grid Margin="24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Margin="0,0,0,16">
+            <TextBlock Text="PCB Supply Teaching"
+                       Style="{StaticResource TitleStyle}"/>
+            <TextBlock Text="Supply handler positions and paired mechanical handoff · no camera coordinates"
+                       FontSize="11"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       Margin="0,4,0,0"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="340"/>
+                <ColumnDefinition Width="16"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+                <Border Style="{StaticResource CardStyle}"
+                        Padding="18"
+                        Margin="0,0,0,12">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,14">
+                            <TextBlock Text="CURRENT POSITION"
+                                       Style="{StaticResource SectionHeaderStyle}"/>
+                            <TextBlock Text="{Binding ActiveUnit}"
+                                       HorizontalAlignment="Right"
+                                       FontFamily="Cascadia Mono, Consolas"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </Grid>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="X"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="10"/>
+                                <TextBlock Text="{Binding CurrentX, StringFormat=F3}"
+                                           FontFamily="Cascadia Mono, Consolas"
+                                           FontSize="23"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1"
+                                        Visibility="{Binding HasY, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="Y"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="10"/>
+                                <TextBlock Text="{Binding CurrentY, StringFormat=F3}"
+                                           FontFamily="Cascadia Mono, Consolas"
+                                           FontSize="23"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Z"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontSize="10"/>
+                                <TextBlock Text="{Binding CurrentZ, StringFormat=F3}"
+                                           FontFamily="Cascadia Mono, Consolas"
+                                           FontSize="23"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="{Binding SafeZ, StringFormat=Safe Z  {0:F3} mm}"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontFamily="Cascadia Mono, Consolas"
+                                   Margin="0,12,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardStyle}"
+                        Padding="18"
+                        Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="JOG SELECTED HANDLER"
+                                   Style="{StaticResource SectionHeaderStyle}"
+                                   Margin="0,0,0,12"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="36"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="42"/>
+                                <RowDefinition Height="42"/>
+                                <RowDefinition Height="42"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0"
+                                       Text="X"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <Button Grid.Row="0"
+                                    Grid.Column="1"
+                                    Content="-"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    PreviewMouseLeftButtonDown="JogXMinus_Down"
+                                    PreviewMouseLeftButtonUp="Jog_Up"
+                                    MouseLeave="Jog_Cancel"
+                                    LostMouseCapture="Jog_Cancel"/>
+                            <Button Grid.Row="0"
+                                    Grid.Column="3"
+                                    Content="+"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    PreviewMouseLeftButtonDown="JogXPlus_Down"
+                                    PreviewMouseLeftButtonUp="Jog_Up"
+                                    MouseLeave="Jog_Cancel"
+                                    LostMouseCapture="Jog_Cancel"/>
+
+                            <TextBlock Grid.Row="1"
+                                       Text="Y"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Visibility="{Binding HasY, Converter={StaticResource BoolToVis}}"/>
+                            <Button Grid.Row="1"
+                                    Grid.Column="1"
+                                    Content="-"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    PreviewMouseLeftButtonDown="JogYMinus_Down"
+                                    PreviewMouseLeftButtonUp="Jog_Up"
+                                    MouseLeave="Jog_Cancel"
+                                    LostMouseCapture="Jog_Cancel"
+                                    Visibility="{Binding HasY, Converter={StaticResource BoolToVis}}"/>
+                            <Button Grid.Row="1"
+                                    Grid.Column="3"
+                                    Content="+"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    PreviewMouseLeftButtonDown="JogYPlus_Down"
+                                    PreviewMouseLeftButtonUp="Jog_Up"
+                                    MouseLeave="Jog_Cancel"
+                                    LostMouseCapture="Jog_Cancel"
+                                    Visibility="{Binding HasY, Converter={StaticResource BoolToVis}}"/>
+
+                            <TextBlock Grid.Row="2"
+                                       Text="Z"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <Button Grid.Row="2"
+                                    Grid.Column="1"
+                                    Content="-"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    PreviewMouseLeftButtonDown="JogZMinus_Down"
+                                    PreviewMouseLeftButtonUp="Jog_Up"
+                                    MouseLeave="Jog_Cancel"
+                                    LostMouseCapture="Jog_Cancel"/>
+                            <Button Grid.Row="2"
+                                    Grid.Column="3"
+                                    Content="+"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    PreviewMouseLeftButtonDown="JogZPlus_Down"
+                                    PreviewMouseLeftButtonUp="Jog_Up"
+                                    MouseLeave="Jog_Cancel"
+                                    LostMouseCapture="Jog_Cancel"/>
+                        </Grid>
+
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Content="STOP"
+                                    Command="{Binding JogStopCommand}"
+                                    Style="{StaticResource DangerButtonStyle}"/>
+                            <Button Grid.Column="2"
+                                    Content="Safe Z"
+                                    Command="{Binding MoveToSafeZCommand}"
+                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    Margin="0,10,0,0">
+                            <TextBlock Text="Jog speed"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"/>
+                            <ComboBox ItemsSource="{Binding JogSpeeds}"
+                                      SelectedItem="{Binding JogSpeed, Mode=TwoWay}"
+                                      MinWidth="72"
+                                      Padding="8,5"/>
+                            <TextBlock Text="mm/s"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="6,0,0,0"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardStyle}" Padding="18">
+                    <StackPanel>
+                        <TextBlock Text="HANDOFF RULE"
+                                   Style="{StaticResource SectionHeaderStyle}"
+                                   Margin="0,0,0,10"/>
+                        <TextBlock Text="Teach the Supply Pose first."
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,5"/>
+                        <TextBlock Text="Keep Supply fixed, then teach Placement Pick Pose."
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,5"/>
+                        <TextBlock Text="Move only the selected handler. Save both poses as one pair."
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <Border Grid.Column="2"
+                    Style="{StaticResource CardStyle}"
+                    Padding="18">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Margin="0,0,0,14">
+                        <TextBlock Text="MECHANICAL POSITIONS"
+                                   Style="{StaticResource SectionHeaderStyle}"/>
+                        <TextBlock Text="Selecting a row also selects the handler controlled by Jog."
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   Margin="0,5,0,0"/>
+                        <WrapPanel Margin="0,12,0,0">
+                            <Button Content="{Binding SupplyRotationLabel}"
+                                    Command="{Binding ToggleActuatorCommand}"
+                                    CommandParameter="{x:Static device:OutputIo.PcbSupplyRotateToHandoff}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    MinWidth="170"
+                                    Margin="0,0,8,0"/>
+                            <Button Content="{Binding SupplyGripperLabel}"
+                                    Command="{Binding ToggleActuatorCommand}"
+                                    CommandParameter="{x:Static device:OutputIo.PcbSupplyGripper}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    MinWidth="170"
+                                    Margin="0,0,8,0"/>
+                            <Button Content="{Binding PlacementGripperLabel}"
+                                    Command="{Binding ToggleActuatorCommand}"
+                                    CommandParameter="{x:Static device:OutputIo.PcbPlacementGripper}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    MinWidth="180"/>
+                        </WrapPanel>
+                        <WrapPanel Margin="0,8,0,0">
+                            <TextBlock Text="{Binding SupplyPcbLabel}"
+                                       FontFamily="Cascadia Mono, Consolas"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,0,20,0"/>
+                            <TextBlock Text="{Binding PlacementPcbLabel}"
+                                       FontFamily="Cascadia Mono, Consolas"
+                                       FontSize="10"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </WrapPanel>
+                    </StackPanel>
+
+                    <ListBox Grid.Row="1"
+                             ItemsSource="{Binding Source={StaticResource GroupedPoints}}"
+                             SelectedItem="{Binding SelectedPoint}"
+                             Background="Transparent"
+                             BorderThickness="0"
+                             HorizontalContentAlignment="Stretch">
+                        <ListBox.GroupStyle>
+                            <GroupStyle>
+                                <GroupStyle.HeaderTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}"
+                                                   Style="{StaticResource SectionHeaderStyle}"
+                                                   Margin="2,14,0,8"/>
+                                    </DataTemplate>
+                                </GroupStyle.HeaderTemplate>
+                            </GroupStyle>
+                        </ListBox.GroupStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource EquipBgBrush}"
+                                        BorderBrush="{StaticResource CardBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="14,12"
+                                        Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="190"/>
+                                            <ColumnDefinition Width="100"/>
+                                            <ColumnDefinition Width="80"/>
+                                            <ColumnDefinition Width="60"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Ellipse Width="8"
+                                                 Height="8"
+                                                 VerticalAlignment="Center">
+                                            <Ellipse.Style>
+                                                <Style TargetType="Ellipse">
+                                                    <Setter Property="Fill" Value="#3A3F47"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsTaught}" Value="True">
+                                                            <Setter Property="Fill"
+                                                                    Value="{StaticResource AccentGreenBrush}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Ellipse.Style>
+                                        </Ellipse>
+
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding Name}"
+                                                   FontFamily="Cascadia Mono, Consolas"
+                                                   FontSize="13"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="10,0,0,0"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding UnitLabel}"
+                                                   FontSize="10"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="3"
+                                                   Text="{Binding Storage}"
+                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                   VerticalAlignment="Center"/>
+                                        <Border Grid.Column="4"
+                                                Background="{StaticResource CardBgBrush}"
+                                                CornerRadius="4"
+                                                Padding="8,3"
+                                                HorizontalAlignment="Left">
+                                            <TextBlock Text="{Binding ModeLabel}"
+                                                       FontFamily="Cascadia Mono, Consolas"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        </Border>
+                                        <TextBlock Grid.Column="5"
+                                                   Text="{Binding PositionLabel}"
+                                                   FontFamily="Cascadia Mono, Consolas"
+                                                   FontSize="13"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   HorizontalAlignment="Right"
+                                                   VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <WrapPanel Grid.Row="2"
+                               HorizontalAlignment="Right"
+                               Margin="0,14,0,0">
+                        <Button Content="Move To"
+                                Command="{Binding MoveToPointCommand}"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                MinWidth="90"
+                                Margin="0,0,8,0"/>
+                        <Button Content="Teach Selected"
+                                Command="{Binding TeachCurrentPositionCommand}"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                MinWidth="110"
+                                Margin="0,0,8,0"/>
+                        <Button Content="Save Handoff Pair"
+                                Command="{Binding SaveHandoffPairCommand}"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                MinWidth="140"/>
+                    </WrapPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="2"
+                Style="{StaticResource CardStyle}"
+                Padding="10"
+                Margin="0,16,0,0">
+            <WrapPanel VerticalAlignment="Center">
+                <TextBlock Text="Recipe"
+                           FontSize="10"
+                           Foreground="{StaticResource TextMutedBrush}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"/>
+                <TextBox Text="{Binding RecipeName, UpdateSourceTrigger=PropertyChanged}"
+                         MinWidth="120"
+                         FontSize="11"
+                         Margin="0,0,8,0"/>
+                <Button Content="New"
+                        Command="{Binding NewRecipeCommand}"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        MinWidth="60"
+                        Margin="0,0,4,0"/>
+                <Button Content="Save"
+                        Command="{Binding SaveRecipeCommand}"
+                        Style="{StaticResource PrimaryButtonStyle}"
+                        MinWidth="60"
+                        Margin="0,0,4,0"/>
+                <ComboBox ItemsSource="{Binding RecipeFiles}"
+                          MinWidth="180"
+                          Margin="0,0,8,0"
+                          SelectionChanged="RecipeFile_Selected"/>
+                <TextBlock Text="{Binding StatusMessage}"
+                           FontSize="11"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           VerticalAlignment="Center"/>
+            </WrapPanel>
+        </Border>
+    </Grid>
+</UserControl>

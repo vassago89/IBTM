@@ -32,6 +32,13 @@ internal static class VirtualImageFactory
         return CreateFrame(pixels);
     }
 
+    public static ImageFrame CreateEmptyCameraFrame()
+    {
+        var pixels = new byte[Width * Height * BytesPerPixel];
+        FillNoise(pixels, 18, 12);
+        return CreateFrame(pixels);
+    }
+
     public static ImageFrame CreateInspectionFrame()
     {
         var pixels = new byte[Width * Height * BytesPerPixel];

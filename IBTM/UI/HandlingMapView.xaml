@@ -1,0 +1,658 @@
+<UserControl x:Class="IBTM.UI.HandlingMapView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="Transparent">
+
+    <UserControl.Resources>
+        <Style x:Key="MapLabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
+            <Setter Property="FontSize" Value="9"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <Style x:Key="MapHintStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontSize" Value="8"/>
+        </Style>
+
+        <Style x:Key="MapStateStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
+            <Setter Property="FontSize" Value="9"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <Style x:Key="ConveyorRailStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource DividerBrush}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding ConveyorRunning}" Value="True">
+                    <Setter Property="Background"
+                            Value="{StaticResource AccentGreenBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Border Style="{StaticResource CardStyle}" Padding="14">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="PCB HANDLING · TOP VIEW"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontSize="11"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="Supply handler · Placement gantry · Up-looking fiducial camera"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               FontSize="9"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1"
+                            HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding PcbSupplyPosition}"
+                               Style="{StaticResource MapLabelStyle}"
+                               HorizontalAlignment="Right"/>
+                    <TextBlock Text="{Binding PcbPlacementPosition}"
+                               Style="{StaticResource MapLabelStyle}"
+                               HorizontalAlignment="Right"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+            </Grid>
+
+            <Viewbox Grid.Row="1"
+                     Stretch="Uniform"
+                     HorizontalAlignment="Stretch"
+                     VerticalAlignment="Top"
+                     Margin="0,8">
+                <Canvas Width="620" Height="365">
+                    <Border Canvas.Left="8"
+                            Canvas.Top="8"
+                            Width="604"
+                            Height="349"
+                            Background="{StaticResource EquipBgBrush}"
+                            BorderBrush="{StaticResource DividerBrush}"
+                            BorderThickness="1"
+                            CornerRadius="7"/>
+
+                    <TextBlock Canvas.Left="26"
+                               Canvas.Top="20"
+                               Text="←  X+"
+                               Style="{StaticResource MapLabelStyle}"/>
+                    <TextBlock Canvas.Left="82"
+                               Canvas.Top="20"
+                               Text="Y+  ↓"
+                               Style="{StaticResource MapLabelStyle}"/>
+                    <TextBlock Canvas.Left="135"
+                               Canvas.Top="20"
+                               Text="Z+  ↓  DEPTH"
+                               Style="{StaticResource MapLabelStyle}"/>
+
+                    <Border Canvas.Left="52"
+                            Canvas.Top="72"
+                            Width="516"
+                            Height="2"
+                            BorderThickness="0"
+                            CornerRadius="1">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background"
+                                        Value="{StaticResource DividerBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PcbSupplyCarrierAvailable}"
+                                                 Value="True">
+                                        <Setter Property="Background"
+                                                Value="{StaticResource AccentGreenBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+                    <Border Canvas.Left="{Binding SupplyCarrier1MapLeft}"
+                            Canvas.Top="50"
+                            Width="44"
+                            Height="42"
+                            Background="Transparent"
+                            BorderThickness="0">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="P1"
+                                       Style="{StaticResource MapLabelStyle}"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="PICK"
+                                       Style="{StaticResource MapHintStyle}"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Canvas.Left="{Binding SupplyCarrier2MapLeft}"
+                            Canvas.Top="50"
+                            Width="44"
+                            Height="42"
+                            Background="Transparent"
+                            BorderThickness="0">
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="P2"
+                                       Style="{StaticResource MapLabelStyle}"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="PICK"
+                                       Style="{StaticResource MapHintStyle}"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Canvas.Left="{Binding SupplyRotationMapLeft}"
+                            Canvas.Top="52"
+                            Width="40"
+                            Height="38"
+                            Background="Transparent"
+                            BorderThickness="0">
+                        <TextBlock Text="ROT"
+                                   Style="{StaticResource MapLabelStyle}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+
+                    <Border Canvas.Left="276"
+                            Canvas.Top="105"
+                            Width="68"
+                            Height="62"
+                            BorderThickness="1"
+                            CornerRadius="6">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush"
+                                        Value="{StaticResource TextMutedBrush}"/>
+                                <Setter Property="Background" Value="#121B2420"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PcbSupplyRotated}" Value="True">
+                                        <Setter Property="BorderBrush"
+                                                Value="{StaticResource OutputActiveBrush}"/>
+                                        <Setter Property="Background" Value="#18D0A85C"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel VerticalAlignment="Bottom"
+                                    Margin="0,0,0,4">
+                            <TextBlock Text="HANDOFF"
+                                       Style="{StaticResource MapLabelStyle}"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="SHARED"
+                                       Style="{StaticResource MapHintStyle}"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Canvas.Left="547"
+                            Canvas.Top="112"
+                            Width="2"
+                            Height="224"
+                            Background="{StaticResource DividerBrush}"
+                            BorderThickness="0"/>
+                    <TextBlock Canvas.Left="557"
+                               Canvas.Top="176"
+                               Text="Y+"
+                               Style="{StaticResource MapLabelStyle}"/>
+                    <TextBlock Canvas.Left="561"
+                               Canvas.Top="194"
+                               Text="↓"
+                               Style="{StaticResource MapLabelStyle}"/>
+
+                    <Border Canvas.Left="230"
+                            Canvas.Top="210"
+                            Width="44"
+                            Height="44"
+                            BorderThickness="2"
+                            CornerRadius="22"
+                            Panel.ZIndex="2">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="BorderBrush"
+                                        Value="{StaticResource TextMutedBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding AlignmentCameraActive}" Value="True">
+                                        <Setter Property="BorderBrush"
+                                                Value="{StaticResource AccentGreenBrush}"/>
+                                        <Setter Property="Background" Value="#193D2B"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <Grid>
+                            <Ellipse Width="28"
+                                     Height="28"
+                                     Stroke="{StaticResource DividerBrush}"
+                                     StrokeThickness="1"/>
+                            <TextBlock Text="C"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       FontFamily="Cascadia Mono, Consolas"
+                                       FontSize="15"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+                    <TextBlock Canvas.Left="230"
+                               Canvas.Top="210"
+                               Margin="-18,46,0,0"
+                               Width="80"
+                               Text="FIDUCIAL"
+                               TextAlignment="Center"
+                               Style="{StaticResource MapHintStyle}"/>
+
+                    <TextBlock Canvas.Left="26"
+                               Canvas.Top="263">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock"
+                                   BasedOn="{StaticResource MapLabelStyle}">
+                                <Setter Property="Text" Value="CONVEYOR STOPPED  →"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ConveyorRunning}" Value="True">
+                                        <Setter Property="Text" Value="CONVEYOR RUNNING  →"/>
+                                        <Setter Property="Foreground"
+                                                Value="{StaticResource AccentGreenBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <Border Canvas.Left="20"
+                            Canvas.Top="280"
+                            Width="580"
+                            Height="2"
+                            Panel.ZIndex="0"
+                            Style="{StaticResource ConveyorRailStyle}"/>
+
+                    <Border Canvas.Left="20"
+                            Canvas.Top="350"
+                            Width="580"
+                            Height="2"
+                            Panel.ZIndex="0"
+                            Style="{StaticResource ConveyorRailStyle}"/>
+
+                    <Border Canvas.Left="70"
+                            Canvas.Top="287"
+                            Width="480"
+                            Height="58"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Panel.ZIndex="1">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="#08000000"/>
+                                <Setter Property="BorderBrush"
+                                        Value="{StaticResource DividerBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PcbPlacementCarrierJigPresent}"
+                                                 Value="True">
+                                        <Setter Property="Background" Value="#101D8C56"/>
+                                        <Setter Property="BorderBrush"
+                                                Value="{StaticResource AccentGreenBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="ST.1 CARRIER JIG"
+                                   Style="{StaticResource MapHintStyle}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Bottom"
+                                   Margin="0,0,0,3"/>
+                    </Border>
+
+                    <Border Canvas.Left="{Binding Housing1MapLeft}"
+                            Canvas.Top="294"
+                            Width="68"
+                            Height="44"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Panel.ZIndex="2">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background"
+                                        Value="{StaticResource CardBgBrush}"/>
+                                <Setter Property="BorderBrush"
+                                        Value="{StaticResource CardBorderBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PcbPlacementHousing1Present}"
+                                                 Value="True">
+                                        <Setter Property="BorderBrush"
+                                                Value="{StaticResource AccentGreenBrush}"/>
+                                        <Setter Property="Background" Value="#143D2B"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="HOUSING 1"
+                                   Style="{StaticResource MapLabelStyle}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+
+                    <Border Canvas.Left="{Binding Housing2MapLeft}"
+                            Canvas.Top="294"
+                            Width="68"
+                            Height="44"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Panel.ZIndex="2">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background"
+                                        Value="{StaticResource CardBgBrush}"/>
+                                <Setter Property="BorderBrush"
+                                        Value="{StaticResource CardBorderBrush}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding PcbPlacementHousing2Present}"
+                                                 Value="True">
+                                        <Setter Property="BorderBrush"
+                                                Value="{StaticResource AccentGreenBrush}"/>
+                                        <Setter Property="Background" Value="#143D2B"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="HOUSING 2"
+                                   Style="{StaticResource MapLabelStyle}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+
+                    <Border Canvas.Left="76"
+                            Canvas.Top="128"
+                            Width="473"
+                            Height="2"
+                            Background="{StaticResource DividerBrush}"/>
+
+                    <Grid Canvas.Left="{Binding PcbSupplyMapLeft}"
+                          Canvas.Top="82"
+                          Width="56"
+                          Height="82"
+                          Panel.ZIndex="7">
+                        <StackPanel Margin="6,4">
+                            <TextBlock Text="SUPPLY"
+                                       HorizontalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock"
+                                           BasedOn="{StaticResource MapLabelStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding PcbSupplyMoving}" Value="True">
+                                                <Setter Property="Foreground"
+                                                        Value="{StaticResource AccentGreenBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <Grid Height="42" Margin="0,4,0,0">
+                                <Border Width="3"
+                                        Height="24"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Top"
+                                        Background="{StaticResource TextMutedBrush}"
+                                        CornerRadius="1"/>
+                                <Border Width="34"
+                                        Height="20"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Bottom"
+                                        Background="{StaticResource CardBgBrush}"
+                                        BorderBrush="{StaticResource OutputActiveBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="3"
+                                        RenderTransformOrigin="0.5,0.5">
+                                    <Border.RenderTransform>
+                                        <RotateTransform Angle="{Binding PcbSupplyRotationAngle}"/>
+                                    </Border.RenderTransform>
+                                </Border>
+                                <Border Width="30"
+                                        Height="13"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Bottom"
+                                        Background="{StaticResource AccentGreenBrush}"
+                                        CornerRadius="2"
+                                        Visibility="{Binding PcbSupplyPcbDetected, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="PCB"
+                                               Foreground="{StaticResource EquipBgBrush}"
+                                               FontSize="7"
+                                               FontWeight="SemiBold"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Border>
+                                <Border Width="5"
+                                        Height="{Binding PcbSupplyZDepth}"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Bottom"
+                                        Background="{StaticResource OutputActiveBrush}"
+                                        CornerRadius="2"/>
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid Canvas.Left="{Binding PcbPlacementMapLeft}"
+                          Canvas.Top="{Binding PcbPlacementMapTop}"
+                          Width="60"
+                          Height="58"
+                          Panel.ZIndex="8">
+                        <StackPanel Margin="6,3">
+                            <TextBlock Text="PLACE"
+                                       HorizontalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock"
+                                           BasedOn="{StaticResource MapLabelStyle}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding PcbPlacementMoving}" Value="True">
+                                                <Setter Property="Foreground"
+                                                        Value="{StaticResource AccentGreenBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <Grid Height="31" Margin="0,2,0,0">
+                                <Border Width="3"
+                                        Height="18"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Top"
+                                        Background="{StaticResource TextMutedBrush}"
+                                        CornerRadius="1"/>
+                                <Border Width="38"
+                                        Height="18"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Bottom"
+                                        Background="{StaticResource CardBgBrush}"
+                                        BorderBrush="{StaticResource AccentGreenBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="3"/>
+                                <Border Width="30"
+                                        Height="13"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Bottom"
+                                        Background="{StaticResource AccentGreenBrush}"
+                                        CornerRadius="2"
+                                        Visibility="{Binding PcbPlacementPcbDetected, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="PCB"
+                                               Foreground="{StaticResource EquipBgBrush}"
+                                               FontSize="7"
+                                               FontWeight="SemiBold"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Border>
+                                <Border Width="5"
+                                        Height="{Binding PcbPlacementZDepth}"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Bottom"
+                                        Background="{StaticResource OutputActiveBrush}"
+                                        CornerRadius="2"/>
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+                </Canvas>
+            </Viewbox>
+
+            <Grid Grid.Row="2" Margin="0,4,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="1"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Margin="0,0,14,0">
+                    <TextBlock Text="{Binding PcbSupplyActivity}"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontSize="11"
+                               FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                        <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource MapStateStyle}">
+                                    <Setter Property="Text" Value="CARRIER WAIT"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding PcbSupplyCarrierAvailable}" Value="True">
+                                            <Setter Property="Text" Value="CARRIER READY"/>
+                                            <Setter Property="Foreground"
+                                                    Value="{StaticResource AccentGreenBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text=" · " Style="{StaticResource MapStateStyle}"/>
+                        <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource MapStateStyle}">
+                                    <Setter Property="Text" Value="PCB EMPTY"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding PcbSupplyPcbDetected}" Value="True">
+                                            <Setter Property="Text" Value="PCB DETECTED"/>
+                                            <Setter Property="Foreground"
+                                                    Value="{StaticResource AccentGreenBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text=" · " Style="{StaticResource MapStateStyle}"/>
+                        <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource MapStateStyle}">
+                                    <Setter Property="Text" Value="GRIP OPEN"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding PcbSupplyGripperClosed}" Value="True">
+                                            <Setter Property="Text" Value="GRIP CLOSED"/>
+                                            <Setter Property="Foreground"
+                                                    Value="{StaticResource OutputActiveBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text=" · " Style="{StaticResource MapStateStyle}"/>
+                        <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource MapStateStyle}">
+                                    <Setter Property="Text" Value="HOME"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding PcbSupplyRotated}" Value="True">
+                                            <Setter Property="Text" Value="HANDOFF"/>
+                                            <Setter Property="Foreground"
+                                                    Value="{StaticResource OutputActiveBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </StackPanel>
+
+                <Border Grid.Column="1"
+                        Background="{StaticResource DividerBrush}"/>
+
+                <StackPanel Grid.Column="2" Margin="14,0,0,0">
+                    <TextBlock Text="{Binding PcbPlacementActivity}"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontSize="11"
+                               FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                        <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource MapStateStyle}">
+                                    <Setter Property="Text" Value="JIG EMPTY"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding PcbPlacementCarrierJigPresent}" Value="True">
+                                            <Setter Property="Text" Value="JIG PRESENT"/>
+                                            <Setter Property="Foreground"
+                                                    Value="{StaticResource AccentGreenBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text=" · " Style="{StaticResource MapStateStyle}"/>
+                        <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource MapStateStyle}">
+                                    <Setter Property="Text" Value="PCB EMPTY"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding PcbPlacementPcbDetected}" Value="True">
+                                            <Setter Property="Text" Value="PCB DETECTED"/>
+                                            <Setter Property="Foreground"
+                                                    Value="{StaticResource AccentGreenBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text=" · " Style="{StaticResource MapStateStyle}"/>
+                        <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource MapStateStyle}">
+                                    <Setter Property="Text" Value="GRIP OPEN"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding PcbPlacementGripperClosed}" Value="True">
+                                            <Setter Property="Text" Value="GRIP CLOSED"/>
+                                            <Setter Property="Foreground"
+                                                    Value="{StaticResource OutputActiveBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text=" · CAMERA "
+                                   Style="{StaticResource MapStateStyle}"/>
+                        <TextBlock>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource MapStateStyle}">
+                                    <Setter Property="Text" Value="IDLE"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding AlignmentCameraActive}" Value="True">
+                                            <Setter Property="Text" Value="CAPTURE"/>
+                                            <Setter Property="Foreground"
+                                                    Value="{StaticResource AccentGreenBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

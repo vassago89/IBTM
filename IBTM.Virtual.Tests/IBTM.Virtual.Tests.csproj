@@ -18,7 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBTM.Orchestration\IBTM.Orchestration.csproj" />
+    <ProjectReference Include="..\IBTM.PcbSupply\IBTM.PcbSupply.csproj" />
+    <ProjectReference Include="..\IBTM.Sequence\IBTM.Sequence.csproj" />
     <ProjectReference Include="..\IBTM.Transport\IBTM.Transport.csproj" />
     <ProjectReference Include="..\IBTM.Virtual\IBTM.Virtual.csproj" />
   </ItemGroup>

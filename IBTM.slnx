@@ -1,7 +1,10 @@
 <Solution>
+  <Project Path="IBTM.Ajin/IBTM.Ajin.csproj" />
   <Project Path="IBTM.Core/IBTM.Core.csproj" />
   <Project Path="IBTM.Device/IBTM.Device.csproj" />
-  <Project Path="IBTM.Orchestration/IBTM.Orchestration.csproj" />
+  <Project Path="IBTM.Hik/IBTM.Hik.csproj" />
+  <Project Path="IBTM.PcbSupply/IBTM.PcbSupply.csproj" />
+  <Project Path="IBTM.Sequence/IBTM.Sequence.csproj" />
   <Project Path="IBTM.Stations.BoltFastening/IBTM.Stations.BoltFastening.csproj" />
   <Project Path="IBTM.Stations.Inspection/IBTM.Stations.Inspection.csproj" />
   <Project Path="IBTM.Stations.PcbPlacement/IBTM.Stations.PcbPlacement.csproj" />

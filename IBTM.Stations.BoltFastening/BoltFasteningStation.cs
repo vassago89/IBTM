@@ -1,209 +1,146 @@
-using System;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.Core.Geometry;
-using IBTM.Core.Machine;
-using IBTM.Core.Process;
+using IBTM.Core;
 using IBTM.Device;
 using IBTM.Transport;
 
 namespace IBTM.Stations.BoltFastening;
 
-public sealed class BoltFasteningStation : IDisposable
+public sealed class BoltFasteningStation(
+    MotionService motion,
+    IIoService io,
+    BoltFasteningSettings settings,
+    ProcessEvents events,
+    IBoltHead standardHead,
+    IBoltHead loctiteHead)
 {
-    public const int CarrierJigPresentInputChannel = 20;
-    public const int StopperUpOutputChannel = 21;
-    public const int BackupPlateUpOutputChannel = 23;
-    public const int LaserChannel = 25;
-
-    private readonly IMotionService _motion;
-    private readonly StationMotionSettings _motionSettings;
-    private readonly ProcessEvents _events;
-    private readonly ICameraStreamService _camera;
-    private readonly IBoltService _boltController;
-    private readonly BoltFasteningOptions _options;
-
-    public BoltFasteningStation(
-        IMotionService motion,
-        IIoService io,
-        BoltFasteningOptions options,
-        ProcessEvents events,
-        ICameraStreamService camera,
-        IBoltService boltController)
-    {
-        _motion = motion;
-        _motionSettings = options.Motion;
-        _events = events;
-        _camera = camera;
-        _boltController = boltController;
-        _options = options;
-        CarrierJigPositioner = new CarrierJigPositioner(
-            io,
-            CarrierJigPresentInputChannel,
-            StopperUpOutputChannel,
-            BackupPlateUpOutputChannel);
-        _motion.PositionChanged += OnPositionChanged;
-    }
-
-    public CarrierJigPositioner CarrierJigPositioner { get; }
+    public CarrierJigPositioner CarrierJigPositioner { get; } = new(
+        io,
+        InputIo.BoltFasteningCarrierJigPresent,
+        OutputIo.BoltFasteningStopperUp,
+        OutputIo.BoltFasteningBackupPlateUp);
 
     public void Initialize()
     {
-        _motion.Initialize();
+        motion.Initialize();
         CarrierJigPositioner.Initialize();
     }
 
-    public Task PrepareAsync(CancellationToken cancellationToken) =>
-        _boltController.InitializeAsync(cancellationToken);
+    public async Task PrepareAsync(CancellationToken cancellationToken)
+    {
+        await standardHead.InitializeAsync(cancellationToken);
+        await loctiteHead.InitializeAsync(cancellationToken);
+    }
 
     public async Task ProcessAsync(
         BoltFasteningRecipe recipe,
+        CarrierJigState carrierJig,
         CancellationToken cancellationToken)
     {
-        await _events.RunStageAsync(
-            BoltFasteningStages.PositionCarrierJig,
+        await events.RunStageAsync(
+            ProcessStage.PositionBoltFasteningCarrierJig,
             cancellationToken,
             CarrierJigPositioner.PositionAsync);
 
-        var fiducial = await _events.RunStageAsync(
-            BoltFasteningStages.Fiducial,
-            cancellationToken,
-            token => DetectFiducialAsync(recipe, token));
+        if (!carrierJig.Pcb1Present && !carrierJig.Pcb2Present)
+        {
+            return;
+        }
 
-        await _events.RunStageAsync(
-            BoltFasteningStages.Tighten,
+        await events.RunStageAsync(
+            ProcessStage.TightenBolts,
             cancellationToken,
-            token => TightenBoltsAsync(recipe, fiducial, token));
+            token => TightenBoltsAsync(recipe, carrierJig, token));
     }
 
-    public void Stop() => _motion.Stop();
-
-    public void EmergencyStop() => _motion.EmergencyStop();
-
-    public void Dispose() => _motion.PositionChanged -= OnPositionChanged;
-
-    private async Task<FiducialResult> DetectFiducialAsync(
-        BoltFasteningRecipe recipe,
-        CancellationToken cancellationToken)
+    public void Stop()
     {
-        await MoveToPositionAsync(recipe.FiducialPosition, cancellationToken);
-
-        var result = DetectFiducial(_camera.Capture());
-        _events.Fiducial(result);
-
-        if (!result.Found)
-        {
-            throw new InvalidOperationException("Fiducial detection failed.");
-        }
-
-        return result;
+        motion.Stop();
+        standardHead.Stop();
+        loctiteHead.Stop();
     }
 
-    private FiducialResult DetectFiducial(ImageFrame image)
+    public void EmergencyStop()
     {
-        long xTotal = 0;
-        long yTotal = 0;
-        var count = 0;
-
-        for (var y = 0; y < image.Height; y++)
-        {
-            for (var x = 0; x < image.Width; x++)
-            {
-                var index = (y * image.Stride) + (x * 3);
-                var blue = image.Pixels[index];
-                var green = image.Pixels[index + 1];
-                var red = image.Pixels[index + 2];
-                if (green <= blue + 50 || green <= red + 50)
-                {
-                    continue;
-                }
-
-                xTotal += x;
-                yTotal += y;
-                count++;
-            }
-        }
-
-        if (count == 0)
-        {
-            return new FiducialResult(false, 0, 0);
-        }
-
-        return new FiducialResult(
-            true,
-            ((xTotal / (double)count) - (image.Width / 2.0)) / _options.PixelsPerMm,
-            ((yTotal / (double)count) - (image.Height / 2.0)) / _options.PixelsPerMm);
+        motion.EmergencyStop();
+        standardHead.EmergencyStop();
+        loctiteHead.EmergencyStop();
     }
 
     private async Task TightenBoltsAsync(
         BoltFasteningRecipe recipe,
-        FiducialResult fiducial,
+        CarrierJigState carrierJig,
         CancellationToken cancellationToken)
     {
         var pcbCentres = new[]
         {
-            (X: recipe.Pcb1CenterX, Y: recipe.PcbCenterY, Label: "PCB1"),
-            (X: recipe.Pcb2CenterX, Y: recipe.PcbCenterY, Label: "PCB2"),
+            (
+                X: recipe.Pcb1Reference.X,
+                Y: recipe.Pcb1Reference.Y,
+                Slot: PcbSlot.Pcb1,
+                Present: carrierJig.Pcb1Present),
+            (
+                X: recipe.Pcb2Reference.X,
+                Y: recipe.Pcb2Reference.Y,
+                Slot: PcbSlot.Pcb2,
+                Present: carrierJig.Pcb2Present),
         };
-        var totalBolts = recipe.BoltPoints.Count * pcbCentres.Length;
+        var pcbCount = (carrierJig.Pcb1Present ? 1 : 0)
+            + (carrierJig.Pcb2Present ? 1 : 0);
+        var totalBolts = recipe.BoltPoints.Count * pcbCount;
         var boltIndex = 0;
 
         foreach (var pcb in pcbCentres)
         {
+            if (!pcb.Present)
+            {
+                continue;
+            }
+
             foreach (var boltPoint in recipe.BoltPoints)
             {
-                cancellationToken.ThrowIfCancellationRequested();
                 boltIndex++;
-                var boltLabel = $"{pcb.Label}-{boltPoint.Name}";
-                var position = new AxisPos
-                {
-                    X = pcb.X + boltPoint.X + fiducial.OffsetX,
-                    Y = pcb.Y + boltPoint.Y + fiducial.OffsetY,
-                    Z = boltPoint.Z,
-                };
+                var head = GetHead(boltPoint.BoltType);
+                var headSettings = settings.GetHead(boltPoint.BoltType);
+                events.BoltProgressed(
+                    boltIndex,
+                    totalBolts,
+                    pcb.Slot,
+                    boltPoint.Number);
+                await motion.MoveToAsync(
+                    pcb.X + boltPoint.X - headSettings.OffsetX,
+                    pcb.Y + boltPoint.Y - headSettings.OffsetY,
+                    boltPoint.Z,
+                    cancellationToken);
 
-                _events.BoltProgressed(boltIndex, totalBolts, boltLabel);
-                await MoveToPositionAsync(position, cancellationToken);
-
-                await _boltController.ShootAsync(cancellationToken);
-                _events.Bolt(await TightenAsync(boltPoint.TargetTorqueNm, cancellationToken));
-                await MoveToZAsync(0, cancellationToken);
+                await head.SupplyAsync(cancellationToken);
+                events.Bolt(await TightenAsync(
+                    head,
+                    boltPoint.TargetTorqueNm,
+                    cancellationToken));
+                await motion.MoveToSafeZAsync(cancellationToken);
             }
         }
     }
 
     private async Task<BoltResult> TightenAsync(
+        IBoltHead head,
         double targetTorque,
         CancellationToken cancellationToken)
     {
         for (var attempt = 0; ; attempt++)
         {
-            var result = await _boltController.TightenAsync(targetTorque, cancellationToken);
-            if (result.Success || attempt >= _options.RetryCount)
+            var result = await head.TightenAsync(targetTorque, cancellationToken);
+            if (result.Success || attempt >= settings.RetryCount)
             {
                 return result;
             }
         }
     }
-
-    private async Task MoveToPositionAsync(
-        AxisPos position,
-        CancellationToken cancellationToken)
+    private IBoltHead GetHead(BoltType boltType) => boltType switch
     {
-        await _motion.MoveToXYAsync(
-            position.X,
-            position.Y,
-            _motionSettings.SpeedXY,
-            cancellationToken);
-        await MoveToZAsync(position.Z, cancellationToken);
-    }
-
-    private Task MoveToZAsync(double position, CancellationToken cancellationToken) =>
-        _motion.MoveToZAsync(
-            position,
-            _motionSettings.SpeedZ,
-            cancellationToken);
-
-    private void OnPositionChanged(double x, double y, double z) =>
-        _events.Position(2, x, y, z);
+        BoltType.Standard => standardHead,
+        BoltType.Loctite => loctiteHead,
+        _ => throw new System.ArgumentOutOfRangeException(nameof(boltType)),
+    };
 }

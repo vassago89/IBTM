@@ -1,8 +1,6 @@
 using System.Windows;
-using IBTM.Composition;
-using IBTM.Infrastructure.Persistence;
-using IBTM.Orchestration;
-using IBTM.Presentation.Shell;
+using IBTM.Sequence;
+using IBTM.UI;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM;
@@ -15,21 +13,20 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
-        var recipeService = new RecipeService();
-        var config = recipeService.LoadConfigAsync().GetAwaiter().GetResult();
+        var store = new MachineStore();
+        var settings = store.LoadSettingsAsync().GetAwaiter().GetResult();
 
         var services = new ServiceCollection()
-            .AddSingleton(config)
-            .AddSingleton(recipeService)
-            .AddIbtmApplication();
+            .AddSingleton(settings)
+            .AddSingleton(store)
+            .AddIbtmApplication(settings);
         _serviceProvider = services.BuildServiceProvider(
             new ServiceProviderOptions
             {
                 ValidateOnBuild = true,
-                ValidateScopes = true,
             });
 
-        _serviceProvider.GetRequiredService<ProcessOrchestrator>().Initialize();
+        _serviceProvider.GetRequiredService<AutoSequence>().Initialize();
         var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
         mainWindow.Show();
     }
