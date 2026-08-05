@@ -3,10 +3,10 @@ using IBTM.Device;
 
 namespace IBTM.Stations.PcbPlacement;
 
-public sealed class PcbPlacementSettings
+public sealed class PcbPlacementSettings : Setting
 {
-    public StationMotionSettings Motion { get; set; } = new();
-    public AxisPos HandoffPickPosition { get; set; } = new() { X = 100.0, Y = 60.0, Z = 25.0 };
+    public MotionSettings Motion { get; set; } = new();
+    public AxisPos BufferPosition { get; set; } = new() { X = 10.0, Y = 8.0, Z = 16.0 };
     public double AlignmentXMillimetersPerPixel { get; set; } = 0.02;
     public double AlignmentYMillimetersPerPixel { get; set; } = 0.02;
 }

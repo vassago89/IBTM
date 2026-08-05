@@ -1,0 +1,95 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Style x:Key="IoListStyle" TargetType="ListBox">
+        <Setter Property="Background" Value="{StaticResource CardBgBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    </Style>
+
+    <Style x:Key="IoListItemStyle"
+           TargetType="ListBoxItem"
+           BasedOn="{StaticResource FlatListItemStyle}">
+        <Setter Property="Padding" Value="11,7"/>
+        <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
+        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    </Style>
+
+    <Style x:Key="IoToggleButtonStyle"
+           TargetType="Button"
+           BasedOn="{StaticResource SecondaryButtonStyle}">
+        <Setter Property="Padding" Value="10,4"/>
+    </Style>
+
+    <Style x:Key="IoInputLedStyle" TargetType="Ellipse">
+        <Setter Property="Width" Value="10"/>
+        <Setter Property="Height" Value="10"/>
+        <Setter Property="Fill" Value="{StaticResource EquipBgBrush}"/>
+        <Setter Property="Stroke" Value="{StaticResource AccentGreenBrush}"/>
+        <Setter Property="StrokeThickness" Value="1"/>
+        <Style.Triggers>
+            <Trigger Property="Tag" Value="True">
+                <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
+                <Setter Property="StrokeThickness" Value="2"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="IoInputStateStyle" TargetType="ContentControl">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse x:Name="Led" Style="{StaticResource IoInputLedStyle}"/>
+                        <TextBlock x:Name="StateText"
+                                   Margin="8,0,0,0"
+                                   Text="OFF"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   FontWeight="SemiBold"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Tag" Value="True">
+                            <Setter TargetName="Led" Property="Tag" Value="True"/>
+                            <Setter TargetName="StateText" Property="Text" Value="ON"/>
+                            <Setter TargetName="StateText"
+                                    Property="Foreground"
+                                    Value="{StaticResource AccentGreenBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="IoOutputStateStyle" TargetType="ContentControl">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border x:Name="Led"
+                                Width="10"
+                                Height="10"
+                                Background="{StaticResource EquipBgBrush}"
+                                BorderBrush="{StaticResource OutputActiveBrush}"
+                                BorderThickness="1"
+                                CornerRadius="1"/>
+                        <TextBlock x:Name="StateText"
+                                   Margin="8,0,0,0"
+                                   Text="OFF"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontFamily="Cascadia Mono, Consolas"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Tag" Value="True">
+                            <Setter TargetName="Led"
+                                    Property="Background"
+                                    Value="{StaticResource OutputActiveBrush}"/>
+                            <Setter TargetName="StateText" Property="Text" Value="ON"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

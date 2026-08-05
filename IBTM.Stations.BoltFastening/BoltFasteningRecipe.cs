@@ -1,21 +1,25 @@
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Text.Json.Serialization;
 using IBTM.Core;
 
 namespace IBTM.Stations.BoltFastening;
 
-[JsonConverter(typeof(JsonStringEnumConverter<BoltType>))]
-public enum BoltType
+[JsonConverter(typeof(JsonStringEnumConverter<FasteningHead>))]
+public enum FasteningHead
 {
-    Standard,
-    Loctite,
+    [Description("Head 1 Standard")]
+    Standard = 1,
+
+    [Description("Head 2 Loctite")]
+    Loctite = 2,
 }
 
 public sealed class BoltPoint
 {
     public int Number { get; set; }
     [JsonIgnore] public string Name => $"B{Number}";
-    public BoltType BoltType { get; set; }
+    public FasteningHead Head { get; set; } = FasteningHead.Standard;
     public double X { get; set; }
     public double Y { get; set; }
     public double Z { get; set; }

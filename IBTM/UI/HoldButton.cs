@@ -1,0 +1,92 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+
+namespace IBTM.UI;
+
+public sealed class HoldButton : Button
+{
+    public static readonly DependencyProperty PressCommandProperty =
+        DependencyProperty.Register(
+            nameof(PressCommand),
+            typeof(ICommand),
+            typeof(HoldButton));
+
+    public static readonly DependencyProperty ReleaseCommandProperty =
+        DependencyProperty.Register(
+            nameof(ReleaseCommand),
+            typeof(ICommand),
+            typeof(HoldButton));
+
+    private bool _holding;
+
+    public ICommand? PressCommand
+    {
+        get => (ICommand?)GetValue(PressCommandProperty);
+        set => SetValue(PressCommandProperty, value);
+    }
+
+    public ICommand? ReleaseCommand
+    {
+        get => (ICommand?)GetValue(ReleaseCommandProperty);
+        set => SetValue(ReleaseCommandProperty, value);
+    }
+
+    protected override void OnPreviewMouseLeftButtonDown(
+        MouseButtonEventArgs e)
+    {
+        base.OnPreviewMouseLeftButtonDown(e);
+        _holding = true;
+        CaptureMouse();
+        PressCommand?.Execute(CommandParameter);
+    }
+
+    protected override void OnPreviewMouseLeftButtonUp(
+        MouseButtonEventArgs e)
+    {
+        base.OnPreviewMouseLeftButtonUp(e);
+        EndHold();
+    }
+
+    protected override void OnPreviewMouseMove(MouseEventArgs e)
+    {
+        base.OnPreviewMouseMove(e);
+        if (!_holding)
+        {
+            return;
+        }
+
+        var position = e.GetPosition(this);
+        if (position.X < 0
+            || position.X > ActualWidth
+            || position.Y < 0
+            || position.Y > ActualHeight)
+        {
+            EndHold();
+        }
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        EndHold();
+    }
+
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        EndHold();
+    }
+
+    private void EndHold()
+    {
+        if (!_holding)
+        {
+            return;
+        }
+
+        _holding = false;
+        ReleaseCommand?.Execute(CommandParameter);
+        ReleaseMouseCapture();
+    }
+}

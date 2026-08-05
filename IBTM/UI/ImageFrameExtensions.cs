@@ -1,6 +1,6 @@
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using IBTM.Device;
+using IBTM.Core;
 
 namespace IBTM.UI;
 

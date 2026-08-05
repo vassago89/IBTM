@@ -3,12 +3,12 @@
   <Project Path="IBTM.Core/IBTM.Core.csproj" />
   <Project Path="IBTM.Device/IBTM.Device.csproj" />
   <Project Path="IBTM.Hik/IBTM.Hik.csproj" />
+  <Project Path="IBTM.Hantas/IBTM.Hantas.csproj" />
+  <Project Path="IBTM.PcbBuffer/IBTM.PcbBuffer.csproj" />
   <Project Path="IBTM.PcbSupply/IBTM.PcbSupply.csproj" />
-  <Project Path="IBTM.Sequence/IBTM.Sequence.csproj" />
   <Project Path="IBTM.Stations.BoltFastening/IBTM.Stations.BoltFastening.csproj" />
   <Project Path="IBTM.Stations.Inspection/IBTM.Stations.Inspection.csproj" />
   <Project Path="IBTM.Stations.PcbPlacement/IBTM.Stations.PcbPlacement.csproj" />
-  <Project Path="IBTM.Transport/IBTM.Transport.csproj" />
   <Project Path="IBTM.Virtual/IBTM.Virtual.csproj" />
   <Project Path="IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj" />
   <Project Path="IBTM/IBTM.csproj" />

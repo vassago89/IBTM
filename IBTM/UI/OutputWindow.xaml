@@ -1,0 +1,100 @@
+<Window x:Class="IBTM.UI.OutputWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Digital Outputs"
+        Width="1040"
+        Height="720"
+        MinWidth="900"
+        MinHeight="480"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource AppBgBrush}">
+
+    <Grid Margin="24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid>
+            <TextBlock Text="Digital Outputs"
+                       Style="{StaticResource TitleStyle}"/>
+            <Button Content="Refresh"
+                    HorizontalAlignment="Right"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    Padding="14,5"
+                    Click="OnRefresh"/>
+        </Grid>
+
+        <TextBlock Grid.Row="1"
+                   Text="DO is a command. The green indicator is the mapped digital input."
+                   Style="{StaticResource PageSubtitleStyle}"
+                   Margin="0,4,0,18"/>
+
+        <Grid Grid.Row="2"
+              Margin="12,0,12,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="100"/>
+                <ColumnDefinition Width="300"/>
+                <ColumnDefinition Width="34"/>
+                <ColumnDefinition Width="90"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="OUTPUT" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="1" Text="OUTPUT STATE" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="2" Text="FEEDBACK INPUT" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="3" Text="DI" Style="{StaticResource SectionHeaderStyle}"/>
+        </Grid>
+
+        <ListBox x:Name="OutputList"
+                 Grid.Row="3"
+                 ItemsSource="{Binding Rows}"
+                 Style="{StaticResource IoListStyle}"
+                 ItemContainerStyle="{StaticResource IoListItemStyle}">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="300"/>
+                            <ColumnDefinition Width="34"/>
+                            <ColumnDefinition Width="90"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="{Binding Output, Converter={StaticResource EnumDescriptionConverter}}"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
+                        <ContentControl Grid.Column="1"
+                                        Tag="{Binding OutputOn}"
+                                        Style="{StaticResource IoOutputStateStyle}"/>
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding Feedback}"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding Feedback}"/>
+                        <Ellipse Grid.Column="3"
+                                 HorizontalAlignment="Left"
+                                 VerticalAlignment="Center"
+                                 Tag="{Binding InputOn}"
+                                 Visibility="{Binding HasFeedback,
+                                                      Converter={StaticResource BoolToVis}}"
+                                 Style="{StaticResource IoInputLedStyle}"/>
+                        <Button Grid.Column="4"
+                                Content="Toggle"
+                                Style="{StaticResource IoToggleButtonStyle}"
+                                Click="OnToggleOutput"/>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <TextBlock x:Name="StatusText"
+                   Grid.Row="4"
+                   Margin="0,12,0,0"
+                   Foreground="{StaticResource TextSecondaryBrush}"/>
+    </Grid>
+</Window>

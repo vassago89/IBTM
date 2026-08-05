@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using IBTM.Core;
-using IBTM.Sequence;
 using IBTM.Stations.BoltFastening;
 
 namespace IBTM.UI;
@@ -12,35 +11,25 @@ public sealed class TeachingPointMapper(MachineSettings settings)
     public List<TeachingPoint> BuildSupply(Recipe recipe) =>
         [
             Create(
-                TeachingTarget.PcbSupplyCarrier1,
-                EquipmentUnit.PcbSupply,
-                ToAxisPos(recipe.PcbSupply.CarrierPick1),
+                TeachingTarget.SupplyPcb1Pick,
+                MotionGroup.PcbSupply,
+                ToAxisPos(recipe.PcbSupply.Pcb1PickPosition),
                 TeachMode.XZOnly),
             Create(
-                TeachingTarget.PcbSupplyCarrier2,
-                EquipmentUnit.PcbSupply,
-                ToAxisPos(recipe.PcbSupply.CarrierPick2),
+                TeachingTarget.SupplyPcb2Pick,
+                MotionGroup.PcbSupply,
+                ToAxisPos(recipe.PcbSupply.Pcb2PickPosition),
                 TeachMode.XZOnly),
             Create(
-                TeachingTarget.PcbSupplyRotation,
-                EquipmentUnit.PcbSupply,
-                new AxisPos
-                {
-                    X = settings.PcbSupply.RotationX,
-                    Z = settings.PcbSupply.Motion.SafeZ,
-                },
-                TeachMode.XOnly,
-                TeachingStorage.Machine),
-            Create(
-                TeachingTarget.PcbSupplyHandoff,
-                EquipmentUnit.PcbSupply,
-                ToAxisPos(settings.PcbSupply.HandoffPosition),
+                TeachingTarget.SupplyBuffer,
+                MotionGroup.PcbSupply,
+                ToAxisPos(settings.PcbSupply.BufferPosition),
                 TeachMode.XZOnly,
                 TeachingStorage.Machine),
             Create(
-                TeachingTarget.PcbPlacementHandoff,
-                EquipmentUnit.PcbPlacement,
-                settings.PcbPlacement.HandoffPickPosition,
+                TeachingTarget.PlacementBuffer,
+                MotionGroup.PcbPlacement,
+                settings.PcbPlacement.BufferPosition,
                 TeachMode.Full,
                 TeachingStorage.Machine),
         ];
@@ -50,61 +39,67 @@ public sealed class TeachingPointMapper(MachineSettings settings)
         List<TeachingPoint> points =
         [
             Create(
-                TeachingTarget.Fiducial1,
-                EquipmentUnit.PcbPlacement,
+                TeachingTarget.Fiducial1Capture,
+                MotionGroup.PcbPlacement,
                 recipe.PcbPlacement.Fiducial1Position,
                 TeachMode.Full),
             Create(
-                TeachingTarget.Fiducial2,
-                EquipmentUnit.PcbPlacement,
+                TeachingTarget.Fiducial2Capture,
+                MotionGroup.PcbPlacement,
                 recipe.PcbPlacement.Fiducial2Position,
                 TeachMode.Full),
             Create(
-                TeachingTarget.Pcb1Place,
-                EquipmentUnit.PcbPlacement,
-                recipe.PcbPlacement.Pcb1PlacePosition,
+                TeachingTarget.Pcb1Placement,
+                MotionGroup.PcbPlacement,
+                recipe.PcbPlacement.Pcb1PlacementPosition,
                 TeachMode.Full),
             Create(
-                TeachingTarget.Pcb2Place,
-                EquipmentUnit.PcbPlacement,
-                recipe.PcbPlacement.Pcb2PlacePosition,
+                TeachingTarget.Pcb2Placement,
+                MotionGroup.PcbPlacement,
+                recipe.PcbPlacement.Pcb2PlacementPosition,
                 TeachMode.Full),
             Create(
                 TeachingTarget.BoltPcb1Reference,
-                EquipmentUnit.BoltFastening,
+                MotionGroup.BoltFastening,
                 recipe.BoltFastening.Pcb1Reference,
                 TeachMode.XYOnly),
             Create(
                 TeachingTarget.BoltPcb2Reference,
-                EquipmentUnit.BoltFastening,
+                MotionGroup.BoltFastening,
                 recipe.BoltFastening.Pcb2Reference,
                 TeachMode.XYOnly),
             Create(
-                TeachingTarget.Pcb1Inspection,
-                EquipmentUnit.Inspection,
+                TeachingTarget.LoctiteBoltPickup,
+                MotionGroup.BoltFastening,
+                settings.BoltFastening.LoctitePickupPosition,
+                TeachMode.Full,
+                TeachingStorage.Machine),
+            Create(
+                TeachingTarget.Pcb1InspectionCapture,
+                MotionGroup.Inspection,
                 recipe.Inspection.Pcb1InspectionPosition,
                 TeachMode.Full),
             Create(
-                TeachingTarget.Pcb2Inspection,
-                EquipmentUnit.Inspection,
+                TeachingTarget.Pcb2InspectionCapture,
+                MotionGroup.Inspection,
                 recipe.Inspection.Pcb2InspectionPosition,
                 TeachMode.Full),
             Create(
-                TeachingTarget.NgCarrierPickup,
-                EquipmentUnit.Inspection,
-                recipe.Inspection.NgCarrierPickupPosition,
+                TeachingTarget.NgCarrierJigPickup,
+                MotionGroup.Inspection,
+                recipe.Inspection.NgCarrierJigPickupPosition,
                 TeachMode.Full),
             Create(
-                TeachingTarget.NgStack,
-                EquipmentUnit.Inspection,
-                recipe.Inspection.NgStackPosition,
+                TeachingTarget.NgShuttle,
+                MotionGroup.Inspection,
+                recipe.Inspection.NgShuttlePosition,
                 TeachMode.Full),
         ];
 
         points.AddRange(recipe.BoltFastening.BoltPoints.Select(bolt =>
             CreateBolt(
-                TeachingTarget.BoltZ,
-                EquipmentUnit.BoltFastening,
+                TeachingTarget.BoltWorkZ,
+                MotionGroup.BoltFastening,
                 bolt,
                 ToBoltFastening(recipe, bolt),
                 TeachMode.ZOnly,
@@ -112,7 +107,7 @@ public sealed class TeachingPointMapper(MachineSettings settings)
         points.AddRange(recipe.BoltFastening.BoltPoints.Select(bolt =>
             CreateBolt(
                 TeachingTarget.BoltReference,
-                EquipmentUnit.Inspection,
+                MotionGroup.Inspection,
                 bolt,
                 ToInspection(recipe, bolt),
                 TeachMode.XYOnly,
@@ -130,32 +125,29 @@ public sealed class TeachingPointMapper(MachineSettings settings)
 
         switch (point.Target)
         {
-            case TeachingTarget.PcbSupplyCarrier1:
-                recipe.PcbSupply.CarrierPick1 = ToXzPos(position);
+            case TeachingTarget.SupplyPcb1Pick:
+                recipe.PcbSupply.Pcb1PickPosition = ToXzPos(position);
                 break;
-            case TeachingTarget.PcbSupplyCarrier2:
-                recipe.PcbSupply.CarrierPick2 = ToXzPos(position);
+            case TeachingTarget.SupplyPcb2Pick:
+                recipe.PcbSupply.Pcb2PickPosition = ToXzPos(position);
                 break;
-            case TeachingTarget.PcbSupplyRotation:
-                settings.PcbSupply.RotationX = position.X;
+            case TeachingTarget.SupplyBuffer:
+                settings.PcbSupply.BufferPosition = ToXzPos(position);
                 break;
-            case TeachingTarget.PcbSupplyHandoff:
-                settings.PcbSupply.HandoffPosition = ToXzPos(position);
+            case TeachingTarget.PlacementBuffer:
+                settings.PcbPlacement.BufferPosition = position;
                 break;
-            case TeachingTarget.PcbPlacementHandoff:
-                settings.PcbPlacement.HandoffPickPosition = position;
-                break;
-            case TeachingTarget.Fiducial1:
+            case TeachingTarget.Fiducial1Capture:
                 recipe.PcbPlacement.Fiducial1Position = position;
                 break;
-            case TeachingTarget.Fiducial2:
+            case TeachingTarget.Fiducial2Capture:
                 recipe.PcbPlacement.Fiducial2Position = position;
                 break;
-            case TeachingTarget.Pcb1Place:
-                recipe.PcbPlacement.Pcb1PlacePosition = position;
+            case TeachingTarget.Pcb1Placement:
+                recipe.PcbPlacement.Pcb1PlacementPosition = position;
                 break;
-            case TeachingTarget.Pcb2Place:
-                recipe.PcbPlacement.Pcb2PlacePosition = position;
+            case TeachingTarget.Pcb2Placement:
+                recipe.PcbPlacement.Pcb2PlacementPosition = position;
                 break;
             case TeachingTarget.BoltPcb1Reference:
                 recipe.BoltFastening.Pcb1Reference = position;
@@ -164,27 +156,33 @@ public sealed class TeachingPointMapper(MachineSettings settings)
             case TeachingTarget.BoltPcb2Reference:
                 recipe.BoltFastening.Pcb2Reference = position;
                 break;
-            case TeachingTarget.BoltZ:
+            case TeachingTarget.LoctiteBoltPickup:
+                settings.BoltFastening.LoctitePickupPosition = position;
+                break;
+            case TeachingTarget.BoltWorkZ:
                 FindBolt(recipe, point).Z = point.Z;
                 break;
-            case TeachingTarget.Pcb1Inspection:
+            case TeachingTarget.Pcb1InspectionCapture:
                 recipe.Inspection.Pcb1InspectionPosition = position;
                 UpdateInspectionBoltPositions(recipe, points);
                 break;
-            case TeachingTarget.Pcb2Inspection:
+            case TeachingTarget.Pcb2InspectionCapture:
                 recipe.Inspection.Pcb2InspectionPosition = position;
                 break;
-            case TeachingTarget.NgCarrierPickup:
-                recipe.Inspection.NgCarrierPickupPosition = position;
+            case TeachingTarget.NgCarrierJigPickup:
+                recipe.Inspection.NgCarrierJigPickupPosition = position;
                 break;
-            case TeachingTarget.NgStack:
-                recipe.Inspection.NgStackPosition = position;
+            case TeachingTarget.NgShuttle:
+                recipe.Inspection.NgShuttlePosition = position;
                 break;
             case TeachingTarget.BoltReference:
                 ApplyBoltReference(recipe, points, point, position);
                 break;
             default:
-                throw new ArgumentOutOfRangeException(nameof(point.Target));
+                throw new ArgumentOutOfRangeException(
+                    nameof(point),
+                    point.Target,
+                    null);
         }
     }
 
@@ -197,7 +195,7 @@ public sealed class TeachingPointMapper(MachineSettings settings)
     private AxisPos ToBoltFastening(Recipe recipe, BoltPoint bolt)
     {
         var reference = recipe.BoltFastening.Pcb1Reference;
-        var head = settings.BoltFastening.GetHead(bolt.BoltType);
+        var head = settings.BoltFastening.GetHead(bolt.Head);
         return new AxisPos
         {
             X = reference.X + bolt.X - head.OffsetX,
@@ -228,7 +226,7 @@ public sealed class TeachingPointMapper(MachineSettings settings)
         bolt.Y = position.Y - reference.Y;
 
         var boltPosition = ToBoltFastening(recipe, bolt);
-        var boltZ = FindPoint(points, TeachingTarget.BoltZ, bolt.Number);
+        var boltZ = FindPoint(points, TeachingTarget.BoltWorkZ, bolt.Number);
         boltZ.X = boltPosition.X;
         boltZ.Y = boltPosition.Y;
     }
@@ -240,7 +238,7 @@ public sealed class TeachingPointMapper(MachineSettings settings)
         foreach (var bolt in recipe.BoltFastening.BoltPoints)
         {
             var position = ToBoltFastening(recipe, bolt);
-            var point = FindPoint(points, TeachingTarget.BoltZ, bolt.Number);
+            var point = FindPoint(points, TeachingTarget.BoltWorkZ, bolt.Number);
             point.X = position.X;
             point.Y = position.Y;
         }
@@ -264,13 +262,13 @@ public sealed class TeachingPointMapper(MachineSettings settings)
 
     private static TeachingPoint Create(
         TeachingTarget target,
-        EquipmentUnit unit,
+        MotionGroup motionGroup,
         AxisPos position,
         TeachMode mode,
         TeachingStorage storage = TeachingStorage.Recipe) => new()
         {
             Target = target,
-            Unit = unit,
+            MotionGroup = motionGroup,
             TeachMode = mode,
             Storage = storage,
             X = position.X,
@@ -281,17 +279,17 @@ public sealed class TeachingPointMapper(MachineSettings settings)
 
     private static TeachingPoint CreateBolt(
         TeachingTarget target,
-        EquipmentUnit unit,
+        MotionGroup motionGroup,
         BoltPoint bolt,
         AxisPos position,
         TeachMode mode,
         bool isTaught) => new()
         {
             Target = target,
-            Unit = unit,
+            MotionGroup = motionGroup,
             TeachMode = mode,
             BoltNumber = bolt.Number,
-            BoltType = bolt.BoltType,
+            Head = bolt.Head,
             X = position.X,
             Y = position.Y,
             Z = position.Z,

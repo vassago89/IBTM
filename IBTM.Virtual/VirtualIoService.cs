@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,10 +8,12 @@ namespace IBTM.Virtual;
 
 public sealed class VirtualIoService(HardwareMap? hardware = null) : IIoService
 {
-    private static readonly (InputIo Carrier, InputIo Housing1, InputIo Housing2)[] Stations =
+    private const int FeedbackDelayMilliseconds = 200;
+
+    private static readonly (InputIo? Carrier, InputIo Housing1, InputIo Housing2)[] Stations =
     [
         (
-            InputIo.PcbPlacementCarrierJigPresent,
+            null,
             InputIo.PcbPlacementHousing1Present,
             InputIo.PcbPlacementHousing2Present),
         (
@@ -32,39 +33,43 @@ public sealed class VirtualIoService(HardwareMap? hardware = null) : IIoService
         OutputIo.InspectionStopperUp,
     ];
 
-    private readonly Dictionary<InputIo, bool> _inputs =
-        Enum.GetValues<InputIo>().ToDictionary(input => input, _ => false);
-    private readonly Dictionary<OutputIo, bool> _outputs =
-        Enum.GetValues<OutputIo>().ToDictionary(output => output, _ => false);
+    private readonly bool[] _inputs = new bool[
+        Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
+    private readonly bool[] _outputs = new bool[
+        Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
+    private readonly int[] _feedbackVersions = new int[
+        Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
+    private readonly bool[] _stationOccupied = new bool[Stations.Length];
     private bool _conveyorRunning;
 
-    private event Action<InputIo, bool>? InputChanged;
+    public event Action<InputIo, bool>? InputChanged;
+    public event Action<OutputIo, bool>? OutputChanged;
 
     public HardwareMap Hardware { get; } = hardware ?? new HardwareMap();
-    public HashSet<OutputIo> DisabledFeedbacks { get; } = [];
     public bool SupplyPcbPresentOnPick { get; set; } = true;
     public bool PlacementPcbPresentOnPick { get; set; } = true;
 
     public void Initialize()
     {
-        SetInput(InputIo.MainLaneUpstreamBoardAvailable, true);
-        SetInput(InputIo.MainLaneDownstreamMachineReady, true);
+        SetInput(InputIo.ConveyorUpstreamBoardAvailable, true);
+        SetInput(InputIo.ConveyorDownstreamMachineReady, true);
         SetInput(InputIo.EmergencyStopReleased, true);
         SetInput(InputIo.DoorClosed, true);
         SetInput(InputIo.AirPressureOk, true);
-        SetInput(InputIo.PcbSupplyRotationHome, true);
+        SetInput(InputIo.PcbSupplyUnrotated, true);
     }
 
-    public bool GetInput(InputIo input) => _inputs[input];
+    public bool GetInput(InputIo input) => _inputs[(int)input];
 
-    public bool GetOutput(OutputIo output) => _outputs[output];
+    public bool GetOutput(OutputIo output) => _outputs[(int)output];
 
     public async Task WaitForInputAsync(
         InputIo input,
         bool value,
         CancellationToken cancellationToken = default)
     {
-        if (_inputs[input] == value)
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_inputs[(int)input] == value)
         {
             return;
         }
@@ -86,7 +91,7 @@ public sealed class VirtualIoService(HardwareMap? hardware = null) : IIoService
 
         try
         {
-            if (_inputs[input] == value)
+            if (_inputs[(int)input] == value)
             {
                 completion.TrySetResult();
             }
@@ -101,67 +106,35 @@ public sealed class VirtualIoService(HardwareMap? hardware = null) : IIoService
 
     public void SetInput(InputIo input, bool value)
     {
-        _inputs[input] = value;
+        var index = (int)input;
+        if (_inputs[index] == value)
+        {
+            return;
+        }
+
+        _inputs[index] = value;
         InputChanged?.Invoke(input, value);
     }
 
     public void SetOutput(OutputIo output, bool value)
     {
-        _outputs[output] = value;
+        _outputs[(int)output] = value;
+        OutputChanged?.Invoke(output, value);
 
-        var stationIndex = Array.IndexOf(StopperUpOutputs, output);
-        if (stationIndex >= 0 && value && _conveyorRunning)
+        if (output == OutputIo.PcbSupplyUpstreamMachineReady)
         {
-            ReleaseCarrierJig(stationIndex);
+            SetInput(InputIo.PcbSupplyUpstreamBoardAvailable, value);
         }
 
-        if (output == OutputIo.PcbSupplyReady)
+        var feedbackVersion = Interlocked.Increment(
+            ref _feedbackVersions[(int)output]);
+        if (Hardware.OutputFeedbacks.TryGetValue(output, out var feedback))
         {
-            SetInput(InputIo.PcbSupplyCarrierAvailable, value);
-        }
-
-        if (output == OutputIo.PcbSupplyGripper)
-        {
-            SetInput(
-                InputIo.PcbSupplyPcbPresent,
-                value && SupplyPcbPresentOnPick);
-        }
-
-        if (output == OutputIo.PcbPlacementGripper)
-        {
-            SetInput(
-                InputIo.PcbPlacementPcbPresent,
-                value
-                && PlacementPcbPresentOnPick
-                && _inputs[InputIo.PcbSupplyPcbPresent]);
-        }
-
-        if (output == OutputIo.InspectionGripper
-            && value
-            && _outputs[OutputIo.InspectionBackupPlateUp]
-            && _inputs[InputIo.InspectionCarrierJigPresent])
-        {
-            ClearStation(2);
-        }
-
-        if (Hardware.OutputFeedbacks.TryGetValue(output, out var feedback)
-            && !DisabledFeedbacks.Contains(output))
-        {
-            if (feedback.OnInput == feedback.OffInput)
-            {
-                var expected = feedback.GetExpected(value);
-                SetInput(expected.Input, expected.Value);
-            }
-            else if (value)
-            {
-                SetInput(feedback.OffInput, !feedback.OffValue);
-                SetInput(feedback.OnInput, feedback.OnValue);
-            }
-            else
-            {
-                SetInput(feedback.OnInput, !feedback.OnValue);
-                SetInput(feedback.OffInput, feedback.OffValue);
-            }
+            _ = ApplyFeedbackAsync(
+                output,
+                value,
+                feedback,
+                feedbackVersion);
         }
     }
 
@@ -169,7 +142,7 @@ public sealed class VirtualIoService(HardwareMap? hardware = null) : IIoService
     {
         foreach (var output in Enum.GetValues<OutputIo>())
         {
-            if (_outputs[output])
+            if (_outputs[(int)output])
             {
                 SetOutput(output, false);
             }
@@ -178,26 +151,30 @@ public sealed class VirtualIoService(HardwareMap? hardware = null) : IIoService
 
     private void ReleaseCarrierJig(int stationIndex)
     {
+        if (!_stationOccupied[stationIndex])
+        {
+            return;
+        }
+
+        var lastStation = Stations.Length - 1;
+        if (stationIndex < lastStation
+            && _stationOccupied[stationIndex + 1])
+        {
+            return;
+        }
+
+        if (stationIndex == lastStation
+            && !_inputs[(int)InputIo.ConveyorDownstreamMachineReady])
+        {
+            return;
+        }
+
         var current = Stations[stationIndex];
-        if (!_inputs[current.Carrier])
-        {
-            throw new InvalidOperationException($"Station {stationIndex + 1} has no carrier jig.");
-        }
-
-        if (stationIndex < Stations.Length - 1)
-        {
-            var destination = Stations[stationIndex + 1];
-            if (_inputs[destination.Carrier])
-            {
-                throw new InvalidOperationException($"Station {stationIndex + 2} is occupied.");
-            }
-        }
-
-        var housing1Present = _inputs[current.Housing1];
-        var housing2Present = _inputs[current.Housing2];
+        var housing1Present = _inputs[(int)current.Housing1];
+        var housing2Present = _inputs[(int)current.Housing2];
         ClearStation(stationIndex);
 
-        if (stationIndex < Stations.Length - 1)
+        if (stationIndex < lastStation)
         {
             SetStation(
                 stationIndex + 1,
@@ -207,15 +184,15 @@ public sealed class VirtualIoService(HardwareMap? hardware = null) : IIoService
 
         if (stationIndex == 0)
         {
-            SetInput(InputIo.MainLaneUpstreamBoardAvailable, true);
+            SetInput(InputIo.ConveyorUpstreamBoardAvailable, true);
         }
         else if (stationIndex == 1)
         {
-            SetInput(InputIo.MainLaneDownstreamMachineReady, true);
+            SetInput(InputIo.ConveyorDownstreamMachineReady, true);
         }
         else
         {
-            SetInput(InputIo.MainLaneDownstreamMachineReady, false);
+            SetInput(InputIo.ConveyorDownstreamMachineReady, false);
         }
     }
 
@@ -225,7 +202,12 @@ public sealed class VirtualIoService(HardwareMap? hardware = null) : IIoService
         bool housing2Present)
     {
         var station = Stations[stationIndex];
-        SetInput(station.Carrier, true);
+        _stationOccupied[stationIndex] = true;
+        if (station.Carrier is { } carrier)
+        {
+            SetInput(carrier, true);
+        }
+
         SetInput(station.Housing1, housing1Present);
         SetInput(station.Housing2, housing2Present);
     }
@@ -233,7 +215,12 @@ public sealed class VirtualIoService(HardwareMap? hardware = null) : IIoService
     private void ClearStation(int stationIndex)
     {
         var station = Stations[stationIndex];
-        SetInput(station.Carrier, false);
+        _stationOccupied[stationIndex] = false;
+        if (station.Carrier is { } carrier)
+        {
+            SetInput(carrier, false);
+        }
+
         SetInput(station.Housing1, false);
         SetInput(station.Housing2, false);
     }
@@ -242,14 +229,84 @@ public sealed class VirtualIoService(HardwareMap? hardware = null) : IIoService
     {
         _conveyorRunning = true;
 
-        if (_outputs[OutputIo.MainLaneUpstreamMachineReady]
-            && _inputs[InputIo.MainLaneUpstreamBoardAvailable]
-            && !_inputs[InputIo.PcbPlacementCarrierJigPresent])
+        if (_outputs[(int)OutputIo.ConveyorUpstreamMachineReady]
+            && _inputs[(int)InputIo.ConveyorUpstreamBoardAvailable]
+            && !_stationOccupied[0])
         {
-            SetInput(InputIo.MainLaneUpstreamBoardAvailable, false);
+            SetInput(InputIo.ConveyorUpstreamBoardAvailable, false);
             SetStation(0, housing1Present: true, housing2Present: true);
         }
     }
 
     internal void StopConveyor() => _conveyorRunning = false;
+
+    private async Task ApplyFeedbackAsync(
+        OutputIo output,
+        bool value,
+        OutputFeedback feedback,
+        int version)
+    {
+        await Task.Delay(FeedbackDelayMilliseconds);
+        if (_feedbackVersions[(int)output] != version)
+        {
+            return;
+        }
+
+        var expected = feedback.GetExpected(value);
+        if (feedback.OnInput != feedback.OffInput)
+        {
+            var inactiveInput = value
+                ? feedback.OffInput
+                : feedback.OnInput;
+            var inactiveValue = value
+                ? !feedback.OffValue
+                : !feedback.OnValue;
+            SetInput(inactiveInput, inactiveValue);
+        }
+
+        SetInput(expected.Input, expected.Value);
+        ApplyPhysicalOutput(output, value);
+    }
+
+    private void ApplyPhysicalOutput(OutputIo output, bool value)
+    {
+        var stationIndex = Array.IndexOf(StopperUpOutputs, output);
+        if (stationIndex >= 0 && value && _conveyorRunning)
+        {
+            ReleaseCarrierJig(stationIndex);
+        }
+
+        if (output == OutputIo.PcbSupplyGripperClose)
+        {
+            if (!value && _inputs[(int)InputIo.PcbSupplyPcbPresent])
+            {
+                SetInput(InputIo.PcbBufferPcbPresent, true);
+            }
+
+            SetInput(
+                InputIo.PcbSupplyPcbPresent,
+                value && SupplyPcbPresentOnPick);
+        }
+
+        if (output == OutputIo.PcbPlacementGripperClose)
+        {
+            SetInput(
+                InputIo.PcbPlacementPcbPresent,
+                value
+                && PlacementPcbPresentOnPick
+                && _inputs[(int)InputIo.PcbBufferPcbPresent]);
+            if (value && _inputs[(int)InputIo.PcbPlacementPcbPresent])
+            {
+                SetInput(InputIo.PcbBufferPcbPresent, false);
+            }
+        }
+
+        if (output == OutputIo.InspectionGripperClose
+            && value
+            && _outputs[(int)OutputIo.InspectionBackupPlateUp]
+            && _stationOccupied[2])
+        {
+            ClearStation(2);
+        }
+    }
 }

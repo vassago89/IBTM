@@ -1,19 +1,20 @@
+using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.Stations.BoltFastening;
 
-public sealed class BoltFasteningSettings
+public sealed class BoltFasteningSettings : Setting
 {
-    public StationMotionSettings Motion { get; set; } = new();
+    public MotionSettings Motion { get; set; } = new();
+    public AxisPos LoctitePickupPosition { get; set; } = new();
     public BoltHeadSettings StandardHead { get; set; } = new();
     public BoltHeadSettings LoctiteHead { get; set; } = new();
-    public int RetryCount { get; set; } = 2;
 
-    public BoltHeadSettings GetHead(BoltType boltType) => boltType switch
+    public BoltHeadSettings GetHead(FasteningHead head) => head switch
     {
-        BoltType.Standard => StandardHead,
-        BoltType.Loctite => LoctiteHead,
-        _ => throw new System.ArgumentOutOfRangeException(nameof(boltType)),
+        FasteningHead.Standard => StandardHead,
+        FasteningHead.Loctite => LoctiteHead,
+        _ => throw new System.ArgumentOutOfRangeException(nameof(head)),
     };
 }
 

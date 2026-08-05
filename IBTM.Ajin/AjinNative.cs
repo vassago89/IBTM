@@ -34,6 +34,13 @@ internal static class AjinNative
     internal static extern uint AxmStatusReadMechanical(int axis, ref uint status);
 
     [DllImport(LibraryName)]
+    internal static extern uint AxmSignalGetLimit(
+        int axis,
+        ref uint stopMode,
+        ref uint positiveLevel,
+        ref uint negativeLevel);
+
+    [DllImport(LibraryName)]
     internal static extern uint AxmHomeSetResult(int axis, uint result);
 
     [DllImport(LibraryName)]
@@ -75,6 +82,15 @@ internal static class AjinNative
         double velocity,
         double acceleration,
         double deceleration);
+
+    [DllImport(LibraryName)]
+    internal static extern uint AxmMoveSignalSearch(
+        int axis,
+        double velocity,
+        double acceleration,
+        int detectSignal,
+        int signalEdge,
+        int signalMethod);
 
     [DllImport(LibraryName)]
     internal static extern uint AxmMoveSStop(int axis);

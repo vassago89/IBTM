@@ -6,10 +6,9 @@ namespace IBTM.Virtual;
 public sealed class VirtualConveyorServo(VirtualIoService io) : IConveyorServo
 {
     private bool _initialized;
+    private bool _isRunning;
 
     public event Action<bool>? RunningChanged;
-
-    public bool IsRunning { get; private set; }
 
     public void Initialize()
     {
@@ -18,14 +17,14 @@ public sealed class VirtualConveyorServo(VirtualIoService io) : IConveyorServo
 
     public void Run(double _)
     {
-        IsRunning = true;
+        _isRunning = true;
         io.StartConveyor();
         RunningChanged?.Invoke(true);
     }
 
     public void Stop()
     {
-        IsRunning = false;
+        _isRunning = false;
         io.StopConveyor();
         RunningChanged?.Invoke(false);
     }
@@ -38,7 +37,7 @@ public sealed class VirtualConveyorServo(VirtualIoService io) : IConveyorServo
         Homed: true,
         ServoOn: _initialized,
         Alarm: false,
-        InPosition: !IsRunning,
+        InPosition: !_isRunning,
         Emergency: false,
         HomeSensor: false,
         PositiveLimit: false,

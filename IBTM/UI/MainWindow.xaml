@@ -2,9 +2,11 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:IBTM.UI"
-        Title="IBTM — SMT Inline Control System"
-        WindowState="Maximized"
-        MinWidth="1280" MinHeight="720"
+        Title="IBTM — Inline Assembly Control"
+        Width="1920"
+        Height="1080"
+        Icon="{StaticResource AppIcon}"
+        ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
@@ -14,8 +16,8 @@
         <DataTemplate DataType="{x:Type ui:ProcessViewModel}">
             <ui:ProcessView/>
         </DataTemplate>
-        <DataTemplate DataType="{x:Type ui:TeachingViewModel}">
-            <ui:TeachingView/>
+        <DataTemplate DataType="{x:Type ui:StationTeachingViewModel}">
+            <ui:StationTeachingView/>
         </DataTemplate>
         <DataTemplate DataType="{x:Type ui:SupplyTeachingViewModel}">
             <ui:SupplyTeachingView/>
@@ -27,7 +29,7 @@
 
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="160"/>
+            <ColumnDefinition Width="196"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
@@ -42,61 +44,117 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0" Padding="18,22,18,18">
-                    <StackPanel>
-                        <TextBlock Text="IBTM"
-                                   FontSize="19" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}"/>
-                        <TextBlock Text="CONTROL SYSTEM"
-                                   FontSize="10"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   Margin="0,4,0,0"/>
-                    </StackPanel>
+                <Border Grid.Row="0" Padding="20,24,20,18">
+                    <TextBlock Text="IBTM"
+                               FontSize="19" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"/>
                 </Border>
 
                 <StackPanel Grid.Row="1" Margin="0,8">
-                    <TextBlock Text="WORKSPACE" Style="{StaticResource SectionHeaderStyle}"
-                               Margin="18,0,18,8"/>
-                    <RadioButton Content="Process Monitor"
+                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.Process},
+                                                   Converter={StaticResource EnumDescriptionConverter}}"
                                  GroupName="Navigation"
-                                 IsChecked="True"
-                                 Style="{StaticResource NavButtonStyle}"
                                  Command="{Binding NavigateCommand}"
-                                 CommandParameter="{x:Static ui:AppPage.Process}"/>
+                                 CommandParameter="{x:Static ui:AppPage.Process}">
+                        <RadioButton.Style>
+                            <Style TargetType="RadioButton"
+                                   BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedPage}"
+                                                 Value="{x:Static ui:AppPage.Process}">
+                                        <Setter Property="IsChecked" Value="True"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </RadioButton.Style>
+                    </RadioButton>
 
-                    <RadioButton Content="Supply Teaching"
+                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.SupplyTeaching},
+                                                   Converter={StaticResource EnumDescriptionConverter}}"
                                  GroupName="Navigation"
-                                 Style="{StaticResource NavButtonStyle}"
                                  Command="{Binding NavigateCommand}"
-                                 CommandParameter="{x:Static ui:AppPage.SupplyTeaching}"/>
+                                 CommandParameter="{x:Static ui:AppPage.SupplyTeaching}">
+                        <RadioButton.Style>
+                            <Style TargetType="RadioButton"
+                                   BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedPage}"
+                                                 Value="{x:Static ui:AppPage.SupplyTeaching}">
+                                        <Setter Property="IsChecked" Value="True"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </RadioButton.Style>
+                    </RadioButton>
 
-                    <RadioButton Content="Station Teaching"
+                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.StationTeaching},
+                                                   Converter={StaticResource EnumDescriptionConverter}}"
                                  GroupName="Navigation"
-                                 Style="{StaticResource NavButtonStyle}"
                                  Command="{Binding NavigateCommand}"
-                                 CommandParameter="{x:Static ui:AppPage.Teaching}"/>
+                                 CommandParameter="{x:Static ui:AppPage.StationTeaching}">
+                        <RadioButton.Style>
+                            <Style TargetType="RadioButton"
+                                   BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedPage}"
+                                                 Value="{x:Static ui:AppPage.StationTeaching}">
+                                        <Setter Property="IsChecked" Value="True"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </RadioButton.Style>
+                    </RadioButton>
 
-                    <RadioButton Content="Settings"
+                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.Settings},
+                                                   Converter={StaticResource EnumDescriptionConverter}}"
                                  GroupName="Navigation"
-                                 Style="{StaticResource NavButtonStyle}"
                                  Command="{Binding NavigateCommand}"
-                                 CommandParameter="{x:Static ui:AppPage.Settings}"/>
+                                 CommandParameter="{x:Static ui:AppPage.Settings}">
+                        <RadioButton.Style>
+                            <Style TargetType="RadioButton"
+                                   BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedPage}"
+                                                 Value="{x:Static ui:AppPage.Settings}">
+                                        <Setter Property="IsChecked" Value="True"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </RadioButton.Style>
+                    </RadioButton>
+
+                    <Button Content="Digital Inputs"
+                            Margin="16,14,16,0"
+                            Padding="12,6"
+                            HorizontalContentAlignment="Left"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="OnOpenInputs"/>
+
+                    <Button Content="Digital Outputs"
+                            Margin="16,6,16,0"
+                            Padding="12,6"
+                            HorizontalContentAlignment="Left"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            IsEnabled="{Binding ManualControlsEnabled}"
+                            Click="OnOpenOutputs"/>
+
+                    <Button Content="ADC-400 Protocol"
+                            Margin="16,6,16,0"
+                            Padding="12,6"
+                            HorizontalContentAlignment="Left"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            Click="OnOpenAdcProtocol"/>
                 </StackPanel>
 
-                <Border Grid.Row="2" Margin="12" Padding="12,10"
-                        Background="{StaticResource CardBgBrush}"
-                        BorderBrush="{StaticResource CardBorderBrush}"
-                        BorderThickness="1" CornerRadius="8">
-                    <StackPanel>
-                        <TextBlock Text="{Binding HardwareName}" Style="{StaticResource SectionHeaderStyle}"/>
-                        <TextBlock Text="Motion · IO · Conveyor" FontSize="10"
-                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0"/>
-                    </StackPanel>
-                </Border>
+                <TextBlock Grid.Row="2"
+                           Text="{Binding HardwareName}"
+                           Style="{StaticResource SectionHeaderStyle}"
+                           Margin="24,16"/>
             </Grid>
         </Border>
 
         <ContentControl Grid.Column="1"
+                        IsEnabled="{Binding CurrentPageEnabled}"
                         HorizontalContentAlignment="Stretch"
                         VerticalContentAlignment="Stretch"
                         Content="{Binding CurrentPage}"/>

@@ -1,11 +1,15 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core;
 
 namespace IBTM.Device;
 
 public interface IIoService
 {
+    event Action<InputIo, bool>? InputChanged;
+    event Action<OutputIo, bool>? OutputChanged;
+
     HardwareMap Hardware { get; }
 
     void Initialize();
@@ -22,6 +26,7 @@ public interface IIoService
         bool value,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         SetOutput(output, value);
         await WaitForOutputFeedbackAsync(output, value, cancellationToken);
     }
@@ -64,12 +69,7 @@ public sealed class IoFeedbackTimeoutException(
     InputIo input,
     bool inputValue,
     int timeoutMilliseconds) : TimeoutException(
-        $"{output} {(outputValue ? "ON" : "OFF")} → "
-        + $"{input}={(inputValue ? "ON" : "OFF")} "
+        $"{output.GetDescription()} {(outputValue ? "ON" : "OFF")} → "
+        + $"{input.GetDescription()}={(inputValue ? "ON" : "OFF")} "
         + $"timeout ({timeoutMilliseconds} ms)")
-{
-    public OutputIo Output { get; } = output;
-    public bool OutputValue { get; } = outputValue;
-    public InputIo Input { get; } = input;
-    public bool InputValue { get; } = inputValue;
-}
+{ }

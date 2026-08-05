@@ -5,7 +5,7 @@ namespace IBTM.Virtual;
 
 public sealed class VirtualLightController : ILightController
 {
-    public HashSet<int> ActiveChannels { get; } = [];
+    private readonly HashSet<int> _activeChannels = [];
 
     public void Initialize()
     {
@@ -16,11 +16,11 @@ public sealed class VirtualLightController : ILightController
     }
 
     public void TurnOn(int channel) =>
-        ActiveChannels.Add(channel);
+        _activeChannels.Add(channel);
 
     public void TurnOff(int channel) =>
-        ActiveChannels.Remove(channel);
+        _activeChannels.Remove(channel);
 
     public void TurnOffAll() =>
-        ActiveChannels.Clear();
+        _activeChannels.Clear();
 }

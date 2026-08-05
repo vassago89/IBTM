@@ -10,6 +10,7 @@ public sealed class AjinConveyorServo(
     private readonly int _axis = hardware.Axes[MachineAxis.Conveyor];
     private readonly int _direction =
         (int)hardware.AxisDirections[MachineAxis.Conveyor];
+    private readonly double _millimetersPerPulse = hardware.MillimetersPerPulse;
 
     public event Action<bool>? RunningChanged;
 
@@ -24,7 +25,7 @@ public sealed class AjinConveyorServo(
     public void Run(double velocity)
     {
         var velocityInUnits =
-            velocity * _direction * controller.Settings.UnitsPerMillimeter;
+            velocity * _direction / _millimetersPerPulse;
         var acceleration = Math.Abs(velocityInUnits)
                            * controller.Settings.AccelerationMultiplier;
         AjinController.Check(

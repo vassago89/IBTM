@@ -1,9 +1,16 @@
+using System.ComponentModel;
+
 namespace IBTM.Device;
 
 public enum MotionAxis
 {
+    [Description("X")]
     X,
+
+    [Description("Y")]
     Y,
+
+    [Description("Z")]
     Z,
 }
 

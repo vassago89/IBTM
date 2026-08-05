@@ -3,9 +3,8 @@ using IBTM.Device;
 
 namespace IBTM.PcbSupply;
 
-public sealed class PcbSupplySettings
+public sealed class PcbSupplySettings : Setting
 {
-    public StationMotionSettings Motion { get; set; } = new();
-    public double RotationX { get; set; } = 100.0;
-    public XzPos HandoffPosition { get; set; } = new() { X = 100.0, Z = 25.0 };
+    public MotionSettings Motion { get; set; } = new();
+    public XzPos BufferPosition { get; set; } = new() { X = 10.0, Z = 8.0 };
 }

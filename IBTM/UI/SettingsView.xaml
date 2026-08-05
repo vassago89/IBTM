@@ -2,8 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="clr-namespace:IBTM.UI"
-             Background="{StaticResource AppBgBrush}"
-             Loaded="OnLoaded" Unloaded="OnUnloaded">
+             Background="{StaticResource AppBgBrush}">
 
     <UserControl.Resources>
         <Style x:Key="SettingFieldLabel" TargetType="TextBlock">
@@ -11,14 +10,9 @@
             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
             <Setter Property="Margin" Value="0,0,0,4"/>
         </Style>
-        <Style x:Key="SettingFieldBox" TargetType="TextBox">
-            <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="8,5"/>
-            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
-            <Setter Property="FontSize" Value="12"/>
+        <Style x:Key="SettingFieldBox"
+               TargetType="TextBox"
+               BasedOn="{StaticResource FieldTextBoxStyle}">
             <Setter Property="MinWidth" Value="90"/>
         </Style>
         <Style x:Key="SettingSectionTitle" TargetType="TextBlock">
@@ -31,11 +25,9 @@
             <Setter Property="Padding" Value="18"/>
             <Setter Property="Margin" Value="0,0,0,12"/>
         </Style>
-        <Style x:Key="SettingComboBox" TargetType="ComboBox">
-            <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
-            <Setter Property="Padding" Value="8,5"/>
+        <Style x:Key="SettingComboBox"
+               TargetType="ComboBox"
+               BasedOn="{StaticResource FieldComboBoxStyle}">
             <Setter Property="MinWidth" Value="120"/>
         </Style>
         <Style x:Key="SettingCheckBox" TargetType="CheckBox">
@@ -52,8 +44,9 @@
             <Setter Property="Padding" Value="4"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         </Style>
-        <Style x:Key="HardwareListItem" TargetType="ListBoxItem">
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Style x:Key="HardwareListItem"
+               TargetType="ListBoxItem"
+               BasedOn="{StaticResource FlatListItemStyle}">
             <Setter Property="Padding" Value="5,4"/>
             <Setter Property="Margin" Value="0,0,0,1"/>
         </Style>
@@ -69,43 +62,44 @@
         <StackPanel Margin="0,0,0,16">
             <TextBlock Text="Settings" Style="{StaticResource TitleStyle}"/>
             <TextBlock Text="Machine setup and configuration"
-                       FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                       Style="{StaticResource PageSubtitleStyle}"/>
         </StackPanel>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel MaxWidth="1100" HorizontalAlignment="Center" Margin="0,0,8,0">
+            <StackPanel MaxWidth="1480" HorizontalAlignment="Center" Margin="0,0,8,0">
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>
                         <TextBlock Text="Motion" Style="{StaticResource SettingSectionTitle}"/>
                         <UniformGrid Columns="6">
                             <StackPanel Margin="0,0,8,0">
-                                <TextBlock Text="Unit" Style="{StaticResource SettingFieldLabel}"/>
-                                <ComboBox ItemsSource="{Binding Units}"
-                                          SelectedItem="{Binding SelectedUnit, Mode=TwoWay}"
+                                <TextBlock Text="Motion Group" Style="{StaticResource SettingFieldLabel}"/>
+                                <ComboBox ItemsSource="{Binding MotionGroups}"
+                                          SelectedItem="{Binding SelectedMotionGroup, Mode=TwoWay}"
+                                          ItemTemplate="{StaticResource EnumItemTemplate}"
                                           Style="{StaticResource SettingComboBox}"/>
                             </StackPanel>
                             <StackPanel Margin="0,0,8,0">
                                 <TextBlock Text="Horizontal Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox Text="{Binding CurrentMotionParams.HorizontalSpeed, UpdateSourceTrigger=PropertyChanged}"
+                                <TextBox Text="{Binding CurrentMotionSettings.HorizontalSpeed, UpdateSourceTrigger=PropertyChanged}"
                                          Style="{StaticResource SettingFieldBox}"/>
                             </StackPanel>
                             <StackPanel Margin="8,0,0,0">
                                 <TextBlock Text="Z Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox Text="{Binding CurrentMotionParams.SpeedZ, UpdateSourceTrigger=PropertyChanged}"
+                                <TextBox Text="{Binding CurrentMotionSettings.ZSpeed, UpdateSourceTrigger=PropertyChanged}"
                                          Style="{StaticResource SettingFieldBox}"/>
                             </StackPanel>
                             <StackPanel Margin="16,0,0,0">
                                 <TextBlock Text="Safe Z (mm)" Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox Text="{Binding CurrentMotionParams.SafeZ, UpdateSourceTrigger=PropertyChanged}"
+                                <TextBox Text="{Binding CurrentMotionSettings.SafeZ, UpdateSourceTrigger=PropertyChanged}"
                                          Style="{StaticResource SettingFieldBox}"/>
                             </StackPanel>
                             <StackPanel Margin="16,0,0,0">
                                 <TextBlock Text="Conveyor Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox Text="{Binding Settings.Conveyor.Velocity, UpdateSourceTrigger=PropertyChanged}"
+                                <TextBox Text="{Binding Settings.ConveyorVelocity, UpdateSourceTrigger=PropertyChanged}"
                                          Style="{StaticResource SettingFieldBox}"/>
                             </StackPanel>
                             <StackPanel Margin="16,0,0,0">
-                                <TextBlock Text="Conveyor Manual" Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBlock Text="Conveyor" Style="{StaticResource SettingFieldLabel}"/>
                                 <StackPanel Orientation="Horizontal">
                                     <Button Content="Run" Command="{Binding RunConveyorCommand}"
                                             Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,0"/>
@@ -120,7 +114,59 @@
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>
                         <Grid Margin="0,0,0,14">
-                            <TextBlock Text="Output Feedback"
+                            <TextBlock Text="Shared Buffer Collision Area"
+                                       Style="{StaticResource SettingSectionTitle}"
+                                       Margin="0"/>
+                            <TextBlock Text="Required before buffer operation"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextMutedBrush}"/>
+                        </Grid>
+                        <UniformGrid Columns="6">
+                            <StackPanel Margin="0,0,8,0">
+                                <TextBlock Text="Supply X Min (mm)"
+                                           Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBox Text="{Binding Settings.PcbBuffer.SupplyMinimumX, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource SettingFieldBox}"/>
+                            </StackPanel>
+                            <StackPanel Margin="8,0">
+                                <TextBlock Text="Supply X Max (mm)"
+                                           Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBox Text="{Binding Settings.PcbBuffer.SupplyMaximumX, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource SettingFieldBox}"/>
+                            </StackPanel>
+                            <StackPanel Margin="8,0">
+                                <TextBlock Text="Placement X Min (mm)"
+                                           Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBox Text="{Binding Settings.PcbBuffer.PlacementMinimumX, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource SettingFieldBox}"/>
+                            </StackPanel>
+                            <StackPanel Margin="8,0">
+                                <TextBlock Text="Placement X Max (mm)"
+                                           Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBox Text="{Binding Settings.PcbBuffer.PlacementMaximumX, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource SettingFieldBox}"/>
+                            </StackPanel>
+                            <StackPanel Margin="8,0">
+                                <TextBlock Text="Placement Y Min (mm)"
+                                           Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBox Text="{Binding Settings.PcbBuffer.PlacementMinimumY, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource SettingFieldBox}"/>
+                            </StackPanel>
+                            <StackPanel Margin="8,0,0,0">
+                                <TextBlock Text="Placement Y Max (mm)"
+                                           Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBox Text="{Binding Settings.PcbBuffer.PlacementMaximumY, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource SettingFieldBox}"/>
+                            </StackPanel>
+                        </UniformGrid>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource SettingCard}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,14">
+                            <TextBlock Text="Actuator Feedback"
                                        Style="{StaticResource SettingSectionTitle}"
                                        Margin="0"/>
                             <TextBlock Text="Each actuator output waits for its mapped input state."
@@ -130,38 +176,66 @@
                         </Grid>
                         <Grid Margin="6,0,6,5">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1.3*"/>
-                                <ColumnDefinition Width="1.3*"/>
-                                <ColumnDefinition Width="1.3*"/>
-                                <ColumnDefinition Width="110"/>
+                                <ColumnDefinition Width="1.2*"/>
+                                <ColumnDefinition Width="1.4*"/>
+                                <ColumnDefinition Width="60"/>
+                                <ColumnDefinition Width="1.4*"/>
+                                <ColumnDefinition Width="60"/>
+                                <ColumnDefinition Width="100"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="OUTPUT" Style="{StaticResource SettingFieldLabel}"/>
-                            <TextBlock Grid.Column="1" Text="ON FEEDBACK"
+                            <TextBlock Grid.Column="1" Text="ON INPUT"
                                        Style="{StaticResource SettingFieldLabel}"/>
-                            <TextBlock Grid.Column="2" Text="OFF FEEDBACK"
+                            <TextBlock Grid.Column="2" Text="VALUE"
                                        Style="{StaticResource SettingFieldLabel}"/>
-                            <TextBlock Grid.Column="3" Text="TIMEOUT (ms)"
+                            <TextBlock Grid.Column="3" Text="OFF INPUT"
+                                       Style="{StaticResource SettingFieldLabel}"/>
+                            <TextBlock Grid.Column="4" Text="VALUE"
+                                       Style="{StaticResource SettingFieldLabel}"/>
+                            <TextBlock Grid.Column="5" Text="TIMEOUT (MS)"
                                        Style="{StaticResource SettingFieldLabel}"/>
                         </Grid>
                         <ListBox ItemsSource="{Binding FeedbackMappings}"
                                  Style="{StaticResource HardwareList}"
+                                 MaxHeight="240"
                                  ItemContainerStyle="{StaticResource HardwareListItem}">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="1.3*"/>
-                                            <ColumnDefinition Width="1.3*"/>
-                                            <ColumnDefinition Width="1.3*"/>
-                                            <ColumnDefinition Width="110"/>
+                                            <ColumnDefinition Width="1.2*"/>
+                                            <ColumnDefinition Width="1.4*"/>
+                                            <ColumnDefinition Width="60"/>
+                                            <ColumnDefinition Width="1.4*"/>
+                                            <ColumnDefinition Width="60"/>
+                                            <ColumnDefinition Width="100"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="{Binding Output}" VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="1" Text="{Binding OnFeedback}"
+                                        <TextBlock Text="{Binding Key, Converter={StaticResource EnumDescriptionConverter}}"
                                                    VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="2" Text="{Binding OffFeedback}"
-                                                   VerticalAlignment="Center"/>
-                                        <TextBox Grid.Column="3"
-                                                 Text="{Binding TimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
+                                        <ComboBox Grid.Column="1"
+                                                  ItemsSource="{Binding DataContext.InputSignals, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                  SelectedItem="{Binding Value.OnInput, Mode=TwoWay}"
+                                                  ItemTemplate="{StaticResource EnumItemTemplate}"
+                                                  Style="{StaticResource SettingComboBox}"
+                                                  MinWidth="0"
+                                                  Padding="5,3"/>
+                                        <CheckBox Grid.Column="2"
+                                                  IsChecked="{Binding Value.OnValue}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Column="3"
+                                                  ItemsSource="{Binding DataContext.InputSignals, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                  SelectedItem="{Binding Value.OffInput, Mode=TwoWay}"
+                                                  ItemTemplate="{StaticResource EnumItemTemplate}"
+                                                  Style="{StaticResource SettingComboBox}"
+                                                  MinWidth="0"
+                                                  Padding="5,3"/>
+                                        <CheckBox Grid.Column="4"
+                                                  IsChecked="{Binding Value.OffValue}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="5"
+                                                 Text="{Binding Value.TimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
                                                  Style="{StaticResource SettingFieldBox}"
                                                  MinWidth="0"
                                                  Padding="5,3"/>
@@ -175,11 +249,11 @@
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>
                         <Grid Margin="0,0,0,14">
-                            <TextBlock Text="Hardware" Style="{StaticResource SettingSectionTitle}" Margin="0"/>
+                            <TextBlock Text="Hardware and Homing" Style="{StaticResource SettingSectionTitle}" Margin="0"/>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Content="Stop Axis" Command="{Binding StopHomingCommand}"
+                                        Style="{StaticResource DangerButtonStyle}" Margin="0,0,8,0"/>
                                 <Button Content="Refresh" Command="{Binding RefreshHardwareCommand}"
-                                        Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
-                                <Button Content="Reset Motion Alarms" Command="{Binding ResetHardwareAlarmCommand}"
                                         Style="{StaticResource SecondaryButtonStyle}"/>
                             </StackPanel>
                         </Grid>
@@ -189,12 +263,14 @@
                                 <ColumnDefinition Width="180"/>
                                 <ColumnDefinition Width="150"/>
                                 <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="170"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Margin="0,0,16,0">
-                                <TextBlock Text="Driver" Style="{StaticResource SettingFieldLabel}"/>
-                                <ComboBox ItemsSource="{Binding HardwareDrivers}"
-                                          SelectedItem="{Binding Settings.Driver, Mode=TwoWay}"
+                                <TextBlock Text="Motion / IO Driver" Style="{StaticResource SettingFieldLabel}"/>
+                                <ComboBox ItemsSource="{Binding ControlDrivers}"
+                                          SelectedItem="{Binding Settings.ControlDriver, Mode=TwoWay}"
+                                          ItemTemplate="{StaticResource EnumItemTemplate}"
                                           Style="{StaticResource SettingComboBox}"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1" Margin="0,0,16,0">
@@ -204,22 +280,28 @@
                             </StackPanel>
                             <StackPanel Grid.Column="2" Margin="0,0,16,0">
                                 <TextBlock Text="Home Z (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox Text="{Binding Settings.Home.SpeedZ, UpdateSourceTrigger=PropertyChanged}"
+                                <TextBox Text="{Binding Settings.Home.ZSpeed, UpdateSourceTrigger=PropertyChanged}"
                                          Style="{StaticResource SettingFieldBox}"/>
                             </StackPanel>
-                            <TextBlock Grid.Column="3"
-                                       Text="Driver, axis number, and direction changes apply after restart."
+                            <StackPanel Grid.Column="3" Margin="0,0,16,0">
+                                <TextBlock Text="Pulse Length (mm/pulse)"
+                                           Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBox Text="{Binding Settings.Hardware.MillimetersPerPulse, UpdateSourceTrigger=PropertyChanged}"
+                                         Style="{StaticResource SettingFieldBox}"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="4"
+                                       Text="Motion / IO driver, axis number, and direction changes apply after restart."
                                        VerticalAlignment="Bottom"
                                        Foreground="{StaticResource TextMutedBrush}"/>
                         </Grid>
 
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="0.8*"/>
                                 <ColumnDefinition Width="12"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="0.9*"/>
                                 <ColumnDefinition Width="12"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="1.5*"/>
                             </Grid.ColumnDefinitions>
 
                             <StackPanel>
@@ -262,8 +344,6 @@
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="58"/>
-                                                    <ColumnDefinition Width="44"/>
-                                                    <ColumnDefinition Width="62"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
                                                            ToolTip="{Binding Name}"
@@ -271,15 +351,6 @@
                                                 <TextBox Grid.Column="1" Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}"
                                                          Style="{StaticResource SettingFieldBox}"
                                                          MinWidth="0" Padding="5,3" Margin="4,0"/>
-                                                <TextBlock Grid.Column="2" Text="{Binding State}"
-                                                           VerticalAlignment="Center" HorizontalAlignment="Center"
-                                                           FontFamily="Cascadia Mono, Consolas"
-                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
-                                                <Button Grid.Column="3" Content="Toggle"
-                                                        Command="{Binding DataContext.ToggleOutputCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        CommandParameter="{Binding}"
-                                                        Style="{StaticResource SecondaryButtonStyle}"
-                                                        Padding="6,3"/>
                                             </Grid>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
@@ -287,7 +358,7 @@
                             </StackPanel>
 
                             <StackPanel Grid.Column="4">
-                                <TextBlock Text="AXES · NUMBER · DIRECTION"
+                                <TextBlock Text="AXES · NUMBER · DIRECTION · MIN · MAX"
                                            Style="{StaticResource SettingFieldLabel}"/>
                                 <ListBox ItemsSource="{Binding AxisMappings}" Height="420"
                                          Style="{StaticResource HardwareList}"
@@ -297,12 +368,14 @@
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                      <ColumnDefinition Width="*"/>
-                                                     <ColumnDefinition Width="58"/>
-                                                     <ColumnDefinition Width="84"/>
-                                                     <ColumnDefinition Width="82"/>
+                                                     <ColumnDefinition Width="48"/>
+                                                     <ColumnDefinition Width="100"/>
                                                      <ColumnDefinition Width="54"/>
                                                      <ColumnDefinition Width="54"/>
-                                                </Grid.ColumnDefinitions>
+                                                     <ColumnDefinition Width="108"/>
+                                                     <ColumnDefinition Width="50"/>
+                                                     <ColumnDefinition Width="50"/>
+                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
                                                            ToolTip="{Binding Name}"
                                                            TextTrimming="CharacterEllipsis"/>
@@ -312,21 +385,77 @@
                                                  <ComboBox Grid.Column="2"
                                                            ItemsSource="{Binding DataContext.AxisDirections, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                            SelectedItem="{Binding Direction, Mode=TwoWay}"
+                                                           ItemTemplate="{StaticResource EnumItemTemplate}"
                                                            Padding="4,2" Margin="2,0"/>
-                                                 <TextBlock Grid.Column="3" Text="{Binding State}"
+                                                 <TextBox Grid.Column="3"
+                                                          Text="{Binding Minimum, UpdateSourceTrigger=PropertyChanged}"
+                                                          IsEnabled="{Binding CanSetRange}"
+                                                          Style="{StaticResource SettingFieldBox}"
+                                                          MinWidth="0" Padding="4,3" Margin="2,0"/>
+                                                 <TextBox Grid.Column="4"
+                                                          Text="{Binding Maximum, UpdateSourceTrigger=PropertyChanged}"
+                                                          IsEnabled="{Binding CanSetRange}"
+                                                          Style="{StaticResource SettingFieldBox}"
+                                                          MinWidth="0" Padding="4,3" Margin="2,0"/>
+                                                 <TextBlock Grid.Column="5"
+                                                            Text="{Binding AxisDisplayState,
+                                                                           Converter={StaticResource EnumDescriptionConverter}}"
                                                             VerticalAlignment="Center"
                                                             TextTrimming="CharacterEllipsis"
-                                                           ToolTip="{Binding State}"
-                                                           FontFamily="Cascadia Mono, Consolas"
-                                                           FontSize="10"
-                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
-                                                 <Button Grid.Column="4" Content="Servo"
+                                                            FontFamily="Cascadia Mono, Consolas"
+                                                            FontSize="10"
+                                                            FontWeight="SemiBold">
+                                                     <TextBlock.Style>
+                                                         <Style TargetType="TextBlock">
+                                                             <Setter Property="Foreground"
+                                                                     Value="{StaticResource AccentGreenBrush}"/>
+                                                             <Style.Triggers>
+                                                                 <DataTrigger Binding="{Binding AxisDisplayState}"
+                                                                              Value="{x:Static ui:AxisDisplayState.Moving}">
+                                                                     <Setter Property="Foreground"
+                                                                             Value="{StaticResource AccentBlueBrush}"/>
+                                                                 </DataTrigger>
+                                                                 <DataTrigger Binding="{Binding AxisDisplayState}"
+                                                                              Value="{x:Static ui:AxisDisplayState.HomeRequired}">
+                                                                     <Setter Property="Foreground"
+                                                                             Value="{StaticResource AccentAmberBrush}"/>
+                                                                 </DataTrigger>
+                                                                 <DataTrigger Binding="{Binding AxisDisplayState}"
+                                                                              Value="{x:Static ui:AxisDisplayState.ServoOff}">
+                                                                     <Setter Property="Foreground"
+                                                                             Value="{StaticResource AccentAmberBrush}"/>
+                                                                 </DataTrigger>
+                                                                 <DataTrigger Binding="{Binding AxisDisplayState}"
+                                                                              Value="{x:Static ui:AxisDisplayState.PositiveLimit}">
+                                                                     <Setter Property="Foreground"
+                                                                             Value="{StaticResource AccentRedBrush}"/>
+                                                                 </DataTrigger>
+                                                                 <DataTrigger Binding="{Binding AxisDisplayState}"
+                                                                              Value="{x:Static ui:AxisDisplayState.NegativeLimit}">
+                                                                     <Setter Property="Foreground"
+                                                                             Value="{StaticResource AccentRedBrush}"/>
+                                                                 </DataTrigger>
+                                                                 <DataTrigger Binding="{Binding AxisDisplayState}"
+                                                                              Value="{x:Static ui:AxisDisplayState.Emergency}">
+                                                                     <Setter Property="Foreground"
+                                                                             Value="{StaticResource AccentRedBrush}"/>
+                                                                 </DataTrigger>
+                                                                 <DataTrigger Binding="{Binding AxisDisplayState}"
+                                                                              Value="{x:Static ui:AxisDisplayState.Alarm}">
+                                                                     <Setter Property="Foreground"
+                                                                             Value="{StaticResource AccentRedBrush}"/>
+                                                                 </DataTrigger>
+                                                             </Style.Triggers>
+                                                         </Style>
+                                                     </TextBlock.Style>
+                                                 </TextBlock>
+                                                 <Button Grid.Column="6" Content="Servo"
                                                         Command="{Binding DataContext.ToggleServoCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         CommandParameter="{Binding}"
                                                         IsEnabled="{Binding CanServo}"
                                                         Style="{StaticResource SecondaryButtonStyle}"
                                                         Padding="6,3" Margin="0,0,4,0"/>
-                                                 <Button Grid.Column="5" Content="Home"
+                                                 <Button Grid.Column="7" Content="Home"
                                                         Command="{Binding DataContext.HomeAxisCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         CommandParameter="{Binding}"
                                                         IsEnabled="{Binding CanHome}"
@@ -356,11 +485,6 @@
                                          Style="{StaticResource SettingFieldBox}"/>
                             </StackPanel>
                             <StackPanel Margin="8,0,4,12">
-                                <TextBlock Text="Units per Millimeter" Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox Text="{Binding Settings.Ajin.UnitsPerMillimeter, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource SettingFieldBox}"/>
-                            </StackPanel>
-                            <StackPanel Margin="12,0,0,12">
                                 <TextBlock Text="Acceleration Multiplier" Style="{StaticResource SettingFieldLabel}"/>
                                 <TextBox Text="{Binding Settings.Ajin.AccelerationMultiplier, UpdateSourceTrigger=PropertyChanged}"
                                          Style="{StaticResource SettingFieldBox}"/>
@@ -440,28 +564,29 @@
                             <TextBlock Text="Camera Driver" Style="{StaticResource SettingFieldLabel}"/>
                             <ComboBox ItemsSource="{Binding CameraDrivers}"
                                       SelectedItem="{Binding Settings.CameraDriver, Mode=TwoWay}"
+                                      ItemTemplate="{StaticResource EnumItemTemplate}"
                                       Style="{StaticResource SettingComboBox}" Margin="0,0,0,10"/>
                             <TextBlock Text="Light Controller Connection" Style="{StaticResource SettingFieldLabel}"/>
                             <TextBox Text="{Binding Settings.Lighting.Connection, UpdateSourceTrigger=PropertyChanged}"
                                      Style="{StaticResource SettingFieldBox}" Margin="0,0,0,10"/>
                             <UniformGrid Columns="2">
                                 <StackPanel Margin="0,0,4,0">
-                                    <TextBlock Text="Align Ch." Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Text="Alignment Ch." Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBox Text="{Binding Settings.Lighting.AlignmentChannel, UpdateSourceTrigger=PropertyChanged}"
                                              Style="{StaticResource SettingFieldBox}" MinWidth="0"/>
                                 </StackPanel>
                                 <StackPanel Margin="4,0,0,0">
-                                    <TextBlock Text="Align Level" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Text="Alignment Level" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBox Text="{Binding Settings.Lighting.AlignmentLevel, UpdateSourceTrigger=PropertyChanged}"
                                              Style="{StaticResource SettingFieldBox}" MinWidth="0"/>
                                 </StackPanel>
                                 <StackPanel Margin="0,8,4,0">
-                                    <TextBlock Text="Inspect Ch." Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Text="Inspection Ch." Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBox Text="{Binding Settings.Lighting.InspectionChannel, UpdateSourceTrigger=PropertyChanged}"
                                              Style="{StaticResource SettingFieldBox}" MinWidth="0"/>
                                 </StackPanel>
                                 <StackPanel Margin="4,8,0,0">
-                                    <TextBlock Text="Inspect Level" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Text="Inspection Level" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBox Text="{Binding Settings.Lighting.InspectionLevel, UpdateSourceTrigger=PropertyChanged}"
                                              Style="{StaticResource SettingFieldBox}" MinWidth="0"/>
                                 </StackPanel>
@@ -473,7 +598,7 @@
                 <UniformGrid Columns="2">
                     <Border Style="{StaticResource SettingCard}" Margin="0,0,6,12">
                         <StackPanel>
-                            <TextBlock Text="Standard Bolt Head · Blow Feed"
+                            <TextBlock Text="Head 1 · Standard / Blow Feed"
                                        Style="{StaticResource SettingSectionTitle}"/>
                             <UniformGrid Columns="2">
                                 <StackPanel Margin="0,0,4,0">
@@ -495,7 +620,7 @@
                     </Border>
                     <Border Style="{StaticResource SettingCard}" Margin="6,0,0,12">
                         <StackPanel>
-                            <TextBlock Text="Loctite Bolt Head · Separate Feed"
+                            <TextBlock Text="Head 2 · Loctite / Pickup"
                                        Style="{StaticResource SettingSectionTitle}"/>
                             <UniformGrid Columns="2">
                                 <StackPanel Margin="0,0,4,0">
@@ -517,20 +642,12 @@
                     </Border>
                 </UniformGrid>
 
-                <UniformGrid Columns="3">
+                <UniformGrid Columns="2">
                     <Border Style="{StaticResource SettingCard}" Margin="0,0,6,12">
                         <StackPanel>
-                            <TextBlock Text="Bolt Process" Style="{StaticResource SettingSectionTitle}"/>
-                            <TextBlock Text="Retry Count" Style="{StaticResource SettingFieldLabel}"/>
-                            <TextBox Text="{Binding Settings.BoltFastening.RetryCount, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource SettingFieldBox}"/>
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource SettingCard}" Margin="6,0,6,12">
-                        <StackPanel>
-                            <TextBlock Text="Production" Style="{StaticResource SettingSectionTitle}"/>
-                            <TextBlock Text="NG Stack Max" Style="{StaticResource SettingFieldLabel}"/>
-                            <TextBox Text="{Binding Settings.Inspection.NgStackMaxCount, UpdateSourceTrigger=PropertyChanged}"
+                            <TextBlock Text="NG Handling" Style="{StaticResource SettingSectionTitle}"/>
+                            <TextBlock Text="Carrier Capacity" Style="{StaticResource SettingFieldLabel}"/>
+                            <TextBox Text="{Binding Settings.Inspection.NgCarrierCapacity, UpdateSourceTrigger=PropertyChanged}"
                                      Style="{StaticResource SettingFieldBox}"/>
                         </StackPanel>
                     </Border>
@@ -549,8 +666,8 @@
 
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>
-                        <TextBlock Text="Interlocks and Indicators" Style="{StaticResource SettingSectionTitle}"/>
-                        <UniformGrid Columns="3">
+                        <TextBlock Text="Interlocks" Style="{StaticResource SettingSectionTitle}"/>
+                        <UniformGrid Columns="2">
                             <CheckBox Content="Emergency Stop"
                                       IsChecked="{Binding Settings.Options.UseEmergencyStop}"
                                       Style="{StaticResource SettingCheckBox}"/>
@@ -562,12 +679,6 @@
                                       Style="{StaticResource SettingCheckBox}"/>
                             <CheckBox Content="Air Pressure Interlock"
                                       IsChecked="{Binding Settings.Options.UseAirPressureInterlock}"
-                                      Style="{StaticResource SettingCheckBox}"/>
-                            <CheckBox Content="Tower Lamp"
-                                      IsChecked="{Binding Settings.Options.UseTowerLamp}"
-                                      Style="{StaticResource SettingCheckBox}"/>
-                            <CheckBox Content="Buzzer"
-                                      IsChecked="{Binding Settings.Options.UseBuzzer}"
                                       Style="{StaticResource SettingCheckBox}"/>
                         </UniformGrid>
                         <TextBlock Text="Enable each item after its logical I/O mapping and electrical behavior have been verified."

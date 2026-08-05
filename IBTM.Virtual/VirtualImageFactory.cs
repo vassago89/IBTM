@@ -1,5 +1,5 @@
 using System;
-using IBTM.Device;
+using IBTM.Core;
 
 namespace IBTM.Virtual;
 
@@ -17,7 +17,7 @@ internal static class VirtualImageFactory
         (200, 150),
     ];
 
-    public static ImageFrame CreateCameraFrame()
+    public static ImageFrame CreateFiducialFrame()
     {
         var pixels = new byte[Width * Height * BytesPerPixel];
         FillNoise(pixels, 18, 12);
@@ -32,7 +32,7 @@ internal static class VirtualImageFactory
         return CreateFrame(pixels);
     }
 
-    public static ImageFrame CreateEmptyCameraFrame()
+    public static ImageFrame CreateEmptyFiducialFrame()
     {
         var pixels = new byte[Width * Height * BytesPerPixel];
         FillNoise(pixels, 18, 12);

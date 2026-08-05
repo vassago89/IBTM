@@ -1,15 +1,13 @@
 using System;
-using System.Collections.Generic;
 using IBTM.Ajin;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hik;
+using IBTM.PcbBuffer;
 using IBTM.PcbSupply;
-using IBTM.Sequence;
 using IBTM.Stations.BoltFastening;
 using IBTM.Stations.Inspection;
 using IBTM.Stations.PcbPlacement;
-using IBTM.Transport;
 using IBTM.UI;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,14 +21,12 @@ public static class DependencyInjection
         MachineSettings settings)
     {
         services.AddSingleton(settings.Hardware);
-        services.AddSingleton(settings.PcbSupply);
-        services.AddSingleton(settings.PcbPlacement);
-        services.AddSingleton(settings.Conveyor);
-        services.AddSingleton(settings.BoltFastening);
         services.AddSingleton(settings.Inspection);
         services.AddSingleton(settings.Lighting);
+        services.AddSingleton<Recipe>();
+        services.AddSingleton(_ => new BufferStage(settings.PcbBuffer));
 
-        if (settings.Driver == HardwareDriver.Virtual)
+        if (settings.ControlDriver == ControlDriver.Virtual)
         {
             AddVirtualHardware(services, settings);
         }
@@ -38,75 +34,45 @@ public static class DependencyInjection
         {
             AddAjinHardware(services, settings);
         }
-
-        services.AddSingleton<Conveyor>();
-
-        services.AddKeyedSingleton<IBoltHead, VirtualBoltService>(BoltType.Standard);
-        services.AddKeyedSingleton<IBoltHead, VirtualBoltService>(BoltType.Loctite);
+        services.AddKeyedSingleton<IBoltHead, VirtualBoltService>(FasteningHead.Standard);
+        services.AddKeyedSingleton<IBoltHead, VirtualBoltService>(FasteningHead.Loctite);
         AddCameraHardware(services, settings);
         AddLightHardware(services, settings);
-        services.AddSingleton<ProcessEvents>();
-        services.AddSingleton<PcbHandoff>();
-        services.AddSingleton(provider => new PcbAligner(
-            provider.GetRequiredKeyedService<MotionService>(EquipmentUnit.PcbPlacement),
-            provider.GetRequiredService<PcbPlacementSettings>(),
-            provider.GetRequiredKeyedService<ICameraStreamService>(EquipmentUnit.PcbPlacement),
-            provider.GetRequiredService<ILightController>(),
-            provider.GetRequiredService<LightingSettings>()));
-        services.AddSingleton(provider => new PcbFeeder(
-            provider.GetRequiredKeyedService<MotionService>(EquipmentUnit.PcbSupply),
+        services.AddSingleton(provider => new PcbSupplyHandler(
+            provider.GetRequiredKeyedService<MotionService>(MotionGroup.PcbSupply),
             provider.GetRequiredService<IIoService>(),
-            provider.GetRequiredService<PcbHandoff>(),
-            provider.GetRequiredService<PcbSupplySettings>(),
-            provider.GetRequiredService<ProcessEvents>()));
+            settings.PcbSupply));
         services.AddSingleton(provider => new PcbPlacementStation(
-            provider.GetRequiredKeyedService<MotionService>(EquipmentUnit.PcbPlacement),
+            provider.GetRequiredKeyedService<MotionService>(MotionGroup.PcbPlacement),
+            provider.GetRequiredKeyedService<ICamera>(CameraRole.Alignment),
             provider.GetRequiredService<IIoService>(),
-            provider.GetRequiredService<PcbHandoff>(),
-            provider.GetRequiredService<PcbPlacementSettings>(),
-            provider.GetRequiredService<ProcessEvents>(),
-            provider.GetRequiredService<PcbAligner>()));
+            settings.PcbPlacement));
         services.AddSingleton(provider => new BoltFasteningStation(
-            provider.GetRequiredKeyedService<MotionService>(EquipmentUnit.BoltFastening),
+            provider.GetRequiredKeyedService<MotionService>(MotionGroup.BoltFastening),
+            provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Standard),
+            provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Loctite),
             provider.GetRequiredService<IIoService>(),
-            provider.GetRequiredService<BoltFasteningSettings>(),
-            provider.GetRequiredService<ProcessEvents>(),
-            provider.GetRequiredKeyedService<IBoltHead>(BoltType.Standard),
-            provider.GetRequiredKeyedService<IBoltHead>(BoltType.Loctite)));
+            settings.BoltFastening));
         services.AddSingleton(provider => new InspectionStation(
-            provider.GetRequiredKeyedService<MotionService>(EquipmentUnit.Inspection),
-            provider.GetRequiredService<IIoService>(),
+            provider.GetRequiredKeyedService<MotionService>(MotionGroup.Inspection),
             provider.GetRequiredService<InspectionSettings>(),
-            provider.GetRequiredService<ProcessEvents>(),
-            provider.GetRequiredKeyedService<ICameraStreamService>(EquipmentUnit.Inspection),
-            provider.GetRequiredService<ILightController>(),
-            provider.GetRequiredService<LightingSettings>()));
+            provider.GetRequiredKeyedService<ICamera>(CameraRole.Inspection),
+            provider.GetRequiredService<IIoService>()));
+        services.AddSingleton<EquipmentState>();
         services.AddSingleton<TeachingPointMapper>();
-        services.AddSingleton(provider => new AutoSequence(
-            provider.GetRequiredService<IIoService>(),
-            provider.GetRequiredService<Conveyor>(),
-            provider.GetRequiredService<PcbFeeder>(),
-            provider.GetRequiredService<PcbPlacementStation>(),
-            provider.GetRequiredService<BoltFasteningStation>(),
-            provider.GetRequiredService<InspectionStation>(),
-            provider.GetRequiredService<ILightController>(),
-            new Dictionary<EquipmentUnit, MotionService>
-            {
-                [EquipmentUnit.PcbSupply] =
-                    provider.GetRequiredKeyedService<MotionService>(EquipmentUnit.PcbSupply),
-                [EquipmentUnit.PcbPlacement] =
-                    provider.GetRequiredKeyedService<MotionService>(EquipmentUnit.PcbPlacement),
-                [EquipmentUnit.BoltFastening] =
-                    provider.GetRequiredKeyedService<MotionService>(EquipmentUnit.BoltFastening),
-                [EquipmentUnit.Inspection] =
-                    provider.GetRequiredKeyedService<MotionService>(EquipmentUnit.Inspection),
-            },
-            provider.GetRequiredService<MachineSettings>().Options,
-            provider.GetRequiredService<ProcessEvents>()));
+        services.AddSingleton(provider => new[]
+        {
+            provider.GetRequiredKeyedService<MotionService>(MotionGroup.PcbSupply),
+            provider.GetRequiredKeyedService<MotionService>(MotionGroup.PcbPlacement),
+            provider.GetRequiredKeyedService<MotionService>(MotionGroup.BoltFastening),
+            provider.GetRequiredKeyedService<MotionService>(MotionGroup.Inspection),
+        });
+        services.AddSingleton<EquipmentService>();
+        services.AddSingleton<PcbBufferService>();
         services.AddSingleton<ProcessViewModel>();
         services.AddSingleton<SupplyTeachingViewModel>();
         services.AddSingleton<SettingsViewModel>();
-        services.AddSingleton<TeachingViewModel>();
+        services.AddSingleton<StationTeachingViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 
@@ -117,20 +83,45 @@ public static class DependencyInjection
         IServiceCollection services,
         MachineSettings settings)
     {
+        (double Minimum, double Maximum) Range(MachineAxis axis) =>
+            (
+                settings.Hardware.AxisMinimums[axis],
+                settings.Hardware.AxisMaximums[axis]);
+
+        var resolution = settings.Hardware.MillimetersPerPulse;
+
         services.AddKeyedSingleton<MotionService>(
-            EquipmentUnit.PcbSupply,
+            MotionGroup.PcbSupply,
             (_, _) => new VirtualMotionService(
                 settings.PcbSupply.Motion,
-                hasY: false));
+                hasY: false,
+                xRange: Range(MachineAxis.PcbSupplyX),
+                zRange: Range(MachineAxis.PcbSupplyZ),
+                resolutionMillimeters: resolution));
         services.AddKeyedSingleton<MotionService>(
-            EquipmentUnit.PcbPlacement,
-            (_, _) => new VirtualMotionService(settings.PcbPlacement.Motion));
+            MotionGroup.PcbPlacement,
+            (_, _) => new VirtualMotionService(
+                settings.PcbPlacement.Motion,
+                xRange: Range(MachineAxis.PcbPlacementX),
+                yRange: Range(MachineAxis.PcbPlacementY),
+                zRange: Range(MachineAxis.PcbPlacementZ),
+                resolutionMillimeters: resolution));
         services.AddKeyedSingleton<MotionService>(
-            EquipmentUnit.BoltFastening,
-            (_, _) => new VirtualMotionService(settings.BoltFastening.Motion));
+            MotionGroup.BoltFastening,
+            (_, _) => new VirtualMotionService(
+                settings.BoltFastening.Motion,
+                xRange: Range(MachineAxis.BoltFasteningX),
+                yRange: Range(MachineAxis.BoltFasteningY),
+                zRange: Range(MachineAxis.BoltFasteningZ),
+                resolutionMillimeters: resolution));
         services.AddKeyedSingleton<MotionService>(
-            EquipmentUnit.Inspection,
-            (_, _) => new VirtualMotionService(settings.Inspection.Motion));
+            MotionGroup.Inspection,
+            (_, _) => new VirtualMotionService(
+                settings.Inspection.Motion,
+                xRange: Range(MachineAxis.InspectionX),
+                yRange: Range(MachineAxis.InspectionY),
+                zRange: Range(MachineAxis.InspectionZ),
+                resolutionMillimeters: resolution));
         services.AddSingleton<VirtualIoService>();
         services.AddSingleton<IIoService>(provider => provider.GetRequiredService<VirtualIoService>());
         services.AddSingleton<IConveyorServo, VirtualConveyorServo>();
@@ -142,34 +133,34 @@ public static class DependencyInjection
     {
         if (settings.CameraDriver == CameraDriver.Virtual)
         {
-            services.AddKeyedSingleton<ICameraStreamService>(
-                EquipmentUnit.PcbPlacement,
-                (_, _) => new VirtualCameraStreamService(inspection: false));
-            services.AddKeyedSingleton<ICameraStreamService>(
-                EquipmentUnit.Inspection,
-                (_, _) => new VirtualCameraStreamService(inspection: true));
+            services.AddKeyedSingleton<ICamera>(
+                CameraRole.Alignment,
+                (_, _) => new VirtualCamera(CameraRole.Alignment));
+            services.AddKeyedSingleton<ICamera>(
+                CameraRole.Inspection,
+                (_, _) => new VirtualCamera(CameraRole.Inspection));
             return;
         }
 
-        services.AddKeyedSingleton<ICameraStreamService>(
-            EquipmentUnit.PcbPlacement,
-            (_, _) => new HikCameraStreamService(settings.AlignmentCamera));
-        services.AddKeyedSingleton<ICameraStreamService>(
-            EquipmentUnit.Inspection,
-            (_, _) => new HikCameraStreamService(settings.InspectionCamera));
+        services.AddKeyedSingleton<ICamera>(
+            CameraRole.Alignment,
+            (_, _) => new HikCamera(settings.AlignmentCamera));
+        services.AddKeyedSingleton<ICamera>(
+            CameraRole.Inspection,
+            (_, _) => new HikCamera(settings.InspectionCamera));
     }
 
     private static void AddLightHardware(
         IServiceCollection services,
         MachineSettings settings)
     {
-        if (settings.Driver == HardwareDriver.Virtual)
+        if (settings.ControlDriver == ControlDriver.Virtual)
         {
             services.AddSingleton<ILightController, VirtualLightController>();
             return;
         }
 
-        services.AddSingleton<ILightController>(
+        services.AddSingleton<ILightController>(_ =>
             new MovsLightController(settings.Lighting.Connection));
     }
 
@@ -182,7 +173,7 @@ public static class DependencyInjection
         services.AddSingleton<IIoService, AjinIoService>();
         services.AddSingleton<IConveyorServo, AjinConveyorServo>();
         services.AddKeyedSingleton<MotionService>(
-            EquipmentUnit.PcbSupply,
+            MotionGroup.PcbSupply,
             (provider, _) => CreateAjinMotion(
                 provider,
                 MachineAxis.PcbSupplyX,
@@ -190,7 +181,7 @@ public static class DependencyInjection
                 MachineAxis.PcbSupplyZ,
                 settings.PcbSupply.Motion));
         services.AddKeyedSingleton<MotionService>(
-            EquipmentUnit.PcbPlacement,
+            MotionGroup.PcbPlacement,
             (provider, _) => CreateAjinMotion(
                 provider,
                 MachineAxis.PcbPlacementX,
@@ -198,7 +189,7 @@ public static class DependencyInjection
                 MachineAxis.PcbPlacementZ,
                 settings.PcbPlacement.Motion));
         services.AddKeyedSingleton<MotionService>(
-            EquipmentUnit.BoltFastening,
+            MotionGroup.BoltFastening,
             (provider, _) => CreateAjinMotion(
                 provider,
                 MachineAxis.BoltFasteningX,
@@ -206,7 +197,7 @@ public static class DependencyInjection
                 MachineAxis.BoltFasteningZ,
                 settings.BoltFastening.Motion));
         services.AddKeyedSingleton<MotionService>(
-            EquipmentUnit.Inspection,
+            MotionGroup.Inspection,
             (provider, _) => CreateAjinMotion(
                 provider,
                 MachineAxis.InspectionX,
@@ -220,7 +211,7 @@ public static class DependencyInjection
         MachineAxis axisX,
         MachineAxis? axisY,
         MachineAxis axisZ,
-        StationMotionSettings settings) =>
+        MotionSettings settings) =>
         new(
             provider.GetRequiredService<AjinController>(),
             provider.GetRequiredService<HardwareMap>(),

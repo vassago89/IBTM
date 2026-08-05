@@ -4,6 +4,6 @@ namespace IBTM.PcbSupply;
 
 public sealed class PcbSupplyRecipe
 {
-    public XzPos CarrierPick1 { get; set; } = new() { X = 75.0, Z = 25.0 };
-    public XzPos CarrierPick2 { get; set; } = new() { X = 130.0, Z = 25.0 };
+    public XzPos Pcb1PickPosition { get; set; } = new() { X = 4.0, Z = 8.0 };
+    public XzPos Pcb2PickPosition { get; set; } = new() { X = 16.0, Z = 8.0 };
 }

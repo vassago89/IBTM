@@ -1,0 +1,52 @@
+<UserControl x:Class="IBTM.UI.Station2View"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="448"
+             Height="414">
+    <Grid>
+        <Border Style="{DynamicResource CellStyle}"/>
+
+        <Canvas>
+            <TextBlock Canvas.Left="18" Canvas.Top="18"
+                       Text="STATION 2 · BOLT FASTENING"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       FontSize="16"
+                       FontWeight="SemiBold"/>
+            <Border Canvas.Left="270" Canvas.Top="12"
+                    Tag="{Binding BoltTone}"
+                    Style="{DynamicResource StateBadgeStyle}">
+                <TextBlock Text="{Binding BoltDisplayState,
+                                          Converter={StaticResource EnumDescriptionConverter}}"
+                           Style="{DynamicResource MapHintStyle}"/>
+            </Border>
+            <TextBlock Canvas.Left="18" Canvas.Top="88"
+                       Text="{Binding BoltFasteningPosition}"
+                       Style="{DynamicResource MapHintStyle}"/>
+
+            <Grid Canvas.Left="{Binding BoltFasteningMapLeft}"
+                  Canvas.Top="{Binding BoltFasteningMapTop}"
+                  Width="86" Height="92"
+                  Panel.ZIndex="20">
+                <Border Width="82" Height="46"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Bottom"
+                        Tag="{Binding BoltFasteningMoving}"
+                        Style="{DynamicResource DeviceBodyStyle}">
+                    <Grid>
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <Border Width="15" Height="30"
+                                    Background="{StaticResource OutputActiveBrush}"
+                                    CornerRadius="2"/>
+                            <Border Width="15" Height="30"
+                                    Background="{StaticResource OutputActiveBrush}"
+                                    CornerRadius="2"
+                                    Margin="7,0,0,0"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Canvas>
+    </Grid>
+</UserControl>

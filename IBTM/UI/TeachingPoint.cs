@@ -1,61 +1,113 @@
 using System;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Core;
+using IBTM.Device;
 using IBTM.Stations.BoltFastening;
 
 namespace IBTM.UI;
 
 public enum TeachMode
 {
+    [Description("XYZ")]
     Full,
+
+    [Description("X")]
     XOnly,
+
+    [Description("XZ")]
     XZOnly,
+
+    [Description("XY")]
     XYOnly,
+
+    [Description("Z")]
     ZOnly,
 }
 
 public enum TeachingStorage
 {
+    [Description("Recipe")]
     Recipe,
+
+    [Description("Machine")]
     Machine,
 }
 
 public enum TeachingSection
 {
+    [Description("Supply Handler Positions")]
     SupplyPositions,
-    HandoffPair,
+
+    [Description("Buffer Pair")]
+    BufferPair,
+
+    [Description("Station Positions")]
     StationPositions,
 }
 
 public enum TeachingTarget
 {
-    PcbSupplyCarrier1,
-    PcbSupplyCarrier2,
-    PcbSupplyRotation,
-    PcbSupplyHandoff,
-    PcbPlacementHandoff,
-    Fiducial1,
-    Fiducial2,
-    Pcb1Place,
-    Pcb2Place,
-    BoltZ,
-    Pcb1Inspection,
-    Pcb2Inspection,
-    NgCarrierPickup,
-    NgStack,
+    [Description("PCB 1 Pick")]
+    SupplyPcb1Pick,
+
+    [Description("PCB 2 Pick")]
+    SupplyPcb2Pick,
+
+    [Description("Supply Buffer")]
+    SupplyBuffer,
+
+    [Description("Placement Buffer")]
+    PlacementBuffer,
+
+    [Description("Fiducial 1 Capture")]
+    Fiducial1Capture,
+
+    [Description("Fiducial 2 Capture")]
+    Fiducial2Capture,
+
+    [Description("PCB 1 Placement")]
+    Pcb1Placement,
+
+    [Description("PCB 2 Placement")]
+    Pcb2Placement,
+
+    [Description("Bolt Work Z")]
+    BoltWorkZ,
+
+    [Description("PCB 1 Inspection")]
+    Pcb1InspectionCapture,
+
+    [Description("PCB 2 Inspection")]
+    Pcb2InspectionCapture,
+
+    [Description("NG Carrier Jig Pickup")]
+    NgCarrierJigPickup,
+
+    [Description("NG Shuttle")]
+    NgShuttle,
+
+    [Description("Bolt PCB 1 Reference")]
     BoltPcb1Reference,
+
+    [Description("Bolt PCB 2 Reference")]
     BoltPcb2Reference,
+
+    [Description("Loctite Bolt Pickup")]
+    LoctiteBoltPickup,
+
+    [Description("Bolt Reference")]
     BoltReference,
 }
 
 public partial class TeachingPoint : ObservableObject
 {
     public TeachingTarget Target { get; init; }
-    public EquipmentUnit Unit { get; init; }
+    public MotionGroup MotionGroup { get; init; }
     public TeachMode TeachMode { get; init; }
     public TeachingStorage Storage { get; init; }
     public int BoltNumber { get; init; }
-    public BoltType? BoltType { get; init; }
+    public FasteningHead? Head { get; init; }
 
     [ObservableProperty] private double _x;
     [ObservableProperty] private double _y;
@@ -64,51 +116,26 @@ public partial class TeachingPoint : ObservableObject
 
     public TeachingSection Section => Target switch
     {
-        TeachingTarget.PcbSupplyCarrier1
-            or TeachingTarget.PcbSupplyCarrier2
-            or TeachingTarget.PcbSupplyRotation =>
+        TeachingTarget.SupplyPcb1Pick
+            or TeachingTarget.SupplyPcb2Pick =>
             TeachingSection.SupplyPositions,
-        TeachingTarget.PcbSupplyHandoff
-            or TeachingTarget.PcbPlacementHandoff =>
-            TeachingSection.HandoffPair,
+        TeachingTarget.SupplyBuffer
+            or TeachingTarget.PlacementBuffer =>
+            TeachingSection.BufferPair,
         _ => TeachingSection.StationPositions,
     };
 
-    public string SectionLabel => Section switch
-    {
-        TeachingSection.SupplyPositions => "SUPPLY POSITIONS",
-        TeachingSection.HandoffPair => "HANDOFF PAIR",
-        TeachingSection.StationPositions => "STATION POSITIONS",
-        _ => throw new ArgumentOutOfRangeException(nameof(Section)),
-    };
+    public string SectionLabel => Section.GetDescription();
 
     public string Name => Target switch
     {
-        TeachingTarget.BoltZ or TeachingTarget.BoltReference => $"B{BoltNumber}",
-        TeachingTarget.PcbSupplyCarrier1 => "Carrier Pick 1",
-        TeachingTarget.PcbSupplyCarrier2 => "Carrier Pick 2",
-        TeachingTarget.PcbSupplyRotation => "Rotation",
-        TeachingTarget.PcbSupplyHandoff => "Supply Pose",
-        TeachingTarget.PcbPlacementHandoff => "Placement Pick Pose",
-        _ => Target.ToString(),
+        TeachingTarget.BoltWorkZ or TeachingTarget.BoltReference => $"B{BoltNumber}",
+        _ => Target.GetDescription(),
     };
 
-    public string UnitLabel => Unit switch
-    {
-        EquipmentUnit.PcbSupply => "SUPPLY",
-        EquipmentUnit.PcbPlacement => "PLACEMENT",
-        _ => Unit.ToString().ToUpperInvariant(),
-    };
+    public string MotionGroupLabel => MotionGroup.GetDescription();
 
-    public string ModeLabel => TeachMode switch
-    {
-        TeachMode.Full => "XYZ",
-        TeachMode.XOnly => "X",
-        TeachMode.XZOnly => "XZ",
-        TeachMode.XYOnly => "XY",
-        TeachMode.ZOnly => "Z",
-        _ => throw new ArgumentOutOfRangeException(nameof(TeachMode)),
-    };
+    public string ModeLabel => TeachMode.GetDescription();
 
     public string PositionLabel => TeachMode switch
     {
@@ -119,13 +146,8 @@ public partial class TeachingPoint : ObservableObject
         _ => $"{X:F1}, {Y:F1}, {Z:F1}",
     };
 
-    public string BoltTypeLabel => BoltType switch
-    {
-        Stations.BoltFastening.BoltType.Standard => "STD",
-        Stations.BoltFastening.BoltType.Loctite => "LOC",
-        null => string.Empty,
-        _ => throw new ArgumentOutOfRangeException(nameof(BoltType)),
-    };
+    public string HeadLabel =>
+        Head?.GetDescription() ?? string.Empty;
 
     public void Teach(double x, double y, double z)
     {

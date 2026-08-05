@@ -1,21 +1,15 @@
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
-using IBTM.Stations.BoltFastening;
+using IBTM.Device;
 
 namespace IBTM.Virtual;
 
 public sealed class VirtualBoltService : IBoltHead
 {
-    public int SupplyCount { get; private set; }
-    public int TightenCount { get; private set; }
-
-    public Task InitializeAsync(CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
-
-    public Task SupplyAsync(CancellationToken cancellationToken = default)
+    public Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        SupplyCount++;
+        cancellationToken.ThrowIfCancellationRequested();
         return Task.CompletedTask;
     }
 
@@ -23,7 +17,7 @@ public sealed class VirtualBoltService : IBoltHead
         double targetTorqueNm,
         CancellationToken cancellationToken = default)
     {
-        TightenCount++;
+        cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(new BoltResult(true, targetTorqueNm));
     }
 

@@ -13,79 +13,109 @@ namespace IBTM.UI;
 
 public partial class SettingsViewModel : ObservableObject
 {
-    private readonly IReadOnlyDictionary<EquipmentUnit, MotionService> _motions;
+    private readonly IReadOnlyDictionary<MotionGroup, MotionService> _motions;
+    private readonly EquipmentState _state;
     private readonly IConveyorServo _conveyor;
     private readonly IIoService _io;
     private readonly MachineStore _store;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CurrentMotionParams))]
-    private EquipmentUnit _selectedUnit = EquipmentUnit.PcbSupply;
+    [NotifyPropertyChangedFor(nameof(CurrentMotionSettings))]
+    private MotionGroup _selectedMotionGroup = MotionGroup.PcbSupply;
 
     [ObservableProperty] private string _statusMessage = string.Empty;
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(HomeAxisCommand))]
+    [NotifyCanExecuteChangedFor(nameof(StopHomingCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ToggleServoCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RunConveyorCommand))]
+    private bool _isHoming;
+
     public SettingsViewModel(
-        [FromKeyedServices(EquipmentUnit.PcbSupply)] MotionService pcbSupplyMotion,
-        [FromKeyedServices(EquipmentUnit.PcbPlacement)] MotionService pcbPlacementMotion,
-        [FromKeyedServices(EquipmentUnit.BoltFastening)] MotionService boltFasteningMotion,
-        [FromKeyedServices(EquipmentUnit.Inspection)] MotionService inspectionMotion,
+        [FromKeyedServices(MotionGroup.PcbSupply)] MotionService pcbSupplyMotion,
+        [FromKeyedServices(MotionGroup.PcbPlacement)] MotionService pcbPlacementMotion,
+        [FromKeyedServices(MotionGroup.BoltFastening)] MotionService boltFasteningMotion,
+        [FromKeyedServices(MotionGroup.Inspection)] MotionService inspectionMotion,
         IConveyorServo conveyor,
         IIoService io,
+        EquipmentState state,
         MachineStore store,
         MachineSettings settings)
     {
-        _motions = new Dictionary<EquipmentUnit, MotionService>
+        _motions = new Dictionary<MotionGroup, MotionService>
         {
-            [EquipmentUnit.PcbSupply] = pcbSupplyMotion,
-            [EquipmentUnit.PcbPlacement] = pcbPlacementMotion,
-            [EquipmentUnit.BoltFastening] = boltFasteningMotion,
-            [EquipmentUnit.Inspection] = inspectionMotion,
+            [MotionGroup.PcbSupply] = pcbSupplyMotion,
+            [MotionGroup.PcbPlacement] = pcbPlacementMotion,
+            [MotionGroup.BoltFastening] = boltFasteningMotion,
+            [MotionGroup.Inspection] = inspectionMotion,
         };
         _conveyor = conveyor;
         _io = io;
+        _state = state;
         _store = store;
         Settings = settings;
-        HardwareDrivers = Enum.GetValues<HardwareDriver>();
+        ControlDrivers = Enum.GetValues<ControlDriver>();
         CameraDrivers = Enum.GetValues<CameraDriver>();
         InputMappings = Enum.GetValues<InputIo>()
-            .Select(input => new HardwareMappingRow(input, settings.Hardware.Inputs[input]))
+            .Select(input =>
+                new HardwareMappingRow(
+                    input,
+                    settings.Hardware.Inputs[input]))
             .ToArray();
         OutputMappings = Enum.GetValues<OutputIo>()
-            .Select(output => new HardwareMappingRow(output, settings.Hardware.Outputs[output]))
+            .Select(output =>
+                new HardwareMappingRow(
+                    output,
+                    settings.Hardware.Outputs[output]))
             .ToArray();
         AxisMappings = Enum.GetValues<MachineAxis>()
             .Select(axis => new HardwareMappingRow(
                 axis,
                 settings.Hardware.Axes[axis],
-                settings.Hardware.AxisDirections[axis]))
+                settings.Hardware.AxisDirections[axis],
+                settings.Hardware.AxisMinimums[axis],
+                settings.Hardware.AxisMaximums[axis]))
             .ToArray();
-        FeedbackMappings = settings.Hardware.OutputFeedbacks
-            .Select(mapping => new OutputFeedbackRow(mapping.Key, mapping.Value))
-            .ToArray();
+        FeedbackMappings = settings.Hardware.OutputFeedbacks.ToArray();
+        state.Changed += OnEquipmentStateChanged;
+        io.InputChanged += OnInputChanged;
+        state.Refresh();
     }
 
     public MachineSettings Settings { get; }
-    public HardwareDriver[] HardwareDrivers { get; }
+    public ControlDriver[] ControlDrivers { get; }
     public CameraDriver[] CameraDrivers { get; }
-    public AxisDirection[] AxisDirections { get; } = Enum.GetValues<AxisDirection>();
+    public AxisDirection[] AxisDirections { get; } =
+        Enum.GetValues<AxisDirection>();
     public HardwareMappingRow[] InputMappings { get; }
     public HardwareMappingRow[] OutputMappings { get; }
     public HardwareMappingRow[] AxisMappings { get; }
-    public OutputFeedbackRow[] FeedbackMappings { get; }
-    public EquipmentUnit[] Units { get; } = Enum.GetValues<EquipmentUnit>();
-    public StationMotionSettings CurrentMotionParams => SelectedUnit switch
+    public KeyValuePair<OutputIo, OutputFeedback>[] FeedbackMappings { get; }
+    public InputIo[] InputSignals { get; } = Enum.GetValues<InputIo>();
+    public MotionGroup[] MotionGroups { get; } =
+        Enum.GetValues<MotionGroup>();
+    public bool MachineReady => _state.Ready;
+    public bool SafetyReady => _state.SafetyReady;
+    public MotionSettings CurrentMotionSettings => SelectedMotionGroup switch
     {
-        EquipmentUnit.PcbSupply => Settings.PcbSupply.Motion,
-        EquipmentUnit.PcbPlacement => Settings.PcbPlacement.Motion,
-        EquipmentUnit.BoltFastening => Settings.BoltFastening.Motion,
-        EquipmentUnit.Inspection => Settings.Inspection.Motion,
-        _ => throw new ArgumentOutOfRangeException(nameof(SelectedUnit)),
+        MotionGroup.PcbSupply => Settings.PcbSupply.Motion,
+        MotionGroup.PcbPlacement => Settings.PcbPlacement.Motion,
+        MotionGroup.BoltFastening => Settings.BoltFastening.Motion,
+        MotionGroup.Inspection => Settings.Inspection.Motion,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(SelectedMotionGroup)),
     };
 
     public void Activate()
     {
-        RefreshHardware();
-        StatusMessage = "Settings loaded";
+        _state.Refresh();
+        RefreshHardwareState();
+        StatusMessage = !SafetyReady
+            ? "Safety interlock is open"
+            : MachineReady
+                ? "Machine ready"
+                : "Home required";
     }
 
     [RelayCommand]
@@ -95,132 +125,14 @@ public partial class SettingsViewModel : ObservableObject
         {
             ApplyHardwareMappings();
             await _store.SaveSettingsAsync(Settings);
-            StatusMessage = "Settings saved. Restart to apply hardware configuration";
+            StatusMessage =
+                "Settings saved. Restart to apply hardware configuration";
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException)
         {
             StatusMessage = $"Settings save failed: {exception.Message}";
         }
-    }
-
-    [RelayCommand]
-    private void RunConveyor()
-    {
-        _conveyor.Run(Settings.Conveyor.Velocity);
-        StatusMessage = $"Conveyor running at {Settings.Conveyor.Velocity:F1} mm/s";
-    }
-
-    [RelayCommand]
-    private void StopConveyor()
-    {
-        _conveyor.Stop();
-        StatusMessage = "Conveyor stopped";
-    }
-
-    [RelayCommand]
-    private void RefreshHardware()
-    {
-        foreach (var row in InputMappings)
-        {
-            row.State = _io.GetInput((InputIo)row.Signal) ? "ON" : "OFF";
-        }
-
-        foreach (var row in OutputMappings)
-        {
-            row.State = _io.GetOutput((OutputIo)row.Signal) ? "ON" : "OFF";
-        }
-
-        foreach (var row in AxisMappings)
-        {
-            row.State = FormatAxisState(GetAxisState((MachineAxis)row.Signal));
-        }
-
-        StatusMessage = "Hardware state refreshed";
-    }
-
-    [RelayCommand]
-    private async Task ToggleOutputAsync(HardwareMappingRow row)
-    {
-        var output = (OutputIo)row.Signal;
-        var value = !_io.GetOutput(output);
-        try
-        {
-            if (Settings.Hardware.OutputFeedbacks.ContainsKey(output))
-            {
-                await _io.SetOutputAndWaitAsync(output, value);
-            }
-            else
-            {
-                _io.SetOutput(output, value);
-            }
-
-            RefreshHardware();
-            StatusMessage = $"{output} {(value ? "on" : "off")}";
-        }
-        catch (IoFeedbackTimeoutException exception)
-        {
-            RefreshHardware();
-            StatusMessage = $"Alarm: {exception.Message}";
-        }
-    }
-
-    [RelayCommand]
-    private void ToggleServo(HardwareMappingRow row)
-    {
-        var machineAxis = (MachineAxis)row.Signal;
-        var turnOn = !GetAxisState(machineAxis).ServoOn;
-
-        if (machineAxis == MachineAxis.Conveyor)
-        {
-            _conveyor.SetServo(turnOn);
-        }
-        else
-        {
-            var (motion, axis) = GetMotionAxis(machineAxis);
-            motion.SetServo(axis, turnOn);
-        }
-
-        row.State = FormatAxisState(GetAxisState(machineAxis));
-        StatusMessage = $"{machineAxis} servo {(turnOn ? "on" : "off")}";
-    }
-
-    [RelayCommand]
-    private async Task HomeAxisAsync(HardwareMappingRow row)
-    {
-        var machineAxis = (MachineAxis)row.Signal;
-        var (motion, axis) = GetMotionAxis(machineAxis);
-        var velocity = axis == MotionAxis.Z
-            ? Settings.Home.SpeedZ
-            : Settings.Home.HorizontalSpeed;
-
-        StatusMessage = $"Homing {machineAxis}";
-        await motion.HomeAsync(axis, velocity);
-        RefreshHardware();
-        StatusMessage = $"{machineAxis} homed";
-    }
-
-    [RelayCommand]
-    private void ResetHardwareAlarm()
-    {
-        foreach (var motion in _motions.Values)
-        {
-            motion.ResetAlarm();
-        }
-
-        _conveyor.ResetAlarm();
-        RefreshHardware();
-        StatusMessage = "Motion alarms reset";
-    }
-
-    public void Deactivate()
-    {
-        foreach (var motion in _motions.Values)
-        {
-            motion.Stop();
-        }
-
-        _conveyor.Stop();
     }
 
     private void ApplyHardwareMappings()
@@ -240,71 +152,8 @@ public partial class SettingsViewModel : ObservableObject
             var axis = (MachineAxis)row.Signal;
             Settings.Hardware.Axes[axis] = row.Number;
             Settings.Hardware.AxisDirections[axis] = row.Direction;
+            Settings.Hardware.AxisMinimums[axis] = row.Minimum;
+            Settings.Hardware.AxisMaximums[axis] = row.Maximum;
         }
-    }
-
-    private AxisState GetAxisState(MachineAxis axis)
-    {
-        if (axis == MachineAxis.Conveyor)
-        {
-            return _conveyor.GetAxisState();
-        }
-
-        var (motion, motionAxis) = GetMotionAxis(axis);
-        return motion.GetAxisState(motionAxis);
-    }
-
-    private (MotionService Motion, MotionAxis Axis) GetMotionAxis(MachineAxis axis) =>
-        axis switch
-        {
-            MachineAxis.PcbSupplyX => (_motions[EquipmentUnit.PcbSupply], MotionAxis.X),
-            MachineAxis.PcbSupplyZ => (_motions[EquipmentUnit.PcbSupply], MotionAxis.Z),
-            MachineAxis.PcbPlacementX => (_motions[EquipmentUnit.PcbPlacement], MotionAxis.X),
-            MachineAxis.PcbPlacementY => (_motions[EquipmentUnit.PcbPlacement], MotionAxis.Y),
-            MachineAxis.PcbPlacementZ => (_motions[EquipmentUnit.PcbPlacement], MotionAxis.Z),
-            MachineAxis.BoltFasteningX => (_motions[EquipmentUnit.BoltFastening], MotionAxis.X),
-            MachineAxis.BoltFasteningY => (_motions[EquipmentUnit.BoltFastening], MotionAxis.Y),
-            MachineAxis.BoltFasteningZ => (_motions[EquipmentUnit.BoltFastening], MotionAxis.Z),
-            MachineAxis.InspectionX => (_motions[EquipmentUnit.Inspection], MotionAxis.X),
-            MachineAxis.InspectionY => (_motions[EquipmentUnit.Inspection], MotionAxis.Y),
-            MachineAxis.InspectionZ => (_motions[EquipmentUnit.Inspection], MotionAxis.Z),
-            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
-        };
-
-    private static string FormatAxisState(AxisState state)
-    {
-        var values = new List<string>
-        {
-            state.ServoOn ? "SERVO ON" : "SERVO OFF",
-            state.Homed ? "HOMED" : "NOT HOMED",
-            state.InPosition ? "IN POSITION" : "MOVING",
-        };
-
-        if (state.HomeSensor)
-        {
-            values.Add("HOME SENSOR");
-        }
-
-        if (state.Alarm)
-        {
-            values.Add("ALARM");
-        }
-
-        if (state.Emergency)
-        {
-            values.Add("EMERGENCY");
-        }
-
-        if (state.PositiveLimit)
-        {
-            values.Add("+LIMIT");
-        }
-
-        if (state.NegativeLimit)
-        {
-            values.Add("-LIMIT");
-        }
-
-        return string.Join(" | ", values);
     }
 }
