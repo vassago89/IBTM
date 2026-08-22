@@ -23,7 +23,7 @@ public enum CameraRole
     Inspection,
 }
 
-public class CameraSettings : Setting
+public abstract class CameraSettings : Setting
 {
     public string DeviceId { get; set; } = string.Empty;
     public double ExposureMicroseconds { get; set; } = 500.0;
@@ -31,6 +31,10 @@ public class CameraSettings : Setting
     public int FrameTimeoutMilliseconds { get; set; } = 3_000;
 }
 
-public sealed class AlignmentCameraSettings : CameraSettings;
+public sealed class AlignmentCameraSettings : CameraSettings
+{
+}
 
-public sealed class InspectionCameraSettings : CameraSettings;
+public sealed class InspectionCameraSettings : CameraSettings
+{
+}

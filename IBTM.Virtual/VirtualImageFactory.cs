@@ -7,127 +7,145 @@ internal static class VirtualImageFactory
 {
     public const int Width = 320;
     public const int Height = 240;
+    public const double InspectionMillimetersPerPixel = 0.05;
 
     private const int BytesPerPixel = 3;
-    private static readonly (int X, int Y)[] BoltCentres =
+    private static readonly (double X, double Y)[] BoltCentres =
     [
-        (120, 90),
-        (200, 90),
-        (120, 150),
-        (200, 150),
+        (12, 11),
+        (28, 11),
+        (12, 19),
+        (28, 19),
     ];
 
-    public static ImageFrame CreateFiducialFrame()
+    public static ImageFrame Fiducial { get; } = CreateFiducial();
+
+    public static ImageFrame CreateInspection(
+        (double X, double Y, double Z) center)
     {
         var pixels = new byte[Width * Height * BytesPerPixel];
-        FillNoise(pixels, 18, 12);
-        FillRectangle(pixels, 60, 50, 260, 190, 45, 15);
-        DrawCrosshair(pixels);
-
-        foreach (var (x, y) in BoltCentres)
+        for (var pixelY = 0; pixelY < Height; pixelY++)
         {
-            DrawCircle(pixels, x, y, 5, 120, 30);
-        }
-
-        return CreateFrame(pixels);
-    }
-
-    public static ImageFrame CreateEmptyFiducialFrame()
-    {
-        var pixels = new byte[Width * Height * BytesPerPixel];
-        FillNoise(pixels, 18, 12);
-        return CreateFrame(pixels);
-    }
-
-    public static ImageFrame CreateInspectionFrame()
-    {
-        var pixels = new byte[Width * Height * BytesPerPixel];
-        FillNoise(pixels, 20, 15);
-        FillRectangle(pixels, 80, 60, 240, 180, 60, 20);
-
-        foreach (var (x, y) in BoltCentres)
-        {
-            DrawCircle(pixels, x, y, 6, 140, 30);
-        }
-
-        return CreateFrame(pixels);
-    }
-
-    private static void FillNoise(byte[] pixels, byte minimum, int variation)
-    {
-        for (var index = 0; index < pixels.Length; index += BytesPerPixel)
-        {
-            var value = (byte)(minimum + Random.Shared.Next(variation));
-            pixels[index] = value;
-            pixels[index + 1] = value;
-            pixels[index + 2] = value;
-        }
-    }
-
-    private static void FillRectangle(
-        byte[] pixels,
-        int left,
-        int top,
-        int right,
-        int bottom,
-        byte minimum,
-        int variation)
-    {
-        for (var y = top; y < bottom; y++)
-        {
-            for (var x = left; x < right; x++)
+            for (var pixelX = 0; pixelX < Width; pixelX++)
             {
-                var value = (byte)(minimum + Random.Shared.Next(variation));
-                SetPixel(pixels, x, y, value, value, value);
+                var x = center.X
+                    + ((pixelX - (Width / 2))
+                       * InspectionMillimetersPerPixel);
+                var y = center.Y
+                    + ((pixelY - (Height / 2))
+                       * InspectionMillimetersPerPixel);
+                var color = InspectionColor(x, y);
+                SetPixel(
+                    pixels,
+                    pixelX,
+                    pixelY,
+                    color.Blue,
+                    color.Green,
+                    color.Red);
             }
         }
+
+        return Frame(pixels);
     }
 
-    private static void DrawCrosshair(byte[] pixels)
+    private static ImageFrame CreateFiducial()
     {
-        var centreX = Width / 2;
-        var centreY = Height / 2;
-
+        var pixels = new byte[Width * Height * BytesPerPixel];
+        Array.Fill(pixels, (byte)28);
         for (var x = 0; x < Width; x++)
         {
-            SetPixel(pixels, x, centreY, 80, 160, 0);
+            SetPixel(pixels, x, Height / 2, 40, 160, 40);
         }
 
         for (var y = 0; y < Height; y++)
         {
-            SetPixel(pixels, centreX, y, 80, 160, 0);
+            SetPixel(pixels, Width / 2, y, 40, 160, 40);
         }
+
+        return Frame(pixels);
     }
 
-    private static void DrawCircle(
-        byte[] pixels,
-        int centreX,
-        int centreY,
-        int radius,
-        byte minimum,
-        int variation)
+    private static (byte Blue, byte Green, byte Red) InspectionColor(
+        double x,
+        double y)
     {
-        for (var y = -radius; y <= radius; y++)
+        if (OnRectangle(x, y, 0, 0, 40, 30, 0.12))
         {
-            for (var x = -radius; x <= radius; x++)
+            return (94, 104, 116);
+        }
+
+        if (OnRectangle(x, y, 4, 5, 18, 25, 0.10)
+            || OnRectangle(x, y, 22, 5, 36, 25, 0.10))
+        {
+            return (48, 92, 116);
+        }
+
+        if (InsideCircle(x, y, 2, 2, 0.6)
+            || InsideCircle(x, y, 38, 28, 0.6))
+        {
+            return (40, 190, 230);
+        }
+
+        foreach (var bolt in BoltCentres)
+        {
+            if (InsideCircle(x, y, bolt.X, bolt.Y, 0.35))
             {
-                if ((x * x) + (y * y) <= radius * radius)
-                {
-                    var value = (byte)(minimum + Random.Shared.Next(variation));
-                    SetPixel(pixels, centreX + x, centreY + y, value, value, value);
-                }
+                return (190, 190, 190);
             }
         }
+
+        if (Math.Abs(x % 5) < 0.04 || Math.Abs(y % 5) < 0.04)
+        {
+            return (38, 38, 38);
+        }
+
+        return (28, 28, 28);
     }
 
-    private static void SetPixel(byte[] pixels, int x, int y, byte blue, byte green, byte red)
+    private static bool OnRectangle(
+        double x,
+        double y,
+        double left,
+        double top,
+        double right,
+        double bottom,
+        double thickness) =>
+        x >= left - thickness
+        && x <= right + thickness
+        && y >= top - thickness
+        && y <= bottom + thickness
+        && (Math.Abs(x - left) <= thickness
+            || Math.Abs(x - right) <= thickness
+            || Math.Abs(y - top) <= thickness
+            || Math.Abs(y - bottom) <= thickness);
+
+    private static bool InsideCircle(
+        double x,
+        double y,
+        double centerX,
+        double centerY,
+        double radius)
+    {
+        var offsetX = x - centerX;
+        var offsetY = y - centerY;
+        return (offsetX * offsetX) + (offsetY * offsetY)
+            <= radius * radius;
+    }
+
+    private static ImageFrame Frame(byte[] pixels) =>
+        new(Width, Height, Width * BytesPerPixel, pixels);
+
+    private static void SetPixel(
+        byte[] pixels,
+        int x,
+        int y,
+        byte blue,
+        byte green,
+        byte red)
     {
         var index = ((y * Width) + x) * BytesPerPixel;
         pixels[index] = blue;
         pixels[index + 1] = green;
         pixels[index + 2] = red;
     }
-
-    private static ImageFrame CreateFrame(byte[] pixels) =>
-        new(Width, Height, Width * BytesPerPixel, pixels);
 }

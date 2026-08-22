@@ -10,4 +10,9 @@
     <PackageReference Include="System.IO.Ports" Version="10.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\IBTM.Core\IBTM.Core.csproj" />
+    <ProjectReference Include="..\IBTM.Device\IBTM.Device.csproj" />
+  </ItemGroup>
+
 </Project>

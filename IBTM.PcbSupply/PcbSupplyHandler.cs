@@ -1,122 +1,171 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.PcbSupply;
 
-public sealed class PcbSupplyHandler(
-    MotionService motion,
-    IIoService io,
-    PcbSupplySettings settings) : IDisposable
+public sealed class PcbSupplyHandler
 {
-    private const double OutsideX = 0.0;
+    private readonly IAxisMotion _motion;
+    private readonly IIoService _io;
+    private readonly PcbSupplySettings _settings;
 
-    public PcbSupplyRotation Rotation { get; private set; }
-    public bool PcbPresent =>
-        io.GetInput(InputIo.PcbSupplyPcbPresent);
-    public bool GripperClosed =>
-        io.GetInput(InputIo.PcbSupplyGripperClosed);
-    public bool CarrierAvailable =>
-        io.GetInput(InputIo.PcbSupplyUpstreamBoardAvailable);
-
-    public bool CanHome(bool bufferPcbPresent) =>
-        Rotation != PcbSupplyRotation.Between
-        && (Rotation != PcbSupplyRotation.Unrotated
-            || !PcbPresent && !bufferPcbPresent);
-
-    public void Initialize()
+    public PcbSupplyHandler(
+        IAxisMotion motion,
+        IIoService io,
+        PcbSupplySettings settings)
     {
-        motion.Initialize();
-        io.SetOutput(OutputIo.PcbSupplyUpstreamMachineReady, false);
+        _motion = motion;
+        _io = io;
+        _settings = settings;
         io.InputChanged += OnInputChanged;
-        RefreshRotation();
     }
 
-    public void Stop()
+    public event Action? Changed;
+
+    public bool IsMoving => _motion.IsMoving;
+    public bool CarrierAvailable =>
+        _io.GetInput(InputIo.PcbSupplyAvailableFromFront1);
+    public bool PcbDetected =>
+        _io.GetInput(InputIo.PcbSupplyPcbDetected);
+    public bool NestForward =>
+        _io.GetInput(InputIo.PcbSupplyNestForward);
+    public bool IpmFixerForward =>
+        _io.GetInput(InputIo.PcbSupplyIpmFixerForward);
+    public bool PcbSecured =>
+        PcbDetected && NestForward && IpmFixerForward;
+
+    public PcbSupplyRotation Rotation =>
+        (_io.GetInput(InputIo.PcbSupplyUnrotated),
+            _io.GetInput(InputIo.PcbSupplyRotated)) switch
+        {
+            (true, false) => PcbSupplyRotation.Unrotated,
+            (false, true) => PcbSupplyRotation.Rotated,
+            _ => PcbSupplyRotation.Between,
+        };
+
+    public bool CanPrepareHome =>
+        Rotation != PcbSupplyRotation.Between
+        && (Rotation != PcbSupplyRotation.Unrotated || !PcbDetected);
+
+    public void SetReady(bool ready)
     {
-        motion.Stop();
-        io.SetOutput(OutputIo.PcbSupplyUpstreamMachineReady, false);
+        if (_io.GetOutput(OutputIo.PcbSupplyReadyToFront1) != ready)
+        {
+            _io.SetOutput(OutputIo.PcbSupplyReadyToFront1, ready);
+        }
     }
 
-    public void EmergencyStop()
-    {
-        motion.EmergencyStop();
-        io.SetOutput(OutputIo.PcbSupplyUpstreamMachineReady, false);
-    }
-
-    public async Task PlaceOnBufferAsync(
+    public async Task MoveToHandoffAsync(
         CancellationToken cancellationToken)
     {
-        await motion.MoveToXZAsync(
-            settings.BufferPosition.X,
-            settings.BufferPosition.Z,
+        EnsureRotated();
+        await MoveToAsync(
+            _settings.BufferHandoffPosition.X,
+            _settings.BufferHandoffPosition.Y,
+            _settings.BufferHandoffPosition.Z,
             cancellationToken);
-        await SetGripperAsync(false, cancellationToken);
-        await MoveClearAsync(cancellationToken);
+    }
+
+    public async Task<bool> PickAsync(
+        PcbPickPosition position,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureUnrotated();
+        await MoveToAsync(
+            position.X,
+            _settings.CarrierY,
+            position.Z,
+            cancellationToken);
+        if (PcbDetected)
+        {
+            await SetNestAsync(true, cancellationToken);
+            await SetIpmFixerAsync(true, cancellationToken);
+        }
+
+        await _motion.MoveToSafeZAsync(cancellationToken);
+        return PcbDetected;
     }
 
     public async Task MoveClearAsync(
         CancellationToken cancellationToken = default)
     {
-        await motion.MoveToXAsync(
-            OutsideX,
-            settings.Motion.HorizontalSpeed,
+        EnsureRotated();
+        await _motion.MoveZAsync(
+            _settings.BufferClearZ,
+            _settings.Motion.ZSpeed,
             cancellationToken);
-        await SetRotatedAsync(false, cancellationToken);
+        await _motion.MoveXAtClearZAsync(
+            _settings.OutsideX,
+            _settings.BufferClearZ,
+            _settings.Motion.HorizontalSpeed,
+            cancellationToken);
     }
 
-    public Task SetGripperAsync(
-        bool closed,
+    public Task SetIpmFixerAsync(
+        bool forward,
         CancellationToken cancellationToken = default) =>
-        io.SetOutputAndWaitAsync(
-            OutputIo.PcbSupplyGripperClose,
-            closed,
+        _io.SetOutputAndWaitAsync(
+            OutputIo.PcbSupplyIpmFixerForward,
+            forward,
             cancellationToken);
 
-    public Task MoveZToPositiveLimitAsync(
-        double velocity,
-        CancellationToken cancellationToken = default)
-    {
-        if (Rotation != PcbSupplyRotation.Rotated)
-        {
-            throw new InvalidOperationException(
-                "Supply must be rotated before moving Z to its positive limit.");
-        }
-
-        return motion.MoveZToPositiveLimitAsync(
-            velocity,
+    public Task SetNestAsync(
+        bool forward,
+        CancellationToken cancellationToken = default) =>
+        _io.SetOutputAndWaitAsync(
+            OutputIo.PcbSupplyNestForward,
+            forward,
             cancellationToken);
-    }
 
-    public async Task<bool> HomeAsync(
-        bool bufferPcbPresent,
-        double horizontalVelocity,
+    public async Task<bool> PrepareHomeAsync(
         double zVelocity,
         CancellationToken cancellationToken = default)
     {
-        if (!CanHome(bufferPcbPresent))
+        if (!CanPrepareHome)
         {
             return false;
         }
 
         if (Rotation == PcbSupplyRotation.Unrotated)
         {
-            await io.SetOutputAndWaitAsync(
+            await _io.SetOutputAndWaitAsync(
                 OutputIo.PcbSupplyRotate,
                 true,
                 cancellationToken);
         }
 
-        await MoveZToPositiveLimitAsync(zVelocity, cancellationToken);
-        if (!await motion.HomeXFromZPositiveLimitAsync(
+        await _motion.MoveZToPositiveLimitAsync(
+            zVelocity,
+            cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> CompleteHomeAsync(
+        double horizontalVelocity,
+        double zVelocity,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureRotated();
+        if (!await _motion.HomeFromZPositiveLimitAsync(
+                MotionAxis.X,
                 horizontalVelocity,
                 cancellationToken))
         {
             return false;
         }
 
-        return await motion.HomeAsync(
+        if (!await _motion.HomeFromZPositiveLimitAsync(
+                MotionAxis.Y,
+                horizontalVelocity,
+                cancellationToken))
+        {
+            return false;
+        }
+
+        return await _motion.HomeAsync(
             MotionAxis.Z,
             zVelocity,
             cancellationToken);
@@ -126,41 +175,62 @@ public sealed class PcbSupplyHandler(
         bool rotated,
         CancellationToken cancellationToken = default)
     {
-        await motion.MoveToSafeZAsync(cancellationToken);
-        await io.SetOutputAndWaitAsync(
+        await _motion.MoveToSafeZAsync(cancellationToken);
+        await _io.SetOutputAndWaitAsync(
             OutputIo.PcbSupplyRotate,
             rotated,
             cancellationToken);
     }
 
-    public void Dispose() => io.InputChanged -= OnInputChanged;
-
-    private void RefreshRotation()
+    private void EnsureRotated()
     {
-        var unrotated = io.GetInput(InputIo.PcbSupplyUnrotated);
-        var rotated = io.GetInput(InputIo.PcbSupplyRotated);
-        var rotation = (unrotated, rotated) switch
+        if (Rotation != PcbSupplyRotation.Rotated)
         {
-            (true, false) => PcbSupplyRotation.Unrotated,
-            (false, true) => PcbSupplyRotation.Rotated,
-            _ => PcbSupplyRotation.Between,
-        };
-
-        if (Rotation == rotation)
-        {
-            return;
-        }
-
-        Rotation = rotation;
-    }
-
-    private void OnInputChanged(InputIo input, bool value)
-    {
-        if (input is InputIo.PcbSupplyUnrotated
-            or InputIo.PcbSupplyRotated)
-        {
-            RefreshRotation();
+            throw new InvalidOperationException(
+                "Supply must be rotated for Buffer movement.");
         }
     }
 
+    private void EnsureUnrotated()
+    {
+        if (Rotation != PcbSupplyRotation.Unrotated)
+        {
+            throw new InvalidOperationException(
+                "Supply must be unrotated for PCB pickup.");
+        }
+    }
+
+    private async Task MoveToAsync(
+        double x,
+        double y,
+        double z,
+        CancellationToken cancellationToken)
+    {
+        await _motion.MoveToSafeZAsync(cancellationToken);
+        await _motion.MoveYAsync(
+            y,
+            _settings.Motion.HorizontalSpeed,
+            cancellationToken);
+        await _motion.MoveXAsync(
+            x,
+            _settings.Motion.HorizontalSpeed,
+            cancellationToken);
+        await _motion.MoveZAsync(
+            z,
+            _settings.Motion.ZSpeed,
+            cancellationToken);
+    }
+
+    private void OnInputChanged(InputIo input, bool _)
+    {
+        if (input is InputIo.PcbSupplyAvailableFromFront1
+            or InputIo.PcbSupplyUnrotated
+            or InputIo.PcbSupplyRotated
+            or InputIo.PcbSupplyNestForward
+            or InputIo.PcbSupplyIpmFixerForward
+            or InputIo.PcbSupplyPcbDetected)
+        {
+            Changed?.Invoke();
+        }
+    }
 }

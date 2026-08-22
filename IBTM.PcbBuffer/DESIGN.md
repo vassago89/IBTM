@@ -1,120 +1,37 @@
-# PCB Buffer Stage
+# PCB Buffer
 
-`BufferStage` owns exclusive access to the physical PCB buffer shared by the
-supply and placement handlers.
+`BufferStage` reads the Buffer PCB-present input and current axis positions. It
+does not own a lock, owner, or stored occupancy state.
 
-## Dependency direction
-
-```text
-IBTM.PcbBuffer
-IBTM.PcbSupply
-IBTM.Stations.PcbPlacement
-        ↑
-IBTM host coordinates all three
-```
-
-Supply and placement reference neither each other nor `IBTM.PcbBuffer`.
-`PcbBufferService` in the WPF host owns the complete shared-buffer transaction
-and passes the Buffer cancellation token into the selected handler operation.
-
-## Ownership
-
-```csharp
-public enum BufferOwner
-{
-    None,
-    Supply,
-    Placement,
-}
-```
-
-`PcbBufferService` calls `EnterAsync`, runs the selected handler, verifies its
-clear position, and then calls `ExitSupply` or `ExitPlacement`. Handlers own
-only their motion and IO steps.
-
-The internal `SemaphoreSlim` provides mutual exclusion only. FIFO ordering is
-not required: an empty buffer permits Supply work, while an occupied buffer
-permits Placement work. The physical buffer condition will select the eligible
-handler after its inputs are confirmed.
-
-## Collision area
-
-The mechanical collision area belongs to machine settings, not the recipe.
-Supply uses an X range because it has no Y axis. Placement uses an XY rectangle.
+The collision ranges and both handoff positions are taught values. Supply and
+Placement normally cannot enter each other's Buffer area. The one permitted
+overlap is the physical PCB handoff:
 
 ```text
-Supply X minimum / maximum
-Placement X minimum / maximum
-Placement Y minimum / maximum
+Supply stops at its handoff position with the IPM fixer forward
+  -> Placement enters and stops at its handoff position
+  -> Placement vacuum and IPM gripper inputs turn on
+  -> Supply retracts the IPM fixer
+  -> Supply retracts the Nest
+  -> Supply moves down to Clear Z and exits in X
+  -> Placement exits with the PCB assembly
 ```
 
-The ranges must be configured before either handler can enter the buffer.
-There is no bypass switch for this mechanical interlock.
+While Placement enters, Supply must remain at its taught handoff position.
+While Supply exits, Placement must remain at its taught handoff position. Any
+other simultaneous overlap is a Buffer conflict.
 
-`CanEnter` controls command availability. `EnterAsync` enforces the same collision
-area at the execution boundary, so a caller cannot bypass the mechanical interlock.
-Normal buffer operations acquire ownership before moving into the area.
-`ExitSupply` and `ExitPlacement` release ownership only after the current motion
-position is outside the corresponding area.
+A handler is at Handoff only when every handler axis reports In Position, the
+motion command has ended, and X/Y/Z are within 0.05 mm of the taught position.
+Small stopped-position vibration therefore does not require exact coordinate
+equality.
 
-## Supply access
+Supply and Placement processes do not read the Buffer PCB input directly. They
+use `PcbPresent`, `CanSupplyEnter`, `CanPlacementEnter`, and `WaitForPcbAsync`
+from this object.
 
-```text
-Enter as Supply
-  -> move to Supply Buffer position
-  -> place PCB
-  -> open Supply gripper
-  -> Safe Z
-  -> X origin outside the machine
-  -> unrotate
-  -> Exit
-```
+Manual teaching is stricter than automatic handoff: a handler cannot be moved
+manually while the other handler is inside the Buffer area.
 
-`PcbBufferService` owns the transaction. `PcbSupplyHandler` performs only the
-motion and IO steps using the token supplied by the coordinator.
-
-## Placement access
-
-```text
-Enter as Placement
-  -> move to Placement Buffer position
-  -> close Placement gripper
-  -> move to the supplied clear position
-  -> Exit
-```
-
-`PcbBufferService` owns the transaction. `PcbPlacementStation` performs only
-the motion and IO steps using the supplied token. The intended clear position
-is Fiducial 1 unless the mechanical layout later requires a separate taught
-position.
-
-## Stop and cancellation
-
-Supply, Placement, and Buffer do not own separate cancellation tokens.
-`BufferStage` owns one cancellation source for the complete buffer operation.
-`EnterAsync` returns that shared token to `PcbBufferService`, which passes it
-through every handler motion and IO wait until the handler exits.
-
-```text
-one Buffer cancellation source
-  -> BufferStage.EnterAsync
-  -> Supply motion and IO
-  -> Placement motion and IO
-```
-
-Stop and Emergency Stop cancel this one source, so the current owner and the
-other handler waiting to enter are canceled together. When no handler owns the
-buffer, cancellation immediately creates the token for the next operation.
-
-Buffer ownership is not released by cancellation, Stop, Emergency Stop, or the
-normal machine Reset. Any operation that did not reach its verified `Exit`
-leaves the Buffer canceled and owned. The process screen displays
-`Recovery Required`; recovery moves the owner to its clear position. A verified
-`Exit` then releases ownership and creates the next cancellation token.
-
-## Not defined yet
-
-- Buffer clearance inputs
-- Buffer clamp, lift, or other pneumatic actuators
-- Startup recovery when no in-memory owner exists but a handler is already
-  inside the buffer
+At startup no Buffer state is restored from a file or memory. Homed axis
+positions and live inputs are the only source of truth.

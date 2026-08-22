@@ -25,9 +25,6 @@ public sealed class HikCamera(CameraSettings settings)
 
     public event Action<ImageFrame>? FrameReady;
 
-    public int ImageWidth { get; private set; }
-    public int ImageHeight { get; private set; }
-
     public void Initialize()
     {
         var deviceInfo = EnumerateDevices().SingleOrDefault(
@@ -195,10 +192,6 @@ public sealed class HikCamera(CameraSettings settings)
         Check(
             parameters.SetFloatValue("Gain", checked((float)settings.Gain)),
             "Set Gain");
-        Check(parameters.GetIntValue("Width", out var width), "Read Width");
-        Check(parameters.GetIntValue("Height", out var height), "Read Height");
-        ImageWidth = checked((int)width.CurValue);
-        ImageHeight = checked((int)height.CurValue);
     }
 
     private static void ConfigureSingleCapture(IDevice device)

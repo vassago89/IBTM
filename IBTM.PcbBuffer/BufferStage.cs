@@ -1,132 +1,123 @@
 using System;
-using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core;
+using IBTM.Device;
 
 namespace IBTM.PcbBuffer;
 
-public enum BufferOwner
+public sealed class BufferStage
 {
-    [Description("Available")]
-    None,
+    private const double PositionTolerance = 0.05;
 
-    [Description("Supply Handler")]
-    Supply,
+    private readonly PcbBufferSettings _settings;
+    private readonly IIoService _io;
+    private readonly IAxisMotion _supplyMotion;
+    private readonly IAxisMotion _placementMotion;
+    private readonly AxisPos _supplyHandoff;
+    private readonly AxisPos _placementHandoff;
 
-    [Description("Placement Handler")]
-    Placement,
-}
-
-public sealed class BufferStage(PcbBufferSettings settings) : IDisposable
-{
-    private readonly SemaphoreSlim _access = new(1, 1);
-    private CancellationTokenSource _cancellation = new();
-
-    public event Action? Changed;
-
-    public BufferOwner Owner { get; private set; }
-    public bool CancellationRequested =>
-        _cancellation.IsCancellationRequested;
-
-    public bool CanEnter(
-        double supplyX,
-        double placementX,
-        double placementY) =>
-        settings.IsConfigured
-        && !CancellationRequested
-        && Owner == BufferOwner.None
-        && IsClear(supplyX, placementX, placementY);
-
-    public async Task<CancellationToken> EnterAsync(
-        BufferOwner owner,
-        double supplyX,
-        double placementX,
-        double placementY)
+    public BufferStage(
+        PcbBufferSettings settings,
+        IIoService io,
+        IAxisMotion supplyMotion,
+        IAxisMotion placementMotion,
+        AxisPos supplyHandoff,
+        AxisPos placementHandoff)
     {
-        if (!settings.IsConfigured)
+        _settings = settings;
+        _io = io;
+        _supplyMotion = supplyMotion;
+        _placementMotion = placementMotion;
+        _supplyHandoff = supplyHandoff;
+        _placementHandoff = placementHandoff;
+        supplyMotion.PositionChanged += (_, _, _) => PositionChanged?.Invoke();
+        placementMotion.PositionChanged += (_, _, _) => PositionChanged?.Invoke();
+        supplyMotion.MovingChanged += _ => StateChanged?.Invoke();
+        placementMotion.MovingChanged += _ => StateChanged?.Invoke();
+        io.InputChanged += (input, _) =>
         {
-            throw new InvalidOperationException(
-                "PCB buffer collision area is not configured.");
+            if (input == InputIo.PcbBufferPcbPresent)
+            {
+                StateChanged?.Invoke();
+            }
+        };
+    }
+
+    public event Action? PositionChanged;
+    public event Action? StateChanged;
+
+    public bool PcbPresent =>
+        _io.GetInput(InputIo.PcbBufferPcbPresent);
+
+    public bool PositionKnown =>
+        _supplyMotion.GetAxisState(MotionAxis.X).Homed
+        && _placementMotion.GetAxisState(MotionAxis.X).Homed
+        && _placementMotion.GetAxisState(MotionAxis.Y).Homed;
+
+    public bool SupplyInside =>
+        _supplyMotion.GetAxisState(MotionAxis.X).Homed
+        && _settings.ContainsSupply(_supplyMotion.GetPosition().X);
+
+    public bool PlacementInside =>
+        _placementMotion.GetAxisState(MotionAxis.X).Homed
+        && _placementMotion.GetAxisState(MotionAxis.Y).Homed
+        && _settings.ContainsPlacement(
+            _placementMotion.GetPosition().X,
+            _placementMotion.GetPosition().Y);
+
+    public bool SupplyAtHandoff =>
+        IsSettled(_supplyMotion)
+        && IsAt(_supplyMotion.GetPosition(), _supplyHandoff);
+
+    public bool PlacementAtHandoff =>
+        IsSettled(_placementMotion)
+        && IsAt(_placementMotion.GetPosition(), _placementHandoff);
+
+    public bool Occupied => SupplyInside || PlacementInside;
+    public bool CanSupplyEnter =>
+        PositionKnown && !PcbPresent && !PlacementInside;
+    public bool CanPlacementEnter =>
+        PositionKnown
+        && PcbPresent
+        && (!SupplyInside || SupplyAtHandoff);
+    public bool CanPlacementExit => !SupplyInside;
+    public bool Conflict =>
+        SupplyInside
+        && PlacementInside
+        && !SupplyAtHandoff
+        && !PlacementAtHandoff;
+
+    public Task WaitForPcbAsync(
+        bool present,
+        CancellationToken cancellationToken = default) =>
+        _io.WaitForInputAsync(
+            InputIo.PcbBufferPcbPresent,
+            present,
+            cancellationToken);
+
+    private static bool IsAt(
+        (double X, double Y, double Z) current,
+        AxisPos target) =>
+        Math.Abs(current.X - target.X) <= PositionTolerance
+        && Math.Abs(current.Y - target.Y) <= PositionTolerance
+        && Math.Abs(current.Z - target.Z) <= PositionTolerance;
+
+    private static bool IsSettled(IAxisMotion motion)
+    {
+        if (motion.IsMoving)
+        {
+            return false;
         }
 
-        var cancellationToken = _cancellation.Token;
-        await _access.WaitAsync(cancellationToken);
-        if (!IsClear(supplyX, placementX, placementY))
+        foreach (var axis in motion.Axes)
         {
-            _access.Release();
-            throw new InvalidOperationException(
-                "A handler is inside the PCB buffer collision area.");
+            if (!motion.GetAxisState(axis).InPosition)
+            {
+                return false;
+            }
         }
 
-        Owner = owner;
-        Changed?.Invoke();
-        return cancellationToken;
+        return true;
     }
-
-    public void ExitSupply(double x)
-    {
-        if (settings.ContainsSupply(x))
-        {
-            throw new InvalidOperationException(
-                "Supply handler is still inside the PCB buffer collision area.");
-        }
-
-        Release();
-    }
-
-    public void ExitPlacement(double x, double y)
-    {
-        if (settings.ContainsPlacement(x, y))
-        {
-            throw new InvalidOperationException(
-                "Placement handler is still inside the PCB buffer collision area.");
-        }
-
-        Release();
-    }
-
-    public void Cancel()
-    {
-        _cancellation.Cancel();
-        if (Owner == BufferOwner.None)
-        {
-            ResetCancellation();
-            return;
-        }
-
-        Changed?.Invoke();
-    }
-
-    public void Dispose()
-    {
-        _cancellation.Dispose();
-        _access.Dispose();
-    }
-
-    private void Release()
-    {
-        Owner = BufferOwner.None;
-        if (CancellationRequested)
-        {
-            _cancellation.Dispose();
-            _cancellation = new CancellationTokenSource();
-        }
-
-        _access.Release();
-        Changed?.Invoke();
-    }
-
-    private void ResetCancellation()
-    {
-        _cancellation.Dispose();
-        _cancellation = new CancellationTokenSource();
-        Changed?.Invoke();
-    }
-
-    private bool IsClear(
-        double supplyX,
-        double placementX,
-        double placementY) =>
-        !settings.ContainsSupply(supplyX)
-        && !settings.ContainsPlacement(placementX, placementY);
 }

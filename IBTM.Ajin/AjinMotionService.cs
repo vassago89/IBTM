@@ -7,46 +7,47 @@ namespace IBTM.Ajin;
 
 public sealed class AjinMotionService(
     AjinController controller,
-    HardwareMap hardware,
-    MachineAxis axisX,
-    MachineAxis? axisY,
-    MachineAxis axisZ,
-    MotionSettings settings) : MotionService(
+    AxisHardware axisX,
+    AxisHardware? axisY,
+    AxisHardware? axisZ,
+    double millimetersPerPulse,
+    MotionSettings settings,
+    OperationCancellation operationCancellation) : MotionService(
         settings,
-        axisY is not null,
-        (hardware.AxisMinimums[axisX], hardware.AxisMaximums[axisX]),
+        operationCancellation,
+        hasY: axisY is not null,
+        hasZ: axisZ is not null,
+        (axisX.Minimum, axisX.Maximum),
         axisY is null
             ? null
-            : (hardware.AxisMinimums[axisY.Value], hardware.AxisMaximums[axisY.Value]),
-        (hardware.AxisMinimums[axisZ], hardware.AxisMaximums[axisZ]))
+            : (axisY.Minimum, axisY.Maximum),
+        axisZ is null
+            ? null
+            : (axisZ.Minimum, axisZ.Maximum))
 {
     private const uint HomeSuccess = 0x01;
     private const uint HomeSearching = 0x02;
     private const uint HomeUnknown = 0xFF;
     private static readonly TimeSpan StatusPollInterval = TimeSpan.FromMilliseconds(10);
 
-    private readonly int _axisX = hardware.Axes[axisX];
-    private readonly int? _axisY = axisY is null
-        ? null
-        : hardware.Axes[axisY.Value];
-    private readonly int _axisZ = hardware.Axes[axisZ];
-    private readonly int _directionX = (int)hardware.AxisDirections[axisX];
+    private readonly int _axisX = axisX.Number;
+    private readonly int? _axisY = axisY?.Number;
+    private readonly int? _axisZ = axisZ?.Number;
+    private readonly int _directionX = (int)axisX.Direction;
     private readonly int _directionY = axisY is null
         ? 0
-        : (int)hardware.AxisDirections[axisY.Value];
-    private readonly int _directionZ = (int)hardware.AxisDirections[axisZ];
-    private readonly double _millimetersPerPulse = hardware.MillimetersPerPulse;
-    private readonly int[] _axes = axisY is null
-        ? [hardware.Axes[axisX], hardware.Axes[axisZ]]
-        : [hardware.Axes[axisX], hardware.Axes[axisY.Value], hardware.Axes[axisZ]];
-    private CancellationTokenSource? _jogMonitor;
-
+        : (int)axisY.Direction;
+    private readonly int _directionZ = axisZ is null
+        ? 0
+        : (int)axisZ.Direction;
+    private readonly double _millimetersPerPulse = millimetersPerPulse;
+    private readonly int[] _axes = GetAxes(axisX, axisY, axisZ);
     public override void Initialize()
     {
         controller.Initialize();
         foreach (var axis in _axes)
         {
-            ServoOn(axis);
+            SetServo(axis, true);
         }
 
         PublishPosition();
@@ -112,11 +113,22 @@ public sealed class AjinMotionService(
     protected override Task MoveXCoreAsync(
         double x,
         double velocity,
-        CancellationToken cancellationToken = default) =>
+        CancellationToken cancellationToken) =>
         MoveAxisAsync(
             _axisX,
             _directionX,
             x,
+            velocity,
+            cancellationToken);
+
+    protected override Task MoveYCoreAsync(
+        double y,
+        double velocity,
+        CancellationToken cancellationToken) =>
+        MoveAxisAsync(
+            _axisY!.Value,
+            _directionY,
+            y,
             velocity,
             cancellationToken);
 
@@ -125,7 +137,7 @@ public sealed class AjinMotionService(
         double velocity,
         CancellationToken cancellationToken = default) =>
         MoveAxisAsync(
-            _axisZ,
+            _axisZ!.Value,
             _directionZ,
             z,
             velocity,
@@ -140,7 +152,7 @@ public sealed class AjinMotionService(
         var negativeLevel = 0U;
         AjinController.Check(
             AjinNative.AxmSignalGetLimit(
-                _axisZ,
+                _axisZ!.Value,
                 ref stopMode,
                 ref positiveLevel,
                 ref negativeLevel),
@@ -156,14 +168,14 @@ public sealed class AjinMotionService(
 
         await RunMoveAsync(
             () => AjinNative.AxmMoveSignalSearch(
-                _axisZ,
+                _axisZ!.Value,
                 velocityInUnits,
                 acceleration,
                 detectSignal,
                 (int)signalEdge,
                 (int)stopMode),
             nameof(AjinNative.AxmMoveSignalSearch),
-            [_axisZ],
+            [_axisZ.Value],
             cancellationToken);
 
         if (!GetAxisState(MotionAxis.Z).PositiveLimit)
@@ -173,28 +185,20 @@ public sealed class AjinMotionService(
         }
     }
 
-    protected override void JogXCore(double velocity) =>
-        Jog(_axisX, velocity * _directionX);
+    protected override void JogXCore(
+        double velocity,
+        CancellationToken cancellationToken) =>
+        Jog(_axisX, velocity * _directionX, cancellationToken);
 
-    protected override void JogYCore(double velocity) =>
-        Jog(_axisY!.Value, velocity * _directionY);
+    protected override void JogYCore(
+        double velocity,
+        CancellationToken cancellationToken) =>
+        Jog(_axisY!.Value, velocity * _directionY, cancellationToken);
 
-    protected override void JogZCore(double velocity) =>
-        Jog(_axisZ, velocity * _directionZ);
-
-    public override void Stop()
-    {
-        StopAxes(emergency: false);
-        StopJogMonitor();
-        PublishPosition();
-    }
-
-    public override void EmergencyStop()
-    {
-        StopAxes(emergency: true);
-        StopJogMonitor();
-        PublishPosition();
-    }
+    protected override void JogZCore(
+        double velocity,
+        CancellationToken cancellationToken) =>
+        Jog(_axisZ!.Value, velocity * _directionZ, cancellationToken);
 
     public override void SetServo(MotionAxis axis, bool on) =>
         SetServo(GetAxis(axis), on);
@@ -203,7 +207,7 @@ public sealed class AjinMotionService(
         (
             ReadPosition(_axisX) * _directionX,
             _axisY is null ? 0 : ReadPosition(_axisY.Value) * _directionY,
-            ReadPosition(_axisZ) * _directionZ);
+            _axisZ is null ? 0 : ReadPosition(_axisZ.Value) * _directionZ);
 
     public override AxisState GetAxisState(MotionAxis axis)
     {
@@ -241,34 +245,32 @@ public sealed class AjinMotionService(
         cancellationToken.ThrowIfCancellationRequested();
         var axisNumber = GetAxis(axis);
         var velocityInUnits = ToUnits(velocity);
-        var started = false;
+
+        AjinController.Check(
+            AjinNative.AxmHomeSetResult(axisNumber, HomeUnknown),
+            nameof(AjinNative.AxmHomeSetResult));
+        AjinController.Check(
+            AjinNative.AxmHomeSetVel(
+                axisNumber,
+                velocityInUnits,
+                velocityInUnits / 5,
+                velocityInUnits / 10,
+                velocityInUnits / 100,
+                velocityInUnits,
+                velocityInUnits / 10),
+            nameof(AjinNative.AxmHomeSetVel));
+        AjinController.Check(
+            AjinNative.AxmHomeSetStart(axisNumber),
+            nameof(AjinNative.AxmHomeSetStart));
         using var cancellationRegistration = cancellationToken.Register(() =>
         {
             AjinNative.AxmMoveSStop(axisNumber);
             AjinNative.AxmHomeSetResult(axisNumber, HomeUnknown);
         });
+        BeginMotion();
 
         try
         {
-            AjinController.Check(
-                AjinNative.AxmHomeSetResult(axisNumber, HomeUnknown),
-                nameof(AjinNative.AxmHomeSetResult));
-            AjinController.Check(
-                AjinNative.AxmHomeSetVel(
-                    axisNumber,
-                    velocityInUnits,
-                    velocityInUnits / 5,
-                    velocityInUnits / 10,
-                    velocityInUnits / 100,
-                    velocityInUnits,
-                    velocityInUnits / 10),
-                nameof(AjinNative.AxmHomeSetVel));
-            AjinController.Check(
-                AjinNative.AxmHomeSetStart(axisNumber),
-                nameof(AjinNative.AxmHomeSetStart));
-            BeginMotion();
-            started = true;
-
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -287,16 +289,13 @@ public sealed class AjinMotionService(
                     return false;
                 }
 
-                await Task.Delay(StatusPollInterval, cancellationToken);
+                await Task.Delay(StatusPollInterval, cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
         finally
         {
-            if (started)
-            {
-                EndMotion();
-            }
-
+            EndMotion();
             PublishPosition();
         }
     }
@@ -358,50 +357,57 @@ public sealed class AjinMotionService(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var started = false;
+        AjinController.Check(move(), operation);
         using var cancellationRegistration =
-            cancellationToken.Register(() => StopAxes(emergency: false));
-
+            cancellationToken.Register(StopAxes);
+        BeginMotion();
         try
         {
-            AjinController.Check(move(), operation);
-            BeginMotion();
-            started = true;
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var moving = false;
+                var inPosition = true;
                 foreach (var axis in axes)
                 {
                     var inMotion = 0U;
+                    var mechanical = 0U;
                     AjinController.Check(
                         AjinNative.AxmStatusReadInMotion(axis, ref inMotion),
                         nameof(AjinNative.AxmStatusReadInMotion));
+                    AjinController.Check(
+                        AjinNative.AxmStatusReadMechanical(
+                            axis,
+                            ref mechanical),
+                        nameof(AjinNative.AxmStatusReadMechanical));
                     moving |= inMotion != 0;
+                    inPosition &= Bit(mechanical, 5);
                 }
 
                 PublishPosition();
-                if (!moving)
+                if (!moving && inPosition)
                 {
                     return;
                 }
 
-                await Task.Delay(StatusPollInterval, cancellationToken);
+                await Task.Delay(StatusPollInterval, cancellationToken)
+                    .ConfigureAwait(false);
             }
         }
         finally
         {
-            if (started)
-            {
-                EndMotion();
-            }
-
+            EndMotion();
             PublishPosition();
         }
     }
 
-    private void Jog(int axis, double velocity)
+    private void Jog(
+        int axis,
+        double velocity,
+        CancellationToken cancellationToken)
     {
+        var monitor = LinkOperation(cancellationToken);
+        monitor.Token.ThrowIfCancellationRequested();
         var velocityInUnits = ToUnits(velocity);
         var acceleration = Math.Abs(velocityInUnits)
                            * controller.Settings.AccelerationMultiplier;
@@ -413,19 +419,21 @@ public sealed class AjinMotionService(
                 acceleration),
             nameof(AjinNative.AxmMoveVel));
         BeginMotion();
-        _jogMonitor = new CancellationTokenSource();
-        _ = MonitorJogPositionAsync(_jogMonitor);
+        _ = MonitorJogPositionAsync(monitor);
     }
 
     private async Task MonitorJogPositionAsync(
         CancellationTokenSource monitor)
     {
+        using var cancellationRegistration =
+            monitor.Token.Register(StopAxes);
         try
         {
             while (true)
             {
                 PublishPosition();
-                await Task.Delay(StatusPollInterval, monitor.Token);
+                await Task.Delay(StatusPollInterval, monitor.Token)
+                    .ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (monitor.IsCancellationRequested)
@@ -438,28 +446,13 @@ public sealed class AjinMotionService(
         }
     }
 
-    private void StopJogMonitor()
-    {
-        _jogMonitor?.Cancel();
-        _jogMonitor = null;
-    }
-
-    private void StopAxes(bool emergency)
+    private void StopAxes()
     {
         foreach (var axis in _axes)
         {
-            var result = emergency
-                ? AjinNative.AxmMoveEStop(axis)
-                : AjinNative.AxmMoveSStop(axis);
-            AjinController.Check(
-                result,
-                emergency
-                    ? nameof(AjinNative.AxmMoveEStop)
-                    : nameof(AjinNative.AxmMoveSStop));
+            AjinNative.AxmMoveSStop(axis);
         }
     }
-
-    private void ServoOn(int axis) => SetServo(axis, true);
 
     private void SetServo(int axis, bool on) =>
         AjinController.Check(
@@ -482,7 +475,7 @@ public sealed class AjinMotionService(
     {
         MotionAxis.X => _axisX,
         MotionAxis.Y => _axisY!.Value,
-        MotionAxis.Z => _axisZ,
+        MotionAxis.Z => _axisZ!.Value,
         _ => throw new ArgumentOutOfRangeException(nameof(axis)),
     };
 
@@ -496,6 +489,28 @@ public sealed class AjinMotionService(
 
     private static bool Bit(uint value, int bit) =>
         ((value >> bit) & 1) != 0;
+
+    private static int[] GetAxes(
+        AxisHardware axisX,
+        AxisHardware? axisY,
+        AxisHardware? axisZ)
+    {
+        var axes = new System.Collections.Generic.List<int>
+        {
+            axisX.Number,
+        };
+        if (axisY is { } y)
+        {
+            axes.Add(y.Number);
+        }
+
+        if (axisZ is { } z)
+        {
+            axes.Add(z.Number);
+        }
+
+        return [.. axes];
+    }
 
     private void PublishPosition()
     {

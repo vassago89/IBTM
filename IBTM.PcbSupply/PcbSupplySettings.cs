@@ -6,5 +6,8 @@ namespace IBTM.PcbSupply;
 public sealed class PcbSupplySettings : Setting
 {
     public MotionSettings Motion { get; set; } = new();
-    public XzPos BufferPosition { get; set; } = new() { X = 10.0, Z = 8.0 };
+    public double CarrierY { get; set; }
+    public double OutsideX { get; set; }
+    public AxisPos BufferHandoffPosition { get; set; } = new();
+    public double BufferClearZ { get; set; }
 }

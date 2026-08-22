@@ -15,151 +15,282 @@ public partial class SupplyTeachingViewModel
     public bool HasY => CurrentMotion.HasY;
     public double SafeZ => CurrentSettings.SafeZ;
 
-    private MotionService CurrentMotion => GetMotion(ActiveMotionGroup);
-    private MotionSettings CurrentSettings => GetSettings(ActiveMotionGroup);
+    private IAxisMotion CurrentMotion => GetMotion(ActiveMotionGroup);
+    private MotionSettings CurrentSettings =>
+        GetMotionSettings(ActiveMotionGroup);
 
     partial void OnSelectedPointChanged(
         TeachingPoint? oldValue,
         TeachingPoint? newValue)
     {
-        if (oldValue is not null)
-        {
-            GetMotion(oldValue.MotionGroup).Stop();
-        }
+        CancelMotion();
 
         OnPropertyChanged(nameof(ActiveMotionGroup));
         OnPropertyChanged(nameof(HasY));
         OnPropertyChanged(nameof(SafeZ));
-        JogXPlusCommand.NotifyCanExecuteChanged();
-        JogXMinusCommand.NotifyCanExecuteChanged();
-        JogYPlusCommand.NotifyCanExecuteChanged();
-        JogYMinusCommand.NotifyCanExecuteChanged();
+        NotifyManualTeachingCommands();
         RefreshPosition();
     }
 
     [RelayCommand(CanExecute = nameof(CanJogX))]
-    private void JogXPlus() => CurrentMotion.JogX(JogSpeed);
+    private void JogXPlus() =>
+        CurrentMotion.JogX(JogSpeed, _motionCancellation.Token);
 
     [RelayCommand(CanExecute = nameof(CanJogX))]
-    private void JogXMinus() => CurrentMotion.JogX(-JogSpeed);
+    private void JogXMinus() =>
+        CurrentMotion.JogX(-JogSpeed, _motionCancellation.Token);
 
     [RelayCommand(CanExecute = nameof(CanJogY))]
-    private void JogYPlus() => CurrentMotion.JogY(JogSpeed);
+    private void JogYPlus() =>
+        CurrentMotion.JogY(JogSpeed, _motionCancellation.Token);
 
     [RelayCommand(CanExecute = nameof(CanJogY))]
-    private void JogYMinus() => CurrentMotion.JogY(-JogSpeed);
+    private void JogYMinus() =>
+        CurrentMotion.JogY(-JogSpeed, _motionCancellation.Token);
+
+    [RelayCommand(CanExecute = nameof(CanUseCurrentHandler))]
+    private void JogZPlus() =>
+        CurrentMotion.JogZ(JogSpeed, _motionCancellation.Token);
+
+    [RelayCommand(CanExecute = nameof(CanUseCurrentHandler))]
+    private void JogZMinus() =>
+        CurrentMotion.JogZ(-JogSpeed, _motionCancellation.Token);
 
     [RelayCommand]
-    private void JogZPlus() => CurrentMotion.JogZ(JogSpeed);
+    private void JogStop() => CancelMotion();
 
-    [RelayCommand]
-    private void JogZMinus() => CurrentMotion.JogZ(-JogSpeed);
+    private bool CanJogX() =>
+        CanUseCurrentHandler() && CurrentMotion.IsAtSafeZ;
+    private bool CanJogY() =>
+        CanUseCurrentHandler() && HasY && CurrentMotion.IsAtSafeZ;
 
-    [RelayCommand]
-    private void JogStop() => CurrentMotion.Stop();
-
-    private bool CanJogX() => CurrentMotion.IsAtSafeZ;
-    private bool CanJogY() => HasY && CurrentMotion.IsAtSafeZ;
-
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanUseCurrentHandler))]
     private async Task MoveToSafeZAsync(CancellationToken cancellationToken)
     {
         try
         {
-            await CurrentMotion.MoveToSafeZAsync(cancellationToken);
+            using var motionCancellation = LinkMotion(cancellationToken);
+            await CurrentMotion.MoveToSafeZAsync(motionCancellation.Token);
         }
         catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
         {
-            StatusMessage = "Move stopped";
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
+    [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
     private async Task MoveToPointAsync(CancellationToken cancellationToken)
     {
         var point = SelectedPoint!;
-        var motion = GetMotion(point.MotionGroup);
-        var settings = GetSettings(point.MotionGroup);
-
         try
         {
-            switch (point.TeachMode)
+            using var motionCancellation = LinkMotion(cancellationToken);
+            cancellationToken = motionCancellation.Token;
+            if (point.MotionGroup == MotionGroup.PcbSupply)
             {
-                case TeachMode.XOnly:
-                    await motion.MoveToXAsync(
-                        point.X,
-                        settings.HorizontalSpeed,
-                        cancellationToken);
-                    break;
-                case TeachMode.XZOnly:
-                    await motion.MoveToXZAsync(
-                        point.X,
-                        point.Z,
-                        cancellationToken);
-                    break;
-                case TeachMode.Full:
-                    await motion.MoveToAsync(
-                        point.X,
-                        point.Y,
-                        point.Z,
-                        cancellationToken);
-                    break;
-                default:
-                    throw new InvalidOperationException(
-                        "Unsupported handler teach mode: "
-                        + $"{point.TeachMode.GetDescription()}.");
+                await MoveSupplyPointAsync(point, cancellationToken);
             }
-
-            StatusMessage = $"Moved to: {point.Name}";
+            else
+            {
+                await MovePlacementPointAsync(point, cancellationToken);
+            }
         }
         catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
         {
-            StatusMessage = "Move stopped";
         }
     }
 
-    private bool CanMoveToPoint() => SelectedPoint?.IsTaught == true;
+    private async Task MoveSupplyPointAsync(
+        TeachingPoint point,
+        CancellationToken cancellationToken)
+    {
+        var speed = _supplySettings.Motion;
+        switch (point.TeachMode)
+        {
+            case TeachMode.XOnly:
+                await _supplyMotion.MoveXAsync(
+                    point.X,
+                    speed.HorizontalSpeed,
+                    cancellationToken);
+                break;
+            case TeachMode.YOnly:
+                await _supplyMotion.MoveYAsync(
+                    point.Y,
+                    speed.HorizontalSpeed,
+                    cancellationToken);
+                break;
+            case TeachMode.ZOnly:
+                await _supplyMotion.MoveZAsync(
+                    point.Z,
+                    speed.ZSpeed,
+                    cancellationToken);
+                break;
+            case TeachMode.XYOnly:
+                await MoveSupplyHorizontalAsync(
+                    point.X,
+                    point.Y,
+                    cancellationToken);
+                break;
+            case TeachMode.XZOnly:
+                await _supplyMotion.MoveXAsync(
+                    point.X,
+                    speed.HorizontalSpeed,
+                    cancellationToken);
+                await _supplyMotion.MoveZAsync(
+                    point.Z,
+                    speed.ZSpeed,
+                    cancellationToken);
+                break;
+            case TeachMode.Full:
+                await MoveSupplyHorizontalAsync(
+                    point.X,
+                    point.Y,
+                    cancellationToken);
+                await _supplyMotion.MoveZAsync(
+                    point.Z,
+                    speed.ZSpeed,
+                    cancellationToken);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
+    }
+
+    private async Task MoveSupplyHorizontalAsync(
+        double x,
+        double y,
+        CancellationToken cancellationToken)
+    {
+        var velocity = _supplySettings.Motion.HorizontalSpeed;
+        await _supplyMotion.MoveYAsync(y, velocity, cancellationToken);
+        await _supplyMotion.MoveXAsync(x, velocity, cancellationToken);
+    }
+
+    private async Task MovePlacementPointAsync(
+        TeachingPoint point,
+        CancellationToken cancellationToken)
+    {
+        var speed = _placementSettings.Motion;
+        switch (point.TeachMode)
+        {
+            case TeachMode.XOnly:
+                await _placementMotion.MoveXAsync(
+                    point.X,
+                    speed.HorizontalSpeed,
+                    cancellationToken);
+                break;
+            case TeachMode.YOnly:
+                await _placementMotion.MoveYAsync(
+                    point.Y,
+                    speed.HorizontalSpeed,
+                    cancellationToken);
+                break;
+            case TeachMode.ZOnly:
+                await _placementMotion.MoveZAsync(
+                    point.Z,
+                    speed.ZSpeed,
+                    cancellationToken);
+                break;
+            case TeachMode.XYOnly:
+                await _placementMotion.MoveToXYAsync(
+                    point.X,
+                    point.Y,
+                    speed.HorizontalSpeed,
+                    cancellationToken);
+                break;
+            case TeachMode.XZOnly:
+                await _placementMotion.MoveToAsync(
+                    point.X,
+                    _placementMotion.GetPosition().Y,
+                    point.Z,
+                    cancellationToken);
+                break;
+            case TeachMode.Full:
+                await _placementMotion.MoveToAsync(
+                    point.X,
+                    point.Y,
+                    point.Z,
+                    cancellationToken);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException();
+        }
+    }
+
+    private MotionSettings GetMotionSettings(MotionGroup group) => group switch
+    {
+        MotionGroup.PcbSupply => _supplySettings.Motion,
+        MotionGroup.PcbPlacementHandler => _placementSettings.Motion,
+        _ => throw new ArgumentOutOfRangeException(nameof(group)),
+    };
+
+    private bool CanUseCurrentHandler() =>
+        CanUseHandler(ActiveMotionGroup);
+
+    private bool CanUseHandler(MotionGroup motionGroup) =>
+        _state.CanOperate
+        && !GetMotion(motionGroup).IsMoving
+        && motionGroup switch
+        {
+            MotionGroup.PcbSupply =>
+                !_buffer.PlacementInside,
+            MotionGroup.PcbPlacementHandler =>
+                !_buffer.SupplyInside,
+            _ => throw new ArgumentOutOfRangeException(nameof(motionGroup)),
+        };
+
+    private void NotifyManualTeachingCommands()
+    {
+        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
+        JogXPlusCommand.NotifyCanExecuteChanged();
+        JogXMinusCommand.NotifyCanExecuteChanged();
+        JogYPlusCommand.NotifyCanExecuteChanged();
+        JogYMinusCommand.NotifyCanExecuteChanged();
+        JogZPlusCommand.NotifyCanExecuteChanged();
+        JogZMinusCommand.NotifyCanExecuteChanged();
+        MoveToSafeZCommand.NotifyCanExecuteChanged();
+        MoveToPointCommand.NotifyCanExecuteChanged();
+        ToggleActuatorCommand.NotifyCanExecuteChanged();
+    }
 
     private void RefreshPosition()
     {
-        var position = CurrentMotion.GetPosition();
-        CurrentX = position.X;
-        CurrentY = position.Y;
-        CurrentZ = position.Z;
+        OnPropertyChanged(nameof(CurrentX));
+        OnPropertyChanged(nameof(CurrentY));
+        OnPropertyChanged(nameof(CurrentZ));
+        JogXPlusCommand.NotifyCanExecuteChanged();
+        JogXMinusCommand.NotifyCanExecuteChanged();
+        JogYPlusCommand.NotifyCanExecuteChanged();
+        JogYMinusCommand.NotifyCanExecuteChanged();
     }
 
-    private MotionService GetMotion(MotionGroup motionGroup) => motionGroup switch
+    private IAxisMotion GetMotion(MotionGroup motionGroup) => motionGroup switch
     {
         MotionGroup.PcbSupply => _supplyMotion,
-        MotionGroup.PcbPlacement => _placementMotion,
+        MotionGroup.PcbPlacementHandler => _placementMotion,
         _ => throw new ArgumentOutOfRangeException(nameof(motionGroup)),
     };
 
-    private MotionSettings GetSettings(MotionGroup motionGroup) => motionGroup switch
+    private CancellationTokenSource LinkMotion(
+        CancellationToken cancellationToken) =>
+        CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _motionCancellation.Token);
+
+    private void CancelMotion()
     {
-        MotionGroup.PcbSupply => _settings.PcbSupply.Motion,
-        MotionGroup.PcbPlacement => _settings.PcbPlacement.Motion,
-        _ => throw new ArgumentOutOfRangeException(nameof(motionGroup)),
-    };
+        var cancellation = _motionCancellation;
+        _motionCancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        cancellation.Dispose();
+    }
 
-    private void ApplyPosition(
-        MotionGroup motionGroup,
-        double x,
-        double y,
-        double z)
+    private void ApplyPosition(MotionGroup motionGroup)
     {
         if (motionGroup != ActiveMotionGroup)
         {
             return;
         }
 
-        Application.Current.Dispatcher.BeginInvoke(() =>
-        {
-            CurrentX = x;
-            CurrentY = y;
-            CurrentZ = z;
-        });
+        Application.Current.Dispatcher.BeginInvoke(RefreshPosition);
     }
 }

@@ -27,13 +27,7 @@ public abstract class Setting
             return new T();
         }
 
-        await using var stream = new FileStream(
-            filePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize: 4_096,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using var stream = File.OpenRead(filePath);
         return await JsonSerializer.DeserializeAsync<T>(
                    stream,
                    JsonOptions,
@@ -46,36 +40,13 @@ public abstract class Setting
         CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(DirectoryPath);
-        var filePath = GetFilePath(GetType());
-        var temporaryPath = $"{filePath}.{Guid.NewGuid():N}.tmp";
-        try
-        {
-            await using (var stream = new FileStream(
-                             temporaryPath,
-                             FileMode.CreateNew,
-                             FileAccess.Write,
-                             FileShare.None,
-                             bufferSize: 4_096,
-                             FileOptions.Asynchronous | FileOptions.WriteThrough))
-            {
-                await JsonSerializer.SerializeAsync(
-                    stream,
-                    this,
-                    GetType(),
-                    JsonOptions,
-                    cancellationToken);
-                await stream.FlushAsync(cancellationToken);
-            }
-
-            File.Move(temporaryPath, filePath, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath))
-            {
-                File.Delete(temporaryPath);
-            }
-        }
+        await using var stream = File.Create(GetFilePath(GetType()));
+        await JsonSerializer.SerializeAsync(
+            stream,
+            this,
+            GetType(),
+            JsonOptions,
+            cancellationToken);
     }
 
     private static string GetFilePath(Type type) =>

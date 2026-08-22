@@ -1,7 +1,11 @@
 <UserControl x:Class="IBTM.UI.StationTeachingView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="clr-namespace:IBTM.UI"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=ui:StationTeachingViewModel, IsDesignTimeCreatable=False}"
              Background="{StaticResource AppBgBrush}">
 
     <Grid Margin="24,20">
@@ -30,16 +34,23 @@
                     BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
                     CornerRadius="6" ClipToBounds="True">
                 <Grid>
-                    <Image Source="{Binding LiveImage}" Stretch="Uniform"
-                           RenderOptions.BitmapScalingMode="NearestNeighbor"
-                           MouseLeftButtonDown="CameraImage_Click"/>
+                    <ui:ImageTeachingView Source="{Binding LiveImage}"
+                                          Tiles="{Binding CarrierImages}"
+                                          MillimetersPerPixel="{Binding MillimetersPerPixel}"
+                                          Markers="{Binding ImageMarkers}"
+                                          ClickCommand="{Binding TeachImagePointCommand}"
+                                          Cursor="Cross"
+                                          ToolTip="Wheel: zoom   Right drag: pan   Right double-click: fit"
+                                          RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                     <Border Width="1" HorizontalAlignment="Center"
                             Background="{StaticResource AccentBrush}"
-                            IsHitTestVisible="False" Opacity="0.35"/>
+                            IsHitTestVisible="False" Opacity="0.35"
+                            Visibility="{Binding IsCameraLive, Converter={StaticResource BoolToVis}}"/>
                     <Border Height="1" VerticalAlignment="Center"
                             Background="{StaticResource AccentBrush}"
-                            IsHitTestVisible="False" Opacity="0.35"/>
-                    <TextBlock Text="CAMERA OFFLINE" FontSize="14" FontFamily="Cascadia Mono, Consolas"
+                            IsHitTestVisible="False" Opacity="0.35"
+                            Visibility="{Binding IsCameraLive, Converter={StaticResource BoolToVis}}"/>
+                    <TextBlock Text="NO IMAGE" FontSize="14" FontFamily="Cascadia Mono, Consolas"
                                Foreground="{StaticResource TextMutedBrush}" FontWeight="SemiBold"
                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                IsHitTestVisible="False">
@@ -47,9 +58,13 @@
                             <Style TargetType="TextBlock">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsCameraLive}" Value="False">
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding LiveImage}" Value="{x:Null}"/>
+                                            <Condition Binding="{Binding HasCarrierImages}" Value="False"/>
+                                        </MultiDataTrigger.Conditions>
                                         <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
+                                    </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </TextBlock.Style>
@@ -72,6 +87,32 @@
                             </TextBlock>
                         </Button.Content>
                     </Button>
+                    <Button Content="Scan Carrier"
+                            Command="{Binding CaptureCarrierImagesCommand}"
+                            HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                            Margin="92,0,0,8"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            MinWidth="112" Opacity="0.9"
+                            Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}"/>
+                    <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                            Margin="0,0,8,8" Padding="8,5"
+                            Background="#C8181D27" CornerRadius="4"
+                            Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="mm/px" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextMutedBrush}" Margin="0,0,6,0"/>
+                            <TextBox Text="{Binding MillimetersPerPixel, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="72" Margin="0,0,10,0"/>
+                            <TextBlock Text="Pitch X" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextMutedBrush}" Margin="0,0,6,0"/>
+                            <TextBox Text="{Binding ScanPitchX, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="58" Margin="0,0,10,0"/>
+                            <TextBlock Text="Pitch Y" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextMutedBrush}" Margin="0,0,6,0"/>
+                            <TextBox Text="{Binding ScanPitchY, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="58"/>
+                        </StackPanel>
+                    </Border>
                 </Grid>
             </Border>
 
@@ -110,7 +151,8 @@
                                            FontFamily="Cascadia Mono, Consolas"
                                            Style="{StaticResource StatValueStyle}"/>
                             </StackPanel>
-                            <StackPanel Grid.Column="2">
+                            <StackPanel Grid.Column="2"
+                                        Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="Z" Style="{StaticResource StatLabelStyle}"/>
                                 <TextBlock Text="{Binding CurrentZ, StringFormat=F3}"
                                            FontFamily="Cascadia Mono, Consolas"
@@ -153,9 +195,11 @@
                                            ReleaseCommand="{Binding JogStopCommand}"/>
 
                             <ui:HoldButton Grid.Row="0" Grid.Column="4" Content="Z+" Style="{StaticResource JogButtonStyle}"
+                                           Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"
                                            PressCommand="{Binding JogZPlusCommand}"
                                            ReleaseCommand="{Binding JogStopCommand}"/>
                             <ui:HoldButton Grid.Row="2" Grid.Column="4" Content="Z-" Style="{StaticResource JogButtonStyle}"
+                                           Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"
                                            PressCommand="{Binding JogZMinusCommand}"
                                            ReleaseCommand="{Binding JogStopCommand}"/>
                         </Grid>
@@ -163,6 +207,7 @@
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
                             <Button Content="Safe Z"
                                     Command="{Binding MoveToSafeZCommand}"
+                                    Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     MinWidth="58" Margin="0,0,6,0"/>
                             <ComboBox ItemsSource="{Binding JogSpeeds}"
@@ -174,39 +219,6 @@
                     </StackPanel>
                 </Border>
 
-                <Border Style="{StaticResource SectionStyle}"
-                        Visibility="{Binding HasLaser, Converter={StaticResource BoolToVis}}">
-                    <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="10" Height="10" VerticalAlignment="Center" Margin="0,0,8,0">
-                            <Ellipse.Style>
-                                <Style TargetType="Ellipse">
-                                    <Setter Property="Fill" Value="#401818"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding LaserOn}" Value="True">
-                                            <Setter Property="Fill" Value="{StaticResource AccentRedBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Ellipse.Style>
-                        </Ellipse>
-                        <Button Command="{Binding ToggleLaserCommand}"
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                MinWidth="80">
-                            <TextBlock>
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Text" Value="Laser ON"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding LaserOn}" Value="True">
-                                                <Setter Property="Text" Value="Laser OFF"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Button>
-                    </StackPanel>
-                </Border>
               </StackPanel>
             </Border>
 
@@ -230,45 +242,44 @@
                             <DataTemplate>
                                 <Grid Margin="0,2">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="14"/>
                                         <ColumnDefinition Width="36"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="66"/>
                                         <ColumnDefinition Width="56"/>
+                                        <ColumnDefinition Width="32"/>
                                         <ColumnDefinition Width="110"/>
                                     </Grid.ColumnDefinitions>
-                                    <Ellipse Width="6" Height="6" VerticalAlignment="Center">
-                                        <Ellipse.Style>
-                                            <Style TargetType="Ellipse">
-                                                <Setter Property="Fill" Value="#3A3F47"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsTaught}" Value="True">
-                                                        <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Ellipse.Style>
-                                    </Ellipse>
-                                    <Border Grid.Column="1"
+                                    <Border Grid.Column="0"
                                             Background="{StaticResource EquipBgBrush}"
                                             BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
                                             CornerRadius="3" Padding="3,1" Margin="0,0,4,0"
                                             VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding ModeLabel}" FontFamily="Consolas" FontSize="10"
+                                        <TextBlock Text="{Binding TeachMode, Converter={StaticResource EnumDescriptionConverter}}" FontFamily="Consolas" FontSize="10"
                                                    Foreground="{StaticResource TextSecondaryBrush}"/>
                                     </Border>
-                                    <TextBlock Grid.Column="2"
+                                    <TextBlock Grid.Column="1"
                                                Text="{Binding Name}"
                                                ToolTip="{Binding Name}"
                                                TextTrimming="CharacterEllipsis"
                                                VerticalAlignment="Center"
                                                FontSize="11"
                                                Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding Housing, Converter={StaticResource EnumDescriptionConverter}}"
+                                               VerticalAlignment="Center"
+                                               FontFamily="Consolas" FontSize="10"
+                                               Foreground="{StaticResource TextMutedBrush}"/>
                                     <TextBlock Grid.Column="3"
-                                               Text="{Binding HeadLabel}"
+                                               Text="{Binding Head, Converter={StaticResource EnumDescriptionConverter}}"
                                                VerticalAlignment="Center"
                                                FontFamily="Consolas" FontSize="10"
                                                Foreground="{StaticResource TextMutedBrush}"/>
                                     <TextBlock Grid.Column="4"
+                                               Text="{Binding Preset, StringFormat=P{0}}"
+                                               VerticalAlignment="Center"
+                                               FontFamily="Consolas" FontSize="10"
+                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                    <TextBlock Grid.Column="5"
                                                Text="{Binding PositionLabel}"
                                                VerticalAlignment="Center"
                                                FontFamily="Consolas"
@@ -289,10 +300,18 @@
                                     Style="{StaticResource SecondaryButtonStyle}" MinWidth="70"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal">
+                            <ComboBox ItemsSource="{Binding HousingSlots}"
+                                      SelectedItem="{Binding NewHousingSlot, Mode=TwoWay}"
+                                      ItemTemplate="{StaticResource EnumItemTemplate}"
+                                      FontSize="10" MinWidth="74" Margin="0,0,6,0"/>
                             <ComboBox ItemsSource="{Binding FasteningHeads}"
                                       SelectedItem="{Binding NewFasteningHead, Mode=TwoWay}"
                                       ItemTemplate="{StaticResource EnumItemTemplate}"
                                       FontSize="10" MinWidth="74" Margin="0,0,6,0"/>
+                            <TextBlock Text="P" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBox Text="{Binding NewPreset, UpdateSourceTrigger=PropertyChanged}"
+                                     FontSize="10" Width="36" Margin="3,0,6,0"/>
                             <Button Content="Add Bolt"
                                     Command="{Binding AddBoltPointCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}" MinWidth="70" Margin="0,0,6,0"/>
@@ -310,19 +329,17 @@
                 <TextBlock Text="Recipe"
                            FontSize="10" Foreground="{StaticResource TextMutedBrush}"
                            VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <TextBox Text="{Binding RecipeName, UpdateSourceTrigger=PropertyChanged}"
+                <TextBox Text="{Binding RecipeEditor.Name, UpdateSourceTrigger=PropertyChanged}"
                          MinWidth="120" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
                 <Button Content="New"
-                        Command="{Binding NewRecipeCommand}"
+                        Command="{Binding RecipeEditor.NewCommand}"
                         Style="{StaticResource SecondaryButtonStyle}" MinWidth="60" Margin="0,0,4,0"/>
                 <Button Content="Save"
-                        Command="{Binding SaveRecipeCommand}"
+                        Command="{Binding RecipeEditor.SaveCommand}"
                         Style="{StaticResource PrimaryButtonStyle}" MinWidth="60" Margin="0,0,4,0"/>
-                <ComboBox ItemsSource="{Binding RecipeFiles}" MinWidth="180" Margin="0,0,8,0"
+                <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" MinWidth="180" Margin="0,0,8,0"
                           FontSize="10" VerticalAlignment="Center"
                           SelectionChanged="RecipeFile_Selected"/>
-                <TextBlock Text="{Binding StatusMessage}" FontSize="11"
-                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
             </WrapPanel>
         </Border>
     </Grid>

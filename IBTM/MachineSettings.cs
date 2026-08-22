@@ -1,58 +1,63 @@
-using System.ComponentModel;
-using System.Text.Json.Serialization;
 using IBTM.Ajin;
-using IBTM.Core;
+using IBTM.AlphaMotion;
+using IBTM.BoltFastening;
+using IBTM.Conveyor;
 using IBTM.Device;
+using IBTM.Hantas;
+using IBTM.Inspection;
+using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
+using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
-using IBTM.Stations.BoltFastening;
-using IBTM.Stations.Inspection;
-using IBTM.Stations.PcbPlacement;
 
 namespace IBTM;
 
-[JsonConverter(typeof(JsonStringEnumConverter<ControlDriver>))]
-public enum ControlDriver
+public sealed class MachineSettings
 {
-    [Description("Virtual")]
-    Virtual,
-
-    [Description("AJIN")]
-    Ajin,
-}
-
-public sealed class MachineSettings : Setting
-{
-    public ControlDriver ControlDriver { get; set; } = ControlDriver.Virtual;
-    public CameraDriver CameraDriver { get; set; } = CameraDriver.Virtual;
-    [JsonIgnore]
-    public HardwareMap Hardware { get; set; } = new();
+    public DriverSettings Drivers { get; set; } = new();
+    public ProcessSettings Processes { get; set; } = new();
     public MachineOptions Options { get; set; } = new();
-    [JsonIgnore]
-    public AjinSettings Ajin { get; set; } = new();
     public HomeSettings Home { get; set; } = new();
-    [JsonIgnore]
+    public AjinSettings Ajin { get; set; } = new();
+    public AlphaMotionSettings AlphaMotion { get; set; } = new();
+    public HantasSettings Hantas { get; set; } = new();
     public AlignmentCameraSettings AlignmentCamera { get; set; } = new();
-    [JsonIgnore]
     public InspectionCameraSettings InspectionCamera { get; set; } = new();
-    [JsonIgnore]
     public LightingSettings Lighting { get; set; } = new();
-    public double ConveyorVelocity { get; set; } = 100.0;
-    [JsonIgnore]
-    public PcbBufferSettings PcbBuffer { get; set; } = new();
-    [JsonIgnore]
-    public PcbSupplySettings PcbSupply { get; set; } = new();
-    [JsonIgnore]
-    public PcbPlacementSettings PcbPlacement { get; set; } = new();
-    [JsonIgnore]
-    public BoltFasteningSettings BoltFastening { get; set; } = new();
-    [JsonIgnore]
-    public InspectionSettings Inspection { get; set; } = new();
-}
 
-public sealed class HomeSettings
-{
-    public double HorizontalSpeed { get; set; } = 15.0;
-    public double ZSpeed { get; set; } = 10.0;
+    public PcbSupplySettings PcbSupply { get; set; } = new();
+    public PcbSupplyHardwareSettings PcbSupplyHardware { get; set; } = new();
+    public PcbBufferSettings PcbBuffer { get; set; } = new();
+    public PcbBufferHardwareSettings PcbBufferHardware { get; set; } = new();
+    public PcbPlacementHandlerSettings PcbPlacementHandler { get; set; } = new();
+    public PcbPlacementHandlerHardwareSettings PcbPlacementHandlerHardware { get; set; } = new();
+    public PcbPlacementStationHardwareSettings PcbPlacementStationHardware { get; set; } = new();
+    public BoltFasteningSettings BoltFastening { get; set; } = new();
+    public BoltFasteningHardwareSettings BoltFasteningHardware { get; set; } = new();
+    public BoltFasteningStationHardwareSettings BoltFasteningStationHardware { get; set; } = new();
+    public InspectionGantrySettings InspectionGantry { get; set; } = new();
+    public InspectionGantryHardwareSettings InspectionGantryHardware { get; set; } = new();
+    public InspectionStationHardwareSettings InspectionStationHardware { get; set; } = new();
+
+    public MachineHardwareSettings MachineHardware { get; set; } = new();
+    public ConveyorHardwareSettings ConveyorHardware { get; set; } = new();
+    public NgShuttleHardwareSettings NgShuttleHardware { get; set; } = new();
+    public NgConveyorHardwareSettings NgConveyorHardware { get; set; } = new();
+
+    public HardwareSettings[] HardwareSections =>
+    [
+        MachineHardware,
+        PcbSupplyHardware,
+        PcbBufferHardware,
+        PcbPlacementHandlerHardware,
+        PcbPlacementStationHardware,
+        BoltFasteningHardware,
+        BoltFasteningStationHardware,
+        InspectionGantryHardware,
+        InspectionStationHardware,
+        ConveyorHardware,
+        NgShuttleHardware,
+        NgConveyorHardware,
+    ];
 }
 

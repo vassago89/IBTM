@@ -3,14 +3,14 @@ using System.ComponentModel;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using IBTM.Core;
+using IBTM.Device;
 
 namespace IBTM.UI;
 
 public enum AppPage
 {
-    [Description("Process Monitor")]
-    Process,
+    [Description("Operation")]
+    Operation,
 
     [Description("PCB Supply Teaching")]
     SupplyTeaching,
@@ -24,42 +24,47 @@ public enum AppPage
 
 public partial class MainViewModel : ObservableObject
 {
-    private readonly ProcessViewModel _processViewModel;
+    private readonly OperationViewModel _operationViewModel;
     private readonly SupplyTeachingViewModel _supplyTeachingViewModel;
     private readonly StationTeachingViewModel _stationTeachingViewModel;
     private readonly SettingsViewModel _settingsViewModel;
-    private readonly EquipmentState _state;
+    private readonly MachineState _state;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CurrentPage))]
     [NotifyPropertyChangedFor(nameof(CurrentPageEnabled))]
-    private ObservableObject _currentPage;
-
-    [ObservableProperty] private AppPage _selectedPage = AppPage.Process;
+    private AppPage _selectedPage = AppPage.Operation;
 
     public MainViewModel(
-        ProcessViewModel processViewModel,
+        OperationViewModel operationViewModel,
         SupplyTeachingViewModel supplyTeachingViewModel,
         StationTeachingViewModel stationTeachingViewModel,
         SettingsViewModel settingsViewModel,
-        EquipmentState state,
-        MachineSettings settings)
+        MachineState state,
+        DriverSettings drivers)
     {
-        _processViewModel = processViewModel;
+        _operationViewModel = operationViewModel;
         _supplyTeachingViewModel = supplyTeachingViewModel;
         _stationTeachingViewModel = stationTeachingViewModel;
         _settingsViewModel = settingsViewModel;
         _state = state;
-        HardwareName = settings.ControlDriver.GetDescription();
-        _currentPage = processViewModel;
-        state.Changed += OnEquipmentStateChanged;
+        Driver = drivers.Control;
+        state.Changed += OnMachineStateChanged;
         ActivateCurrentPage();
     }
 
-    public string HardwareName { get; }
-    public bool ManualControlsEnabled =>
-        _state.ManualControlsEnabled;
+    public ControlDriver Driver { get; }
+    public ObservableObject CurrentPage => SelectedPage switch
+    {
+        AppPage.Operation => _operationViewModel,
+        AppPage.SupplyTeaching => _supplyTeachingViewModel,
+        AppPage.StationTeaching => _stationTeachingViewModel,
+        AppPage.Settings => _settingsViewModel,
+        _ => throw new ArgumentOutOfRangeException(nameof(SelectedPage)),
+    };
+    public bool ManualControlsEnabled => _state.ManualControlsEnabled;
     public bool CurrentPageEnabled =>
-        CurrentPage is ProcessViewModel or SettingsViewModel
+        SelectedPage is AppPage.Operation or AppPage.Settings
         || _state.CanOperate;
 
     [RelayCommand(CanExecute = nameof(CanNavigate))]
@@ -67,29 +72,20 @@ public partial class MainViewModel : ObservableObject
     {
         DeactivateCurrentPage();
         SelectedPage = page;
-        CurrentPage = page switch
-        {
-            AppPage.Process => _processViewModel,
-            AppPage.SupplyTeaching => _supplyTeachingViewModel,
-            AppPage.StationTeaching => _stationTeachingViewModel,
-            AppPage.Settings => _settingsViewModel,
-            _ => throw new ArgumentOutOfRangeException(nameof(page)),
-        };
         ActivateCurrentPage();
     }
 
     private bool CanNavigate(AppPage page) =>
-        page == AppPage.Process
-        || page == AppPage.Settings && !_state.EquipmentRunning
-        || _state.ManualControlsEnabled;
+        page == AppPage.Operation
+        || ((page == AppPage.Settings && !_state.IsRunning)
+            || (page is AppPage.SupplyTeaching or AppPage.StationTeaching
+                && _state.CanOperate
+                && !_state.IsRunning));
 
     private void ActivateCurrentPage()
     {
         switch (CurrentPage)
         {
-            case ProcessViewModel process:
-                process.RefreshEquipmentState();
-                break;
             case SupplyTeachingViewModel supply:
                 supply.Activate();
                 break;
@@ -118,7 +114,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private void OnEquipmentStateChanged() =>
+    private void OnMachineStateChanged() =>
         Application.Current.Dispatcher.BeginInvoke(() =>
         {
             OnPropertyChanged(nameof(ManualControlsEnabled));
@@ -128,7 +124,8 @@ public partial class MainViewModel : ObservableObject
                 && CurrentPage is SupplyTeachingViewModel
                     or StationTeachingViewModel)
             {
-                Navigate(AppPage.Process);
+                Navigate(AppPage.Operation);
             }
         });
+
 }

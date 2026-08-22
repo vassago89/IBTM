@@ -1,88 +1,87 @@
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.PcbBuffer;
+using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
-using IBTM.Stations.PcbPlacement;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.UI;
 
 public partial class SupplyTeachingViewModel : ObservableObject
 {
-    private readonly MotionService _supplyMotion;
-    private readonly MotionService _placementMotion;
-    private readonly IIoService _io;
+    private readonly IAxisMotion _supplyMotion;
+    private readonly IXyMotion _placementMotion;
     private readonly PcbSupplyHandler _supplyHandler;
-    private readonly PcbPlacementStation _placementStation;
-    private readonly MachineSettings _settings;
-    private readonly MachineStore _store;
+    private readonly PcbPlacementHandler _placementHandler;
+    private readonly BufferStage _buffer;
+    private readonly MachineState _state;
+    private readonly PcbBufferSettings _bufferSettings;
+    private readonly PcbSupplySettings _supplySettings;
+    private readonly PcbPlacementHandlerSettings _placementSettings;
     private readonly TeachingPointMapper _pointMapper;
-    private readonly HashSet<TeachingTarget> _taughtBufferTargets = [];
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveRecipeCommand))]
-    private string _recipeName;
-
-    [ObservableProperty] private double _currentX;
-    [ObservableProperty] private double _currentY;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(JogXPlusCommand))]
-    [NotifyCanExecuteChangedFor(nameof(JogXMinusCommand))]
-    [NotifyCanExecuteChangedFor(nameof(JogYPlusCommand))]
-    [NotifyCanExecuteChangedFor(nameof(JogYMinusCommand))]
-    private double _currentZ;
+    private CancellationTokenSource _motionCancellation = new();
 
     [ObservableProperty] private double _jogSpeed = 10.0;
+
+    [ObservableProperty]
+    private IReadOnlyList<TeachingPoint> _points = [];
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(TeachCurrentPositionCommand))]
     [NotifyCanExecuteChangedFor(nameof(MoveToPointCommand))]
     private TeachingPoint? _selectedPoint;
 
-    [ObservableProperty] private string _statusMessage = string.Empty;
-
     public SupplyTeachingViewModel(
-        [FromKeyedServices(MotionGroup.PcbSupply)] MotionService supplyMotion,
-        [FromKeyedServices(MotionGroup.PcbPlacement)] MotionService placementMotion,
-        IIoService io,
+        [FromKeyedServices(MotionGroup.PcbSupply)] IAxisMotion supplyMotion,
+        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] IXyMotion placementMotion,
         PcbSupplyHandler supplyHandler,
-        PcbPlacementStation placementStation,
-        MachineSettings settings,
-        MachineStore store,
-        TeachingPointMapper pointMapper,
-        Recipe recipe)
+        PcbPlacementHandler placementHandler,
+        BufferStage buffer,
+        MachineState state,
+        PcbBufferSettings bufferSettings,
+        PcbSupplySettings supplySettings,
+        PcbPlacementHandlerSettings placementSettings,
+        RecipeEditor recipeEditor,
+        TeachingPointMapper pointMapper)
     {
         _supplyMotion = supplyMotion;
         _placementMotion = placementMotion;
-        _io = io;
         _supplyHandler = supplyHandler;
-        _placementStation = placementStation;
-        _settings = settings;
-        _store = store;
+        _placementHandler = placementHandler;
+        _buffer = buffer;
+        _state = state;
+        _bufferSettings = bufferSettings;
+        _supplySettings = supplySettings;
+        _placementSettings = placementSettings;
         _pointMapper = pointMapper;
-        CurrentRecipe = recipe;
-        _recipeName = recipe.Name;
+        RecipeEditor = recipeEditor;
 
         supplyMotion.PositionChanged +=
-            (x, y, z) => ApplyPosition(MotionGroup.PcbSupply, x, y, z);
+            (_, _, _) => ApplyPosition(MotionGroup.PcbSupply);
         placementMotion.PositionChanged +=
-            (x, y, z) => ApplyPosition(MotionGroup.PcbPlacement, x, y, z);
-        io.InputChanged += OnInputChanged;
+            (_, _, _) => ApplyPosition(MotionGroup.PcbPlacementHandler);
+        supplyMotion.MovingChanged += OnMotionChanged;
+        placementMotion.MovingChanged += OnMotionChanged;
+        supplyHandler.Changed += OnHandlerChanged;
+        placementHandler.Changed += OnHandlerChanged;
+        buffer.StateChanged += OnBufferChanged;
+        recipeEditor.Changed += BuildPoints;
 
         BuildPoints();
-        RefreshRecipeFiles();
     }
 
-    public ObservableCollection<TeachingPoint> Points { get; } = [];
-    public ObservableCollection<string> RecipeFiles { get; } = [];
-    public Recipe CurrentRecipe { get; }
+    public RecipeEditor RecipeEditor { get; }
     public double[] JogSpeeds { get; } = [1.0, 10.0, 50.0];
+    public double CurrentX => CurrentMotion.GetPosition().X;
+    public double CurrentY => CurrentMotion.GetPosition().Y;
+    public double CurrentZ => CurrentMotion.GetPosition().Z;
+    private Recipe CurrentRecipe => RecipeEditor.Recipe;
 
     [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
     private async Task TeachCurrentPositionAsync()
@@ -93,48 +92,42 @@ public partial class SupplyTeachingViewModel : ObservableObject
 
         if (IsBuffer(point))
         {
-            _taughtBufferTargets.Add(point.Target);
-            SaveBufferPairCommand.NotifyCanExecuteChanged();
-            StatusMessage = $"Taught: {point.Name} · save the buffer pair";
             return;
         }
 
         _pointMapper.Apply(CurrentRecipe, Points, point);
         if (point.Storage == TeachingStorage.Machine)
         {
-            await _store.SaveSettingsAsync(_settings);
+            await SaveMachinePositionsAsync();
         }
 
-        MoveToPointCommand.NotifyCanExecuteChanged();
-        StatusMessage = $"Taught: {point.Name}";
+        OnPropertyChanged(nameof(SafeZ));
+        NotifyManualTeachingCommands();
     }
 
-    private bool CanTeachCurrentPosition() => SelectedPoint is not null;
+    private bool CanTeachCurrentPosition() => CanUseCurrentHandler();
 
-    [RelayCommand(CanExecute = nameof(CanSaveBufferPair))]
-    private async Task SaveBufferPairAsync()
+    [RelayCommand]
+    private async Task SaveBufferSetupAsync()
     {
         foreach (var point in Points.Where(IsBuffer))
         {
             _pointMapper.Apply(CurrentRecipe, Points, point);
         }
 
-        await _store.SaveSettingsAsync(_settings);
-        _taughtBufferTargets.Clear();
-        SaveBufferPairCommand.NotifyCanExecuteChanged();
-        StatusMessage = "Buffer pair saved";
+        await SaveMachinePositionsAsync();
+        NotifyManualTeachingCommands();
     }
 
-    private bool CanSaveBufferPair() =>
-        _taughtBufferTargets.Contains(TeachingTarget.SupplyBuffer)
-        && _taughtBufferTargets.Contains(
-            TeachingTarget.PlacementBuffer);
+    private Task SaveMachinePositionsAsync() => Task.WhenAll(
+        _supplySettings.SaveAsync(),
+        _placementSettings.SaveAsync(),
+        _bufferSettings.SaveAsync());
 
     public void Activate()
     {
-        RecipeName = CurrentRecipe.Name;
+        RecipeEditor.Refresh();
         BuildPoints();
-        RefreshRecipeFiles();
         RefreshPosition();
         RefreshActuators();
     }
@@ -144,33 +137,34 @@ public partial class SupplyTeachingViewModel : ObservableObject
         MoveToSafeZCommand.Cancel();
         MoveToPointCommand.Cancel();
         ToggleActuatorCommand.Cancel();
-        _supplyMotion.Stop();
-        _placementMotion.Stop();
+        CancelMotion();
     }
 
     private void BuildPoints()
     {
-        _taughtBufferTargets.Clear();
-        Points.Clear();
-        foreach (var point in _pointMapper.BuildSupply(CurrentRecipe))
-        {
-            Points.Add(point);
-        }
-
+        Points = _pointMapper.BuildSupply(CurrentRecipe);
         SelectedPoint = Points.FirstOrDefault();
-        SaveBufferPairCommand.NotifyCanExecuteChanged();
-    }
-
-    private void RefreshRecipeFiles()
-    {
-        RecipeFiles.Clear();
-        foreach (var fileName in _store.GetRecipeFiles())
-        {
-            RecipeFiles.Add(fileName);
-        }
     }
 
     private static bool IsBuffer(TeachingPoint point) =>
-        point.Target is TeachingTarget.SupplyBuffer
-            or TeachingTarget.PlacementBuffer;
+        point.Target is TeachingTarget.SupplyBufferHandoff
+            or TeachingTarget.SupplyBufferClearZ
+            or TeachingTarget.PlacementBufferHandoff
+            or TeachingTarget.SupplyBufferBoundary1
+            or TeachingTarget.SupplyBufferBoundary2
+            or TeachingTarget.PlacementBufferBoundary1
+            or TeachingTarget.PlacementBufferBoundary2;
+
+    private void OnBufferChanged() =>
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(
+            NotifyManualTeachingCommands);
+
+    private void OnMotionChanged(bool moving)
+    {
+        if (!moving)
+        {
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(
+                NotifyManualTeachingCommands);
+        }
+    }
 }

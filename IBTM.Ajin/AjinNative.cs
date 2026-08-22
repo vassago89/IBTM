@@ -96,9 +96,6 @@ internal static class AjinNative
     internal static extern uint AxmMoveSStop(int axis);
 
     [DllImport(LibraryName)]
-    internal static extern uint AxmMoveEStop(int axis);
-
-    [DllImport(LibraryName)]
     internal static extern uint AxdiReadInportBit(
         int module,
         int offset,

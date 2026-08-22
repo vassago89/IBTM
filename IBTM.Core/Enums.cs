@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json.Serialization;
 
 namespace IBTM.Core;
 
@@ -8,11 +9,21 @@ public enum MotionGroup
     PcbSupply,
 
     [Description("Placement Handler")]
-    PcbPlacement,
+    PcbPlacementHandler,
 
     [Description("Bolt Fastening")]
     BoltFastening,
 
-    [Description("Inspection / NG Transfer")]
-    Inspection,
+    [Description("Inspection Gantry")]
+    InspectionGantry,
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<HousingSlot>))]
+public enum HousingSlot
+{
+    [Description("Housing 1")]
+    Housing1,
+
+    [Description("Housing 2")]
+    Housing2,
 }

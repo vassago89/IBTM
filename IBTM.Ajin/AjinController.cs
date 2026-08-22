@@ -1,9 +1,13 @@
 using System;
+using System.IO;
 
 namespace IBTM.Ajin;
 
 public sealed class AjinController(AjinSettings settings) : IDisposable
 {
+    private const int RtexChannelCountPerModule = 32;
+    private static readonly int[] RtexInputModules = [0, 1, 4];
+    private static readonly int[] RtexOutputModules = [2, 3, 4];
     private bool _initialized;
 
     internal AjinSettings Settings => settings;
@@ -18,10 +22,12 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
         Check(
             AjinNative.AxlOpen(settings.InterruptNumber),
             nameof(AjinNative.AxlOpen));
-        Check(
-            AjinNative.AxmMotLoadParaAll(settings.MotionParameterFile),
-            nameof(AjinNative.AxmMotLoadParaAll));
         _initialized = true;
+        Check(
+            AjinNative.AxmMotLoadParaAll(Path.Combine(
+                AppContext.BaseDirectory,
+                settings.MotionParameterFile)),
+            nameof(AjinNative.AxmMotLoadParaAll));
     }
 
     public void Dispose()
@@ -32,6 +38,55 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
             _initialized = false;
         }
     }
+
+    public bool ReadRtexInput(int channel)
+    {
+        var (module, offset) = GetRtexAddress(
+            RtexInputModules,
+            channel);
+        var value = 0U;
+        Check(
+            AjinNative.AxdiReadInportBit(
+                module,
+                offset,
+                ref value),
+            nameof(AjinNative.AxdiReadInportBit));
+        return value != 0;
+    }
+
+    public bool ReadRtexOutput(int channel)
+    {
+        var (module, offset) = GetRtexAddress(
+            RtexOutputModules,
+            channel);
+        var value = 0U;
+        Check(
+            AjinNative.AxdoReadOutportBit(
+                module,
+                offset,
+                ref value),
+            nameof(AjinNative.AxdoReadOutportBit));
+        return value != 0;
+    }
+
+    public void WriteRtexOutput(int channel, bool value)
+    {
+        var (module, offset) = GetRtexAddress(
+            RtexOutputModules,
+            channel);
+        Check(
+            AjinNative.AxdoWriteOutportBit(
+                module,
+                offset,
+                value ? 1U : 0U),
+            nameof(AjinNative.AxdoWriteOutportBit));
+    }
+
+    private static (int Module, int Offset) GetRtexAddress(
+        int[] modules,
+        int channel) =>
+        (modules[channel / RtexChannelCountPerModule],
+            channel % RtexChannelCountPerModule);
 
     internal static void Check(uint result, string operation)
     {

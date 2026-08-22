@@ -18,7 +18,7 @@ public partial class SupplyTeachingView : UserControl
     {
         if (((ComboBox)sender).SelectedItem is string fileName)
         {
-            ViewModel.LoadRecipeCommand.Execute(fileName);
+            ViewModel.RecipeEditor.LoadCommand.Execute(fileName);
         }
     }
 }

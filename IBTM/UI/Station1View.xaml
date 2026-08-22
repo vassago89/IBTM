@@ -1,102 +1,139 @@
 <UserControl x:Class="IBTM.UI.Station1View"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="clr-namespace:IBTM.UI"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
              Width="566"
-             Height="414">
+             Height="492">
     <Grid>
         <Border Style="{DynamicResource CellStyle}"/>
 
         <Canvas>
-            <TextBlock Canvas.Left="18" Canvas.Top="18"
-                       Text="STATION 1 · PCB HANDLING"
+            <TextBlock Canvas.Left="20" Canvas.Top="18"
+                       Text="STATION 1   PCB HANDLING"
                        Foreground="{StaticResource TextPrimaryBrush}"
-                       FontSize="16"
+                       FontSize="17"
                        FontWeight="SemiBold"/>
 
-            <StackPanel Canvas.Left="18" Canvas.Top="50"
+            <StackPanel Canvas.Left="20" Canvas.Top="52"
                         Orientation="Horizontal">
-                <Border Tag="{Binding SupplyTone}"
-                        Style="{DynamicResource StateBadgeStyle}"
+                <Border Tag="{Binding SupplyDisplayState}"
+                        Style="{DynamicResource HandlerStateBadgeStyle}"
                         Margin="0,0,8,0">
-                    <TextBlock Style="{DynamicResource MapHintStyle}">
+                    <TextBlock Style="{DynamicResource StateTextStyle}">
                         <Run Text="SUPPLY  "/>
-                        <Run Text="{Binding SupplyDisplayState,
+                        <Run Text="{Binding SupplyDisplayState, Mode=OneWay,
                                             Converter={StaticResource EnumDescriptionConverter}}"/>
                     </TextBlock>
                 </Border>
-                <Border Tag="{Binding PlacementTone}"
-                        Style="{DynamicResource StateBadgeStyle}">
-                    <TextBlock Style="{DynamicResource MapHintStyle}">
+                <Border Tag="{Binding PlacementDisplayState}"
+                        Style="{DynamicResource HandlerStateBadgeStyle}">
+                    <TextBlock Style="{DynamicResource StateTextStyle}">
                         <Run Text="PLACEMENT  "/>
-                        <Run Text="{Binding PlacementDisplayState,
+                        <Run Text="{Binding PlacementDisplayState, Mode=OneWay,
                                             Converter={StaticResource EnumDescriptionConverter}}"/>
                     </TextBlock>
                 </Border>
             </StackPanel>
 
-            <Border Canvas.Left="18" Canvas.Top="98"
-                    Width="112" Height="78"
-                    Tag="{Binding PcbSupplyUpstreamBoardAvailable}"
+            <Border Canvas.Left="20" Canvas.Top="132"
+                    Width="126" Height="96"
+                    Tag="{Binding PcbSupplyAvailableFromFront1}"
                     Style="{DynamicResource StageBodyStyle}">
-                <TextBlock Text="PCB CARRIER"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Style="{DynamicResource MapHintStyle}"/>
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="PCB CARRIER"
+                               HorizontalAlignment="Center"
+                               Style="{DynamicResource MapHintStyle}"/>
+                    <Grid Grid.Row="1" Margin="3,10,3,2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Background="{StaticResource EquipBgBrush}"
+                                BorderBrush="{StaticResource CardBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="2"/>
+                        <Border Grid.Column="2"
+                                Background="{StaticResource EquipBgBrush}"
+                                BorderBrush="{StaticResource CardBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="2"/>
+                    </Grid>
+                </Grid>
             </Border>
-
-            <TextBlock Canvas.Left="24" Canvas.Top="186"
+            <TextBlock Canvas.Left="20" Canvas.Top="238"
                        Text="SMEMA IN"
                        Style="{DynamicResource MapHintStyle}"/>
 
             <Grid Canvas.Left="{Binding PcbSupplyMapLeft}"
-                  Canvas.Top="88"
-                  Width="82" Height="104"
-                  Panel.ZIndex="20">
-                <Grid Width="72" Height="38"
+                  Canvas.Top="{Binding PcbSupplyMapTop}"
+                  Width="100" Height="112"
+                  Panel.ZIndex="20"
+                  ToolTip="{Binding PcbSupplyPosition}">
+                <Grid Width="92" Height="50"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Bottom"
                       RenderTransformOrigin="0.5,0.5">
-                    <Grid.RenderTransform>
-                        <RotateTransform Angle="{Binding PcbSupplyRotationAngle}"/>
-                    </Grid.RenderTransform>
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="RenderTransform">
+                                <Setter.Value>
+                                    <RotateTransform Angle="0"/>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding PcbSupplyRotated}"
+                                             Value="True">
+                                    <Setter Property="RenderTransform">
+                                        <Setter.Value>
+                                            <RotateTransform Angle="90"/>
+                                        </Setter.Value>
+                                    </Setter>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
                     <Border Tag="{Binding PcbSupplyActive}"
                             Style="{DynamicResource DeviceBodyStyle}"/>
                     <TextBlock Text="SUPPLY"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Top"
-                               Margin="0,3,0,0"
-                               Style="{DynamicResource MapHintStyle}"/>
-                    <Border Width="46" Height="12"
+                               Margin="0,5,0,0"
+                               Style="{DynamicResource MapLabelStyle}"/>
+                    <Border Width="58" Height="14"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Bottom"
-                            Margin="0,0,0,3"
+                            Margin="0,0,0,5"
                             Background="{DynamicResource MaterialPcbBrush}"
                             CornerRadius="2"
                             Visibility="{Binding PcbSupplyPcbDetected,
                                                  Converter={StaticResource BoolToVis}}"/>
-                    <Border Tag="{Binding PcbSupplyGripperClosed}"
+                    <Border Tag="{Binding PcbSupplyIpmFixed}"
                             Style="{DynamicResource LeftGripperJawStyle}"/>
-                    <Border Tag="{Binding PcbSupplyGripperClosed}"
+                    <Border Tag="{Binding PcbSupplyIpmFixed}"
                             Style="{DynamicResource RightGripperJawStyle}"/>
                 </Grid>
             </Grid>
 
-            <Border Canvas.Left="302" Canvas.Top="98"
-                    Width="104" Height="92"
+            <Border Canvas.Left="276" Canvas.Top="150"
+                    Width="116" Height="104"
                     Style="{DynamicResource BufferStyle}">
                 <StackPanel HorizontalAlignment="Center"
                             VerticalAlignment="Center">
                     <TextBlock Text="BUFFER"
                                Style="{DynamicResource MapLabelStyle}"
                                HorizontalAlignment="Center"/>
-                    <TextBlock Text="{Binding BufferOwner,
-                                             Converter={StaticResource EnumDescriptionConverter}}"
-                               Style="{DynamicResource MapHintStyle}"
-                               HorizontalAlignment="Center"
-                               Margin="0,6,0,0"/>
-                    <Border Width="48" Height="14"
+                    <Border Width="62" Height="18"
                             HorizontalAlignment="Center"
-                            Margin="0,6,0,0"
+                            Margin="0,10,0,0"
                             Background="{DynamicResource MaterialPcbBrush}"
                             CornerRadius="2"
                             Visibility="{Binding PcbBufferPcbPresent,
@@ -106,63 +143,64 @@
 
             <Grid Canvas.Left="{Binding PcbPlacementMapLeft}"
                   Canvas.Top="{Binding PcbPlacementMapTop}"
-                  Width="82" Height="88"
-                  Panel.ZIndex="21">
-                <Grid Width="74" Height="38"
+                  Width="104" Height="106"
+                  Panel.ZIndex="21"
+                  ToolTip="{Binding PcbPlacementPosition}">
+                <Grid Width="96" Height="50"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Bottom">
                     <Border Tag="{Binding PcbPlacementActive}"
                             Style="{DynamicResource DeviceBodyStyle}"/>
-                    <TextBlock Text="PLACE"
+                    <TextBlock Text="PLACEMENT"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Top"
-                               Margin="0,3,0,0"
-                               Style="{DynamicResource MapHintStyle}"/>
-                    <Border Width="48" Height="12"
+                               Margin="0,5,0,0"
+                               Style="{DynamicResource MapLabelStyle}"/>
+                    <Border Width="60" Height="14"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Bottom"
-                            Margin="0,0,0,3"
+                            Margin="0,0,0,5"
                             Background="{DynamicResource MaterialPcbBrush}"
                             CornerRadius="2"
                             Visibility="{Binding PcbPlacementPcbDetected,
                                                  Converter={StaticResource BoolToVis}}"/>
-                    <Border Tag="{Binding PcbPlacementGripperClosed}"
+                    <Border Tag="{Binding PcbPlacementIpmGripperClosed}"
                             Style="{DynamicResource LeftGripperJawStyle}"/>
-                    <Border Tag="{Binding PcbPlacementGripperClosed}"
+                    <Border Tag="{Binding PcbPlacementIpmGripperClosed}"
                             Style="{DynamicResource RightGripperJawStyle}"/>
                 </Grid>
             </Grid>
 
-            <Grid Canvas.Left="324" Canvas.Top="272"
-                  Width="58" Height="58">
-                <Ellipse Tag="{Binding PcbPlacementLaserOutput}"
-                         Style="{DynamicResource LightVisualStyle}"/>
-                <Ellipse Width="38" Height="38"
-                         Stroke="{StaticResource DividerBrush}"/>
+            <Grid Canvas.Left="302" Canvas.Top="328"
+                  Width="64" Height="64">
+                <Ellipse Width="48" Height="48"
+                         Fill="{StaticResource EquipBgBrush}"
+                         Stroke="{StaticResource CardBorderBrush}"
+                         StrokeThickness="2"/>
                 <TextBlock Text="C"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
-                           Foreground="{StaticResource TextPrimaryBrush}"
-                           FontSize="12"
+                           Foreground="{StaticResource AccentBlueBrush}"
+                           FontSize="14"
                            FontWeight="SemiBold"/>
             </Grid>
-            <TextBlock Canvas.Left="312" Canvas.Top="336"
-                       Width="84"
+            <TextBlock Canvas.Left="284" Canvas.Top="398"
+                       Width="100"
                        Text="ALIGN CAMERA"
                        TextAlignment="Center"
                        Style="{DynamicResource MapHintStyle}"/>
 
-            <TextBlock Canvas.Left="18" Canvas.Top="244"
-                       Text="SUPPLY"
+            <TextBlock Canvas.Left="20" Canvas.Top="438"
+                       Text="SUPPLY POSITION"
                        Style="{DynamicResource MapLabelStyle}"/>
-            <TextBlock Canvas.Left="18" Canvas.Top="269"
+            <TextBlock Canvas.Left="20" Canvas.Top="458"
                        Text="{Binding PcbSupplyPosition}"
                        Style="{DynamicResource MapHintStyle}"/>
 
-            <TextBlock Canvas.Left="406" Canvas.Top="244"
-                       Text="PLACEMENT"
+            <TextBlock Canvas.Left="330" Canvas.Top="438"
+                       Text="PLACEMENT POSITION"
                        Style="{DynamicResource MapLabelStyle}"/>
-            <TextBlock Canvas.Left="406" Canvas.Top="269"
+            <TextBlock Canvas.Left="330" Canvas.Top="458"
                        Text="{Binding PcbPlacementPosition}"
                        Style="{DynamicResource MapHintStyle}"/>
         </Canvas>

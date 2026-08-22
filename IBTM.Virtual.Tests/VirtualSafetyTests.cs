@@ -1,4 +1,3 @@
-using System;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
@@ -12,30 +11,20 @@ namespace IBTM.Virtual.Tests;
 public sealed class VirtualSafetyTests
 {
     [Fact]
-    public void SupplyRotationFollowsPositionInputs()
+    public void CarrierPointMovesBetweenStationReferences()
     {
-        var io = new VirtualIoService();
-        using var motion = new VirtualMotionService(new MotionSettings());
-        using var supply = new PcbSupplyHandler(
-            motion,
-            io,
-            new PcbSupplySettings());
+        var carrierPoint = CarrierCoordinates.FromMachine(
+            new AxisPos { X = 25, Y = 27 },
+            new AxisPos { X = 10, Y = 20 },
+            new AxisPos { X = 50, Y = 20 });
 
-        io.Initialize();
-        supply.Initialize();
-        Assert.Equal(PcbSupplyRotation.Unrotated, supply.Rotation);
+        var fasteningPoint = CarrierCoordinates.ToMachine(
+            carrierPoint,
+            new AxisPos { X = 100, Y = 200 },
+            new AxisPos { X = 100, Y = 240 });
 
-        io.SetInput(InputIo.PcbSupplyRotated, true);
-        Assert.Equal(PcbSupplyRotation.Between, supply.Rotation);
-
-        io.SetInput(InputIo.PcbSupplyUnrotated, false);
-        Assert.Equal(PcbSupplyRotation.Rotated, supply.Rotation);
-
-        io.SetInput(InputIo.PcbSupplyRotated, false);
-        Assert.Equal(PcbSupplyRotation.Between, supply.Rotation);
-
-        io.SetInput(InputIo.PcbSupplyUnrotated, true);
-        Assert.Equal(PcbSupplyRotation.Unrotated, supply.Rotation);
+        Assert.Equal(93, fasteningPoint.X, 6);
+        Assert.Equal(215, fasteningPoint.Y, 6);
     }
 
     [Fact]
@@ -46,12 +35,14 @@ public sealed class VirtualSafetyTests
             SafeZ = -5,
             ZSpeed = 100,
         };
-        using var motion = new VirtualMotionService(settings);
+        using var motion = new VirtualMotionService(
+            settings,
+            new OperationCancellation());
         motion.Initialize();
         await motion.HomeAsync(MotionAxis.Z, 100);
         await motion.HomeAsync(MotionAxis.X, 100);
         await motion.HomeAsync(MotionAxis.Y, 100);
-        await motion.MoveToZAsync(8, 100);
+        await motion.MoveZAsync(8, 100);
 
         await motion.MoveToXYAsync(10, 20, 100);
 
@@ -63,6 +54,7 @@ public sealed class VirtualSafetyTests
     {
         using var motion = new VirtualMotionService(
             new MotionSettings(),
+            new OperationCancellation(),
             zRange: (0, 100));
         motion.Initialize();
 
@@ -76,13 +68,15 @@ public sealed class VirtualSafetyTests
     [Fact]
     public async Task SupplyHomeRotatesBeforeMovingFromAnEmptyUnrotatedState()
     {
-        var io = new VirtualIoService();
+        var io = CreateIo();
+        var operations = new OperationCancellation();
         using var motion = new VirtualMotionService(
             new MotionSettings(),
-            hasY: false,
             xRange: (0, 200),
-            zRange: (0, 100));
-        using var supply = new PcbSupplyHandler(
+            yRange: (0, 200),
+            zRange: (0, 100),
+            operationCancellation: operations);
+        var supply = new PcbSupplyHandler(
             motion,
             io,
             new PcbSupplySettings());
@@ -90,7 +84,10 @@ public sealed class VirtualSafetyTests
 
         io.Initialize();
         motion.Initialize();
-        supply.Initialize();
+        await motion.HomeAsync(MotionAxis.Z, 1_000);
+        await motion.HomeAsync(MotionAxis.X, 1_000);
+        await motion.HomeAsync(MotionAxis.Y, 1_000);
+        await motion.MoveToAsync(100, 80, 0);
         motion.MovingChanged += moving =>
         {
             if (moving)
@@ -100,65 +97,87 @@ public sealed class VirtualSafetyTests
             }
         };
 
-        Assert.False(supply.CanHome(bufferPcbPresent: true));
-        io.SetInput(InputIo.PcbSupplyPcbPresent, true);
-        Assert.False(supply.CanHome(bufferPcbPresent: false));
-        io.SetInput(InputIo.PcbSupplyPcbPresent, false);
+        io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        Assert.False(supply.CanPrepareHome);
+        io.SetInput(InputIo.PcbSupplyPcbDetected, false);
 
-        var homed = await supply.HomeAsync(
-            bufferPcbPresent: false,
-            horizontalVelocity: 1_000,
-            zVelocity: 1_000);
+        var prepared = await supply.PrepareHomeAsync(1_000);
+        var homed = prepared && await supply.CompleteHomeAsync(
+            1_000,
+            1_000);
 
         Assert.True(homed);
         Assert.True(rotatedBeforeMotion);
         Assert.Equal(PcbSupplyRotation.Rotated, supply.Rotation);
         Assert.True(motion.GetAxisState(MotionAxis.X).Homed);
+        Assert.True(motion.GetAxisState(MotionAxis.Y).Homed);
         Assert.True(motion.GetAxisState(MotionAxis.Z).Homed);
         Assert.Equal((0, 0, 0), motion.GetPosition());
     }
 
     [Fact]
-    public async Task OutputFeedbackTimeoutRaisesAlarm()
+    public async Task BufferAllowsOnlyTheTaughtHandoffOverlap()
     {
-        var hardware = new HardwareMap();
-        var feedback =
-            hardware.OutputFeedbacks[OutputIo.PcbPlacementGripperClose];
-        feedback.TimeoutMilliseconds = 20;
-        IIoService io = new VirtualIoService(hardware);
+        var operations = new OperationCancellation();
+        var settings = new MotionSettings
+        {
+            HorizontalSpeed = 1_000,
+            ZSpeed = 1_000,
+        };
+        var supplyHandoff = new AxisPos { X = 10, Y = 10, Z = 8 };
+        var placementHandoff = new AxisPos { X = 10, Y = 10, Z = 8 };
+        var io = CreateIo();
+        using var supply = new VirtualMotionService(
+            settings,
+            xRange: (0, 100),
+            yRange: (0, 100),
+            zRange: (0, 100),
+            operationCancellation: operations);
+        using var placement = new VirtualMotionService(
+            settings,
+            xRange: (0, 100),
+            yRange: (0, 100),
+            zRange: (0, 100),
+            operationCancellation: operations);
+        var buffer = new BufferStage(
+            CreateBufferSettings(),
+            io,
+            supply,
+            placement,
+            supplyHandoff,
+            placementHandoff);
 
-        await Assert.ThrowsAsync<IoFeedbackTimeoutException>(
-            () => io.SetOutputAndWaitAsync(
-                OutputIo.PcbPlacementGripperClose,
-                true));
+        io.Initialize();
+        supply.Initialize();
+        placement.Initialize();
+        foreach (var motion in new[] { supply, placement })
+        {
+            await motion.HomeAsync(MotionAxis.Z, 1_000);
+            await motion.HomeAsync(MotionAxis.X, 1_000);
+            await motion.HomeAsync(MotionAxis.Y, 1_000);
+        }
+
+        await supply.MoveToAsync(10, 10, 8);
+        io.SetInput(InputIo.PcbBufferPcbPresent, true);
+        Assert.True(buffer.CanPlacementEnter);
+
+        await placement.MoveToAsync(10, 10, 8);
+        Assert.False(buffer.Conflict);
+
+        await supply.MoveToAsync(0, 10, 12);
+        Assert.False(buffer.Conflict);
+        Assert.True(buffer.CanPlacementExit);
     }
 
-    [Fact]
-    public async Task CanceledBufferResetsOnlyAfterOwnerIsClear()
+    private static VirtualIoService CreateIo() => new(
+        new PcbSupplyHardwareSettings().Outputs,
+        new MachineOptions());
+
+    private static PcbBufferSettings CreateBufferSettings() => new()
     {
-        using var buffer = new BufferStage(new PcbBufferSettings());
-
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => buffer.EnterAsync(BufferOwner.Supply, 10, 0, 0));
-        await buffer.EnterAsync(BufferOwner.Supply, 0, 0, 0);
-        buffer.Cancel();
-
-        Assert.Equal(BufferOwner.Supply, buffer.Owner);
-        Assert.True(buffer.CancellationRequested);
-
-        buffer.ExitSupply(0);
-
-        Assert.Equal(BufferOwner.None, buffer.Owner);
-        Assert.False(buffer.CancellationRequested);
-
-        var nextToken = await buffer.EnterAsync(
-            BufferOwner.Placement,
-            0,
-            0,
-            0);
-
-        Assert.False(nextToken.IsCancellationRequested);
-        buffer.ExitPlacement(0, 0);
-    }
-
+        SupplyBoundary1 = 5,
+        SupplyBoundary2 = 50,
+        PlacementBoundary1 = new AxisPos { X = 5, Y = 5 },
+        PlacementBoundary2 = new AxisPos { X = 30, Y = 12 },
+    };
 }

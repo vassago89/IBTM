@@ -1,7 +1,6 @@
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:buffer="clr-namespace:IBTM.PcbBuffer;assembly=IBTM.PcbBuffer"
     xmlns:ui="clr-namespace:IBTM.UI">
 
     <SolidColorBrush x:Key="MaterialPcbBrush" Color="#63D58D"/>
@@ -23,30 +22,123 @@
         <Setter Property="FontWeight" Value="Normal"/>
     </Style>
 
+    <Style x:Key="SafetyTextStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource MapLabelStyle}">
+        <Setter Property="Margin" Value="7,0,0,0"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <Style x:Key="StateTextStyle"
+           TargetType="TextBlock"
+           BasedOn="{StaticResource MapHintStyle}">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="FontSize" Value="11"/>
+    </Style>
+
     <Style x:Key="StateBadgeStyle" TargetType="Border">
         <Setter Property="Padding" Value="9,4"/>
         <Setter Property="Background" Value="#12171D"/>
         <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="4"/>
+    </Style>
+
+    <Style x:Key="MachineStateBadgeStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource StateBadgeStyle}">
         <Style.Triggers>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:DisplayTone.Ready}">
+                         Value="{x:Static ui:MachineDisplayState.Ready}">
                 <Setter Property="Background" Value="#172A1E"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:DisplayTone.Waiting}">
+                         Value="{x:Static ui:MachineDisplayState.HomeRequired}">
                 <Setter Property="Background" Value="#2A2416"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:DisplayTone.Active}">
+                         Value="{x:Static ui:MachineDisplayState.ServoOff}">
+                <Setter Property="Background" Value="#2A2416"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:MachineDisplayState.Running}">
                 <Setter Property="Background" Value="#172238"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:DisplayTone.Alarm}">
+                         Value="{x:Static ui:MachineDisplayState.Homing}">
+                <Setter Property="Background" Value="#172238"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:MachineDisplayState.MotionFault}">
+                <Setter Property="Background" Value="#32191B"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:MachineDisplayState.Alarm}">
+                <Setter Property="Background" Value="#32191B"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="HandlerStateBadgeStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource StateBadgeStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:HandlerDisplayState.CarrierAvailable}">
+                <Setter Property="Background" Value="#172A1E"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:HandlerDisplayState.HousingDetected}">
+                <Setter Property="Background" Value="#172A1E"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:HandlerDisplayState.PcbDetected}">
+                <Setter Property="Background" Value="#172238"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:HandlerDisplayState.Moving}">
+                <Setter Property="Background" Value="#172238"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:HandlerDisplayState.PcbOnBuffer}">
+                <Setter Property="Background" Value="#2A2416"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:HandlerDisplayState.IoAlarm}">
+                <Setter Property="Background" Value="#32191B"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="StationStateBadgeStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource StateBadgeStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:StationDisplayState.HousingDetected}">
+                <Setter Property="Background" Value="#172A1E"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:StationDisplayState.Working}">
+                <Setter Property="Background" Value="#172238"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:StationDisplayState.IoAlarm}">
                 <Setter Property="Background" Value="#32191B"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
             </DataTrigger>
@@ -54,10 +146,9 @@
     </Style>
 
     <Style x:Key="CellStyle" TargetType="Border">
-        <Setter Property="Background" Value="#080B0F"/>
-        <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="5"/>
+        <Setter Property="Background" Value="#090C10"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="8"/>
     </Style>
 
     <Style x:Key="DeviceBodyStyle" TargetType="Border">
@@ -99,6 +190,21 @@
                          Value="True">
                 <Setter Property="Background" Value="#42351F"/>
                 <Setter Property="BorderBrush" Value="{StaticResource HousingBrush}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="ToolHeadVisualStyle" TargetType="Border">
+        <Setter Property="Width" Value="18"/>
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="VerticalAlignment" Value="Top"/>
+        <Setter Property="Background" Value="{StaticResource HousingBrush}"/>
+        <Setter Property="CornerRadius" Value="3,3,1,1"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="True">
+                <Setter Property="Height" Value="48"/>
+                <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
             </DataTrigger>
         </Style.Triggers>
     </Style>
@@ -167,20 +273,6 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="LightVisualStyle" TargetType="Ellipse">
-        <Setter Property="Fill" Value="{StaticResource EquipBgBrush}"/>
-        <Setter Property="Stroke" Value="{StaticResource CardBorderBrush}"/>
-        <Setter Property="StrokeThickness" Value="2"/>
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
-                <Setter Property="Fill" Value="#20394D"/>
-                <Setter Property="Stroke" Value="{StaticResource AccentBlueBrush}"/>
-                <Setter Property="StrokeThickness" Value="3"/>
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
     <Style x:Key="ConveyorBedStyle" TargetType="Border">
         <Setter Property="Background" Value="#0D1116"/>
         <Setter Property="CornerRadius" Value="6"/>
@@ -195,14 +287,7 @@
            TargetType="Border"
            BasedOn="{StaticResource StageBodyStyle}">
         <Style.Triggers>
-            <DataTrigger Binding="{Binding BufferOwner}"
-                         Value="{x:Static buffer:BufferOwner.Supply}">
-                <Setter Property="Background" Value="#172238"/>
-                <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-                <Setter Property="BorderThickness" Value="2"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding BufferOwner}"
-                         Value="{x:Static buffer:BufferOwner.Placement}">
+            <DataTrigger Binding="{Binding BufferOccupied}" Value="True">
                 <Setter Property="Background" Value="#172238"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                 <Setter Property="BorderThickness" Value="2"/>
@@ -210,11 +295,6 @@
             <DataTrigger Binding="{Binding PcbBufferPcbPresent}" Value="True">
                 <Setter Property="Background" Value="#244C32"/>
                 <Setter Property="BorderBrush" Value="{StaticResource MaterialPcbBrush}"/>
-                <Setter Property="BorderThickness" Value="2"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding BufferRecoveryRequired}" Value="True">
-                <Setter Property="Background" Value="#332817"/>
-                <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                 <Setter Property="BorderThickness" Value="2"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding BufferConflict}" Value="True">

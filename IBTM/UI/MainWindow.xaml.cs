@@ -1,19 +1,25 @@
 using System.ComponentModel;
 using System.Windows;
 using IBTM.Device;
+using IBTM.Hantas;
 
 namespace IBTM.UI;
 
 public partial class MainWindow : Window
 {
     private readonly IIoService _io;
+    private readonly AdcBus _adcBus;
     private InputWindow? _inputWindow;
     private OutputWindow? _outputWindow;
     private AdcProtocolWindow? _adcProtocolWindow;
 
-    public MainWindow(MainViewModel viewModel, IIoService io)
+    public MainWindow(
+        MainViewModel viewModel,
+        IIoService io,
+        AdcBus adcBus)
     {
         _io = io;
+        _adcBus = adcBus;
         InitializeComponent();
         DataContext = viewModel;
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -59,7 +65,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _adcProtocolWindow = new AdcProtocolWindow
+        _adcProtocolWindow = new AdcProtocolWindow(_adcBus)
         {
             Owner = this,
         };
@@ -75,6 +81,7 @@ public partial class MainWindow : Window
             && sender is MainViewModel { ManualControlsEnabled: false })
         {
             _outputWindow?.Close();
+            _adcProtocolWindow?.Close();
         }
     }
 }

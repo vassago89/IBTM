@@ -1,7 +1,6 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
@@ -11,49 +10,53 @@ namespace IBTM.UI;
 
 public partial class SupplyTeachingViewModel
 {
-    public string SupplyRotationLabel =>
-        $"Supply Rotation  {_supplyHandler.Rotation.GetDescription()}";
-    public string SupplyGripperLabel =>
-        _supplyHandler.GripperClosed
-            ? "Supply Gripper  Closed"
-            : "Supply Gripper  Open";
-    public string PlacementGripperLabel =>
-        _placementStation.GripperClosed
-            ? "Placement Gripper  Closed"
-            : "Placement Gripper  Open";
-    public string SupplyPcbLabel =>
-        _supplyHandler.PcbPresent
-            ? "Supply PCB  Detected"
-            : "Supply PCB  Empty";
-    public string PlacementPcbLabel =>
-        _placementStation.PcbPresent
-            ? "Placement PCB  Detected"
-            : "Placement PCB  Empty";
+    public PcbSupplyRotation SupplyRotation => _supplyHandler.Rotation;
+    public bool SupplyIpmFixed => _supplyHandler.IpmFixerForward;
+    public bool PlacementIpmGripperClosed =>
+        _placementHandler.IpmGripperClosed;
+    public bool SupplyPcbDetected => _supplyHandler.PcbDetected;
+    public bool PlacementPcbDetected => _placementHandler.PcbDetected;
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanToggleActuator))]
     private async Task ToggleActuatorAsync(
         OutputIo output,
         CancellationToken cancellationToken)
     {
-        var value = !_io.GetOutput(output);
+        var value = output switch
+        {
+            OutputIo.PcbSupplyRotate =>
+                SupplyRotation != PcbSupplyRotation.Rotated,
+            OutputIo.PcbSupplyIpmFixerForward => !SupplyIpmFixed,
+            OutputIo.PcbPlacementIpmGripperClose =>
+                !PlacementIpmGripperClosed,
+            _ => throw new ArgumentOutOfRangeException(nameof(output)),
+        };
         try
         {
             await SetActuatorAsync(output, value, cancellationToken);
-            StatusMessage =
-                $"{output.GetDescription()} {(value ? "on" : "off")}";
         }
         catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
         {
-            StatusMessage = "Output command stopped";
         }
-        catch (IoFeedbackTimeoutException exception)
+        catch (IoTimeoutException)
         {
-            StatusMessage = $"Alarm: {exception.Message}";
+            _state.SetError(
+                output == OutputIo.PcbPlacementIpmGripperClose
+                    ? MachineAlarm.Placement
+                    : MachineAlarm.Supply);
         }
-
-        RefreshActuators();
+        finally
+        {
+            RefreshActuators();
+        }
     }
+
+    private bool CanToggleActuator(OutputIo output) =>
+        (output != OutputIo.PcbSupplyRotate || !_buffer.SupplyInside)
+        && CanUseHandler(
+            output == OutputIo.PcbPlacementIpmGripperClose
+                ? MotionGroup.PcbPlacementHandler
+                : MotionGroup.PcbSupply);
 
     private Task SetActuatorAsync(
         OutputIo output,
@@ -63,32 +66,23 @@ public partial class SupplyTeachingViewModel
         {
             OutputIo.PcbSupplyRotate =>
                 _supplyHandler.SetRotatedAsync(value, cancellationToken),
-            OutputIo.PcbSupplyGripperClose =>
-                _supplyHandler.SetGripperAsync(value, cancellationToken),
-            OutputIo.PcbPlacementGripperClose =>
-                _placementStation.SetGripperAsync(value, cancellationToken),
+            OutputIo.PcbSupplyIpmFixerForward =>
+                _supplyHandler.SetIpmFixerAsync(value, cancellationToken),
+            OutputIo.PcbPlacementIpmGripperClose =>
+                _placementHandler.SetIpmGripperAsync(value, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(output)),
         };
 
     private void RefreshActuators()
     {
-        OnPropertyChanged(nameof(SupplyRotationLabel));
-        OnPropertyChanged(nameof(SupplyGripperLabel));
-        OnPropertyChanged(nameof(PlacementGripperLabel));
-        OnPropertyChanged(nameof(SupplyPcbLabel));
-        OnPropertyChanged(nameof(PlacementPcbLabel));
+        OnPropertyChanged(nameof(SupplyRotation));
+        OnPropertyChanged(nameof(SupplyIpmFixed));
+        OnPropertyChanged(nameof(PlacementIpmGripperClosed));
+        OnPropertyChanged(nameof(SupplyPcbDetected));
+        OnPropertyChanged(nameof(PlacementPcbDetected));
     }
 
-    private void OnInputChanged(InputIo input, bool _)
-    {
-        if (input is InputIo.PcbSupplyRotated
-            or InputIo.PcbSupplyUnrotated
-            or InputIo.PcbSupplyGripperClosed
-            or InputIo.PcbPlacementGripperClosed
-            or InputIo.PcbSupplyPcbPresent
-            or InputIo.PcbPlacementPcbPresent)
-        {
-            Application.Current.Dispatcher.BeginInvoke(RefreshActuators);
-        }
-    }
+    private void OnHandlerChanged() =>
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(
+            RefreshActuators);
 }

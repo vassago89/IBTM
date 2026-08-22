@@ -1,9 +1,13 @@
-using IBTM.Core;
-
 namespace IBTM.PcbSupply;
 
 public sealed class PcbSupplyRecipe
 {
-    public XzPos Pcb1PickPosition { get; set; } = new() { X = 4.0, Z = 8.0 };
-    public XzPos Pcb2PickPosition { get; set; } = new() { X = 16.0, Z = 8.0 };
+    public PcbPickPosition Pcb1PickPosition { get; set; } = new();
+    public PcbPickPosition Pcb2PickPosition { get; set; } = new();
+}
+
+public sealed class PcbPickPosition
+{
+    public double X { get; set; }
+    public double Z { get; set; }
 }

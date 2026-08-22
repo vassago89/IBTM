@@ -1,25 +1,31 @@
 using System;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.Stations.BoltFastening;
 
 namespace IBTM.UI;
 
 public enum TeachMode
 {
+    [Description("Image")]
+    Image,
+
     [Description("XYZ")]
     Full,
 
-    [Description("X")]
-    XOnly,
+    [Description("XY")]
+    XYOnly,
 
     [Description("XZ")]
     XZOnly,
 
-    [Description("XY")]
-    XYOnly,
+    [Description("X")]
+    XOnly,
+
+    [Description("Y")]
+    YOnly,
 
     [Description("Z")]
     ZOnly,
@@ -34,31 +40,46 @@ public enum TeachingStorage
     Machine,
 }
 
-public enum TeachingSection
-{
-    [Description("Supply Handler Positions")]
-    SupplyPositions,
-
-    [Description("Buffer Pair")]
-    BufferPair,
-
-    [Description("Station Positions")]
-    StationPositions,
-}
-
 public enum TeachingTarget
 {
+    [Description("Supply Safe Z")]
+    SupplySafeZ,
+
+    [Description("Supply Outside X")]
+    SupplyOutsideX,
+
+    [Description("Supply Carrier Y")]
+    SupplyCarrierY,
+
     [Description("PCB 1 Pick")]
     SupplyPcb1Pick,
 
     [Description("PCB 2 Pick")]
     SupplyPcb2Pick,
 
-    [Description("Supply Buffer")]
-    SupplyBuffer,
+    [Description("Supply Buffer Handoff")]
+    SupplyBufferHandoff,
 
-    [Description("Placement Buffer")]
-    PlacementBuffer,
+    [Description("Supply Buffer Clear Z")]
+    SupplyBufferClearZ,
+
+    [Description("Placement Buffer Handoff")]
+    PlacementBufferHandoff,
+
+    [Description("Supply Buffer Boundary 1")]
+    SupplyBufferBoundary1,
+
+    [Description("Supply Buffer Boundary 2")]
+    SupplyBufferBoundary2,
+
+    [Description("Placement Buffer Boundary 1")]
+    PlacementBufferBoundary1,
+
+    [Description("Placement Buffer Boundary 2")]
+    PlacementBufferBoundary2,
+
+    [Description("Placement Safe Z")]
+    PlacementSafeZ,
 
     [Description("Fiducial 1 Capture")]
     Fiducial1Capture,
@@ -66,35 +87,50 @@ public enum TeachingTarget
     [Description("Fiducial 2 Capture")]
     Fiducial2Capture,
 
-    [Description("PCB 1 Placement")]
-    Pcb1Placement,
+    [Description("Housing 1 PCB Placement")]
+    Housing1PcbPlacement,
 
-    [Description("PCB 2 Placement")]
-    Pcb2Placement,
+    [Description("Housing 2 PCB Placement")]
+    Housing2PcbPlacement,
 
     [Description("Bolt Work Z")]
     BoltWorkZ,
 
-    [Description("PCB 1 Inspection")]
-    Pcb1InspectionCapture,
+    [Description("Carrier Jig Scan Upper Left")]
+    CarrierScanUpperLeft,
 
-    [Description("PCB 2 Inspection")]
-    Pcb2InspectionCapture,
+    [Description("Carrier Jig Scan Lower Right")]
+    CarrierScanLowerRight,
 
     [Description("NG Carrier Jig Pickup")]
     NgCarrierJigPickup,
 
-    [Description("NG Shuttle")]
-    NgShuttle,
+    [Description("NG Shuttle Place")]
+    NgShuttlePlace,
 
-    [Description("Bolt PCB 1 Reference")]
-    BoltPcb1Reference,
+    [Description("Carrier Jig Upper Left Locating Pin")]
+    InspectionUpperLeftLocatingPin,
 
-    [Description("Bolt PCB 2 Reference")]
-    BoltPcb2Reference,
+    [Description("Carrier Jig Lower Right Locating Pin")]
+    InspectionLowerRightLocatingPin,
 
-    [Description("Loctite Bolt Pickup")]
-    LoctiteBoltPickup,
+    [Description("Head 2 Shooting Upper Left Locating Pin")]
+    ShootingHeadUpperLeftLocatingPin,
+
+    [Description("Head 2 Shooting Lower Right Locating Pin")]
+    ShootingHeadLowerRightLocatingPin,
+
+    [Description("Head 1 Pickup Upper Left Locating Pin")]
+    PickupHeadUpperLeftLocatingPin,
+
+    [Description("Head 1 Pickup Lower Right Locating Pin")]
+    PickupHeadLowerRightLocatingPin,
+
+    [Description("Bolt Pickup")]
+    BoltPickup,
+
+    [Description("Bolt Fastening Safe Z")]
+    BoltFasteningSafeZ,
 
     [Description("Bolt Reference")]
     BoltReference,
@@ -107,25 +143,12 @@ public partial class TeachingPoint : ObservableObject
     public TeachMode TeachMode { get; init; }
     public TeachingStorage Storage { get; init; }
     public int BoltNumber { get; init; }
+    public HousingSlot? Housing { get; init; }
     public FasteningHead? Head { get; init; }
-
+    public ushort? Preset { get; init; }
     [ObservableProperty] private double _x;
     [ObservableProperty] private double _y;
     [ObservableProperty] private double _z;
-    [ObservableProperty] private bool _isTaught;
-
-    public TeachingSection Section => Target switch
-    {
-        TeachingTarget.SupplyPcb1Pick
-            or TeachingTarget.SupplyPcb2Pick =>
-            TeachingSection.SupplyPositions,
-        TeachingTarget.SupplyBuffer
-            or TeachingTarget.PlacementBuffer =>
-            TeachingSection.BufferPair,
-        _ => TeachingSection.StationPositions,
-    };
-
-    public string SectionLabel => Section.GetDescription();
 
     public string Name => Target switch
     {
@@ -133,40 +156,42 @@ public partial class TeachingPoint : ObservableObject
         _ => Target.GetDescription(),
     };
 
-    public string MotionGroupLabel => MotionGroup.GetDescription();
-
-    public string ModeLabel => TeachMode.GetDescription();
-
     public string PositionLabel => TeachMode switch
     {
-        TeachMode.XOnly => $"{X:F1}",
-        TeachMode.XZOnly => $"{X:F1}, {Z:F1}",
+        TeachMode.Image => $"{X:F3}, {Y:F3}",
         TeachMode.XYOnly => $"{X:F1}, {Y:F1}",
+        TeachMode.XZOnly => $"{X:F1}, {Z:F1}",
+        TeachMode.XOnly => $"{X:F1}",
+        TeachMode.YOnly => $"{Y:F1}",
         TeachMode.ZOnly => $"{Z:F1}",
         _ => $"{X:F1}, {Y:F1}, {Z:F1}",
     };
-
-    public string HeadLabel =>
-        Head?.GetDescription() ?? string.Empty;
 
     public void Teach(double x, double y, double z)
     {
         switch (TeachMode)
         {
+            case TeachMode.Image:
+                X = x;
+                Y = y;
+                break;
             case TeachMode.Full:
                 X = x;
                 Y = y;
                 Z = z;
                 break;
-            case TeachMode.XOnly:
+            case TeachMode.XYOnly:
                 X = x;
+                Y = y;
                 break;
             case TeachMode.XZOnly:
                 X = x;
                 Z = z;
                 break;
-            case TeachMode.XYOnly:
+            case TeachMode.XOnly:
                 X = x;
+                break;
+            case TeachMode.YOnly:
                 Y = y;
                 break;
             case TeachMode.ZOnly:
@@ -174,7 +199,6 @@ public partial class TeachingPoint : ObservableObject
                 break;
         }
 
-        IsTaught = true;
     }
 
     partial void OnXChanged(double value) =>

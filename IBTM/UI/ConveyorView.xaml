@@ -1,58 +1,64 @@
 <UserControl x:Class="IBTM.UI.ConveyorView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="clr-namespace:IBTM.UI"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
              Width="1552"
-             Height="274">
+             Height="244">
     <Grid>
         <Border Style="{DynamicResource CellStyle}"/>
 
         <Canvas>
-            <TextBlock Canvas.Left="18" Canvas.Top="20"
+            <TextBlock Canvas.Left="20" Canvas.Top="18"
                        Text="MAIN CARRIER CONVEYOR"
                        Foreground="{StaticResource TextPrimaryBrush}"
-                       FontSize="14"
+                       FontSize="15"
                        FontWeight="SemiBold"/>
-            <TextBlock Canvas.Left="218" Canvas.Top="23"
-                       FontSize="11"
-                       FontWeight="SemiBold">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock"
-                           BasedOn="{StaticResource MapLabelStyle}">
-                        <Setter Property="Text" Value="STOPPED"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ConveyorRunning}" Value="True">
-                                <Setter Property="Text" Value="RUNNING"/>
-                                <Setter Property="Foreground"
-                                        Value="{StaticResource AccentGreenBrush}"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
+            <Border Canvas.Left="222" Canvas.Top="13"
+                    Style="{DynamicResource StateBadgeStyle}">
+                <TextBlock FontSize="11" FontWeight="SemiBold">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock"
+                               BasedOn="{StaticResource StateTextStyle}">
+                            <Setter Property="Text" Value="STOPPED"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ConveyorRunning}" Value="True">
+                                    <Setter Property="Text" Value="RUNNING"/>
+                                    <Setter Property="Foreground"
+                                            Value="{StaticResource AccentGreenBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Border>
 
-            <Border Canvas.Left="18" Canvas.Top="76"
-                    Width="1516" Height="80"
+            <Border Canvas.Left="18" Canvas.Top="64"
+                    Width="1516" Height="112"
                     Style="{DynamicResource ConveyorBedStyle}"/>
 
-            <TextBlock Canvas.Left="24" Canvas.Top="108"
+            <TextBlock Canvas.Left="24" Canvas.Top="112"
                        Text="SMEMA IN"
                        Style="{DynamicResource MapHintStyle}"/>
 
-            <Border Canvas.Left="218" Canvas.Top="84"
-                    Width="256" Height="64"
+            <Border Canvas.Left="194" Canvas.Top="70"
+                    Width="284" Height="100"
                     Panel.ZIndex="1"
                     Tag="{Binding PcbPlacementBackupPlateUp}"
                     ToolTip="Placement backup plate"
                     Style="{DynamicResource BackupPlateVisualStyle}"/>
-            <Border Canvas.Left="224" Canvas.Top="90"
-                    Width="244" Height="52"
+            <Border Canvas.Left="202" Canvas.Top="78"
+                    Width="268" Height="84"
                     Panel.ZIndex="2"
-                    Tag="{Binding PcbPlacementOccupied}"
+                    Tag="{Binding PcbPlacementCarrierJigPresent}"
                     Style="{DynamicResource StageBodyStyle}">
-                <Grid Margin="6">
+                <Grid Margin="9">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="7"/>
+                        <ColumnDefinition Width="9"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <Border Tag="{Binding PcbPlacementHousing1Present}"
@@ -72,30 +78,30 @@
                     </Border>
                 </Grid>
             </Border>
-            <Ellipse Canvas.Left="458" Canvas.Top="109"
+            <Ellipse Canvas.Left="460" Canvas.Top="113"
                      Panel.ZIndex="3"
                      Tag="{Binding PcbPlacementStopperUp}"
                      ToolTip="Placement stopper"
                      Style="{DynamicResource StopperVisualStyle}"/>
-            <TextBlock Canvas.Left="224" Canvas.Top="173"
-                       Text="S1"
+            <TextBlock Canvas.Left="202" Canvas.Top="194"
+                       Text="S1   PCB PLACEMENT"
                        Style="{DynamicResource MapLabelStyle}"/>
 
-            <Border Canvas.Left="620" Canvas.Top="84"
-                    Width="256" Height="64"
+            <Border Canvas.Left="604" Canvas.Top="70"
+                    Width="284" Height="100"
                     Panel.ZIndex="1"
                     Tag="{Binding BoltFasteningBackupPlateUp}"
                     ToolTip="Bolt fastening backup plate"
                     Style="{DynamicResource BackupPlateVisualStyle}"/>
-            <Border Canvas.Left="626" Canvas.Top="90"
-                    Width="244" Height="52"
+            <Border Canvas.Left="612" Canvas.Top="78"
+                    Width="268" Height="84"
                     Panel.ZIndex="2"
                     Tag="{Binding BoltFasteningCarrierJigPresent}"
                     Style="{DynamicResource StageBodyStyle}">
-                <Grid Margin="6">
+                <Grid Margin="9">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="7"/>
+                        <ColumnDefinition Width="9"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <Border Tag="{Binding BoltFasteningHousing1Present}"
@@ -115,30 +121,30 @@
                     </Border>
                 </Grid>
             </Border>
-            <Ellipse Canvas.Left="860" Canvas.Top="109"
+            <Ellipse Canvas.Left="870" Canvas.Top="113"
                      Panel.ZIndex="3"
                      Tag="{Binding BoltFasteningStopperUp}"
                      ToolTip="Bolt fastening stopper"
                      Style="{DynamicResource StopperVisualStyle}"/>
-            <TextBlock Canvas.Left="626" Canvas.Top="173"
-                       Text="S2"
+            <TextBlock Canvas.Left="612" Canvas.Top="194"
+                       Text="S2   BOLT FASTENING"
                        Style="{DynamicResource MapLabelStyle}"/>
 
-            <Border Canvas.Left="1022" Canvas.Top="84"
-                    Width="256" Height="64"
+            <Border Canvas.Left="1014" Canvas.Top="70"
+                    Width="284" Height="100"
                     Panel.ZIndex="1"
                     Tag="{Binding InspectionBackupPlateUp}"
                     ToolTip="Inspection backup plate"
                     Style="{DynamicResource BackupPlateVisualStyle}"/>
-            <Border Canvas.Left="1028" Canvas.Top="90"
-                    Width="244" Height="52"
+            <Border Canvas.Left="1022" Canvas.Top="78"
+                    Width="268" Height="84"
                     Panel.ZIndex="2"
                     Tag="{Binding InspectionCarrierJigPresent}"
                     Style="{DynamicResource StageBodyStyle}">
-                <Grid Margin="6">
+                <Grid Margin="9">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="7"/>
+                        <ColumnDefinition Width="9"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <Border Tag="{Binding InspectionHousing1Present}"
@@ -158,16 +164,16 @@
                     </Border>
                 </Grid>
             </Border>
-            <Ellipse Canvas.Left="1262" Canvas.Top="109"
+            <Ellipse Canvas.Left="1280" Canvas.Top="113"
                      Panel.ZIndex="3"
                      Tag="{Binding InspectionStopperUp}"
                      ToolTip="Inspection stopper"
                      Style="{DynamicResource StopperVisualStyle}"/>
-            <TextBlock Canvas.Left="1028" Canvas.Top="173"
-                       Text="S3"
+            <TextBlock Canvas.Left="1022" Canvas.Top="194"
+                       Text="S3   INSPECTION"
                        Style="{DynamicResource MapLabelStyle}"/>
 
-            <TextBlock Canvas.Left="1406" Canvas.Top="108"
+            <TextBlock Canvas.Left="1410" Canvas.Top="112"
                        Text="SMEMA OUT"
                        Style="{DynamicResource MapHintStyle}"/>
         </Canvas>

@@ -14,9 +14,7 @@ public partial class SettingsViewModel
     [RelayCommand(CanExecute = nameof(CanRunConveyor))]
     private void RunConveyor()
     {
-        _conveyor.Run(Settings.ConveyorVelocity);
-        StatusMessage =
-            $"Conveyor running at {Settings.ConveyorVelocity:F1} mm/s";
+        _conveyor.Run();
         NotifyHardwareCommands();
     }
 
@@ -24,15 +22,13 @@ public partial class SettingsViewModel
         MachineReady
         && SafetyReady
         && !IsHoming
-        && !_state.EquipmentRunning;
+        && !_state.IsRunning;
 
     [RelayCommand]
     private void StopConveyor()
     {
         _conveyor.Stop();
-        _io.SetOutput(OutputIo.ConveyorUpstreamMachineReady, false);
-        _io.SetOutput(OutputIo.ConveyorDownstreamBoardAvailable, false);
-        StatusMessage = "Conveyor stopped";
+        _conveyor.ResetSmema();
         NotifyHardwareCommands();
     }
 
@@ -40,21 +36,18 @@ public partial class SettingsViewModel
     private void RefreshHardware()
     {
         RefreshHardwareState();
-        StatusMessage = "Hardware state refreshed";
     }
 
     private void RefreshHardwareState()
     {
         foreach (var row in InputMappings)
         {
-            row.State =
-                _io.GetInput((InputIo)row.Signal) ? "ON" : "OFF";
+            row.Refresh();
         }
 
         foreach (var row in AxisMappings)
         {
-            row.AxisDisplayState =
-                GetAxisDisplayState(GetAxisState((MachineAxis)row.Signal));
+            row.Refresh();
         }
     }
 
@@ -64,26 +57,16 @@ public partial class SettingsViewModel
         var machineAxis = (MachineAxis)row.Signal;
         var turnOn = !GetAxisState(machineAxis).ServoOn;
 
-        if (machineAxis == MachineAxis.Conveyor)
-        {
-            _conveyor.SetServo(turnOn);
-        }
-        else
-        {
-            var (motion, axis) = GetMotionAxis(machineAxis);
-            motion.SetServo(axis, turnOn);
-        }
+        var (motion, axis) = GetMotionAxis(machineAxis);
+        motion.SetServo(axis, turnOn);
 
-        row.AxisDisplayState =
-            GetAxisDisplayState(GetAxisState(machineAxis));
+        row.Refresh();
         _state.Refresh();
-        StatusMessage =
-            $"{machineAxis} servo {(turnOn ? "on" : "off")}";
     }
 
     private bool CanToggleServo(HardwareMappingRow? row)
     {
-        if (row?.CanServo != true || IsHoming || !EquipmentStopped)
+        if (row is null || IsHoming || !MachineStopped)
         {
             return false;
         }
@@ -98,7 +81,6 @@ public partial class SettingsViewModel
         CancellationToken cancellationToken)
     {
         var machineAxis = (MachineAxis)row.Signal;
-        var result = $"{machineAxis} homed";
         IsHoming = true;
         try
         {
@@ -107,39 +89,45 @@ public partial class SettingsViewModel
                 ? Settings.Home.ZSpeed
                 : Settings.Home.HorizontalSpeed;
 
-            StatusMessage = $"Homing {machineAxis}";
-            row.AxisDisplayState = AxisDisplayState.Moving;
-            if (!await motion.HomeAsync(axis, velocity, cancellationToken))
-            {
-                result = $"{machineAxis} homing failed";
-            }
+            var homing = motion.HomeAsync(
+                axis,
+                velocity,
+                cancellationToken);
+            row.Refresh();
+            await homing;
         }
         catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
         {
-            result = "Homing stopped";
         }
         finally
         {
             IsHoming = false;
             RefreshHardwareState();
             _state.Refresh();
-            StatusMessage = result;
         }
     }
 
     private bool CanHomeAxis(HardwareMappingRow? row) =>
         SafetyReady
         && !IsHoming
-        && EquipmentStopped
-        && row?.CanHome == true
+        && MachineStopped
+        && row is not null
+        && row.Signal is not MachineAxis.PcbSupplyX
+            and not MachineAxis.PcbSupplyY
+            and not MachineAxis.PcbSupplyZ
+        && BufferAllowsHome((MachineAxis)row.Signal)
         && GetAxisState((MachineAxis)row.Signal).ServoOn;
+
+    private bool BufferAllowsHome(MachineAxis axis) =>
+        axis is not MachineAxis.PcbPlacementHandlerX
+            and not MachineAxis.PcbPlacementHandlerY
+            and not MachineAxis.PcbPlacementHandlerZ
+        || !_state.SupplyInBufferArea;
 
     [RelayCommand(CanExecute = nameof(CanStopHoming))]
     private void StopHoming()
     {
         HomeAxisCommand.Cancel();
-        StopAllMotion();
     }
 
     private bool CanStopHoming() => IsHoming;
@@ -152,66 +140,40 @@ public partial class SettingsViewModel
 
     private AxisState GetAxisState(MachineAxis axis)
     {
-        if (axis == MachineAxis.Conveyor)
-        {
-            return _conveyor.GetAxisState();
-        }
-
         var (motion, motionAxis) = GetMotionAxis(axis);
         return motion.GetAxisState(motionAxis);
     }
 
-    private (MotionService Motion, MotionAxis Axis) GetMotionAxis(
+    private (IAxisMotion Motion, MotionAxis Axis) GetMotionAxis(
         MachineAxis axis) =>
         axis switch
         {
             MachineAxis.PcbSupplyX =>
                 (_motions[MotionGroup.PcbSupply], MotionAxis.X),
+            MachineAxis.PcbSupplyY =>
+                (_motions[MotionGroup.PcbSupply], MotionAxis.Y),
             MachineAxis.PcbSupplyZ =>
                 (_motions[MotionGroup.PcbSupply], MotionAxis.Z),
-            MachineAxis.PcbPlacementX =>
-                (_motions[MotionGroup.PcbPlacement], MotionAxis.X),
-            MachineAxis.PcbPlacementY =>
-                (_motions[MotionGroup.PcbPlacement], MotionAxis.Y),
-            MachineAxis.PcbPlacementZ =>
-                (_motions[MotionGroup.PcbPlacement], MotionAxis.Z),
+            MachineAxis.PcbPlacementHandlerX =>
+                (_motions[MotionGroup.PcbPlacementHandler], MotionAxis.X),
+            MachineAxis.PcbPlacementHandlerY =>
+                (_motions[MotionGroup.PcbPlacementHandler], MotionAxis.Y),
+            MachineAxis.PcbPlacementHandlerZ =>
+                (_motions[MotionGroup.PcbPlacementHandler], MotionAxis.Z),
             MachineAxis.BoltFasteningX =>
                 (_motions[MotionGroup.BoltFastening], MotionAxis.X),
             MachineAxis.BoltFasteningY =>
                 (_motions[MotionGroup.BoltFastening], MotionAxis.Y),
             MachineAxis.BoltFasteningZ =>
                 (_motions[MotionGroup.BoltFastening], MotionAxis.Z),
-            MachineAxis.InspectionX =>
-                (_motions[MotionGroup.Inspection], MotionAxis.X),
-            MachineAxis.InspectionY =>
-                (_motions[MotionGroup.Inspection], MotionAxis.Y),
-            MachineAxis.InspectionZ =>
-                (_motions[MotionGroup.Inspection], MotionAxis.Z),
+            MachineAxis.InspectionGantryX =>
+                (_motions[MotionGroup.InspectionGantry], MotionAxis.X),
+            MachineAxis.InspectionGantryY =>
+                (_motions[MotionGroup.InspectionGantry], MotionAxis.Y),
             _ => throw new ArgumentOutOfRangeException(nameof(axis)),
         };
 
-    private static AxisDisplayState GetAxisDisplayState(AxisState state) =>
-        state switch
-        {
-            { Emergency: true } => AxisDisplayState.Emergency,
-            { Alarm: true } => AxisDisplayState.Alarm,
-            { PositiveLimit: true } => AxisDisplayState.PositiveLimit,
-            { NegativeLimit: true } => AxisDisplayState.NegativeLimit,
-            { ServoOn: false } => AxisDisplayState.ServoOff,
-            { InPosition: false } => AxisDisplayState.Moving,
-            { Homed: false } => AxisDisplayState.HomeRequired,
-            _ => AxisDisplayState.Ready,
-        };
-
-    private void StopAllMotion()
-    {
-        foreach (var motion in _motions.Values)
-        {
-            motion.Stop();
-        }
-    }
-
-    private void OnEquipmentStateChanged()
+    private void OnMachineStateChanged()
     {
         Application.Current.Dispatcher.BeginInvoke(() =>
         {
@@ -222,10 +184,7 @@ public partial class SettingsViewModel
 
     private void OnInputChanged(InputIo input, bool value)
     {
-        if (!value
-            && input is InputIo.EmergencyStopReleased
-                or InputIo.DoorClosed
-                or InputIo.AirPressureOk)
+        if (!_state.SafetyReady)
         {
             HomeAxisCommand.Cancel();
         }
@@ -234,17 +193,12 @@ public partial class SettingsViewModel
         {
             var row = InputMappings.First(
                 row => row.Signal.Equals(input));
-            row.State = value ? "ON" : "OFF";
+            row.Refresh();
             OnPropertyChanged(nameof(SafetyReady));
-            NotifyHardwareCommands();
-            if (!SafetyReady)
-            {
-                StatusMessage = "Safety interlock is open";
-            }
         });
     }
 
-    private bool EquipmentStopped => !_state.EquipmentRunning;
+    private bool MachineStopped => !_state.IsRunning;
 
     private void NotifyHardwareCommands()
     {

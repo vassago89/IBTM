@@ -1,8 +1,12 @@
 <Window x:Class="IBTM.UI.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:ui="clr-namespace:IBTM.UI"
-        Title="IBTM — Inline Assembly Control"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=ui:MainViewModel, IsDesignTimeCreatable=False}"
+        Title="IBTM - Inline Assembly Control"
         Width="1920"
         Height="1080"
         Icon="{StaticResource AppIcon}"
@@ -13,8 +17,8 @@
         Background="{StaticResource AppBgBrush}">
 
     <Window.Resources>
-        <DataTemplate DataType="{x:Type ui:ProcessViewModel}">
-            <ui:ProcessView/>
+        <DataTemplate DataType="{x:Type ui:OperationViewModel}">
+            <ui:OperationView/>
         </DataTemplate>
         <DataTemplate DataType="{x:Type ui:StationTeachingViewModel}">
             <ui:StationTeachingView/>
@@ -51,17 +55,17 @@
                 </Border>
 
                 <StackPanel Grid.Row="1" Margin="0,8">
-                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.Process},
+                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.Operation},
                                                    Converter={StaticResource EnumDescriptionConverter}}"
                                  GroupName="Navigation"
                                  Command="{Binding NavigateCommand}"
-                                 CommandParameter="{x:Static ui:AppPage.Process}">
+                                 CommandParameter="{x:Static ui:AppPage.Operation}">
                         <RadioButton.Style>
                             <Style TargetType="RadioButton"
                                    BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}"
-                                                 Value="{x:Static ui:AppPage.Process}">
+                                                 Value="{x:Static ui:AppPage.Operation}">
                                         <Setter Property="IsChecked" Value="True"/>
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -138,16 +142,17 @@
                             IsEnabled="{Binding ManualControlsEnabled}"
                             Click="OnOpenOutputs"/>
 
-                    <Button Content="ADC-400 Protocol"
+                    <Button Content="HANTAS ADC Protocol"
                             Margin="16,6,16,0"
                             Padding="12,6"
                             HorizontalContentAlignment="Left"
                             Style="{StaticResource SecondaryButtonStyle}"
+                            IsEnabled="{Binding ManualControlsEnabled}"
                             Click="OnOpenAdcProtocol"/>
                 </StackPanel>
 
                 <TextBlock Grid.Row="2"
-                           Text="{Binding HardwareName}"
+                           Text="{Binding Driver, Converter={StaticResource EnumDescriptionConverter}}"
                            Style="{StaticResource SectionHeaderStyle}"
                            Margin="24,16"/>
             </Grid>

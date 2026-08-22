@@ -1,3 +1,4 @@
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using IBTM.UI;
@@ -7,14 +8,18 @@ namespace IBTM;
 
 public partial class App : System.Windows.Application
 {
-    private SingleInstanceGuard? _singleInstanceGuard;
+    private Mutex? _instanceMutex;
     private ServiceProvider? _serviceProvider;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
-        _singleInstanceGuard = SingleInstanceGuard.TryAcquire();
-        if (_singleInstanceGuard is null)
+        var instanceMutex = new Mutex(
+            initiallyOwned: true,
+            @"Global\IBTM.Application",
+            out var createdNew);
+        if (!createdNew)
         {
+            instanceMutex.Dispose();
             MessageBox.Show(
                 "IBTM is already running.",
                 "IBTM",
@@ -23,6 +28,7 @@ public partial class App : System.Windows.Application
             Shutdown();
             return;
         }
+        _instanceMutex = instanceMutex;
 
         base.OnStartup(e);
 
@@ -41,7 +47,7 @@ public partial class App : System.Windows.Application
         _serviceProvider = serviceProvider;
 
         await serviceProvider
-            .GetRequiredService<EquipmentService>()
+            .GetRequiredService<MachineController>()
             .InitializeAsync();
         var mainWindow = serviceProvider.GetRequiredService<MainWindow>();
         mainWindow.Show();
@@ -49,8 +55,10 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _serviceProvider?.GetService<MachineController>()?.Stop();
         _serviceProvider?.Dispose();
-        _singleInstanceGuard?.Dispose();
+        _instanceMutex?.ReleaseMutex();
+        _instanceMutex?.Dispose();
         base.OnExit(e);
     }
 

@@ -17,7 +17,7 @@ public partial class InputWindow : Window
         _io = io;
         _virtualIo = io as VirtualIoService;
         Rows = Enum.GetValues<InputIo>()
-            .Select(input => new InputControlRow(input))
+            .Select(input => new InputControlRow(io, input))
             .ToArray();
 
         InitializeComponent();
@@ -44,24 +44,13 @@ public partial class InputWindow : Window
 
     private void OnInputChanged(InputIo input, bool value) =>
         Dispatcher.BeginInvoke((Action)(() =>
-        {
-            Rows.Single(row => row.Input == input).IsOn = value;
-            InputList.Items.Refresh();
-        }));
+            InputList.Items.Refresh()));
 
-    private void Refresh()
-    {
-        foreach (var row in Rows)
-        {
-            row.IsOn = _io.GetInput(row.Input);
-        }
-
-        InputList.Items.Refresh();
-    }
+    private void Refresh() => InputList.Items.Refresh();
 }
 
-public sealed class InputControlRow(InputIo input)
+public sealed class InputControlRow(IIoService io, InputIo input)
 {
     public InputIo Input { get; } = input;
-    public bool IsOn { get; set; }
+    public bool IsOn => io.GetInput(Input);
 }

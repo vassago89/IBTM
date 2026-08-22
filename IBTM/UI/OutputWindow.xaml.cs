@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.UI;
@@ -17,13 +16,15 @@ public partial class OutputWindow : Window
         _io = io;
         Rows = Enum.GetValues<OutputIo>()
             .Select(output => new OutputControlRow(
+                io,
                 output,
-                io.Hardware.OutputFeedbacks.GetValueOrDefault(output)))
+                io.GetOutputFeedback(output)))
             .ToArray();
 
         InitializeComponent();
         DataContext = this;
         _io.InputChanged += OnInputChanged;
+        _io.OutputChanged += OnOutputChanged;
         Activated += (_, _) => Refresh();
     }
 
@@ -32,14 +33,11 @@ public partial class OutputWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _io.InputChanged -= OnInputChanged;
+        _io.OutputChanged -= OnOutputChanged;
         base.OnClosed(e);
     }
 
-    private void OnRefresh(object sender, RoutedEventArgs e)
-    {
-        Refresh();
-        StatusText.Text = "Output state refreshed";
-    }
+    private void OnRefresh(object sender, RoutedEventArgs e) => Refresh();
 
     private async void OnToggleOutput(object sender, RoutedEventArgs e)
     {
@@ -47,29 +45,24 @@ public partial class OutputWindow : Window
         var row = (OutputControlRow)button.DataContext;
         var value = !_io.GetOutput(row.Output);
         button.IsEnabled = false;
+        row.Refresh();
 
         try
         {
             _io.SetOutput(row.Output, value);
-            row.Refresh(_io);
             OutputList.Items.Refresh();
 
             if (row.HasFeedback)
             {
-                StatusText.Text = $"Waiting for {row.Feedback}";
                 await _io.WaitForOutputFeedbackAsync(row.Output, value);
             }
-
-            StatusText.Text =
-                $"{row.Output.GetDescription()} {(value ? "ON" : "OFF")}";
         }
-        catch (IoFeedbackTimeoutException exception)
+        catch (IoTimeoutException)
         {
-            StatusText.Text = $"Alarm: {exception.Message}";
+            row.MarkTimeout();
         }
         finally
         {
-            row.Refresh(_io);
             OutputList.Items.Refresh();
             button.IsEnabled = true;
         }
@@ -79,7 +72,7 @@ public partial class OutputWindow : Window
     {
         foreach (var row in Rows)
         {
-            row.Refresh(_io);
+            row.Refresh();
         }
 
         OutputList.Items.Refresh();
@@ -87,31 +80,30 @@ public partial class OutputWindow : Window
 
     private void OnInputChanged(InputIo input, bool value) =>
         Dispatcher.BeginInvoke((Action)Refresh);
+
+    private void OnOutputChanged(OutputIo output, bool value) =>
+        Dispatcher.BeginInvoke((Action)Refresh);
 }
 
 public sealed class OutputControlRow(
+    IIoService io,
     OutputIo output,
     OutputFeedback? feedback)
 {
+    private bool _timedOut;
+
     public OutputIo Output { get; } = output;
     public bool HasFeedback => feedback is not null;
-    public bool OutputOn { get; private set; }
-    public bool InputOn { get; private set; }
-    public string Feedback { get; private set; } = "-";
+    public bool OutputOn => io.GetOutput(Output);
+    public InputIo? FeedbackInput =>
+        feedback is null
+            ? null
+            : OutputOn ? feedback.OnInput : feedback.OffInput;
+    public bool InputOn =>
+        FeedbackInput is { } input && io.GetInput(input);
+    public bool TimedOut => _timedOut;
 
-    public void Refresh(IIoService io)
-    {
-        OutputOn = io.GetOutput(Output);
-        if (feedback is null)
-        {
-            Feedback = "-";
-            InputOn = false;
-            return;
-        }
+    public void Refresh() => _timedOut = false;
 
-        var expected = feedback.GetExpected(OutputOn);
-        Feedback =
-            $"{expected.Input.GetDescription()} = {(expected.Value ? "ON" : "OFF")}";
-        InputOn = io.GetInput(expected.Input);
-    }
+    public void MarkTimeout() => _timedOut = true;
 }

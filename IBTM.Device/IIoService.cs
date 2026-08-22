@@ -10,15 +10,66 @@ public interface IIoService
     event Action<InputIo, bool>? InputChanged;
     event Action<OutputIo, bool>? OutputChanged;
 
-    HardwareMap Hardware { get; }
+    int TimeoutMilliseconds { get; }
 
     void Initialize();
     bool GetInput(InputIo input);
     bool GetOutput(OutputIo output);
-    Task WaitForInputAsync(
+    OutputFeedback? GetOutputFeedback(OutputIo output);
+
+    async Task WaitForInputAsync(
         InputIo input,
         bool value,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (GetInput(input) == value)
+        {
+            return;
+        }
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken);
+        timeout.CancelAfter(TimeoutMilliseconds);
+        var completion = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void OnInputChanged(InputIo changedInput, bool changedValue)
+        {
+            if (changedInput == input && changedValue == value)
+            {
+                completion.TrySetResult();
+            }
+        }
+
+        InputChanged += OnInputChanged;
+        using var registration = timeout.Token.Register(
+            () => completion.TrySetCanceled(timeout.Token));
+        try
+        {
+            if (GetInput(input) == value)
+            {
+                completion.TrySetResult();
+            }
+
+            try
+            {
+                await completion.Task;
+            }
+            catch (OperationCanceledException)
+                when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new IoTimeoutException(
+                    input,
+                    value,
+                    TimeoutMilliseconds);
+            }
+        }
+        finally
+        {
+            InputChanged -= OnInputChanged;
+        }
+    }
     void SetOutput(OutputIo output, bool value);
 
     async Task SetOutputAndWaitAsync(
@@ -36,40 +87,18 @@ public interface IIoService
         bool value,
         CancellationToken cancellationToken = default)
     {
-        var feedback = Hardware.OutputFeedbacks[output];
-        var expected = feedback.GetExpected(value);
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken);
-        timeout.CancelAfter(feedback.TimeoutMilliseconds);
-
-        try
-        {
-            await WaitForInputAsync(
-                expected.Input,
-                expected.Value,
-                timeout.Token);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new IoFeedbackTimeoutException(
-                output,
-                value,
-                expected.Input,
-                expected.Value,
-                feedback.TimeoutMilliseconds);
-        }
+        var feedback = GetOutputFeedback(output)
+            ?? throw new InvalidOperationException(
+                $"{output.GetDescription()} has no feedback mapping.");
+        var expected = value ? feedback.OnInput : feedback.OffInput;
+        await WaitForInputAsync(expected, true, cancellationToken);
     }
-
-    void TurnOffAll();
 }
 
-public sealed class IoFeedbackTimeoutException(
-    OutputIo output,
-    bool outputValue,
+public sealed class IoTimeoutException(
     InputIo input,
     bool inputValue,
     int timeoutMilliseconds) : TimeoutException(
-        $"{output.GetDescription()} {(outputValue ? "ON" : "OFF")} → "
-        + $"{input.GetDescription()}={(inputValue ? "ON" : "OFF")} "
+        $"{input.GetDescription()}={(inputValue ? "ON" : "OFF")} "
         + $"timeout ({timeoutMilliseconds} ms)")
 { }

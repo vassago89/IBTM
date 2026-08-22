@@ -1,14 +1,18 @@
 <UserControl x:Class="IBTM.UI.SupplyTeachingView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
              xmlns:ui="clr-namespace:IBTM.UI"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=ui:SupplyTeachingViewModel, IsDesignTimeCreatable=False}"
              Background="{StaticResource AppBgBrush}">
 
     <UserControl.Resources>
         <CollectionViewSource x:Key="GroupedPoints" Source="{Binding Points}">
             <CollectionViewSource.GroupDescriptions>
-                <PropertyGroupDescription PropertyName="SectionLabel"/>
+                <PropertyGroupDescription PropertyName="Section"/>
             </CollectionViewSource.GroupDescriptions>
         </CollectionViewSource>
     </UserControl.Resources>
@@ -23,7 +27,7 @@
         <StackPanel Margin="0,0,0,16">
             <TextBlock Text="PCB Supply Teaching"
                        Style="{StaticResource TitleStyle}"/>
-            <TextBlock Text="Teach pickup positions and the shared buffer handoff."
+            <TextBlock Text="Teach every supply and shared-buffer position."
                        Style="{StaticResource PageSubtitleStyle}"/>
         </StackPanel>
 
@@ -209,17 +213,21 @@
 
                 <Border Style="{StaticResource CardStyle}" Padding="18">
                     <StackPanel>
-                        <TextBlock Text="Buffer handoff"
+                        <TextBlock Text="Buffer setup"
                                    Style="{StaticResource PanelTitleStyle}"
                                    Margin="0,0,0,10"/>
-                        <TextBlock Text="1  Teach the Supply pose."
+                        <TextBlock Text="1  Teach Safe Z and Outside X."
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    Margin="0,0,0,5"/>
-                        <TextBlock Text="2  Keep Supply fixed and teach the Placement pose."
+                        <TextBlock Text="2  Teach Supply Place and Clear Z."
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,5"/>
-                        <TextBlock Text="3  Save both positions as one pair."
+                        <TextBlock Text="3  Teach Placement and both collision boundaries."
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,5"/>
+                        <TextBlock Text="4  Save the complete buffer setup."
                                    Foreground="{StaticResource TextMutedBrush}"
                                    TextWrapping="Wrap"/>
                     </StackPanel>
@@ -244,34 +252,53 @@
                                    Foreground="{StaticResource TextMutedBrush}"
                                    Margin="0,5,0,0"/>
                         <WrapPanel Margin="0,12,0,0">
-                            <Button Content="{Binding SupplyRotationLabel}"
-                                    Command="{Binding ToggleActuatorCommand}"
+                            <Button Command="{Binding ToggleActuatorCommand}"
                                     CommandParameter="{x:Static device:OutputIo.PcbSupplyRotate}"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     MinWidth="170"
-                                    Margin="0,0,8,0"/>
-                            <Button Content="{Binding SupplyGripperLabel}"
-                                    Command="{Binding ToggleActuatorCommand}"
-                                    CommandParameter="{x:Static device:OutputIo.PcbSupplyGripperClose}"
+                                    Margin="0,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Source={x:Static device:OutputIo.PcbSupplyRotate}, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                    <TextBlock Text="{Binding SupplyRotation, Converter={StaticResource EnumDescriptionConverter}}"
+                                               Margin="10,0,0,0"
+                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Command="{Binding ToggleActuatorCommand}"
+                                    CommandParameter="{x:Static device:OutputIo.PcbSupplyIpmFixerForward}"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     MinWidth="170"
-                                    Margin="0,0,8,0"/>
-                            <Button Content="{Binding PlacementGripperLabel}"
-                                    Command="{Binding ToggleActuatorCommand}"
-                                    CommandParameter="{x:Static device:OutputIo.PcbPlacementGripperClose}"
+                                    Margin="0,0,8,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Source={x:Static device:OutputIo.PcbSupplyIpmFixerForward}, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                    <ContentControl Tag="{Binding SupplyIpmFixed}"
+                                                    Style="{StaticResource IoInputStateStyle}"
+                                                    Margin="10,0,0,0"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Command="{Binding ToggleActuatorCommand}"
+                                    CommandParameter="{x:Static device:OutputIo.PcbPlacementIpmGripperClose}"
                                     Style="{StaticResource SecondaryButtonStyle}"
-                                    MinWidth="180"/>
+                                    MinWidth="180">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Source={x:Static device:OutputIo.PcbPlacementIpmGripperClose}, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                    <ContentControl Tag="{Binding PlacementIpmGripperClosed}"
+                                                    Style="{StaticResource IoInputStateStyle}"
+                                                    Margin="10,0,0,0"/>
+                                </StackPanel>
+                            </Button>
                         </WrapPanel>
                         <WrapPanel Margin="0,8,0,0">
-                            <TextBlock Text="{Binding SupplyPcbLabel}"
-                                       FontFamily="Cascadia Mono, Consolas"
-                                       FontSize="10"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       Margin="0,0,20,0"/>
-                            <TextBlock Text="{Binding PlacementPcbLabel}"
-                                       FontFamily="Cascadia Mono, Consolas"
-                                       FontSize="10"
-                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Text="{Binding Source={x:Static device:InputIo.PcbSupplyPcbDetected}, Converter={StaticResource EnumDescriptionConverter}}"
+                                       VerticalAlignment="Center"/>
+                            <ContentControl Tag="{Binding SupplyPcbDetected}"
+                                            Style="{StaticResource IoInputStateStyle}"
+                                            Margin="8,0,24,0"/>
+                            <TextBlock Text="{Binding Source={x:Static device:InputIo.PcbPlacementPcbDetected}, Converter={StaticResource EnumDescriptionConverter}}"
+                                       VerticalAlignment="Center"/>
+                            <ContentControl Tag="{Binding PlacementPcbDetected}"
+                                            Style="{StaticResource IoInputStateStyle}"
+                                            Margin="8,0,0,0"/>
                         </WrapPanel>
                     </StackPanel>
 
@@ -286,7 +313,7 @@
                             <GroupStyle>
                                 <GroupStyle.HeaderTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding Name}"
+                                        <TextBlock Text="{Binding Name, Converter={StaticResource EnumDescriptionConverter}}"
                                                    Style="{StaticResource SectionHeaderStyle}"
                                                    Margin="2,14,0,8"/>
                                     </DataTemplate>
@@ -320,7 +347,6 @@
                                     </Border.Style>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="12"/>
                                             <ColumnDefinition Width="190"/>
                                             <ColumnDefinition Width="100"/>
                                             <ColumnDefinition Width="80"/>
@@ -328,48 +354,31 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
 
-                                        <Ellipse Width="8"
-                                                 Height="8"
-                                                 VerticalAlignment="Center">
-                                            <Ellipse.Style>
-                                                <Style TargetType="Ellipse">
-                                                    <Setter Property="Fill" Value="#3A3F47"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsTaught}" Value="True">
-                                                            <Setter Property="Fill"
-                                                                    Value="{StaticResource AccentGreenBrush}"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Ellipse.Style>
-                                        </Ellipse>
-
-                                        <TextBlock Grid.Column="1"
+                                        <TextBlock Grid.Column="0"
                                                    Text="{Binding Name}"
                                                    FontFamily="Cascadia Mono, Consolas"
                                                    FontSize="13"
                                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                                   VerticalAlignment="Center"
-                                                   Margin="10,0,0,0"/>
-                                        <TextBlock Grid.Column="2"
-                                                   Text="{Binding MotionGroupLabel}"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding MotionGroup, Converter={StaticResource EnumDescriptionConverter}}"
                                                    FontSize="10"
                                                    Foreground="{StaticResource TextSecondaryBrush}"
                                                    VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="3"
-                                                   Text="{Binding Storage}"
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding Storage, Converter={StaticResource EnumDescriptionConverter}}"
                                                    Foreground="{StaticResource TextMutedBrush}"
                                                    VerticalAlignment="Center"/>
-                                        <Border Grid.Column="4"
+                                        <Border Grid.Column="3"
                                                 Background="{StaticResource CardBgBrush}"
                                                 CornerRadius="4"
                                                 Padding="8,3"
                                                 HorizontalAlignment="Left">
-                                            <TextBlock Text="{Binding ModeLabel}"
+                                            <TextBlock Text="{Binding TeachMode, Converter={StaticResource EnumDescriptionConverter}}"
                                                        FontFamily="Cascadia Mono, Consolas"
                                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                                         </Border>
-                                        <TextBlock Grid.Column="5"
+                                        <TextBlock Grid.Column="4"
                                                    Text="{Binding PositionLabel}"
                                                    FontFamily="Cascadia Mono, Consolas"
                                                    FontSize="13"
@@ -395,8 +404,8 @@
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 MinWidth="110"
                                 Margin="0,0,8,0"/>
-                        <Button Content="Save Buffer Pair"
-                                Command="{Binding SaveBufferPairCommand}"
+                        <Button Content="Save Buffer Setup"
+                                Command="{Binding SaveBufferSetupCommand}"
                                 Style="{StaticResource PrimaryButtonStyle}"
                                 MinWidth="140"/>
                     </WrapPanel>
@@ -414,28 +423,24 @@
                            Foreground="{StaticResource TextMutedBrush}"
                            VerticalAlignment="Center"
                            Margin="0,0,8,0"/>
-                <TextBox Text="{Binding RecipeName, UpdateSourceTrigger=PropertyChanged}"
+                <TextBox Text="{Binding RecipeEditor.Name, UpdateSourceTrigger=PropertyChanged}"
                          MinWidth="120"
                          FontSize="11"
                          Margin="0,0,8,0"/>
                 <Button Content="New"
-                        Command="{Binding NewRecipeCommand}"
+                        Command="{Binding RecipeEditor.NewCommand}"
                         Style="{StaticResource SecondaryButtonStyle}"
                         MinWidth="60"
                         Margin="0,0,4,0"/>
                 <Button Content="Save"
-                        Command="{Binding SaveRecipeCommand}"
+                        Command="{Binding RecipeEditor.SaveCommand}"
                         Style="{StaticResource PrimaryButtonStyle}"
                         MinWidth="60"
                         Margin="0,0,4,0"/>
-                <ComboBox ItemsSource="{Binding RecipeFiles}"
+                <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}"
                           MinWidth="180"
                           Margin="0,0,8,0"
                           SelectionChanged="RecipeFile_Selected"/>
-                <TextBlock Text="{Binding StatusMessage}"
-                           FontSize="11"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           VerticalAlignment="Center"/>
             </WrapPanel>
         </Border>
     </Grid>

@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\IBTM.Core\IBTM.Core.csproj" />
+    <ProjectReference Include="..\IBTM.Device\IBTM.Device.csproj" />
   </ItemGroup>
 
 </Project>

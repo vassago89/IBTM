@@ -6,13 +6,17 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Ajin;
+using IBTM.AlphaMotion;
+using IBTM.BoltFastening;
+using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Hantas;
+using IBTM.Inspection;
+using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
+using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
-using IBTM.Stations.BoltFastening;
-using IBTM.Stations.Inspection;
-using IBTM.Stations.PcbPlacement;
 
 namespace IBTM;
 
@@ -28,129 +32,151 @@ public sealed class MachineStore
 
     public MachineStore() => Directory.CreateDirectory(_recipeDirectory);
 
-    public Task SaveRecipeAsync(
+    public async Task SaveRecipeAsync(
         Recipe recipe,
-        CancellationToken cancellationToken = default) =>
-        WriteJsonAtomicallyAsync(
-            Path.Combine(_recipeDirectory, GetRecipeFileName(recipe.Name)),
-            recipe,
-            cancellationToken);
-
-    public async Task<Recipe> LoadRecipeAsync(
-        string fileName,
         CancellationToken cancellationToken = default)
     {
-        var filePath = Path.Combine(_recipeDirectory, fileName);
-        await using var stream = new FileStream(
-            filePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            bufferSize: 4_096,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var recipeDirectory = GetRecipeDirectory(recipe.Name);
+        Directory.CreateDirectory(recipeDirectory);
+        var filePath = Path.Combine(recipeDirectory, "Recipe.json");
+        await using var stream = File.Create(filePath);
+        await JsonSerializer.SerializeAsync(
+            stream,
+            recipe,
+            JsonOptions,
+            cancellationToken);
+    }
+
+    public async Task<Recipe> LoadRecipeAsync(
+        string recipeName,
+        CancellationToken cancellationToken = default)
+    {
+        var filePath = Path.Combine(
+            GetRecipeDirectory(recipeName),
+            "Recipe.json");
+        await using var stream = File.OpenRead(filePath);
         var recipe = await JsonSerializer.DeserializeAsync<Recipe>(
             stream,
             JsonOptions,
             cancellationToken);
         return recipe
             ?? throw new InvalidDataException(
-                $"Recipe '{fileName}' is empty or invalid.");
+                $"Recipe '{recipeName}' is empty or invalid.");
     }
 
-    public IReadOnlyList<string> GetRecipeFiles() =>
-        Directory.GetFiles(_recipeDirectory, "*.json")
-            .Select(path => new FileInfo(path).Name)
+    public IReadOnlyList<string> GetRecipeNames() =>
+        Directory.GetDirectories(_recipeDirectory)
+            .Where(path => File.Exists(Path.Combine(path, "Recipe.json")))
+            .Select(path => new DirectoryInfo(path).Name)
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+    public string GetRecipeImageDirectory(string recipeName) =>
+        Path.Combine(
+            GetRecipeDirectory(recipeName),
+            "Carrier");
+
+    public string GetRecipeImagePath(string recipeName, int number) =>
+        Path.Combine(
+            GetRecipeImageDirectory(recipeName),
+            $"{number:D4}.png");
 
     public Task SaveSettingsAsync(
         MachineSettings settings,
         CancellationToken cancellationToken = default) =>
-        Task.WhenAll(
-            settings.SaveAsync(cancellationToken),
-            settings.Hardware.SaveAsync(cancellationToken),
+        Task.WhenAll(settings.HardwareSections
+            .Select(setting => setting.SaveAsync(cancellationToken))
+            .Concat([
+            settings.Drivers.SaveAsync(cancellationToken),
+            settings.Processes.SaveAsync(cancellationToken),
+            settings.Options.SaveAsync(cancellationToken),
+            settings.Home.SaveAsync(cancellationToken),
             settings.Ajin.SaveAsync(cancellationToken),
+            settings.AlphaMotion.SaveAsync(cancellationToken),
             settings.AlignmentCamera.SaveAsync(cancellationToken),
             settings.InspectionCamera.SaveAsync(cancellationToken),
             settings.Lighting.SaveAsync(cancellationToken),
+            settings.Hantas.SaveAsync(cancellationToken),
             settings.PcbBuffer.SaveAsync(cancellationToken),
             settings.PcbSupply.SaveAsync(cancellationToken),
-            settings.PcbPlacement.SaveAsync(cancellationToken),
+            settings.PcbPlacementHandler.SaveAsync(cancellationToken),
             settings.BoltFastening.SaveAsync(cancellationToken),
-            settings.Inspection.SaveAsync(cancellationToken));
+            settings.InspectionGantry.SaveAsync(cancellationToken),
+            ]));
 
     public async Task<MachineSettings> LoadSettingsAsync(
         CancellationToken cancellationToken = default)
     {
-        var settings = await Setting.LoadAsync<MachineSettings>(cancellationToken);
-        settings.Hardware = await Setting.LoadAsync<HardwareMap>(cancellationToken);
-        settings.Ajin = await Setting.LoadAsync<AjinSettings>(cancellationToken);
-        settings.AlignmentCamera =
-            await Setting.LoadAsync<AlignmentCameraSettings>(cancellationToken);
-        settings.InspectionCamera =
-            await Setting.LoadAsync<InspectionCameraSettings>(cancellationToken);
-        settings.Lighting = await Setting.LoadAsync<LightingSettings>(cancellationToken);
-        settings.PcbBuffer = await Setting.LoadAsync<PcbBufferSettings>(cancellationToken);
-        settings.PcbSupply = await Setting.LoadAsync<PcbSupplySettings>(cancellationToken);
-        settings.PcbPlacement =
-            await Setting.LoadAsync<PcbPlacementSettings>(cancellationToken);
-        settings.BoltFastening =
-            await Setting.LoadAsync<BoltFasteningSettings>(cancellationToken);
-        settings.Inspection =
-            await Setting.LoadAsync<InspectionSettings>(cancellationToken);
-        return settings;
+        return new MachineSettings
+        {
+            Drivers = await Setting.LoadAsync<DriverSettings>(cancellationToken),
+            Processes = await Setting.LoadAsync<ProcessSettings>(
+                cancellationToken),
+            Options = await Setting.LoadAsync<MachineOptions>(cancellationToken),
+            Home = await Setting.LoadAsync<HomeSettings>(cancellationToken),
+            MachineHardware = await Setting.LoadAsync<MachineHardwareSettings>(
+                cancellationToken),
+            ConveyorHardware = await Setting.LoadAsync<ConveyorHardwareSettings>(
+                cancellationToken),
+            Ajin = await Setting.LoadAsync<AjinSettings>(cancellationToken),
+            AlphaMotion = await Setting.LoadAsync<AlphaMotionSettings>(
+                cancellationToken),
+            AlignmentCamera = await Setting.LoadAsync<AlignmentCameraSettings>(
+                cancellationToken),
+            InspectionCamera = await Setting.LoadAsync<InspectionCameraSettings>(
+                cancellationToken),
+            Lighting = await Setting.LoadAsync<LightingSettings>(cancellationToken),
+            Hantas = await Setting.LoadAsync<HantasSettings>(cancellationToken),
+            PcbBuffer = await Setting.LoadAsync<PcbBufferSettings>(
+                cancellationToken),
+            PcbBufferHardware = await Setting.LoadAsync<PcbBufferHardwareSettings>(
+                cancellationToken),
+            PcbSupply = await Setting.LoadAsync<PcbSupplySettings>(
+                cancellationToken),
+            PcbSupplyHardware = await Setting.LoadAsync<PcbSupplyHardwareSettings>(
+                cancellationToken),
+            PcbPlacementHandler =
+                await Setting.LoadAsync<PcbPlacementHandlerSettings>(
+                    cancellationToken),
+            PcbPlacementHandlerHardware =
+                await Setting.LoadAsync<PcbPlacementHandlerHardwareSettings>(
+                    cancellationToken),
+            PcbPlacementStationHardware =
+                await Setting.LoadAsync<PcbPlacementStationHardwareSettings>(
+                    cancellationToken),
+            BoltFastening = await Setting.LoadAsync<BoltFasteningSettings>(
+                cancellationToken),
+            BoltFasteningHardware =
+                await Setting.LoadAsync<BoltFasteningHardwareSettings>(
+                    cancellationToken),
+            BoltFasteningStationHardware =
+                await Setting.LoadAsync<BoltFasteningStationHardwareSettings>(
+                    cancellationToken),
+            InspectionGantry = await Setting.LoadAsync<InspectionGantrySettings>(
+                cancellationToken),
+            InspectionStationHardware =
+                await Setting.LoadAsync<InspectionStationHardwareSettings>(
+                    cancellationToken),
+            InspectionGantryHardware =
+                await Setting.LoadAsync<InspectionGantryHardwareSettings>(
+                    cancellationToken),
+            NgShuttleHardware = await Setting.LoadAsync<NgShuttleHardwareSettings>(
+                cancellationToken),
+            NgConveyorHardware =
+                await Setting.LoadAsync<NgConveyorHardwareSettings>(
+                    cancellationToken),
+        };
     }
 
-    private static async Task WriteJsonAtomicallyAsync<T>(
-        string destinationPath,
-        T value,
-        CancellationToken cancellationToken)
+    private string GetRecipeDirectory(string recipeName)
     {
-        var temporaryPath = $"{destinationPath}.{Guid.NewGuid():N}.tmp";
-        try
+        var directoryName = recipeName.Trim();
+        if (Path.GetFileName(directoryName) != directoryName)
         {
-            await using (var stream = new FileStream(
-                             temporaryPath,
-                             FileMode.CreateNew,
-                             FileAccess.Write,
-                             FileShare.None,
-                             bufferSize: 4_096,
-                             FileOptions.Asynchronous | FileOptions.WriteThrough))
-            {
-                await JsonSerializer.SerializeAsync(
-                    stream,
-                    value,
-                    JsonOptions,
-                    cancellationToken);
-                await stream.FlushAsync(cancellationToken);
-            }
-
-            File.Move(temporaryPath, destinationPath, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporaryPath))
-            {
-                File.Delete(temporaryPath);
-            }
-        }
-    }
-
-    private static string GetRecipeFileName(string recipeName)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(recipeName);
-        var trimmedName = recipeName.Trim();
-        if (trimmedName is "." or ".."
-            || trimmedName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0
-            || trimmedName.Contains(Path.DirectorySeparatorChar)
-            || trimmedName.Contains(Path.AltDirectorySeparatorChar))
-        {
-            throw new ArgumentException(
-                "Recipe name contains invalid file-name characters.",
-                nameof(recipeName));
+            throw new ArgumentException("Invalid recipe name.", nameof(recipeName));
         }
 
-        return $"{trimmedName}.json";
+        return Path.Combine(_recipeDirectory, directoryName);
     }
 
 }

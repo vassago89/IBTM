@@ -10,13 +10,25 @@ namespace IBTM.UI;
 public partial class AdcProtocolWindow : Window
 {
     private readonly CancellationTokenSource _lifetime = new();
-    private AdcClient? _client;
+    private readonly AdcBus _bus;
+    private bool _openedHere;
 
-    public AdcProtocolWindow()
+    public AdcProtocolWindow(AdcBus bus)
     {
+        _bus = bus;
         InitializeComponent();
         DataContext = this;
         RefreshPorts();
+        _bus.FrameTransferred += OnFrameTransferred;
+        if (_bus.IsOpen)
+        {
+            PortBox.SelectedItem = _bus.PortName;
+            BaudBox.SelectedItem = _bus.BaudRate;
+            ConnectButton.Content = "Connected";
+            ConnectionStatusText.Text =
+                $"{_bus.PortName} | {_bus.BaudRate}";
+        }
+        SetBusy(false);
     }
 
     public int[] BaudRates { get; } = [9600, 19200, 38400, 57600, 115200];
@@ -26,7 +38,11 @@ public partial class AdcProtocolWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _lifetime.Cancel();
-        _client?.Dispose();
+        _bus.FrameTransferred -= OnFrameTransferred;
+        if (_openedHere)
+        {
+            _bus.Close();
+        }
         _lifetime.Dispose();
         base.OnClosed(e);
     }
@@ -36,10 +52,10 @@ public partial class AdcProtocolWindow : Window
     private async void OnToggleConnection(object sender, RoutedEventArgs e) =>
         await ExecuteAsync(() =>
         {
-            if (_client?.IsOpen == true)
+            if (_bus.IsOpen)
             {
-                _client.Dispose();
-                _client = null;
+                _bus.Close();
+                _openedHere = false;
                 ConnectButton.Content = "Connect";
                 ConnectionStatusText.Text = "Disconnected";
                 return Task.CompletedTask;
@@ -47,12 +63,11 @@ public partial class AdcProtocolWindow : Window
 
             var portName = (string)PortBox.SelectedItem;
             var baudRate = (int)BaudBox.SelectedItem;
-            var slaveAddress = byte.Parse(SlaveBox.Text);
-            _client = new AdcClient();
-            _client.FrameTransferred += OnFrameTransferred;
-            _client.Open(portName, baudRate, slaveAddress);
+            _bus.Open(portName, baudRate);
+            _openedHere = true;
             ConnectButton.Content = "Disconnect";
-            ConnectionStatusText.Text = $"{portName} · {baudRate} · Slave {slaveAddress}";
+            ConnectionStatusText.Text =
+                $"{portName} | {baudRate}";
             return Task.CompletedTask;
         });
 
@@ -60,36 +75,44 @@ public partial class AdcProtocolWindow : Window
         await ExecuteAsync(async () =>
         {
             var preset = ushort.Parse(PresetBox.Text);
-            await _client!.SelectPresetAsync(preset, _lifetime.Token);
+            await _bus.SelectPresetAsync(
+                SlaveAddress,
+                preset,
+                _lifetime.Token);
             ResultText.Text = $"Preset {preset} selected";
         });
 
     private async void OnStart(object sender, RoutedEventArgs e) =>
         await ExecuteAsync(async () =>
         {
-            await _client!.SetDirectionAsync(AdcDirection.Fastening, _lifetime.Token);
-            await _client.StartAsync(_lifetime.Token);
+            await _bus.SetDirectionAsync(
+                SlaveAddress,
+                AdcDirection.Fastening,
+                _lifetime.Token);
+            await _bus.StartAsync(SlaveAddress, _lifetime.Token);
             ResultText.Text = "Fastening started";
         });
 
     private async void OnStop(object sender, RoutedEventArgs e) =>
         await ExecuteAsync(async () =>
         {
-            await _client!.StopAsync(_lifetime.Token);
+            await _bus.StopAsync(SlaveAddress, _lifetime.Token);
             ResultText.Text = "Stopped";
         });
 
     private async void OnResetAlarm(object sender, RoutedEventArgs e) =>
         await ExecuteAsync(async () =>
         {
-            await _client!.ResetAlarmAsync(_lifetime.Token);
+            await _bus.ResetAlarmAsync(SlaveAddress, _lifetime.Token);
             ResultText.Text = "Alarm reset sent";
         });
 
     private async void OnReadResult(object sender, RoutedEventArgs e) =>
         await ExecuteAsync(async () =>
         {
-            var result = await _client!.ReadFasteningResultAsync(_lifetime.Token);
+            var result = await _bus.ReadFasteningResultAsync(
+                SlaveAddress,
+                _lifetime.Token);
             ResultText.Text =
                 $"{result.Status}  Event {result.EventCount}\n" +
                 $"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n" +
@@ -99,7 +122,9 @@ public partial class AdcProtocolWindow : Window
     private async void OnReadDeviceInformation(object sender, RoutedEventArgs e) =>
         await ExecuteAsync(async () =>
         {
-            var data = await _client!.ReadDeviceInformationAsync(_lifetime.Token);
+            var data = await _bus.ReadDeviceInformationAsync(
+                SlaveAddress,
+                _lifetime.Token);
             ResultText.Text = $"Device data: {ToHex(data)}";
         });
 
@@ -114,7 +139,8 @@ public partial class AdcProtocolWindow : Window
                 case AdcRegisterAccess.ReadHoldingRegisters:
                     RegisterResultText.Text = FormatRegisters(
                         address,
-                        await _client!.ReadHoldingRegistersAsync(
+                        await _bus.ReadHoldingRegistersAsync(
+                            SlaveAddress,
                             address,
                             ushort.Parse(CountBox.Text),
                             _lifetime.Token));
@@ -122,18 +148,23 @@ public partial class AdcProtocolWindow : Window
                 case AdcRegisterAccess.ReadInputRegisters:
                     RegisterResultText.Text = FormatRegisters(
                         address,
-                        await _client!.ReadInputRegistersAsync(
+                        await _bus.ReadInputRegistersAsync(
+                            SlaveAddress,
                             address,
                             ushort.Parse(CountBox.Text),
                             _lifetime.Token));
                     break;
                 case AdcRegisterAccess.WriteSingleRegister:
                     var value = ushort.Parse(ValueBox.Text);
-                    await _client!.WriteRegisterAsync(address, value, _lifetime.Token);
+                    await _bus.WriteRegisterAsync(
+                        SlaveAddress,
+                        address,
+                        value,
+                        _lifetime.Token);
                     RegisterResultText.Text = $"{address} = {value} (0x{value:X4})";
                     break;
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(access));
+                    throw new ArgumentOutOfRangeException();
             }
         });
 
@@ -160,12 +191,13 @@ public partial class AdcProtocolWindow : Window
     private void SetBusy(bool busy)
     {
         ConnectionControls.IsEnabled = !busy;
-        var connected = _client?.IsOpen == true;
+        var connected = _bus.IsOpen;
         PortBox.IsEnabled = !busy && !connected;
         BaudBox.IsEnabled = !busy && !connected;
-        SlaveBox.IsEnabled = !busy && !connected;
+        SlaveBox.IsEnabled = !busy;
         RefreshPortsButton.IsEnabled = !busy && !connected;
-        ConnectButton.IsEnabled = !busy && (connected || PortBox.SelectedItem is string);
+        ConnectButton.IsEnabled = !busy
+            && (_openedHere || !connected && PortBox.SelectedItem is string);
         OperationPanel.IsEnabled = !busy && connected;
         RegisterPanel.IsEnabled = !busy && connected;
     }
@@ -173,7 +205,7 @@ public partial class AdcProtocolWindow : Window
     private void RefreshPorts()
     {
         var selected = PortBox.SelectedItem as string;
-        var ports = AdcClient.GetPortNames();
+        var ports = AdcBus.GetPortNames();
         PortBox.ItemsSource = ports;
         PortBox.SelectedItem = ports.Contains(selected) ? selected : ports.FirstOrDefault();
         ConnectButton.IsEnabled = ports.Length > 0;
@@ -201,4 +233,6 @@ public partial class AdcProtocolWindow : Window
 
     private static string ToHex(byte[] data) =>
         string.Join(' ', data.Select(value => value.ToString("X2")));
+
+    private byte SlaveAddress => byte.Parse(SlaveBox.Text);
 }

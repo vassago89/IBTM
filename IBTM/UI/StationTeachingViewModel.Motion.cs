@@ -9,71 +9,77 @@ namespace IBTM.UI;
 
 public partial class StationTeachingViewModel
 {
-    private MotionService CurrentMotion => GetMotion(SelectedMotionGroup);
+    private IXyMotion CurrentMotion => GetMotion(SelectedMotionGroup);
 
     [RelayCommand(CanExecute = nameof(CanJogXY))]
-    private void JogXPlus() => CurrentMotion.JogX(JogSpeed);
+    private void JogXPlus() =>
+        CurrentMotion.JogX(JogSpeed, _motionCancellation.Token);
 
     [RelayCommand(CanExecute = nameof(CanJogXY))]
-    private void JogXMinus() => CurrentMotion.JogX(-JogSpeed);
+    private void JogXMinus() =>
+        CurrentMotion.JogX(-JogSpeed, _motionCancellation.Token);
 
     [RelayCommand(CanExecute = nameof(CanJogXY))]
-    private void JogYPlus() => CurrentMotion.JogY(JogSpeed);
+    private void JogYPlus() =>
+        CurrentMotion.JogY(JogSpeed, _motionCancellation.Token);
 
     [RelayCommand(CanExecute = nameof(CanJogXY))]
-    private void JogYMinus() => CurrentMotion.JogY(-JogSpeed);
+    private void JogYMinus() =>
+        CurrentMotion.JogY(-JogSpeed, _motionCancellation.Token);
+
+    [RelayCommand(CanExecute = nameof(CanJogZ))]
+    private void JogZPlus() =>
+        CurrentMotion.JogZ(JogSpeed, _motionCancellation.Token);
+
+    [RelayCommand(CanExecute = nameof(CanJogZ))]
+    private void JogZMinus() =>
+        CurrentMotion.JogZ(-JogSpeed, _motionCancellation.Token);
 
     [RelayCommand]
-    private void JogZPlus() => CurrentMotion.JogZ(JogSpeed);
+    private void JogStop() => CancelMotion();
 
-    [RelayCommand]
-    private void JogZMinus() => CurrentMotion.JogZ(-JogSpeed);
+    private bool CanJogXY() =>
+        CanUseCurrentHandler() && CurrentMotion.IsAtSafeZ;
+    private bool CanJogZ() =>
+        CanUseCurrentHandler() && CurrentMotion.HasZ;
 
-    [RelayCommand]
-    private void JogStop() => CurrentMotion.Stop();
-
-    private bool CanJogXY() => CurrentMotion.IsAtSafeZ;
-
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanJogZ))]
     private async Task MoveToSafeZAsync(CancellationToken cancellationToken)
     {
         try
         {
-            await CurrentMotion.MoveToSafeZAsync(cancellationToken);
+            using var motionCancellation = LinkMotion(cancellationToken);
+            await CurrentMotion.MoveToSafeZAsync(motionCancellation.Token);
         }
         catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
         {
-            StatusMessage = "Move stopped";
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
+    [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
     private async Task MoveToPointAsync(CancellationToken cancellationToken)
     {
         var point = SelectedPoint!;
         var motion = GetMotion(point.MotionGroup);
         try
         {
+            using var motionCancellation = LinkMotion(cancellationToken);
+            cancellationToken = motionCancellation.Token;
             switch (point.TeachMode)
             {
-                case TeachMode.XOnly:
-                    await motion.MoveToXAsync(
-                        point.X,
-                        GetMotionSettings(point.MotionGroup).HorizontalSpeed,
-                        cancellationToken);
-                    break;
-                case TeachMode.XZOnly:
-                    await motion.MoveToXZAsync(
-                        point.X,
-                        point.Z,
-                        cancellationToken);
-                    break;
                 case TeachMode.XYOnly:
                     await motion.MoveToXYAsync(
                         point.X,
                         point.Y,
-                        GetMotionSettings(point.MotionGroup).HorizontalSpeed,
+                        GetMotionSettings(point.MotionGroup)
+                            .HorizontalSpeed,
+                        cancellationToken);
+                    break;
+                case TeachMode.ZOnly
+                    when point.Target != TeachingTarget.BoltWorkZ:
+                    await motion.MoveZAsync(
+                        point.Z,
+                        GetMotionSettings(point.MotionGroup).ZSpeed,
                         cancellationToken);
                     break;
                 default:
@@ -84,50 +90,76 @@ public partial class StationTeachingViewModel
                         cancellationToken);
                     break;
             }
-
-            StatusMessage = $"Moved to: {point.Name}";
         }
         catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
         {
-            StatusMessage = "Move stopped";
         }
     }
 
-    private bool CanMoveToPoint() => SelectedPoint?.IsTaught == true;
+    private bool CanUseCurrentHandler() =>
+        _state.CanOperate
+        && !CurrentMotion.IsMoving
+        && (SelectedMotionGroup != MotionGroup.PcbPlacementHandler
+            || !_buffer.SupplyInside);
 
-    private MotionService GetMotion(MotionGroup motionGroup) =>
+    private void NotifyManualTeachingCommands()
+    {
+        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
+        JogXPlusCommand.NotifyCanExecuteChanged();
+        JogXMinusCommand.NotifyCanExecuteChanged();
+        JogYPlusCommand.NotifyCanExecuteChanged();
+        JogYMinusCommand.NotifyCanExecuteChanged();
+        JogZPlusCommand.NotifyCanExecuteChanged();
+        JogZMinusCommand.NotifyCanExecuteChanged();
+        MoveToSafeZCommand.NotifyCanExecuteChanged();
+        MoveToPointCommand.NotifyCanExecuteChanged();
+        ToggleLiveViewCommand.NotifyCanExecuteChanged();
+        CaptureCarrierImagesCommand.NotifyCanExecuteChanged();
+        TeachImagePointCommand.NotifyCanExecuteChanged();
+    }
+
+    private MotionSettings GetMotionSettings(MotionGroup group) => group switch
+    {
+        MotionGroup.PcbPlacementHandler => _placementSettings.Motion,
+        MotionGroup.BoltFastening => _fasteningSettings.Motion,
+        MotionGroup.InspectionGantry => _inspectionGantrySettings.Motion,
+        _ => throw new ArgumentOutOfRangeException(nameof(group)),
+    };
+
+    private IXyMotion GetMotion(MotionGroup motionGroup) =>
         _motions[motionGroup];
 
-    private MotionSettings GetMotionSettings(MotionGroup motionGroup) =>
-        motionGroup switch
-        {
-            MotionGroup.PcbPlacement => _settings.PcbPlacement.Motion,
-            MotionGroup.BoltFastening => _settings.BoltFastening.Motion,
-            MotionGroup.Inspection => _settings.Inspection.Motion,
-            _ => throw new ArgumentOutOfRangeException(nameof(motionGroup)),
-        };
+    private CancellationTokenSource LinkMotion(
+        CancellationToken cancellationToken) =>
+        CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            _motionCancellation.Token);
+
+    private void CancelMotion()
+    {
+        var cancellation = _motionCancellation;
+        _motionCancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        cancellation.Dispose();
+    }
 
     private void RefreshPosition()
     {
-        var current = CurrentMotion.GetPosition();
-        CurrentX = current.X;
-        CurrentY = current.Y;
-        CurrentZ = current.Z;
+        OnPropertyChanged(nameof(CurrentX));
+        OnPropertyChanged(nameof(CurrentY));
+        OnPropertyChanged(nameof(CurrentZ));
+        JogXPlusCommand.NotifyCanExecuteChanged();
+        JogXMinusCommand.NotifyCanExecuteChanged();
+        JogYPlusCommand.NotifyCanExecuteChanged();
+        JogYMinusCommand.NotifyCanExecuteChanged();
     }
 
-    private void ApplyPosition(
-        MotionGroup motionGroup,
-        double x,
-        double y,
-        double z) =>
+    private void ApplyPosition(MotionGroup motionGroup) =>
         RunOnUi(() =>
         {
             if (SelectedMotionGroup == motionGroup)
             {
-                CurrentX = x;
-                CurrentY = y;
-                CurrentZ = z;
+                RefreshPosition();
             }
         });
 }

@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
@@ -11,7 +14,6 @@ namespace IBTM.UI;
 public partial class StationTeachingViewModel
 {
     private ICamera? CurrentCamera => GetCamera(SelectedMotionGroup);
-    private OutputIo? CurrentLaser => GetLaser(SelectedMotionGroup);
 
     [RelayCommand(CanExecute = nameof(CanToggleLiveView))]
     private void ToggleLiveView()
@@ -19,92 +21,146 @@ public partial class StationTeachingViewModel
         if (IsCameraLive)
         {
             StopCamera(SelectedMotionGroup);
-            LiveImage = null;
+            IsCameraLive = false;
+            ShowRecipeImages();
         }
         else
         {
             StartCamera(SelectedMotionGroup);
+            IsCameraLive = true;
         }
-
-        IsCameraLive = !IsCameraLive;
     }
 
-    private bool CanToggleLiveView() => CurrentCamera is not null;
+    private bool CanToggleLiveView() =>
+        CurrentCamera is not null
+        && (IsCameraLive || CanUseCurrentHandler());
 
-    [RelayCommand(CanExecute = nameof(CanUseCamera))]
-    private async Task CameraClickAsync(
-        Point clickPosition,
+    [RelayCommand(CanExecute = nameof(CanCaptureCarrierImages))]
+    private async Task CaptureCarrierImagesAsync(
         CancellationToken cancellationToken)
     {
-        var camera = CurrentCamera!;
-        var pixelOffsetX = clickPosition.X - (camera.ImageWidth / 2.0);
-        var pixelOffsetY = clickPosition.Y - (camera.ImageHeight / 2.0);
-        var targetX = SelectedMotionGroup == MotionGroup.PcbPlacement
-            ? CurrentX
-              + (pixelOffsetX
-                 * _settings.PcbPlacement.AlignmentXMillimetersPerPixel)
-            : CurrentX + (pixelOffsetX / _settings.Inspection.PixelsPerMm);
-        var targetY = SelectedMotionGroup == MotionGroup.PcbPlacement
-            ? CurrentY
-              + (pixelOffsetY
-                 * _settings.PcbPlacement.AlignmentYMillimetersPerPixel)
-            : CurrentY + (pixelOffsetY / _settings.Inspection.PixelsPerMm);
-
+        var channel = GetLightChannel(MotionGroup.InspectionGantry);
+        var scanStarted = false;
         try
         {
-            await CurrentMotion.MoveToAsync(
-                targetX,
-                targetY,
-                CurrentZ,
-                cancellationToken);
-            StatusMessage = $"Move to X:{targetX:F3} Y:{targetY:F3}";
+            using var motionCancellation = LinkMotion(cancellationToken);
+            var motion = GetMotion(MotionGroup.InspectionGantry);
+            var xPositions = ScanPositions(
+                _inspectionGantrySettings.CarrierScanUpperLeft.X,
+                _inspectionGantrySettings.CarrierScanLowerRight.X,
+                ScanPitchX);
+            var yPositions = ScanPositions(
+                _inspectionGantrySettings.CarrierScanUpperLeft.Y,
+                _inspectionGantrySettings.CarrierScanLowerRight.Y,
+                ScanPitchY);
+
+            await _inspectionGantrySettings.SaveAsync(
+                motionCancellation.Token);
+            RecipeEditor.ClearCarrierImages();
+            scanStarted = true;
+            CarrierImages = [];
+            LiveImage = null;
+            _light.SetLevel(channel, GetLightLevel(MotionGroup.InspectionGantry));
+            _light.TurnOn(channel);
+
+            for (var row = 0; row < yPositions.Count; row++)
+            {
+                for (var column = 0; column < xPositions.Count; column++)
+                {
+                    var xIndex = row % 2 == 0
+                        ? column
+                        : xPositions.Count - column - 1;
+                    var center = new AxisPos
+                    {
+                        X = xPositions[xIndex],
+                        Y = yPositions[row],
+                    };
+                    await motion.MoveToXYAsync(
+                        center.X,
+                        center.Y,
+                        _inspectionGantrySettings.Motion.HorizontalSpeed,
+                        motionCancellation.Token);
+                    var tile = RecipeEditor.SaveCarrierImage(
+                        center,
+                        ToBitmapSource(_inspectionCamera.Capture()));
+                    CarrierImages = [.. CarrierImages, tile];
+                }
+            }
+
         }
         catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
         {
-            StatusMessage = "Move stopped";
+        }
+        finally
+        {
+            _light.TurnOff(channel);
+            if (scanStarted)
+            {
+                await RecipeEditor.SaveAsync();
+            }
         }
     }
 
-    private bool CanUseCamera() => IsCameraLive && CurrentCamera is not null;
+    private bool CanCaptureCarrierImages() =>
+        SelectedMotionGroup == MotionGroup.InspectionGantry
+        && !IsCameraLive
+        && ScanPitchX > 0
+        && ScanPitchY > 0
+        && !string.IsNullOrWhiteSpace(RecipeEditor.Name)
+        && CanUseCurrentHandler();
 
-    [RelayCommand(CanExecute = nameof(CanToggleLaser))]
-    private void ToggleLaser()
+    [RelayCommand(CanExecute = nameof(CanTeachImagePoint))]
+    private async Task TeachImagePointAsync(Point imagePoint)
     {
-        var laser = CurrentLaser!.Value;
-        LaserOn = !_io.GetOutput(laser);
-        SetLaser(SelectedMotionGroup, LaserOn);
+        var point = SelectedPoint!;
+        _pointMapper.ApplyImage(
+            CurrentRecipe,
+            FilteredPoints,
+            point,
+            new AxisPos
+            {
+                X = imagePoint.X,
+                Y = imagePoint.Y,
+            });
+        if (point.Storage == TeachingStorage.Machine)
+        {
+            await _inspectionGantrySettings.SaveAsync();
+        }
+        RefreshImageMarkers();
     }
 
-    private bool CanToggleLaser() => HasLaser;
+    private bool CanTeachImagePoint(Point imagePoint) =>
+        HasCarrierImages
+        && !IsCameraLive
+        && SelectedPoint?.TeachMode == TeachMode.Image
+        && (SelectedPoint.Target != TeachingTarget.BoltReference
+            || _pointMapper.CarrierReferenceReady);
+
+    private static IReadOnlyList<double> ScanPositions(
+        double start,
+        double end,
+        double pitch)
+    {
+        var distance = Math.Abs(end - start);
+        var count = Math.Max(1, (int)Math.Ceiling(distance / pitch) + 1);
+        var direction = Math.Sign(end - start);
+        var positions = new double[count];
+        for (var index = 0; index < count; index++)
+        {
+            positions[index] = index == count - 1
+                ? end
+                : start + (direction * pitch * index);
+        }
+
+        return positions;
+    }
 
     private ICamera? GetCamera(MotionGroup motionGroup) => motionGroup switch
     {
-        MotionGroup.PcbPlacement => _alignmentCamera,
-        MotionGroup.Inspection => _inspectionCamera,
+        MotionGroup.PcbPlacementHandler => _alignmentCamera,
+        MotionGroup.InspectionGantry => _inspectionCamera,
         _ => null,
     };
-
-    private static OutputIo? GetLaser(MotionGroup motionGroup) =>
-        motionGroup switch
-        {
-            MotionGroup.PcbPlacement => OutputIo.PcbPlacementLaser,
-            MotionGroup.Inspection => OutputIo.InspectionLaser,
-            _ => null,
-        };
-
-    private void SetLaser(MotionGroup motionGroup, bool on)
-    {
-        switch (motionGroup)
-        {
-            case MotionGroup.PcbPlacement:
-                _pcbPlacement.SetLaser(on);
-                break;
-            case MotionGroup.Inspection:
-                _inspection.SetLaser(on);
-                break;
-        }
-    }
 
     private void StartCamera(MotionGroup motionGroup)
     {
@@ -116,25 +172,21 @@ public partial class StationTeachingViewModel
 
     private void StopCamera(MotionGroup motionGroup)
     {
-        GetCamera(motionGroup)?.StopLiveView();
-
-        if (motionGroup is MotionGroup.PcbPlacement or MotionGroup.Inspection)
-        {
-            _light.TurnOff(GetLightChannel(motionGroup));
-        }
+        GetCamera(motionGroup)!.StopLiveView();
+        _light.TurnOff(GetLightChannel(motionGroup));
     }
 
     private int GetLightChannel(MotionGroup motionGroup) => motionGroup switch
     {
-        MotionGroup.PcbPlacement => _lighting.AlignmentChannel,
-        MotionGroup.Inspection => _lighting.InspectionChannel,
+        MotionGroup.PcbPlacementHandler => _lighting.AlignmentChannel,
+        MotionGroup.InspectionGantry => _lighting.InspectionChannel,
         _ => throw new ArgumentOutOfRangeException(nameof(motionGroup)),
     };
 
     private int GetLightLevel(MotionGroup motionGroup) => motionGroup switch
     {
-        MotionGroup.PcbPlacement => _lighting.AlignmentLevel,
-        MotionGroup.Inspection => _lighting.InspectionLevel,
+        MotionGroup.PcbPlacementHandler => _lighting.AlignmentLevel,
+        MotionGroup.InspectionGantry => _lighting.InspectionLevel,
         _ => throw new ArgumentOutOfRangeException(nameof(motionGroup)),
     };
 
@@ -143,16 +195,22 @@ public partial class StationTeachingViewModel
         {
             if (SelectedMotionGroup == motionGroup)
             {
-                LiveImage = frame.ToImageSource();
+                LiveImage = ToBitmapSource(frame);
             }
         });
 
-    private void OnOutputChanged(OutputIo output, bool value) =>
-        RunOnUi(() =>
-        {
-            if (output == CurrentLaser)
-            {
-                LaserOn = value;
-            }
-        });
+    private static BitmapSource ToBitmapSource(ImageFrame frame)
+    {
+        var image = BitmapSource.Create(
+            frame.Width,
+            frame.Height,
+            96,
+            96,
+            PixelFormats.Bgr24,
+            palette: null,
+            frame.Pixels,
+            frame.Stride);
+        image.Freeze();
+        return image;
+    }
 }

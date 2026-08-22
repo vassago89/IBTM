@@ -1,6 +1,11 @@
 <Window x:Class="IBTM.UI.OutputWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ui="clr-namespace:IBTM.UI"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance Type=ui:OutputWindow, IsDesignTimeCreatable=False}"
         Title="Digital Outputs"
         Width="1040"
         Height="720"
@@ -15,7 +20,6 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Grid>
@@ -38,14 +42,14 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="100"/>
-                <ColumnDefinition Width="300"/>
-                <ColumnDefinition Width="34"/>
+                <ColumnDefinition Width="270"/>
+                <ColumnDefinition Width="120"/>
                 <ColumnDefinition Width="90"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="OUTPUT" Style="{StaticResource SectionHeaderStyle}"/>
             <TextBlock Grid.Column="1" Text="OUTPUT STATE" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="2" Text="FEEDBACK INPUT" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="3" Text="DI" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="2" Text="FEEDBACK INPUT / EXPECTED" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="3" Text="ACTUAL" Style="{StaticResource SectionHeaderStyle}"/>
         </Grid>
 
         <ListBox x:Name="OutputList"
@@ -59,8 +63,8 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="100"/>
-                            <ColumnDefinition Width="300"/>
-                            <ColumnDefinition Width="34"/>
+                            <ColumnDefinition Width="270"/>
+                            <ColumnDefinition Width="120"/>
                             <ColumnDefinition Width="90"/>
                         </Grid.ColumnDefinitions>
 
@@ -70,19 +74,40 @@
                         <ContentControl Grid.Column="1"
                                         Tag="{Binding OutputOn}"
                                         Style="{StaticResource IoOutputStateStyle}"/>
-                        <TextBlock Grid.Column="2"
-                                   Text="{Binding Feedback}"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   VerticalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis"
-                                   ToolTip="{Binding Feedback}"/>
-                        <Ellipse Grid.Column="3"
-                                 HorizontalAlignment="Left"
-                                 VerticalAlignment="Center"
-                                 Tag="{Binding InputOn}"
-                                 Visibility="{Binding HasFeedback,
-                                                      Converter={StaticResource BoolToVis}}"
-                                 Style="{StaticResource IoInputLedStyle}"/>
+                        <StackPanel Grid.Column="2"
+                                    Orientation="Horizontal"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding HasFeedback, Converter={StaticResource BoolToVis}}">
+                            <TextBlock Text="{Binding FeedbackInput, Converter={StaticResource EnumDescriptionConverter}}"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3"
+                                    Orientation="Horizontal"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding HasFeedback, Converter={StaticResource BoolToVis}}">
+                            <Ellipse Tag="{Binding InputOn}"
+                                     Style="{StaticResource IoInputLedStyle}"/>
+                            <TextBlock Margin="8,0,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="Waiting"/>
+                                        <Setter Property="Foreground"
+                                                Value="{StaticResource TextSecondaryBrush}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding InputOn}" Value="True">
+                                                <Setter Property="Text" Value="Matched"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding TimedOut}" Value="True">
+                                                <Setter Property="Text" Value="Timeout"/>
+                                                <Setter Property="Foreground"
+                                                        Value="{StaticResource AccentRedBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
                         <Button Grid.Column="4"
                                 Content="Toggle"
                                 Style="{StaticResource IoToggleButtonStyle}"
@@ -92,9 +117,5 @@
             </ListBox.ItemTemplate>
         </ListBox>
 
-        <TextBlock x:Name="StatusText"
-                   Grid.Row="4"
-                   Margin="0,12,0,0"
-                   Foreground="{StaticResource TextSecondaryBrush}"/>
     </Grid>
 </Window>

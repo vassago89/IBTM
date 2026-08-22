@@ -8,12 +8,21 @@ namespace IBTM.Virtual;
 
 public sealed class VirtualMotionService(
     MotionSettings settings,
+    OperationCancellation operationCancellation,
     bool hasY = true,
+    bool hasZ = true,
     (double Minimum, double Maximum)? xRange = null,
     (double Minimum, double Maximum)? yRange = null,
     (double Minimum, double Maximum)? zRange = null,
     double resolutionMillimeters = 0.01)
-    : MotionService(settings, hasY, xRange, yRange, zRange), IDisposable
+    : MotionService(
+        settings,
+        operationCancellation,
+        hasY,
+        hasZ,
+        xRange,
+        yRange,
+        zRange), IDisposable
 {
     private static readonly TimeSpan UpdateInterval = TimeSpan.FromMilliseconds(10);
 
@@ -44,8 +53,14 @@ public sealed class VirtualMotionService(
     protected override Task MoveXCoreAsync(
         double x,
         double velocity,
-        CancellationToken cancellationToken = default) =>
+        CancellationToken cancellationToken) =>
         SimulateMoveAsync(x, _y, _z, velocity, cancellationToken);
+
+    protected override Task MoveYCoreAsync(
+        double y,
+        double velocity,
+        CancellationToken cancellationToken) =>
+        SimulateMoveAsync(_x, y, _z, velocity, cancellationToken);
 
     protected override Task MoveZCoreAsync(
         double z,
@@ -76,15 +91,20 @@ public sealed class VirtualMotionService(
         }
     }
 
-    protected override void JogXCore(double velocity) => StartJog(velocity, 0, 0);
+    protected override void JogXCore(
+        double velocity,
+        CancellationToken cancellationToken) =>
+        StartJog(velocity, 0, 0, cancellationToken);
 
-    protected override void JogYCore(double velocity) => StartJog(0, velocity, 0);
+    protected override void JogYCore(
+        double velocity,
+        CancellationToken cancellationToken) =>
+        StartJog(0, velocity, 0, cancellationToken);
 
-    protected override void JogZCore(double velocity) => StartJog(0, 0, velocity);
-
-    public override void Stop() => _movement?.Cancel();
-
-    public override void EmergencyStop() => Stop();
+    protected override void JogZCore(
+        double velocity,
+        CancellationToken cancellationToken) =>
+        StartJog(0, 0, velocity, cancellationToken);
 
     public override void SetServo(MotionAxis axis, bool on) =>
         _servoOn[(int)axis] = on;
@@ -157,7 +177,7 @@ public sealed class VirtualMotionService(
     {
     }
 
-    public void Dispose() => Stop();
+    public void Dispose() => _movement?.Cancel();
 
     private async Task SimulateMoveAsync(
         double x,
@@ -191,7 +211,8 @@ public sealed class VirtualMotionService(
                     startX + ((x - startX) * progress),
                     startY + ((y - startY) * progress),
                     startZ + ((z - startZ) * progress));
-                await Task.Delay(UpdateInterval, movement.Token);
+                await Task.Delay(UpdateInterval, movement.Token)
+                    .ConfigureAwait(false);
             }
 
             movement.Token.ThrowIfCancellationRequested();
@@ -203,9 +224,13 @@ public sealed class VirtualMotionService(
         }
     }
 
-    private void StartJog(double velocityX, double velocityY, double velocityZ)
+    private void StartJog(
+        double velocityX,
+        double velocityY,
+        double velocityZ,
+        CancellationToken cancellationToken)
     {
-        var movement = BeginMovement(CancellationToken.None);
+        var movement = BeginMovement(cancellationToken);
         _ = JogAsync(velocityX, velocityY, velocityZ, movement);
     }
 
@@ -219,7 +244,8 @@ public sealed class VirtualMotionService(
         {
             while (true)
             {
-                await Task.Delay(UpdateInterval, movement.Token);
+                await Task.Delay(UpdateInterval, movement.Token)
+                    .ConfigureAwait(false);
                 SetPosition(
                     ClampToRange(
                         MotionAxis.X,
@@ -243,7 +269,7 @@ public sealed class VirtualMotionService(
 
     private CancellationTokenSource BeginMovement(CancellationToken cancellationToken)
     {
-        _movement = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _movement = LinkOperation(cancellationToken);
         BeginMotion();
         return _movement;
     }
