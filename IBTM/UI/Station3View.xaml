@@ -127,6 +127,12 @@
             <TextBlock Canvas.Left="112" Canvas.Top="388"
                        Text="NG CONVEYOR"
                        Style="{DynamicResource MapHintStyle}"/>
+            <TextBlock Canvas.Left="112" Canvas.Top="405"
+                       Width="220"
+                       Text="{Binding NgConveyorState, Converter={StaticResource EnumDescriptionConverter}}"
+                       TextAlignment="Center"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       FontSize="11"/>
 
             <Border Canvas.Left="342" Canvas.Top="354"
                     Width="118" Height="58"

@@ -8,6 +8,7 @@ internal static class VirtualImageFactory
     public const int Width = 320;
     public const int Height = 240;
     public const double InspectionMillimetersPerPixel = 0.05;
+    public const byte BoltRecessIntensity = 8;
 
     private const int BytesPerPixel = 3;
     private static readonly (double X, double Y)[] BoltCentres =
@@ -17,8 +18,6 @@ internal static class VirtualImageFactory
         (12, 19),
         (28, 19),
     ];
-
-    public static ImageFrame Fiducial { get; } = CreateFiducial();
 
     public static ImageFrame CreateInspection(
         (double X, double Y, double Z) center)
@@ -48,23 +47,6 @@ internal static class VirtualImageFactory
         return Frame(pixels);
     }
 
-    private static ImageFrame CreateFiducial()
-    {
-        var pixels = new byte[Width * Height * BytesPerPixel];
-        Array.Fill(pixels, (byte)28);
-        for (var x = 0; x < Width; x++)
-        {
-            SetPixel(pixels, x, Height / 2, 40, 160, 40);
-        }
-
-        for (var y = 0; y < Height; y++)
-        {
-            SetPixel(pixels, Width / 2, y, 40, 160, 40);
-        }
-
-        return Frame(pixels);
-    }
-
     private static (byte Blue, byte Green, byte Red) InspectionColor(
         double x,
         double y)
@@ -88,6 +70,17 @@ internal static class VirtualImageFactory
 
         foreach (var bolt in BoltCentres)
         {
+            var offsetX = Math.Abs(x - bolt.X);
+            var offsetY = Math.Abs(y - bolt.Y);
+            if ((offsetX <= 0.06 && offsetY <= 0.22)
+                || (offsetX <= 0.22 && offsetY <= 0.06))
+            {
+                return (
+                    BoltRecessIntensity,
+                    BoltRecessIntensity,
+                    BoltRecessIntensity);
+            }
+
             if (InsideCircle(x, y, bolt.X, bolt.Y, 0.35))
             {
                 return (190, 190, 190);

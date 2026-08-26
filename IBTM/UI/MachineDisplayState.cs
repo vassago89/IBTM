@@ -16,6 +16,9 @@ public enum MachineDisplayState
     [Description("Ready")]
     Ready,
 
+    [Description("Manual Mode")]
+    ManualMode,
+
     [Description("Running")]
     Running,
 
@@ -34,17 +37,11 @@ public enum HandlerDisplayState
     [Description("PCB Carrier Available")]
     CarrierAvailable,
 
-    [Description("PCB on Buffer")]
-    PcbOnBuffer,
-
     [Description("PCB Detected")]
     PcbDetected,
 
-    [Description("Housing Detected")]
-    HousingDetected,
-
-    [Description("No Housing")]
-    NoHousing,
+    [Description("Waiting for PCB")]
+    WaitingForPcb,
 
     [Description("Moving")]
     Moving,
@@ -66,4 +63,10 @@ public enum StationDisplayState
 
     [Description("Working")]
     Working,
+
+    [Description("Carrier OK")]
+    CarrierOk,
+
+    [Description("Carrier NG")]
+    CarrierNg,
 }

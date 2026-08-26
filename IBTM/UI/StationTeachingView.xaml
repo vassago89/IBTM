@@ -17,7 +17,7 @@
 
         <StackPanel Grid.Row="0" Margin="0,0,0,16">
             <TextBlock Text="Station Teaching" Style="{StaticResource TitleStyle}"/>
-            <TextBlock Text="Teach placement, fastening and inspection positions from the live camera."
+            <TextBlock Text="Teach placement and fastening positions, and inspect carrier images."
                        Style="{StaticResource PageSubtitleStyle}"/>
         </StackPanel>
 
@@ -71,7 +71,8 @@
                     </TextBlock>
                     <Button Command="{Binding ToggleLiveViewCommand}"
                             HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,8"
-                            Style="{StaticResource SecondaryButtonStyle}" MinWidth="70" Opacity="0.8">
+                            Style="{StaticResource SecondaryButtonStyle}" MinWidth="70" Opacity="0.8"
+                            Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
                         <Button.Content>
                             <TextBlock>
                                 <TextBlock.Style>
@@ -205,8 +206,8 @@
                         </Grid>
 
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
-                            <Button Content="Safe Z"
-                                    Command="{Binding MoveToSafeZCommand}"
+                            <Button Content="Travel Z"
+                                    Command="{Binding MoveToHorizontalZCommand}"
                                     Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     MinWidth="58" Margin="0,0,6,0"/>
@@ -246,7 +247,6 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="66"/>
                                         <ColumnDefinition Width="56"/>
-                                        <ColumnDefinition Width="32"/>
                                         <ColumnDefinition Width="110"/>
                                     </Grid.ColumnDefinitions>
                                     <Border Grid.Column="0"
@@ -275,11 +275,6 @@
                                                FontFamily="Consolas" FontSize="10"
                                                Foreground="{StaticResource TextMutedBrush}"/>
                                     <TextBlock Grid.Column="4"
-                                               Text="{Binding Preset, StringFormat=P{0}}"
-                                               VerticalAlignment="Center"
-                                               FontFamily="Consolas" FontSize="10"
-                                               Foreground="{StaticResource TextMutedBrush}"/>
-                                    <TextBlock Grid.Column="5"
                                                Text="{Binding PositionLabel}"
                                                VerticalAlignment="Center"
                                                FontFamily="Consolas"
@@ -308,16 +303,26 @@
                                       SelectedItem="{Binding NewFasteningHead, Mode=TwoWay}"
                                       ItemTemplate="{StaticResource EnumItemTemplate}"
                                       FontSize="10" MinWidth="74" Margin="0,0,6,0"/>
-                            <TextBlock Text="P" VerticalAlignment="Center"
-                                       Foreground="{StaticResource TextMutedBrush}"/>
-                            <TextBox Text="{Binding NewPreset, UpdateSourceTrigger=PropertyChanged}"
-                                     FontSize="10" Width="36" Margin="3,0,6,0"/>
                             <Button Content="Add Bolt"
                                     Command="{Binding AddBoltPointCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}" MinWidth="70" Margin="0,0,6,0"/>
                             <Button Content="Remove"
                                     Command="{Binding RemoveBoltPointCommand}"
                                     Style="{StaticResource DangerButtonStyle}" MinWidth="70"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock Text="PCB" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBox Text="{Binding BoltRecipe.PcbPreset, UpdateSourceTrigger=PropertyChanged}"
+                                     FontSize="10" Width="36" Margin="4,0,10,0"/>
+                            <TextBlock Text="IPM 1" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBox Text="{Binding BoltRecipe.IpmSeatingPreset, UpdateSourceTrigger=PropertyChanged}"
+                                     FontSize="10" Width="36" Margin="4,0,10,0"/>
+                            <TextBlock Text="IPM 2" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBox Text="{Binding BoltRecipe.IpmFinalPreset, UpdateSourceTrigger=PropertyChanged}"
+                                     FontSize="10" Width="36" Margin="4,0,0,0"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>

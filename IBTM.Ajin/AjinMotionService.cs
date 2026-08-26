@@ -12,16 +12,18 @@ public sealed class AjinMotionService(
     AxisHardware? axisZ,
     double millimetersPerPulse,
     MotionSettings settings,
-    OperationCancellation operationCancellation) : MotionService(
+    OperationCancellation operationCancellation,
+    Func<double>? horizontalZ) : MotionService(
         settings,
         operationCancellation,
         hasY: axisY is not null,
         hasZ: axisZ is not null,
-        (axisX.Minimum, axisX.Maximum),
-        axisY is null
+        horizontalZ: horizontalZ,
+        xRange: (axisX.Minimum, axisX.Maximum),
+        yRange: axisY is null
             ? null
             : (axisY.Minimum, axisY.Maximum),
-        axisZ is null
+        zRange: axisZ is null
             ? null
             : (axisZ.Minimum, axisZ.Maximum))
 {
@@ -357,41 +359,69 @@ public sealed class AjinMotionService(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        AjinController.Check(move(), operation);
         using var cancellationRegistration =
             cancellationToken.Register(StopAxes);
         BeginMotion();
         try
         {
-            while (true)
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                var moving = false;
-                var inPosition = true;
-                foreach (var axis in axes)
+                AjinController.Check(move(), operation);
+                while (true)
                 {
-                    var inMotion = 0U;
-                    var mechanical = 0U;
-                    AjinController.Check(
-                        AjinNative.AxmStatusReadInMotion(axis, ref inMotion),
-                        nameof(AjinNative.AxmStatusReadInMotion));
-                    AjinController.Check(
-                        AjinNative.AxmStatusReadMechanical(
-                            axis,
-                            ref mechanical),
-                        nameof(AjinNative.AxmStatusReadMechanical));
-                    moving |= inMotion != 0;
-                    inPosition &= Bit(mechanical, 5);
-                }
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var moving = false;
+                    var inPosition = true;
+                    var faulted = false;
+                    foreach (var axis in axes)
+                    {
+                        var inMotion = 0U;
+                        var mechanical = 0U;
+                        AjinController.Check(
+                            AjinNative.AxmStatusReadInMotion(axis, ref inMotion),
+                            nameof(AjinNative.AxmStatusReadInMotion));
+                        AjinController.Check(
+                            AjinNative.AxmStatusReadMechanical(
+                                axis,
+                                ref mechanical),
+                            nameof(AjinNative.AxmStatusReadMechanical));
+                        moving |= inMotion != 0;
+                        inPosition &= Bit(mechanical, 5);
+                        faulted |= Bit(mechanical, 4)
+                                   || Bit(mechanical, 6);
+                    }
 
-                PublishPosition();
-                if (!moving && inPosition)
-                {
-                    return;
-                }
+                    PublishPosition();
+                    if (faulted)
+                    {
+                        throw new InvalidOperationException(
+                            "Motion stopped by an axis fault.");
+                    }
 
-                await Task.Delay(StatusPollInterval, cancellationToken)
-                    .ConfigureAwait(false);
+                    if (!moving)
+                    {
+                        if (inPosition)
+                        {
+                            return;
+                        }
+
+                        throw new InvalidOperationException(
+                            "Motion stopped before reaching its target.");
+                    }
+
+                    await Task.Delay(StatusPollInterval, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                StopAxes();
+                throw;
+            }
+            catch (Exception exception)
+            {
+                StopAxes();
+                throw new MotionException(operation, exception);
             }
         }
         finally

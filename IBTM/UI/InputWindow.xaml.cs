@@ -23,8 +23,6 @@ public partial class InputWindow : Window
         InitializeComponent();
         DataContext = this;
         _io.InputChanged += OnInputChanged;
-        Activated += (_, _) => Refresh();
-        Refresh();
     }
 
     public InputControlRow[] Rows { get; }
@@ -45,8 +43,6 @@ public partial class InputWindow : Window
     private void OnInputChanged(InputIo input, bool value) =>
         Dispatcher.BeginInvoke((Action)(() =>
             InputList.Items.Refresh()));
-
-    private void Refresh() => InputList.Items.Refresh();
 }
 
 public sealed class InputControlRow(IIoService io, InputIo input)

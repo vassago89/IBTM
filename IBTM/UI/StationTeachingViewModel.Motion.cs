@@ -39,17 +39,17 @@ public partial class StationTeachingViewModel
     private void JogStop() => CancelMotion();
 
     private bool CanJogXY() =>
-        CanUseCurrentHandler() && CurrentMotion.IsAtSafeZ;
+        CanUseCurrentHandler() && CurrentMotion.IsAtHorizontalZ;
     private bool CanJogZ() =>
         CanUseCurrentHandler() && CurrentMotion.HasZ;
 
     [RelayCommand(CanExecute = nameof(CanJogZ))]
-    private async Task MoveToSafeZAsync(CancellationToken cancellationToken)
+    private async Task MoveToHorizontalZAsync(CancellationToken cancellationToken)
     {
         try
         {
             using var motionCancellation = LinkMotion(cancellationToken);
-            await CurrentMotion.MoveToSafeZAsync(motionCancellation.Token);
+            await CurrentMotion.MoveToHorizontalZAsync(motionCancellation.Token);
         }
         catch (OperationCanceledException)
         {
@@ -97,8 +97,7 @@ public partial class StationTeachingViewModel
     }
 
     private bool CanUseCurrentHandler() =>
-        _state.CanOperate
-        && !CurrentMotion.IsMoving
+        _state.ManualControlsEnabled
         && (SelectedMotionGroup != MotionGroup.PcbPlacementHandler
             || !_buffer.SupplyInside);
 
@@ -111,7 +110,7 @@ public partial class StationTeachingViewModel
         JogYMinusCommand.NotifyCanExecuteChanged();
         JogZPlusCommand.NotifyCanExecuteChanged();
         JogZMinusCommand.NotifyCanExecuteChanged();
-        MoveToSafeZCommand.NotifyCanExecuteChanged();
+        MoveToHorizontalZCommand.NotifyCanExecuteChanged();
         MoveToPointCommand.NotifyCanExecuteChanged();
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
         CaptureCarrierImagesCommand.NotifyCanExecuteChanged();

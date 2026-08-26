@@ -13,33 +13,34 @@ namespace IBTM.UI;
 
 public partial class StationTeachingViewModel
 {
-    private ICamera? CurrentCamera => GetCamera(SelectedMotionGroup);
+    private bool CameraSelected =>
+        SelectedMotionGroup == MotionGroup.InspectionGantry;
 
     [RelayCommand(CanExecute = nameof(CanToggleLiveView))]
     private void ToggleLiveView()
     {
         if (IsCameraLive)
         {
-            StopCamera(SelectedMotionGroup);
+            StopCamera();
             IsCameraLive = false;
             ShowRecipeImages();
         }
         else
         {
-            StartCamera(SelectedMotionGroup);
+            StartCamera();
             IsCameraLive = true;
         }
     }
 
     private bool CanToggleLiveView() =>
-        CurrentCamera is not null
+        CameraSelected
         && (IsCameraLive || CanUseCurrentHandler());
 
     [RelayCommand(CanExecute = nameof(CanCaptureCarrierImages))]
     private async Task CaptureCarrierImagesAsync(
         CancellationToken cancellationToken)
     {
-        var channel = GetLightChannel(MotionGroup.InspectionGantry);
+        var channel = _lighting.InspectionChannel;
         var scanStarted = false;
         try
         {
@@ -60,7 +61,7 @@ public partial class StationTeachingViewModel
             scanStarted = true;
             CarrierImages = [];
             LiveImage = null;
-            _light.SetLevel(channel, GetLightLevel(MotionGroup.InspectionGantry));
+            _light.SetLevel(channel, _lighting.InspectionLevel);
             _light.TurnOn(channel);
 
             for (var row = 0; row < yPositions.Count; row++)
@@ -155,45 +156,24 @@ public partial class StationTeachingViewModel
         return positions;
     }
 
-    private ICamera? GetCamera(MotionGroup motionGroup) => motionGroup switch
+    private void StartCamera()
     {
-        MotionGroup.PcbPlacementHandler => _alignmentCamera,
-        MotionGroup.InspectionGantry => _inspectionCamera,
-        _ => null,
-    };
-
-    private void StartCamera(MotionGroup motionGroup)
-    {
-        var channel = GetLightChannel(motionGroup);
-        _light.SetLevel(channel, GetLightLevel(motionGroup));
+        var channel = _lighting.InspectionChannel;
+        _light.SetLevel(channel, _lighting.InspectionLevel);
         _light.TurnOn(channel);
-        GetCamera(motionGroup)!.StartLiveView();
+        _inspectionCamera.StartLiveView();
     }
 
-    private void StopCamera(MotionGroup motionGroup)
+    private void StopCamera()
     {
-        GetCamera(motionGroup)!.StopLiveView();
-        _light.TurnOff(GetLightChannel(motionGroup));
+        _inspectionCamera.StopLiveView();
+        _light.TurnOff(_lighting.InspectionChannel);
     }
 
-    private int GetLightChannel(MotionGroup motionGroup) => motionGroup switch
-    {
-        MotionGroup.PcbPlacementHandler => _lighting.AlignmentChannel,
-        MotionGroup.InspectionGantry => _lighting.InspectionChannel,
-        _ => throw new ArgumentOutOfRangeException(nameof(motionGroup)),
-    };
-
-    private int GetLightLevel(MotionGroup motionGroup) => motionGroup switch
-    {
-        MotionGroup.PcbPlacementHandler => _lighting.AlignmentLevel,
-        MotionGroup.InspectionGantry => _lighting.InspectionLevel,
-        _ => throw new ArgumentOutOfRangeException(nameof(motionGroup)),
-    };
-
-    private void UpdateLiveImage(MotionGroup motionGroup, ImageFrame frame) =>
+    private void UpdateLiveImage(ImageFrame frame) =>
         RunOnUi(() =>
         {
-            if (SelectedMotionGroup == motionGroup)
+            if (CameraSelected)
             {
                 LiveImage = ToBitmapSource(frame);
             }

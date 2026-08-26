@@ -18,8 +18,10 @@ public enum BoltDriver
 
 public interface IBoltHead
 {
-    Task InitializeAsync(CancellationToken cancellationToken = default);
-    Task<BoltResult> TightenAsync(
+    Task CheckReadyAsync(CancellationToken cancellationToken = default);
+    Task SelectPresetAsync(
         ushort preset,
+        CancellationToken cancellationToken = default);
+    Task<BoltResult> TightenAsync(
         CancellationToken cancellationToken = default);
 }

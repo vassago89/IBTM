@@ -5,8 +5,7 @@ using IBTM.Device;
 namespace IBTM.Virtual;
 
 public sealed class VirtualCamera(
-    CameraRole role,
-    Func<(double X, double Y, double Z)>? getPosition = null) : ICamera
+    Func<(double X, double Y, double Z)> getPosition) : ICamera
 {
     public event Action<ImageFrame>? FrameReady;
 
@@ -14,10 +13,8 @@ public sealed class VirtualCamera(
     {
     }
 
-    public ImageFrame Capture()
-        => role == CameraRole.Inspection
-            ? VirtualImageFactory.CreateInspection(getPosition!())
-            : VirtualImageFactory.Fiducial;
+    public ImageFrame Capture() =>
+        VirtualImageFactory.CreateInspection(getPosition());
 
     public void StartLiveView() => FrameReady?.Invoke(Capture());
 

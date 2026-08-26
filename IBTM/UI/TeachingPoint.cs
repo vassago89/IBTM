@@ -42,11 +42,8 @@ public enum TeachingStorage
 
 public enum TeachingTarget
 {
-    [Description("Supply Safe Z")]
-    SupplySafeZ,
-
-    [Description("Supply Outside X")]
-    SupplyOutsideX,
+    [Description("Supply Rotation Z")]
+    SupplyRotationZ,
 
     [Description("Supply Carrier Y")]
     SupplyCarrierY,
@@ -78,14 +75,8 @@ public enum TeachingTarget
     [Description("Placement Buffer Boundary 2")]
     PlacementBufferBoundary2,
 
-    [Description("Placement Safe Z")]
-    PlacementSafeZ,
-
-    [Description("Fiducial 1 Capture")]
-    Fiducial1Capture,
-
-    [Description("Fiducial 2 Capture")]
-    Fiducial2Capture,
+    [Description("Placement Buffer Entry Z")]
+    PlacementBufferEntryZ,
 
     [Description("Housing 1 PCB Placement")]
     Housing1PcbPlacement,
@@ -145,7 +136,6 @@ public partial class TeachingPoint : ObservableObject
     public int BoltNumber { get; init; }
     public HousingSlot? Housing { get; init; }
     public FasteningHead? Head { get; init; }
-    public ushort? Preset { get; init; }
     [ObservableProperty] private double _x;
     [ObservableProperty] private double _y;
     [ObservableProperty] private double _z;

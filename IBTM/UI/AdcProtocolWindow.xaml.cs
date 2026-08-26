@@ -10,10 +10,10 @@ namespace IBTM.UI;
 public partial class AdcProtocolWindow : Window
 {
     private readonly CancellationTokenSource _lifetime = new();
-    private readonly AdcBus _bus;
+    private readonly IAdcBus _bus;
     private bool _openedHere;
 
-    public AdcProtocolWindow(AdcBus bus)
+    public AdcProtocolWindow(IAdcBus bus)
     {
         _bus = bus;
         InitializeComponent();
@@ -205,7 +205,7 @@ public partial class AdcProtocolWindow : Window
     private void RefreshPorts()
     {
         var selected = PortBox.SelectedItem as string;
-        var ports = AdcBus.GetPortNames();
+        var ports = _bus.GetPortNames();
         PortBox.ItemsSource = ports;
         PortBox.SelectedItem = ports.Contains(selected) ? selected : ports.FirstOrDefault();
         ConnectButton.IsEnabled = ports.Length > 0;

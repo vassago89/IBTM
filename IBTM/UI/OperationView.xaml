@@ -3,26 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
              xmlns:ui="clr-namespace:IBTM.UI"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
              Background="{StaticResource AppBgBrush}">
-
-    <UserControl.Resources>
-        <Style x:Key="IoLedStyle" TargetType="Ellipse">
-            <Setter Property="Width" Value="9"/>
-            <Setter Property="Height" Value="9"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Fill" Value="{StaticResource AccentRedBrush}"/>
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                             Value="True">
-                    <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-    </UserControl.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -68,19 +52,19 @@
                                     VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
                                 <Ellipse Tag="{Binding EmergencyStopReleased}"
-                                         Style="{StaticResource IoLedStyle}"/>
+                                         Style="{StaticResource StatusLedStyle}"/>
                                 <TextBlock Text="E-STOP RELEASED"
                                            Style="{StaticResource SafetyTextStyle}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
                                 <Ellipse Tag="{Binding DoorClosed}"
-                                         Style="{StaticResource IoLedStyle}"/>
+                                         Style="{StaticResource StatusLedStyle}"/>
                                 <TextBlock Text="DOORS CLOSED"
                                            Style="{StaticResource SafetyTextStyle}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <Ellipse Tag="{Binding AirPressureOk}"
-                                         Style="{StaticResource IoLedStyle}"/>
+                                         Style="{StaticResource StatusLedStyle}"/>
                                 <TextBlock Text="AIR OK"
                                            Style="{StaticResource SafetyTextStyle}"/>
                             </StackPanel>
@@ -112,43 +96,8 @@
                 BorderBrush="{StaticResource DividerBrush}"
                 BorderThickness="0,1,0,0">
             <Grid Margin="16,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0"
-                            Orientation="Horizontal"
-                            HorizontalAlignment="Left"
-                            VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal">
-                        <StackPanel.Style>
-                            <Style TargetType="StackPanel">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Driver}"
-                                                 Value="{x:Static device:ControlDriver.Virtual}">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </StackPanel.Style>
-                        <TextBlock Text="VIRTUAL TRANSFER"
-                                   Style="{StaticResource SectionHeaderStyle}"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,12,0"/>
-                        <Button Content="Supply to Buffer"
-                                Command="{Binding SupplyToBufferCommand}"
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                Margin="0,0,6,0"/>
-                        <Button Content="Buffer to Placement"
-                                Command="{Binding BufferToPlacementCommand}"
-                                Style="{StaticResource SecondaryButtonStyle}"/>
-                    </StackPanel>
-                </StackPanel>
-
-                <StackPanel Grid.Column="1"
-                            Orientation="Horizontal"
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
                             VerticalAlignment="Center">
                     <Button Content="Home All"
                             Command="{Binding HomeCommand}"

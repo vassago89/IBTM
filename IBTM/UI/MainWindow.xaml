@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:ui="clr-namespace:IBTM.UI"
+        xmlns:training="clr-namespace:IBTM.Inspection.Training;assembly=IBTM.Inspection.Training"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=ui:MainViewModel, IsDesignTimeCreatable=False}"
         Title="IBTM - Inline Assembly Control"
@@ -28,6 +29,9 @@
         </DataTemplate>
         <DataTemplate DataType="{x:Type ui:SettingsViewModel}">
             <ui:SettingsView/>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type training:BoltTrainingViewModel}">
+            <training:BoltTrainingView/>
         </DataTemplate>
     </Window.Resources>
 
@@ -120,6 +124,24 @@
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}"
                                                  Value="{x:Static ui:AppPage.Settings}">
+                                        <Setter Property="IsChecked" Value="True"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </RadioButton.Style>
+                    </RadioButton>
+
+                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.BoltTraining},
+                                                   Converter={StaticResource EnumDescriptionConverter}}"
+                                 GroupName="Navigation"
+                                 Command="{Binding NavigateCommand}"
+                                 CommandParameter="{x:Static ui:AppPage.BoltTraining}">
+                        <RadioButton.Style>
+                            <Style TargetType="RadioButton"
+                                   BasedOn="{StaticResource NavButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedPage}"
+                                                 Value="{x:Static ui:AppPage.BoltTraining}">
                                         <Setter Property="IsChecked" Value="True"/>
                                     </DataTrigger>
                                 </Style.Triggers>

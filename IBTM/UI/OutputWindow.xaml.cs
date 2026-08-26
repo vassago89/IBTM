@@ -25,7 +25,6 @@ public partial class OutputWindow : Window
         DataContext = this;
         _io.InputChanged += OnInputChanged;
         _io.OutputChanged += OnOutputChanged;
-        Activated += (_, _) => Refresh();
     }
 
     public OutputControlRow[] Rows { get; }

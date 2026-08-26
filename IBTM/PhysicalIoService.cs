@@ -27,6 +27,7 @@ public sealed class PhysicalIoService(
 
     public event Action<InputIo, bool>? InputChanged;
     public event Action<OutputIo, bool>? OutputChanged;
+    public event Action? Faulted;
     public int TimeoutMilliseconds => options.TimeoutMilliseconds;
 
     public void Initialize()
@@ -41,6 +42,31 @@ public sealed class PhysicalIoService(
         _inputMonitor = new CancellationTokenSource();
         _inputMonitorTask = Task.Run(
             () => MonitorInputsAsync(_inputMonitor.Token));
+    }
+
+    public void CheckReady()
+    {
+        foreach (var channel in inputMap.Values.Distinct())
+        {
+            _ = ReadInput(channel);
+        }
+
+        foreach (var output in outputMap.Values)
+        {
+            _ = ReadOutput(output.Number);
+            if (output.OffNumber is { } offChannel)
+            {
+                _ = ReadOutput(offChannel);
+            }
+        }
+
+        if (_inputMonitorTask?.IsFaulted == true)
+        {
+            _inputMonitor?.Dispose();
+            _inputMonitor = new CancellationTokenSource();
+            _inputMonitorTask = Task.Run(
+                () => MonitorInputsAsync(_inputMonitor.Token));
+        }
     }
 
     public bool GetInput(InputIo input) => ReadInput(inputMap[input]);
@@ -121,6 +147,11 @@ public sealed class PhysicalIoService(
         catch (OperationCanceledException) when (
             cancellationToken.IsCancellationRequested)
         {
+        }
+        catch
+        {
+            Faulted?.Invoke();
+            throw;
         }
     }
 }

@@ -29,6 +29,19 @@
         <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
+    <Style x:Key="StatusLedStyle" TargetType="Ellipse">
+        <Setter Property="Width" Value="9"/>
+        <Setter Property="Height" Value="9"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Fill" Value="{StaticResource AccentRedBrush}"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="True">
+                <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="StateTextStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource MapHintStyle}">
@@ -52,6 +65,11 @@
                          Value="{x:Static ui:MachineDisplayState.Ready}">
                 <Setter Property="Background" Value="#172A1E"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:MachineDisplayState.ManualMode}">
+                <Setter Property="Background" Value="#2A2416"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:MachineDisplayState.HomeRequired}">
@@ -96,11 +114,6 @@
                 <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:HandlerDisplayState.HousingDetected}">
-                <Setter Property="Background" Value="#172A1E"/>
-                <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:HandlerDisplayState.PcbDetected}">
                 <Setter Property="Background" Value="#172238"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
@@ -109,11 +122,6 @@
                          Value="{x:Static ui:HandlerDisplayState.Moving}">
                 <Setter Property="Background" Value="#172238"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:HandlerDisplayState.PcbOnBuffer}">
-                <Setter Property="Background" Value="#2A2416"/>
-                <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:HandlerDisplayState.IoAlarm}">
@@ -136,6 +144,16 @@
                          Value="{x:Static ui:StationDisplayState.Working}">
                 <Setter Property="Background" Value="#172238"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:StationDisplayState.CarrierOk}">
+                <Setter Property="Background" Value="#172A1E"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="{x:Static ui:StationDisplayState.CarrierNg}">
+                <Setter Property="Background" Value="#32191B"/>
+                <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:StationDisplayState.IoAlarm}">
@@ -287,11 +305,6 @@
            TargetType="Border"
            BasedOn="{StaticResource StageBodyStyle}">
         <Style.Triggers>
-            <DataTrigger Binding="{Binding BufferOccupied}" Value="True">
-                <Setter Property="Background" Value="#172238"/>
-                <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-                <Setter Property="BorderThickness" Value="2"/>
-            </DataTrigger>
             <DataTrigger Binding="{Binding PcbBufferPcbPresent}" Value="True">
                 <Setter Property="Background" Value="#244C32"/>
                 <Setter Property="BorderBrush" Value="{StaticResource MaterialPcbBrush}"/>

@@ -14,12 +14,14 @@ public sealed class VirtualMotionService(
     (double Minimum, double Maximum)? xRange = null,
     (double Minimum, double Maximum)? yRange = null,
     (double Minimum, double Maximum)? zRange = null,
-    double resolutionMillimeters = 0.01)
+    double resolutionMillimeters = 0.01,
+    Func<double>? horizontalZ = null)
     : MotionService(
         settings,
         operationCancellation,
         hasY,
         hasZ,
+        horizontalZ,
         xRange,
         yRange,
         zRange), IDisposable

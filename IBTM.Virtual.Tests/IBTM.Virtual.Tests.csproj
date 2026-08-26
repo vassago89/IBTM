@@ -18,7 +18,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\IBTM.BoltFeeder\IBTM.BoltFeeder.csproj" />
+    <ProjectReference Include="..\IBTM.BoltFastening\IBTM.BoltFastening.csproj" />
+    <ProjectReference Include="..\IBTM.Conveyor\IBTM.Conveyor.csproj" />
+    <ProjectReference Include="..\IBTM.Hantas\IBTM.Hantas.csproj" />
+    <ProjectReference Include="..\IBTM.Inspection\IBTM.Inspection.csproj" />
+    <ProjectReference Include="..\IBTM.NgConveyor\IBTM.NgConveyor.csproj" />
     <ProjectReference Include="..\IBTM.PcbBuffer\IBTM.PcbBuffer.csproj" />
+    <ProjectReference Include="..\IBTM.PcbPlacement\IBTM.PcbPlacement.csproj" />
     <ProjectReference Include="..\IBTM.PcbSupply\IBTM.PcbSupply.csproj" />
     <ProjectReference Include="..\IBTM.Virtual\IBTM.Virtual.csproj" />
   </ItemGroup>

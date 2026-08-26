@@ -1,12 +1,15 @@
+using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.PcbPlacement;
-using IBTM.PcbSupply;
+using IBTM.Inspection;
+using IBTM.NgConveyor;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.UI;
@@ -15,25 +18,20 @@ public partial class OperationViewModel : ObservableObject
 {
     private readonly MachineState _state;
     private readonly MachineController _machine;
-    private readonly PcbSupplyProcess _pcbSupply;
-    private readonly PcbPlacementProcess _pcbPlacement;
-    private readonly Recipe _recipe;
     private readonly IIoService _io;
     private readonly IReadOnlyDictionary<MachineAxis, AxisHardware> _axes;
     private readonly IAxisMotion _pcbSupplyMotion;
     private readonly IXyMotion _pcbPlacementMotion;
     private readonly IXyMotion _boltFasteningMotion;
     private readonly IXyMotion _inspectionGantryMotion;
+    private readonly InspectionWork _inspectionWork;
 
     public OperationViewModel(
         MachineState state,
-        DriverSettings drivers,
         MachineController machine,
-        PcbSupplyProcess pcbSupply,
-        PcbPlacementProcess pcbPlacement,
-        Recipe recipe,
         IIoService io,
         IReadOnlyDictionary<MachineAxis, AxisHardware> axes,
+        InspectionWork inspectionWork,
         [FromKeyedServices(MotionGroup.PcbSupply)] IAxisMotion pcbSupplyMotion,
         [FromKeyedServices(MotionGroup.PcbPlacementHandler)] IXyMotion pcbPlacementMotion,
         [FromKeyedServices(MotionGroup.BoltFastening)] IXyMotion boltFasteningMotion,
@@ -41,12 +39,9 @@ public partial class OperationViewModel : ObservableObject
     {
         _state = state;
         _machine = machine;
-        _pcbSupply = pcbSupply;
-        _pcbPlacement = pcbPlacement;
-        _recipe = recipe;
         _io = io;
-        Driver = drivers.Control;
         _axes = axes;
+        _inspectionWork = inspectionWork;
         _pcbSupplyMotion = pcbSupplyMotion;
         _pcbPlacementMotion = pcbPlacementMotion;
         _boltFasteningMotion = boltFasteningMotion;
@@ -55,11 +50,8 @@ public partial class OperationViewModel : ObservableObject
         pcbPlacementMotion.PositionChanged += OnPcbPlacementPositionChanged;
         boltFasteningMotion.PositionChanged += OnBoltFasteningPositionChanged;
         inspectionGantryMotion.PositionChanged += OnInspectionGantryPositionChanged;
+        inspectionWork.Changed += OnMachineStateChanged;
         state.Changed += OnMachineStateChanged;
-        SupplyToBufferCommand.PropertyChanged += (_, _) =>
-            RunOnUi(StartCommand.NotifyCanExecuteChanged);
-        BufferToPlacementCommand.PropertyChanged += (_, _) =>
-            RunOnUi(StartCommand.NotifyCanExecuteChanged);
     }
 
     public string PcbSupplyPosition
@@ -161,6 +153,13 @@ public partial class OperationViewModel : ObservableObject
         Input(InputIo.BoltHead1Down);
     public bool BoltHead2Down =>
         Input(InputIo.BoltHead2Down);
+    public bool PickupFeederReady =>
+        Input(InputIo.PickupFeederBoltDetected);
+    public bool LinearFeederReady =>
+        Input(InputIo.LinearFeederBoltDetected);
+    public bool ShootingEscapeBack =>
+        Input(InputIo.ShootingEscapeBackward)
+        && !Input(InputIo.ShootingEscapeForward);
     public bool NgCarrierGripperClosed =>
         Input(InputIo.NgCarrierGripperClosed);
     public bool NgCarrierJigDetected =>
@@ -173,10 +172,10 @@ public partial class OperationViewModel : ObservableObject
         Input(InputIo.NgConveyorPosition2Occupied);
     public bool NgConveyorPosition3Occupied =>
         Input(InputIo.NgConveyorPosition3Occupied);
+    public NgConveyorState NgConveyorState =>
+        _state.NgConveyorState;
     public bool IsHoming => _state.IsHoming;
-    public ControlDriver Driver { get; }
     public bool ConveyorRunning => _state.ConveyorRunning;
-    public bool BufferOccupied => _state.BufferOccupied;
     public bool BoltFasteningMoving => _boltFasteningMotion.IsMoving;
     public bool InspectionGantryMoving => _inspectionGantryMotion.IsMoving;
     public bool PcbSupplyActive =>
@@ -186,10 +185,6 @@ public partial class OperationViewModel : ObservableObject
         _pcbPlacementMotion.IsMoving
         || _state.PlacementInBufferArea;
     public bool BufferConflict => _state.BufferConflict;
-    public bool PcbPlacementHasHousing =>
-        HasHousing(
-            InputIo.PcbPlacementHousing1Present,
-            InputIo.PcbPlacementHousing2Present);
     public bool BoltFasteningHasHousing =>
         HasHousing(
             InputIo.BoltFasteningHousing1Present,
@@ -225,61 +220,70 @@ public partial class OperationViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanStopHome))]
     private void StopHome() => HomeCommand.Cancel();
 
-    [RelayCommand(CanExecute = nameof(CanSupplyToBuffer))]
-    private async Task SupplyToBufferAsync()
-    {
-        try
-        {
-            await _pcbSupply.MoveToBufferAsync();
-        }
-        catch (IoTimeoutException)
-        {
-            _state.SetError(MachineAlarm.Supply);
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanBufferToPlacement))]
-    private async Task BufferToPlacementAsync()
-    {
-        try
-        {
-            await _pcbPlacement.PickFromBufferAsync(
-                _recipe.PcbPlacement);
-        }
-        catch (IoTimeoutException)
-        {
-            _state.SetError(MachineAlarm.Placement);
-        }
-    }
-
-    private bool CanStart() =>
-        _machine.CanStart
-        && !SupplyToBufferCommand.IsRunning
-        && !BufferToPlacementCommand.IsRunning;
+    private bool CanStart() => _machine.CanStart;
     private bool CanReset() => _machine.CanReset;
     private bool CanHome() => _machine.CanHome;
     private bool CanStopHome() => _state.IsHoming;
-    private bool CanSupplyToBuffer() =>
-        !_state.AutomaticRunning
-        && _state.CanOperate
-        && _pcbSupply.CanMoveToBuffer;
-    private bool CanBufferToPlacement() =>
-        !_state.AutomaticRunning
-        && _state.CanOperate
-        && _pcbPlacement.CanPickFromBuffer;
-
     private void NotifyCanExecuteChanged()
     {
         StartCommand.NotifyCanExecuteChanged();
         ResetCommand.NotifyCanExecuteChanged();
         HomeCommand.NotifyCanExecuteChanged();
         StopHomeCommand.NotifyCanExecuteChanged();
-        SupplyToBufferCommand.NotifyCanExecuteChanged();
-        BufferToPlacementCommand.NotifyCanExecuteChanged();
     }
 
     private bool Input(InputIo input) => _io.GetInput(input);
 
     private bool HasHousing(InputIo housing1, InputIo housing2) =>
         Input(housing1) || Input(housing2);
+
+    private static string FormatPosition(
+        (double X, double Y, double Z) position) =>
+        $"X {position.X:F3}   Y {position.Y:F3}   Z {position.Z:F3}";
+
+    private static string FormatXyPosition(
+        (double X, double Y, double Z) position) =>
+        $"X {position.X:F3}   Y {position.Y:F3}";
+
+    private void OnPcbSupplyPositionChanged(double x, double y, double z) =>
+        RunOnUi(() =>
+        {
+            OnPropertyChanged(nameof(PcbSupplyPosition));
+            OnPropertyChanged(nameof(PcbSupplyMapLeft));
+            OnPropertyChanged(nameof(PcbSupplyMapTop));
+        });
+
+    private void OnPcbPlacementPositionChanged(double x, double y, double z) =>
+        RunOnUi(() =>
+        {
+            OnPropertyChanged(nameof(PcbPlacementPosition));
+            OnPropertyChanged(nameof(PcbPlacementMapLeft));
+            OnPropertyChanged(nameof(PcbPlacementMapTop));
+        });
+
+    private void OnBoltFasteningPositionChanged(double x, double y, double z) =>
+        RunOnUi(() =>
+        {
+            OnPropertyChanged(nameof(BoltFasteningPosition));
+            OnPropertyChanged(nameof(BoltFasteningMapLeft));
+            OnPropertyChanged(nameof(BoltFasteningMapTop));
+        });
+
+    private void OnInspectionGantryPositionChanged(double x, double y, double z) =>
+        RunOnUi(() =>
+        {
+            OnPropertyChanged(nameof(InspectionGantryPosition));
+            OnPropertyChanged(nameof(InspectionGantryMapLeft));
+            OnPropertyChanged(nameof(InspectionGantryMapTop));
+        });
+
+    private void OnMachineStateChanged() =>
+        RunOnUi(() =>
+        {
+            OnPropertyChanged(new PropertyChangedEventArgs(null));
+            NotifyCanExecuteChanged();
+        });
+
+    private static void RunOnUi(Action action) =>
+        Application.Current.Dispatcher.BeginInvoke(action);
 }

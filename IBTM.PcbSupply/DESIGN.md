@@ -18,29 +18,44 @@ The supply handler:
 - places the PCB at the taught Buffer X/Y and Place Z; and
 - releases the upstream carrier after both PCB positions have been checked.
 
-PCB position selection is work progress, not physical handler state:
+The upstream carrier transaction is one process step, separate from the live
+handler state:
 
 ```csharp
-public enum PcbCarrierSlot
+private enum PcbSupplyStep
 {
+    ResolvingHandler,
+    WaitingForCarrier,
     Pcb1,
     Pcb2,
+    WaitingForCarrierExit,
 }
 ```
 
+`ResolvingHandler` completes a PCB or rotated handler state that already exists
+when Start is pressed. It does not advance the newly observed upstream carrier.
+After the handler returns unrotated, the current Board Available input selects
+PCB 1 or `WaitingForCarrier`.
+
+`Pcb1` and `Pcb2` identify the current source position. After the PCB 2 check,
+`WaitingForCarrierExit` keeps the existing Board Available signal from being
+mistaken for a new carrier. Board Available OFF changes it to
+`WaitingForCarrier`.
+
 ## Horizontal movement
 
-Supply X and Y never move together. Y changes only while the handler is
-outside, and Buffer entry or exit moves X while Y remains fixed. Homing moves
-X to the outside home before homing Y. The project receives `IAxisMotion`, so
+Supply X and Y never move together. Buffer entry moves Y and then X. Buffer
+exit moves X to its home position while Y remains fixed. Homing moves X before
+homing Y. The project receives `IAxisMotion`, so
 coordinated XY commands are not available to Supply code.
 
 ## Buffer handoff
 
 Supply and Placement overlap only at their taught Buffer handoff positions.
 Placement secures the PCB with vacuum and the loose IPM with its IPM gripper.
-After both feedback inputs are confirmed, Placement asks the Supply process to
-retract its IPM fixer and leave the Buffer. See
+After both feedback inputs are confirmed at the taught handoff position, Supply
+retracts its IPM fixer and leaves the Buffer. Placement waits until Supply is
+outside before leaving. See
 [`BufferStage`](../IBTM.PcbBuffer/DESIGN.md).
 
 The Buffer PCB-present input is confirmed. Additional Buffer actuators and
@@ -51,7 +66,8 @@ clearance inputs have not been confirmed yet.
 The automatic trigger is based on digital inputs. An output value is never used
 as proof that a pneumatic actuator reached its commanded position.
 
-The supply state only describes the two confirmed rotation endpoints:
+Rotation, Nest, IPM fixer, and PCB state are calculated from the current inputs.
+They are not retained in process memory. Rotation has three values:
 
 ```csharp
 public enum PcbSupplyRotation
@@ -71,29 +87,30 @@ public enum PcbSupplyRotation
 `Unrotated` and `Rotated` describe orientation, not the handler's X/Y/Z
 coordinates.
 
-The PCB-detection sensor is independent of the Nest and IPM fixer. Its input only means
-that a PCB is within the sensor's detection range; it does not prove that the
-handler holds the PCB. Automatic motion uses PCB detected, Nest forward, and
-IPM fixer forward as its normal secured condition, but none is stored as a separate
-`HasPcb` state.
+Nest and IPM fixer each use `Backward`, `Between`, and `Forward`. `Between`
+also covers an invalid pair where both endpoint inputs are ON, so it is never
+mistaken for either completed endpoint.
 
-`PcbSupplyHandler` is the only production class that reads Supply IO. The
-process consumes its live properties and publishes one cross-project condition:
+The PCB-detection sensor is independent of the Nest and IPM fixer. Its input only
+means that a PCB is within the sensor's detection range; it does not prove that
+the handler holds the PCB. The live PCB state is:
 
-```text
-ReadyForHandoff = PCB secured AND Supply stopped at Buffer Handoff
-```
+| State | Confirmed inputs |
+| --- | --- |
+| `None` | PCB detection OFF |
+| `Detected` | PCB detection ON without both fixing mechanisms forward |
+| `Secured` | PCB detection, Nest forward, and IPM fixer forward ON |
 
-Placement does not read Supply PCB, Nest, or IPM-fixer inputs directly.
+`PcbSupplyHandler` is the only production class that reads Supply IO. Placement
+does not read Supply PCB, Nest, or IPM-fixer inputs directly. Both processes use
+the live handoff state published by `BufferStage`.
 
 Every relevant input change re-evaluates the behavior of the current state.
-PCB/fixer input combinations are branch conditions inside a state, not
-additional enum values.
 
 ## Compound rotation operation
 
 Rotation in either direction is one handler operation. Callers must not command
-Safe Z and the pneumatic rotation separately.
+Rotation Z and the pneumatic rotation separately.
 
 The recovery-only move to the lower Z positive limit is permitted only while the
 rotated-position input is confirmed. An output command is not accepted as proof of
@@ -117,12 +134,12 @@ rotated input ON
 ```
 
 Rotation completes before Z starts moving. X homing at the lower Z limit is a
-narrow homing exception to the normal Safe Z rule.
+narrow homing exception to the normal Rotation Z rule.
 
 Rotate:
 
 ```text
-Safe Z
+Rotation Z
   -> rotation output ON
   -> rotated input ON
 ```
@@ -130,12 +147,12 @@ Safe Z
 Unrotate:
 
 ```text
-Safe Z
+Rotation Z
   -> rotation output OFF
   -> unrotated input ON
 ```
 
-The reverse rotation uses the same Safe Z rule.
+The reverse rotation uses the same Rotation Z rule.
 
 The Supply path uses two Y coordinates. PCB 1 and PCB 2 share the upstream
 carrier Y because they are arranged horizontally; the Buffer has its own Y.
@@ -143,9 +160,8 @@ carrier Y because they are arranged horizontally; the Buffer has its own Y.
 Machine teaching values:
 
 ```text
-Safe Z
+Rotation Z
 Carrier Y
-Outside X
 Buffer Handoff X/Y/Z
 Buffer Clear Z
 Supply collision boundary 1 / 2
@@ -160,9 +176,15 @@ PCB 2 Pick X/Z
 ```
 
 Positive Z points downward, so Clear Z must be greater than Place Z. The only
-horizontal movement below Safe Z is the X-only exit from Buffer to the taught
-Outside X. Buffer Y stays fixed and the handler remains rotated at the confirmed
+horizontal movement below Rotation Z is the X-only exit from Buffer to the X home
+position. Buffer Y stays fixed and the handler remains rotated at the confirmed
 Clear Z.
+
+While Supply is inside its Buffer collision range, manual Y, Z, and rotation
+commands are disabled. A manual point move to the Buffer requires the rotated
+input; a PCB pick point requires the unrotated input. The release-and-exit
+operation above is the only automatic path that lowers Z and moves out of that
+range.
 
 ## SMEMA and carrier ownership
 
@@ -181,12 +203,13 @@ PCB 2 belongs to the same upstream carrier. After PCB 1 has been placed on the b
 the supply handler is unrotated again, PCB 2 is checked without waiting for
 another SMEMA handshake.
 
-The Board Available OFF transition completes `ReleasingCarrier` even if it occurs
+The Board Available OFF transition completes `WaitingForCarrierExit` even if it occurs
 while the handler is still moving the second PCB to the Buffer. A following ON is
 therefore accepted as the next carrier after the current physical move is resolved.
 
-Supply pickup does not wait for the Buffer or Placement handler. While the Buffer
-is occupied or Placement is using it, Supply may pick the next PCB, move to Safe Z,
+Supply pickup does not wait for the Buffer or Placement handler. While a PCB is
+detected at the Buffer or Placement is inside its collision area, Supply may pick
+the next PCB, move to Rotation Z,
 rotate, and wait while holding the PCB. It enters the Buffer only after Placement
 has left the collision area.
 
@@ -202,13 +225,15 @@ dedicated PCB sensor before advancing the IPM fixer.
 PCB detected:
 
 ```text
-Move to selected PCB position
+X home
+  -> Carrier Y
+  -> selected PCB X/Z
   -> PCB input ON
   -> Supply Nest forward
   -> Supply Nest-forward input ON
   -> IPM fixer forward
   -> IPM fixer-forward input ON
-  -> Safe Z
+  -> Rotation Z
   -> rotate
   -> move to Buffer X/Y and Place Z
 ```
@@ -218,7 +243,7 @@ PCB 1 not detected:
 ```text
 PCB 1 input OFF
   -> do not move the IPM fixer
-  -> Safe Z
+  -> Rotation Z
   -> move to PCB 2
 ```
 
@@ -227,10 +252,10 @@ PCB 2 not detected:
 ```text
 PCB 2 input OFF
   -> do not move the IPM fixer
-  -> Safe Z
+  -> Rotation Z
   -> mark the upstream carrier complete
   -> upstream Machine Ready ON
-  -> reset the next slot to PCB 1
+  -> wait for the existing Board Available signal to turn OFF
   -> wait for the next carrier
 ```
 
@@ -242,12 +267,12 @@ handler remains `Unrotated`.
 After PCB 1 is picked and rotated, the upstream carrier remains in place because
 PCB 2 has not been checked.
 
-After the PCB 2 check/pick operation has returned to Safe Z:
+After the PCB 2 check/pick operation has returned to Rotation Z:
 
 ```text
 mark the upstream carrier complete
   -> upstream Machine Ready ON
-  -> reset the next slot to PCB 1
+  -> wait for the existing Board Available signal to turn OFF
   -> rotate when a PCB was detected
   -> move the held PCB to the taught supply buffer position
 ```
@@ -261,20 +286,26 @@ The confirmed high-level `Rotated` flow is:
 
 ```text
 Supply PCB detected, Nest forward, and IPM fixer forward
-  -> wait while Placement occupies the Buffer
-  -> move to Buffer X/Y and Place Z
+  -> wait while Placement is inside the Buffer collision area
+  -> Buffer Y
+  -> Buffer X and Place Z
   -> wait for Placement PCB, vacuum, and IPM-gripper inputs
   -> retract Supply IPM fixer
   -> retract Supply Nest
   -> move down to Clear Z
   -> X origin outside the machine with Y unchanged, clear of the Buffer
-  -> Safe Z
+  -> Rotation Z
   -> unrotate
 ```
 
 The Buffer PCB-present input proves that the PCB reached the handoff position.
-Supply stays there until Placement secures the assembly. Placement calls the
-Supply process only for the final release and Supply exit operation.
+Supply stays there until Placement secures the assembly. Supply observes that
+live handoff state and performs its own release and exit operation. Placement
+waits until Supply is physically outside the Buffer.
+
+If Stop interrupts the release after either Supply cylinder has retracted,
+restart repeats both retract commands and the Buffer exit from the current live
+position. No recovery step is stored.
 
 After the PCB 1 buffer placement and unrotation, check PCB 2 on the same carrier.
 After the PCB 2 buffer placement and unrotation, wait for the next accepted SMEMA carrier and
@@ -292,9 +323,9 @@ recovery is not yet defined for:
 - additional Buffer Stage clearance inputs; or
 - any Buffer Stage clamp, lift, or other actuator.
 
-Stop does not retain the PCB 1/PCB 2 work index. Every Start begins logically from
-PCB 1, while the current digital-input state always takes priority over that work
-index:
+Stop does not retain `PcbSupplyStep`. Every Start uses the current Board
+Available input to select PCB 1 or wait for a carrier, while current handler and
+Buffer state always take priority:
 
 ```text
 Start

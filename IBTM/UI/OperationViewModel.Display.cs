@@ -37,6 +37,11 @@ public partial class OperationViewModel
                 return MachineDisplayState.HomeRequired;
             }
 
+            if (_state.ManualMode)
+            {
+                return MachineDisplayState.ManualMode;
+            }
+
             return _state.IsRunning
                 ? MachineDisplayState.Running
                 : MachineDisplayState.Ready;
@@ -60,11 +65,6 @@ public partial class OperationViewModel
             if (PcbSupplyPcbDetected)
             {
                 return HandlerDisplayState.PcbDetected;
-            }
-
-            if (PcbBufferPcbPresent)
-            {
-                return HandlerDisplayState.PcbOnBuffer;
             }
 
             return PcbSupplyAvailableFromFront1
@@ -92,19 +92,14 @@ public partial class OperationViewModel
                 return HandlerDisplayState.PcbDetected;
             }
 
-            if (PcbBufferPcbPresent)
-            {
-                return HandlerDisplayState.PcbOnBuffer;
-            }
-
-            return PcbPlacementHasHousing
-                ? HandlerDisplayState.HousingDetected
-                : HandlerDisplayState.NoHousing;
+            return HandlerDisplayState.WaitingForPcb;
         }
     }
 
     public StationDisplayState BoltDisplayState =>
-        _state.Alarm == MachineAlarm.BoltFastening
+        _state.Alarm is MachineAlarm.PickupBoltFeeder
+            or MachineAlarm.LinearBoltFeeder
+            or MachineAlarm.BoltFastening
             ? StationDisplayState.IoAlarm
             : BoltFasteningMoving || BoltHead1Down || BoltHead2Down
                 ? StationDisplayState.Working
@@ -113,11 +108,17 @@ public partial class OperationViewModel
                     : StationDisplayState.NoHousing;
 
     public StationDisplayState InspectionDisplayState =>
-        InspectionGantryMoving
-            ? StationDisplayState.Working
-            : InspectionHasHousing
-                ? StationDisplayState.HousingDetected
-                : StationDisplayState.NoHousing;
+        _state.Alarm == MachineAlarm.Inspection
+            ? StationDisplayState.IoAlarm
+            : InspectionGantryMoving
+                ? StationDisplayState.Working
+                : _inspectionWork.Completed
+                    ? _inspectionWork.HasNg
+                        ? StationDisplayState.CarrierNg
+                        : StationDisplayState.CarrierOk
+                    : InspectionHasHousing
+                        ? StationDisplayState.HousingDetected
+                        : StationDisplayState.NoHousing;
 
     private double MapAxis(
         double position,

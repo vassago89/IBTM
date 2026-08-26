@@ -5,6 +5,7 @@ using System.Windows;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.PcbSupply;
 
 namespace IBTM.UI;
 
@@ -13,7 +14,13 @@ public partial class SupplyTeachingViewModel
     public MotionGroup ActiveMotionGroup =>
         SelectedPoint?.MotionGroup ?? MotionGroup.PcbSupply;
     public bool HasY => CurrentMotion.HasY;
-    public double SafeZ => CurrentSettings.SafeZ;
+    public double HorizontalZ => ActiveMotionGroup == MotionGroup.PcbSupply
+        ? _supplySettings.RotationZ
+        : _placementSettings.BufferEntryZ;
+    public TeachingTarget HorizontalZTarget =>
+        ActiveMotionGroup == MotionGroup.PcbSupply
+            ? TeachingTarget.SupplyRotationZ
+            : TeachingTarget.PlacementBufferEntryZ;
 
     private IAxisMotion CurrentMotion => GetMotion(ActiveMotionGroup);
     private MotionSettings CurrentSettings =>
@@ -27,7 +34,8 @@ public partial class SupplyTeachingViewModel
 
         OnPropertyChanged(nameof(ActiveMotionGroup));
         OnPropertyChanged(nameof(HasY));
-        OnPropertyChanged(nameof(SafeZ));
+        OnPropertyChanged(nameof(HorizontalZ));
+        OnPropertyChanged(nameof(HorizontalZTarget));
         NotifyManualTeachingCommands();
         RefreshPosition();
     }
@@ -48,11 +56,11 @@ public partial class SupplyTeachingViewModel
     private void JogYMinus() =>
         CurrentMotion.JogY(-JogSpeed, _motionCancellation.Token);
 
-    [RelayCommand(CanExecute = nameof(CanUseCurrentHandler))]
+    [RelayCommand(CanExecute = nameof(CanJogZ))]
     private void JogZPlus() =>
         CurrentMotion.JogZ(JogSpeed, _motionCancellation.Token);
 
-    [RelayCommand(CanExecute = nameof(CanUseCurrentHandler))]
+    [RelayCommand(CanExecute = nameof(CanJogZ))]
     private void JogZMinus() =>
         CurrentMotion.JogZ(-JogSpeed, _motionCancellation.Token);
 
@@ -60,24 +68,32 @@ public partial class SupplyTeachingViewModel
     private void JogStop() => CancelMotion();
 
     private bool CanJogX() =>
-        CanUseCurrentHandler() && CurrentMotion.IsAtSafeZ;
+        CanUseCurrentHandler() && CurrentMotion.IsAtHorizontalZ;
     private bool CanJogY() =>
-        CanUseCurrentHandler() && HasY && CurrentMotion.IsAtSafeZ;
+        CanUseCurrentHandler()
+        && HasY
+        && CurrentMotion.IsAtHorizontalZ
+        && (ActiveMotionGroup != MotionGroup.PcbSupply
+            || !_buffer.SupplyInside);
+    private bool CanJogZ() =>
+        CanUseCurrentHandler()
+        && (ActiveMotionGroup != MotionGroup.PcbSupply
+            || !_buffer.SupplyInside);
 
-    [RelayCommand(CanExecute = nameof(CanUseCurrentHandler))]
-    private async Task MoveToSafeZAsync(CancellationToken cancellationToken)
+    [RelayCommand(CanExecute = nameof(CanJogZ))]
+    private async Task MoveToHorizontalZAsync(CancellationToken cancellationToken)
     {
         try
         {
             using var motionCancellation = LinkMotion(cancellationToken);
-            await CurrentMotion.MoveToSafeZAsync(motionCancellation.Token);
+            await CurrentMotion.MoveToHorizontalZAsync(motionCancellation.Token);
         }
         catch (OperationCanceledException)
         {
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
+    [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
     private async Task MoveToPointAsync(CancellationToken cancellationToken)
     {
         var point = SelectedPoint!;
@@ -125,15 +141,15 @@ public partial class SupplyTeachingViewModel
                     cancellationToken);
                 break;
             case TeachMode.XYOnly:
-                await MoveSupplyHorizontalAsync(
+                await _supplyHandler.MoveHorizontalAsync(
                     point.X,
                     point.Y,
                     cancellationToken);
                 break;
             case TeachMode.XZOnly:
-                await _supplyMotion.MoveXAsync(
+                await _supplyHandler.MoveHorizontalAsync(
                     point.X,
-                    speed.HorizontalSpeed,
+                    point.Y,
                     cancellationToken);
                 await _supplyMotion.MoveZAsync(
                     point.Z,
@@ -141,7 +157,7 @@ public partial class SupplyTeachingViewModel
                     cancellationToken);
                 break;
             case TeachMode.Full:
-                await MoveSupplyHorizontalAsync(
+                await _supplyHandler.MoveHorizontalAsync(
                     point.X,
                     point.Y,
                     cancellationToken);
@@ -155,15 +171,25 @@ public partial class SupplyTeachingViewModel
         }
     }
 
-    private async Task MoveSupplyHorizontalAsync(
-        double x,
-        double y,
-        CancellationToken cancellationToken)
-    {
-        var velocity = _supplySettings.Motion.HorizontalSpeed;
-        await _supplyMotion.MoveYAsync(y, velocity, cancellationToken);
-        await _supplyMotion.MoveXAsync(x, velocity, cancellationToken);
-    }
+    private bool CanMoveToPoint() =>
+        CanUseCurrentHandler()
+        && SelectedPoint is { } point
+        && (point.MotionGroup != MotionGroup.PcbSupply
+            || CanMoveSupplyPoint(point));
+
+    private bool CanMoveSupplyPoint(TeachingPoint point) =>
+        (!_buffer.SupplyInside
+         || point.TeachMode == TeachMode.XOnly
+         && CurrentMotion.IsAtHorizontalZ)
+        && point.Target switch
+        {
+            TeachingTarget.SupplyBufferHandoff =>
+                _supplyHandler.Rotation == PcbSupplyRotation.Rotated,
+            TeachingTarget.SupplyPcb1Pick
+                or TeachingTarget.SupplyPcb2Pick =>
+                _supplyHandler.Rotation == PcbSupplyRotation.Unrotated,
+            _ => true,
+        };
 
     private async Task MovePlacementPointAsync(
         TeachingPoint point,
@@ -227,8 +253,7 @@ public partial class SupplyTeachingViewModel
         CanUseHandler(ActiveMotionGroup);
 
     private bool CanUseHandler(MotionGroup motionGroup) =>
-        _state.CanOperate
-        && !GetMotion(motionGroup).IsMoving
+        _state.ManualControlsEnabled
         && motionGroup switch
         {
             MotionGroup.PcbSupply =>
@@ -247,7 +272,7 @@ public partial class SupplyTeachingViewModel
         JogYMinusCommand.NotifyCanExecuteChanged();
         JogZPlusCommand.NotifyCanExecuteChanged();
         JogZMinusCommand.NotifyCanExecuteChanged();
-        MoveToSafeZCommand.NotifyCanExecuteChanged();
+        MoveToHorizontalZCommand.NotifyCanExecuteChanged();
         MoveToPointCommand.NotifyCanExecuteChanged();
         ToggleActuatorCommand.NotifyCanExecuteChanged();
     }

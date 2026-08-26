@@ -16,6 +16,7 @@
   <ItemGroup>
     <ProjectReference Include="..\IBTM.Ajin\IBTM.Ajin.csproj" />
     <ProjectReference Include="..\IBTM.AlphaMotion\IBTM.AlphaMotion.csproj" />
+    <ProjectReference Include="..\IBTM.BoltFeeder\IBTM.BoltFeeder.csproj" />
     <ProjectReference Include="..\IBTM.Core\IBTM.Core.csproj" />
     <ProjectReference Include="..\IBTM.Conveyor\IBTM.Conveyor.csproj" />
     <ProjectReference Include="..\IBTM.Device\IBTM.Device.csproj" />
@@ -26,6 +27,7 @@
     <ProjectReference Include="..\IBTM.PcbSupply\IBTM.PcbSupply.csproj" />
     <ProjectReference Include="..\IBTM.BoltFastening\IBTM.BoltFastening.csproj" />
     <ProjectReference Include="..\IBTM.Inspection\IBTM.Inspection.csproj" />
+    <ProjectReference Include="..\IBTM.Inspection.Training\IBTM.Inspection.Training.csproj" />
     <ProjectReference Include="..\IBTM.PcbPlacement\IBTM.PcbPlacement.csproj" />
     <ProjectReference Include="..\IBTM.Virtual\IBTM.Virtual.csproj" />
   </ItemGroup>

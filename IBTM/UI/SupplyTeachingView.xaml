@@ -92,10 +92,14 @@
                             </StackPanel>
                         </Grid>
 
-                        <TextBlock Text="{Binding SafeZ, StringFormat=Safe Z  {0:F3} mm}"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   FontFamily="Cascadia Mono, Consolas"
-                                   Margin="0,12,0,0"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <TextBlock Text="{Binding HorizontalZTarget, Converter={StaticResource EnumDescriptionConverter}}"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Text="{Binding HorizontalZ, StringFormat={}{0:F3} mm}"
+                                       Margin="6,0,0,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       FontFamily="Cascadia Mono, Consolas"/>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
@@ -185,8 +189,8 @@
                                     Command="{Binding JogStopCommand}"
                                     Style="{StaticResource JogStopButtonStyle}"/>
                             <Button Grid.Column="2"
-                                    Content="Safe Z"
-                                    Command="{Binding MoveToSafeZCommand}"
+                                    Content="{Binding HorizontalZTarget, Converter={StaticResource EnumDescriptionConverter}}"
+                                    Command="{Binding MoveToHorizontalZCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}"/>
                         </Grid>
 
@@ -216,7 +220,7 @@
                         <TextBlock Text="Buffer setup"
                                    Style="{StaticResource PanelTitleStyle}"
                                    Margin="0,0,0,10"/>
-                        <TextBlock Text="1  Teach Safe Z and Outside X."
+                        <TextBlock Text="1  Teach Supply Rotation Z."
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    Margin="0,0,0,5"/>
                         <TextBlock Text="2  Teach Supply Place and Clear Z."

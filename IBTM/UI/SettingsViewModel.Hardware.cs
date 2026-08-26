@@ -14,21 +14,18 @@ public partial class SettingsViewModel
     [RelayCommand(CanExecute = nameof(CanRunConveyor))]
     private void RunConveyor()
     {
-        _conveyor.Run();
+        _conveyor.RunMotor();
         NotifyHardwareCommands();
     }
 
     private bool CanRunConveyor() =>
-        MachineReady
-        && SafetyReady
-        && !IsHoming
-        && !_state.IsRunning;
+        _state.ManualControlsEnabled
+        && !IsHoming;
 
     [RelayCommand]
     private void StopConveyor()
     {
         _conveyor.Stop();
-        _conveyor.ResetSmema();
         NotifyHardwareCommands();
     }
 
@@ -66,7 +63,11 @@ public partial class SettingsViewModel
 
     private bool CanToggleServo(HardwareMappingRow? row)
     {
-        if (row is null || IsHoming || !MachineStopped)
+        if (row is null
+            || !_state.ManualMode
+            || !SafetyReady
+            || IsHoming
+            || !MachineStopped)
         {
             return false;
         }
@@ -109,6 +110,7 @@ public partial class SettingsViewModel
 
     private bool CanHomeAxis(HardwareMappingRow? row) =>
         SafetyReady
+        && _state.DoorInterlockReady
         && !IsHoming
         && MachineStopped
         && row is not null

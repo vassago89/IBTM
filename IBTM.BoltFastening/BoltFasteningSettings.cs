@@ -6,6 +6,7 @@ namespace IBTM.BoltFastening;
 public sealed class BoltFasteningSettings : Setting
 {
     public MotionSettings Motion { get; set; } = new();
+    public double SafeZ { get; set; }
     public AxisPos PickupPosition { get; set; } = new();
     public BoltHeadSettings ShootingHead { get; set; } = new();
     public BoltHeadSettings PickupHead { get; set; } = new();

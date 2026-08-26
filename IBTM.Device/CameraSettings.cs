@@ -14,27 +14,10 @@ public enum CameraDriver
     Hik,
 }
 
-public enum CameraRole
-{
-    [Description("Alignment")]
-    Alignment,
-
-    [Description("Inspection")]
-    Inspection,
-}
-
-public abstract class CameraSettings : Setting
+public sealed class InspectionCameraSettings : Setting
 {
     public string DeviceId { get; set; } = string.Empty;
     public double ExposureMicroseconds { get; set; } = 500.0;
     public double Gain { get; set; }
     public int FrameTimeoutMilliseconds { get; set; } = 3_000;
-}
-
-public sealed class AlignmentCameraSettings : CameraSettings
-{
-}
-
-public sealed class InspectionCameraSettings : CameraSettings
-{
 }

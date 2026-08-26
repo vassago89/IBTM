@@ -73,22 +73,34 @@
             <StackPanel MaxWidth="1480" HorizontalAlignment="Center" Margin="0,0,8,0">
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>
-                        <TextBlock Text="Automatic Processes" Style="{StaticResource SettingSectionTitle}"/>
-                        <UniformGrid Columns="4">
+                        <TextBlock Text="Enabled Units" Style="{StaticResource SettingSectionTitle}"/>
+                        <UniformGrid Columns="8">
+                            <CheckBox Content="Main Conveyor"
+                                      IsChecked="{Binding Settings.Units.MainConveyor}"
+                                      Style="{StaticResource SettingCheckBox}"/>
                             <CheckBox Content="PCB Supply"
-                                      IsChecked="{Binding Settings.Processes.PcbSupply}"
+                                      IsChecked="{Binding Settings.Units.PcbSupply}"
                                       Style="{StaticResource SettingCheckBox}"/>
                             <CheckBox Content="PCB Placement"
-                                      IsChecked="{Binding Settings.Processes.PcbPlacement}"
+                                      IsChecked="{Binding Settings.Units.PcbPlacement}"
+                                      Style="{StaticResource SettingCheckBox}"/>
+                            <CheckBox Content="Pickup Feeder"
+                                      IsChecked="{Binding Settings.Units.PickupBoltFeeder}"
+                                      Style="{StaticResource SettingCheckBox}"/>
+                            <CheckBox Content="Linear Feeder"
+                                      IsChecked="{Binding Settings.Units.LinearBoltFeeder}"
                                       Style="{StaticResource SettingCheckBox}"/>
                             <CheckBox Content="Bolt Fastening"
-                                      IsChecked="{Binding Settings.Processes.BoltFastening}"
+                                      IsChecked="{Binding Settings.Units.BoltFastening}"
                                       Style="{StaticResource SettingCheckBox}"/>
-                            <CheckBox Content="Inspection / NG Transfer"
-                                      IsChecked="{Binding Settings.Processes.Inspection}"
+                            <CheckBox Content="Inspection"
+                                      IsChecked="{Binding Settings.Units.Inspection}"
+                                      Style="{StaticResource SettingCheckBox}"/>
+                            <CheckBox Content="NG Conveyor"
+                                      IsChecked="{Binding Settings.Units.NgConveyor}"
                                       Style="{StaticResource SettingCheckBox}"/>
                         </UniformGrid>
-                        <TextBlock Text="Enable only the automatic processes under test. Manual teaching and I/O remain available."
+                        <TextBlock Text="Disabled units are excluded from machine readiness and homing. Settings and I/O remain available."
                                    Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
@@ -481,25 +493,8 @@
                     </Border>
                 </UniformGrid>
 
-                <UniformGrid Columns="3">
+                <UniformGrid Columns="2">
                     <Border Style="{StaticResource SettingCard}" Margin="0,0,6,12">
-                        <StackPanel>
-                            <TextBlock Text="Alignment Camera" Style="{StaticResource SettingSectionTitle}"/>
-                            <TextBlock Text="Device ID / Serial Number" Style="{StaticResource SettingFieldLabel}"/>
-                            <TextBox Text="{Binding Settings.AlignmentCamera.DeviceId, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource SettingFieldBox}" Margin="0,0,0,10"/>
-                            <TextBlock Text="Exposure (us)" Style="{StaticResource SettingFieldLabel}"/>
-                            <TextBox Text="{Binding Settings.AlignmentCamera.ExposureMicroseconds, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource SettingFieldBox}" Margin="0,0,0,10"/>
-                            <TextBlock Text="Gain" Style="{StaticResource SettingFieldLabel}"/>
-                            <TextBox Text="{Binding Settings.AlignmentCamera.Gain, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource SettingFieldBox}" Margin="0,0,0,10"/>
-                            <TextBlock Text="Frame Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
-                            <TextBox Text="{Binding Settings.AlignmentCamera.FrameTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource SettingFieldBox}"/>
-                        </StackPanel>
-                    </Border>
-                    <Border Style="{StaticResource SettingCard}" Margin="6,0,6,12">
                         <StackPanel>
                             <TextBlock Text="Inspection Camera" Style="{StaticResource SettingSectionTitle}"/>
                             <TextBlock Text="Device ID / Serial Number" Style="{StaticResource SettingFieldLabel}"/>
@@ -513,7 +508,22 @@
                                      Style="{StaticResource SettingFieldBox}" Margin="0,0,0,10"/>
                             <TextBlock Text="Frame Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
                             <TextBox Text="{Binding Settings.InspectionCamera.FrameTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource SettingFieldBox}"/>
+                                     Style="{StaticResource SettingFieldBox}" Margin="0,0,0,10"/>
+                            <TextBlock Text="Bolt Recess Model" Style="{StaticResource SettingFieldLabel}"/>
+                            <TextBox Text="{Binding Settings.BoltInspection.ModelFile, UpdateSourceTrigger=PropertyChanged}"
+                                     Style="{StaticResource SettingFieldBox}" Margin="0,0,0,10"/>
+                            <UniformGrid Columns="2">
+                                <StackPanel Margin="0,0,4,0">
+                                    <TextBlock Text="Mask Threshold" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBox Text="{Binding Settings.BoltInspection.MaskThreshold, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource SettingFieldBox}"/>
+                                </StackPanel>
+                                <StackPanel Margin="4,0,0,0">
+                                    <TextBlock Text="Minimum Mask Ratio" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBox Text="{Binding Settings.BoltInspection.MinimumMaskRatio, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource SettingFieldBox}"/>
+                                </StackPanel>
+                            </UniformGrid>
                         </StackPanel>
                     </Border>
                     <Border Style="{StaticResource SettingCard}" Margin="6,0,0,12">
@@ -534,22 +544,12 @@
                                      Style="{StaticResource SettingFieldBox}" Margin="0,0,0,10"/>
                             <UniformGrid Columns="2">
                                 <StackPanel Margin="0,0,4,0">
-                                    <TextBlock Text="Alignment Ch." Style="{StaticResource SettingFieldLabel}"/>
-                                    <TextBox Text="{Binding Settings.Lighting.AlignmentChannel, UpdateSourceTrigger=PropertyChanged}"
-                                             Style="{StaticResource SettingFieldBox}" MinWidth="0"/>
-                                </StackPanel>
-                                <StackPanel Margin="4,0,0,0">
-                                    <TextBlock Text="Alignment Level" Style="{StaticResource SettingFieldLabel}"/>
-                                    <TextBox Text="{Binding Settings.Lighting.AlignmentLevel, UpdateSourceTrigger=PropertyChanged}"
-                                             Style="{StaticResource SettingFieldBox}" MinWidth="0"/>
-                                </StackPanel>
-                                <StackPanel Margin="0,8,4,0">
-                                    <TextBlock Text="Inspection Ch." Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Text="Light Channel" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBox Text="{Binding Settings.Lighting.InspectionChannel, UpdateSourceTrigger=PropertyChanged}"
                                              Style="{StaticResource SettingFieldBox}" MinWidth="0"/>
                                 </StackPanel>
-                                <StackPanel Margin="4,8,0,0">
-                                    <TextBlock Text="Inspection Level" Style="{StaticResource SettingFieldLabel}"/>
+                                <StackPanel Margin="4,0,0,0">
+                                    <TextBlock Text="Light Level" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBox Text="{Binding Settings.Lighting.InspectionLevel, UpdateSourceTrigger=PropertyChanged}"
                                              Style="{StaticResource SettingFieldBox}" MinWidth="0"/>
                                 </StackPanel>
@@ -558,34 +558,56 @@
                     </Border>
                 </UniformGrid>
 
-                <Border Style="{StaticResource SettingCard}" Margin="0,0,0,12">
-                    <StackPanel>
-                        <TextBlock Text="HANTAS ADC"
-                                   Style="{StaticResource SettingSectionTitle}"/>
-                        <UniformGrid Columns="4">
-                            <StackPanel Margin="0,0,4,0">
-                                <TextBlock Text="COM Port" Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox Text="{Binding Settings.Hantas.PortName, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource SettingFieldBox}"/>
-                            </StackPanel>
-                            <StackPanel Margin="4,0">
-                                <TextBlock Text="Baud Rate" Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox Text="{Binding Settings.Hantas.BaudRate, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource SettingFieldBox}"/>
-                            </StackPanel>
-                            <StackPanel Margin="4,0">
-                                <TextBlock Text="Shooting Slave" Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox Text="{Binding Settings.Hantas.ShootingSlaveAddress, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource SettingFieldBox}"/>
-                            </StackPanel>
-                            <StackPanel Margin="4,0,0,0">
-                                <TextBlock Text="Pickup Slave" Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox Text="{Binding Settings.Hantas.PickupSlaveAddress, UpdateSourceTrigger=PropertyChanged}"
-                                         Style="{StaticResource SettingFieldBox}"/>
-                            </StackPanel>
-                        </UniformGrid>
-                    </StackPanel>
-                </Border>
+                <UniformGrid Columns="2">
+                    <Border Style="{StaticResource SettingCard}" Margin="0,0,6,12">
+                        <StackPanel>
+                            <TextBlock Text="HANTAS ADC"
+                                       Style="{StaticResource SettingSectionTitle}"/>
+                            <UniformGrid Columns="2">
+                                <StackPanel Margin="0,0,4,10">
+                                    <TextBlock Text="COM Port" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBox Text="{Binding Settings.Hantas.PortName, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource SettingFieldBox}"/>
+                                </StackPanel>
+                                <StackPanel Margin="4,0,0,10">
+                                    <TextBlock Text="Baud Rate" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBox Text="{Binding Settings.Hantas.BaudRate, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource SettingFieldBox}"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,4,0">
+                                    <TextBlock Text="Fastener 1 · Pickup" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBox Text="{Binding Settings.Hantas.PickupSlaveAddress, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource SettingFieldBox}"/>
+                                </StackPanel>
+                                <StackPanel Margin="4,0,0,0">
+                                    <TextBlock Text="Fastener 2 · Shooting" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBox Text="{Binding Settings.Hantas.ShootingSlaveAddress, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource SettingFieldBox}"/>
+                                </StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource SettingCard}" Margin="6,0,0,12">
+                        <StackPanel>
+                            <TextBlock Text="Bolt Supply"
+                                       Style="{StaticResource SettingSectionTitle}"/>
+                            <UniformGrid Columns="2">
+                                <StackPanel Margin="0,0,4,0">
+                                    <TextBlock Text="Pickup Timeout (ms)"
+                                               Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBox Text="{Binding Settings.BoltFeeder.PickupTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource SettingFieldBox}"/>
+                                </StackPanel>
+                                <StackPanel Margin="4,0,0,0">
+                                    <TextBlock Text="Linear Timeout (ms)"
+                                               Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBox Text="{Binding Settings.BoltFeeder.LinearTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource SettingFieldBox}"/>
+                                </StackPanel>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+                </UniformGrid>
 
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>

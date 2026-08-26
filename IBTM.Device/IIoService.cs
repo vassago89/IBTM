@@ -9,17 +9,34 @@ public interface IIoService
 {
     event Action<InputIo, bool>? InputChanged;
     event Action<OutputIo, bool>? OutputChanged;
+    event Action? Faulted
+    {
+        add { }
+        remove { }
+    }
 
     int TimeoutMilliseconds { get; }
 
     void Initialize();
+    void CheckReady();
     bool GetInput(InputIo input);
     bool GetOutput(OutputIo output);
     OutputFeedback? GetOutputFeedback(OutputIo output);
 
+    Task WaitForInputAsync(
+        InputIo input,
+        bool value,
+        CancellationToken cancellationToken = default) =>
+        WaitForInputAsync(
+            input,
+            value,
+            TimeoutMilliseconds,
+            cancellationToken);
+
     async Task WaitForInputAsync(
         InputIo input,
         bool value,
+        int timeoutMilliseconds,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -30,7 +47,7 @@ public interface IIoService
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken);
-        timeout.CancelAfter(TimeoutMilliseconds);
+        timeout.CancelAfter(timeoutMilliseconds);
         var completion = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -62,7 +79,7 @@ public interface IIoService
                 throw new IoTimeoutException(
                     input,
                     value,
-                    TimeoutMilliseconds);
+                    timeoutMilliseconds);
             }
         }
         finally

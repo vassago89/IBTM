@@ -101,7 +101,7 @@ public partial class SupplyTeachingViewModel : ObservableObject
             await SaveMachinePositionsAsync();
         }
 
-        OnPropertyChanged(nameof(SafeZ));
+        OnPropertyChanged(nameof(HorizontalZ));
         NotifyManualTeachingCommands();
     }
 
@@ -134,7 +134,7 @@ public partial class SupplyTeachingViewModel : ObservableObject
 
     public void Deactivate()
     {
-        MoveToSafeZCommand.Cancel();
+        MoveToHorizontalZCommand.Cancel();
         MoveToPointCommand.Cancel();
         ToggleActuatorCommand.Cancel();
         CancelMotion();
@@ -159,12 +159,7 @@ public partial class SupplyTeachingViewModel : ObservableObject
         System.Windows.Application.Current.Dispatcher.BeginInvoke(
             NotifyManualTeachingCommands);
 
-    private void OnMotionChanged(bool moving)
-    {
-        if (!moving)
-        {
-            System.Windows.Application.Current.Dispatcher.BeginInvoke(
-                NotifyManualTeachingCommands);
-        }
-    }
+    private void OnMotionChanged(bool _) =>
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(
+            NotifyManualTeachingCommands);
 }

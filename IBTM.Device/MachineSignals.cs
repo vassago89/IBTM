@@ -126,8 +126,8 @@ public enum InputIo
     [Description("Bolt Head 1 Vacuum Detected")]
     BoltHead1VacuumDetected,
 
-    [Description("Shooting Feeder Bolt Detected")]
-    ShootingFeederBoltDetected,
+    [Description("Linear Feeder Bolt Detected")]
+    LinearFeederBoltDetected,
 
     [Description("Shooting Tube Bolt Detected")]
     ShootingTubeBoltDetected,
@@ -328,8 +328,8 @@ public enum OutputIo
     [Description("NG Shuttle Down")]
     NgShuttleDown,
 
-    [Description("Shooting Feeder Run")]
-    ShootingFeederRun,
+    [Description("Linear Feeder Run Signal")]
+    LinearFeederRunSignal,
 
     [Description("Shooting Escape Forward")]
     ShootingEscapeForward,

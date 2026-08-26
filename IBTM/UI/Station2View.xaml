@@ -25,6 +25,31 @@
                            Style="{DynamicResource StateTextStyle}"/>
             </Border>
 
+            <StackPanel Canvas.Left="20" Canvas.Top="58"
+                        Orientation="Horizontal">
+                <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                    <Ellipse Tag="{Binding PickupFeederReady}"
+                             Style="{DynamicResource StatusLedStyle}"/>
+                    <TextBlock Text="PICKUP BOLT"
+                               Margin="6,0,0,0"
+                               Style="{DynamicResource MapHintStyle}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                    <Ellipse Tag="{Binding LinearFeederReady}"
+                             Style="{DynamicResource StatusLedStyle}"/>
+                    <TextBlock Text="LINEAR BOLT"
+                               Margin="6,0,0,0"
+                               Style="{DynamicResource MapHintStyle}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse Tag="{Binding ShootingEscapeBack}"
+                             Style="{DynamicResource StatusLedStyle}"/>
+                    <TextBlock Text="ESCAPE BACK"
+                               Margin="6,0,0,0"
+                               Style="{DynamicResource MapHintStyle}"/>
+                </StackPanel>
+            </StackPanel>
+
             <Grid Canvas.Left="{Binding BoltFasteningMapLeft}"
                   Canvas.Top="{Binding BoltFasteningMapTop}"
                   Width="126" Height="138"

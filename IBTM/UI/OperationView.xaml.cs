@@ -4,8 +4,5 @@ namespace IBTM.UI;
 
 public partial class OperationView : UserControl
 {
-    public OperationView()
-    {
-        InitializeComponent();
-    }
+    public OperationView() => InitializeComponent();
 }

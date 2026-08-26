@@ -15,7 +15,7 @@ public interface IAxisMotion
     bool HasY { get; }
     bool HasZ { get; }
     bool IsMoving { get; }
-    bool IsAtSafeZ { get; }
+    bool IsAtHorizontalZ { get; }
 
     void Initialize();
     Task MoveXAsync(
@@ -35,7 +35,7 @@ public interface IAxisMotion
         double clearZ,
         double velocity,
         CancellationToken cancellationToken = default);
-    Task MoveToSafeZAsync(CancellationToken cancellationToken = default);
+    Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default);
     Task MoveZToPositiveLimitAsync(
         double velocity,
         CancellationToken cancellationToken = default);
@@ -78,6 +78,7 @@ public abstract class MotionService(
     OperationCancellation operationCancellation,
     bool hasY = true,
     bool hasZ = true,
+    Func<double>? horizontalZ = null,
     (double Minimum, double Maximum)? xRange = null,
     (double Minimum, double Maximum)? yRange = null,
     (double Minimum, double Maximum)? zRange = null) : IXyMotion
@@ -103,10 +104,12 @@ public abstract class MotionService(
     public bool HasZ => hasZ;
     public bool IsMoving => Volatile.Read(ref _activeMotions) > 0;
 
-    public bool IsAtSafeZ =>
+    private double HorizontalZ => horizontalZ!();
+
+    public bool IsAtHorizontalZ =>
         !hasZ
         || GetAxisState(MotionAxis.Z).Homed
-        && Math.Abs(GetPosition().Z - settings.SafeZ) <= PositionTolerance;
+        && Math.Abs(GetPosition().Z - HorizontalZ) <= PositionTolerance;
 
     public abstract void Initialize();
 
@@ -123,7 +126,7 @@ public abstract class MotionService(
         ValidateTarget(MotionAxis.X, x);
         ValidateTarget(MotionAxis.Y, y);
         ValidateTarget(MotionAxis.Z, z);
-        await MoveToSafeZAsync(cancellationToken);
+        await MoveToHorizontalZAsync(cancellationToken);
         await MoveXYCoreAsync(
             x,
             y,
@@ -142,7 +145,7 @@ public abstract class MotionService(
         ValidateTarget(MotionAxis.X, x);
         if (hasZ)
         {
-            await MoveToSafeZAsync(cancellationToken);
+            await MoveToHorizontalZAsync(cancellationToken);
         }
         else
         {
@@ -163,7 +166,7 @@ public abstract class MotionService(
         ValidateTarget(MotionAxis.Y, y);
         if (hasZ)
         {
-            await MoveToSafeZAsync(cancellationToken);
+            await MoveToHorizontalZAsync(cancellationToken);
         }
         else
         {
@@ -208,7 +211,7 @@ public abstract class MotionService(
         ValidateTarget(MotionAxis.Y, y);
         if (hasZ)
         {
-            await MoveToSafeZAsync(cancellationToken);
+            await MoveToHorizontalZAsync(cancellationToken);
         }
         else
         {
@@ -230,23 +233,24 @@ public abstract class MotionService(
         await MoveZCoreAsync(z, velocity, cancellationToken);
     }
 
-    public async Task MoveToSafeZAsync(
+    public async Task MoveToHorizontalZAsync(
         CancellationToken cancellationToken = default)
     {
         using var operation = LinkOperation(cancellationToken);
         cancellationToken = operation.Token;
         EnsureHasZ();
-        ValidateTarget(MotionAxis.Z, settings.SafeZ);
+        ValidateTarget(MotionAxis.Z, HorizontalZ);
         EnsureStopped();
         if (!GetAxisState(MotionAxis.Z).Homed)
         {
-            throw new InvalidOperationException("Z axis must be homed before moving to Safe Z.");
+            throw new InvalidOperationException(
+                "Z axis must be homed before moving to its reference.");
         }
 
-        if (!IsAtSafeZ)
+        if (!IsAtHorizontalZ)
         {
             await MoveZCoreAsync(
-                settings.SafeZ,
+                HorizontalZ,
                 settings.ZSpeed,
                 cancellationToken);
         }
@@ -299,7 +303,7 @@ public abstract class MotionService(
         CancellationToken cancellationToken = default)
     {
         EnsureStopped();
-        EnsureSafeZ();
+        EnsureHorizontalZ();
         JogXCore(velocity, cancellationToken);
     }
 
@@ -309,7 +313,7 @@ public abstract class MotionService(
     {
         EnsureHasY();
         EnsureStopped();
-        EnsureSafeZ();
+        EnsureHorizontalZ();
         JogYCore(velocity, cancellationToken);
     }
 
@@ -353,7 +357,7 @@ public abstract class MotionService(
                 }
             }
 
-            await MoveToSafeZAsync(cancellationToken);
+            await MoveToHorizontalZAsync(cancellationToken);
         }
 
         return await HomeCoreAsync(axis, velocity, cancellationToken);
@@ -366,7 +370,7 @@ public abstract class MotionService(
         using var operation = LinkOperation(cancellationToken);
         cancellationToken = operation.Token;
         EnsureStopped();
-        EnsureSafeZ();
+        EnsureHorizontalZ();
         return await HomeHorizontalCoreAsync(velocity, cancellationToken);
     }
 
@@ -447,12 +451,12 @@ public abstract class MotionService(
             : Math.Clamp(position, range.Value.Minimum, range.Value.Maximum);
     }
 
-    private void EnsureSafeZ()
+    private void EnsureHorizontalZ()
     {
-        if (!IsAtSafeZ)
+        if (!IsAtHorizontalZ)
         {
             throw new InvalidOperationException(
-                $"Horizontal movement requires homed Z at Safe Z ({settings.SafeZ:F3}).");
+                $"Horizontal movement requires homed Z at {HorizontalZ:F3}.");
         }
     }
 

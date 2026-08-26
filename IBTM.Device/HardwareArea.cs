@@ -22,6 +22,9 @@ public enum HardwareArea
     [Description("PCB Placement Station")]
     PcbPlacementStation,
 
+    [Description("Bolt Feeder")]
+    BoltFeeder,
+
     [Description("Bolt Fastening Unit")]
     BoltFastening,
 

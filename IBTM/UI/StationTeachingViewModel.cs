@@ -20,7 +20,6 @@ namespace IBTM.UI;
 public partial class StationTeachingViewModel : ObservableObject
 {
     private readonly Dictionary<MotionGroup, IXyMotion> _motions;
-    private readonly ICamera _alignmentCamera;
     private readonly ICamera _inspectionCamera;
     private readonly ILightController _light;
     private readonly BufferStage _buffer;
@@ -52,8 +51,6 @@ public partial class StationTeachingViewModel : ObservableObject
     private IReadOnlyList<TeachingPoint> _filteredPoints = [];
     [ObservableProperty]
     private HousingSlot _newHousingSlot = HousingSlot.Housing1;
-    [ObservableProperty]
-    private ushort _newPreset = 1;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(TeachImagePointCommand))]
     private BitmapSource? _liveImage;
@@ -93,8 +90,7 @@ public partial class StationTeachingViewModel : ObservableObject
         [FromKeyedServices(MotionGroup.PcbPlacementHandler)] IXyMotion pcbPlacementMotion,
         [FromKeyedServices(MotionGroup.BoltFastening)] IXyMotion boltFasteningMotion,
         [FromKeyedServices(MotionGroup.InspectionGantry)] IXyMotion inspectionGantryMotion,
-        [FromKeyedServices(CameraRole.Alignment)] ICamera alignmentCamera,
-        [FromKeyedServices(CameraRole.Inspection)] ICamera inspectionCamera,
+        ICamera inspectionCamera,
         ILightController light,
         BufferStage buffer,
         MachineState state,
@@ -111,7 +107,6 @@ public partial class StationTeachingViewModel : ObservableObject
             [MotionGroup.BoltFastening] = boltFasteningMotion,
             [MotionGroup.InspectionGantry] = inspectionGantryMotion,
         };
-        _alignmentCamera = alignmentCamera;
         _inspectionCamera = inspectionCamera;
         _light = light;
         _buffer = buffer;
@@ -135,10 +130,7 @@ public partial class StationTeachingViewModel : ObservableObject
         pcbPlacementMotion.MovingChanged += OnMotionChanged;
         boltFasteningMotion.MovingChanged += OnMotionChanged;
         inspectionGantryMotion.MovingChanged += OnMotionChanged;
-        alignmentCamera.FrameReady +=
-            frame => UpdateLiveImage(MotionGroup.PcbPlacementHandler, frame);
-        inspectionCamera.FrameReady +=
-            frame => UpdateLiveImage(MotionGroup.InspectionGantry, frame);
+        inspectionCamera.FrameReady += UpdateLiveImage;
         buffer.StateChanged += OnBufferChanged;
         recipeEditor.Changed += OnRecipeChanged;
 
@@ -158,6 +150,7 @@ public partial class StationTeachingViewModel : ObservableObject
         Enum.GetValues<FasteningHead>();
     public HousingSlot[] HousingSlots { get; } =
         Enum.GetValues<HousingSlot>();
+    public BoltFasteningRecipe BoltRecipe => CurrentRecipe.BoltFastening;
     public double CurrentX => CurrentMotion.GetPosition().X;
     public double CurrentY => CurrentMotion.GetPosition().Y;
     public double CurrentZ => CurrentMotion.GetPosition().Z;
@@ -175,15 +168,15 @@ public partial class StationTeachingViewModel : ObservableObject
 
         if (IsCameraLive)
         {
-            StopCamera(oldValue);
-            if (GetCamera(newValue) is null)
+            StopCamera();
+            if (newValue != MotionGroup.InspectionGantry)
             {
                 IsCameraLive = false;
                 LiveImage = null;
             }
             else
             {
-                StartCamera(newValue);
+                StartCamera();
             }
         }
 
@@ -193,7 +186,7 @@ public partial class StationTeachingViewModel : ObservableObject
         OnPropertyChanged(nameof(CurrentMotionHasZ));
         JogZPlusCommand.NotifyCanExecuteChanged();
         JogZMinusCommand.NotifyCanExecuteChanged();
-        MoveToSafeZCommand.NotifyCanExecuteChanged();
+        MoveToHorizontalZCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
@@ -236,7 +229,6 @@ public partial class StationTeachingViewModel : ObservableObject
             Number = number,
             Housing = NewHousingSlot,
             Head = NewFasteningHead,
-            Preset = NewPreset,
         };
         CurrentRecipe.BoltFastening.BoltPoints.Add(bolt);
         RefreshTeachingPoints();
@@ -269,13 +261,13 @@ public partial class StationTeachingViewModel : ObservableObject
 
     public void Deactivate()
     {
-        MoveToSafeZCommand.Cancel();
+        MoveToHorizontalZCommand.Cancel();
         MoveToPointCommand.Cancel();
         CancelMotion();
 
         if (IsCameraLive)
         {
-            StopCamera(SelectedMotionGroup);
+            StopCamera();
             IsCameraLive = false;
             LiveImage = null;
         }
@@ -307,6 +299,7 @@ public partial class StationTeachingViewModel : ObservableObject
     private void OnRecipeChanged()
     {
         RefreshTeachingPoints();
+        OnPropertyChanged(nameof(BoltRecipe));
         MillimetersPerPixel = CurrentRecipe.CarrierImageMillimetersPerPixel;
         ShowRecipeImages();
     }
@@ -356,11 +349,6 @@ public partial class StationTeachingViewModel : ObservableObject
     private void OnBufferChanged() =>
         RunOnUi(NotifyManualTeachingCommands);
 
-    private void OnMotionChanged(bool moving)
-    {
-        if (!moving)
-        {
-            RunOnUi(NotifyManualTeachingCommands);
-        }
-    }
+    private void OnMotionChanged(bool _) =>
+        RunOnUi(NotifyManualTeachingCommands);
 }

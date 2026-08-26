@@ -14,4 +14,14 @@ public sealed class InspectionGantrySettings : Setting
     public AxisPos? LowerRightLocatingPin { get; set; }
     public AxisPos NgCarrierJigPickupPosition { get; set; } = new();
     public AxisPos NgShuttlePlacePosition { get; set; } = new();
+
+    public AxisPos GetBoltPosition(BoltPoint bolt) =>
+        CarrierCoordinates.ToMachine(
+            new AxisPos
+            {
+                X = bolt.X!.Value,
+                Y = bolt.Y!.Value,
+            },
+            UpperLeftLocatingPin!,
+            LowerRightLocatingPin!);
 }

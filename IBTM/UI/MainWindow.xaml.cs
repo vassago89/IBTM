@@ -8,7 +8,7 @@ namespace IBTM.UI;
 public partial class MainWindow : Window
 {
     private readonly IIoService _io;
-    private readonly AdcBus _adcBus;
+    private readonly IAdcBus _adcBus;
     private InputWindow? _inputWindow;
     private OutputWindow? _outputWindow;
     private AdcProtocolWindow? _adcProtocolWindow;
@@ -16,7 +16,7 @@ public partial class MainWindow : Window
     public MainWindow(
         MainViewModel viewModel,
         IIoService io,
-        AdcBus adcBus)
+        IAdcBus adcBus)
     {
         _io = io;
         _adcBus = adcBus;

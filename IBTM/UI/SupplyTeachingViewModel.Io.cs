@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 
 namespace IBTM.UI;
@@ -11,11 +12,14 @@ namespace IBTM.UI;
 public partial class SupplyTeachingViewModel
 {
     public PcbSupplyRotation SupplyRotation => _supplyHandler.Rotation;
-    public bool SupplyIpmFixed => _supplyHandler.IpmFixerForward;
+    public bool SupplyIpmFixed =>
+        _supplyHandler.IpmFixer == PcbSupplyCylinderState.Forward;
     public bool PlacementIpmGripperClosed =>
-        _placementHandler.IpmGripperClosed;
-    public bool SupplyPcbDetected => _supplyHandler.PcbDetected;
-    public bool PlacementPcbDetected => _placementHandler.PcbDetected;
+        _placementHandler.Gripper == PlacementGripperState.Closed;
+    public bool SupplyPcbDetected =>
+        _supplyHandler.Pcb != PcbSupplyPcbState.None;
+    public bool PlacementPcbDetected =>
+        _placementHandler.Pcb != PlacementPcbState.None;
 
     [RelayCommand(CanExecute = nameof(CanToggleActuator))]
     private async Task ToggleActuatorAsync(
@@ -80,6 +84,7 @@ public partial class SupplyTeachingViewModel
         OnPropertyChanged(nameof(PlacementIpmGripperClosed));
         OnPropertyChanged(nameof(SupplyPcbDetected));
         OnPropertyChanged(nameof(PlacementPcbDetected));
+        NotifyManualTeachingCommands();
     }
 
     private void OnHandlerChanged() =>

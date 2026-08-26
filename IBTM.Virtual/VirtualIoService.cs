@@ -35,6 +35,10 @@ public sealed class VirtualIoService(
         }
     }
 
+    public void CheckReady()
+    {
+    }
+
     public bool GetInput(InputIo input) => _inputs[(int)input];
 
     public bool GetOutput(OutputIo output) => _outputs[(int)output];
@@ -56,11 +60,15 @@ public sealed class VirtualIoService(
 
     public void SetOutput(OutputIo output, bool value)
     {
-        _outputs[(int)output] = value;
-        OutputChanged?.Invoke(output, value);
+        var index = (int)output;
+        if (_outputs[index] != value)
+        {
+            _outputs[index] = value;
+            OutputChanged?.Invoke(output, value);
+        }
 
         var feedbackVersion = Interlocked.Increment(
-            ref _feedbackVersions[(int)output]);
+            ref _feedbackVersions[index]);
         if (outputs[output].Feedback is { } feedback)
         {
             _ = ApplyFeedbackAsync(

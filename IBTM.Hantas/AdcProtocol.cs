@@ -125,4 +125,22 @@ public sealed record AdcFasteningResult(
     ushort Error,
     AdcDirection Direction,
     AdcEventStatus Status,
-    ushort SnugAngle);
+    ushort SnugAngle)
+{
+    public static AdcFasteningResult FromRegisters(ushort[] values) =>
+        new(
+            values[0],
+            values[1],
+            values[2],
+            values[3] / 100.0,
+            values[4] / 100.0,
+            values[5],
+            values[6] / 100.0,
+            values[7] / 100.0,
+            values[8] / 100.0,
+            values[9],
+            values[10],
+            (AdcDirection)values[11],
+            (AdcEventStatus)values[12],
+            values[13]);
+}

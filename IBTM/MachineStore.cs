@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Ajin;
 using IBTM.AlphaMotion;
+using IBTM.BoltFeeder;
 using IBTM.BoltFastening;
 using IBTM.Conveyor;
 using IBTM.Core;
@@ -88,18 +89,19 @@ public sealed class MachineStore
             .Select(setting => setting.SaveAsync(cancellationToken))
             .Concat([
             settings.Drivers.SaveAsync(cancellationToken),
-            settings.Processes.SaveAsync(cancellationToken),
+            settings.Units.SaveAsync(cancellationToken),
             settings.Options.SaveAsync(cancellationToken),
             settings.Home.SaveAsync(cancellationToken),
             settings.Ajin.SaveAsync(cancellationToken),
             settings.AlphaMotion.SaveAsync(cancellationToken),
-            settings.AlignmentCamera.SaveAsync(cancellationToken),
             settings.InspectionCamera.SaveAsync(cancellationToken),
+            settings.BoltInspection.SaveAsync(cancellationToken),
             settings.Lighting.SaveAsync(cancellationToken),
             settings.Hantas.SaveAsync(cancellationToken),
             settings.PcbBuffer.SaveAsync(cancellationToken),
             settings.PcbSupply.SaveAsync(cancellationToken),
             settings.PcbPlacementHandler.SaveAsync(cancellationToken),
+            settings.BoltFeeder.SaveAsync(cancellationToken),
             settings.BoltFastening.SaveAsync(cancellationToken),
             settings.InspectionGantry.SaveAsync(cancellationToken),
             ]));
@@ -110,7 +112,7 @@ public sealed class MachineStore
         return new MachineSettings
         {
             Drivers = await Setting.LoadAsync<DriverSettings>(cancellationToken),
-            Processes = await Setting.LoadAsync<ProcessSettings>(
+            Units = await Setting.LoadAsync<UnitSettings>(
                 cancellationToken),
             Options = await Setting.LoadAsync<MachineOptions>(cancellationToken),
             Home = await Setting.LoadAsync<HomeSettings>(cancellationToken),
@@ -121,9 +123,9 @@ public sealed class MachineStore
             Ajin = await Setting.LoadAsync<AjinSettings>(cancellationToken),
             AlphaMotion = await Setting.LoadAsync<AlphaMotionSettings>(
                 cancellationToken),
-            AlignmentCamera = await Setting.LoadAsync<AlignmentCameraSettings>(
-                cancellationToken),
             InspectionCamera = await Setting.LoadAsync<InspectionCameraSettings>(
+                cancellationToken),
+            BoltInspection = await Setting.LoadAsync<BoltInspectionSettings>(
                 cancellationToken),
             Lighting = await Setting.LoadAsync<LightingSettings>(cancellationToken),
             Hantas = await Setting.LoadAsync<HantasSettings>(cancellationToken),
@@ -143,6 +145,11 @@ public sealed class MachineStore
                     cancellationToken),
             PcbPlacementStationHardware =
                 await Setting.LoadAsync<PcbPlacementStationHardwareSettings>(
+                    cancellationToken),
+            BoltFeeder = await Setting.LoadAsync<BoltFeederSettings>(
+                cancellationToken),
+            BoltFeederHardware =
+                await Setting.LoadAsync<BoltFeederHardwareSettings>(
                     cancellationToken),
             BoltFastening = await Setting.LoadAsync<BoltFasteningSettings>(
                 cancellationToken),

@@ -7,14 +7,14 @@ using IBTM.Device;
 namespace IBTM.Hantas;
 
 public sealed class AdcBoltHead(
-    AdcBus bus,
+    IAdcBus bus,
     HantasSettings connection,
     byte slaveAddress) : IBoltHead
 {
     private const int FasteningTimeoutMilliseconds = 15_000;
     private const int ResultPollMilliseconds = 50;
 
-    public async Task InitializeAsync(
+    public async Task CheckReadyAsync(
         CancellationToken cancellationToken = default)
     {
         bus.Open(connection.PortName, connection.BaudRate);
@@ -23,14 +23,17 @@ public sealed class AdcBoltHead(
             cancellationToken);
     }
 
-    public async Task<BoltResult> TightenAsync(
+    public Task SelectPresetAsync(
         ushort preset,
-        CancellationToken cancellationToken = default)
-    {
-        await bus.SelectPresetAsync(
+        CancellationToken cancellationToken = default) =>
+        bus.SelectPresetAsync(
             slaveAddress,
             preset,
             cancellationToken);
+
+    public async Task<BoltResult> TightenAsync(
+        CancellationToken cancellationToken = default)
+    {
         await bus.SetDirectionAsync(
             slaveAddress,
             AdcDirection.Fastening,

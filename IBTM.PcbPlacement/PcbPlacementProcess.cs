@@ -1,66 +1,83 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.Device;
+using IBTM.Core;
 using IBTM.PcbBuffer;
-using IBTM.PcbSupply;
 
 namespace IBTM.PcbPlacement;
 
 public sealed class PcbPlacementProcess(
     BufferStage buffer,
     PcbPlacementHandler handler,
-    PcbSupplyProcess supply,
-    OperationCancellation operations)
+    PcbPlacementWork work)
 {
-    public bool CanPickFromBuffer =>
-        !handler.IsMoving
-        && ((handler.PcbSecured
-                && buffer.PlacementInside
-                && buffer.CanPlacementExit)
-            || (!handler.PcbSecured
-                && buffer.CanPlacementEnter
-                && (!buffer.SupplyInside || supply.ReadyForHandoff)));
-
-    public async Task PickFromBufferAsync(
-        PcbPlacementRecipe recipe,
-        CancellationToken cancellationToken = default)
-    {
-        using var operation = operations.Link(cancellationToken);
-        try
-        {
-            await PickFromBufferCoreAsync(recipe, operation.Token);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-    }
+    private bool CanPickFromBuffer =>
+        handler.Pcb == PlacementPcbState.Secured
+            && buffer.PlacementBlocksSupply
+        || handler.Pcb != PlacementPcbState.Secured
+            && buffer.CanPlacementEnter;
 
     public async Task RunAsync(
         PcbPlacementRecipe recipe,
         CancellationToken cancellationToken = default)
     {
-        var stateChanged = new SemaphoreSlim(0);
-        void OnStateChanged() => stateChanged.Release();
+        using var stateChanged = new AsyncAutoResetEvent();
+        HousingSlot? completedHousing = null;
+        void OnStateChanged() => stateChanged.Set();
+        void OnCarrierChanged(bool _)
+        {
+            completedHousing = null;
+        }
 
         handler.Changed += OnStateChanged;
         buffer.StateChanged += OnStateChanged;
-        supply.Changed += OnStateChanged;
+        work.Changed += OnStateChanged;
+        work.CarrierChanged += OnCarrierChanged;
         try
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (CanPickFromBuffer
-                    || handler.PcbSecured && buffer.PlacementInside)
+                if (work.Ready
+                    && !work.Completed
+                    && NextHousing(completedHousing) is null)
+                {
+                    work.Complete();
+                    continue;
+                }
+
+                if (handler.Pcb == PlacementPcbState.Secured)
+                {
+                    if (!handler.IsWaitingAbove(
+                            recipe.Housing1PcbPlacementPosition))
+                    {
+                        await PickFromBufferCoreAsync(
+                            recipe,
+                            cancellationToken);
+                        continue;
+                    }
+
+                    var housing = work.Ready
+                        ? NextHousing(completedHousing)
+                        : null;
+                    if (housing is not null)
+                    {
+                        await handler.PlaceAsync(
+                            HousingPosition(recipe, housing.Value),
+                            cancellationToken);
+                        work.Assembly(housing.Value);
+                        completedHousing = housing;
+                        continue;
+                    }
+                }
+                else if (CanPickFromBuffer)
                 {
                     await PickFromBufferCoreAsync(
                         recipe,
                         cancellationToken);
+                    continue;
                 }
-                else
-                {
-                    await stateChanged.WaitAsync(cancellationToken);
-                }
+
+                await stateChanged.WaitAsync(cancellationToken);
             }
         }
         catch (OperationCanceledException)
@@ -70,7 +87,8 @@ public sealed class PcbPlacementProcess(
         {
             handler.Changed -= OnStateChanged;
             buffer.StateChanged -= OnStateChanged;
-            supply.Changed -= OnStateChanged;
+            work.Changed -= OnStateChanged;
+            work.CarrierChanged -= OnCarrierChanged;
         }
     }
 
@@ -78,18 +96,36 @@ public sealed class PcbPlacementProcess(
         PcbPlacementRecipe recipe,
         CancellationToken cancellationToken)
     {
-        if (!handler.PcbSecured)
+        if (handler.Pcb != PlacementPcbState.Secured)
         {
             await handler.SecureAtBufferAsync(cancellationToken);
         }
 
-        if (buffer.SupplyInside)
-        {
-            await supply.ReleaseToPlacementAsync(cancellationToken);
-        }
-
-        await handler.MoveClearAsync(
-            recipe.Fiducial1Position,
+        await buffer.WaitForSupplyOutsideAsync(cancellationToken);
+        await handler.ClearBufferAsync(cancellationToken);
+        await handler.WaitAboveHousingAsync(
+            recipe.Housing1PcbPlacementPosition,
             cancellationToken);
     }
+
+    private HousingSlot? NextHousing(HousingSlot? completedHousing)
+    {
+        if (completedHousing is null
+            && work.HousingPresent(HousingSlot.Housing1))
+        {
+            return HousingSlot.Housing1;
+        }
+
+        return completedHousing != HousingSlot.Housing2
+            && work.HousingPresent(HousingSlot.Housing2)
+                ? HousingSlot.Housing2
+                : null;
+    }
+
+    private static AxisPos HousingPosition(
+        PcbPlacementRecipe recipe,
+        HousingSlot housing) =>
+        housing == HousingSlot.Housing1
+            ? recipe.Housing1PcbPlacementPosition
+            : recipe.Housing2PcbPlacementPosition;
 }

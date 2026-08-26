@@ -7,7 +7,7 @@ using MvCameraControl;
 
 namespace IBTM.Hik;
 
-public sealed class HikCamera(CameraSettings settings)
+public sealed class HikCamera(InspectionCameraSettings settings)
     : ICamera, IDisposable
 {
     private const uint ImageNodeCount = 3;

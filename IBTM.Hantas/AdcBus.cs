@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace IBTM.Hantas;
 
-public sealed class AdcBus : IDisposable
+public sealed class AdcBus : IAdcBus, IDisposable
 {
     private const int ResponseTimeoutMilliseconds = 1_000;
     private const byte ReadHoldingRegisters = 0x03;
@@ -26,7 +26,7 @@ public sealed class AdcBus : IDisposable
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
-    public static string[] GetPortNames() =>
+    public string[] GetPortNames() =>
         SerialPort.GetPortNames().Order(StringComparer.OrdinalIgnoreCase).ToArray();
 
     public void Open(string portName, int baudRate)
@@ -124,21 +124,7 @@ public sealed class AdcBus : IDisposable
             (ushort)AdcResultRegister.EventCount,
             ResultRegisterCount,
             cancellationToken);
-        return new AdcFasteningResult(
-            values[0],
-            values[1],
-            values[2],
-            values[3] / 100.0,
-            values[4] / 100.0,
-            values[5],
-            values[6] / 100.0,
-            values[7] / 100.0,
-            values[8] / 100.0,
-            values[9],
-            values[10],
-            (AdcDirection)values[11],
-            (AdcEventStatus)values[12],
-            values[13]);
+        return AdcFasteningResult.FromRegisters(values);
     }
 
     public Task ResetAlarmAsync(
