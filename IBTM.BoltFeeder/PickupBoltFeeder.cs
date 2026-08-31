@@ -21,16 +21,24 @@ public sealed class PickupBoltFeeder(
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                await io.WaitForInputAsync(
-                    InputIo.PickupFeederBoltDetected,
-                    true,
-                    settings.PickupTimeoutMilliseconds,
-                    cancellationToken);
-                await io.WaitForInputAsync(
-                    InputIo.PickupFeederBoltDetected,
-                    false,
-                    Timeout.Infinite,
-                    cancellationToken);
+                switch (State)
+                {
+                    case BoltFeederState.WaitingForBolt:
+                        await io.WaitForInputAsync(
+                            InputIo.PickupFeederBoltDetected,
+                            true,
+                            settings.PickupTimeoutMilliseconds,
+                            cancellationToken);
+                        break;
+
+                    case BoltFeederState.BoltReady:
+                        await io.WaitForInputAsync(
+                            InputIo.PickupFeederBoltDetected,
+                            false,
+                            Timeout.Infinite,
+                            cancellationToken);
+                        break;
+                }
             }
         }
         catch (OperationCanceledException)

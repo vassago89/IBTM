@@ -9,16 +9,4 @@ public partial class SupplyTeachingView : UserControl
         InitializeComponent();
     }
 
-    private SupplyTeachingViewModel ViewModel =>
-        (SupplyTeachingViewModel)DataContext;
-
-    private void RecipeFile_Selected(
-        object sender,
-        SelectionChangedEventArgs e)
-    {
-        if (((ComboBox)sender).SelectedItem is string fileName)
-        {
-            ViewModel.RecipeEditor.LoadCommand.Execute(fileName);
-        }
-    }
 }

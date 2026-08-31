@@ -7,8 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Ajin;
 using IBTM.AlphaMotion;
-using IBTM.BoltFeeder;
 using IBTM.BoltFastening;
+using IBTM.BoltFeeder;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
@@ -40,12 +40,17 @@ public sealed class MachineStore
         var recipeDirectory = GetRecipeDirectory(recipe.Name);
         Directory.CreateDirectory(recipeDirectory);
         var filePath = Path.Combine(recipeDirectory, "Recipe.json");
-        await using var stream = File.Create(filePath);
-        await JsonSerializer.SerializeAsync(
-            stream,
-            recipe,
-            JsonOptions,
-            cancellationToken);
+        var temporaryPath = $"{filePath}.tmp";
+        await using (var stream = File.Create(temporaryPath))
+        {
+            await JsonSerializer.SerializeAsync(
+                stream,
+                recipe,
+                JsonOptions,
+                cancellationToken);
+        }
+
+        File.Move(temporaryPath, filePath, overwrite: true);
     }
 
     public async Task<Recipe> LoadRecipeAsync(
@@ -92,12 +97,15 @@ public sealed class MachineStore
             settings.Units.SaveAsync(cancellationToken),
             settings.Options.SaveAsync(cancellationToken),
             settings.Home.SaveAsync(cancellationToken),
+            settings.RecipeSelection.SaveAsync(cancellationToken),
+            settings.CarrierReference.SaveAsync(cancellationToken),
             settings.Ajin.SaveAsync(cancellationToken),
             settings.AlphaMotion.SaveAsync(cancellationToken),
             settings.InspectionCamera.SaveAsync(cancellationToken),
             settings.BoltInspection.SaveAsync(cancellationToken),
             settings.Lighting.SaveAsync(cancellationToken),
             settings.Hantas.SaveAsync(cancellationToken),
+            settings.NgConveyor.SaveAsync(cancellationToken),
             settings.PcbBuffer.SaveAsync(cancellationToken),
             settings.PcbSupply.SaveAsync(cancellationToken),
             settings.PcbPlacementHandler.SaveAsync(cancellationToken),
@@ -116,6 +124,12 @@ public sealed class MachineStore
                 cancellationToken),
             Options = await Setting.LoadAsync<MachineOptions>(cancellationToken),
             Home = await Setting.LoadAsync<HomeSettings>(cancellationToken),
+            RecipeSelection =
+                await Setting.LoadAsync<RecipeSelectionSettings>(
+                    cancellationToken),
+            CarrierReference =
+                await Setting.LoadAsync<CarrierReferenceSettings>(
+                    cancellationToken),
             MachineHardware = await Setting.LoadAsync<MachineHardwareSettings>(
                 cancellationToken),
             ConveyorHardware = await Setting.LoadAsync<ConveyorHardwareSettings>(
@@ -129,6 +143,8 @@ public sealed class MachineStore
                 cancellationToken),
             Lighting = await Setting.LoadAsync<LightingSettings>(cancellationToken),
             Hantas = await Setting.LoadAsync<HantasSettings>(cancellationToken),
+            NgConveyor = await Setting.LoadAsync<NgConveyorSettings>(
+                cancellationToken),
             PcbBuffer = await Setting.LoadAsync<PcbBufferSettings>(
                 cancellationToken),
             PcbBufferHardware = await Setting.LoadAsync<PcbBufferHardwareSettings>(
@@ -166,6 +182,9 @@ public sealed class MachineStore
                     cancellationToken),
             InspectionGantryHardware =
                 await Setting.LoadAsync<InspectionGantryHardwareSettings>(
+                    cancellationToken),
+            NgCarrierTransferHardware =
+                await Setting.LoadAsync<NgCarrierTransferHardwareSettings>(
                     cancellationToken),
             NgShuttleHardware = await Setting.LoadAsync<NgShuttleHardwareSettings>(
                 cancellationToken),

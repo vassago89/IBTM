@@ -11,45 +11,66 @@ public static class CarrierCoordinates
 
     public static AxisPos FromMachine(
         AxisPos position,
-        AxisPos upperLeftPin,
-        AxisPos lowerRightPin)
-    {
-        var (cosine, sine) = Direction(upperLeftPin, lowerRightPin);
-        var x = position.X - upperLeftPin.X;
-        var y = position.Y - upperLeftPin.Y;
-        return new AxisPos
+        AxisPos origin) => new()
         {
-            X = (cosine * x) + (sine * y),
-            Y = (-sine * x) + (cosine * y),
+            X = position.X - origin.X,
+            Y = position.Y - origin.Y,
             Z = position.Z,
         };
-    }
 
     public static AxisPos ToMachine(
         AxisPos position,
-        AxisPos upperLeftPin,
-        AxisPos lowerRightPin)
+        AxisPos origin) => new()
+        {
+            X = origin.X + position.X,
+            Y = origin.Y + position.Y,
+            Z = position.Z,
+        };
+
+    public static AxisPos ToMachine(
+        AxisPos position,
+        AxisPos sourceUpperLeftPin,
+        AxisPos sourceLowerRightPin,
+        AxisPos targetUpperLeftPin,
+        AxisPos targetLowerRightPin)
     {
-        var (cosine, sine) = Direction(upperLeftPin, lowerRightPin);
+        var (cosine, sine) = Rotation(
+            sourceUpperLeftPin,
+            sourceLowerRightPin,
+            targetUpperLeftPin,
+            targetLowerRightPin);
         return new AxisPos
         {
-            X = upperLeftPin.X
+            X = targetUpperLeftPin.X
                 + (cosine * position.X)
                 - (sine * position.Y),
-            Y = upperLeftPin.Y
+            Y = targetUpperLeftPin.Y
                 + (sine * position.X)
                 + (cosine * position.Y),
             Z = position.Z,
         };
     }
 
-    private static (double Cosine, double Sine) Direction(
-        AxisPos upperLeftPin,
-        AxisPos lowerRightPin)
+    private static (double Cosine, double Sine) Rotation(
+        AxisPos sourceUpperLeftPin,
+        AxisPos sourceLowerRightPin,
+        AxisPos targetUpperLeftPin,
+        AxisPos targetLowerRightPin)
     {
-        var x = lowerRightPin.X - upperLeftPin.X;
-        var y = lowerRightPin.Y - upperLeftPin.Y;
-        var length = Math.Sqrt((x * x) + (y * y));
-        return (x / length, y / length);
+        var sourceX = sourceLowerRightPin.X - sourceUpperLeftPin.X;
+        var sourceY = sourceLowerRightPin.Y - sourceUpperLeftPin.Y;
+        var sourceLength = Math.Sqrt(
+            (sourceX * sourceX) + (sourceY * sourceY));
+        var targetX = targetLowerRightPin.X - targetUpperLeftPin.X;
+        var targetY = targetLowerRightPin.Y - targetUpperLeftPin.Y;
+        var targetLength = Math.Sqrt(
+            (targetX * targetX) + (targetY * targetY));
+        sourceX /= sourceLength;
+        sourceY /= sourceLength;
+        targetX /= targetLength;
+        targetY /= targetLength;
+        return (
+            (sourceX * targetX) + (sourceY * targetY),
+            (sourceX * targetY) - (sourceY * targetX));
     }
 }

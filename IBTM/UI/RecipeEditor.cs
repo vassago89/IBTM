@@ -12,6 +12,7 @@ namespace IBTM.UI;
 
 public partial class RecipeEditor(
     MachineStore store,
+    RecipeSelectionSettings selection,
     Recipe recipe) : ObservableObject
 {
     private string _imageRecipeName = recipe.Name;
@@ -23,6 +24,7 @@ public partial class RecipeEditor(
     [ObservableProperty]
     private IReadOnlyList<string> _recipes = store.GetRecipeNames();
     public Recipe Recipe => recipe;
+    public string ActiveName => recipe.Name;
 
     public event Action? Changed;
 
@@ -48,7 +50,9 @@ public partial class RecipeEditor(
         recipe.Name = name;
         _imageRecipeName = name;
         Name = recipe.Name;
+        OnPropertyChanged(nameof(ActiveName));
         await store.SaveRecipeAsync(recipe);
+        await SelectAsync(recipe.Name);
         RefreshRecipes();
     }
 
@@ -60,6 +64,8 @@ public partial class RecipeEditor(
         recipe.ReplaceWith(await store.LoadRecipeAsync(recipeName));
         _imageRecipeName = recipe.Name;
         Name = recipe.Name;
+        OnPropertyChanged(nameof(ActiveName));
+        await SelectAsync(recipe.Name);
         Changed?.Invoke();
     }
 
@@ -69,16 +75,24 @@ public partial class RecipeEditor(
         recipe.ReplaceWith(new Recipe { Name = "New" });
         _imageRecipeName = recipe.Name;
         Name = recipe.Name;
+        OnPropertyChanged(nameof(ActiveName));
         Changed?.Invoke();
     }
 
     private void RefreshRecipes() => Recipes = store.GetRecipeNames();
+
+    private Task SelectAsync(string recipeName)
+    {
+        selection.LastRecipeName = recipeName;
+        return selection.SaveAsync();
+    }
 
     public void ClearCarrierImages()
     {
         recipe.Name = Name.Trim();
         _imageRecipeName = recipe.Name;
         Name = recipe.Name;
+        OnPropertyChanged(nameof(ActiveName));
         recipe.CarrierImages.Clear();
         var directory = store.GetRecipeImageDirectory(recipe.Name);
         Directory.CreateDirectory(directory);

@@ -4,152 +4,334 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="clr-namespace:IBTM.UI"
+             xmlns:ng="clr-namespace:IBTM.NgConveyor;assembly=IBTM.NgConveyor"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
              Width="498"
-             Height="492">
+             Height="820">
+    <UserControl.Resources>
+        <Style x:Key="NgConveyorPositionStyle" TargetType="Border">
+            <Setter Property="Margin" Value="3,2"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="2"/>
+        </Style>
+    </UserControl.Resources>
     <Grid>
-        <Border Style="{DynamicResource CellStyle}"/>
-
         <Canvas>
-            <TextBlock Canvas.Left="20" Canvas.Top="18"
-                       Text="STATION 3   INSPECT / SORT"
+            <TextBlock Canvas.Left="20" Canvas.Top="14"
+                       Text="S3  INSPECTION / SORT"
                        Foreground="{StaticResource TextPrimaryBrush}"
-                       FontSize="17"
-                       FontWeight="SemiBold"/>
-            <Border Canvas.Right="20" Canvas.Top="52"
+                       FontSize="20"
+                       FontWeight="Bold"/>
+            <Border Canvas.Left="20" Canvas.Top="52"
+                    Width="210"
                     Tag="{Binding InspectionDisplayState}"
-                    Style="{DynamicResource StationStateBadgeStyle}">
+                    Style="{StaticResource StationStateBadgeStyle}">
                 <TextBlock Text="{Binding InspectionDisplayState,
                                           Converter={StaticResource EnumDescriptionConverter}}"
-                           Style="{DynamicResource StateTextStyle}"/>
+                           Style="{StaticResource PrimaryStateTextStyle}"/>
             </Border>
+
+            <TextBlock Canvas.Left="20" Canvas.Top="108"
+                       Width="390"
+                       Text="{Binding InspectionProcessState,
+                                      Converter={StaticResource EnumDescriptionConverter}}"
+                       TextAlignment="Left"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       FontSize="14"
+                       FontWeight="SemiBold"
+                       Visibility="{Binding InspectionProcessStateVisible,
+                                            Converter={StaticResource BoolToVis}}"/>
 
             <Grid Canvas.Left="{Binding InspectionGantryMapLeft}"
                   Canvas.Top="{Binding InspectionGantryMapTop}"
                   Width="138" Height="132"
                   Panel.ZIndex="20"
                   ToolTip="{Binding InspectionGantryPosition}">
-                <Border Tag="{Binding InspectionGantryMoving}"
-                        Style="{DynamicResource DeviceBodyStyle}"/>
-                <Grid Margin="10">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Text="INSPECTION GANTRY"
-                               HorizontalAlignment="Center"
-                               Style="{DynamicResource MapLabelStyle}"/>
-
-                    <Grid Grid.Row="1" Margin="4,8,4,3">
+                <ContentControl Margin="-52,27,0,0"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Panel.ZIndex="0"
+                                Style="{StaticResource CarrierJigStyle}"
+                                Visibility="{Binding NgCarrierDetected,
+                                                     Converter={StaticResource BoolToVis}}"/>
+                <Border Width="112" Height="100"
+                        Margin="5,19,0,0"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Panel.ZIndex="1"
+                        Tag="{Binding InspectionGantryMoving}"
+                        Style="{StaticResource OverheadBodyStyle}"/>
+                <TextBlock Margin="20,25,0,0"
+                           Width="28" Height="14"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Top"
+                           Text="CAM"
+                           FontSize="9"
+                           Panel.ZIndex="4"
+                           Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                <TextBlock Margin="46,25,0,0"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Top"
+                           Panel.ZIndex="5"
+                           Text="{Binding InspectionActiveBolt.Number}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock"
+                               BasedOn="{StaticResource ActiveToolNumberStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding InspectionActiveBolt}"
+                                             Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBlock Margin="58,25,0,0"
+                           Width="48" Height="14"
+                           HorizontalAlignment="Left"
+                           VerticalAlignment="Top"
+                           Text="NG PICK"
+                           FontSize="9"
+                           Panel.ZIndex="4"
+                           Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                <Grid Width="112" Height="100"
+                      Margin="5,19,0,0"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Top"
+                      Panel.ZIndex="3">
+                    <Grid Margin="14,12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <Grid>
-                            <Ellipse Width="38" Height="38"
+                        <Grid Width="48" Height="48">
+                            <Ellipse Width="42" Height="42"
                                      Fill="{StaticResource EquipBgBrush}"
                                      Stroke="{StaticResource AccentBlueBrush}"
                                      StrokeThickness="2"/>
-                            <TextBlock Text="C"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       Foreground="{StaticResource AccentBlueBrush}"
-                                       FontWeight="SemiBold"/>
+                            <Ellipse Width="16" Height="16"
+                                     Fill="#253543"
+                                     Stroke="{StaticResource TextMutedBrush}"
+                                     StrokeThickness="1"/>
                         </Grid>
-                        <Grid Grid.Column="1" Width="48" Height="42">
-                            <Border Width="30" Height="13"
+                        <Grid Grid.Column="1" Width="48" Height="48">
+                            <Border Tag="{Binding NgCarrierPickupDown}"
+                                    Style="{StaticResource DownFootprintStyle}"/>
+                            <Border Tag="{Binding NgCarrierGripperClosed}"
+                                    Style="{StaticResource LeftGripperJawStyle}"/>
+                            <Border Tag="{Binding NgCarrierGripperClosed}"
+                                    Style="{StaticResource RightGripperJawStyle}"/>
+                        </Grid>
+                    </Grid>
+                </Grid>
+            </Grid>
+
+            <Canvas Canvas.Left="{Binding NgConveyorMapOffsetLeft}"
+                    Canvas.Top="{Binding NgConveyorMapOffsetTop}"
+                    Width="498" Height="820">
+            <Border Canvas.Left="0" Canvas.Top="520"
+                    Width="393" Height="280"
+                    Background="#1A2228"
+                    BorderBrush="{StaticResource DividerBrush}"
+                    BorderThickness="1"
+                    CornerRadius="3"/>
+
+            <TextBlock Canvas.Left="10" Canvas.Top="540"
+                       Width="78" Height="16"
+                       Text="NG CONVEYOR"
+                       TextAlignment="Left"
+                       FontSize="10"
+                       Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            <TextBlock Canvas.Left="10" Canvas.Top="562"
+                       Width="78"
+                       TextAlignment="Left"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Style="{StaticResource MapLabelStyle}">
+                <Run Text="{Binding NgCarrierCount, Mode=OneWay}"/>
+                <Run Text=" / "/>
+                <Run Text="{Binding NgAlarmCarrierCount, Mode=OneWay}"/>
+            </TextBlock>
+            <TextBlock Canvas.Left="10" Canvas.Top="590"
+                       Width="78"
+                       FontSize="14"
+                       FontWeight="Bold">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding NgAlarmRequired}"
+                                         Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Setter Property="Text" Value="EJECT"/>
+                                <Setter Property="Foreground"
+                                        Value="{StaticResource AccentAmberBrush}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding NgConveyorState}"
+                                         Value="{x:Static ng:NgConveyorState.Full}">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Setter Property="Text" Value="FULL"/>
+                                <Setter Property="Foreground"
+                                        Value="{StaticResource AccentRedBrush}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <Border Canvas.Left="93" Canvas.Top="520"
+                    Width="300" Height="268"
+                    Tag="{Binding NgConveyorRunCommandOn}"
+                    Style="{StaticResource ConveyorBedStyle}"/>
+
+            <Grid Canvas.Left="93" Canvas.Top="502"
+                  Width="300" Height="286">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Style="{StaticResource NgConveyorPositionStyle}">
+                        <Grid>
+                            <ContentControl HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Panel.ZIndex="1">
+                                <ContentControl.Style>
+                                    <Style TargetType="ContentControl"
+                                           BasedOn="{StaticResource CarrierJigStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding NgConveyorPosition3Occupied}"
+                                                         Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding NgShuttleCarrierDetected}"
+                                                         Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ContentControl.Style>
+                            </ContentControl>
+                            <Border Width="280" Height="88"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
-                                    Background="{DynamicResource CarrierJigBrush}"
-                                    CornerRadius="2"
-                                    Visibility="{Binding NgCarrierJigDetected,
-                                                         Converter={StaticResource BoolToVis}}"/>
-                            <Border Tag="{Binding NgCarrierGripperClosed}"
-                                    Style="{DynamicResource LeftGripperJawStyle}"/>
-                            <Border Tag="{Binding NgCarrierGripperClosed}"
-                                    Style="{DynamicResource RightGripperJawStyle}"/>
+                                    Panel.ZIndex="2">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="BorderBrush"
+                                                Value="{StaticResource AccentAmberBrush}"/>
+                                        <Setter Property="BorderThickness" Value="2"/>
+                                        <Setter Property="CornerRadius" Value="2"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding NgShuttleLift}"
+                                                         Value="{x:Static ng:NgShuttleLiftState.Up}">
+                                                <Setter Property="BorderBrush"
+                                                        Value="{StaticResource AccentBlueBrush}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding NgShuttleLift}"
+                                                         Value="{x:Static ng:NgShuttleLiftState.Down}">
+                                                <Setter Property="BorderBrush"
+                                                        Value="{StaticResource TextMutedBrush}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                            </Border>
+                            <TextBlock Text="P3"
+                                       Margin="8,0,0,0"
+                                       HorizontalAlignment="Left"
+                                       VerticalAlignment="Center"
+                                       Panel.ZIndex="3"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"/>
                         </Grid>
-                    </Grid>
-
-                    <Grid Grid.Row="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="CAMERA"
-                                   HorizontalAlignment="Center"
-                                   Style="{DynamicResource MapHintStyle}"/>
-                        <TextBlock Grid.Column="1"
-                                   Text="GRIPPER"
-                                   HorizontalAlignment="Center"
-                                   Style="{DynamicResource MapHintStyle}"/>
-                    </Grid>
-                </Grid>
-            </Grid>
-
-            <Grid Canvas.Left="112" Canvas.Top="316"
-                  Width="276" Height="64">
-                <Border Style="{DynamicResource ConveyorBedStyle}"/>
-                <Grid Margin="12,10">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <Border Margin="4,0"
-                            Tag="{Binding NgConveyorPosition1Occupied}"
-                            Style="{DynamicResource StageBodyStyle}">
-                        <TextBlock Text="1"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Style="{DynamicResource MapHintStyle}"/>
                     </Border>
-                    <Border Grid.Column="1" Margin="4,0"
-                            Tag="{Binding NgConveyorPosition2Occupied}"
-                            Style="{DynamicResource StageBodyStyle}">
-                        <TextBlock Text="2"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Style="{DynamicResource MapHintStyle}"/>
+
+                    <Border Grid.Row="1"
+                            Style="{StaticResource NgConveyorPositionStyle}">
+                        <Grid>
+                            <ContentControl HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Style="{StaticResource CarrierJigStyle}"
+                                            Visibility="{Binding NgConveyorPosition2Occupied,
+                                                                 Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="P2"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"/>
+                        </Grid>
                     </Border>
-                    <Border Grid.Column="2" Margin="4,0"
-                            Tag="{Binding NgConveyorPosition3Occupied}"
-                            Style="{DynamicResource StageBodyStyle}">
-                        <TextBlock Text="3"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Style="{DynamicResource MapHintStyle}"/>
+
+                    <Border Grid.Row="2"
+                            Style="{StaticResource NgConveyorPositionStyle}">
+                        <Grid>
+                            <ContentControl HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Style="{StaticResource CarrierJigStyle}"
+                                            Visibility="{Binding NgConveyorPosition1Occupied,
+                                                                 Converter={StaticResource BoolToVis}}"/>
+                            <TextBlock Text="P1"
+                                       Margin="8,0,0,0"
+                                       HorizontalAlignment="Left"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock Text="EJECT"
+                                       Margin="0,0,7,0"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Center"
+                                       Style="{StaticResource MapHintStyle}"/>
+                        </Grid>
                     </Border>
                 </Grid>
-            </Grid>
-            <TextBlock Canvas.Left="112" Canvas.Top="388"
-                       Text="NG CONVEYOR"
-                       Style="{DynamicResource MapHintStyle}"/>
-            <TextBlock Canvas.Left="112" Canvas.Top="405"
-                       Width="220"
-                       Text="{Binding NgConveyorState, Converter={StaticResource EnumDescriptionConverter}}"
-                       TextAlignment="Center"
-                       Foreground="{StaticResource TextSecondaryBrush}"
-                       FontSize="11"/>
 
-            <Border Canvas.Left="342" Canvas.Top="354"
-                    Width="118" Height="58"
-                    Tag="{Binding NgShuttleCarrierDetected}"
-                    Style="{DynamicResource StageBodyStyle}">
-                <TextBlock Text="NG SHUTTLE"
+            </Grid>
+
+            <Border Canvas.Left="101" Canvas.Top="732"
+                    Width="284" Height="48"
+                    Padding="10,6"
+                    Panel.ZIndex="10"
+                    Background="#E61A2228"
+                    BorderBrush="{StaticResource AccentAmberBrush}"
+                    BorderThickness="1"
+                    CornerRadius="3">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding NgConveyorState}"
+                                         Value="{x:Static ng:NgConveyorState.WaitingForEjectConfirmation}">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding NgConveyorState}"
+                                         Value="{x:Static ng:NgConveyorState.WaitingForEjectButtonRelease}">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding NgConveyorState,
+                                          Converter={StaticResource EnumDescriptionConverter}}"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"
-                           Style="{DynamicResource MapHintStyle}"/>
+                           TextAlignment="Center"
+                           Foreground="{StaticResource AccentAmberBrush}"
+                           FontSize="13"
+                           FontWeight="SemiBold"/>
             </Border>
+            </Canvas>
 
-            <TextBlock Canvas.Left="20" Canvas.Top="438"
-                       Text="INSPECTION POSITION"
-                       Style="{DynamicResource MapLabelStyle}"/>
-            <TextBlock Canvas.Left="20" Canvas.Top="458"
-                       Text="{Binding InspectionGantryPosition}"
-                       Style="{DynamicResource MapHintStyle}"/>
         </Canvas>
     </Grid>
 </UserControl>

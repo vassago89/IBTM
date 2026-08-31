@@ -33,7 +33,7 @@
         </Grid>
 
         <TextBlock Grid.Row="1"
-                   Text="DO is a command. The green indicator is the mapped digital input."
+                   Text="DO = command  ·  green = mapped input"
                    Style="{StaticResource PageSubtitleStyle}"
                    Margin="0,4,0,18"/>
 
@@ -52,8 +52,7 @@
             <TextBlock Grid.Column="3" Text="ACTUAL" Style="{StaticResource SectionHeaderStyle}"/>
         </Grid>
 
-        <ListBox x:Name="OutputList"
-                 Grid.Row="3"
+        <ListBox Grid.Row="3"
                  ItemsSource="{Binding Rows}"
                  Style="{StaticResource IoListStyle}"
                  ItemContainerStyle="{StaticResource IoListItemStyle}">

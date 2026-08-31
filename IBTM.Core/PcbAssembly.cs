@@ -15,9 +15,9 @@ public enum PcbResult
     Ng,
 }
 
-public sealed class PcbAssembly(HousingSlot housing)
+public sealed class PcbAssembly(HeatSinkSlot heatSink)
 {
-    public HousingSlot Housing { get; } = housing;
+    public HeatSinkSlot HeatSink { get; } = heatSink;
     public Dictionary<int, BoltResult> PcbBoltResults { get; } = [];
     public Dictionary<int, BoltResult> IpmSeatingResults { get; } = [];
     public Dictionary<int, BoltResult> IpmFinalResults { get; } = [];
@@ -32,14 +32,6 @@ public sealed class PcbAssembly(HousingSlot housing)
             : InspectionResult == PcbResult.Ok
                 ? PcbResult.Ok
                 : PcbResult.Pending;
-
-    public void BeginFastening()
-    {
-        PcbBoltResults.Clear();
-        IpmSeatingResults.Clear();
-        IpmFinalResults.Clear();
-        FasteningResult = PcbResult.Pending;
-    }
 
     public void RecordPcbBolt(int number, BoltResult result) =>
         Record(PcbBoltResults, number, result);
@@ -70,10 +62,12 @@ public sealed class PcbAssembly(HousingSlot housing)
         }
     }
 
-    public void BeginInspection()
+    public void ResetFastening()
     {
-        BoltPresenceResults.Clear();
-        InspectionResult = PcbResult.Pending;
+        PcbBoltResults.Clear();
+        IpmSeatingResults.Clear();
+        IpmFinalResults.Clear();
+        FasteningResult = PcbResult.Pending;
     }
 
     public void RecordBoltPresence(int number, bool present)
@@ -83,6 +77,12 @@ public sealed class PcbAssembly(HousingSlot housing)
         {
             InspectionResult = PcbResult.Ng;
         }
+    }
+
+    public void ResetInspection()
+    {
+        BoltPresenceResults.Clear();
+        InspectionResult = PcbResult.Pending;
     }
 
     public void CompleteInspection()

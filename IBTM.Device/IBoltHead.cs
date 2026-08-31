@@ -16,12 +16,24 @@ public enum BoltDriver
     HantasAdc,
 }
 
+public enum BoltHeadState
+{
+    [Description("Ready")]
+    Ready,
+
+    [Description("Tightening")]
+    Tightening,
+}
+
 public interface IBoltHead
 {
+    BoltHeadState State { get; }
+
     Task CheckReadyAsync(CancellationToken cancellationToken = default);
     Task SelectPresetAsync(
         ushort preset,
         CancellationToken cancellationToken = default);
     Task<BoltResult> TightenAsync(
         CancellationToken cancellationToken = default);
+    void DiscardPendingResult();
 }

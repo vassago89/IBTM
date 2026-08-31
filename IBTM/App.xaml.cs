@@ -1,5 +1,4 @@
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
 using IBTM.UI;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,11 +33,14 @@ public partial class App : System.Windows.Application
 
         var store = new MachineStore();
         var settings = await store.LoadSettingsAsync();
+        var recipe = settings.RecipeSelection.LastRecipeName is { } recipeName
+            ? await store.LoadRecipeAsync(recipeName)
+            : new Recipe();
 
         var services = new ServiceCollection()
             .AddSingleton(settings)
             .AddSingleton(store)
-            .AddIbtmApplication(settings);
+            .AddIbtmApplication(settings, recipe);
         var serviceProvider = services.BuildServiceProvider(
             new ServiceProviderOptions
             {

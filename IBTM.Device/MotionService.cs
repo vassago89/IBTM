@@ -10,8 +10,10 @@ public interface IAxisMotion
 {
     event Action<double, double, double>? PositionChanged;
     event Action<bool>? MovingChanged;
+    event Action? StateChanged;
 
     IReadOnlyList<MotionAxis> Axes { get; }
+    bool IsReady { get; }
     bool HasY { get; }
     bool HasZ { get; }
     bool IsMoving { get; }
@@ -98,8 +100,10 @@ public abstract class MotionService(
 
     public event Action<double, double, double>? PositionChanged;
     public event Action<bool>? MovingChanged;
+    public event Action? StateChanged;
 
     public IReadOnlyList<MotionAxis> Axes => _axes;
+    public abstract bool IsReady { get; }
     public bool HasY => hasY;
     public bool HasZ => hasZ;
     public bool IsMoving => Volatile.Read(ref _activeMotions) > 0;
@@ -423,6 +427,8 @@ public abstract class MotionService(
     protected void PublishPositionChanged(double x, double y, double z) =>
         PositionChanged?.Invoke(x, y, z);
 
+    protected void PublishStateChanged() => StateChanged?.Invoke();
+
     protected CancellationTokenSource LinkOperation(
         CancellationToken cancellationToken = default) =>
         _operationCancellation.Link(cancellationToken);
@@ -432,6 +438,7 @@ public abstract class MotionService(
         if (Interlocked.Increment(ref _activeMotions) == 1)
         {
             MovingChanged?.Invoke(true);
+            PublishStateChanged();
         }
     }
 
@@ -440,6 +447,7 @@ public abstract class MotionService(
         if (Interlocked.Decrement(ref _activeMotions) == 0)
         {
             MovingChanged?.Invoke(false);
+            PublishStateChanged();
         }
     }
 

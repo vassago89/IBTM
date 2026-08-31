@@ -8,142 +8,26 @@
              d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
              Background="{StaticResource AppBgBrush}">
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="72"/>
-        </Grid.RowDefinitions>
-
-        <Grid Grid.Row="0" Margin="14">
-            <Border Style="{StaticResource CardStyle}" Padding="14">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="64"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0"
-                                    Orientation="Horizontal"
-                                    VerticalAlignment="Center">
-                            <TextBlock Text="MACHINE"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       FontSize="12"
-                                       FontWeight="SemiBold"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,12,0"/>
-                            <Border Tag="{Binding MachineDisplayState}"
-                                    Style="{StaticResource MachineStateBadgeStyle}">
-                                <TextBlock Text="{Binding MachineStatus,
-                                                         Converter={StaticResource EnumDescriptionConverter}}"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
-                                           FontSize="15"
-                                           FontWeight="SemiBold"/>
-                            </Border>
-                        </StackPanel>
-
-                        <StackPanel Grid.Column="1"
-                                    Orientation="Horizontal"
-                                    VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
-                                <Ellipse Tag="{Binding EmergencyStopReleased}"
-                                         Style="{StaticResource StatusLedStyle}"/>
-                                <TextBlock Text="E-STOP RELEASED"
-                                           Style="{StaticResource SafetyTextStyle}"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,20,0">
-                                <Ellipse Tag="{Binding DoorClosed}"
-                                         Style="{StaticResource StatusLedStyle}"/>
-                                <TextBlock Text="DOORS CLOSED"
-                                           Style="{StaticResource SafetyTextStyle}"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal">
-                                <Ellipse Tag="{Binding AirPressureOk}"
-                                         Style="{StaticResource StatusLedStyle}"/>
-                                <TextBlock Text="AIR OK"
-                                           Style="{StaticResource SafetyTextStyle}"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Grid>
-
-                    <Border Grid.Row="1"
-                            Background="{StaticResource EquipBgBrush}"
-                            BorderBrush="{StaticResource DividerBrush}"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            ClipToBounds="True">
-                        <Canvas Width="1600"
-                                Height="790"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center">
-                            <ui:Station1View Canvas.Left="24" Canvas.Top="18"/>
-                            <ui:Station2View Canvas.Left="610" Canvas.Top="18"/>
-                            <ui:Station3View Canvas.Left="1078" Canvas.Top="18"/>
-                            <ui:ConveyorView Canvas.Left="24" Canvas.Top="528"/>
-                        </Canvas>
-                    </Border>
-                </Grid>
-            </Border>
-        </Grid>
-
-        <Border Grid.Row="1"
-                Background="{StaticResource PanelBgBrush}"
+    <Grid Margin="18,14">
+        <Border Background="{StaticResource EquipBgBrush}"
                 BorderBrush="{StaticResource DividerBrush}"
-                BorderThickness="0,1,0,0">
-            <Grid Margin="16,0">
-                <StackPanel Orientation="Horizontal"
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Center">
-                    <Button Content="Home All"
-                            Command="{Binding HomeCommand}"
-                            MinWidth="88"
-                            Margin="0,0,6,0">
-                        <Button.Style>
-                            <Style TargetType="Button"
-                                   BasedOn="{StaticResource PrimaryButtonStyle}">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding MachineDisplayState}"
-                                                 Value="{x:Static ui:MachineDisplayState.HomeRequired}">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-                    <Button Content="Stop Home"
-                            Command="{Binding StopHomeCommand}"
-                            Style="{StaticResource SecondaryButtonStyle}"
-                            MinWidth="88"
-                            Margin="0,0,6,0"
-                            Visibility="{Binding IsHoming,
-                                                 Converter={StaticResource BoolToVis}}"/>
-                    <Button Content="Start"
-                            Command="{Binding StartCommand}"
-                            Style="{StaticResource PrimaryButtonStyle}"
-                            MinWidth="76"
-                            Margin="0,0,6,0"/>
-                    <Button Content="Stop"
-                            Command="{Binding StopCommand}"
-                            Style="{StaticResource SecondaryButtonStyle}"
-                            MinWidth="76"
-                            Margin="0,0,6,0"/>
-                    <Button Content="Reset"
-                            Command="{Binding ResetCommand}"
-                            Style="{StaticResource SecondaryButtonStyle}"
-                            MinWidth="70"
-                            Margin="0,0,6,0"/>
-                    <Button Content="E-STOP"
-                            Command="{Binding EStopCommand}"
-                            Style="{StaticResource DangerButtonStyle}"
-                            MinWidth="84"/>
-                </StackPanel>
-            </Grid>
+                BorderThickness="1"
+                CornerRadius="3"
+                ClipToBounds="True">
+            <Canvas Width="1600"
+                    Height="840"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    Margin="0,18,0,0">
+                <ui:ConveyorView Canvas.Left="24" Canvas.Top="360"
+                                 Panel.ZIndex="0"/>
+                <ui:Station1View Canvas.Left="24" Canvas.Top="0"
+                                 Panel.ZIndex="10"/>
+                <ui:Station2View Canvas.Left="610" Canvas.Top="0"
+                                 Panel.ZIndex="10"/>
+                <ui:Station3View Canvas.Left="1018" Canvas.Top="0"
+                                 Panel.ZIndex="10"/>
+            </Canvas>
         </Border>
     </Grid>
 </UserControl>

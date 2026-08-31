@@ -18,12 +18,12 @@ public enum MotionGroup
     InspectionGantry,
 }
 
-[JsonConverter(typeof(JsonStringEnumConverter<HousingSlot>))]
-public enum HousingSlot
+[JsonConverter(typeof(JsonStringEnumConverter<HeatSinkSlot>))]
+public enum HeatSinkSlot
 {
-    [Description("Housing 1")]
-    Housing1,
+    [Description("Heat Sink 1")]
+    HeatSink1,
 
-    [Description("Housing 2")]
-    Housing2,
+    [Description("Heat Sink 2")]
+    HeatSink2,
 }

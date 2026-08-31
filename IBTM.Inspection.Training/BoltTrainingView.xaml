@@ -8,29 +8,36 @@
              d:DataContext="{d:DesignInstance Type=training:BoltTrainingViewModel, IsDesignTimeCreatable=False}"
              Background="{StaticResource AppBgBrush}">
 
-    <Grid Margin="28,24">
+    <UserControl.Resources>
+        <Style x:Key="ReviewContentStyle" TargetType="{x:Type FrameworkElement}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Review}" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="24,20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Margin="0,0,0,20">
-            <TextBlock Text="Bolt Model Training"
-                       Style="{StaticResource TitleStyle}"/>
-            <TextBlock Text="Capture, mark, train, and verify"
-                       Style="{StaticResource PageSubtitleStyle}"/>
-        </StackPanel>
+        <TextBlock Text="Bolt Training"
+                   Style="{StaticResource TitleStyle}"
+                   Margin="0,0,0,10"/>
 
         <Grid Grid.Row="1"
-              MaxWidth="1420"
+              MaxWidth="1600"
               HorizontalAlignment="Center">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="3*"/>
-                <ColumnDefinition Width="18"/>
+                <ColumnDefinition Width="12"/>
                 <ColumnDefinition Width="2*"/>
             </Grid.ColumnDefinitions>
 
-            <Border Style="{StaticResource CardStyle}" Padding="24">
+            <Border Style="{StaticResource CardStyle}" Padding="16">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -65,8 +72,8 @@
                             Background="#05070A"
                             BorderBrush="{StaticResource CardBorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="4"
-                            Padding="10">
+                            CornerRadius="2"
+                             Padding="4">
                         <training:BoltMaskEditor x:Name="MaskEditor"
                                                  Source="{Binding LabelImage}"
                                                  BrushSize="6"
@@ -102,12 +109,12 @@
                                 HorizontalAlignment="Left"/>
 
                         <StackPanel Grid.Column="3" Orientation="Horizontal">
-                            <Button Content="Empty &amp; Next"
+                            <Button Content="No Bolt &amp; Next"
                                     Command="{Binding EmptyLabelCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     MinWidth="116"
                                     Margin="0,0,8,0"/>
-                            <Button Content="Complete &amp; Next"
+                            <Button Content="Save Mask &amp; Next"
                                     Command="{Binding CompleteLabelCommand}"
                                     CommandParameter="{Binding Mask, ElementName=MaskEditor}"
                                     Style="{StaticResource PrimaryButtonStyle}"
@@ -124,7 +131,7 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Border Style="{StaticResource CardStyle}" Padding="22">
+                <Border Style="{StaticResource CardStyle}" Padding="16">
                     <StackPanel>
                         <Grid Margin="0,0,0,18">
                             <TextBlock Text="Training"
@@ -223,8 +230,17 @@
                 </Border>
 
                 <Border Grid.Row="2"
-                        Style="{StaticResource CardStyle}"
-                        Padding="22">
+                        Padding="16">
+                    <Border.Style>
+                        <Style TargetType="Border"
+                               BasedOn="{StaticResource CardStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Review}" Value="{x:Null}">
+                                    <Setter Property="VerticalAlignment" Value="Top"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -236,10 +252,8 @@
                                        FontSize="17"
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}"/>
-                            <StackPanel HorizontalAlignment="Right">
-                                <TextBlock Text="VALIDATION"
-                                           Style="{StaticResource SectionHeaderStyle}"
-                                           HorizontalAlignment="Right"/>
+                            <StackPanel HorizontalAlignment="Right"
+                                        Style="{StaticResource ReviewContentStyle}">
                                 <TextBlock FontSize="16"
                                            Foreground="{StaticResource TextPrimaryBrush}"
                                            HorizontalAlignment="Right">
@@ -255,7 +269,9 @@
                             </StackPanel>
                         </Grid>
 
-                        <Grid Grid.Row="1" Margin="0,18,0,16">
+                        <Grid Grid.Row="1"
+                              Margin="0,18,0,16"
+                              Style="{StaticResource ReviewContentStyle}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="200"/>
                                 <ColumnDefinition Width="18"/>
@@ -267,7 +283,7 @@
                                     Background="#05070A"
                                     BorderBrush="{StaticResource CardBorderBrush}"
                                     BorderThickness="1"
-                                    CornerRadius="3">
+                                    CornerRadius="2">
                                 <Image Source="{Binding Review.Image}"
                                        Stretch="Uniform"
                                        RenderOptions.BitmapScalingMode="NearestNeighbor"/>
@@ -322,7 +338,8 @@
                             </StackPanel>
                         </Grid>
 
-                        <Grid Grid.Row="2">
+                        <Grid Grid.Row="2"
+                              Style="{StaticResource ReviewContentStyle}">
                             <StackPanel Orientation="Horizontal">
                                 <Button Content="Previous"
                                         Command="{Binding Review.PreviousCommand}"

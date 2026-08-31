@@ -11,7 +11,6 @@ public partial class AdcProtocolWindow : Window
 {
     private readonly CancellationTokenSource _lifetime = new();
     private readonly IAdcBus _bus;
-    private bool _openedHere;
 
     public AdcProtocolWindow(IAdcBus bus)
     {
@@ -39,10 +38,6 @@ public partial class AdcProtocolWindow : Window
     {
         _lifetime.Cancel();
         _bus.FrameTransferred -= OnFrameTransferred;
-        if (_openedHere)
-        {
-            _bus.Close();
-        }
         _lifetime.Dispose();
         base.OnClosed(e);
     }
@@ -55,7 +50,6 @@ public partial class AdcProtocolWindow : Window
             if (_bus.IsOpen)
             {
                 _bus.Close();
-                _openedHere = false;
                 ConnectButton.Content = "Connect";
                 ConnectionStatusText.Text = "Disconnected";
                 return Task.CompletedTask;
@@ -64,7 +58,6 @@ public partial class AdcProtocolWindow : Window
             var portName = (string)PortBox.SelectedItem;
             var baudRate = (int)BaudBox.SelectedItem;
             _bus.Open(portName, baudRate);
-            _openedHere = true;
             ConnectButton.Content = "Disconnect";
             ConnectionStatusText.Text =
                 $"{portName} | {baudRate}";
@@ -197,7 +190,7 @@ public partial class AdcProtocolWindow : Window
         SlaveBox.IsEnabled = !busy;
         RefreshPortsButton.IsEnabled = !busy && !connected;
         ConnectButton.IsEnabled = !busy
-            && (_openedHere || !connected && PortBox.SelectedItem is string);
+            && (connected || PortBox.SelectedItem is string);
         OperationPanel.IsEnabled = !busy && connected;
         RegisterPanel.IsEnabled = !busy && connected;
     }

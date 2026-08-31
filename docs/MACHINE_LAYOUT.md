@@ -13,13 +13,13 @@ components are intentionally omitted.
 | CAD root assembly | Components | Control responsibility |
 | --- | ---: | --- |
 | PCB PICKUP TRANSFER | 565 | Receives the upstream two-PCB carrier and presents each PCB to the buffer |
-| PCB BUFFER JIG | 10 | Shared handoff and collision area between supply and placement |
-| PCB HANDLER & PLACE | 335 | Picks from the buffer and places the PCB into a housing |
-| BELT CONVEYOR | 251 | Main production carrier-jig conveyor and station backup plate hardware |
+| PCB BUFFER | 10 | Shared handoff and collision area between supply and placement |
+| PCB HANDLER & PLACE | 335 | Picks from the buffer and places the PCB into a heat sink |
+| BELT CONVEYOR | 251 | Main production carrier conveyor and station backup plate hardware |
 | Fastening assembly | 279 | One shared motion group carrying two fastening heads |
 | NG TRANSFER | 102 | Shared Inspection Gantry and NG carrier pickup |
 | NG CONVEYOR | 137 | Separate NG carrier transport; not the main production conveyor |
-| NG SHUTTLE | 62 | Moves an NG carrier jig between NG handling positions |
+| NG SHUTTLE | 62 | Moves an NG carrier between NG handling positions |
 
 ## Operating layout
 
@@ -27,11 +27,11 @@ components are intentionally omitted.
 Upstream two-PCB carrier
    Front 1 SMEMA
         v
-PCB Supply Handler ---- PCB Buffer Jig ---- PCB Placement Handler
+PCB Supply Handler ---- PCB Buffer ---- PCB Placement Handler
                                                    |
                                                    v
 Front 2 SMEMA --> [PCB Placement] --> [Bolt Fastening] --> [Inspection] --> Rear SMEMA
-                   main production carrier-jig conveyor
+                   main production carrier conveyor
                                                      |
                                             Inspection Gantry
                                                      |
@@ -51,147 +51,184 @@ and sensor hardware. The operator view therefore shows:
 - the upstream carrier with PCB 1 and PCB 2;
 - the supply handler position, rotation, PCB-present input, gripper input, and output;
 - the supply-side SMEMA input and output;
-- the PCB Buffer Jig as a compact shared handoff area.
+- the PCB Buffer as a compact shared handoff area.
 
 PCB 1 and PCB 2 share one carrier Y and differ in X. The Buffer has the second
 Supply Y. Supply moves in X/Y between those two lines, then leaves the Buffer at
 Clear Z by moving X only while Buffer Y remains fixed.
 
-The PCB Buffer Jig is not another motion station. Its UI state is PCB presence,
+The PCB Buffer is not another motion station. Its UI state is PCB presence,
 handler position, and collision conflict. Supply and placement motion remain responsible
 for entering and leaving the configured buffer collision area.
 
 ## PCB placement
 
 PCB Placement Handler owns the moving XYZ handler. It picks the PCB from the Buffer,
-raises to Buffer Entry Z, moves above Housing 1, rotates, and waits. A confirmed carrier
-jig and raised Backup Plate allow work only at detected housings. No placement-side
-camera is controlled.
+raises to Buffer Entry Z, moves above Heat Sink 1, rotates, and waits. A confirmed carrier
+and raised Backup Plate allow work only at detected heat sinks. No placement-side
+camera is controlled. At a target heat sink it lowers the Handler, releases vacuum,
+opens the IPM gripper, closes it above the PCB, lowers the IPM to press, records that
+heat sink, then raises the IPM, Handler, and Z. The carrier is completed only after
+this final raised state for every detected heat sink.
 
 ## Main carrier conveyor
 
 `BELT CONVEYOR` is the only production conveyor shared by the three work stations.
 It contains the working belt, width adjustment, end idlers, a drive motor, station
-backup-plate hardware, and a housing carrier jig with two housing pockets.
+backup-plate hardware, and a heat sink carrier with two heat sink pockets.
 
 `IBTM.PcbSupply` owns Front 1 SMEMA for the independent two-PCB carrier feed.
-`IBTM.Conveyor` owns the shared housing Carrier Jig assembly, Front 2/Rear SMEMA,
+`IBTM.Conveyor` owns the shared heat-sink carrier conveyor, Front 2/Rear SMEMA,
 stopper, and backup-plate mappings and commands. The Station projects retain their
-live Carrier Jig, Housing, Backup Plate, and work-completion state. Station processes
+live Carrier, Heat Sink, Backup Plate, and work-completion state. Station processes
 do not reference or request `MainConveyor`; the conveyor observes their state.
 
-A carrier jig on a raised backup plate is mechanically separated from the belt.
-This allows the belt to move another carrier jig while a raised station continues
+A carrier on a raised backup plate is mechanically separated from the belt.
+This allows the belt to move another carrier while a raised station continues
 working. Stopper and backup-plate state is confirmed by digital inputs; output state
 is displayed separately.
 
-Each carrier jig has two housing slots. The two housing inputs at a station describe
-which slots contain housings; they do not confirm that a carrier jig has arrived.
-Every station uses the same slot mask: no housing skips work, housing 1 or 2 runs only
-that position, and both housings run both positions. Station 1 may release the carrier
-jig only after a PCB has been placed in every detected housing. An empty carrier jig
-skips placement but is still distinguished from an empty station by its carrier-jig
+Each carrier has two heat sink slots. The two heat sink inputs at a station describe
+which slots contain heat sinks; they do not confirm that a carrier has arrived.
+Every station uses the same slot mask: no heat sink skips work, heat sink 1 or 2 runs only
+that position, and both heat sinks run both positions. Station 1 may release the carrier
+carrier only after a PCB has been placed in every detected heat sink. An empty carrier
+skips placement but is still distinguished from an empty station by its carrier
 arrival input.
 
-The final I/O map assigns Carrier Jig arrival inputs to PCB Placement (`DI-128`),
-Bolt Fastening (`DI-12F`), and Inspection (`DI-136`). Their housing sensors remain
-only the work-slot mask.
+The final I/O map assigns Carrier arrival inputs to PCB Placement (`DI-128`),
+Bolt Fastening (`DI-12F`), and Inspection (`DI-136`). The main conveyor entry and
+exit sensors are `DI-14A` and `DI-14B`. Their heat sink sensors remain only the
+work-slot mask.
 
 Automatic transfer selection must be ordered
 from rear to front: Inspection to Rear, Bolt Fastening to Inspection, PCB Placement
 to Bolt Fastening, and Front to PCB Placement. A blocked rear transfer must not block
 a runnable transfer in front of it, and a started transfer must run to its destination
-without being preempted. All four routes use this selection order. `ConveyorState`
+without being preempted. An active entry or exit boundary sensor is an already-started
+transfer and is resumed before selecting a new station transfer. All four routes use
+this selection order. `MainConveyorState`
 is derived again from live inputs after each relevant I/O or work-state change; it is
 not a remembered sequence step.
 
-An OK Carrier Jig completed at Inspection turns on `Available To Rear` and remains
+An OK Carrier completed at Inspection turns on `Available To Rear` and remains
 seated while `Ready From Rear` is off. Once rear ready is on, the Inspection backup
-plate and stopper go down before the conveyor starts. The conveyor stops when the
-Inspection Carrier Jig input turns off, then `Available To Rear` turns off.
+plate and stopper go down before the conveyor starts. The carrier passes the exit
+sensor from ON to OFF before the conveyor stops and `Available To Rear` turns off.
 
 Placement, Bolt Fastening, and Inspection report work complete only after every
-detected housing finishes. A disabled station process is bypassed by the WPF host so
+detected heat sink finishes. A disabled station process is bypassed by the WPF host so
 Main Conveyor can be validated independently. Inspection moves the camera to every
-recipe Bolt Point belonging to a detected housing and records bolt presence without
+recipe Bolt Point belonging to a detected heat sink and records bolt presence without
 stopping at the first missing bolt.
-Station work starts only after Carrier Jig, Backup Plate Up, and Stopper Down inputs
+Station work starts only after Carrier, Backup Plate Up, and Stopper Down inputs
 all confirm the final seated state.
 
 Only the backup plates participating in a future transfer are lowered. A source
-Stopper is lowered to release its Carrier Jig; a destination Stopper is raised before
-the belt starts so the arriving Carrier Jig is physically stopped. The destination
+Stopper is lowered to release its Carrier; a destination Stopper is raised before
+the belt starts so the arriving Carrier is physically stopped. The destination
 Carrier input stops the belt, then the Backup Plate rises and the Stopper returns down.
 Stop stops the belt and leaves pneumatic outputs at their current state. If the
 source Carrier input remains on, its completed work state remains valid and the
-same transfer can start again. A Carrier stopped between station sensors still
-requires manual recovery because no input identifies its position.
+same transfer can start again. When the destination Carrier input turns on, the
+previous station's process results move with it. The departed station retains those
+results only until its next Carrier arrives. A Carrier stopped between station
+sensors still requires manual recovery because no input identifies its position.
 
 Front Available is the receive trigger. After it arrives, PCB Placement raises its
 Stopper and lowers its Backup Plate before Front Ready is asserted and both conveyors
-run. Rear Available is advertised after Inspection work completes and Rear Ready is
-the discharge trigger. Rear wins when it is ready; a blocked Rear does not prevent an
-already-waiting Front carrier from entering. Outputs are commands, not state evidence.
+run. Front Ready turns off when the entry sensor turns on. The conveyor continues
+until the PCB Placement Carrier input turns on, then seats the carrier. Rear
+Available is advertised after Inspection work completes and Rear Ready is the
+discharge trigger. Rear wins when it is ready; a blocked Rear does not prevent an
+already-waiting Front carrier from entering. Front Ready and Rear Available are not
+advertised together. Outputs are commands, not state evidence.
+
+After Stop, an active entry sensor resumes the unfinished receive and an active exit
+sensor resumes the unfinished discharge. No transfer phase is persisted. A carrier
+between two point sensors with both inputs off remains intentionally unknown and
+requires manual recovery.
 
 The machine has three external SMEMA connections. Front 1 belongs to PCB Supply,
-Front 2 belongs to the main housing carrier-jig conveyor, and Rear belongs to the
+Front 2 belongs to the main heat sink carrier conveyor, and Rear belongs to the
 main conveyor exit.
 
 | Connection | Input | Output |
 | --- | --- | --- |
 | Front 1 (PCB) | `DI-100` Available From Front 1 | `DO-100` Ready To Front 1 |
-| Front 2 (Housing) | `DI-101` Available From Front 2 | `DO-101` Ready To Front 2 |
+| Front 2 (Heat Sink) | `DI-101` Available From Front 2 | `DO-101` Ready To Front 2 |
 | Rear | `DI-102` Ready From Rear | `DO-102` Available To Rear |
 
 ## Bolt fastening
 
 The fastening assembly is one mechanical motion group. Head 1 is the pickup
 head; Head 2 is the shooting head. They are mounted together and have separate ADC
-tightening controllers on one RS-422 bus. The pickup head uses its own vacuum pump and vacuum sensor
-to pick a screw from the fixed ZEDA KS1069C-S pickup index. Feeder control and
-feedback wiring remain pending. Slave address 1 belongs to the shooting head and
-slave address 2 belongs to the pickup head by default; those addresses are not the
-mechanical head numbers. The operator view shows one moving gantry body with
-two heads, not two independent motion systems.
+tightening controllers on one RS-422 bus. The pickup head uses its own vacuum pump
+and vacuum sensor to pick a screw from the fixed ZEDA KS1069C-S pickup index.
+Slave address 1 belongs to the pickup head and slave address 2 belongs to the
+shooting head by default; those addresses are independent from mechanical head
+numbering. The operator view shows one moving gantry body with two heads, not two
+independent motion systems.
 
 Bolt X/Y positions are taught with the Station 3 camera and stored in carrier-relative
-millimetres. The upper-left and lower-right carrier locating pins define the carrier
-origin and angle. Station 3 teaches both pins with the camera centre; Station 2 teaches
-the same two pins separately for each fastening head. The Station 3-to-Station 2
-machine-coordinate conversion applies only translation and rotation because all axes
-already report physical X/Y; it never stretches the bolt pattern. Each bolt point identifies Housing 1 or
-Housing 2 so the station can use its housing-present inputs as the work mask.
+millimetres. The upper-left locating pin is (0, 0), and the Station 3 image X/Y
+directions are the carrier X/Y directions. The lower-right locating pin supplies the
+reference vector used to align Station 2. Station 3 teaches both pins on the carrier
+image; Station 2 teaches the same two pins separately for each fastening head. The
+Station 3-to-Station 2 conversion applies only translation and rotation because all
+axes already report physical X/Y; it never stretches the bolt pattern. Each bolt
+point identifies Heat Sink 1 or Heat Sink 2 so the station can use its heat sink-present
+inputs as the work mask.
 
 The Station 3 teaching screen scans between taught upper-left and lower-right gantry
-positions in a snake path using machine-coordinate X/Y pitches. The scan path does
-not depend on the millimetres-per-pixel value that is adjusted afterward. Every
-original camera frame is stored in the recipe's
+positions in a snake path. The step is calculated from the physical camera FOV minus
+one overlap setting, then distributed so the final taught position is included. The
+scan path does not depend on the millimetres-per-pixel value that is adjusted
+afterward. Every original camera frame is stored in the recipe's
 `Carrier` directory with its capture-centre XY in `Recipe.json`. WPF draws the frames
 at those machine coordinates; no stitched bitmap is created. The operator adjusts
 millimetres per pixel until overlapping frames align, then clicks the carrier locating
 pins and bolt points directly on the map. Clicks therefore produce Station 3 machine
 XY immediately, and bolt points remain stored in carrier-relative millimetres.
+The last successfully saved or loaded recipe is restored at startup. Creating a new
+unsaved recipe does not replace that active selection.
 
 Commission the image map in this order:
 
 1. Mount the camera so image X/Y matches the machine X/Y directions.
 2. Scan once and confirm the X/Y pitches leave visible overlap.
 3. Adjust millimetres per pixel until features in the overlap coincide.
-4. Click the upper-left and lower-right locating pins. Untaught pins and bolts are not
-   drawn as markers.
+4. Click the upper-left and lower-right locating pins. Before both pins are taught,
+   the image map does not display machine coordinates. Afterward it displays only
+   upper-left-relative carrier X/Y. Re-teaching the upper-left pin clears the previous
+   lower-right pin so references from two calibrations cannot be mixed. Untaught pins
+   and bolts are not drawn as markers.
 5. Teach one bolt in Station 3, teach the matching head references in Station 2, and
    verify that transformed point before adding the remaining bolts.
 
+Set millimetres per pixel before teaching the locating pins and bolts. If that value
+was wrong when the points were taught, teach those points again after correcting it.
+Station 2 and Station 3 must also use the same logical X/Y handedness through their
+axis-direction settings. A single mirrored axis is a reflection and cannot be derived
+from the two locating pins as a rotation.
+
+Automatic start is blocked until the recipe contains at least one bolt point, the
+shared carrier pins and every bolt X/Y are taught, and, when Bolt Fastening is
+enabled, every bolt Z and the locating pins for each used fastening head are taught.
+
 The Station 2 automatic process is armed by the `Bolt Fastening Backup Plate Up` input.
-It reads the housing-present input for each recipe point and fastens the points whose
-`HousingSlot` is present, in bolt-number order. With neither housing present it
+It reads the heat sink-present input for each recipe point and fastens the points whose
+`HeatSinkSlot` is present, in bolt-number order. With neither heat sink present it
 performs no bolt work. The backup plate must go down before another carrier cycle is
 accepted. A tightening NG or pneumatic feedback timeout raises the Bolt Fastening
-alarm. Screw feeding, bolt pickup, and dispensing remain outside this process until
-their final mechanical sequence and feedback wiring are confirmed.
+alarm. Bolt feeding runs independently, while bolt pickup, shooting, and fastening
+belong to the fastening process.
 
 Both fastening-head up inputs are confirmed before the shared gantry moves. This also
 resolves a head left down by Stop before a restarted fastening cycle can move X/Y.
+The pickup-feeder loop waits for its prepared-bolt sensor. The linear-feeder loop
+runs only until its prepared-bolt sensor turns on. The fastening process owns the
+shooting escape, shooting tube, pickup vacuum, and the two-head fastening order.
 
 ## Inspection and NG handling
 
@@ -207,34 +244,36 @@ The controlled camera assembly is:
 | --- | --- | --- | --- |
 | Inspection | MV-CU013-A0GMGC | MVL-MF2518M | LAB-IDL100 |
 
-`IBTM.Inspection` owns the Inspection Gantry axes and its NG carrier gripper.
-`IBTM.NgConveyor` owns NG Shuttle and NG Conveyor hardware and observes the
-Inspection work result through a one-way project reference. Inspection never requests
-NG transfer; the NG Conveyor loop pulls a completed NG Carrier Jig when capacity is
-available.
+`IBTM.Inspection` owns the shared Inspection Gantry axes and inspection coordinates.
+`IBTM.NgConveyor` owns the NG carrier transfer pneumatics, NG Shuttle, NG Conveyor,
+and their teaching coordinates. It observes the Inspection work result through a
+one-way project reference. Inspection never requests NG transfer; the NG Conveyor
+loop pulls a completed NG Carrier when capacity is available.
 
 Station 3 uses two machine teaching positions for the carrier scan bounds. Scan
-overlap, locating-pin, NG pickup, and NG shuttle placement coordinates are machine
-settings. The tile centres, millimetres per pixel, and original images belong to the
-recipe image set.
+overlap belongs to the Inspection Gantry settings. The two locating-pin positions
+belong to the shared Carrier Reference because Station 2 and Station 3 use the same
+datum without referencing each other's projects. NG pickup and NG shuttle placement
+coordinates belong to the NG Conveyor settings. The tile centres, millimetres per
+pixel, and original images belong to the recipe image set.
 
 Automatic inspection transforms the same carrier-relative Bolt Points through the
 Station 3 locating pins. The camera centres each point and crops the configured square
 ROI. A Tiny U-Net model segments the bolt recess, then the ratio of mask pixels above
-the mask threshold determines bolt presence. Results are retained by housing and bolt
+the mask threshold determines bolt presence. Results are retained by heat sink and bolt
 number. A missing bolt makes the carrier NG only after all remaining bolt points have
-also been inspected. A Carrier Jig with neither housing present skips image capture
+also been inspected. A Carrier with neither heat sink present skips image capture
 and is completed as NG.
 
 NG Conveyor and NG Shuttle are separate mechanical assemblies below Station 3. The
 three NG Conveyor position sensors are `DI-140`, `DI-141`, and `DI-142`. They are
 shown as a secondary handling path next to the inspection transfer. NG capacity
-counts carrier jigs, not individual PCBs. The Shuttle lowers a new Carrier Jig at
+counts carriers, not individual PCBs. The Shuttle lowers a new Carrier at
 Position 3. With Position 1 empty the belt moves it to Position 1; otherwise it moves
 to Position 2, and with Positions 1 and 2 occupied it remains at Position 3. All three
 occupied inputs block the next NG pickup at Station 3. The eject button releases the
-Carrier Jig at Position 1 and the remaining jigs move forward. The complete lamp then
-stays on until the operator removes the ejected jig and presses the eject-complete
+Carrier at Position 1 and the remaining carriers move forward. The complete lamp then
+stays on until the operator removes the ejected carrier and presses the eject-complete
 button; operator confirmation has no automatic timeout.
 
 ## UI rules
@@ -252,8 +291,8 @@ button; operator confirmation has no automatic timeout.
   stopped state.
 - Show moving handlers at live axis positions; do not draw axis blocks as the main
   objects.
-- Keep machine structure subdued. Use green for PCB material, amber for housings,
-  blue for carrier jigs and active mechanisms, and red only for alarms that require
+- Keep machine structure subdued. Use green for PCB material, amber for heat sinks,
+  blue for carriers and active mechanisms, and red only for alarms that require
   action.
 - Do not show PCB 1 or PCB 2 as present from SMEMA alone. Their presence remains
   unknown until the supply handler's PCB sensor checks each pickup position.
@@ -261,13 +300,18 @@ button; operator confirmation has no automatic timeout.
 - Show exactly one main carrier conveyor.
 - Show NG Conveyor and NG Shuttle as a secondary path, not as another production
   station or a generic NG Stack box.
+- Keep the NG Conveyor in the lower Station 3 machine bay. Position 3 is the
+  shuttle handoff nearest the shared Inspection Gantry, followed by Position 2 and
+  Position 1 / Eject toward the operator side.
+- Keep one screen scale for each physical workpiece. A PCB and a production carrier
+  retain the same footprint while moving through handlers, stations, and the NG path.
 - Show digital inputs as round indicators and outputs as square indicators. Label
   mechanism pairs such as `Grip`, `Stopper`, and `Plate`; tooltips are supplementary.
 - Use input state for mechanism confirmation. Output state only shows the command.
 - Derive operator states from digital inputs and live motion state. Never infer
   mechanism completion from an output command.
 - Apply the same rule in Virtual: actuator feedback changes after the fixed virtual
-  delay, then the simulated PCB or carrier-jig position changes.
+  delay, then the simulated PCB or carrier position changes.
 - Keep axis coordinates as secondary diagnostic information.
 - Keep covers and frame geometry subdued so material position and mechanism state
   remain readable.

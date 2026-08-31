@@ -136,7 +136,7 @@ public partial class SupplyTeachingViewModel
                 break;
             case TeachMode.ZOnly:
                 await _supplyMotion.MoveZAsync(
-                    point.Z,
+                    point.Z!.Value,
                     speed.ZSpeed,
                     cancellationToken);
                 break;
@@ -152,7 +152,7 @@ public partial class SupplyTeachingViewModel
                     point.Y,
                     cancellationToken);
                 await _supplyMotion.MoveZAsync(
-                    point.Z,
+                    point.Z!.Value,
                     speed.ZSpeed,
                     cancellationToken);
                 break;
@@ -162,7 +162,7 @@ public partial class SupplyTeachingViewModel
                     point.Y,
                     cancellationToken);
                 await _supplyMotion.MoveZAsync(
-                    point.Z,
+                    point.Z!.Value,
                     speed.ZSpeed,
                     cancellationToken);
                 break;
@@ -212,7 +212,7 @@ public partial class SupplyTeachingViewModel
                 break;
             case TeachMode.ZOnly:
                 await _placementMotion.MoveZAsync(
-                    point.Z,
+                    point.Z!.Value,
                     speed.ZSpeed,
                     cancellationToken);
                 break;
@@ -227,14 +227,14 @@ public partial class SupplyTeachingViewModel
                 await _placementMotion.MoveToAsync(
                     point.X,
                     _placementMotion.GetPosition().Y,
-                    point.Z,
+                    point.Z!.Value,
                     cancellationToken);
                 break;
             case TeachMode.Full:
                 await _placementMotion.MoveToAsync(
                     point.X,
                     point.Y,
-                    point.Z,
+                    point.Z!.Value,
                     cancellationToken);
                 break;
             default:
@@ -257,9 +257,11 @@ public partial class SupplyTeachingViewModel
         && motionGroup switch
         {
             MotionGroup.PcbSupply =>
-                !_buffer.PlacementInside,
+                _supplyEnabled
+                && !_buffer.PlacementInside,
             MotionGroup.PcbPlacementHandler =>
-                !_buffer.SupplyInside,
+                _placementEnabled
+                && !_buffer.SupplyInside,
             _ => throw new ArgumentOutOfRangeException(nameof(motionGroup)),
         };
 
@@ -311,11 +313,16 @@ public partial class SupplyTeachingViewModel
 
     private void ApplyPosition(MotionGroup motionGroup)
     {
-        if (motionGroup != ActiveMotionGroup)
+        if (motionGroup != ActiveMotionGroup
+            || Interlocked.Exchange(ref _positionRefreshQueued, 1) != 0)
         {
             return;
         }
 
-        Application.Current.Dispatcher.BeginInvoke(RefreshPosition);
+        Application.Current.Dispatcher.BeginInvoke(() =>
+        {
+            Interlocked.Exchange(ref _positionRefreshQueued, 0);
+            RefreshPosition();
+        });
     }
 }

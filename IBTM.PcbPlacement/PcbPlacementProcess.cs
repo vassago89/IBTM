@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -11,73 +12,148 @@ public sealed class PcbPlacementProcess(
     PcbPlacementHandler handler,
     PcbPlacementWork work)
 {
-    private bool CanPickFromBuffer =>
-        handler.Pcb == PlacementPcbState.Secured
-            && buffer.PlacementBlocksSupply
-        || handler.Pcb != PlacementPcbState.Secured
-            && buffer.CanPlacementEnter;
-
     public async Task RunAsync(
         PcbPlacementRecipe recipe,
         CancellationToken cancellationToken = default)
     {
         using var stateChanged = new AsyncAutoResetEvent();
-        HousingSlot? completedHousing = null;
         void OnStateChanged() => stateChanged.Set();
-        void OnCarrierChanged(bool _)
-        {
-            completedHousing = null;
-        }
 
         handler.Changed += OnStateChanged;
         buffer.StateChanged += OnStateChanged;
         work.Changed += OnStateChanged;
-        work.CarrierChanged += OnCarrierChanged;
         try
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (work.Ready
-                    && !work.Completed
-                    && NextHousing(completedHousing) is null)
+                var heatSink = NextHeatSink();
+                switch (State(recipe, heatSink))
                 {
-                    work.Complete();
-                    continue;
-                }
-
-                if (handler.Pcb == PlacementPcbState.Secured)
-                {
-                    if (!handler.IsWaitingAbove(
-                            recipe.Housing1PcbPlacementPosition))
-                    {
-                        await PickFromBufferCoreAsync(
-                            recipe,
+                    case PcbPlacementState.RaisingHandler:
+                        await handler.SetHandlerDownAsync(
+                            false,
                             cancellationToken);
-                        continue;
-                    }
+                        break;
 
-                    var housing = work.Ready
-                        ? NextHousing(completedHousing)
-                        : null;
-                    if (housing is not null)
-                    {
-                        await handler.PlaceAsync(
-                            HousingPosition(recipe, housing.Value),
+                    case PcbPlacementState.RaisingZ:
+                        await handler.MoveToHorizontalZAsync(
                             cancellationToken);
-                        work.Assembly(housing.Value);
-                        completedHousing = housing;
-                        continue;
-                    }
-                }
-                else if (CanPickFromBuffer)
-                {
-                    await PickFromBufferCoreAsync(
-                        recipe,
-                        cancellationToken);
-                    continue;
-                }
+                        break;
 
-                await stateChanged.WaitAsync(cancellationToken);
+                    case PcbPlacementState.UnrotatingForBuffer:
+                        await handler.SetRotatedAsync(
+                            false,
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.OpeningGripper:
+                        await handler.SetIpmGripperAsync(
+                            false,
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.LoweringIpm:
+                        await handler.SetIpmDownAsync(
+                            true,
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.PressingPcb:
+                        await handler.SetIpmGripperAsync(
+                            true,
+                            cancellationToken);
+                        await handler.SetIpmDownAsync(
+                            true,
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.MovingAboveBuffer:
+                        await handler.MoveAboveBufferAsync(
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.LoweringToBuffer:
+                        await handler.LowerToBufferAsync(
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.LoweringHandler:
+                        await handler.SetHandlerDownAsync(
+                            true,
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.WaitingForPcbDetection:
+                        await handler.WaitForPcbAsync(
+                            true,
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.ApplyingVacuum:
+                        await handler.SetVacuumAsync(
+                            true,
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.ClosingGripper:
+                        await handler.SetIpmGripperAsync(
+                            true,
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.WaitingForSupplyExit:
+                        await buffer.WaitForSupplyOutsideAsync(
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.RaisingIpm:
+                        await handler.SetIpmDownAsync(
+                            false,
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.MovingToWaitPosition:
+                        await handler.MoveAboveAsync(
+                            recipe.HeatSink1PcbPlacementPosition,
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.RotatingForPlacement:
+                        await handler.SetRotatedAsync(
+                            true,
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.MovingAboveHeatSink:
+                        await handler.MoveAboveAsync(
+                            HeatSinkPosition(recipe, heatSink!.Value),
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.LoweringToHeatSink:
+                        await handler.LowerToAsync(
+                            HeatSinkPosition(recipe, heatSink!.Value),
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.ReleasingVacuum:
+                        await handler.SetVacuumAsync(
+                            false,
+                            cancellationToken);
+                        break;
+
+                    case PcbPlacementState.RecordingPlacement:
+                        work.Assembly(heatSink!.Value);
+                        break;
+
+                    case PcbPlacementState.CompletingCarrier:
+                        work.Complete();
+                        break;
+
+                    default:
+                        await stateChanged.WaitAsync(cancellationToken);
+                        break;
+                }
             }
         }
         catch (OperationCanceledException)
@@ -88,44 +164,249 @@ public sealed class PcbPlacementProcess(
             handler.Changed -= OnStateChanged;
             buffer.StateChanged -= OnStateChanged;
             work.Changed -= OnStateChanged;
-            work.CarrierChanged -= OnCarrierChanged;
         }
     }
 
-    private async Task PickFromBufferCoreAsync(
+    public PcbPlacementState State(PcbPlacementRecipe recipe) =>
+        State(recipe, NextHeatSink());
+
+    public HeatSinkSlot? TargetHeatSink => NextHeatSink();
+
+    private PcbPlacementState State(
         PcbPlacementRecipe recipe,
-        CancellationToken cancellationToken)
+        HeatSinkSlot? heatSink)
     {
-        if (handler.Pcb != PlacementPcbState.Secured)
+        var currentHeatSink = CurrentHeatSink(recipe);
+        if (currentHeatSink is not null
+            && work.Ready
+            && work.HeatSinkPresent(currentHeatSink.Value)
+            && !handler.VacuumDetected
+            && handler.Pcb != PlacementPcbState.None)
         {
-            await handler.SecureAtBufferAsync(cancellationToken);
+            var state = FinishPlacementState(currentHeatSink.Value);
+            if (state is not null)
+            {
+                return state.Value;
+            }
         }
 
-        await buffer.WaitForSupplyOutsideAsync(cancellationToken);
-        await handler.ClearBufferAsync(cancellationToken);
-        await handler.WaitAboveHousingAsync(
-            recipe.Housing1PcbPlacementPosition,
-            cancellationToken);
-    }
-
-    private HousingSlot? NextHousing(HousingSlot? completedHousing)
-    {
-        if (completedHousing is null
-            && work.HousingPresent(HousingSlot.Housing1))
+        if (handler.Pcb == PlacementPcbState.Secured)
         {
-            return HousingSlot.Housing1;
+            if (buffer.PlacementInside && buffer.SupplyInside)
+            {
+                return PcbPlacementState.WaitingForSupplyExit;
+            }
+
+            if (work.Ready
+                && heatSink is not null
+                && handler.Rotation == PlacementRotationState.Rotated
+                && handler.IsAtXY(HeatSinkPosition(recipe, heatSink.Value)))
+            {
+                return PlacementState(
+                    HeatSinkPosition(recipe, heatSink.Value));
+            }
+
+            if (handler.Ipm != PlacementCylinderState.Up)
+            {
+                return PcbPlacementState.RaisingIpm;
+            }
+
+            if (handler.Handler != PlacementCylinderState.Up)
+            {
+                return PcbPlacementState.RaisingHandler;
+            }
+
+            if (!handler.AtHorizontalZ)
+            {
+                return PcbPlacementState.RaisingZ;
+            }
+
+            if (handler.Rotation != PlacementRotationState.Rotated)
+            {
+                return handler.IsAtXY(
+                    recipe.HeatSink1PcbPlacementPosition)
+                        ? PcbPlacementState.RotatingForPlacement
+                        : PcbPlacementState.MovingToWaitPosition;
+            }
+
+            if (!work.Ready)
+            {
+                return PcbPlacementState.WaitingForCarrier;
+            }
+
+            return heatSink is null
+                ? PcbPlacementState.CompletingCarrier
+                : PlacementState(
+                    HeatSinkPosition(recipe, heatSink.Value));
         }
 
-        return completedHousing != HousingSlot.Housing2
-            && work.HousingPresent(HousingSlot.Housing2)
-                ? HousingSlot.Housing2
-                : null;
+        if (work.Ready && !work.Completed && heatSink is null)
+        {
+            return PcbPlacementState.CompletingCarrier;
+        }
+
+        return buffer.CanPlacementEnter
+            ? BufferPickupState()
+            : PcbPlacementState.WaitingForPcb;
     }
 
-    private static AxisPos HousingPosition(
+    private PcbPlacementState BufferPickupState()
+    {
+        var needsClearance = !handler.AtBufferXY
+            || handler.Rotation != PlacementRotationState.Unrotated;
+        if (needsClearance)
+        {
+            if (handler.Handler != PlacementCylinderState.Up)
+            {
+                return PcbPlacementState.RaisingHandler;
+            }
+
+            if (!handler.AtHorizontalZ)
+            {
+                return PcbPlacementState.RaisingZ;
+            }
+        }
+
+        if (handler.Rotation != PlacementRotationState.Unrotated)
+        {
+            return PcbPlacementState.UnrotatingForBuffer;
+        }
+
+        if (!handler.AtBufferXY)
+        {
+            return PcbPlacementState.MovingAboveBuffer;
+        }
+
+        if (handler.Gripper != PlacementGripperState.Open)
+        {
+            return PcbPlacementState.OpeningGripper;
+        }
+
+        if (handler.Ipm != PlacementCylinderState.Down)
+        {
+            return PcbPlacementState.LoweringIpm;
+        }
+
+        if (!handler.AtBufferZ)
+        {
+            return PcbPlacementState.LoweringToBuffer;
+        }
+
+        if (handler.Handler != PlacementCylinderState.Down)
+        {
+            return PcbPlacementState.LoweringHandler;
+        }
+
+        if (handler.Pcb == PlacementPcbState.None)
+        {
+            return PcbPlacementState.WaitingForPcbDetection;
+        }
+
+        if (!handler.VacuumDetected)
+        {
+            return PcbPlacementState.ApplyingVacuum;
+        }
+
+        return PcbPlacementState.ClosingGripper;
+    }
+
+    private PcbPlacementState PlacementState(AxisPos position)
+    {
+        if (!handler.IsAtXY(position))
+        {
+            return PcbPlacementState.MovingAboveHeatSink;
+        }
+
+        if (!handler.IsAtZ(position))
+        {
+            return PcbPlacementState.LoweringToHeatSink;
+        }
+
+        if (handler.Handler != PlacementCylinderState.Down)
+        {
+            return PcbPlacementState.LoweringHandler;
+        }
+
+        if (handler.VacuumDetected)
+        {
+            return PcbPlacementState.ReleasingVacuum;
+        }
+
+        if (handler.Gripper != PlacementGripperState.Open)
+        {
+            return PcbPlacementState.OpeningGripper;
+        }
+
+        return PcbPlacementState.WaitingForPcb;
+    }
+
+    private PcbPlacementState? FinishPlacementState(HeatSinkSlot heatSink)
+    {
+        if (HeatSinkCompleted(heatSink))
+        {
+            if (handler.Ipm != PlacementCylinderState.Up)
+            {
+                return PcbPlacementState.RaisingIpm;
+            }
+
+            if (handler.Handler != PlacementCylinderState.Up)
+            {
+                return PcbPlacementState.RaisingHandler;
+            }
+
+            return handler.AtHorizontalZ
+                ? null
+                : PcbPlacementState.RaisingZ;
+        }
+
+        if (handler.Ipm == PlacementCylinderState.Down)
+        {
+            return PcbPlacementState.RecordingPlacement;
+        }
+
+        if (handler.Ipm != PlacementCylinderState.Up)
+        {
+            return PcbPlacementState.RaisingIpm;
+        }
+
+        return handler.Gripper == PlacementGripperState.Open
+            ? PcbPlacementState.PressingPcb
+            : PcbPlacementState.OpeningGripper;
+    }
+
+    private HeatSinkSlot? NextHeatSink()
+    {
+        if (work.HeatSinkPresent(HeatSinkSlot.HeatSink1)
+            && !HeatSinkCompleted(HeatSinkSlot.HeatSink1))
+        {
+            return HeatSinkSlot.HeatSink1;
+        }
+
+        return work.HeatSinkPresent(HeatSinkSlot.HeatSink2)
+               && !HeatSinkCompleted(HeatSinkSlot.HeatSink2)
+            ? HeatSinkSlot.HeatSink2
+            : null;
+    }
+
+    private bool HeatSinkCompleted(HeatSinkSlot heatSink) =>
+        work.Assemblies.Any(assembly => assembly.HeatSink == heatSink);
+
+    private HeatSinkSlot? CurrentHeatSink(PcbPlacementRecipe recipe)
+    {
+        if (handler.IsAtXY(recipe.HeatSink1PcbPlacementPosition))
+        {
+            return HeatSinkSlot.HeatSink1;
+        }
+
+        return handler.IsAtXY(recipe.HeatSink2PcbPlacementPosition)
+            ? HeatSinkSlot.HeatSink2
+            : null;
+    }
+
+    private static AxisPos HeatSinkPosition(
         PcbPlacementRecipe recipe,
-        HousingSlot housing) =>
-        housing == HousingSlot.Housing1
-            ? recipe.Housing1PcbPlacementPosition
-            : recipe.Housing2PcbPlacementPosition;
+        HeatSinkSlot heatSink) =>
+        heatSink == HeatSinkSlot.HeatSink1
+            ? recipe.HeatSink1PcbPlacementPosition
+            : recipe.HeatSink2PcbPlacementPosition;
 }

@@ -78,43 +78,43 @@ public enum TeachingTarget
     [Description("Placement Buffer Entry Z")]
     PlacementBufferEntryZ,
 
-    [Description("Housing 1 PCB Placement")]
-    Housing1PcbPlacement,
+    [Description("Heat Sink 1 PCB Placement")]
+    HeatSink1PcbPlacement,
 
-    [Description("Housing 2 PCB Placement")]
-    Housing2PcbPlacement,
+    [Description("Heat Sink 2 PCB Placement")]
+    HeatSink2PcbPlacement,
 
     [Description("Bolt Work Z")]
     BoltWorkZ,
 
-    [Description("Carrier Jig Scan Upper Left")]
+    [Description("Carrier Scan Upper Left")]
     CarrierScanUpperLeft,
 
-    [Description("Carrier Jig Scan Lower Right")]
+    [Description("Carrier Scan Lower Right")]
     CarrierScanLowerRight,
 
-    [Description("NG Carrier Jig Pickup")]
-    NgCarrierJigPickup,
+    [Description("NG Carrier Pickup")]
+    NgCarrierPickup,
 
     [Description("NG Shuttle Place")]
     NgShuttlePlace,
 
-    [Description("Carrier Jig Upper Left Locating Pin")]
-    InspectionUpperLeftLocatingPin,
+    [Description("Carrier Upper Left Pin")]
+    CarrierUpperLeftLocatingPin,
 
-    [Description("Carrier Jig Lower Right Locating Pin")]
-    InspectionLowerRightLocatingPin,
+    [Description("Carrier Lower Right Pin")]
+    CarrierLowerRightLocatingPin,
 
-    [Description("Head 2 Shooting Upper Left Locating Pin")]
+    [Description("Shooting Head Upper Left Pin")]
     ShootingHeadUpperLeftLocatingPin,
 
-    [Description("Head 2 Shooting Lower Right Locating Pin")]
+    [Description("Shooting Head Lower Right Pin")]
     ShootingHeadLowerRightLocatingPin,
 
-    [Description("Head 1 Pickup Upper Left Locating Pin")]
+    [Description("Pickup Head Upper Left Pin")]
     PickupHeadUpperLeftLocatingPin,
 
-    [Description("Head 1 Pickup Lower Right Locating Pin")]
+    [Description("Pickup Head Lower Right Pin")]
     PickupHeadLowerRightLocatingPin,
 
     [Description("Bolt Pickup")]
@@ -134,11 +134,11 @@ public partial class TeachingPoint : ObservableObject
     public TeachMode TeachMode { get; init; }
     public TeachingStorage Storage { get; init; }
     public int BoltNumber { get; init; }
-    public HousingSlot? Housing { get; init; }
+    public HeatSinkSlot? HeatSink { get; init; }
     public FasteningHead? Head { get; init; }
     [ObservableProperty] private double _x;
     [ObservableProperty] private double _y;
-    [ObservableProperty] private double _z;
+    [ObservableProperty] private double? _z;
 
     public string Name => Target switch
     {
@@ -148,12 +148,12 @@ public partial class TeachingPoint : ObservableObject
 
     public string PositionLabel => TeachMode switch
     {
-        TeachMode.Image => $"{X:F3}, {Y:F3}",
+        TeachMode.Image => string.Empty,
         TeachMode.XYOnly => $"{X:F1}, {Y:F1}",
         TeachMode.XZOnly => $"{X:F1}, {Z:F1}",
         TeachMode.XOnly => $"{X:F1}",
         TeachMode.YOnly => $"{Y:F1}",
-        TeachMode.ZOnly => $"{Z:F1}",
+        TeachMode.ZOnly => Z is { } z ? $"{z:F1}" : string.Empty,
         _ => $"{X:F1}, {Y:F1}, {Z:F1}",
     };
 
@@ -197,6 +197,6 @@ public partial class TeachingPoint : ObservableObject
     partial void OnYChanged(double value) =>
         OnPropertyChanged(nameof(PositionLabel));
 
-    partial void OnZChanged(double value) =>
+    partial void OnZChanged(double? value) =>
         OnPropertyChanged(nameof(PositionLabel));
 }

@@ -24,22 +24,26 @@ public sealed class LinearBoltFeeder(
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (State == BoltFeederState.WaitingForBolt)
+                switch (State)
                 {
-                    io.SetOutput(OutputIo.LinearFeederRunSignal, true);
-                    await io.WaitForInputAsync(
-                        InputIo.LinearFeederBoltDetected,
-                        true,
-                        settings.LinearTimeoutMilliseconds,
-                        cancellationToken);
-                }
+                    case BoltFeederState.WaitingForBolt:
+                        io.SetOutput(OutputIo.LinearFeederRunSignal, true);
+                        await io.WaitForInputAsync(
+                            InputIo.LinearFeederBoltDetected,
+                            true,
+                            settings.LinearTimeoutMilliseconds,
+                            cancellationToken);
+                        break;
 
-                io.SetOutput(OutputIo.LinearFeederRunSignal, false);
-                await io.WaitForInputAsync(
-                    InputIo.LinearFeederBoltDetected,
-                    false,
-                    Timeout.Infinite,
-                    cancellationToken);
+                    case BoltFeederState.BoltReady:
+                        io.SetOutput(OutputIo.LinearFeederRunSignal, false);
+                        await io.WaitForInputAsync(
+                            InputIo.LinearFeederBoltDetected,
+                            false,
+                            Timeout.Infinite,
+                            cancellationToken);
+                        break;
+                }
             }
         }
         catch (OperationCanceledException)

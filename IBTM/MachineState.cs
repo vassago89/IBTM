@@ -54,6 +54,9 @@ public enum MachineAlarm
     [Description("Inspection")]
     Inspection,
 
+    [Description("Teaching Incomplete")]
+    TeachingIncomplete,
+
     [Description("PCB Buffer Conflict")]
     BufferConflict,
 
@@ -106,37 +109,48 @@ public sealed class MachineState
         io.InputChanged += (_, _) => Refresh();
         io.OutputChanged += (_, _) => Refresh();
         buffer.PositionChanged += OnBufferPositionChanged;
-        pcbSupplyMotion.MovingChanged += _ => Refresh();
-        pcbPlacementMotion.MovingChanged += _ => Refresh();
-        boltFasteningMotion.MovingChanged += _ => Refresh();
-        inspectionGantryMotion.MovingChanged += _ => Refresh();
+        pcbSupplyMotion.StateChanged += Refresh;
+        pcbPlacementMotion.StateChanged += Refresh;
+        boltFasteningMotion.StateChanged += Refresh;
+        inspectionGantryMotion.StateChanged += Refresh;
+        conveyor.Changed += Refresh;
+        ngConveyor.Changed += Refresh;
         training.Changed += Refresh;
     }
 
     public event Action? Changed;
 
     public bool Homed => EnabledMotions().All(motion =>
-        motion.Axes.All(axis => motion.GetAxisState(axis).Homed));
+        motion.IsReady
+        && motion.Axes.All(axis => motion.GetAxisState(axis).Homed));
     public bool ServosOn => EnabledMotions().All(motion =>
-        motion.Axes.All(axis => motion.GetAxisState(axis).ServoOn));
+        motion.IsReady
+        && motion.Axes.All(axis => motion.GetAxisState(axis).ServoOn));
     public bool Faulted =>
-        EnabledMotions().Any(motion =>
-            motion.Axes.Any(axis => IsFaulted(motion.GetAxisState(axis))));
-    public bool Ready => Homed && ServosOn && !Faulted;
+        EnabledMotions().Any(motion => !motion.IsReady
+            || motion.Axes.Any(axis => IsFaulted(motion.GetAxisState(axis))));
+    public bool Ready =>
+        ServoMainContactorOn && Homed && ServosOn && !Faulted;
 
     public bool EmergencyStopReleased =>
-        !_io.GetInput(InputIo.EmergencyStop1Pressed)
+        _io.IsReady
+        && !_io.GetInput(InputIo.EmergencyStop1Pressed)
         && !_io.GetInput(InputIo.EmergencyStop2Pressed);
     public bool DoorClosed =>
-        !_io.GetInput(InputIo.Door1Open)
+        _io.IsReady
+        && !_io.GetInput(InputIo.Door1Open)
         && !_io.GetInput(InputIo.Door2Open)
         && !_io.GetInput(InputIo.Door3Open)
         && !_io.GetInput(InputIo.Door4Open)
         && !_io.GetInput(InputIo.Door5Open)
         && !_io.GetInput(InputIo.Door6Open);
     public bool AirPressureOk =>
-        !_io.GetInput(InputIo.AirPressureLow);
-    public bool AutoMode => _io.GetInput(InputIo.AutoMode);
+        _io.IsReady
+        && !_io.GetInput(InputIo.AirPressureLow);
+    public bool ServoMainContactorOn =>
+        _io.IsReady && _io.GetInput(InputIo.ServoMainContactorOn);
+    public bool AutoMode =>
+        _io.IsReady && _io.GetInput(InputIo.AutoMode);
     public bool ManualMode => !AutoMode;
     public bool DoorInterlockReady =>
         !_options.UseDoorInterlock || DoorClosed;
@@ -147,19 +161,18 @@ public sealed class MachineState
     public bool IsError => Alarm != MachineAlarm.None;
     public bool AutomaticRunning { get; private set; }
     public bool IsHoming { get; private set; }
-    public bool IsTraining => _training.IsRunning;
     public MachineAlarm Alarm { get; private set; }
 
     public bool ConveyorRunning => _conveyor.RunCommandOn;
+    public MainConveyorState MainConveyorState => _conveyor.State;
     public NgConveyorState NgConveyorState => _ngConveyor.State;
     public bool SupplyInBufferArea => _buffer.SupplyInside;
-    public bool PlacementInBufferArea => _buffer.PlacementInside;
     public bool BufferConflict => _buffer.Conflict;
 
     public bool IsRunning =>
         AutomaticRunning
         || IsHoming
-        || IsTraining
+        || _training.IsRunning
         || ConveyorRunning
         || _pcbSupplyMotion.IsMoving
         || _pcbPlacementMotion.IsMoving

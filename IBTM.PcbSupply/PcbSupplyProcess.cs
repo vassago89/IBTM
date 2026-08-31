@@ -16,21 +16,12 @@ public sealed class PcbSupplyProcess(
         && (handler.Rotation != PcbSupplyRotation.Unrotated
             || !buffer.PcbPresent);
 
-    private bool CanMoveToBuffer =>
-        handler.Rotation == PcbSupplyRotation.Rotated
-        && handler.Pcb == PcbSupplyPcbState.Secured
-        && buffer.CanSupplyEnter;
-
     public async Task RunAsync(
         PcbSupplyRecipe recipe,
         CancellationToken cancellationToken = default)
     {
+        var pickStep = PickStep.Pcb1;
         using var stateChanged = new AsyncAutoResetEvent();
-        var step = (handler.Pcb == PcbSupplyPcbState.Secured
-                    || handler.Rotation != PcbSupplyRotation.Unrotated)
-            ? PcbSupplyStep.ResolvingHandler
-            : NextCarrierStep();
-
         void OnStateChanged() => stateChanged.Set();
 
         handler.Changed += OnStateChanged;
@@ -39,114 +30,76 @@ public sealed class PcbSupplyProcess(
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (handler.Rotation == PcbSupplyRotation.Between)
-                {
-                    await stateChanged.WaitAsync(cancellationToken);
-                    continue;
-                }
+                handler.SetUpstreamReady(
+                    pickStep == PickStep.WaitingForCarrierExit
+                    && handler.Pcb == PcbSupplyPcbState.None
+                    && handler.Rotation == PcbSupplyRotation.Unrotated
+                    || pickStep == PickStep.Pcb1
+                    && !handler.UpstreamCarrierAvailable);
 
-                if (handler.Rotation == PcbSupplyRotation.Rotated
-                    && buffer.SupplyInside
-                    && buffer.PlacementSecuredAtHandoff)
+                var state = State(pickStep);
+                switch (state)
                 {
-                    await ReleaseToPlacementAsync(cancellationToken);
-                    continue;
-                }
+                    case PcbSupplyState.PickingPcb:
+                        await handler.PickAsync(
+                            pickStep == PickStep.Pcb1
+                                ? recipe.Pcb1PickPosition
+                                : recipe.Pcb2PickPosition,
+                            cancellationToken);
+                        pickStep = pickStep == PickStep.Pcb1
+                            ? PickStep.Pcb2
+                            : PickStep.WaitingForCarrierExit;
+                        break;
 
-                if (handler.Pcb == PcbSupplyPcbState.Secured)
-                {
-                    if (handler.Rotation == PcbSupplyRotation.Unrotated)
-                    {
+                    case PcbSupplyState.SecuringPcb:
+                        await handler.SecurePcbAsync(cancellationToken);
+                        break;
+
+                    case PcbSupplyState.MovingAboveBuffer:
+                        await handler.MoveAboveHandoffAsync(
+                            cancellationToken);
+                        break;
+
+                    case PcbSupplyState.RotatingForBuffer:
                         await handler.SetRotatedAsync(
                             true,
                             cancellationToken);
-                    }
-                    else if (CanMoveToBuffer)
-                    {
-                        await MoveToBufferCoreAsync(cancellationToken);
-                    }
-                    else
-                    {
-                        await stateChanged.WaitAsync(cancellationToken);
-                    }
+                        break;
 
-                    continue;
-                }
+                    case PcbSupplyState.MovingToBuffer:
+                        await handler.LowerToHandoffAsync(cancellationToken);
+                        await buffer.WaitForPcbAsync(
+                            true,
+                            cancellationToken);
+                        break;
 
-                if (handler.Rotation == PcbSupplyRotation.Rotated)
-                {
-                    if (buffer.SupplyInside)
-                    {
-                        await stateChanged.WaitAsync(cancellationToken);
-                    }
-                    else
-                    {
+                    case PcbSupplyState.ReleasingPcb:
+                        await handler.SetIpmFixerAsync(
+                            false,
+                            cancellationToken);
+                        await handler.SetNestAsync(
+                            false,
+                            cancellationToken);
+                        await handler.MoveClearAsync(cancellationToken);
+                        break;
+
+                    case PcbSupplyState.ReturningToPickup:
                         await handler.SetRotatedAsync(
                             false,
                             cancellationToken);
-                        if (step == PcbSupplyStep.Pcb1)
-                        {
-                            step = PcbSupplyStep.Pcb2;
-                        }
-                        else if (step == PcbSupplyStep.ResolvingHandler)
-                        {
-                            step = NextCarrierStep();
-                        }
-                    }
+                        break;
 
-                    continue;
-                }
+                    case PcbSupplyState.WaitingForCarrierExit:
+                        await handler.WaitForUpstreamCarrierAsync(
+                            false,
+                            cancellationToken);
+                        pickStep = PickStep.Pcb1;
+                        break;
 
-                if (step == PcbSupplyStep.ResolvingHandler)
-                {
-                    step = NextCarrierStep();
-                    continue;
-                }
-
-                if (step == PcbSupplyStep.WaitingForCarrierExit)
-                {
-                    if (handler.UpstreamCarrierAvailable)
-                    {
+                    default:
                         await stateChanged.WaitAsync(cancellationToken);
-                        continue;
-                    }
-
-                    step = PcbSupplyStep.WaitingForCarrier;
+                        break;
                 }
-
-                if (step == PcbSupplyStep.WaitingForCarrier)
-                {
-                    handler.SetUpstreamReady(true);
-                    if (!handler.UpstreamCarrierAvailable)
-                    {
-                        await stateChanged.WaitAsync(cancellationToken);
-                        continue;
-                    }
-
-                    handler.SetUpstreamReady(false);
-                    step = PcbSupplyStep.Pcb1;
-                    continue;
-                }
-
-                var pcbDetected = await handler.PickAsync(
-                    step == PcbSupplyStep.Pcb1
-                        ? recipe.Pcb1PickPosition
-                        : recipe.Pcb2PickPosition,
-                    cancellationToken);
-                if (step == PcbSupplyStep.Pcb1)
-                {
-                    if (!pcbDetected)
-                    {
-                        step = PcbSupplyStep.Pcb2;
-                    }
-
-                    continue;
-                }
-
-                step = handler.UpstreamCarrierAvailable
-                    ? PcbSupplyStep.WaitingForCarrierExit
-                    : PcbSupplyStep.WaitingForCarrier;
-                handler.SetUpstreamReady(true);
             }
         }
         catch (OperationCanceledException)
@@ -160,30 +113,62 @@ public sealed class PcbSupplyProcess(
         }
     }
 
-    private async Task MoveToBufferCoreAsync(
-        CancellationToken cancellationToken)
+    private PcbSupplyState State(PickStep pickStep)
     {
-        await handler.MoveToHandoffAsync(cancellationToken);
-        await buffer.WaitForPcbAsync(true, cancellationToken);
+        if (buffer.SupplyAtHandoff)
+        {
+            return buffer.PlacementSecuredAtHandoff
+                ? PcbSupplyState.ReleasingPcb
+                : PcbSupplyState.WaitingForPlacement;
+        }
+
+        if (buffer.SupplyInside
+            && handler.Pcb != PcbSupplyPcbState.Secured)
+        {
+            return PcbSupplyState.ReleasingPcb;
+        }
+
+        if (handler.Pcb == PcbSupplyPcbState.Detected)
+        {
+            return PcbSupplyState.SecuringPcb;
+        }
+
+        if (handler.Pcb == PcbSupplyPcbState.Secured)
+        {
+            if (!handler.AtHandoffXY)
+            {
+                return buffer.CanSupplyEnter
+                    ? PcbSupplyState.MovingAboveBuffer
+                    : PcbSupplyState.WaitingForBuffer;
+            }
+
+            if (handler.Rotation != PcbSupplyRotation.Rotated)
+            {
+                return PcbSupplyState.RotatingForBuffer;
+            }
+
+            return buffer.CanSupplyEnter
+                ? PcbSupplyState.MovingToBuffer
+                : PcbSupplyState.WaitingForBuffer;
+        }
+
+        if (handler.Rotation != PcbSupplyRotation.Unrotated)
+        {
+            return PcbSupplyState.ReturningToPickup;
+        }
+
+        if (pickStep == PickStep.WaitingForCarrierExit)
+        {
+            return PcbSupplyState.WaitingForCarrierExit;
+        }
+
+        return handler.UpstreamCarrierAvailable
+            ? PcbSupplyState.PickingPcb
+            : PcbSupplyState.WaitingForCarrier;
     }
 
-    private async Task ReleaseToPlacementAsync(
-        CancellationToken cancellationToken)
+    private enum PickStep
     {
-        await handler.SetIpmFixerAsync(false, cancellationToken);
-        await handler.SetNestAsync(false, cancellationToken);
-        await handler.MoveClearAsync(cancellationToken);
-    }
-
-    private PcbSupplyStep NextCarrierStep() =>
-        handler.UpstreamCarrierAvailable
-            ? PcbSupplyStep.Pcb1
-            : PcbSupplyStep.WaitingForCarrier;
-
-    private enum PcbSupplyStep
-    {
-        ResolvingHandler,
-        WaitingForCarrier,
         Pcb1,
         Pcb2,
         WaitingForCarrierExit,

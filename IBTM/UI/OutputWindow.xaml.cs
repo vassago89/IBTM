@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Device;
 
 namespace IBTM.UI;
@@ -36,7 +37,15 @@ public partial class OutputWindow : Window
         base.OnClosed(e);
     }
 
-    private void OnRefresh(object sender, RoutedEventArgs e) => Refresh();
+    private void OnRefresh(object sender, RoutedEventArgs e)
+    {
+        foreach (var row in Rows)
+        {
+            row.ClearTimeout();
+        }
+
+        Refresh();
+    }
 
     private async void OnToggleOutput(object sender, RoutedEventArgs e)
     {
@@ -44,12 +53,12 @@ public partial class OutputWindow : Window
         var row = (OutputControlRow)button.DataContext;
         var value = !_io.GetOutput(row.Output);
         button.IsEnabled = false;
-        row.Refresh();
+        row.ClearTimeout();
 
         try
         {
             _io.SetOutput(row.Output, value);
-            OutputList.Items.Refresh();
+            Refresh();
 
             if (row.HasFeedback)
             {
@@ -62,7 +71,7 @@ public partial class OutputWindow : Window
         }
         finally
         {
-            OutputList.Items.Refresh();
+            Refresh();
             button.IsEnabled = true;
         }
     }
@@ -73,8 +82,6 @@ public partial class OutputWindow : Window
         {
             row.Refresh();
         }
-
-        OutputList.Items.Refresh();
     }
 
     private void OnInputChanged(InputIo input, bool value) =>
@@ -87,7 +94,7 @@ public partial class OutputWindow : Window
 public sealed class OutputControlRow(
     IIoService io,
     OutputIo output,
-    OutputFeedback? feedback)
+    OutputFeedback? feedback) : ObservableObject
 {
     private bool _timedOut;
 
@@ -102,7 +109,17 @@ public sealed class OutputControlRow(
         FeedbackInput is { } input && io.GetInput(input);
     public bool TimedOut => _timedOut;
 
-    public void Refresh() => _timedOut = false;
+    public void ClearTimeout()
+    {
+        _timedOut = false;
+        Refresh();
+    }
 
-    public void MarkTimeout() => _timedOut = true;
+    public void MarkTimeout()
+    {
+        _timedOut = true;
+        Refresh();
+    }
+
+    public void Refresh() => OnPropertyChanged(string.Empty);
 }

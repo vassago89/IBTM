@@ -2,6 +2,42 @@ using System.ComponentModel;
 
 namespace IBTM.PcbSupply;
 
+public enum PcbSupplyState
+{
+    [Description("Waiting for Carrier")]
+    WaitingForCarrier,
+
+    [Description("Waiting for Carrier Exit")]
+    WaitingForCarrierExit,
+
+    [Description("Picking PCB")]
+    PickingPcb,
+
+    [Description("Securing PCB")]
+    SecuringPcb,
+
+    [Description("Moving Above Buffer")]
+    MovingAboveBuffer,
+
+    [Description("Rotating for Buffer")]
+    RotatingForBuffer,
+
+    [Description("Waiting for Buffer")]
+    WaitingForBuffer,
+
+    [Description("Moving to Buffer")]
+    MovingToBuffer,
+
+    [Description("Waiting for Placement Handler")]
+    WaitingForPlacement,
+
+    [Description("Releasing PCB")]
+    ReleasingPcb,
+
+    [Description("Returning to Pickup Side")]
+    ReturningToPickup,
+}
+
 public enum PcbSupplyRotation
 {
     [Description("Unrotated")]

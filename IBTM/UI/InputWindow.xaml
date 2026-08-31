@@ -54,8 +54,7 @@
                        Style="{StaticResource SectionHeaderStyle}"/>
         </Grid>
 
-        <ListBox x:Name="InputList"
-                 Grid.Row="3"
+        <ListBox Grid.Row="3"
                  ItemsSource="{Binding Rows}"
                  Style="{StaticResource IoListStyle}"
                  ItemContainerStyle="{StaticResource IoListItemStyle}">
@@ -78,9 +77,11 @@
                         <Button Grid.Column="2"
                                 Content="Toggle"
                                 Style="{StaticResource IoToggleButtonStyle}"
-                                Visibility="{Binding DataContext.IsVirtual,
+                                Visibility="{Binding IsVirtual,
                                                      RelativeSource={RelativeSource AncestorType=Window},
                                                      Converter={StaticResource BoolToVis}}"
+                                IsEnabled="{Binding CanToggle,
+                                                    RelativeSource={RelativeSource AncestorType=Window}}"
                                 Click="OnToggleInput"/>
                     </Grid>
                 </DataTemplate>

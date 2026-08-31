@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
 using IBTM.Device;
 using IBTM.Hantas;
 
@@ -9,6 +10,7 @@ public partial class MainWindow : Window
 {
     private readonly IIoService _io;
     private readonly IAdcBus _adcBus;
+    private readonly MachineState _state;
     private InputWindow? _inputWindow;
     private OutputWindow? _outputWindow;
     private AdcProtocolWindow? _adcProtocolWindow;
@@ -16,10 +18,12 @@ public partial class MainWindow : Window
     public MainWindow(
         MainViewModel viewModel,
         IIoService io,
-        IAdcBus adcBus)
+        IAdcBus adcBus,
+        MachineState state)
     {
         _io = io;
         _adcBus = adcBus;
+        _state = state;
         InitializeComponent();
         DataContext = viewModel;
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -33,7 +37,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _inputWindow = new InputWindow(_io)
+        _inputWindow = new InputWindow(_io, _state)
         {
             Owner = this,
         };
@@ -71,6 +75,17 @@ public partial class MainWindow : Window
         };
         _adcProtocolWindow.Closed += (_, _) => _adcProtocolWindow = null;
         _adcProtocolWindow.Show();
+    }
+
+    private void RecipeFile_Selected(
+        object sender,
+        SelectionChangedEventArgs e)
+    {
+        if (((ComboBox)sender).SelectedItem is string recipeName
+            && DataContext is MainViewModel viewModel)
+        {
+            viewModel.RecipeEditor.LoadCommand.Execute(recipeName);
+        }
     }
 
     private void OnViewModelPropertyChanged(

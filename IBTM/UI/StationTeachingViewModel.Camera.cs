@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -13,8 +14,9 @@ namespace IBTM.UI;
 
 public partial class StationTeachingViewModel
 {
-    private bool CameraSelected =>
-        SelectedMotionGroup == MotionGroup.InspectionGantry;
+    private readonly object _liveImageGate = new();
+    private ImageFrame? _pendingLiveFrame;
+    private bool _liveImageUpdateQueued;
 
     [RelayCommand(CanExecute = nameof(CanToggleLiveView))]
     private void ToggleLiveView()
@@ -33,7 +35,7 @@ public partial class StationTeachingViewModel
     }
 
     private bool CanToggleLiveView() =>
-        CameraSelected
+        IsInspectionSelected
         && (IsCameraLive || CanUseCurrentHandler());
 
     [RelayCommand(CanExecute = nameof(CanCaptureCarrierImages))]
@@ -41,7 +43,7 @@ public partial class StationTeachingViewModel
         CancellationToken cancellationToken)
     {
         var channel = _lighting.InspectionChannel;
-        var scanStarted = false;
+        var completed = false;
         try
         {
             using var motionCancellation = LinkMotion(cancellationToken);
@@ -49,16 +51,17 @@ public partial class StationTeachingViewModel
             var xPositions = ScanPositions(
                 _inspectionGantrySettings.CarrierScanUpperLeft.X,
                 _inspectionGantrySettings.CarrierScanLowerRight.X,
-                ScanPitchX);
+                _inspectionCameraSettings.FieldOfViewWidthMillimeters
+                    - ScanOverlap);
             var yPositions = ScanPositions(
                 _inspectionGantrySettings.CarrierScanUpperLeft.Y,
                 _inspectionGantrySettings.CarrierScanLowerRight.Y,
-                ScanPitchY);
+                _inspectionCameraSettings.FieldOfViewHeightMillimeters
+                    - ScanOverlap);
 
             await _inspectionGantrySettings.SaveAsync(
                 motionCancellation.Token);
-            RecipeEditor.ClearCarrierImages();
-            scanStarted = true;
+            var images = new List<CarrierImageTileView>();
             CarrierImages = [];
             LiveImage = null;
             _light.SetLevel(channel, _lighting.InspectionLevel);
@@ -81,13 +84,26 @@ public partial class StationTeachingViewModel
                         center.Y,
                         _inspectionGantrySettings.Motion.HorizontalSpeed,
                         motionCancellation.Token);
-                    var tile = RecipeEditor.SaveCarrierImage(
+                    images.Add(new CarrierImageTileView(
+                        images.Count + 1,
                         center,
-                        ToBitmapSource(_inspectionCamera.Capture()));
-                    CarrierImages = [.. CarrierImages, tile];
+                        ToBitmapSource(_inspectionCamera.Capture())));
+                    CarrierImages = [.. images];
                 }
             }
 
+            RecipeEditor.ClearCarrierImages();
+            foreach (var image in images)
+            {
+                RecipeEditor.SaveCarrierImage(
+                    image.Center,
+                    image.Image);
+            }
+
+            await RecipeEditor.SaveAsync();
+            completed = true;
+            SelectedPoint = FilteredPoints.FirstOrDefault(point =>
+                point.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
         }
         catch (OperationCanceledException)
         {
@@ -95,18 +111,22 @@ public partial class StationTeachingViewModel
         finally
         {
             _light.TurnOff(channel);
-            if (scanStarted)
+            if (!completed)
             {
-                await RecipeEditor.SaveAsync();
+                ShowRecipeImages();
             }
         }
     }
 
     private bool CanCaptureCarrierImages() =>
-        SelectedMotionGroup == MotionGroup.InspectionGantry
+        IsInspectionSelected
         && !IsCameraLive
-        && ScanPitchX > 0
-        && ScanPitchY > 0
+        && MillimetersPerPixel > 0
+        && ScanOverlap >= 0
+        && ScanOverlap
+            < _inspectionCameraSettings.FieldOfViewWidthMillimeters
+        && ScanOverlap
+            < _inspectionCameraSettings.FieldOfViewHeightMillimeters
         && !string.IsNullOrWhiteSpace(RecipeEditor.Name)
         && CanUseCurrentHandler();
 
@@ -123,19 +143,42 @@ public partial class StationTeachingViewModel
                 X = imagePoint.X,
                 Y = imagePoint.Y,
             });
-        if (point.Storage == TeachingStorage.Machine)
+        if (point.Target is
+            TeachingTarget.CarrierUpperLeftLocatingPin
+            or TeachingTarget.CarrierLowerRightLocatingPin)
         {
-            await _inspectionGantrySettings.SaveAsync();
+            await _carrierReference.SaveAsync();
+            OnPropertyChanged(nameof(CarrierOrigin));
         }
+        else if (point.Target == TeachingTarget.BoltReference)
+        {
+            await RecipeEditor.SaveAsync();
+        }
+
+        SelectedPoint = point.Target switch
+        {
+            TeachingTarget.CarrierUpperLeftLocatingPin =>
+                FilteredPoints.FirstOrDefault(candidate =>
+                    candidate.Target
+                        == TeachingTarget.CarrierLowerRightLocatingPin),
+            TeachingTarget.CarrierLowerRightLocatingPin =>
+                FilteredPoints.FirstOrDefault(candidate =>
+                    candidate.Target == TeachingTarget.BoltReference),
+            _ => SelectedPoint,
+        };
         RefreshImageMarkers();
     }
 
-    private bool CanTeachImagePoint(Point imagePoint) =>
-        HasCarrierImages
+    private bool CanTeachImagePoint(Point _) =>
+        CanUseCurrentHandler()
+        && HasCarrierImages
         && !IsCameraLive
         && SelectedPoint?.TeachMode == TeachMode.Image
         && (SelectedPoint.Target != TeachingTarget.BoltReference
-            || _pointMapper.CarrierReferenceReady);
+            || _pointMapper.CarrierReferenceReady)
+        && (SelectedPoint.Target
+                != TeachingTarget.CarrierLowerRightLocatingPin
+            || _carrierReference.UpperLeftPin is not null);
 
     private static IReadOnlyList<double> ScanPositions(
         double start,
@@ -143,14 +186,17 @@ public partial class StationTeachingViewModel
         double pitch)
     {
         var distance = Math.Abs(end - start);
-        var count = Math.Max(1, (int)Math.Ceiling(distance / pitch) + 1);
-        var direction = Math.Sign(end - start);
-        var positions = new double[count];
-        for (var index = 0; index < count; index++)
+        if (distance == 0)
         {
-            positions[index] = index == count - 1
-                ? end
-                : start + (direction * pitch * index);
+            return [start];
+        }
+
+        var segments = (int)Math.Ceiling(distance / pitch);
+        var positions = new double[segments + 1];
+        for (var index = 0; index <= segments; index++)
+        {
+            positions[index] =
+                start + ((end - start) * index / segments);
         }
 
         return positions;
@@ -161,23 +207,64 @@ public partial class StationTeachingViewModel
         var channel = _lighting.InspectionChannel;
         _light.SetLevel(channel, _lighting.InspectionLevel);
         _light.TurnOn(channel);
-        _inspectionCamera.StartLiveView();
+        try
+        {
+            _inspectionCamera.StartLiveView();
+        }
+        catch
+        {
+            _light.TurnOff(channel);
+            throw;
+        }
     }
 
     private void StopCamera()
     {
-        _inspectionCamera.StopLiveView();
-        _light.TurnOff(_lighting.InspectionChannel);
+        try
+        {
+            _inspectionCamera.StopLiveView();
+        }
+        finally
+        {
+            _light.TurnOff(_lighting.InspectionChannel);
+            lock (_liveImageGate)
+            {
+                _pendingLiveFrame = null;
+            }
+        }
     }
 
-    private void UpdateLiveImage(ImageFrame frame) =>
-        RunOnUi(() =>
+    private void UpdateLiveImage(ImageFrame frame)
+    {
+        lock (_liveImageGate)
         {
-            if (CameraSelected)
+            _pendingLiveFrame = frame;
+            if (_liveImageUpdateQueued)
             {
-                LiveImage = ToBitmapSource(frame);
+                return;
             }
-        });
+
+            _liveImageUpdateQueued = true;
+        }
+
+        RunOnUi(ApplyLiveImage);
+    }
+
+    private void ApplyLiveImage()
+    {
+        ImageFrame? frame;
+        lock (_liveImageGate)
+        {
+            frame = _pendingLiveFrame;
+            _pendingLiveFrame = null;
+            _liveImageUpdateQueued = false;
+        }
+
+        if (IsCameraLive && IsInspectionSelected && frame is not null)
+        {
+            LiveImage = ToBitmapSource(frame);
+        }
+    }
 
     private static BitmapSource ToBitmapSource(ImageFrame frame)
     {

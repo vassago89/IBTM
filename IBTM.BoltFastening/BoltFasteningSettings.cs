@@ -18,7 +18,9 @@ public sealed class BoltFasteningSettings : Setting
         _ => throw new System.ArgumentOutOfRangeException(nameof(head)),
     };
 
-    public AxisPos GetBoltPosition(BoltPoint bolt)
+    public AxisPos GetBoltPosition(
+        BoltPoint bolt,
+        CarrierReferenceSettings reference)
     {
         var head = GetHead(bolt.Head);
         var position = CarrierCoordinates.ToMachine(
@@ -27,9 +29,11 @@ public sealed class BoltFasteningSettings : Setting
                 X = bolt.X!.Value,
                 Y = bolt.Y!.Value,
             },
+            reference.UpperLeftPin!,
+            reference.LowerRightPin!,
             head.UpperLeftLocatingPin!,
             head.LowerRightLocatingPin!);
-        position.Z = bolt.Z;
+        position.Z = bolt.Z!.Value;
         return position;
     }
 }

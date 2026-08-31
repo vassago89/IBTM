@@ -15,7 +15,8 @@ public sealed class VirtualMotionService(
     (double Minimum, double Maximum)? yRange = null,
     (double Minimum, double Maximum)? zRange = null,
     double resolutionMillimeters = 0.01,
-    Func<double>? horizontalZ = null)
+    Func<double>? horizontalZ = null,
+    Func<bool>? servoPowerOn = null)
     : MotionService(
         settings,
         operationCancellation,
@@ -30,6 +31,7 @@ public sealed class VirtualMotionService(
 
     private readonly bool[] _servoOn = new bool[3];
     private readonly bool[] _homed = new bool[3];
+    private readonly bool[] _alarm = new bool[3];
     private CancellationTokenSource? _movement;
     private bool _seekingZPositiveLimit;
     private bool _zPositiveLimit;
@@ -37,11 +39,13 @@ public sealed class VirtualMotionService(
     private double _y;
     private double _z;
 
+    public override bool IsReady => true;
+
     public override void Initialize()
     {
         foreach (var axis in Axes)
         {
-            _servoOn[(int)axis] = true;
+            _servoOn[(int)axis] = servoPowerOn?.Invoke() ?? true;
         }
     }
 
@@ -108,15 +112,24 @@ public sealed class VirtualMotionService(
         CancellationToken cancellationToken) =>
         StartJog(0, 0, velocity, cancellationToken);
 
-    public override void SetServo(MotionAxis axis, bool on) =>
+    public override void SetServo(MotionAxis axis, bool on)
+    {
         _servoOn[(int)axis] = on;
+        PublishStateChanged();
+    }
+
+    public void SetAlarm(MotionAxis axis, bool on)
+    {
+        _alarm[(int)axis] = on;
+        PublishStateChanged();
+    }
 
     public override (double X, double Y, double Z) GetPosition() => (_x, _y, _z);
 
     public override AxisState GetAxisState(MotionAxis axis) => new(
         Homed: _homed[(int)axis],
         ServoOn: _servoOn[(int)axis],
-        Alarm: false,
+        Alarm: _alarm[(int)axis],
         InPosition: !IsMoving,
         Emergency: false,
         HomeSensor: GetCoordinate(axis) == 0,
@@ -177,6 +190,8 @@ public sealed class VirtualMotionService(
 
     public override void ResetAlarm()
     {
+        Array.Clear(_alarm);
+        PublishStateChanged();
     }
 
     public void Dispose() => _movement?.Cancel();

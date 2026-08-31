@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -11,6 +12,7 @@ public sealed class VirtualMachine
     private const int TransferDelayMilliseconds = 200;
 
     private readonly VirtualIoService _io;
+    private readonly IReadOnlyList<VirtualMotionService> _motions;
     private readonly bool[] _supplyPcbs = new bool[2];
     private int _supplySmemaVersion;
     private int _mainConveyorTransferVersion;
@@ -29,15 +31,95 @@ public sealed class VirtualMachine
     private bool _inspectionAtNgShuttle;
     private bool _ngCarrierHeld;
 
-    public VirtualMachine(VirtualIoService io)
+    public VirtualMachine(
+        VirtualIoService io,
+        IReadOnlyList<VirtualMotionService> motions)
     {
         _io = io;
+        _motions = motions;
+        io.InputChanged += OnInputChanged;
         io.OutputChanged += OnOutputChanged;
         io.OutputApplied += ApplyPhysicalOutput;
+        io.SetInput(InputIo.ServoMainContactorOn, true);
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, true);
         io.SetInput(InputIo.MainConveyorReadyFromRear, true);
         io.SetInput(InputIo.PickupFeederBoltDetected, true);
+        if (EmergencyStopPressed
+            || _io.GetInput(InputIo.AutoMode) && DoorOpen)
+        {
+            DropServoPower();
+        }
     }
+
+    private bool DoorOpen =>
+        _io.GetInput(InputIo.Door1Open)
+        || _io.GetInput(InputIo.Door2Open)
+        || _io.GetInput(InputIo.Door3Open)
+        || _io.GetInput(InputIo.Door4Open)
+        || _io.GetInput(InputIo.Door5Open)
+        || _io.GetInput(InputIo.Door6Open);
+
+    private bool EmergencyStopPressed =>
+        _io.GetInput(InputIo.EmergencyStop1Pressed)
+        || _io.GetInput(InputIo.EmergencyStop2Pressed);
+
+    private void OnInputChanged(InputIo input, bool value)
+    {
+        if (value
+            && (IsEmergencyStop(input)
+                || (input == InputIo.AutoMode || IsDoor(input))
+                && _io.GetInput(InputIo.AutoMode)
+                && DoorOpen))
+        {
+            DropServoPower();
+            return;
+        }
+
+        if (input == InputIo.ResetButton
+            && value
+            && !EmergencyStopPressed
+            && (!_io.GetInput(InputIo.AutoMode) || !DoorOpen))
+        {
+            RestoreServoPower();
+        }
+    }
+
+    private void DropServoPower()
+    {
+        _io.SetInput(InputIo.ServoMainContactorOn, false);
+        foreach (var motion in _motions)
+        {
+            foreach (var axis in motion.Axes)
+            {
+                motion.SetServo(axis, false);
+                motion.SetAlarm(axis, true);
+            }
+        }
+    }
+
+    private void RestoreServoPower()
+    {
+        _io.SetInput(InputIo.ServoMainContactorOn, true);
+        foreach (var motion in _motions)
+        {
+            foreach (var axis in motion.Axes)
+            {
+                motion.SetServo(axis, true);
+            }
+        }
+    }
+
+    private static bool IsDoor(InputIo input) =>
+        input is InputIo.Door1Open
+            or InputIo.Door2Open
+            or InputIo.Door3Open
+            or InputIo.Door4Open
+            or InputIo.Door5Open
+            or InputIo.Door6Open;
+
+    private static bool IsEmergencyStop(InputIo input) =>
+        input is InputIo.EmergencyStop1Pressed
+            or InputIo.EmergencyStop2Pressed;
 
     public void UpdateSupplyPosition(
         double x,
@@ -115,7 +197,7 @@ public sealed class VirtualMachine
                      && !_io.GetInput(
                          InputIo.MainConveyorAvailableFromFront2)
                      && !_io.GetInput(
-                         InputIo.PcbPlacementCarrierJigPresent))
+                         InputIo.PcbPlacementCarrierPresent))
             {
                 _ = PresentMainCarrierAsync(transferVersion);
             }
@@ -311,50 +393,61 @@ public sealed class VirtualMachine
             return;
         }
 
-        if (_io.GetInput(InputIo.InspectionCarrierJigPresent)
+        if (_io.GetInput(InputIo.InspectionCarrierPresent)
             && _io.GetInput(InputIo.InspectionBackupPlateDown)
             && _io.GetInput(InputIo.InspectionStopperDown)
             && _io.GetOutput(OutputIo.MainConveyorAvailableToRear)
             && _io.GetInput(InputIo.MainConveyorReadyFromRear))
         {
             ClearCarrier(
-                InputIo.InspectionCarrierJigPresent,
-                InputIo.InspectionHousing1Present,
-                InputIo.InspectionHousing2Present);
+                InputIo.InspectionCarrierPresent,
+                InputIo.InspectionHeatSink1Present,
+                InputIo.InspectionHeatSink2Present);
+            _io.SetInput(
+                InputIo.MainConveyorExitCarrierDetected,
+                true);
+            await Task.Delay(TransferDelayMilliseconds)
+                .ConfigureAwait(false);
+            if (_io.GetOutput(OutputIo.MainConveyorRun))
+            {
+                _io.SetInput(
+                    InputIo.MainConveyorExitCarrierDetected,
+                    false);
+            }
             return;
         }
 
-        if (_io.GetInput(InputIo.BoltFasteningCarrierJigPresent)
+        if (_io.GetInput(InputIo.BoltFasteningCarrierPresent)
             && _io.GetInput(InputIo.BoltFasteningBackupPlateDown)
             && _io.GetInput(InputIo.InspectionBackupPlateDown)
             && _io.GetInput(InputIo.BoltFasteningStopperDown)
             && _io.GetInput(InputIo.InspectionStopperUp)
-            && !_io.GetInput(InputIo.InspectionCarrierJigPresent))
+            && !_io.GetInput(InputIo.InspectionCarrierPresent))
         {
             MoveCarrier(
-                InputIo.BoltFasteningCarrierJigPresent,
-                InputIo.BoltFasteningHousing1Present,
-                InputIo.BoltFasteningHousing2Present,
-                InputIo.InspectionCarrierJigPresent,
-                InputIo.InspectionHousing1Present,
-                InputIo.InspectionHousing2Present);
+                InputIo.BoltFasteningCarrierPresent,
+                InputIo.BoltFasteningHeatSink1Present,
+                InputIo.BoltFasteningHeatSink2Present,
+                InputIo.InspectionCarrierPresent,
+                InputIo.InspectionHeatSink1Present,
+                InputIo.InspectionHeatSink2Present);
             return;
         }
 
-        if (_io.GetInput(InputIo.PcbPlacementCarrierJigPresent)
+        if (_io.GetInput(InputIo.PcbPlacementCarrierPresent)
             && _io.GetInput(InputIo.PcbPlacementBackupPlateDown)
             && _io.GetInput(InputIo.BoltFasteningBackupPlateDown)
             && _io.GetInput(InputIo.PcbPlacementStopperDown)
             && _io.GetInput(InputIo.BoltFasteningStopperUp)
-            && !_io.GetInput(InputIo.BoltFasteningCarrierJigPresent))
+            && !_io.GetInput(InputIo.BoltFasteningCarrierPresent))
         {
             MoveCarrier(
-                InputIo.PcbPlacementCarrierJigPresent,
-                InputIo.PcbPlacementHousing1Present,
-                InputIo.PcbPlacementHousing2Present,
-                InputIo.BoltFasteningCarrierJigPresent,
-                InputIo.BoltFasteningHousing1Present,
-                InputIo.BoltFasteningHousing2Present);
+                InputIo.PcbPlacementCarrierPresent,
+                InputIo.PcbPlacementHeatSink1Present,
+                InputIo.PcbPlacementHeatSink2Present,
+                InputIo.BoltFasteningCarrierPresent,
+                InputIo.BoltFasteningHeatSink1Present,
+                InputIo.BoltFasteningHeatSink2Present);
             return;
         }
 
@@ -362,12 +455,25 @@ public sealed class VirtualMachine
             && _io.GetInput(InputIo.MainConveyorAvailableFromFront2)
             && _io.GetInput(InputIo.PcbPlacementBackupPlateDown)
             && _io.GetInput(InputIo.PcbPlacementStopperUp)
-            && !_io.GetInput(InputIo.PcbPlacementCarrierJigPresent))
+            && !_io.GetInput(InputIo.PcbPlacementCarrierPresent))
         {
             _io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
-            _io.SetInput(InputIo.PcbPlacementHousing1Present, true);
-            _io.SetInput(InputIo.PcbPlacementHousing2Present, true);
-            _io.SetInput(InputIo.PcbPlacementCarrierJigPresent, true);
+            _io.SetInput(
+                InputIo.MainConveyorEntryCarrierDetected,
+                true);
+            await Task.Delay(TransferDelayMilliseconds)
+                .ConfigureAwait(false);
+            if (!_io.GetOutput(OutputIo.MainConveyorRun))
+            {
+                return;
+            }
+
+            _io.SetInput(
+                InputIo.MainConveyorEntryCarrierDetected,
+                false);
+            _io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+            _io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+            _io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
         }
     }
 
@@ -377,7 +483,7 @@ public sealed class VirtualMachine
         if (_mainConveyorTransferVersion == version
             && _io.GetOutput(OutputIo.MainConveyorReadyToFront2)
             && !_io.GetOutput(OutputIo.MainConveyorRun)
-            && !_io.GetInput(InputIo.PcbPlacementCarrierJigPresent))
+            && !_io.GetInput(InputIo.PcbPlacementCarrierPresent))
         {
             _io.SetInput(InputIo.MainConveyorAvailableFromFront2, true);
         }
@@ -385,28 +491,28 @@ public sealed class VirtualMachine
 
     private void MoveCarrier(
         InputIo sourceCarrier,
-        InputIo sourceHousing1,
-        InputIo sourceHousing2,
+        InputIo sourceHeatSink1,
+        InputIo sourceHeatSink2,
         InputIo destinationCarrier,
-        InputIo destinationHousing1,
-        InputIo destinationHousing2)
+        InputIo destinationHeatSink1,
+        InputIo destinationHeatSink2)
     {
-        var housing1 = _io.GetInput(sourceHousing1);
-        var housing2 = _io.GetInput(sourceHousing2);
-        ClearCarrier(sourceCarrier, sourceHousing1, sourceHousing2);
-        _io.SetInput(destinationHousing1, housing1);
-        _io.SetInput(destinationHousing2, housing2);
+        var heatSink1 = _io.GetInput(sourceHeatSink1);
+        var heatSink2 = _io.GetInput(sourceHeatSink2);
+        ClearCarrier(sourceCarrier, sourceHeatSink1, sourceHeatSink2);
+        _io.SetInput(destinationHeatSink1, heatSink1);
+        _io.SetInput(destinationHeatSink2, heatSink2);
         _io.SetInput(destinationCarrier, true);
     }
 
     private void ClearCarrier(
         InputIo carrier,
-        InputIo housing1,
-        InputIo housing2)
+        InputIo heatSink1,
+        InputIo heatSink2)
     {
         _io.SetInput(carrier, false);
-        _io.SetInput(housing1, false);
-        _io.SetInput(housing2, false);
+        _io.SetInput(heatSink1, false);
+        _io.SetInput(heatSink2, false);
     }
 
     private void ApplyPhysicalOutput(OutputIo output, bool value)
@@ -447,8 +553,18 @@ public sealed class VirtualMachine
                     _placementHoldingPcb = false;
                     _io.SetInput(
                         InputIo.PcbPlacementPcbDetected,
-                        _placementAtBuffer);
+                        _placementAtBuffer
+                        || _io.GetInput(
+                            InputIo.PcbPlacementHandlerDown));
                 }
+                break;
+
+            case OutputIo.PcbPlacementHandlerDown when !value:
+                _io.SetInput(
+                    InputIo.PcbPlacementPcbDetected,
+                    _placementHoldingPcb
+                    || _placementAtBuffer
+                    && _io.GetInput(InputIo.PcbBufferPcbPresent));
                 break;
 
             case OutputIo.ShootingEscapeForward when value:
@@ -459,13 +575,13 @@ public sealed class VirtualMachine
                     && _inspectionAtNgPickup
                     && _io.GetInput(InputIo.NgCarrierPickupDown)
                     && _io.GetInput(InputIo.InspectionBackupPlateUp)
-                    && _io.GetInput(InputIo.InspectionCarrierJigPresent))
+                    && _io.GetInput(InputIo.InspectionCarrierPresent))
                 {
                     _ngCarrierHeld = true;
-                    _io.SetInput(InputIo.NgCarrierJigDetected, true);
-                    _io.SetInput(InputIo.InspectionCarrierJigPresent, false);
-                    _io.SetInput(InputIo.InspectionHousing1Present, false);
-                    _io.SetInput(InputIo.InspectionHousing2Present, false);
+                    _io.SetInput(InputIo.NgCarrierDetected, true);
+                    _io.SetInput(InputIo.InspectionCarrierPresent, false);
+                    _io.SetInput(InputIo.InspectionHeatSink1Present, false);
+                    _io.SetInput(InputIo.InspectionHeatSink2Present, false);
                 }
                 else if (!value
                          && _ngCarrierHeld
@@ -474,7 +590,7 @@ public sealed class VirtualMachine
                          && _io.GetInput(InputIo.NgShuttleUp))
                 {
                     _ngCarrierHeld = false;
-                    _io.SetInput(InputIo.NgCarrierJigDetected, false);
+                    _io.SetInput(InputIo.NgCarrierDetected, false);
                     _io.SetInput(InputIo.NgShuttleCarrierDetected, true);
                 }
                 break;
@@ -531,6 +647,10 @@ public sealed class VirtualMachine
                 InputIo.NgConveyorPosition2Occupied,
                 position3);
             _io.SetInput(InputIo.NgConveyorPosition3Occupied, false);
+            if (position3)
+            {
+                _io.SetInput(InputIo.NgShuttleCarrierDetected, false);
+            }
             return;
         }
 
@@ -538,6 +658,7 @@ public sealed class VirtualMachine
         {
             _io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
             _io.SetInput(InputIo.NgConveyorPosition3Occupied, false);
+            _io.SetInput(InputIo.NgShuttleCarrierDetected, false);
             return;
         }
 
@@ -545,6 +666,7 @@ public sealed class VirtualMachine
         {
             _io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
             _io.SetInput(InputIo.NgConveyorPosition3Occupied, false);
+            _io.SetInput(InputIo.NgShuttleCarrierDetected, false);
         }
     }
 

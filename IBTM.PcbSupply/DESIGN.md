@@ -18,29 +18,24 @@ The supply handler:
 - places the PCB at the taught Buffer X/Y and Place Z; and
 - releases the upstream carrier after both PCB positions have been checked.
 
-The upstream carrier transaction is one process step, separate from the live
+The upstream carrier transaction uses one local step, separate from the live
 handler state:
 
 ```csharp
-private enum PcbSupplyStep
+private enum PickStep
 {
-    ResolvingHandler,
-    WaitingForCarrier,
     Pcb1,
     Pcb2,
     WaitingForCarrierExit,
 }
 ```
 
-`ResolvingHandler` completes a PCB or rotated handler state that already exists
-when Start is pressed. It does not advance the newly observed upstream carrier.
-After the handler returns unrotated, the current Board Available input selects
-PCB 1 or `WaitingForCarrier`.
-
-`Pcb1` and `Pcb2` identify the current source position. After the PCB 2 check,
+The live handler and Buffer states always take priority over this step. `Pcb1`
+and `Pcb2` only select the source position. After the PCB 2 check,
 `WaitingForCarrierExit` keeps the existing Board Available signal from being
-mistaken for a new carrier. Board Available OFF changes it to
-`WaitingForCarrier`.
+mistaken for a new carrier. Board Available OFF returns the step to `Pcb1`.
+Stop does not retain the step, so Start begins from PCB 1 after resolving the
+current physical state.
 
 ## Horizontal movement
 
@@ -209,9 +204,8 @@ therefore accepted as the next carrier after the current physical move is resolv
 
 Supply pickup does not wait for the Buffer or Placement handler. While a PCB is
 detected at the Buffer or Placement is inside its collision area, Supply may pick
-the next PCB, move to Rotation Z,
-rotate, and wait while holding the PCB. It enters the Buffer only after Placement
-has left the collision area.
+the next PCB and wait while holding it. It moves to the taught Buffer X/Y only
+after Placement has left the collision area, then rotates before lowering Z.
 
 PCB 1 must not start again from a stale Board Available signal left by the
 previous carrier. A completed carrier must finish its Board Available cycle
@@ -234,8 +228,9 @@ X home
   -> IPM fixer forward
   -> IPM fixer-forward input ON
   -> Rotation Z
+  -> move to Buffer X/Y
   -> rotate
-  -> move to Buffer X/Y and Place Z
+  -> move to Place Z
 ```
 
 PCB 1 not detected:
@@ -264,8 +259,8 @@ handler remains `Unrotated`.
 
 ## PCB 1 and PCB 2 after pickup
 
-After PCB 1 is picked and rotated, the upstream carrier remains in place because
-PCB 2 has not been checked.
+After PCB 1 is picked, the upstream carrier remains in place because PCB 2 has
+not been checked.
 
 After the PCB 2 check/pick operation has returned to Rotation Z:
 
@@ -288,7 +283,9 @@ The confirmed high-level `Rotated` flow is:
 Supply PCB detected, Nest forward, and IPM fixer forward
   -> wait while Placement is inside the Buffer collision area
   -> Buffer Y
-  -> Buffer X and Place Z
+  -> Buffer X
+  -> rotate
+  -> Place Z
   -> wait for Placement PCB, vacuum, and IPM-gripper inputs
   -> retract Supply IPM fixer
   -> retract Supply Nest
@@ -323,9 +320,8 @@ recovery is not yet defined for:
 - additional Buffer Stage clearance inputs; or
 - any Buffer Stage clamp, lift, or other actuator.
 
-Stop does not retain `PcbSupplyStep`. Every Start uses the current Board
-Available input to select PCB 1 or wait for a carrier, while current handler and
-Buffer state always take priority:
+Stop does not retain `PickStep`. Every Start begins at PCB 1 or waits for a
+carrier, while current handler and Buffer state always take priority:
 
 ```text
 Start

@@ -9,6 +9,7 @@ namespace IBTM.PcbSupply;
 public sealed class PcbSupplyHandler
 {
     private const double XHome = 0;
+    private const double PositionTolerance = 0.05;
 
     private readonly IAxisMotion _motion;
     private readonly IIoService _io;
@@ -65,28 +66,53 @@ public sealed class PcbSupplyHandler
         && (Rotation != PcbSupplyRotation.Unrotated
             || Pcb == PcbSupplyPcbState.None);
 
+    public bool AtHandoffXY
+    {
+        get
+        {
+            var position = _motion.GetPosition();
+            return !_motion.IsMoving
+                && _motion.GetAxisState(MotionAxis.X).InPosition
+                && _motion.GetAxisState(MotionAxis.Y).InPosition
+                && Math.Abs(position.X - _settings.BufferHandoffPosition.X)
+                    <= PositionTolerance
+                && Math.Abs(position.Y - _settings.BufferHandoffPosition.Y)
+                    <= PositionTolerance;
+        }
+    }
+
     public void SetUpstreamReady(bool ready) =>
         _io.SetOutput(OutputIo.PcbSupplyReadyToFront1, ready);
 
-    public async Task MoveToHandoffAsync(
+    public Task WaitForUpstreamCarrierAsync(
+        bool available,
+        CancellationToken cancellationToken = default) =>
+        _io.WaitForInputAsync(
+            InputIo.PcbSupplyAvailableFromFront1,
+            available,
+            cancellationToken);
+
+    public async Task MoveAboveHandoffAsync(
         CancellationToken cancellationToken)
     {
-        EnsureRotated();
+        await _motion.MoveToHorizontalZAsync(cancellationToken);
         await MoveHorizontalAsync(
             _settings.BufferHandoffPosition.X,
             _settings.BufferHandoffPosition.Y,
             cancellationToken);
-        await _motion.MoveZAsync(
+    }
+
+    public Task LowerToHandoffAsync(
+        CancellationToken cancellationToken) =>
+        _motion.MoveZAsync(
             _settings.BufferHandoffPosition.Z,
             _settings.Motion.ZSpeed,
             cancellationToken);
-    }
 
-    public async Task<bool> PickAsync(
+    public async Task PickAsync(
         PcbPickPosition position,
         CancellationToken cancellationToken = default)
     {
-        EnsureUnrotated();
         await MoveHorizontalAsync(
             position.X,
             _settings.CarrierY,
@@ -97,12 +123,19 @@ public sealed class PcbSupplyHandler
             cancellationToken);
         if (Pcb != PcbSupplyPcbState.None)
         {
-            await SetNestAsync(true, cancellationToken);
-            await SetIpmFixerAsync(true, cancellationToken);
+            await SecurePcbAsync(cancellationToken);
+            return;
         }
 
         await _motion.MoveToHorizontalZAsync(cancellationToken);
-        return Pcb != PcbSupplyPcbState.None;
+    }
+
+    public async Task SecurePcbAsync(
+        CancellationToken cancellationToken = default)
+    {
+        await SetNestAsync(true, cancellationToken);
+        await SetIpmFixerAsync(true, cancellationToken);
+        await _motion.MoveToHorizontalZAsync(cancellationToken);
     }
 
     public async Task MoveHorizontalAsync(
@@ -123,7 +156,6 @@ public sealed class PcbSupplyHandler
     public async Task MoveClearAsync(
         CancellationToken cancellationToken = default)
     {
-        EnsureRotated();
         await _motion.MoveZAsync(
             _settings.BufferClearZ,
             _settings.Motion.ZSpeed,
@@ -176,7 +208,6 @@ public sealed class PcbSupplyHandler
         double zVelocity,
         CancellationToken cancellationToken = default)
     {
-        EnsureRotated();
         if (!await _motion.HomeFromZPositiveLimitAsync(
                 MotionAxis.X,
                 horizontalVelocity,
@@ -208,24 +239,6 @@ public sealed class PcbSupplyHandler
             OutputIo.PcbSupplyRotate,
             rotated,
             cancellationToken);
-    }
-
-    private void EnsureRotated()
-    {
-        if (Rotation != PcbSupplyRotation.Rotated)
-        {
-            throw new InvalidOperationException(
-                "Supply must be rotated for Buffer movement.");
-        }
-    }
-
-    private void EnsureUnrotated()
-    {
-        if (Rotation != PcbSupplyRotation.Unrotated)
-        {
-            throw new InvalidOperationException(
-                "Supply must be unrotated for PCB pickup.");
-        }
     }
 
     private void OnInputChanged(InputIo input, bool _)

@@ -1,19 +1,19 @@
 <Solution>
   <Project Path="IBTM.Ajin/IBTM.Ajin.csproj" />
-  <Project Path="IBTM.Core/IBTM.Core.csproj" />
   <Project Path="IBTM.AlphaMotion/IBTM.AlphaMotion.csproj" />
+  <Project Path="IBTM.BoltFastening/IBTM.BoltFastening.csproj" />
+  <Project Path="IBTM.BoltFeeder/IBTM.BoltFeeder.csproj" />
   <Project Path="IBTM.Conveyor/IBTM.Conveyor.csproj" />
+  <Project Path="IBTM.Core/IBTM.Core.csproj" />
   <Project Path="IBTM.Device/IBTM.Device.csproj" />
-  <Project Path="IBTM.Hik/IBTM.Hik.csproj" />
   <Project Path="IBTM.Hantas/IBTM.Hantas.csproj" />
+  <Project Path="IBTM.Hik/IBTM.Hik.csproj" />
+  <Project Path="IBTM.Inspection/IBTM.Inspection.csproj" />
   <Project Path="IBTM.Inspection.Training/IBTM.Inspection.Training.csproj" />
   <Project Path="IBTM.NgConveyor/IBTM.NgConveyor.csproj" />
   <Project Path="IBTM.PcbBuffer/IBTM.PcbBuffer.csproj" />
-  <Project Path="IBTM.PcbSupply/IBTM.PcbSupply.csproj" />
-  <Project Path="IBTM.BoltFeeder/IBTM.BoltFeeder.csproj" />
-  <Project Path="IBTM.BoltFastening/IBTM.BoltFastening.csproj" />
-  <Project Path="IBTM.Inspection/IBTM.Inspection.csproj" />
   <Project Path="IBTM.PcbPlacement/IBTM.PcbPlacement.csproj" />
+  <Project Path="IBTM.PcbSupply/IBTM.PcbSupply.csproj" />
   <Project Path="IBTM.Virtual/IBTM.Virtual.csproj" />
   <Project Path="IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj" />
   <Project Path="IBTM/IBTM.csproj" />

@@ -40,6 +40,19 @@ public sealed class ImageTeachingView : FrameworkElement
     public static readonly DependencyProperty MarkersProperty = Register(
         nameof(Markers),
         typeof(IReadOnlyList<ImageMarker>));
+    public static readonly DependencyProperty CameraFieldOfViewProperty = Register(
+        nameof(CameraFieldOfView),
+        typeof(Rect?));
+    public static readonly DependencyProperty HoverPositionTextProperty =
+        DependencyProperty.Register(
+            nameof(HoverPositionText),
+            typeof(string),
+            typeof(ImageTeachingView));
+    public static readonly DependencyProperty CoordinateOriginProperty =
+        DependencyProperty.Register(
+            nameof(CoordinateOrigin),
+            typeof(Point?),
+            typeof(ImageTeachingView));
     public static readonly DependencyProperty ClickCommandProperty =
         DependencyProperty.Register(
             nameof(ClickCommand),
@@ -68,6 +81,24 @@ public sealed class ImageTeachingView : FrameworkElement
     {
         get => (IReadOnlyList<ImageMarker>?)GetValue(MarkersProperty);
         set => SetValue(MarkersProperty, value);
+    }
+
+    public Rect? CameraFieldOfView
+    {
+        get => (Rect?)GetValue(CameraFieldOfViewProperty);
+        set => SetValue(CameraFieldOfViewProperty, value);
+    }
+
+    public string? HoverPositionText
+    {
+        get => (string?)GetValue(HoverPositionTextProperty);
+        set => SetValue(HoverPositionTextProperty, value);
+    }
+
+    public Point? CoordinateOrigin
+    {
+        get => (Point?)GetValue(CoordinateOriginProperty);
+        set => SetValue(CoordinateOriginProperty, value);
     }
 
     public ICommand? ClickCommand
@@ -107,6 +138,11 @@ public sealed class ImageTeachingView : FrameworkElement
                     layout));
         }
 
+        if (CameraFieldOfView is { } camera)
+        {
+            DrawCameraFieldOfView(drawingContext, camera, layout);
+        }
+
         foreach (var marker in Markers ?? [])
         {
             DrawMarker(
@@ -132,11 +168,7 @@ public sealed class ImageTeachingView : FrameworkElement
             return;
         }
 
-        var position = new Point(
-            layout.World.Left
-                + ((click.X - layout.Screen.Left) / layout.Scale),
-            layout.World.Top
-                + ((click.Y - layout.Screen.Top) / layout.Scale));
+        var position = ScreenToWorld(click, layout);
         if (!Tiles!.Any(tile => TileWorldRect(tile).Contains(position)))
         {
             return;
@@ -163,11 +195,7 @@ public sealed class ImageTeachingView : FrameworkElement
             return;
         }
 
-        var world = new Point(
-            before.World.Left
-                + ((mouse.X - before.Screen.Left) / before.Scale),
-            before.World.Top
-                + ((mouse.Y - before.Screen.Top) / before.Scale));
+        var world = ScreenToWorld(mouse, before);
         _zoom = Math.Clamp(
             _zoom * (e.Delta > 0 ? 1.2 : 1 / 1.2),
             1,
@@ -201,15 +229,28 @@ public sealed class ImageTeachingView : FrameworkElement
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        if (_panStart is not { } previous)
+        var current = e.GetPosition(this);
+        if (_panStart is { } previous)
         {
-            return;
+            _pan += current - previous;
+            _panStart = current;
+            InvalidateVisual();
         }
 
-        var current = e.GetPosition(this);
-        _pan += current - previous;
-        _panStart = current;
-        InvalidateVisual();
+        var layout = HasMap ? MapLayout() : null;
+        HoverPositionText = layout is not null
+            && layout.Screen.Contains(current)
+            && CoordinateOrigin is { } origin
+            ? PositionText(
+                ScreenToWorld(current, layout),
+                origin)
+            : null;
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        HoverPositionText = null;
     }
 
     protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
@@ -280,6 +321,49 @@ public sealed class ImageTeachingView : FrameworkElement
         MapView layout) => new(
             layout.Screen.Left + ((x - layout.World.Left) * layout.Scale),
             layout.Screen.Top + ((y - layout.World.Top) * layout.Scale));
+
+    private static Point ScreenToWorld(Point point, MapView layout) => new(
+        layout.World.Left
+            + ((point.X - layout.Screen.Left) / layout.Scale),
+        layout.World.Top
+            + ((point.Y - layout.Screen.Top) / layout.Scale));
+
+    private static void DrawCameraFieldOfView(
+        DrawingContext drawingContext,
+        Rect fieldOfView,
+        MapView layout)
+    {
+        var color = Color.FromRgb(251, 191, 36);
+        var pen = new Pen(new SolidColorBrush(color), 2)
+        {
+            DashStyle = DashStyles.Dash,
+        };
+        var screen = WorldRect(
+            fieldOfView.X,
+            fieldOfView.Y,
+            fieldOfView.Width,
+            fieldOfView.Height,
+            layout);
+        var center = new Point(
+            screen.Left + (screen.Width / 2),
+            screen.Top + (screen.Height / 2));
+        drawingContext.DrawRectangle(
+            new SolidColorBrush(Color.FromArgb(18, color.R, color.G, color.B)),
+            pen,
+            screen);
+        drawingContext.DrawLine(
+            pen,
+            new Point(center.X - 10, center.Y),
+            new Point(center.X + 10, center.Y));
+        drawingContext.DrawLine(
+            pen,
+            new Point(center.X, center.Y - 10),
+            new Point(center.X, center.Y + 10));
+    }
+
+    private static string PositionText(Point position, Point origin) =>
+        FormattableString.Invariant(
+            $"X {position.X - origin.X:F3}   Y {position.Y - origin.Y:F3}");
 
     private static void DrawMarker(
         DrawingContext drawingContext,

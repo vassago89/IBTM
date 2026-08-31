@@ -4,178 +4,379 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="clr-namespace:IBTM.UI"
+             xmlns:conveyor="clr-namespace:IBTM.Conveyor;assembly=IBTM.Conveyor"
+             xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
              Width="1552"
              Height="244">
+    <UserControl.Resources>
+        <Style x:Key="MainConveyorSensorStyle"
+               TargetType="Ellipse"
+               BasedOn="{StaticResource IoInputLedStyle}">
+            <Setter Property="Width" Value="20"/>
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="StrokeThickness" Value="2"/>
+            <Setter Property="Panel.ZIndex" Value="3"/>
+        </Style>
+        <Style x:Key="HeatSink1LandingTargetStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource PcbLandingTargetStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding PcbPlacementTargetHeatSink}"
+                             Value="{x:Static core:HeatSinkSlot.HeatSink1}">
+                    <Setter Property="Background" Value="#27323B"/>
+                    <Setter Property="BorderBrush"
+                            Value="{StaticResource AccentBlueBrush}"/>
+                    <Setter Property="BorderThickness" Value="2"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="HeatSink2LandingTargetStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource PcbLandingTargetStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding PcbPlacementTargetHeatSink}"
+                             Value="{x:Static core:HeatSinkSlot.HeatSink2}">
+                    <Setter Property="Background" Value="#27323B"/>
+                    <Setter Property="BorderBrush"
+                            Value="{StaticResource AccentBlueBrush}"/>
+                    <Setter Property="BorderThickness" Value="2"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <DataTemplate x:Key="WorkTargetTemplate">
+            <Border Tag="{Binding State}"
+                    Style="{StaticResource WorkTargetStyle}"
+                    ToolTip="{Binding Head, Converter={StaticResource EnumDescriptionConverter}}">
+                <TextBlock Text="{Binding Number}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           FontSize="11"
+                           FontWeight="SemiBold"/>
+            </Border>
+        </DataTemplate>
+        <Style x:Key="WorkTargetItemsStyle" TargetType="ItemsControl">
+            <Setter Property="Width" Value="250"/>
+            <Setter Property="Height" Value="66"/>
+            <Setter Property="ItemTemplate" Value="{StaticResource WorkTargetTemplate}"/>
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <Canvas/>
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ContentPresenter">
+                        <Setter Property="Canvas.Left" Value="{Binding Left}"/>
+                        <Setter Property="Canvas.Top" Value="{Binding Top}"/>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
     <Grid>
-        <Border Style="{DynamicResource CellStyle}"/>
-
         <Canvas>
-            <TextBlock Canvas.Left="20" Canvas.Top="18"
-                       Text="MAIN CARRIER CONVEYOR"
-                       Foreground="{StaticResource TextPrimaryBrush}"
-                       FontSize="15"
-                       FontWeight="SemiBold"/>
-            <Border Canvas.Left="222" Canvas.Top="13"
-                    Style="{DynamicResource StateBadgeStyle}">
-                <TextBlock FontSize="11" FontWeight="SemiBold">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock"
-                               BasedOn="{StaticResource StateTextStyle}">
-                            <Setter Property="Text" Value="STOPPED"/>
+            <Grid Canvas.Left="0" Canvas.Top="197" Width="1552">
+                <Border HorizontalAlignment="Center">
+                    <Border.Style>
+                        <Style TargetType="Border"
+                               BasedOn="{StaticResource StateBadgeStyle}">
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding ConveyorRunning}" Value="True">
-                                    <Setter Property="Text" Value="RUNNING"/>
-                                    <Setter Property="Foreground"
-                                            Value="{StaticResource AccentGreenBrush}"/>
-                                </DataTrigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding MainConveyorState}"
+                                                   Value="{x:Static conveyor:MainConveyorState.Idle}"/>
+                                        <Condition Binding="{Binding MainConveyorEnabled}"
+                                                   Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-            </Border>
+                    </Border.Style>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="CONVEYOR"
+                                   Margin="0,0,9,0"
+                                   VerticalAlignment="Center"
+                                   Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                        <TextBlock FontSize="15" FontWeight="SemiBold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock"
+                                       BasedOn="{StaticResource StateTextStyle}">
+                                    <Setter Property="Text"
+                                            Value="{Binding MainConveyorState,
+                                                            Converter={StaticResource EnumDescriptionConverter}}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding MainConveyorEnabled}" Value="False">
+                                            <Setter Property="Text" Value="Disabled"/>
+                                            <Setter Property="Opacity" Value="0.55"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ConveyorRunning}" Value="True">
+                                            <Setter Property="Foreground"
+                                                    Value="{StaticResource AccentBlueBrush}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <Border Canvas.Left="18" Canvas.Top="64"
                     Width="1516" Height="112"
-                    Style="{DynamicResource ConveyorBedStyle}"/>
+                    Tag="{Binding ConveyorRunning}"
+                    Style="{StaticResource ConveyorBedStyle}"/>
 
-            <TextBlock Canvas.Left="24" Canvas.Top="112"
-                       Text="SMEMA IN"
-                       Style="{DynamicResource MapHintStyle}"/>
+            <TextBlock Canvas.Left="194" Canvas.Top="42"
+                        Width="{StaticResource BackupPlateWidth}"
+                       Text="PLACE"
+                       Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            <TextBlock Canvas.Left="604" Canvas.Top="42"
+                        Width="{StaticResource BackupPlateWidth}"
+                       Text="FASTEN"
+                       Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            <TextBlock Canvas.Left="1014" Canvas.Top="42"
+                        Width="{StaticResource BackupPlateWidth}"
+                       Text="INSPECT"
+                       Style="{StaticResource EquipmentRoleLabelStyle}"/>
+
+            <Ellipse Canvas.Left="160" Canvas.Top="108"
+                     Tag="{Binding MainConveyorEntryCarrierDetected}"
+                     ToolTip="Entry carrier sensor"
+                     Style="{StaticResource MainConveyorSensorStyle}"/>
+            <TextBlock Canvas.Left="150" Canvas.Top="137"
+                       Width="40"
+                       Text="IN"
+                       FontSize="10"
+                       Style="{StaticResource EquipmentRoleLabelStyle}"/>
 
             <Border Canvas.Left="194" Canvas.Top="70"
-                    Width="284" Height="100"
                     Panel.ZIndex="1"
                     Tag="{Binding PcbPlacementBackupPlateUp}"
                     ToolTip="Placement backup plate"
-                    Style="{DynamicResource BackupPlateVisualStyle}"/>
-            <Border Canvas.Left="202" Canvas.Top="78"
-                    Width="268" Height="84"
-                    Panel.ZIndex="2"
-                    Tag="{Binding PcbPlacementCarrierJigPresent}"
-                    Style="{DynamicResource StageBodyStyle}">
+                    Style="{StaticResource BackupPlateVisualStyle}"/>
+            <ContentControl Canvas.Left="202" Canvas.Top="78"
+                            Panel.ZIndex="2"
+                            Style="{StaticResource CarrierJigStyle}"
+                            Visibility="{Binding PcbPlacementCarrierPresent,
+                                                 Converter={StaticResource BoolToVis}}">
                 <Grid Margin="9">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="9"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <Border Tag="{Binding PcbPlacementHousing1Present}"
-                            Style="{DynamicResource HousingPocketStyle}">
-                        <TextBlock Text="HOUSING 1"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Style="{DynamicResource MapHintStyle}"/>
+                    <Border Tag="{Binding PcbPlacementHeatSink1Present}"
+                            Style="{StaticResource HeatSinkPocketStyle}">
+                        <Grid>
+                            <TextBlock Text="HS1"
+                                       Style="{StaticResource HeatSinkPocketLabelStyle}"/>
+                            <Border Style="{StaticResource HeatSink1LandingTargetStyle}"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding PcbPlacementHeatSink1Present,
+                                                         Converter={StaticResource BoolToVis}}">
+                                <Grid>
+                                    <Border Style="{StaticResource PcbSlotStyle}"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"/>
+                                    <Border Style="{StaticResource PcbFootprintStyle}"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center"
+                                             Visibility="{Binding PcbPlacementHeatSink1Completed,
+                                                                  Converter={StaticResource BoolToVis}}"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
                     </Border>
                     <Border Grid.Column="2"
-                            Tag="{Binding PcbPlacementHousing2Present}"
-                            Style="{DynamicResource HousingPocketStyle}">
-                        <TextBlock Text="HOUSING 2"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Style="{DynamicResource MapHintStyle}"/>
+                            Tag="{Binding PcbPlacementHeatSink2Present}"
+                            Style="{StaticResource HeatSinkPocketStyle}">
+                        <Grid>
+                            <TextBlock Text="HS2"
+                                       Style="{StaticResource HeatSinkPocketLabelStyle}"/>
+                            <Border Style="{StaticResource HeatSink2LandingTargetStyle}"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding PcbPlacementHeatSink2Present,
+                                                         Converter={StaticResource BoolToVis}}">
+                                <Grid>
+                                    <Border Style="{StaticResource PcbSlotStyle}"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"/>
+                                    <Border Style="{StaticResource PcbFootprintStyle}"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center"
+                                             Visibility="{Binding PcbPlacementHeatSink2Completed,
+                                                                  Converter={StaticResource BoolToVis}}"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
                     </Border>
                 </Grid>
-            </Border>
-            <Ellipse Canvas.Left="460" Canvas.Top="113"
+            </ContentControl>
+            <Border Canvas.Left="463" Canvas.Top="105"
                      Panel.ZIndex="3"
                      Tag="{Binding PcbPlacementStopperUp}"
                      ToolTip="Placement stopper"
-                     Style="{DynamicResource StopperVisualStyle}"/>
-            <TextBlock Canvas.Left="202" Canvas.Top="194"
-                       Text="S1   PCB PLACEMENT"
-                       Style="{DynamicResource MapLabelStyle}"/>
-
+                     Style="{StaticResource StopperVisualStyle}"/>
             <Border Canvas.Left="604" Canvas.Top="70"
-                    Width="284" Height="100"
                     Panel.ZIndex="1"
                     Tag="{Binding BoltFasteningBackupPlateUp}"
                     ToolTip="Bolt fastening backup plate"
-                    Style="{DynamicResource BackupPlateVisualStyle}"/>
-            <Border Canvas.Left="612" Canvas.Top="78"
-                    Width="268" Height="84"
-                    Panel.ZIndex="2"
-                    Tag="{Binding BoltFasteningCarrierJigPresent}"
-                    Style="{DynamicResource StageBodyStyle}">
+                    Style="{StaticResource BackupPlateVisualStyle}"/>
+            <ContentControl Canvas.Left="612" Canvas.Top="78"
+                            Panel.ZIndex="2"
+                            Style="{StaticResource CarrierJigStyle}"
+                            Visibility="{Binding BoltFasteningCarrierPresent,
+                                                 Converter={StaticResource BoolToVis}}">
                 <Grid Margin="9">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="9"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <Border Tag="{Binding BoltFasteningHousing1Present}"
-                            Style="{DynamicResource HousingPocketStyle}">
-                        <TextBlock Text="HOUSING 1"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Style="{DynamicResource MapHintStyle}"/>
+                    <Border Tag="{Binding BoltFasteningHeatSink1Present}"
+                            Style="{StaticResource HeatSinkPocketStyle}">
+                        <Grid>
+                            <TextBlock Text="HS1"
+                                       Style="{StaticResource HeatSinkPocketLabelStyle}"/>
+                            <TextBlock Text="{Binding BoltFasteningHeatSink1Result,
+                                                     Converter={StaticResource EnumDescriptionConverter}}"
+                                       Tag="{Binding BoltFasteningHeatSink1Result}"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Bottom"
+                                       Margin="0,0,6,4"
+                                       Style="{StaticResource ResultTextStyle}"
+                                       Visibility="{Binding BoltFasteningHeatSink1ResultVisible,
+                                                            Converter={StaticResource BoolToVis}}"/>
+                        </Grid>
                     </Border>
                     <Border Grid.Column="2"
-                            Tag="{Binding BoltFasteningHousing2Present}"
-                            Style="{DynamicResource HousingPocketStyle}">
-                        <TextBlock Text="HOUSING 2"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Style="{DynamicResource MapHintStyle}"/>
+                            Tag="{Binding BoltFasteningHeatSink2Present}"
+                            Style="{StaticResource HeatSinkPocketStyle}">
+                        <Grid>
+                            <TextBlock Text="HS2"
+                                       Style="{StaticResource HeatSinkPocketLabelStyle}"/>
+                            <TextBlock Text="{Binding BoltFasteningHeatSink2Result,
+                                                     Converter={StaticResource EnumDescriptionConverter}}"
+                                       Tag="{Binding BoltFasteningHeatSink2Result}"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Bottom"
+                                       Margin="0,0,6,4"
+                                       Style="{StaticResource ResultTextStyle}"
+                                       Visibility="{Binding BoltFasteningHeatSink2ResultVisible,
+                                                            Converter={StaticResource BoolToVis}}"/>
+                        </Grid>
                     </Border>
+                    <ItemsControl Grid.ColumnSpan="3"
+                                  Panel.ZIndex="2"
+                                  ItemsSource="{Binding BoltTargets}"
+                                  Style="{StaticResource WorkTargetItemsStyle}"/>
                 </Grid>
-            </Border>
-            <Ellipse Canvas.Left="870" Canvas.Top="113"
+            </ContentControl>
+            <Border Canvas.Left="873" Canvas.Top="105"
                      Panel.ZIndex="3"
                      Tag="{Binding BoltFasteningStopperUp}"
                      ToolTip="Bolt fastening stopper"
-                     Style="{DynamicResource StopperVisualStyle}"/>
-            <TextBlock Canvas.Left="612" Canvas.Top="194"
-                       Text="S2   BOLT FASTENING"
-                       Style="{DynamicResource MapLabelStyle}"/>
-
+                     Style="{StaticResource StopperVisualStyle}"/>
             <Border Canvas.Left="1014" Canvas.Top="70"
-                    Width="284" Height="100"
                     Panel.ZIndex="1"
                     Tag="{Binding InspectionBackupPlateUp}"
                     ToolTip="Inspection backup plate"
-                    Style="{DynamicResource BackupPlateVisualStyle}"/>
-            <Border Canvas.Left="1022" Canvas.Top="78"
-                    Width="268" Height="84"
-                    Panel.ZIndex="2"
-                    Tag="{Binding InspectionCarrierJigPresent}"
-                    Style="{DynamicResource StageBodyStyle}">
+                    Style="{StaticResource BackupPlateVisualStyle}"/>
+            <ContentControl Canvas.Left="1022" Canvas.Top="78"
+                            Panel.ZIndex="2"
+                            Style="{StaticResource CarrierJigStyle}"
+                            Visibility="{Binding InspectionCarrierPresent,
+                                                 Converter={StaticResource BoolToVis}}">
                 <Grid Margin="9">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="9"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <Border Tag="{Binding InspectionHousing1Present}"
-                            Style="{DynamicResource HousingPocketStyle}">
-                        <TextBlock Text="HOUSING 1"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Style="{DynamicResource MapHintStyle}"/>
+                    <Border Tag="{Binding InspectionHeatSink1Present}"
+                            Style="{StaticResource HeatSinkPocketStyle}">
+                        <Grid>
+                            <TextBlock Text="HS1"
+                                       Style="{StaticResource HeatSinkPocketLabelStyle}"/>
+                            <TextBlock Text="{Binding InspectionHeatSink1Result,
+                                                     Converter={StaticResource EnumDescriptionConverter}}"
+                                       Tag="{Binding InspectionHeatSink1Result}"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Bottom"
+                                       Margin="0,0,6,4"
+                                       Style="{StaticResource ResultTextStyle}"
+                                       Visibility="{Binding InspectionHeatSink1ResultVisible,
+                                                            Converter={StaticResource BoolToVis}}"/>
+                        </Grid>
                     </Border>
                     <Border Grid.Column="2"
-                            Tag="{Binding InspectionHousing2Present}"
-                            Style="{DynamicResource HousingPocketStyle}">
-                        <TextBlock Text="HOUSING 2"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Style="{DynamicResource MapHintStyle}"/>
+                            Tag="{Binding InspectionHeatSink2Present}"
+                            Style="{StaticResource HeatSinkPocketStyle}">
+                        <Grid>
+                            <TextBlock Text="HS2"
+                                       Style="{StaticResource HeatSinkPocketLabelStyle}"/>
+                            <TextBlock Text="{Binding InspectionHeatSink2Result,
+                                                     Converter={StaticResource EnumDescriptionConverter}}"
+                                       Tag="{Binding InspectionHeatSink2Result}"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Bottom"
+                                       Margin="0,0,6,4"
+                                       Style="{StaticResource ResultTextStyle}"
+                                       Visibility="{Binding InspectionHeatSink2ResultVisible,
+                                                            Converter={StaticResource BoolToVis}}"/>
+                        </Grid>
                     </Border>
+                    <ItemsControl Grid.ColumnSpan="3"
+                                  Panel.ZIndex="2"
+                                  ItemsSource="{Binding InspectionTargets}"
+                                  Style="{StaticResource WorkTargetItemsStyle}"/>
                 </Grid>
-            </Border>
-            <Ellipse Canvas.Left="1280" Canvas.Top="113"
+            </ContentControl>
+            <Border Canvas.Left="1283" Canvas.Top="105"
                      Panel.ZIndex="3"
                      Tag="{Binding InspectionStopperUp}"
                      ToolTip="Inspection stopper"
-                     Style="{DynamicResource StopperVisualStyle}"/>
-            <TextBlock Canvas.Left="1022" Canvas.Top="194"
-                       Text="S3   INSPECTION"
-                       Style="{DynamicResource MapLabelStyle}"/>
+                     Style="{StaticResource StopperVisualStyle}"/>
+            <Ellipse Canvas.Left="1368" Canvas.Top="108"
+                     Tag="{Binding MainConveyorExitCarrierDetected}"
+                     ToolTip="Exit carrier sensor"
+                     Style="{StaticResource MainConveyorSensorStyle}"/>
+            <TextBlock Canvas.Left="1358" Canvas.Top="137"
+                       Width="40"
+                       Text="OUT"
+                       FontSize="10"
+                       Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            <ContentControl Canvas.Left="407" Canvas.Top="78"
+                            Panel.ZIndex="2"
+                            Style="{StaticResource CarrierJigStyle}"
+                            Visibility="{Binding CarrierBetweenPlacementAndBolt,
+                                                 Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="CARRIER"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            </ContentControl>
+            <ContentControl Canvas.Left="817" Canvas.Top="78"
+                            Panel.ZIndex="2"
+                            Style="{StaticResource CarrierJigStyle}"
+                            Visibility="{Binding CarrierBetweenBoltAndInspection,
+                                                 Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="CARRIER"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            </ContentControl>
 
-            <TextBlock Canvas.Left="1410" Canvas.Top="112"
-                       Text="SMEMA OUT"
-                       Style="{DynamicResource MapHintStyle}"/>
         </Canvas>
     </Grid>
 </UserControl>

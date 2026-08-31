@@ -4,18 +4,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.UI;
 
 public partial class SettingsViewModel : ObservableObject
 {
-    private readonly Dictionary<MotionGroup, IAxisMotion> _motions;
-    private readonly MachineState _state;
-    private readonly MainConveyor _conveyor;
     private readonly MachineStore _store;
 
     [ObservableProperty]
@@ -24,33 +19,10 @@ public partial class SettingsViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CurrentMotionHasZ))]
     private MotionGroup _selectedMotionGroup = MotionGroup.PcbSupply;
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(HomeAxisCommand))]
-    [NotifyCanExecuteChangedFor(nameof(StopHomingCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ToggleServoCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RunConveyorCommand))]
-    private bool _isHoming;
-
     public SettingsViewModel(
-        [FromKeyedServices(MotionGroup.PcbSupply)] IAxisMotion pcbSupplyMotion,
-        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] IXyMotion pcbPlacementMotion,
-        [FromKeyedServices(MotionGroup.BoltFastening)] IXyMotion boltFasteningMotion,
-        [FromKeyedServices(MotionGroup.InspectionGantry)] IXyMotion inspectionGantryMotion,
-        MainConveyor conveyor,
-        IIoService io,
-        MachineState state,
         MachineStore store,
         MachineSettings settings)
     {
-        _motions = new Dictionary<MotionGroup, IAxisMotion>
-        {
-            [MotionGroup.PcbSupply] = pcbSupplyMotion,
-            [MotionGroup.PcbPlacementHandler] = pcbPlacementMotion,
-            [MotionGroup.BoltFastening] = boltFasteningMotion,
-            [MotionGroup.InspectionGantry] = inspectionGantryMotion,
-        };
-        _conveyor = conveyor;
-        _state = state;
         _store = store;
         Settings = settings;
         ControlDrivers = Enum.GetValues<ControlDriver>();
@@ -60,7 +32,7 @@ public partial class SettingsViewModel : ObservableObject
         InputMappings = hardware
             .OfType<InputHardwareSettings>()
             .SelectMany(section => section.Inputs.Select(mapping =>
-                CreateInputRow(section, mapping.Key, mapping.Value, io)))
+                CreateInputRow(section, mapping.Key, mapping.Value)))
             .ToArray();
         OutputMappings = hardware
             .OfType<IoHardwareSettings>()
@@ -80,8 +52,6 @@ public partial class SettingsViewModel : ObservableObject
                     mapping.Key,
                     mapping.Value.Feedback!)))
             .ToArray();
-        state.Changed += OnMachineStateChanged;
-        io.InputChanged += OnInputChanged;
     }
 
     public MachineSettings Settings { get; }
@@ -97,8 +67,6 @@ public partial class SettingsViewModel : ObservableObject
     public InputIo[] InputSignals { get; } = Enum.GetValues<InputIo>();
     public MotionGroup[] MotionGroups { get; } =
         Enum.GetValues<MotionGroup>();
-    public bool MachineReady => _state.Ready;
-    public bool SafetyReady => _state.SafetyReady;
     public MotionSettings CurrentMotionSettings => SelectedMotionGroup switch
     {
         MotionGroup.PcbSupply => Settings.PcbSupply.Motion,
@@ -118,20 +86,14 @@ public partial class SettingsViewModel : ObservableObject
             _ => throw new ArgumentOutOfRangeException(
                 nameof(SelectedMotionGroup)),
         };
-    public bool CurrentMotionHasZ => _motions[SelectedMotionGroup].HasZ;
-
-    public void Activate()
-    {
-        _state.Refresh();
-        RefreshHardwareState();
-    }
+    public bool CurrentMotionHasZ =>
+        SelectedMotionGroup != MotionGroup.InspectionGantry;
 
     [RelayCommand]
     private async Task SaveSettingsAsync()
     {
         ApplyHardwareMappings();
         await _store.SaveSettingsAsync(Settings);
-        _state.Refresh();
     }
 
     private void ApplyHardwareMappings()
@@ -147,14 +109,12 @@ public partial class SettingsViewModel : ObservableObject
     private static HardwareMappingRow CreateInputRow(
         InputHardwareSettings section,
         InputIo input,
-        int number,
-        IIoService io) =>
+        int number) =>
         new(
             section.Area,
             input,
             number,
-            row => section.Inputs[input] = row.Number,
-            readInput: () => io.GetInput(input));
+            row => section.Inputs[input] = row.Number);
 
     private static HardwareMappingRow CreateOutputRow(
         IoHardwareSettings section,
@@ -175,7 +135,7 @@ public partial class SettingsViewModel : ObservableObject
         return row;
     }
 
-    private HardwareMappingRow CreateAxisRow(
+    private static HardwareMappingRow CreateAxisRow(
         MotionHardwareSettings section,
         MachineAxis axis,
         AxisHardware hardware) =>
@@ -192,6 +152,5 @@ public partial class SettingsViewModel : ObservableObject
             },
             hardware.Direction,
             hardware.Minimum,
-            hardware.Maximum,
-            readAxisState: () => GetAxisState(axis));
+            hardware.Maximum);
 }

@@ -51,8 +51,9 @@ public partial class BoltTrainingViewModel : ObservableObject
     private readonly BoltTrainingSession _session;
     private readonly BoltImageCapture _imageCapture;
     private readonly InspectionWork _inspectionWork;
+    private readonly bool _captureEnabled;
     private readonly Func<IReadOnlyList<BoltPoint>> _boltPoints;
-    private IReadOnlyList<BoltImage> _labelImages = [];
+    private IReadOnlyList<LabelCapture> _labelImages = [];
     private int _labelIndex;
 
     public BoltTrainingViewModel(
@@ -62,6 +63,7 @@ public partial class BoltTrainingViewModel : ObservableObject
         BoltTrainingSession session,
         BoltImageCapture imageCapture,
         InspectionWork inspectionWork,
+        bool captureEnabled,
         Func<IReadOnlyList<BoltPoint>> boltPoints)
     {
         _settings = settings;
@@ -70,6 +72,7 @@ public partial class BoltTrainingViewModel : ObservableObject
         _session = session;
         _imageCapture = imageCapture;
         _inspectionWork = inspectionWork;
+        _captureEnabled = captureEnabled;
         _boltPoints = boltPoints;
         inspectionWork.Changed += OnInspectionWorkChanged;
     }
@@ -136,8 +139,11 @@ public partial class BoltTrainingViewModel : ObservableObject
     public bool HasLabelImage => LabelImage is not null;
     public bool ConfigurationEnabled => InputsEnabled && !HasLabelImage;
 
-    public void Activate() =>
+    public void Activate()
+    {
+        CaptureBoltPointsCommand.NotifyCanExecuteChanged();
         _session.SetRunning(IsBusy || HasLabelImage);
+    }
 
     public void Deactivate()
     {
@@ -172,11 +178,19 @@ public partial class BoltTrainingViewModel : ObservableObject
         {
             var points = _boltPoints()
                 .Where(point =>
-                    _inspectionWork.HousingPresent(point.Housing))
+                    _inspectionWork.HeatSinkPresent(point.HeatSink))
                 .ToArray();
-            _labelImages = await _imageCapture.CaptureAsync(
-                points,
-                cancellationToken);
+            var images = new List<LabelCapture>();
+            foreach (var point in points.OrderBy(point => point.Number))
+            {
+                images.Add(new LabelCapture(
+                    point,
+                    await _imageCapture.CaptureAsync(
+                        point,
+                        cancellationToken)));
+            }
+
+            _labelImages = images;
             _labelIndex = 0;
             SelectedImageCount = _labelImages.Count;
             ShowLabelImage();
@@ -271,11 +285,21 @@ public partial class BoltTrainingViewModel : ObservableObject
         TrainCommand.Cancel();
     }
 
-    private bool CanCapture() =>
-        ConfigurationEnabled
-        && _inspectionWork.Ready
-        && _boltPoints().Any(point =>
-            _inspectionWork.HousingPresent(point.Housing));
+    private bool CanCapture()
+    {
+        if (!_captureEnabled
+            || !ConfigurationEnabled
+            || !_inspectionWork.Ready)
+        {
+            return false;
+        }
+
+        var points = _boltPoints()
+            .Where(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
+            .ToArray();
+        return points.Length > 0
+            && points.All(_imageCapture.HasPosition);
+    }
 
     private bool CanTrain() =>
         ConfigurationEnabled
@@ -313,7 +337,7 @@ public partial class BoltTrainingViewModel : ObservableObject
         var capture = _labelImages[_labelIndex];
         LabelImage = BoltTrainingFiles.CreateInput(capture.Image);
         LabelImageName =
-            $"{capture.Point.Housing.GetDescription()} · Bolt {capture.Point.Number}";
+            $"{capture.Point.HeatSink.GetDescription()} · Bolt {capture.Point.Number}";
         LabelImageNumber = _labelIndex + 1;
     }
 
@@ -346,4 +370,6 @@ public partial class BoltTrainingViewModel : ObservableObject
         _settings.ModelFile);
 
     partial void OnDatasetDirectoryChanged(string value) => Review = null;
+
+    private sealed record LabelCapture(BoltPoint Point, ImageFrame Image);
 }

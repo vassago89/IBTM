@@ -19,8 +19,11 @@ namespace IBTM.UI;
 
 public partial class StationTeachingViewModel : ObservableObject
 {
-    private readonly Dictionary<MotionGroup, IXyMotion> _motions;
+    private readonly IXyMotion _pcbPlacementMotion;
+    private readonly IXyMotion _boltFasteningMotion;
+    private readonly IXyMotion _inspectionGantryMotion;
     private readonly ICamera _inspectionCamera;
+    private readonly InspectionCameraSettings _inspectionCameraSettings;
     private readonly ILightController _light;
     private readonly BufferStage _buffer;
     private readonly MachineState _state;
@@ -28,8 +31,12 @@ public partial class StationTeachingViewModel : ObservableObject
     private readonly PcbPlacementHandlerSettings _placementSettings;
     private readonly BoltFasteningSettings _fasteningSettings;
     private readonly InspectionGantrySettings _inspectionGantrySettings;
+    private readonly CarrierReferenceSettings _carrierReference;
     private readonly TeachingPointMapper _pointMapper;
+    private readonly bool _inspectionEnabled;
+    private readonly bool _ngConveyorEnabled;
     private CancellationTokenSource _motionCancellation = new();
+    private int _positionRefreshQueued;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInspectionSelected))]
@@ -50,7 +57,7 @@ public partial class StationTeachingViewModel : ObservableObject
     [ObservableProperty]
     private IReadOnlyList<TeachingPoint> _filteredPoints = [];
     [ObservableProperty]
-    private HousingSlot _newHousingSlot = HousingSlot.Housing1;
+    private HeatSinkSlot _newHeatSinkSlot = HeatSinkSlot.HeatSink1;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(TeachImagePointCommand))]
     private BitmapSource? _liveImage;
@@ -65,11 +72,7 @@ public partial class StationTeachingViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CaptureCarrierImagesCommand))]
-    private double _scanPitchX = 15.0;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CaptureCarrierImagesCommand))]
-    private double _scanPitchY = 11.0;
+    private double _scanOverlap = 1.0;
 
     [ObservableProperty]
     private IReadOnlyList<ImageMarker> _imageMarkers = [];
@@ -91,6 +94,7 @@ public partial class StationTeachingViewModel : ObservableObject
         [FromKeyedServices(MotionGroup.BoltFastening)] IXyMotion boltFasteningMotion,
         [FromKeyedServices(MotionGroup.InspectionGantry)] IXyMotion inspectionGantryMotion,
         ICamera inspectionCamera,
+        InspectionCameraSettings inspectionCameraSettings,
         ILightController light,
         BufferStage buffer,
         MachineState state,
@@ -98,16 +102,16 @@ public partial class StationTeachingViewModel : ObservableObject
         PcbPlacementHandlerSettings placementSettings,
         BoltFasteningSettings fasteningSettings,
         InspectionGantrySettings inspectionGantrySettings,
+        CarrierReferenceSettings carrierReference,
+        UnitSettings units,
         TeachingPointMapper pointMapper,
         RecipeEditor recipeEditor)
     {
-        _motions = new Dictionary<MotionGroup, IXyMotion>
-        {
-            [MotionGroup.PcbPlacementHandler] = pcbPlacementMotion,
-            [MotionGroup.BoltFastening] = boltFasteningMotion,
-            [MotionGroup.InspectionGantry] = inspectionGantryMotion,
-        };
+        _pcbPlacementMotion = pcbPlacementMotion;
+        _boltFasteningMotion = boltFasteningMotion;
+        _inspectionGantryMotion = inspectionGantryMotion;
         _inspectionCamera = inspectionCamera;
+        _inspectionCameraSettings = inspectionCameraSettings;
         _light = light;
         _buffer = buffer;
         _state = state;
@@ -115,11 +119,36 @@ public partial class StationTeachingViewModel : ObservableObject
         _placementSettings = placementSettings;
         _fasteningSettings = fasteningSettings;
         _inspectionGantrySettings = inspectionGantrySettings;
+        _carrierReference = carrierReference;
+        _inspectionEnabled = units.Inspection;
+        _ngConveyorEnabled = units.NgConveyor;
         _pointMapper = pointMapper;
         RecipeEditor = recipeEditor;
+        var motionGroups = new List<MotionGroup>();
+        if (units.PcbPlacement)
+        {
+            motionGroups.Add(MotionGroup.PcbPlacementHandler);
+        }
+
+        if (units.BoltFastening)
+        {
+            motionGroups.Add(MotionGroup.BoltFastening);
+        }
+
+        if (units.Inspection || units.NgConveyor)
+        {
+            motionGroups.Add(MotionGroup.InspectionGantry);
+        }
+
+        MotionGroups = motionGroups.ToArray();
+        if (MotionGroups.Length > 0)
+        {
+            SelectedMotionGroup = MotionGroups[0];
+        }
+
         MillimetersPerPixel = CurrentRecipe.CarrierImageMillimetersPerPixel;
-        ScanPitchX = inspectionGantrySettings.CarrierScanPitchX;
-        ScanPitchY = inspectionGantrySettings.CarrierScanPitchY;
+        ScanOverlap =
+            inspectionGantrySettings.CarrierScanOverlapMillimeters;
 
         pcbPlacementMotion.PositionChanged +=
             (_, _, _) => ApplyPosition(MotionGroup.PcbPlacementHandler);
@@ -132,6 +161,7 @@ public partial class StationTeachingViewModel : ObservableObject
         inspectionGantryMotion.MovingChanged += OnMotionChanged;
         inspectionCamera.FrameReady += UpdateLiveImage;
         buffer.StateChanged += OnBufferChanged;
+        state.Changed += OnMachineStateChanged;
         recipeEditor.Changed += OnRecipeChanged;
 
         RefreshTeachingPoints();
@@ -139,25 +169,60 @@ public partial class StationTeachingViewModel : ObservableObject
     }
 
     public RecipeEditor RecipeEditor { get; }
-    public MotionGroup[] MotionGroups { get; } =
-    [
-        MotionGroup.PcbPlacementHandler,
-        MotionGroup.BoltFastening,
-        MotionGroup.InspectionGantry,
-    ];
+    public MotionGroup[] MotionGroups { get; }
     public double[] JogSpeeds { get; } = [1.0, 10.0, 50.0];
     public FasteningHead[] FasteningHeads { get; } =
         Enum.GetValues<FasteningHead>();
-    public HousingSlot[] HousingSlots { get; } =
-        Enum.GetValues<HousingSlot>();
+    public HeatSinkSlot[] HeatSinkSlots { get; } =
+        Enum.GetValues<HeatSinkSlot>();
     public BoltFasteningRecipe BoltRecipe => CurrentRecipe.BoltFastening;
     public double CurrentX => CurrentMotion.GetPosition().X;
     public double CurrentY => CurrentMotion.GetPosition().Y;
     public double CurrentZ => CurrentMotion.GetPosition().Z;
     public bool CurrentMotionHasZ => CurrentMotion.HasZ;
     public bool IsInspectionSelected =>
-        SelectedMotionGroup == MotionGroup.InspectionGantry;
+        _inspectionEnabled
+        && SelectedMotionGroup == MotionGroup.InspectionGantry;
+    public bool BoltPointEditorVisible =>
+        SelectedMotionGroup == MotionGroup.BoltFastening
+        || IsInspectionSelected;
+    public bool BoltPresetEditorVisible =>
+        SelectedMotionGroup == MotionGroup.BoltFastening;
     public bool HasCarrierImages => CarrierImages.Count > 0;
+    public Point? CarrierOrigin
+    {
+        get
+        {
+            if (!_pointMapper.CarrierReferenceReady)
+            {
+                return null;
+            }
+
+            var origin = _carrierReference.UpperLeftPin!;
+            return new Point(origin.X, origin.Y);
+        }
+    }
+    public Rect? CameraFieldOfView
+    {
+        get
+        {
+            if (!IsInspectionSelected)
+            {
+                return null;
+            }
+
+            var position = CurrentMotion.GetPosition();
+            var width = _inspectionCameraSettings
+                .FieldOfViewWidthMillimeters;
+            var height = _inspectionCameraSettings
+                .FieldOfViewHeightMillimeters;
+            return new Rect(
+                position.X - (width / 2),
+                position.Y - (height / 2),
+                width,
+                height);
+        }
+    }
     private Recipe CurrentRecipe => RecipeEditor.Recipe;
 
     partial void OnSelectedMotionGroupChanged(
@@ -184,6 +249,8 @@ public partial class StationTeachingViewModel : ObservableObject
         ShowRecipeImages();
         RefreshPosition();
         OnPropertyChanged(nameof(CurrentMotionHasZ));
+        OnPropertyChanged(nameof(BoltPointEditorVisible));
+        OnPropertyChanged(nameof(BoltPresetEditorVisible));
         JogZPlusCommand.NotifyCanExecuteChanged();
         JogZMinusCommand.NotifyCanExecuteChanged();
         MoveToHorizontalZCommand.NotifyCanExecuteChanged();
@@ -227,16 +294,21 @@ public partial class StationTeachingViewModel : ObservableObject
         var bolt = new BoltPoint
         {
             Number = number,
-            Housing = NewHousingSlot,
+            HeatSink = NewHeatSinkSlot,
             Head = NewFasteningHead,
         };
         CurrentRecipe.BoltFastening.BoltPoints.Add(bolt);
         RefreshTeachingPoints();
+        SelectedPoint = FilteredPoints.First(point =>
+            point.BoltNumber == number
+            && point.Target == (IsInspectionSelected
+                ? TeachingTarget.BoltReference
+                : TeachingTarget.BoltWorkZ));
     }
 
     private bool CanAddBoltPoint() =>
         SelectedMotionGroup is MotionGroup.BoltFastening
-            or MotionGroup.InspectionGantry;
+        || IsInspectionSelected;
 
     [RelayCommand(CanExecute = nameof(CanRemoveBoltPoint))]
     private void RemoveBoltPoint()
@@ -275,10 +347,42 @@ public partial class StationTeachingViewModel : ObservableObject
 
     private void RefreshTeachingPoints()
     {
+        var selectedTarget = SelectedPoint?.Target;
+        var selectedBolt = SelectedPoint?.BoltNumber;
         FilteredPoints = _pointMapper.BuildStations(CurrentRecipe)
             .Where(point => point.MotionGroup == SelectedMotionGroup)
+            .Where(PointEnabled)
             .ToArray();
-        SelectedPoint = FilteredPoints.FirstOrDefault();
+        SelectedPoint = FilteredPoints.FirstOrDefault(point =>
+                point.Target == selectedTarget
+                && point.BoltNumber == selectedBolt)
+            ?? NextImageTeachingPoint()
+            ?? FilteredPoints.FirstOrDefault();
+    }
+
+    private TeachingPoint? NextImageTeachingPoint()
+    {
+        if (!IsInspectionSelected
+            || CurrentRecipe.CarrierImages.Count == 0)
+        {
+            return null;
+        }
+
+        if (_carrierReference.UpperLeftPin is null)
+        {
+            return FilteredPoints.FirstOrDefault(point =>
+                point.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
+        }
+
+        if (_carrierReference.LowerRightPin is null)
+        {
+            return FilteredPoints.FirstOrDefault(point =>
+                point.Target == TeachingTarget.CarrierLowerRightLocatingPin);
+        }
+
+        return FilteredPoints.FirstOrDefault(point =>
+            point.Target == TeachingTarget.BoltReference
+            && !_pointMapper.HasImagePosition(CurrentRecipe, point));
     }
 
     partial void OnSelectedPointChanged(TeachingPoint? value) =>
@@ -290,14 +394,12 @@ public partial class StationTeachingViewModel : ObservableObject
         CaptureCarrierImagesCommand.NotifyCanExecuteChanged();
     }
 
-    partial void OnScanPitchXChanged(double value) =>
-        _inspectionGantrySettings.CarrierScanPitchX = value;
-
-    partial void OnScanPitchYChanged(double value) =>
-        _inspectionGantrySettings.CarrierScanPitchY = value;
+    partial void OnScanOverlapChanged(double value) =>
+        _inspectionGantrySettings.CarrierScanOverlapMillimeters = value;
 
     private void OnRecipeChanged()
     {
+        SelectedPoint = null;
         RefreshTeachingPoints();
         OnPropertyChanged(nameof(BoltRecipe));
         MillimetersPerPixel = CurrentRecipe.CarrierImageMillimetersPerPixel;
@@ -311,7 +413,7 @@ public partial class StationTeachingViewModel : ObservableObject
             LiveImage = null;
         }
 
-        CarrierImages = SelectedMotionGroup == MotionGroup.InspectionGantry
+        CarrierImages = IsInspectionSelected
             ? RecipeEditor.LoadCarrierImages()
             : [];
 
@@ -320,7 +422,7 @@ public partial class StationTeachingViewModel : ObservableObject
 
     private void RefreshImageMarkers()
     {
-        if (SelectedMotionGroup != MotionGroup.InspectionGantry)
+        if (!IsInspectionSelected)
         {
             ImageMarkers = [];
             return;
@@ -335,8 +437,8 @@ public partial class StationTeachingViewModel : ObservableObject
                 point.X,
                 point.Y,
                 point.Target == TeachingTarget.BoltReference
-                    ? $"{point.Housing!.Value.GetDescription()} {point.Name}"
-                    : point.Target == TeachingTarget.InspectionUpperLeftLocatingPin
+                    ? $"{point.HeatSink!.Value.GetDescription()} {point.Name}"
+                    : point.Target == TeachingTarget.CarrierUpperLeftLocatingPin
                         ? "UL"
                         : "LR",
                 point == SelectedPoint))
@@ -349,6 +451,18 @@ public partial class StationTeachingViewModel : ObservableObject
     private void OnBufferChanged() =>
         RunOnUi(NotifyManualTeachingCommands);
 
+    private void OnMachineStateChanged() =>
+        RunOnUi(NotifyManualTeachingCommands);
+
     private void OnMotionChanged(bool _) =>
         RunOnUi(NotifyManualTeachingCommands);
+
+    private bool PointEnabled(TeachingPoint point) => point.Target switch
+    {
+        TeachingTarget.NgCarrierPickup
+            or TeachingTarget.NgShuttlePlace => _ngConveyorEnabled,
+        _ when point.MotionGroup == MotionGroup.InspectionGantry =>
+            _inspectionEnabled,
+        _ => true,
+    };
 }

@@ -9,17 +9,25 @@
              Background="{StaticResource AppBgBrush}">
 
     <Grid Margin="24,20">
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding CaptureCarrierImagesCommand.IsRunning}"
+                                 Value="True">
+                        <Setter Property="IsEnabled" Value="False"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,16">
-            <TextBlock Text="Station Teaching" Style="{StaticResource TitleStyle}"/>
-            <TextBlock Text="Teach placement and fastening positions, and inspect carrier images."
-                       Style="{StaticResource PageSubtitleStyle}"/>
-        </StackPanel>
+        <TextBlock Grid.Row="0"
+                   Text="Station Teaching"
+                   Style="{StaticResource TitleStyle}"
+                   Margin="0,0,0,10"/>
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
@@ -32,16 +40,69 @@
 
             <Border Grid.Column="2" Background="{StaticResource EquipBgBrush}"
                     BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
-                    CornerRadius="6" ClipToBounds="True">
+                    CornerRadius="3" ClipToBounds="True">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsInspectionSelected}"
+                                         Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
-                    <ui:ImageTeachingView Source="{Binding LiveImage}"
+                    <ui:ImageTeachingView x:Name="ImageMap"
+                                          Source="{Binding LiveImage}"
                                           Tiles="{Binding CarrierImages}"
                                           MillimetersPerPixel="{Binding MillimetersPerPixel}"
                                           Markers="{Binding ImageMarkers}"
+                                          CameraFieldOfView="{Binding CameraFieldOfView}"
+                                          CoordinateOrigin="{Binding CarrierOrigin}"
                                           ClickCommand="{Binding TeachImagePointCommand}"
                                           Cursor="Cross"
                                           ToolTip="Wheel: zoom   Right drag: pan   Right double-click: fit"
                                           RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                    <Border HorizontalAlignment="Left" VerticalAlignment="Top"
+                            Margin="8" Padding="8,5"
+                            Background="#D820252A" CornerRadius="2"
+                            IsHitTestVisible="False">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HoverPositionText, ElementName=ImageMap}"
+                                                 Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="{Binding HoverPositionText, ElementName=ImageMap}"
+                                   FontFamily="Cascadia Mono, Consolas"
+                                   Foreground="White"/>
+                    </Border>
+                    <Border HorizontalAlignment="Center" VerticalAlignment="Top"
+                            Margin="0,8,0,0" Padding="10,6"
+                            Background="#E020252A" CornerRadius="2"
+                            IsHitTestVisible="False">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding HasCarrierImages}" Value="True"/>
+                                            <Condition Binding="{Binding CarrierOrigin}" Value="{x:Null}"/>
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="Teach the carrier UL, then LR locating pin"
+                                   Foreground="White"/>
+                    </Border>
                     <Border Width="1" HorizontalAlignment="Center"
                             Background="{StaticResource AccentBrush}"
                             IsHitTestVisible="False" Opacity="0.35"
@@ -69,24 +130,24 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <Button Command="{Binding ToggleLiveViewCommand}"
+                    <Button Content="Live"
+                            Command="{Binding ToggleLiveViewCommand}"
                             HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="8,0,0,8"
-                            Style="{StaticResource SecondaryButtonStyle}" MinWidth="70" Opacity="0.8"
+                            MinWidth="70" Opacity="0.9"
                             Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
-                        <Button.Content>
-                            <TextBlock>
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Text" Value="Live ON"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsCameraLive}" Value="True">
-                                                <Setter Property="Text" Value="Live OFF"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Button.Content>
+                        <Button.Style>
+                            <Style TargetType="Button"
+                                   BasedOn="{StaticResource SecondaryButtonStyle}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCameraLive}" Value="True">
+                                        <Setter Property="Background"
+                                                Value="{StaticResource AccentBrush}"/>
+                                        <Setter Property="BorderBrush"
+                                                Value="{StaticResource AccentBlueBrush}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
                     </Button>
                     <Button Content="Scan Carrier"
                             Command="{Binding CaptureCarrierImagesCommand}"
@@ -97,20 +158,16 @@
                             Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}"/>
                     <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
                             Margin="0,0,8,8" Padding="8,5"
-                            Background="#C8181D27" CornerRadius="4"
+                            Background="#D820252A" CornerRadius="2"
                             Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="mm/px" VerticalAlignment="Center"
                                        Foreground="{StaticResource TextMutedBrush}" Margin="0,0,6,0"/>
                             <TextBox Text="{Binding MillimetersPerPixel, UpdateSourceTrigger=PropertyChanged}"
                                      Width="72" Margin="0,0,10,0"/>
-                            <TextBlock Text="Pitch X" VerticalAlignment="Center"
+                            <TextBlock Text="Overlap" VerticalAlignment="Center"
                                        Foreground="{StaticResource TextMutedBrush}" Margin="0,0,6,0"/>
-                            <TextBox Text="{Binding ScanPitchX, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="58" Margin="0,0,10,0"/>
-                            <TextBlock Text="Pitch Y" VerticalAlignment="Center"
-                                       Foreground="{StaticResource TextMutedBrush}" Margin="0,0,6,0"/>
-                            <TextBox Text="{Binding ScanPitchY, UpdateSourceTrigger=PropertyChanged}"
+                            <TextBox Text="{Binding ScanOverlap, UpdateSourceTrigger=PropertyChanged}"
                                      Width="58"/>
                         </StackPanel>
                     </Border>
@@ -223,7 +280,22 @@
               </StackPanel>
             </Border>
 
-            <Border Grid.Column="4" Style="{StaticResource CardStyle}" Padding="14,12">
+            <Border>
+                <Border.Style>
+                    <Style TargetType="Border"
+                           BasedOn="{StaticResource CardStyle}">
+                        <Setter Property="Grid.Column" Value="2"/>
+                        <Setter Property="Grid.ColumnSpan" Value="3"/>
+                        <Setter Property="Padding" Value="14,12"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsInspectionSelected}"
+                                         Value="True">
+                                <Setter Property="Grid.Column" Value="4"/>
+                                <Setter Property="Grid.ColumnSpan" Value="1"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -243,42 +315,33 @@
                             <DataTemplate>
                                 <Grid Margin="0,2">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="36"/>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="66"/>
-                                        <ColumnDefinition Width="56"/>
-                                        <ColumnDefinition Width="110"/>
+                                        <ColumnDefinition Width="86"/>
+                                        <ColumnDefinition Width="74"/>
+                                        <ColumnDefinition Width="120"/>
                                     </Grid.ColumnDefinitions>
-                                    <Border Grid.Column="0"
-                                            Background="{StaticResource EquipBgBrush}"
-                                            BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
-                                            CornerRadius="3" Padding="3,1" Margin="0,0,4,0"
-                                            VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding TeachMode, Converter={StaticResource EnumDescriptionConverter}}" FontFamily="Consolas" FontSize="10"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
-                                    </Border>
-                                    <TextBlock Grid.Column="1"
+                                    <TextBlock Grid.Column="0"
                                                Text="{Binding Name}"
                                                ToolTip="{Binding Name}"
                                                TextTrimming="CharacterEllipsis"
                                                VerticalAlignment="Center"
-                                               FontSize="11"
+                                                FontSize="12"
                                                Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Grid.Column="2"
-                                               Text="{Binding Housing, Converter={StaticResource EnumDescriptionConverter}}"
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding HeatSink, Converter={StaticResource EnumDescriptionConverter}}"
                                                VerticalAlignment="Center"
-                                               FontFamily="Consolas" FontSize="10"
+                                                FontFamily="Consolas" FontSize="11"
                                                Foreground="{StaticResource TextMutedBrush}"/>
-                                    <TextBlock Grid.Column="3"
+                                    <TextBlock Grid.Column="2"
                                                Text="{Binding Head, Converter={StaticResource EnumDescriptionConverter}}"
                                                VerticalAlignment="Center"
-                                               FontFamily="Consolas" FontSize="10"
+                                                FontFamily="Consolas" FontSize="11"
                                                Foreground="{StaticResource TextMutedBrush}"/>
-                                    <TextBlock Grid.Column="4"
+                                    <TextBlock Grid.Column="3"
                                                Text="{Binding PositionLabel}"
                                                VerticalAlignment="Center"
                                                FontFamily="Consolas"
-                                               FontSize="10"
+                                                FontSize="11"
                                                Foreground="{StaticResource TextSecondaryBrush}"/>
                                 </Grid>
                             </DataTemplate>
@@ -294,15 +357,17 @@
                                     Command="{Binding MoveToPointCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}" MinWidth="70"/>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal">
-                            <ComboBox ItemsSource="{Binding HousingSlots}"
-                                      SelectedItem="{Binding NewHousingSlot, Mode=TwoWay}"
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding BoltPointEditorVisible,
+                                                         Converter={StaticResource BoolToVis}}">
+                            <ComboBox ItemsSource="{Binding HeatSinkSlots}"
+                                      SelectedItem="{Binding NewHeatSinkSlot, Mode=TwoWay}"
                                       ItemTemplate="{StaticResource EnumItemTemplate}"
-                                      FontSize="10" MinWidth="74" Margin="0,0,6,0"/>
+                                       FontSize="11" MinWidth="74" Margin="0,0,6,0"/>
                             <ComboBox ItemsSource="{Binding FasteningHeads}"
                                       SelectedItem="{Binding NewFasteningHead, Mode=TwoWay}"
                                       ItemTemplate="{StaticResource EnumItemTemplate}"
-                                      FontSize="10" MinWidth="74" Margin="0,0,6,0"/>
+                                       FontSize="11" MinWidth="74" Margin="0,0,6,0"/>
                             <Button Content="Add Bolt"
                                     Command="{Binding AddBoltPointCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}" MinWidth="70" Margin="0,0,6,0"/>
@@ -310,42 +375,27 @@
                                     Command="{Binding RemoveBoltPointCommand}"
                                     Style="{StaticResource DangerButtonStyle}" MinWidth="70"/>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,6,0,0"
+                                    Visibility="{Binding BoltPresetEditorVisible,
+                                                         Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="PCB" VerticalAlignment="Center"
                                        Foreground="{StaticResource TextMutedBrush}"/>
                             <TextBox Text="{Binding BoltRecipe.PcbPreset, UpdateSourceTrigger=PropertyChanged}"
-                                     FontSize="10" Width="36" Margin="4,0,10,0"/>
+                                      FontSize="11" Width="36" Margin="4,0,10,0"/>
                             <TextBlock Text="IPM 1" VerticalAlignment="Center"
                                        Foreground="{StaticResource TextMutedBrush}"/>
                             <TextBox Text="{Binding BoltRecipe.IpmSeatingPreset, UpdateSourceTrigger=PropertyChanged}"
-                                     FontSize="10" Width="36" Margin="4,0,10,0"/>
+                                      FontSize="11" Width="36" Margin="4,0,10,0"/>
                             <TextBlock Text="IPM 2" VerticalAlignment="Center"
                                        Foreground="{StaticResource TextMutedBrush}"/>
                             <TextBox Text="{Binding BoltRecipe.IpmFinalPreset, UpdateSourceTrigger=PropertyChanged}"
-                                     FontSize="10" Width="36" Margin="4,0,0,0"/>
+                                      FontSize="11" Width="36" Margin="4,0,0,0"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>
             </Border>
         </Grid>
 
-        <Border Grid.Row="2" Style="{StaticResource CardStyle}" Padding="10" Margin="0,16,0,0">
-            <WrapPanel VerticalAlignment="Center">
-                <TextBlock Text="Recipe"
-                           FontSize="10" Foreground="{StaticResource TextMutedBrush}"
-                           VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <TextBox Text="{Binding RecipeEditor.Name, UpdateSourceTrigger=PropertyChanged}"
-                         MinWidth="120" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <Button Content="New"
-                        Command="{Binding RecipeEditor.NewCommand}"
-                        Style="{StaticResource SecondaryButtonStyle}" MinWidth="60" Margin="0,0,4,0"/>
-                <Button Content="Save"
-                        Command="{Binding RecipeEditor.SaveCommand}"
-                        Style="{StaticResource PrimaryButtonStyle}" MinWidth="60" Margin="0,0,4,0"/>
-                <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" MinWidth="180" Margin="0,0,8,0"
-                          FontSize="10" VerticalAlignment="Center"
-                          SelectionChanged="RecipeFile_Selected"/>
-            </WrapPanel>
-        </Border>
     </Grid>
 </UserControl>

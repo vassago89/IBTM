@@ -22,10 +22,19 @@ public sealed class MotionSafetyTests
         motion.Initialize();
         await HomeAsync(motion);
         await motion.MoveZAsync(8, 100);
+        var movedXyBeforeZClear = false;
+        motion.PositionChanged += (x, y, z) =>
+        {
+            if ((x != 0 || y != 0) && System.Math.Abs(z + 5) > 0.05)
+            {
+                movedXyBeforeZClear = true;
+            }
+        };
 
         await motion.MoveToXYAsync(10, 20, 100);
 
         Assert.Equal((10, 20, -5), motion.GetPosition());
+        Assert.False(movedXyBeforeZClear);
     }
 
     [Fact]
@@ -60,17 +69,38 @@ public sealed class MotionSafetyTests
             io,
             new PcbSupplySettings());
         var rotatedBeforeMotion = false;
+        var horizontalMovedBeforeZLimit = false;
+        var yMovedBeforeXHome = false;
+        var previous = motion.GetPosition();
 
         io.Initialize();
         motion.Initialize();
         await HomeAsync(motion);
         await motion.MoveToAsync(100, 80, 0);
+        previous = motion.GetPosition();
         motion.MovingChanged += moving =>
         {
             if (moving)
             {
                 rotatedBeforeMotion = io.GetInput(InputIo.PcbSupplyRotated);
             }
+        };
+        motion.PositionChanged += (x, y, z) =>
+        {
+            var movedX = System.Math.Abs(x - previous.X) > 0.001;
+            var movedY = System.Math.Abs(y - previous.Y) > 0.001;
+            if ((movedX || movedY)
+                && !motion.GetAxisState(MotionAxis.Z).PositiveLimit)
+            {
+                horizontalMovedBeforeZLimit = true;
+            }
+
+            if (movedY && System.Math.Abs(x) > 0.05)
+            {
+                yMovedBeforeXHome = true;
+            }
+
+            previous = (x, y, z);
         };
 
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
@@ -83,6 +113,8 @@ public sealed class MotionSafetyTests
 
         Assert.True(homed);
         Assert.True(rotatedBeforeMotion);
+        Assert.False(horizontalMovedBeforeZLimit);
+        Assert.False(yMovedBeforeXHome);
         Assert.Equal(PcbSupplyRotation.Rotated, supply.Rotation);
         Assert.Equal((0, 0, 0), motion.GetPosition());
     }
@@ -128,10 +160,20 @@ public sealed class MotionSafetyTests
         await placement.MoveToAsync(10, 10, 0);
         Assert.False(buffer.PlacementBlocksSupply);
         Assert.True(buffer.CanSupplyEnter);
+        await placement.MoveZAsync(8, settings.ZSpeed);
+        Assert.True(buffer.PlacementBlocksSupply);
+        Assert.False(buffer.CanSupplyEnter);
+        await placement.MoveToAsync(0, 0, 0);
+
+        await supply.MoveToAsync(20, 10, 8);
+        io.SetInput(InputIo.PcbBufferPcbPresent, true);
+        Assert.False(buffer.CanPlacementEnter);
+
+        await placement.MoveToAsync(15, 10, 8);
+        Assert.True(buffer.Conflict);
         await placement.MoveToAsync(0, 0, 0);
 
         await supply.MoveToAsync(10, 10, 8);
-        io.SetInput(InputIo.PcbBufferPcbPresent, true);
         Assert.True(buffer.CanPlacementEnter);
 
         await placement.MoveToAsync(10, 10, 8);

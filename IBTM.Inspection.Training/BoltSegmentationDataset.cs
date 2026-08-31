@@ -14,9 +14,6 @@ public sealed class BoltSegmentationDataset
     internal IReadOnlyList<BoltSample> Validation { get; }
     internal float PositiveWeight { get; }
 
-    public int TrainingCount => Training.Count;
-    public int ValidationCount => Validation.Count;
-
     public BoltSegmentationDataset(
         string directory,
         int size,

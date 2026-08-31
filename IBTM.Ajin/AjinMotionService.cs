@@ -44,14 +44,24 @@ public sealed class AjinMotionService(
         : (int)axisZ.Direction;
     private readonly double _millimetersPerPulse = millimetersPerPulse;
     private readonly int[] _axes = GetAxes(axisX, axisY, axisZ);
+    private bool _initialized;
+
+    public override bool IsReady => _initialized;
+
     public override void Initialize()
     {
+        if (_initialized)
+        {
+            return;
+        }
+
         controller.Initialize();
         foreach (var axis in _axes)
         {
             SetServo(axis, true);
         }
 
+        _initialized = true;
         PublishPosition();
     }
 
@@ -202,17 +212,35 @@ public sealed class AjinMotionService(
         CancellationToken cancellationToken) =>
         Jog(_axisZ!.Value, velocity * _directionZ, cancellationToken);
 
-    public override void SetServo(MotionAxis axis, bool on) =>
+    public override void SetServo(MotionAxis axis, bool on)
+    {
         SetServo(GetAxis(axis), on);
+        PublishStateChanged();
+    }
 
     public override (double X, double Y, double Z) GetPosition() =>
-        (
-            ReadPosition(_axisX) * _directionX,
-            _axisY is null ? 0 : ReadPosition(_axisY.Value) * _directionY,
-            _axisZ is null ? 0 : ReadPosition(_axisZ.Value) * _directionZ);
+        !_initialized
+            ? default
+            : (
+                ReadPosition(_axisX) * _directionX,
+                _axisY is null ? 0 : ReadPosition(_axisY.Value) * _directionY,
+                _axisZ is null ? 0 : ReadPosition(_axisZ.Value) * _directionZ);
 
     public override AxisState GetAxisState(MotionAxis axis)
     {
+        if (!_initialized)
+        {
+            return new AxisState(
+                Homed: false,
+                ServoOn: false,
+                Alarm: true,
+                InPosition: false,
+                Emergency: false,
+                HomeSensor: false,
+                PositiveLimit: false,
+                NegativeLimit: false);
+        }
+
         var axisNumber = GetAxis(axis);
         var mechanical = 0U;
         var homeResult = 0U;
@@ -328,6 +356,8 @@ public sealed class AjinMotionService(
                 AjinNative.AxmSignalServoAlarmReset(axis, 1),
                 nameof(AjinNative.AxmSignalServoAlarmReset));
         }
+
+        PublishStateChanged();
     }
 
     private Task MoveAxisAsync(

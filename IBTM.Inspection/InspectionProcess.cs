@@ -16,6 +16,11 @@ public sealed class InspectionProcess(
         IReadOnlyList<BoltPoint> bolts,
         CancellationToken cancellationToken = default)
     {
+        if (work.CarrierPresent && !work.Completed)
+        {
+            work.RestartInspection();
+        }
+
         using var stateChanged = new AsyncAutoResetEvent();
         void OnStateChanged() => stateChanged.Set();
 
@@ -40,9 +45,23 @@ public sealed class InspectionProcess(
                 {
                     if (work.State == InspectionState.ReadyToInspect)
                     {
-                        await InspectCarrierAsync(
-                            bolts,
-                            stateOperation.Token);
+                        var bolt = NextBolt(bolts);
+                        switch (State(bolt))
+                        {
+                            case InspectionProcessState.MovingToBolt:
+                                await imageCapture.MoveToAsync(
+                                    bolt!,
+                                    stateOperation.Token);
+                                break;
+
+                            case InspectionProcessState.InspectingBolt:
+                                Inspect(bolt!);
+                                break;
+
+                            case InspectionProcessState.CompletingCarrier:
+                                CompleteInspection();
+                                break;
+                        }
                     }
                 }
                 catch (OperationCanceledException)
@@ -64,50 +83,60 @@ public sealed class InspectionProcess(
         }
     }
 
-    private async Task InspectCarrierAsync(
-        IReadOnlyList<BoltPoint> boltPoints,
-        CancellationToken cancellationToken)
+    public InspectionProcessState State(
+        IReadOnlyList<BoltPoint> bolts) =>
+        State(NextBolt(bolts));
+
+    public BoltPoint? ActiveBolt(IReadOnlyList<BoltPoint> bolts) =>
+        work.State == InspectionState.ReadyToInspect
+            ? NextBolt(bolts)
+            : null;
+
+    private InspectionProcessState State(BoltPoint? bolt)
     {
-        var housings = Enum.GetValues<HousingSlot>()
-            .Where(work.HousingPresent)
-            .ToArray();
-        if (housings.Length == 0)
+        if (work.State != InspectionState.ReadyToInspect)
         {
-            work.Complete();
-            return;
+            return InspectionProcessState.Waiting;
         }
 
-        var bolts = boltPoints
-            .Where(bolt => work.HousingPresent(bolt.Housing))
+        if (bolt is null)
+        {
+            return InspectionProcessState.CompletingCarrier;
+        }
+
+        return imageCapture.IsAt(bolt)
+            ? InspectionProcessState.InspectingBolt
+            : InspectionProcessState.MovingToBolt;
+    }
+
+    private BoltPoint? NextBolt(
+        IReadOnlyList<BoltPoint> bolts) =>
+        bolts
+            .Where(bolt => work.HeatSinkPresent(bolt.HeatSink))
             .OrderBy(bolt => bolt.Number)
-            .ToArray();
-        foreach (var housing in housings)
-        {
-            if (!bolts.Any(bolt => bolt.Housing == housing))
-            {
-                throw new InvalidOperationException(
-                    $"{housing} has no inspection bolt points.");
-            }
+            .FirstOrDefault(bolt => !Inspected(bolt));
 
-            work.Assembly(housing).BeginInspection();
+    private bool Inspected(BoltPoint bolt) =>
+        work.Assemblies.Any(assembly =>
+            assembly.HeatSink == bolt.HeatSink
+            && assembly.BoltPresenceResults.ContainsKey(bolt.Number));
+
+    private void Inspect(BoltPoint bolt)
+    {
+        var image = imageCapture.Capture();
+        work.Assembly(bolt.HeatSink).RecordBoltPresence(
+            bolt.Number,
+            inspector.IsPresent(image));
+    }
+
+    private void CompleteInspection()
+    {
+        foreach (var heatSink in Enum.GetValues<HeatSinkSlot>()
+                     .Where(work.HeatSinkPresent))
+        {
+            work.Assembly(heatSink).CompleteInspection();
         }
 
-        var images = await imageCapture.CaptureAsync(
-            bolts,
-            cancellationToken);
-        foreach (var capture in images)
-        {
-            work.Assembly(capture.Point.Housing).RecordBoltPresence(
-                capture.Point.Number,
-                inspector.IsPresent(capture.Image));
-        }
-
-        foreach (var housing in housings)
-        {
-            work.Assembly(housing).CompleteInspection();
-        }
-
-        cancellationToken.ThrowIfCancellationRequested();
         work.Complete();
     }
 }

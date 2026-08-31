@@ -1,17 +1,20 @@
-using System;
+using IBTM.BoltFastening;
 using IBTM.Device;
+using IBTM.Inspection;
 
 namespace IBTM.UI;
 
 public partial class OperationViewModel
 {
-    public Enum MachineStatus =>
-        _state.IsError ? _state.Alarm : MachineDisplayState;
-
     public MachineDisplayState MachineDisplayState
     {
         get
         {
+            if (!_state.SafetyReady)
+            {
+                return MachineDisplayState.SafetyStop;
+            }
+
             if (_state.IsError)
             {
                 return MachineDisplayState.Alarm;
@@ -27,7 +30,7 @@ public partial class OperationViewModel
                 return MachineDisplayState.Homing;
             }
 
-            if (!_state.ServosOn)
+            if (!_state.ServoMainContactorOn || !_state.ServosOn)
             {
                 return MachineDisplayState.ServoOff;
             }
@@ -37,14 +40,98 @@ public partial class OperationViewModel
                 return MachineDisplayState.HomeRequired;
             }
 
-            if (_state.ManualMode)
-            {
-                return MachineDisplayState.ManualMode;
-            }
-
             return _state.IsRunning
                 ? MachineDisplayState.Running
                 : MachineDisplayState.Ready;
+        }
+    }
+
+    public bool StartBlocked =>
+        !_state.IsRunning
+        && !IsHoming
+        && StartBlock != StartBlockReason.None;
+
+    public bool BoltProcessStateVisible =>
+        BoltFasteningProcessState != BoltFasteningProcessState.Waiting
+        && (_state.AutomaticRunning
+            || BoltFasteningMoving
+            || BoltHead1Down
+            || BoltHead2Down);
+
+    public bool InspectionProcessStateVisible =>
+        InspectionProcessState != InspectionProcessState.Waiting
+        && (_state.AutomaticRunning
+            || InspectionGantryMoving
+            || NgCarrierDetected);
+
+    public StartBlockReason StartBlock
+    {
+        get
+        {
+            if (_state.Alarm == MachineAlarm.EmergencyStop)
+            {
+                return StartBlockReason.EmergencyStop;
+            }
+
+            if (_state.Alarm == MachineAlarm.DoorOpen)
+            {
+                return StartBlockReason.DoorOpen;
+            }
+
+            if (_state.Alarm == MachineAlarm.AirPressureLow)
+            {
+                return StartBlockReason.AirPressure;
+            }
+
+            if (_state.Alarm == MachineAlarm.BufferConflict
+                || _state.BufferConflict)
+            {
+                return StartBlockReason.BufferConflict;
+            }
+
+            if (_state.IsError)
+            {
+                return StartBlockReason.Alarm;
+            }
+
+            if (_options.UseEmergencyStop && !_state.EmergencyStopReleased)
+            {
+                return StartBlockReason.EmergencyStop;
+            }
+
+            if (_options.UseAirPressureInterlock && !_state.AirPressureOk)
+            {
+                return StartBlockReason.AirPressure;
+            }
+
+            if (_state.Faulted)
+            {
+                return StartBlockReason.MotionFault;
+            }
+
+            if (!_state.ServoMainContactorOn || !_state.ServosOn)
+            {
+                return StartBlockReason.ServoOff;
+            }
+
+            if (_options.UseDoorInterlock && !_state.DoorClosed)
+            {
+                return StartBlockReason.DoorOpen;
+            }
+
+            if (!_state.Homed)
+            {
+                return StartBlockReason.HomeRequired;
+            }
+
+            if (!_state.AutoMode)
+            {
+                return StartBlockReason.AutoMode;
+            }
+
+            return _units.HasEnabledUnit()
+                ? StartBlockReason.None
+                : StartBlockReason.NoUnitEnabled;
         }
     }
 
@@ -52,6 +139,11 @@ public partial class OperationViewModel
     {
         get
         {
+            if (!PcbSupplyEnabled)
+            {
+                return HandlerDisplayState.Disabled;
+            }
+
             if (_state.Alarm == MachineAlarm.Supply)
             {
                 return HandlerDisplayState.IoAlarm;
@@ -77,6 +169,11 @@ public partial class OperationViewModel
     {
         get
         {
+            if (!PcbPlacementEnabled)
+            {
+                return HandlerDisplayState.Disabled;
+            }
+
             if (_state.Alarm == MachineAlarm.Placement)
             {
                 return HandlerDisplayState.IoAlarm;
@@ -92,48 +189,94 @@ public partial class OperationViewModel
                 return HandlerDisplayState.PcbDetected;
             }
 
+            if (PcbBufferPcbPresent)
+            {
+                return HandlerDisplayState.PcbAvailable;
+            }
+
             return HandlerDisplayState.WaitingForPcb;
         }
     }
 
-    public StationDisplayState BoltDisplayState =>
-        _state.Alarm is MachineAlarm.PickupBoltFeeder
-            or MachineAlarm.LinearBoltFeeder
-            or MachineAlarm.BoltFastening
-            ? StationDisplayState.IoAlarm
-            : BoltFasteningMoving || BoltHead1Down || BoltHead2Down
-                ? StationDisplayState.Working
-                : BoltFasteningHasHousing
-                    ? StationDisplayState.HousingDetected
-                    : StationDisplayState.NoHousing;
-
-    public StationDisplayState InspectionDisplayState =>
-        _state.Alarm == MachineAlarm.Inspection
-            ? StationDisplayState.IoAlarm
-            : InspectionGantryMoving
-                ? StationDisplayState.Working
-                : _inspectionWork.Completed
-                    ? _inspectionWork.HasNg
-                        ? StationDisplayState.CarrierNg
-                        : StationDisplayState.CarrierOk
-                    : InspectionHasHousing
-                        ? StationDisplayState.HousingDetected
-                        : StationDisplayState.NoHousing;
-
-    private double MapAxis(
-        double position,
-        MachineAxis axis,
-        double start,
-        double end)
+    public StationDisplayState BoltDisplayState
     {
-        var hardware = _axes[axis];
-        var minimum = hardware.Minimum;
-        var maximum = hardware.Maximum;
-        var ratio = Math.Clamp(
-            (position - minimum) / (maximum - minimum),
-            0,
-            1);
-        return start + (ratio * (end - start));
+        get
+        {
+            if (!BoltFasteningEnabled)
+            {
+                return StationDisplayState.Disabled;
+            }
+
+            if (_state.Alarm is MachineAlarm.PickupBoltFeeder
+                or MachineAlarm.LinearBoltFeeder
+                or MachineAlarm.BoltFastening)
+            {
+                return StationDisplayState.IoAlarm;
+            }
+
+            if (!BoltFasteningCarrierPresent)
+            {
+                return StationDisplayState.WaitingForCarrier;
+            }
+
+            if (!BoltFasteningHasHeatSink)
+            {
+                return StationDisplayState.EmptyCarrier;
+            }
+
+            if (_boltFasteningWork.Completed)
+            {
+                return _boltFasteningWork.HasNg
+                    ? StationDisplayState.CarrierNg
+                    : StationDisplayState.CarrierOk;
+            }
+
+            return BoltProcessStateVisible
+                ? StationDisplayState.Working
+                : StationDisplayState.HeatSinkDetected;
+        }
+    }
+
+    public StationDisplayState InspectionDisplayState
+    {
+        get
+        {
+            if (!InspectionEnabled)
+            {
+                return StationDisplayState.Disabled;
+            }
+
+            if (_state.Alarm == MachineAlarm.Inspection)
+            {
+                return StationDisplayState.IoAlarm;
+            }
+
+            if (InspectionGantryMoving || NgCarrierDetected)
+            {
+                return StationDisplayState.Working;
+            }
+
+            if (!InspectionCarrierPresent)
+            {
+                return StationDisplayState.WaitingForCarrier;
+            }
+
+            if (!InspectionHasHeatSink)
+            {
+                return StationDisplayState.EmptyCarrier;
+            }
+
+            if (_inspectionWork.Completed)
+            {
+                return _inspectionWork.HasNg
+                    ? StationDisplayState.CarrierNg
+                    : StationDisplayState.CarrierOk;
+            }
+
+            return InspectionProcessStateVisible
+                ? StationDisplayState.Working
+                : StationDisplayState.HeatSinkDetected;
+        }
     }
 
 }

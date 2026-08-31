@@ -9,7 +9,7 @@ namespace IBTM.Inspection.Training;
 public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
 {
     private readonly string _modelFile;
-    private readonly TinyUnet _model = new();
+    private TinyUnet? _model;
 
     public TorchBoltRecessSegmenter(BoltInspectionSettings settings) : this(
         Path.Combine(AppContext.BaseDirectory, settings.ModelFile))
@@ -19,17 +19,24 @@ public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
     public TorchBoltRecessSegmenter(string modelFile)
     {
         _modelFile = modelFile;
-        Reload();
     }
 
     public void Reload()
     {
-        _model.load(_modelFile);
-        _model.eval();
+        var model = new TinyUnet();
+        model.load(_modelFile);
+        model.eval();
+        _model?.Dispose();
+        _model = model;
     }
 
     public float[] Segment(ImageFrame image)
     {
+        if (_model is null)
+        {
+            Reload();
+        }
+
         using var scope = NewDisposeScope();
         using var inference = no_grad();
         using var input = tensor(CreateInput(image), dtype: ScalarType.Float32)
@@ -38,11 +45,11 @@ public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
                 3,
                 IBoltRecessSegmenter.InputSize,
                 IBoltRecessSegmenter.InputSize);
-        using var mask = _model.call(input).sigmoid().cpu();
+        using var mask = _model!.call(input).sigmoid().cpu();
         return mask.data<float>().ToArray();
     }
 
-    public void Dispose() => _model.Dispose();
+    public void Dispose() => _model?.Dispose();
 
     private static float[] CreateInput(ImageFrame image)
     {

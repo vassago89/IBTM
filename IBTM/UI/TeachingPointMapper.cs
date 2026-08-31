@@ -5,6 +5,7 @@ using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
+using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
@@ -16,24 +17,42 @@ public sealed class TeachingPointMapper(
     PcbSupplySettings supplySettings,
     PcbPlacementHandlerSettings placementSettings,
     BoltFasteningSettings fasteningSettings,
-    InspectionGantrySettings inspectionSettings)
+    InspectionGantrySettings inspectionSettings,
+    CarrierReferenceSettings carrierReference,
+    NgConveyorSettings ngConveyorSettings)
 {
     public bool CarrierReferenceReady =>
         CarrierCoordinates.IsDefined(
-            inspectionSettings.UpperLeftLocatingPin,
-            inspectionSettings.LowerRightLocatingPin);
+            carrierReference.UpperLeftPin,
+            carrierReference.LowerRightPin);
 
     public bool HasImagePosition(Recipe recipe, TeachingPoint point) =>
         point.Target switch
         {
-            TeachingTarget.InspectionUpperLeftLocatingPin =>
-                inspectionSettings.UpperLeftLocatingPin is not null,
-            TeachingTarget.InspectionLowerRightLocatingPin =>
-                inspectionSettings.LowerRightLocatingPin is not null,
+            TeachingTarget.CarrierUpperLeftLocatingPin =>
+                carrierReference.UpperLeftPin is not null,
+            TeachingTarget.CarrierLowerRightLocatingPin =>
+                carrierReference.LowerRightPin is not null,
             TeachingTarget.BoltReference =>
                 CarrierReferenceReady
                 && FindBolt(recipe, point) is { X: not null, Y: not null },
             _ => false,
+        };
+
+    public bool HasMotionPosition(Recipe recipe, TeachingPoint point) =>
+        point.Target switch
+        {
+            TeachingTarget.BoltWorkZ =>
+                HasFasteningPosition(FindBolt(recipe, point)),
+            TeachingTarget.ShootingHeadUpperLeftLocatingPin =>
+                fasteningSettings.ShootingHead.UpperLeftLocatingPin is not null,
+            TeachingTarget.ShootingHeadLowerRightLocatingPin =>
+                fasteningSettings.ShootingHead.LowerRightLocatingPin is not null,
+            TeachingTarget.PickupHeadUpperLeftLocatingPin =>
+                fasteningSettings.PickupHead.UpperLeftLocatingPin is not null,
+            TeachingTarget.PickupHeadLowerRightLocatingPin =>
+                fasteningSettings.PickupHead.LowerRightLocatingPin is not null,
+            _ => true,
         };
 
     public List<TeachingPoint> BuildSupply(Recipe recipe) =>
@@ -125,14 +144,14 @@ public sealed class TeachingPointMapper(
                 TeachMode.ZOnly,
                 TeachingStorage.Machine),
             Create(
-                TeachingTarget.Housing1PcbPlacement,
+                TeachingTarget.HeatSink1PcbPlacement,
                 MotionGroup.PcbPlacementHandler,
-                recipe.PcbPlacement.Housing1PcbPlacementPosition,
+                recipe.PcbPlacement.HeatSink1PcbPlacementPosition,
                 TeachMode.Full),
             Create(
-                TeachingTarget.Housing2PcbPlacement,
+                TeachingTarget.HeatSink2PcbPlacement,
                 MotionGroup.PcbPlacementHandler,
-                recipe.PcbPlacement.Housing2PcbPlacementPosition,
+                recipe.PcbPlacement.HeatSink2PcbPlacementPosition,
                 TeachMode.Full),
             Create(
                 TeachingTarget.ShootingHeadUpperLeftLocatingPin,
@@ -187,27 +206,27 @@ public sealed class TeachingPointMapper(
                 TeachMode.XYOnly,
                 TeachingStorage.Machine),
             Create(
-                TeachingTarget.InspectionUpperLeftLocatingPin,
+                TeachingTarget.CarrierUpperLeftLocatingPin,
                 MotionGroup.InspectionGantry,
-                inspectionSettings.UpperLeftLocatingPin ?? new AxisPos(),
+                carrierReference.UpperLeftPin ?? new AxisPos(),
                 TeachMode.Image,
                 TeachingStorage.Machine),
             Create(
-                TeachingTarget.InspectionLowerRightLocatingPin,
+                TeachingTarget.CarrierLowerRightLocatingPin,
                 MotionGroup.InspectionGantry,
-                inspectionSettings.LowerRightLocatingPin ?? new AxisPos(),
+                carrierReference.LowerRightPin ?? new AxisPos(),
                 TeachMode.Image,
                 TeachingStorage.Machine),
             Create(
-                TeachingTarget.NgCarrierJigPickup,
+                TeachingTarget.NgCarrierPickup,
                 MotionGroup.InspectionGantry,
-                inspectionSettings.NgCarrierJigPickupPosition,
+                ngConveyorSettings.CarrierPickupPosition,
                 TeachMode.XYOnly,
                 TeachingStorage.Machine),
             Create(
                 TeachingTarget.NgShuttlePlace,
                 MotionGroup.InspectionGantry,
-                inspectionSettings.NgShuttlePlacePosition,
+                ngConveyorSettings.ShuttlePlacePosition,
                 TeachMode.XYOnly,
                 TeachingStorage.Machine),
         ];
@@ -239,13 +258,13 @@ public sealed class TeachingPointMapper(
         {
             X = point.X,
             Y = point.Y,
-            Z = point.Z,
+            Z = point.Z!.Value,
         };
 
         switch (point.Target)
         {
             case TeachingTarget.SupplyRotationZ:
-                supplySettings.RotationZ = point.Z;
+                supplySettings.RotationZ = point.Z!.Value;
                 break;
             case TeachingTarget.SupplyCarrierY:
                 supplySettings.CarrierY = point.Y;
@@ -258,24 +277,24 @@ public sealed class TeachingPointMapper(
                 break;
             case TeachingTarget.SupplyPcb1Pick:
                 recipe.PcbSupply.Pcb1PickPosition.X = point.X;
-                recipe.PcbSupply.Pcb1PickPosition.Z = point.Z;
+                recipe.PcbSupply.Pcb1PickPosition.Z = point.Z!.Value;
                 break;
             case TeachingTarget.SupplyPcb2Pick:
                 recipe.PcbSupply.Pcb2PickPosition.X = point.X;
-                recipe.PcbSupply.Pcb2PickPosition.Z = point.Z;
+                recipe.PcbSupply.Pcb2PickPosition.Z = point.Z!.Value;
                 break;
             case TeachingTarget.SupplyBufferHandoff:
                 supplySettings.BufferHandoffPosition.X = point.X;
                 supplySettings.BufferHandoffPosition.Y = point.Y;
-                supplySettings.BufferHandoffPosition.Z = point.Z;
+                supplySettings.BufferHandoffPosition.Z = point.Z!.Value;
                 break;
             case TeachingTarget.SupplyBufferClearZ:
-                supplySettings.BufferClearZ = point.Z;
+                supplySettings.BufferClearZ = point.Z!.Value;
                 break;
             case TeachingTarget.PlacementBufferHandoff:
                 placementSettings.BufferHandoffPosition.X = point.X;
                 placementSettings.BufferHandoffPosition.Y = point.Y;
-                placementSettings.BufferHandoffPosition.Z = point.Z;
+                placementSettings.BufferHandoffPosition.Z = point.Z!.Value;
                 break;
             case TeachingTarget.SupplyBufferBoundary1:
                 bufferSettings.SupplyBoundary1 = point.X;
@@ -290,16 +309,17 @@ public sealed class TeachingPointMapper(
                 bufferSettings.PlacementBoundary2 = position;
                 break;
             case TeachingTarget.PlacementBufferEntryZ:
-                placementSettings.BufferEntryZ = point.Z;
+                placementSettings.BufferEntryZ = point.Z!.Value;
                 break;
-            case TeachingTarget.Housing1PcbPlacement:
-                recipe.PcbPlacement.Housing1PcbPlacementPosition = position;
+            case TeachingTarget.HeatSink1PcbPlacement:
+                recipe.PcbPlacement.HeatSink1PcbPlacementPosition = position;
                 break;
-            case TeachingTarget.Housing2PcbPlacement:
-                recipe.PcbPlacement.Housing2PcbPlacementPosition = position;
+            case TeachingTarget.HeatSink2PcbPlacement:
+                recipe.PcbPlacement.HeatSink2PcbPlacementPosition = position;
                 break;
             case TeachingTarget.ShootingHeadUpperLeftLocatingPin:
                 fasteningSettings.ShootingHead.UpperLeftLocatingPin = position;
+                fasteningSettings.ShootingHead.LowerRightLocatingPin = null;
                 UpdateBoltPositions(recipe, points);
                 break;
             case TeachingTarget.ShootingHeadLowerRightLocatingPin:
@@ -308,6 +328,7 @@ public sealed class TeachingPointMapper(
                 break;
             case TeachingTarget.PickupHeadUpperLeftLocatingPin:
                 fasteningSettings.PickupHead.UpperLeftLocatingPin = position;
+                fasteningSettings.PickupHead.LowerRightLocatingPin = null;
                 UpdateBoltPositions(recipe, points);
                 break;
             case TeachingTarget.PickupHeadLowerRightLocatingPin:
@@ -318,10 +339,10 @@ public sealed class TeachingPointMapper(
                 fasteningSettings.PickupPosition = position;
                 break;
             case TeachingTarget.BoltFasteningSafeZ:
-                fasteningSettings.SafeZ = point.Z;
+                fasteningSettings.SafeZ = point.Z!.Value;
                 break;
             case TeachingTarget.BoltWorkZ:
-                FindBolt(recipe, point).Z = point.Z;
+                FindBolt(recipe, point).Z = point.Z!.Value;
                 break;
             case TeachingTarget.CarrierScanUpperLeft:
                 inspectionSettings.CarrierScanUpperLeft = position;
@@ -329,11 +350,11 @@ public sealed class TeachingPointMapper(
             case TeachingTarget.CarrierScanLowerRight:
                 inspectionSettings.CarrierScanLowerRight = position;
                 break;
-            case TeachingTarget.NgCarrierJigPickup:
-                inspectionSettings.NgCarrierJigPickupPosition = position;
+            case TeachingTarget.NgCarrierPickup:
+                ngConveyorSettings.CarrierPickupPosition = position;
                 break;
             case TeachingTarget.NgShuttlePlace:
-                inspectionSettings.NgShuttlePlacePosition = position;
+                ngConveyorSettings.ShuttlePlacePosition = position;
                 break;
             default:
                 throw new ArgumentOutOfRangeException(
@@ -352,19 +373,19 @@ public sealed class TeachingPointMapper(
         point.Teach(position.X, position.Y, 0);
         switch (point.Target)
         {
-            case TeachingTarget.InspectionUpperLeftLocatingPin:
-                inspectionSettings.UpperLeftLocatingPin = position;
+            case TeachingTarget.CarrierUpperLeftLocatingPin:
+                carrierReference.UpperLeftPin = position;
+                carrierReference.LowerRightPin = null;
                 UpdateInspectionBoltPositions(recipe, points);
                 break;
-            case TeachingTarget.InspectionLowerRightLocatingPin:
-                inspectionSettings.LowerRightLocatingPin = position;
+            case TeachingTarget.CarrierLowerRightLocatingPin:
+                carrierReference.LowerRightPin = position;
                 UpdateInspectionBoltPositions(recipe, points);
                 break;
             case TeachingTarget.BoltReference:
                 var carrierPosition = CarrierCoordinates.FromMachine(
                     position,
-                    inspectionSettings.UpperLeftLocatingPin!,
-                    inspectionSettings.LowerRightLocatingPin!);
+                    carrierReference.UpperLeftPin!);
                 var bolt = FindBolt(recipe, point);
                 bolt.X = carrierPosition.X;
                 bolt.Y = carrierPosition.Y;
@@ -414,18 +435,28 @@ public sealed class TeachingPointMapper(
             return new AxisPos();
         }
 
-        return inspectionSettings.GetBoltPosition(bolt);
+        return inspectionSettings.GetBoltPosition(
+            bolt,
+            carrierReference);
     }
 
     private AxisPos ToFastening(BoltPoint bolt)
     {
+        return HasFasteningPosition(bolt)
+            ? fasteningSettings.GetBoltPosition(
+                bolt,
+                carrierReference)
+            : new AxisPos();
+    }
+
+    private bool HasFasteningPosition(BoltPoint bolt)
+    {
         var head = fasteningSettings.GetHead(bolt.Head);
-        return CarrierCoordinates.IsDefined(
-            head.UpperLeftLocatingPin,
-            head.LowerRightLocatingPin)
-            && bolt is { X: not null, Y: not null }
-            ? fasteningSettings.GetBoltPosition(bolt)
-            : new AxisPos { Z = bolt.Z };
+        return CarrierReferenceReady
+            && CarrierCoordinates.IsDefined(
+                head.UpperLeftLocatingPin,
+                head.LowerRightLocatingPin)
+            && bolt is { X: not null, Y: not null, Z: not null };
     }
 
     private static TeachingPoint Create(
@@ -455,11 +486,11 @@ public sealed class TeachingPointMapper(
             MotionGroup = motionGroup,
             TeachMode = mode,
             BoltNumber = bolt.Number,
-            Housing = bolt.Housing,
+            HeatSink = bolt.HeatSink,
             Head = bolt.Head,
             X = position.X,
             Y = position.Y,
-            Z = position.Z,
+            Z = bolt.Z,
         };
 
     private static BoltPoint FindBolt(Recipe recipe, TeachingPoint point) =>

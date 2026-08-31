@@ -5,44 +5,55 @@ namespace IBTM.Inspection;
 
 public sealed class InspectionWork : StationWork
 {
-    private readonly IIoService _io;
+    private readonly IInspectionGantryClearance? _gantryClearance;
 
-    public InspectionWork(IIoService io) : base(
+    public InspectionWork(
+        IIoService io,
+        IInspectionGantryClearance? gantryClearance) : base(
         io,
-        InputIo.InspectionCarrierJigPresent,
+        InputIo.InspectionCarrierPresent,
         InputIo.InspectionBackupPlateUp,
         InputIo.InspectionStopperDown,
-        InputIo.InspectionHousing1Present,
-        InputIo.InspectionHousing2Present)
+        InputIo.InspectionHeatSink1Present,
+        InputIo.InspectionHeatSink2Present)
     {
-        _io = io;
-        io.InputChanged += OnInputChanged;
+        _gantryClearance = gantryClearance;
+        if (gantryClearance is not null)
+        {
+            gantryClearance.Changed += NotifyChanged;
+        }
     }
 
     public override bool CanReceive =>
         base.CanReceive
-        && !_io.GetInput(InputIo.NgCarrierJigDetected);
+        && (_gantryClearance?.Available ?? true);
 
     public override bool HasNg =>
-        base.HasNg
-        || Completed
-        && !HousingPresent(HousingSlot.Housing1)
-        && !HousingPresent(HousingSlot.Housing2);
+        CarrierPresent
+        && (base.HasNg
+            || Completed
+            && !HeatSinkPresent(HeatSinkSlot.HeatSink1)
+            && !HeatSinkPresent(HeatSinkSlot.HeatSink2));
 
     public InspectionState State =>
         !CarrierPresent
             ? InspectionState.WaitingForCarrier
-            : !Ready
-                ? InspectionState.WaitingForSeat
-                : Completed
-                    ? InspectionState.WaitingForTransfer
-                    : InspectionState.ReadyToInspect;
+            : Completed
+                ? InspectionState.WaitingForTransfer
+                : !Ready
+                    ? InspectionState.WaitingForSeat
+                    : _gantryClearance?.Available == false
+                        ? InspectionState.WaitingForGantry
+                        : InspectionState.ReadyToInspect;
 
-    private void OnInputChanged(InputIo input, bool _)
+    public void RestartInspection()
     {
-        if (input == InputIo.NgCarrierJigDetected)
+        foreach (var assembly in Assemblies)
         {
-            NotifyChanged();
+            assembly.ResetInspection();
         }
+
+        Restart();
     }
+
 }

@@ -19,24 +19,51 @@ public sealed class VirtualIoService(
         Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
     private readonly int[] _feedbackVersions = new int[
         Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
+    private bool _connected = true;
     public event Action<InputIo, bool>? InputChanged;
     public event Action<OutputIo, bool>? OutputChanged;
+    public event Action? Faulted;
+    public bool IsReady => _connected;
     public int TimeoutMilliseconds => options.TimeoutMilliseconds;
     internal event Action<OutputIo, bool>? OutputApplied;
 
     public void Initialize()
     {
+        CheckReady();
         foreach (var feedback in outputs.Values
                      .Select(output => output.Feedback)
                      .OfType<OutputFeedback>())
         {
-            SetInput(feedback.OnInput, false);
+            if (GetInput(feedback.OnInput)
+                || GetInput(feedback.OffInput))
+            {
+                continue;
+            }
+
             SetInput(feedback.OffInput, true);
         }
     }
 
     public void CheckReady()
     {
+        if (!_connected)
+        {
+            throw new InvalidOperationException("Virtual control I/O is disconnected.");
+        }
+    }
+
+    public void SetConnected(bool connected)
+    {
+        if (_connected == connected)
+        {
+            return;
+        }
+
+        _connected = connected;
+        if (!connected)
+        {
+            Faulted?.Invoke();
+        }
     }
 
     public bool GetInput(InputIo input) => _inputs[(int)input];
@@ -61,12 +88,13 @@ public sealed class VirtualIoService(
     public void SetOutput(OutputIo output, bool value)
     {
         var index = (int)output;
-        if (_outputs[index] != value)
+        if (_outputs[index] == value)
         {
-            _outputs[index] = value;
-            OutputChanged?.Invoke(output, value);
+            return;
         }
 
+        _outputs[index] = value;
+        OutputChanged?.Invoke(output, value);
         var feedbackVersion = Interlocked.Increment(
             ref _feedbackVersions[index]);
         if (outputs[output].Feedback is { } feedback)

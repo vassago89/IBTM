@@ -1,8 +1,9 @@
 using IBTM.Ajin;
 using IBTM.AlphaMotion;
-using IBTM.BoltFeeder;
 using IBTM.BoltFastening;
+using IBTM.BoltFeeder;
 using IBTM.Conveyor;
+using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
 using IBTM.Inspection;
@@ -19,12 +20,15 @@ public sealed class MachineSettings
     public UnitSettings Units { get; set; } = new();
     public MachineOptions Options { get; set; } = new();
     public HomeSettings Home { get; set; } = new();
+    public RecipeSelectionSettings RecipeSelection { get; set; } = new();
+    public CarrierReferenceSettings CarrierReference { get; set; } = new();
     public AjinSettings Ajin { get; set; } = new();
     public AlphaMotionSettings AlphaMotion { get; set; } = new();
     public HantasSettings Hantas { get; set; } = new();
     public InspectionCameraSettings InspectionCamera { get; set; } = new();
     public BoltInspectionSettings BoltInspection { get; set; } = new();
     public LightingSettings Lighting { get; set; } = new();
+    public NgConveyorSettings NgConveyor { get; set; } = new();
 
     public PcbSupplySettings PcbSupply { get; set; } = new();
     public PcbSupplyHardwareSettings PcbSupplyHardware { get; set; } = new();
@@ -44,6 +48,7 @@ public sealed class MachineSettings
 
     public MachineHardwareSettings MachineHardware { get; set; } = new();
     public ConveyorHardwareSettings ConveyorHardware { get; set; } = new();
+    public NgCarrierTransferHardwareSettings NgCarrierTransferHardware { get; set; } = new();
     public NgShuttleHardwareSettings NgShuttleHardware { get; set; } = new();
     public NgConveyorHardwareSettings NgConveyorHardware { get; set; } = new();
 
@@ -60,6 +65,7 @@ public sealed class MachineSettings
         InspectionGantryHardware,
         InspectionStationHardware,
         ConveyorHardware,
+        NgCarrierTransferHardware,
         NgShuttleHardware,
         NgConveyorHardware,
     ];

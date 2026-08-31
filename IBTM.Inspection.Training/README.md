@@ -6,8 +6,8 @@ validation weights in TorchSharp's state-dictionary format.
 
 ## Dataset
 
-Seat a Carrier Jig at Station 3, then select `Capture Taught Points`. The
-inspection gantry captures the taught bolt points for each detected housing and
+Seat a carrier at Station 3, then select `Capture Taught Points`. The
+inspection gantry captures the taught bolt points for each detected heat sink and
 the page shows their centered 128 x 128 regions. Mark only the visible bolt
 recess with the left mouse button and erase with the right mouse button. Use
 `Empty & Next` for an empty-hole image. `Complete & Next` creates the matching

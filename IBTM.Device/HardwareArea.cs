@@ -37,6 +37,9 @@ public enum HardwareArea
     [Description("Inspection Gantry")]
     InspectionGantry,
 
+    [Description("NG Carrier Transfer")]
+    NgCarrierTransfer,
+
     [Description("NG Shuttle")]
     NgShuttle,
 

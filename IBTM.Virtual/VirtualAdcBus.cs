@@ -18,12 +18,16 @@ public sealed class VirtualAdcBus : IAdcBus
     private const string VirtualPort = "Virtual";
 
     private readonly ConcurrentDictionary<byte, Controller> _controllers = [];
-
     public bool IsOpen { get; private set; }
     public string PortName => IsOpen ? VirtualPort : string.Empty;
     public int BaudRate { get; private set; }
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
+
+    public void SetNextFasteningResult(
+        byte slaveAddress,
+        AdcEventStatus status) =>
+        GetController(slaveAddress).NextStatus = status;
 
     public string[] GetPortNames() => [VirtualPort];
 
@@ -82,7 +86,8 @@ public sealed class VirtualAdcBus : IAdcBus
             case AdcRemoteRegister.RemoteStart when value != 0:
                 controller.EventCount++;
                 controller.ScrewCount++;
-                controller.Status = AdcEventStatus.FasteningOk;
+                controller.Status = controller.NextStatus;
+                controller.NextStatus = AdcEventStatus.FasteningOk;
                 break;
             case AdcRemoteRegister.Preset:
                 controller.Preset = value;
@@ -290,5 +295,7 @@ public sealed class VirtualAdcBus : IAdcBus
         public ushort Error { get; set; }
         public AdcDirection Direction { get; set; }
         public AdcEventStatus Status { get; set; }
+        public AdcEventStatus NextStatus { get; set; } =
+            AdcEventStatus.FasteningOk;
     }
 }

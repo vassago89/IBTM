@@ -56,7 +56,7 @@ public partial class StationTeachingViewModel
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
+    [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
     private async Task MoveToPointAsync(CancellationToken cancellationToken)
     {
         var point = SelectedPoint!;
@@ -78,7 +78,7 @@ public partial class StationTeachingViewModel
                 case TeachMode.ZOnly
                     when point.Target != TeachingTarget.BoltWorkZ:
                     await motion.MoveZAsync(
-                        point.Z,
+                        point.Z!.Value,
                         GetMotionSettings(point.MotionGroup).ZSpeed,
                         cancellationToken);
                     break;
@@ -86,7 +86,7 @@ public partial class StationTeachingViewModel
                     await motion.MoveToAsync(
                         point.X,
                         point.Y,
-                        point.Z,
+                        point.Z!.Value,
                         cancellationToken);
                     break;
             }
@@ -95,6 +95,12 @@ public partial class StationTeachingViewModel
         {
         }
     }
+
+    private bool CanMoveToPoint() =>
+        CanTeachCurrentPosition()
+        && _pointMapper.HasMotionPosition(
+            CurrentRecipe,
+            SelectedPoint!);
 
     private bool CanUseCurrentHandler() =>
         _state.ManualControlsEnabled
@@ -125,8 +131,13 @@ public partial class StationTeachingViewModel
         _ => throw new ArgumentOutOfRangeException(nameof(group)),
     };
 
-    private IXyMotion GetMotion(MotionGroup motionGroup) =>
-        _motions[motionGroup];
+    private IXyMotion GetMotion(MotionGroup motionGroup) => motionGroup switch
+    {
+        MotionGroup.PcbPlacementHandler => _pcbPlacementMotion,
+        MotionGroup.BoltFastening => _boltFasteningMotion,
+        MotionGroup.InspectionGantry => _inspectionGantryMotion,
+        _ => throw new ArgumentOutOfRangeException(nameof(motionGroup)),
+    };
 
     private CancellationTokenSource LinkMotion(
         CancellationToken cancellationToken) =>
@@ -147,18 +158,25 @@ public partial class StationTeachingViewModel
         OnPropertyChanged(nameof(CurrentX));
         OnPropertyChanged(nameof(CurrentY));
         OnPropertyChanged(nameof(CurrentZ));
+        OnPropertyChanged(nameof(CameraFieldOfView));
         JogXPlusCommand.NotifyCanExecuteChanged();
         JogXMinusCommand.NotifyCanExecuteChanged();
         JogYPlusCommand.NotifyCanExecuteChanged();
         JogYMinusCommand.NotifyCanExecuteChanged();
     }
 
-    private void ApplyPosition(MotionGroup motionGroup) =>
+    private void ApplyPosition(MotionGroup motionGroup)
+    {
+        if (motionGroup != SelectedMotionGroup
+            || Interlocked.Exchange(ref _positionRefreshQueued, 1) != 0)
+        {
+            return;
+        }
+
         RunOnUi(() =>
         {
-            if (SelectedMotionGroup == motionGroup)
-            {
-                RefreshPosition();
-            }
+            Interlocked.Exchange(ref _positionRefreshQueued, 0);
+            RefreshPosition();
         });
+    }
 }

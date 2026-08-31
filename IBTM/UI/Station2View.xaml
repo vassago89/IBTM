@@ -4,106 +4,198 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="clr-namespace:IBTM.UI"
+             xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
-             Width="448"
-             Height="492">
+             Width="408"
+             Height="650">
     <Grid>
-        <Border Style="{DynamicResource CellStyle}"/>
-
         <Canvas>
-            <TextBlock Canvas.Left="20" Canvas.Top="18"
-                       Text="STATION 2   BOLT FASTENING"
+            <TextBlock Canvas.Left="20" Canvas.Top="14"
+                       Text="S2  BOLT FASTENING"
                        Foreground="{StaticResource TextPrimaryBrush}"
-                       FontSize="17"
-                       FontWeight="SemiBold"/>
-            <Border Canvas.Right="20" Canvas.Top="52"
+                       FontSize="20"
+                       FontWeight="Bold"/>
+            <Button Canvas.Right="20" Canvas.Top="14"
+                    Content="RESUME WORK"
+                    Command="{Binding OpenBoltRecoveryCommand}"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    MinWidth="92"
+                    Height="30"
+                    Visibility="{Binding BoltRecoveryAvailable,
+                                         Converter={StaticResource BoolToVis}}"/>
+            <Border Canvas.Left="20" Canvas.Top="52"
+                    Width="210"
                     Tag="{Binding BoltDisplayState}"
-                    Style="{DynamicResource StationStateBadgeStyle}">
+                    Style="{StaticResource StationStateBadgeStyle}">
                 <TextBlock Text="{Binding BoltDisplayState,
                                           Converter={StaticResource EnumDescriptionConverter}}"
-                           Style="{DynamicResource StateTextStyle}"/>
+                           Style="{StaticResource PrimaryStateTextStyle}"/>
             </Border>
 
-            <StackPanel Canvas.Left="20" Canvas.Top="58"
+            <TextBlock Canvas.Left="20" Canvas.Top="108"
+                       Width="340"
+                       Text="{Binding BoltFasteningProcessState,
+                                      Converter={StaticResource EnumDescriptionConverter}}"
+                       TextAlignment="Left"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       FontSize="14"
+                       FontWeight="SemiBold"
+                       Visibility="{Binding BoltProcessStateVisible,
+                                            Converter={StaticResource BoolToVis}}"/>
+
+            <StackPanel Canvas.Left="20" Canvas.Top="140"
                         Orientation="Horizontal">
                 <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding PickupFeederEnabled}"
+                                             Value="False">
+                                    <Setter Property="Opacity" Value="0.6"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
                     <Ellipse Tag="{Binding PickupFeederReady}"
-                             Style="{DynamicResource StatusLedStyle}"/>
-                    <TextBlock Text="PICKUP BOLT"
+                             Style="{StaticResource ReadyLedStyle}"/>
+                    <TextBlock Text="PICK READY"
                                Margin="6,0,0,0"
-                               Style="{DynamicResource MapHintStyle}"/>
+                               Style="{StaticResource MapHintStyle}"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding LinearFeederEnabled}"
+                                             Value="False">
+                                    <Setter Property="Opacity" Value="0.6"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
                     <Ellipse Tag="{Binding LinearFeederReady}"
-                             Style="{DynamicResource StatusLedStyle}"/>
-                    <TextBlock Text="LINEAR BOLT"
+                             Style="{StaticResource ReadyLedStyle}"/>
+                    <TextBlock Text="SHOOT READY"
                                Margin="6,0,0,0"
-                               Style="{DynamicResource MapHintStyle}"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal">
-                    <Ellipse Tag="{Binding ShootingEscapeBack}"
-                             Style="{DynamicResource StatusLedStyle}"/>
-                    <TextBlock Text="ESCAPE BACK"
-                               Margin="6,0,0,0"
-                               Style="{DynamicResource MapHintStyle}"/>
+                               Style="{StaticResource MapHintStyle}"/>
                 </StackPanel>
             </StackPanel>
+
+            <Grid Canvas.Left="{Binding BoltPickupFeederMapLeft}"
+                  Canvas.Top="{Binding BoltPickupFeederMapTop}"
+                  Width="100" Height="86">
+                <Border Width="100" Height="68"
+                        VerticalAlignment="Top"
+                        Tag="{Binding PickupFeederReady}"
+                        Style="{StaticResource DeviceBodyStyle}">
+                    <Grid Margin="10">
+                        <Border Height="18"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource EquipBgBrush}"
+                                BorderBrush="{StaticResource DividerBrush}"
+                                BorderThickness="1"
+                                CornerRadius="1"/>
+                        <Ellipse Width="18" Height="18"
+                                 Fill="{StaticResource ControlBgBrush}"
+                                 Stroke="{StaticResource TextMutedBrush}"
+                                 StrokeThickness="2"/>
+                    </Grid>
+                </Border>
+                <TextBlock Text="PICK FEEDER"
+                           VerticalAlignment="Bottom"
+                           FontSize="9"
+                           Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            </Grid>
 
             <Grid Canvas.Left="{Binding BoltFasteningMapLeft}"
                   Canvas.Top="{Binding BoltFasteningMapTop}"
                   Width="126" Height="138"
                   Panel.ZIndex="20"
                   ToolTip="{Binding BoltFasteningPosition}">
-                <Border Tag="{Binding BoltFasteningMoving}"
-                        Style="{DynamicResource DeviceBodyStyle}"/>
-                <Grid Margin="10,9,10,8">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Text="DUAL HEAD"
-                               HorizontalAlignment="Center"
-                               Style="{DynamicResource MapLabelStyle}"/>
-
-                    <Grid Grid.Row="1" Margin="8,10,8,3">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="12"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                <Canvas>
+                    <Border Canvas.Top="58"
+                            Width="126" Height="80"
+                            Panel.ZIndex="1"
+                            Tag="{Binding BoltFasteningMoving}"
+                            Style="{StaticResource OverheadBodyStyle}"/>
+                    <Border Canvas.Left="37.5" Canvas.Top="98"
+                            Width="51" Height="6"
+                            Panel.ZIndex="3"
+                            Background="{StaticResource DividerBrush}"
+                            CornerRadius="2"/>
+                    <TextBlock Canvas.Left="20.5" Canvas.Top="65"
+                               Width="28" Height="14"
+                               Panel.ZIndex="4"
+                               Text="PICK"
+                               FontSize="9"
+                               Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                    <TextBlock Canvas.Left="45" Canvas.Top="65"
+                               Panel.ZIndex="5"
+                               Text="{Binding BoltFasteningActiveBolt.Number}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock"
+                                   BasedOn="{StaticResource ActiveToolNumberStyle}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding BoltFasteningActiveBolt.Head}"
+                                                 Value="{x:Static core:FasteningHead.Pickup}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Canvas.Left="71.5" Canvas.Top="65"
+                               Width="30" Height="14"
+                               Panel.ZIndex="4"
+                               Text="SHOOT"
+                               FontSize="9"
+                               Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                    <TextBlock Canvas.Left="107" Canvas.Top="65"
+                               Panel.ZIndex="5"
+                               Text="{Binding BoltFasteningActiveBolt.Number}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock"
+                                   BasedOn="{StaticResource ActiveToolNumberStyle}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding BoltFasteningActiveBolt.Head}"
+                                                 Value="{x:Static core:FasteningHead.Shooting}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <Grid Canvas.Left="20.5" Canvas.Top="84"
+                          Width="34" Height="34"
+                          Panel.ZIndex="5">
                         <Border Tag="{Binding BoltHead1Down}"
-                                Style="{DynamicResource ToolHeadVisualStyle}"
-                                HorizontalAlignment="Center"/>
-                        <Border Grid.Column="2"
-                                Tag="{Binding BoltHead2Down}"
-                                Style="{DynamicResource ToolHeadVisualStyle}"
-                                HorizontalAlignment="Center"/>
+                                Style="{StaticResource ToolHeadFootprintStyle}"/>
+                        <Border Width="14" Height="4"
+                                Background="{StaticResource TextMutedBrush}"
+                                CornerRadius="2"/>
+                        <Ellipse Style="{StaticResource LoadedBoltVisualStyle}"
+                                 Visibility="{Binding BoltHead1Loaded,
+                                                      Converter={StaticResource BoolToVis}}"/>
                     </Grid>
-
-                    <Grid Grid.Row="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="PICKUP"
-                                   HorizontalAlignment="Center"
-                                   Style="{DynamicResource MapHintStyle}"/>
-                        <TextBlock Grid.Column="1"
-                                   Text="SHOOTING"
-                                   HorizontalAlignment="Center"
-                                   Style="{DynamicResource MapHintStyle}"/>
+                    <Grid Canvas.Left="71.5" Canvas.Top="84"
+                          Width="34" Height="34"
+                          Panel.ZIndex="5">
+                        <Border Tag="{Binding BoltHead2Down}"
+                                Style="{StaticResource ToolHeadFootprintStyle}"/>
+                        <Ellipse Width="12" Height="12"
+                                 Fill="{StaticResource EquipBgBrush}"
+                                 Stroke="{StaticResource TextMutedBrush}"
+                                 StrokeThickness="2"/>
+                        <Ellipse Style="{StaticResource LoadedBoltVisualStyle}"
+                                 Visibility="{Binding BoltHead2Loaded,
+                                                      Converter={StaticResource BoolToVis}}"/>
                     </Grid>
-                </Grid>
+                </Canvas>
             </Grid>
 
-            <TextBlock Canvas.Left="20" Canvas.Top="438"
-                       Text="FASTENING POSITION"
-                       Style="{DynamicResource MapLabelStyle}"/>
-            <TextBlock Canvas.Left="20" Canvas.Top="458"
-                       Text="{Binding BoltFasteningPosition}"
-                       Style="{DynamicResource MapHintStyle}"/>
         </Canvas>
     </Grid>
 </UserControl>

@@ -10,8 +10,8 @@ public sealed class PcbPlacementStationHardwareSettings : InputHardwareSettings
     {
         Inputs = new()
         {
-            [InputIo.PcbPlacementHousing1Present] = 54,
-            [InputIo.PcbPlacementHousing2Present] = 55,
+            [InputIo.PcbPlacementHeatSink1Present] = 54,
+            [InputIo.PcbPlacementHeatSink2Present] = 55,
         };
     }
 }

@@ -25,7 +25,10 @@ public partial class SupplyTeachingViewModel : ObservableObject
     private readonly PcbSupplySettings _supplySettings;
     private readonly PcbPlacementHandlerSettings _placementSettings;
     private readonly TeachingPointMapper _pointMapper;
+    private readonly bool _supplyEnabled;
+    private readonly bool _placementEnabled;
     private CancellationTokenSource _motionCancellation = new();
+    private int _positionRefreshQueued;
 
     [ObservableProperty] private double _jogSpeed = 10.0;
 
@@ -48,7 +51,8 @@ public partial class SupplyTeachingViewModel : ObservableObject
         PcbSupplySettings supplySettings,
         PcbPlacementHandlerSettings placementSettings,
         RecipeEditor recipeEditor,
-        TeachingPointMapper pointMapper)
+        TeachingPointMapper pointMapper,
+        UnitSettings units)
     {
         _supplyMotion = supplyMotion;
         _placementMotion = placementMotion;
@@ -60,6 +64,8 @@ public partial class SupplyTeachingViewModel : ObservableObject
         _supplySettings = supplySettings;
         _placementSettings = placementSettings;
         _pointMapper = pointMapper;
+        _supplyEnabled = units.PcbSupply;
+        _placementEnabled = units.PcbPlacement;
         RecipeEditor = recipeEditor;
 
         supplyMotion.PositionChanged +=
@@ -77,6 +83,8 @@ public partial class SupplyTeachingViewModel : ObservableObject
     }
 
     public RecipeEditor RecipeEditor { get; }
+    public bool SupplyEnabled => _supplyEnabled;
+    public bool PlacementEnabled => _placementEnabled;
     public double[] JogSpeeds { get; } = [1.0, 10.0, 50.0];
     public double CurrentX => CurrentMotion.GetPosition().X;
     public double CurrentY => CurrentMotion.GetPosition().Y;
@@ -142,7 +150,14 @@ public partial class SupplyTeachingViewModel : ObservableObject
 
     private void BuildPoints()
     {
-        Points = _pointMapper.BuildSupply(CurrentRecipe);
+        Points = _pointMapper.BuildSupply(CurrentRecipe)
+            .Where(point => point.MotionGroup switch
+            {
+                MotionGroup.PcbSupply => _supplyEnabled,
+                MotionGroup.PcbPlacementHandler => _placementEnabled,
+                _ => false,
+            })
+            .ToArray();
         SelectedPoint = Points.FirstOrDefault();
     }
 

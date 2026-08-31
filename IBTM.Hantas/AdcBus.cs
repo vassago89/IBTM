@@ -36,6 +36,7 @@ public sealed class AdcBus : IAdcBus, IDisposable
             return;
         }
 
+        Close();
         _port = new SerialPort(
             portName,
             baudRate,
@@ -52,9 +53,9 @@ public sealed class AdcBus : IAdcBus, IDisposable
 
     public void Close()
     {
-        _port?.Close();
-        _port?.Dispose();
+        var port = _port;
         _port = null;
+        port?.Dispose();
     }
 
     public Task<ushort[]> ReadHoldingRegistersAsync(

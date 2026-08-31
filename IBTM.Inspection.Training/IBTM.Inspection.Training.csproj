@@ -13,6 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\IBTM.Core\IBTM.Core.csproj" />
     <ProjectReference Include="..\IBTM.Inspection\IBTM.Inspection.csproj" />
   </ItemGroup>
 

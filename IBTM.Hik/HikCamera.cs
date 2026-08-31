@@ -27,6 +27,12 @@ public sealed class HikCamera(InspectionCameraSettings settings)
 
     public void Initialize()
     {
+        if (_device?.IsConnected == true && _grabbing)
+        {
+            return;
+        }
+
+        Disconnect();
         var deviceInfo = EnumerateDevices().SingleOrDefault(
             device => string.Equals(
                 device.SerialNumber,
@@ -266,26 +272,38 @@ public sealed class HikCamera(InspectionCameraSettings settings)
     {
         lock (_grabGate)
         {
-            if (_streamGrabber is not null && _liveFrameHandler is not null)
+            var stream = _streamGrabber;
+            var device = _device;
+            if (stream is not null && _liveFrameHandler is not null)
             {
-                _streamGrabber.FrameGrabedEvent -= _liveFrameHandler;
+                stream.FrameGrabedEvent -= _liveFrameHandler;
             }
 
-            if (_grabbing)
+            try
             {
-                Check(_streamGrabber!.StopGrabbing(), "Stop Hik grabbing");
+                if (_grabbing)
+                {
+                    Check(stream!.StopGrabbing(), "Stop Hik grabbing");
+                }
             }
-
-            if (_device?.IsConnected == true)
+            finally
             {
-                Check(_device.Close(), "Close Hik camera");
+                try
+                {
+                    if (device?.IsConnected == true)
+                    {
+                        Check(device.Close(), "Close Hik camera");
+                    }
+                }
+                finally
+                {
+                    _grabbing = false;
+                    _liveView = false;
+                    _liveFrameHandler = null;
+                    _streamGrabber = null;
+                    _device = null;
+                }
             }
-
-            _grabbing = false;
-            _liveView = false;
-            _liveFrameHandler = null;
-            _streamGrabber = null;
-            _device = null;
         }
     }
 

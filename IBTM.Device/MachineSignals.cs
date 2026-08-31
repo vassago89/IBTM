@@ -6,7 +6,7 @@ namespace IBTM.Device;
 [JsonConverter(typeof(JsonStringEnumConverter<InputIo>))]
 public enum InputIo
 {
-    [Description("Available From Front 2 (Housing)")]
+    [Description("Available From Front 2 (Heat Sink)")]
     MainConveyorAvailableFromFront2,
 
     [Description("PCB Buffer PCB Present")]
@@ -18,8 +18,8 @@ public enum InputIo
     [Description("PCB Placement Stopper Down")]
     PcbPlacementStopperDown,
 
-    [Description("PCB Placement Housing 1 Present")]
-    PcbPlacementHousing1Present,
+    [Description("PCB Placement Heat Sink 1 Present")]
+    PcbPlacementHeatSink1Present,
 
     [Description("PCB Placement Backup Plate Up")]
     PcbPlacementBackupPlateUp,
@@ -33,11 +33,11 @@ public enum InputIo
     [Description("Placement IPM Gripper Open")]
     PcbPlacementIpmGripperOpen,
 
-    [Description("PCB Placement Housing 2 Present")]
-    PcbPlacementHousing2Present,
+    [Description("PCB Placement Heat Sink 2 Present")]
+    PcbPlacementHeatSink2Present,
 
-    [Description("PCB Placement Carrier Jig Present")]
-    PcbPlacementCarrierJigPresent,
+    [Description("PCB Placement Carrier Present")]
+    PcbPlacementCarrierPresent,
 
     [Description("Available From Front 1 (PCB)")]
     PcbSupplyAvailableFromFront1,
@@ -66,8 +66,8 @@ public enum InputIo
     [Description("Bolt Fastening Stopper Down")]
     BoltFasteningStopperDown,
 
-    [Description("Bolt Fastening Housing 1 Present")]
-    BoltFasteningHousing1Present,
+    [Description("Bolt Fastening Heat Sink 1 Present")]
+    BoltFasteningHeatSink1Present,
 
     [Description("Bolt Fastening Backup Plate Up")]
     BoltFasteningBackupPlateUp,
@@ -75,11 +75,11 @@ public enum InputIo
     [Description("Bolt Fastening Backup Plate Down")]
     BoltFasteningBackupPlateDown,
 
-    [Description("Bolt Fastening Housing 2 Present")]
-    BoltFasteningHousing2Present,
+    [Description("Bolt Fastening Heat Sink 2 Present")]
+    BoltFasteningHeatSink2Present,
 
-    [Description("Bolt Fastening Carrier Jig Present")]
-    BoltFasteningCarrierJigPresent,
+    [Description("Bolt Fastening Carrier Present")]
+    BoltFasteningCarrierPresent,
 
     [Description("Bolt Head 2 Vacuum Detected")]
     BoltHead2VacuumDetected,
@@ -147,8 +147,8 @@ public enum InputIo
     [Description("Inspection Stopper Down")]
     InspectionStopperDown,
 
-    [Description("Inspection Housing 1 Present")]
-    InspectionHousing1Present,
+    [Description("Inspection Heat Sink 1 Present")]
+    InspectionHeatSink1Present,
 
     [Description("Inspection Backup Plate Up")]
     InspectionBackupPlateUp,
@@ -162,11 +162,11 @@ public enum InputIo
     [Description("NG Carrier Gripper Open")]
     NgCarrierGripperOpen,
 
-    [Description("Inspection Housing 2 Present")]
-    InspectionHousing2Present,
+    [Description("Inspection Heat Sink 2 Present")]
+    InspectionHeatSink2Present,
 
-    [Description("Inspection Carrier Jig Present")]
-    InspectionCarrierJigPresent,
+    [Description("Inspection Carrier Present")]
+    InspectionCarrierPresent,
 
     [Description("NG Carrier Pickup Down")]
     NgCarrierPickupDown,
@@ -174,8 +174,8 @@ public enum InputIo
     [Description("NG Carrier Pickup Up")]
     NgCarrierPickupUp,
 
-    [Description("NG Carrier Jig Detected")]
-    NgCarrierJigDetected,
+    [Description("NG Carrier Detected")]
+    NgCarrierDetected,
 
     [Description("NG Shuttle Down")]
     NgShuttleDown,
@@ -251,12 +251,18 @@ public enum InputIo
 
     [Description("Supply Handler PCB Detected")]
     PcbSupplyPcbDetected,
+
+    [Description("Main Conveyor Entry Carrier Detected")]
+    MainConveyorEntryCarrierDetected,
+
+    [Description("Main Conveyor Exit Carrier Detected")]
+    MainConveyorExitCarrierDetected,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<OutputIo>))]
 public enum OutputIo
 {
-    [Description("Ready To Front 2 (Housing)")]
+    [Description("Ready To Front 2 (Heat Sink)")]
     MainConveyorReadyToFront2,
 
     [Description("PCB Placement Stopper Up")]

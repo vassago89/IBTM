@@ -12,21 +12,23 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
         {
             [InputIo.MainConveyorAvailableFromFront2] = 17,
             [InputIo.MainConveyorReadyFromRear] = 18,
-            [InputIo.PcbPlacementCarrierJigPresent] = 56,
+            [InputIo.PcbPlacementCarrierPresent] = 56,
             [InputIo.PcbPlacementStopperUp] = 57,
             [InputIo.PcbPlacementStopperDown] = 58,
             [InputIo.PcbPlacementBackupPlateUp] = 59,
             [InputIo.PcbPlacementBackupPlateDown] = 60,
-            [InputIo.BoltFasteningCarrierJigPresent] = 63,
+            [InputIo.BoltFasteningCarrierPresent] = 63,
             [InputIo.BoltFasteningStopperUp] = 64,
             [InputIo.BoltFasteningStopperDown] = 65,
             [InputIo.BoltFasteningBackupPlateUp] = 66,
             [InputIo.BoltFasteningBackupPlateDown] = 67,
-            [InputIo.InspectionCarrierJigPresent] = 70,
+            [InputIo.InspectionCarrierPresent] = 70,
             [InputIo.InspectionStopperUp] = 71,
             [InputIo.InspectionStopperDown] = 72,
             [InputIo.InspectionBackupPlateUp] = 73,
             [InputIo.InspectionBackupPlateDown] = 74,
+            [InputIo.MainConveyorEntryCarrierDetected] = 90,
+            [InputIo.MainConveyorExitCarrierDetected] = 91,
         };
         Outputs = new()
         {

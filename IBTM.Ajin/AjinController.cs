@@ -22,12 +22,20 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
         Check(
             AjinNative.AxlOpen(settings.InterruptNumber),
             nameof(AjinNative.AxlOpen));
-        _initialized = true;
-        Check(
-            AjinNative.AxmMotLoadParaAll(Path.Combine(
-                AppContext.BaseDirectory,
-                settings.MotionParameterFile)),
-            nameof(AjinNative.AxmMotLoadParaAll));
+        try
+        {
+            Check(
+                AjinNative.AxmMotLoadParaAll(Path.Combine(
+                    AppContext.BaseDirectory,
+                    settings.MotionParameterFile)),
+                nameof(AjinNative.AxmMotLoadParaAll));
+            _initialized = true;
+        }
+        catch
+        {
+            AjinNative.AxlClose();
+            throw;
+        }
     }
 
     public void Dispose()

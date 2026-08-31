@@ -1,18 +1,18 @@
 # IBTM
 
-IBTM is a .NET 10 WPF machine-control application for a three-station carrier-jig line.
+IBTM is a .NET 10 WPF machine-control application for a three-station carrier line.
 The stations work independently while sharing one IO-driven belt conveyor.
 
 ## Machine layout
 
 1. PCB Supply Handler has X/Y/Z motion, an IPM fixing cylinder, and pneumatic rotation.
-2. PCB Placement Handler has XYZ motion and transfers the PCB from the buffer to a housing.
+2. PCB Placement Handler has XYZ motion and transfers the PCB from the buffer to a heat sink.
 3. Bolt fastening has one shared XYZ motion group and two fastening heads.
 4. Inspection camera and NG carrier gripper share one Inspection Gantry XY motion.
    NG Shuttle and NG Conveyor are separate from the main production conveyor.
 
-The conveyor moves only one carrier jig at a time. A carrier jig lifted by a station
-backup plate is mechanically separated from the conveyor, so another carrier jig can
+The conveyor moves only one carrier at a time. A carrier lifted by a station
+backup plate is mechanically separated from the conveyor, so another carrier can
 move between other stations.
 
 The CAD-derived mechanical grouping and its UI mapping are documented in
@@ -55,11 +55,11 @@ Supply and Placement process classes do not receive `IIoService`. Their handlers
 read only their own device IO, `BufferStage` owns the Buffer PCB input, and
 both processes coordinate through live Buffer positions and handoff feedback.
 Placement, Bolt Fastening, and Inspection own a small Work state that reads their
-Carrier Jig, Housing, Backup Plate Up, and Stopper Down inputs. Their processes know nothing about
+carrier, heat sink, Backup Plate Up, and Stopper Down inputs. Their processes know nothing about
 `MainConveyor`; the conveyor observes those Work states when selecting a transfer.
 
 Paired cylinder inputs are represented as endpoint states with an explicit
-`Between` value. Process-local values such as PCB 1/2 selection, completed Housing,
+`Between` value. Process-local values such as PCB 1/2 selection, completed heat sink,
 or station work completion are progress only; they are never used as proof of
 material or mechanism position.
 
@@ -79,44 +79,59 @@ is temporarily stopped.
 Station motion has no global execution lock. PCB supply and placement share only
 the Buffer position interlock; bolt fastening and inspection remain runnable while a
 Buffer transfer is active. `PcbSupply` owns the independent Front 1 PCB-carrier
-SMEMA. `MainConveyor` owns the housing Carrier Jig belt, Front 2/Rear SMEMA,
+SMEMA. `MainConveyor` owns the heat-sink carrier conveyor, Front 2/Rear SMEMA,
 station stoppers, and backup plates. Stations do not request conveyor movement.
 `MainConveyor` selects one transfer at a time in rear-to-front priority: Inspection
 to Rear, Bolt Fastening to Inspection, PCB Placement to Bolt Fastening, then Front 2
 to PCB Placement. It lowers the source Stopper and Backup Plate, raises the destination
 Stopper, and lowers the destination Backup Plate before running the belt. It stops on
 the destination Carrier input, raises the destination plate, then lowers the Stopper.
-Its `ConveyorState` is recalculated from live station inputs, work completion, and
+An active entry or exit boundary sensor identifies an already-started transfer and is
+handled before a new station transfer is selected.
+Its `MainConveyorState` is recalculated from live station inputs, work completion, and
 SMEMA inputs on every change; no transfer step or conveyor ownership is cached.
+Process results transfer when the destination Carrier input turns on and remain
+at the departed station only until its next Carrier arrives.
 Front Available is the receive trigger. PCB Placement raises its Stopper and lowers
-its Backup Plate before asserting Front Ready and starting the belt. Rear Available
-may remain advertised while waiting for Rear Ready, but is cleared before a Front
-receive starts. Transfer decisions never use output state as physical evidence.
+its Backup Plate before asserting Front Ready and starting the belt. Front Ready drops
+when the entry Carrier sensor turns on, and the belt stops at the PCB Placement
+Carrier sensor. Rear Available may remain advertised while waiting for Rear Ready,
+but is cleared before a Front receive starts. Rear discharge completes only after the
+exit Carrier sensor changes from ON to OFF. Transfer decisions never use output
+state as physical evidence, and the two main-conveyor SMEMA outputs are never asserted
+together.
 
-Supply may receive, pick, and rotate the next PCB while Placement is working. It
-waits with PCB detection, Nest, and IPM-fixer feedback confirmed, then enters
-when Placement is at or above Buffer Entry Z. The taught handoff is the only
-permitted overlap below that Z.
+Supply may receive and pick the next PCB while Placement is working. It waits with
+PCB detection, Nest, and IPM-fixer feedback confirmed, then moves above the Buffer,
+rotates, and lowers to the handoff position after Placement leaves the Buffer area
+or reaches Buffer Entry Z. The taught handoff is the only permitted overlap below
+that Z.
 
 There is no global sequence project. `PcbSupplyProcess` runs the upstream carrier and
 PCB 1/2 supply flow. Placement, Bolt Fastening, and Inspection report work complete
-after all present housings finish. Inspection moves the camera to every taught bolt
-point, records presence by housing and bolt number, and continues after a missing
+after all present heat sinks finish. Inspection moves the camera to every taught bolt
+point, records presence by heat sink and bolt number, and continues after a missing
 bolt. The WPF host's `MachineController` initializes the machine and handles stop,
 emergency stop, reset, and safety-input changes.
 
 `UnitSettings` enables Main Conveyor, PCB Supply, PCB Placement, both Bolt Feeders,
-Bolt Fastening, and Inspection independently. Supply and Placement automatic processes can be
+Bolt Fastening, Inspection, and NG Conveyor independently. Supply and Placement automatic processes can be
 enabled separately, but enabling either requires both handlers to be homed because
 the shared Buffer interlock reads both live positions. Other disabled hardware is not
 initialized and does not participate in readiness or machine-wide homing. Settings and
-manual I/O remain available, and a disabled main-conveyor station is bypassed for
+manual I/O remain available. Unit-setting changes apply after restart, and a disabled main-conveyor station is bypassed for
 individual hardware validation. Main Conveyor, PCB Supply, PCB Placement, both Bolt
-Feeders, Bolt Fastening, and Inspection run continuously.
-Placement completes the Buffer handoff, moves above Housing 1 at Buffer Entry Z,
-rotates, and waits. When the carrier jig and Backup Plate are confirmed, it places
-PCBs only in detected housings. An NG carrier remains at Station 3 until the separate
-NG transfer and conveyor behavior is defined.
+Feeders, Bolt Fastening, Inspection, and NG Conveyor run continuously.
+Placement completes the Buffer handoff, moves above Heat Sink 1 at Buffer Entry Z,
+rotates, and waits. When the carrier and Backup Plate are confirmed, it places
+PCBs only in detected heat sinks. Each heat sink is recorded when the IPM Down input
+confirms the press; IPM, Handler, and Z then rise before the station completes. A
+completed NG carrier is picked by the shared
+Inspection Gantry transfer, placed on the NG Shuttle, and stored by the independent
+three-position NG Conveyor.
+When Inspection is disabled while NG Conveyor is enabled, every carrier completed at
+Station 3 is routed to NG. When both are disabled, Station 3 is bypassed to the rear
+equipment instead.
 
 `MachineController` owns the lifetime of enabled automatic processes. It starts each
 process with one shared cancellation token. When any process ends, the token is cancelled for the
@@ -126,12 +141,14 @@ I/O or shared Buffer state to change before evaluating again.
 
 Station work completion remains valid across Stop while the same Carrier input is
 on, and resets when that input changes. This lets a released source Carrier resume
-its transfer without adding a conveyor-step cache. A Carrier stopped between station
-sensors cannot be located automatically.
+its transfer without adding a conveyor-step cache. An active main-conveyor entry or
+exit sensor also resumes its respective boundary transfer after Stop. A Carrier
+stopped between point sensors with all related inputs off cannot be located
+automatically.
 
 `VirtualIoService` is a virtual I/O board and produces only mapped actuator
 feedback. `VirtualMachine` is the optional material-flow scenario that changes
-PCB and housing inputs from virtual motion and actuator results. Production code
+PCB and heat sink inputs from virtual motion and actuator results. Production code
 observes the same digital inputs in either mode.
 
 ## Handler behavior
@@ -148,7 +165,7 @@ operations, normal flow, and behavior that has intentionally not been defined ye
 
 ## Teaching model
 
-Each motion group owns its directly taught positions. PCB placement stores both housing
+Each motion group owns its directly taught positions. PCB placement stores both heat sink
 positions, each fastening head stores the upper-left and lower-right locating-pin
 positions, and inspection stores its own scan and locating-pin positions. Bolt points
 are carrier-relative recipe coordinates. No hidden calibration is applied between
@@ -217,6 +234,8 @@ millimetres-per-pixel value until overlapping frames align, then clicks the carr
 pins and bolt locations directly on that machine-coordinate image map. Scan bounds
 and X/Y capture pitches belong to `InspectionGantrySettings.json`; capture motion does
 not depend on the image scale being calibrated.
+NG carrier pickup, shuttle placement, and transfer speed belong to
+`NgConveyorSettings.json`.
 
 Recipe assets are grouped by recipe:
 
@@ -293,8 +312,8 @@ carrier conveyor, NG Conveyor, and NG Shuttle are shown
 as distinct mechanisms. The Settings screen contains the complete mapped I/O and
 axis view.
 
-The map does not infer material from a command or SMEMA alone. PCB is green, housing
-is amber, and carrier jigs are blue. The two upstream PCB slots remain marked unknown
+The map does not infer material from a command or SMEMA alone. PCB is green, heat sink
+is amber, and carriers are blue. The two upstream PCB slots remain marked unknown
 until the supply pickup sensor checks them. A pneumatic feedback timeout raises an
 alarm on the supply or placement handler that issued the command.
 

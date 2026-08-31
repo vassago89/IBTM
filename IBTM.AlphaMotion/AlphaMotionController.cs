@@ -18,21 +18,29 @@ public sealed class AlphaMotionController(
         Check(
             nmiMNApi.nmiSysLoad(nmiMNApiDefs.TMC_FALSE, ref controllerCount),
             nameof(nmiMNApi.nmiSysLoad));
-        Check(
-            nmiMNApi.nmiSetCommSpeed(
-                settings.ControllerNumber,
-                settings.CommunicationSpeed),
-            nameof(nmiMNApi.nmiSetCommSpeed));
-        Check(
-            nmiMNApi.nmiSysComm(settings.ControllerNumber),
-            nameof(nmiMNApi.nmiSysComm));
-        Check(
-            nmiMNApi.nmiCyclicBegin(settings.ControllerNumber),
-            nameof(nmiMNApi.nmiCyclicBegin));
-        Check(
-            nmiMNApi.nmiConParamLoad(),
-            nameof(nmiMNApi.nmiConParamLoad));
-        _initialized = true;
+        try
+        {
+            Check(
+                nmiMNApi.nmiSetCommSpeed(
+                    settings.ControllerNumber,
+                    settings.CommunicationSpeed),
+                nameof(nmiMNApi.nmiSetCommSpeed));
+            Check(
+                nmiMNApi.nmiSysComm(settings.ControllerNumber),
+                nameof(nmiMNApi.nmiSysComm));
+            Check(
+                nmiMNApi.nmiCyclicBegin(settings.ControllerNumber),
+                nameof(nmiMNApi.nmiCyclicBegin));
+            Check(
+                nmiMNApi.nmiConParamLoad(),
+                nameof(nmiMNApi.nmiConParamLoad));
+            _initialized = true;
+        }
+        catch
+        {
+            nmiMNApi.nmiSysUnload();
+            throw;
+        }
     }
 
     public bool ReadInput(int bit)

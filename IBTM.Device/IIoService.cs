@@ -9,12 +9,9 @@ public interface IIoService
 {
     event Action<InputIo, bool>? InputChanged;
     event Action<OutputIo, bool>? OutputChanged;
-    event Action? Faulted
-    {
-        add { }
-        remove { }
-    }
+    event Action? Faulted;
 
+    bool IsReady { get; }
     int TimeoutMilliseconds { get; }
 
     void Initialize();

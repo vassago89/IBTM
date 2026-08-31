@@ -20,25 +20,36 @@ public sealed class PhysicalIoService(
     private const int AlphaMotionChannelCount = 16;
     private static readonly TimeSpan InputPollInterval =
         TimeSpan.FromMilliseconds(10);
-    private readonly Dictionary<InputIo, bool> _inputs =
-        Enum.GetValues<InputIo>().ToDictionary(input => input, _ => false);
+    private static readonly InputIo[] Inputs = Enum.GetValues<InputIo>();
+    private readonly bool[] _inputs = new bool[
+        Inputs.Max(input => (int)input) + 1];
     private CancellationTokenSource? _inputMonitor;
     private Task? _inputMonitorTask;
+    private volatile bool _ready;
 
     public event Action<InputIo, bool>? InputChanged;
     public event Action<OutputIo, bool>? OutputChanged;
     public event Action? Faulted;
+    public bool IsReady => _ready;
     public int TimeoutMilliseconds => options.TimeoutMilliseconds;
 
     public void Initialize()
     {
-        alphaMotion.Initialize();
-        ajin.Initialize();
-        foreach (var input in Enum.GetValues<InputIo>())
+        if (_ready)
         {
-            _inputs[input] = GetInput(input);
+            return;
         }
 
+        _inputMonitor?.Cancel();
+        _inputMonitor?.Dispose();
+        alphaMotion.Initialize();
+        ajin.Initialize();
+        foreach (var input in Inputs)
+        {
+            _inputs[(int)input] = ReadInput(inputMap[input]);
+        }
+
+        _ready = true;
         _inputMonitor = new CancellationTokenSource();
         _inputMonitorTask = Task.Run(
             () => MonitorInputsAsync(_inputMonitor.Token));
@@ -46,26 +57,33 @@ public sealed class PhysicalIoService(
 
     public void CheckReady()
     {
-        foreach (var channel in inputMap.Values.Distinct())
+        if (!_ready)
         {
-            _ = ReadInput(channel);
+            Initialize();
+            return;
         }
 
-        foreach (var output in outputMap.Values)
+        try
         {
-            _ = ReadOutput(output.Number);
-            if (output.OffNumber is { } offChannel)
+            foreach (var channel in inputMap.Values.Distinct())
             {
-                _ = ReadOutput(offChannel);
+                _ = ReadInput(channel);
             }
-        }
 
-        if (_inputMonitorTask?.IsFaulted == true)
+            foreach (var output in outputMap.Values)
+            {
+                _ = ReadOutput(output.Number);
+                if (output.OffNumber is { } offChannel)
+                {
+                    _ = ReadOutput(offChannel);
+                }
+            }
+
+        }
+        catch
         {
-            _inputMonitor?.Dispose();
-            _inputMonitor = new CancellationTokenSource();
-            _inputMonitorTask = Task.Run(
-                () => MonitorInputsAsync(_inputMonitor.Token));
+            _ready = false;
+            throw;
         }
     }
 
@@ -82,8 +100,7 @@ public sealed class PhysicalIoService(
         var mapping = outputMap[output];
         if (mapping.OffNumber is { } offChannel)
         {
-            WriteOutput(mapping.Number, false);
-            WriteOutput(offChannel, false);
+            WriteOutput(value ? offChannel : mapping.Number, false);
             WriteOutput(value ? mapping.Number : offChannel, true);
         }
         else
@@ -97,7 +114,10 @@ public sealed class PhysicalIoService(
     public void Dispose()
     {
         _inputMonitor?.Cancel();
-        _inputMonitorTask?.GetAwaiter().GetResult();
+        if (_inputMonitorTask is { IsFaulted: false } monitor)
+        {
+            monitor.GetAwaiter().GetResult();
+        }
         _inputMonitor?.Dispose();
     }
 
@@ -128,15 +148,15 @@ public sealed class PhysicalIoService(
         {
             while (true)
             {
-                foreach (var input in Enum.GetValues<InputIo>())
+                foreach (var input in Inputs)
                 {
-                    var value = GetInput(input);
-                    if (_inputs[input] == value)
+                    var value = ReadInput(inputMap[input]);
+                    if (_inputs[(int)input] == value)
                     {
                         continue;
                     }
 
-                    _inputs[input] = value;
+                    _inputs[(int)input] = value;
                     InputChanged?.Invoke(input, value);
                 }
 
@@ -150,6 +170,7 @@ public sealed class PhysicalIoService(
         }
         catch
         {
+            _ready = false;
             Faulted?.Invoke();
             throw;
         }

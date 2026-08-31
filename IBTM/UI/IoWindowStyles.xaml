@@ -26,70 +26,70 @@
         <Setter Property="Width" Value="10"/>
         <Setter Property="Height" Value="10"/>
         <Setter Property="Fill" Value="{StaticResource EquipBgBrush}"/>
-        <Setter Property="Stroke" Value="{StaticResource AccentGreenBrush}"/>
+        <Setter Property="Stroke" Value="{StaticResource TextMutedBrush}"/>
         <Setter Property="StrokeThickness" Value="1"/>
         <Style.Triggers>
-            <Trigger Property="Tag" Value="True">
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="True">
                 <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
+                <Setter Property="Stroke" Value="{StaticResource AccentGreenBrush}"/>
                 <Setter Property="StrokeThickness" Value="2"/>
-            </Trigger>
+            </DataTrigger>
         </Style.Triggers>
     </Style>
 
     <Style x:Key="IoInputStateStyle" TargetType="ContentControl">
+        <Setter Property="Content" Value="OFF"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContentControl">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Ellipse x:Name="Led" Style="{StaticResource IoInputLedStyle}"/>
-                        <TextBlock x:Name="StateText"
-                                   Margin="8,0,0,0"
-                                   Text="OFF"
-                                   Foreground="{StaticResource TextMutedBrush}"
+                        <Ellipse Width="10"
+                                 Height="10"
+                                 Fill="{TemplateBinding Foreground}"/>
+                        <TextBlock Margin="8,0,0,0"
+                                   Text="{TemplateBinding Content}"
+                                   Foreground="{TemplateBinding Foreground}"
                                    FontWeight="SemiBold"/>
                     </StackPanel>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="Tag" Value="True">
-                            <Setter TargetName="Led" Property="Tag" Value="True"/>
-                            <Setter TargetName="StateText" Property="Text" Value="ON"/>
-                            <Setter TargetName="StateText"
-                                    Property="Foreground"
-                                    Value="{StaticResource AccentGreenBrush}"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="True">
+                <Setter Property="Content" Value="ON"/>
+                <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="IoOutputStateStyle" TargetType="ContentControl">
+        <Setter Property="Content" Value="OFF"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContentControl">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border x:Name="Led"
-                                Width="10"
+                        <Border Width="10"
                                 Height="10"
-                                Background="{StaticResource EquipBgBrush}"
-                                BorderBrush="{StaticResource OutputActiveBrush}"
-                                BorderThickness="1"
+                                Background="{TemplateBinding Foreground}"
                                 CornerRadius="1"/>
-                        <TextBlock x:Name="StateText"
-                                   Margin="8,0,0,0"
-                                   Text="OFF"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   FontFamily="Cascadia Mono, Consolas"/>
+                        <TextBlock Margin="8,0,0,0"
+                                   Text="{TemplateBinding Content}"
+                                   Foreground="{TemplateBinding Foreground}"
+                                   FontWeight="SemiBold"/>
                     </StackPanel>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="Tag" Value="True">
-                            <Setter TargetName="Led"
-                                    Property="Background"
-                                    Value="{StaticResource OutputActiveBrush}"/>
-                            <Setter TargetName="StateText" Property="Text" Value="ON"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="True">
+                <Setter Property="Content" Value="ON"/>
+                <Setter Property="Foreground" Value="{StaticResource OutputActiveBrush}"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 </ResourceDictionary>

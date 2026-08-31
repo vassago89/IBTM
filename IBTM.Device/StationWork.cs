@@ -12,8 +12,8 @@ public abstract class StationWork
     private readonly InputIo _carrier;
     private readonly InputIo _backupPlateUp;
     private readonly InputIo _stopperDown;
-    private readonly InputIo _housing1;
-    private readonly InputIo _housing2;
+    private readonly InputIo _heatSink1;
+    private readonly InputIo _heatSink2;
     private readonly List<PcbAssembly> _assemblies = [];
     private bool _completed;
 
@@ -22,15 +22,15 @@ public abstract class StationWork
         InputIo carrier,
         InputIo backupPlateUp,
         InputIo stopperDown,
-        InputIo housing1,
-        InputIo housing2)
+        InputIo heatSink1,
+        InputIo heatSink2)
     {
         _io = io;
         _carrier = carrier;
         _backupPlateUp = backupPlateUp;
         _stopperDown = stopperDown;
-        _housing1 = housing1;
-        _housing2 = housing2;
+        _heatSink1 = heatSink1;
+        _heatSink2 = heatSink2;
         io.InputChanged += OnInputChanged;
     }
 
@@ -46,27 +46,29 @@ public abstract class StationWork
     public IReadOnlyList<PcbAssembly> Assemblies => _assemblies;
     public virtual bool CanReceive => !CarrierPresent;
     public virtual bool HasNg =>
-        _assemblies.Any(assembly => assembly.Result == PcbResult.Ng);
+        _assemblies.Any(assembly =>
+            HeatSinkPresent(assembly.HeatSink)
+            && assembly.Result == PcbResult.Ng);
     public bool CanTransfer =>
         CarrierPresent
         && Completed
         && _io.GetInput(_stopperDown);
 
-    public bool HousingPresent(HousingSlot housing) =>
-        _io.GetInput(housing == HousingSlot.Housing1
-            ? _housing1
-            : _housing2);
+    public bool HeatSinkPresent(HeatSinkSlot heatSink) =>
+        _io.GetInput(heatSink == HeatSinkSlot.HeatSink1
+            ? _heatSink1
+            : _heatSink2);
 
-    public PcbAssembly Assembly(HousingSlot housing)
+    public PcbAssembly Assembly(HeatSinkSlot heatSink)
     {
         var assembly = _assemblies.FirstOrDefault(
-            item => item.Housing == housing);
+            item => item.HeatSink == heatSink);
         if (assembly is not null)
         {
             return assembly;
         }
 
-        assembly = new PcbAssembly(housing);
+        assembly = new PcbAssembly(heatSink);
         _assemblies.Add(assembly);
         return assembly;
     }
@@ -75,6 +77,7 @@ public abstract class StationWork
     {
         _assemblies.Clear();
         _assemblies.AddRange(assemblies);
+        Volatile.Write(ref _completed, false);
         Changed?.Invoke();
     }
 
@@ -89,22 +92,36 @@ public abstract class StationWork
         Changed?.Invoke();
     }
 
+    protected void Restart()
+    {
+        Volatile.Write(ref _completed, false);
+        Changed?.Invoke();
+    }
+
     protected void NotifyChanged() => Changed?.Invoke();
 
     private void OnInputChanged(InputIo input, bool value)
     {
         if (input == _carrier)
         {
-            Volatile.Write(ref _completed, false);
-            _assemblies.Clear();
+            if (value)
+            {
+                Volatile.Write(ref _completed, false);
+                _assemblies.Clear();
+            }
+
             CarrierChanged?.Invoke(value);
+        }
+        else if (input == _heatSink1 || input == _heatSink2)
+        {
+            Volatile.Write(ref _completed, false);
         }
 
         if (input == _carrier
             || input == _backupPlateUp
             || input == _stopperDown
-            || input == _housing1
-            || input == _housing2)
+            || input == _heatSink1
+            || input == _heatSink2)
         {
             Changed?.Invoke();
         }

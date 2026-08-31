@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.BoltFeeder;
 using IBTM.BoltFastening;
+using IBTM.BoltFeeder;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
@@ -24,6 +24,7 @@ public sealed class MachineController
     private readonly UnitSettings _units;
     private readonly Recipe _recipe;
     private readonly HomeSettings _home;
+    private readonly CarrierReferenceSettings _carrierReference;
     private readonly IIoService _io;
     private readonly MainConveyor _conveyor;
     private readonly NgConveyorLine _ngConveyor;
@@ -49,6 +50,7 @@ public sealed class MachineController
         UnitSettings units,
         Recipe recipe,
         HomeSettings home,
+        CarrierReferenceSettings carrierReference,
         IIoService io,
         MainConveyor conveyor,
         NgConveyorLine ngConveyor,
@@ -73,6 +75,7 @@ public sealed class MachineController
         _units = units;
         _recipe = recipe;
         _home = home;
+        _carrierReference = carrierReference;
         _io = io;
         _conveyor = conveyor;
         _ngConveyor = ngConveyor;
@@ -92,12 +95,17 @@ public sealed class MachineController
         _inspectionGantryMotion = inspectionGantryMotion;
         io.InputChanged += OnInputChanged;
         io.Faulted += OnIoFaulted;
-        conveyor.CarrierChanged += OnConveyorCarrierChanged;
     }
 
     public bool CanReset =>
-        _state.Alarm == MachineAlarm.ControlCommunication
-        || _state.SafetyReady && (_state.IsError || _state.Faulted);
+        !_state.IsRunning
+        && (_state.Alarm == MachineAlarm.ControlCommunication
+            || _state.SafetyReady
+            && (_state.ManualMode || _state.DoorInterlockReady)
+            && (_state.IsError
+                || _state.Faulted
+                || !_state.ServosOn
+                || !_state.ServoMainContactorOn));
     public bool CanHome =>
         _state.SafetyReady
         && _state.DoorInterlockReady
@@ -109,36 +117,24 @@ public sealed class MachineController
     public bool CanStart =>
         _state.CanAutomaticOperate
         && !_state.IsRunning
-        && (_units.MainConveyor
-            || _units.PcbSupply
-            || _units.PcbPlacement
-            || _units.PickupBoltFeeder
-            || _units.LinearBoltFeeder
-            || _units.BoltFastening
-            || _units.Inspection
-            || _units.NgConveyor);
+        && _units.HasEnabledUnit();
 
     public async Task InitializeAsync()
     {
-        _io.Initialize();
-        _light.Initialize();
-        StopDevices();
-        foreach (var motion in EnabledMotions())
+        var alarm = await CheckHardwareAsync(CancellationToken.None);
+        if (alarm == MachineAlarm.None)
         {
-            motion.Initialize();
+            alarm = SafetyAlarm();
         }
 
-        if (_units.Inspection)
+        if (alarm == MachineAlarm.None)
         {
-            _inspectionCamera.Initialize();
+            _state.Refresh();
         }
-
-        if (_units.BoltFastening)
+        else
         {
-            await _boltFastening.CheckReadyAsync();
+            _state.SetError(alarm);
         }
-
-        _state.Refresh();
     }
 
     public void Stop()
@@ -149,39 +145,46 @@ public sealed class MachineController
         }
         finally
         {
-            StopDevices();
+            StopRunOutputs();
             _state.Refresh();
         }
     }
 
-    public void EmergencyStop()
+    public async Task ResetAsync()
     {
-        _state.SetError(MachineAlarm.EmergencyStop);
-        Stop();
-    }
-
-    public void Reset()
-    {
-        if (_state.Alarm == MachineAlarm.ControlCommunication)
+        if (!CanReset)
         {
-            try
-            {
-                _io.CheckReady();
-            }
-            catch
-            {
-                return;
-            }
-
-            if (!_state.SafetyReady)
-            {
-                return;
-            }
+            return;
         }
 
-        foreach (var motion in EnabledMotions())
+        var alarm = await CheckHardwareAsync(CancellationToken.None);
+        if (alarm != MachineAlarm.None)
         {
-            motion.ResetAlarm();
+            _state.SetError(alarm);
+            return;
+        }
+
+        if (!_state.SafetyReady
+            || !_state.ManualMode && !_state.DoorInterlockReady)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var motion in EnabledMotions())
+            {
+                motion.ResetAlarm();
+                foreach (var axis in motion.Axes)
+                {
+                    motion.SetServo(axis, true);
+                }
+            }
+        }
+        catch
+        {
+            _state.SetError(MachineAlarm.MotionUnavailable);
+            return;
         }
 
         _state.ClearError();
@@ -259,6 +262,10 @@ public sealed class MachineController
         {
             _state.SetError(MachineAlarm.HomeFailed);
         }
+        catch (MotionException)
+        {
+            _state.SetError(MachineAlarm.HomeFailed);
+        }
         finally
         {
             _state.SetHoming(false);
@@ -268,35 +275,15 @@ public sealed class MachineController
 
     private void OnInputChanged(InputIo input, bool value)
     {
-        var alarm = input switch
+        if (IsSafetyInput(input))
         {
-            InputIo.EmergencyStop1Pressed
-                or InputIo.EmergencyStop2Pressed =>
-                _options.UseEmergencyStop
-                    ? MachineAlarm.EmergencyStop
-                    : MachineAlarm.None,
-            InputIo.Door1Open
-                or InputIo.Door2Open
-                or InputIo.Door3Open
-                or InputIo.Door4Open
-                or InputIo.Door5Open
-                or InputIo.Door6Open =>
-                _options.UseDoorInterlock && _state.AutoMode
-                    ? MachineAlarm.DoorOpen
-                    : MachineAlarm.None,
-            InputIo.AutoMode when !_state.DoorInterlockReady =>
-                MachineAlarm.DoorOpen,
-            InputIo.AirPressureLow =>
-                _options.UseAirPressureInterlock
-                    ? MachineAlarm.AirPressureLow
-                    : MachineAlarm.None,
-            _ => MachineAlarm.None,
-        };
-        if (value && alarm != MachineAlarm.None)
-        {
-            _state.SetError(alarm);
-            Stop();
-            return;
+            var alarm = SafetyAlarm();
+            if (alarm != MachineAlarm.None)
+            {
+                _state.SetError(alarm);
+                Stop();
+                return;
+            }
         }
 
         if (input == InputIo.ResetButton
@@ -304,9 +291,42 @@ public sealed class MachineController
             && _options.UseResetButton
             && CanReset)
         {
-            Reset();
+            _ = ResetAsync();
         }
     }
+
+    private MachineAlarm SafetyAlarm()
+    {
+        if (_options.UseEmergencyStop
+            && !_state.EmergencyStopReleased)
+        {
+            return MachineAlarm.EmergencyStop;
+        }
+
+        if (_options.UseDoorInterlock
+            && _state.AutoMode
+            && !_state.DoorClosed)
+        {
+            return MachineAlarm.DoorOpen;
+        }
+
+        return _options.UseAirPressureInterlock
+               && !_state.AirPressureOk
+            ? MachineAlarm.AirPressureLow
+            : MachineAlarm.None;
+    }
+
+    private static bool IsSafetyInput(InputIo input) =>
+        input is InputIo.EmergencyStop1Pressed
+            or InputIo.EmergencyStop2Pressed
+            or InputIo.AutoMode
+            or InputIo.Door1Open
+            or InputIo.Door2Open
+            or InputIo.Door3Open
+            or InputIo.Door4Open
+            or InputIo.Door5Open
+            or InputIo.Door6Open
+            or InputIo.AirPressureLow;
 
     public async Task StartAsync(
         CancellationToken cancellationToken = default)
@@ -316,8 +336,17 @@ public sealed class MachineController
             return;
         }
 
-        if (!await CheckStartHardwareAsync(cancellationToken))
+        if ((_units.BoltFastening || _units.Inspection)
+            && !TeachingReady())
         {
+            _state.SetError(MachineAlarm.TeachingIncomplete);
+            return;
+        }
+
+        var startAlarm = await CheckHardwareAsync(cancellationToken);
+        if (startAlarm != MachineAlarm.None)
+        {
+            _state.SetError(startAlarm);
             return;
         }
 
@@ -362,8 +391,6 @@ public sealed class MachineController
             {
                 return;
             }
-
-            CompleteDisabledConveyorWork();
 
             var runningProcesses = new List<(Task Task, MachineAlarm Alarm)>();
             if (_units.MainConveyor)
@@ -442,22 +469,13 @@ public sealed class MachineController
                     _state.SetError(completedProcess.Alarm);
                 }
             }
-            catch (OperationCanceledException)
-                when (operation.IsCancellationRequested)
-            {
-            }
-            catch (MotionException)
+            catch (Exception exception)
             {
                 if (!operation.IsCancellationRequested && !_state.IsError)
                 {
-                    _state.SetError(MachineAlarm.MotionUnavailable);
-                }
-            }
-            catch
-            {
-                if (!operation.IsCancellationRequested && !_state.IsError)
-                {
-                    _state.SetError(completedProcess.Alarm);
+                    _state.SetError(exception is MotionException
+                        ? MachineAlarm.MotionUnavailable
+                        : completedProcess.Alarm);
                 }
             }
             finally
@@ -475,7 +493,7 @@ public sealed class MachineController
         {
             _state.Changed -= StopWhenOperationBecomesUnavailable;
             _state.SetAutomaticRunning(false);
-            StopDevices();
+            StopRunOutputs();
             _state.Refresh();
         }
     }
@@ -498,39 +516,75 @@ public sealed class MachineController
         }
     }
 
-    private async Task<bool> CheckStartHardwareAsync(
+    private bool TeachingReady() =>
+        _recipe.BoltFastening.BoltPoints.Count > 0
+        && CarrierCoordinates.IsDefined(
+                _carrierReference.UpperLeftPin,
+                _carrierReference.LowerRightPin)
+            && _recipe.BoltFastening.BoltPoints.All(bolt =>
+                bolt is { X: not null, Y: not null }
+                && (!_units.BoltFastening
+                    || (bolt.Z is not null
+                        && _boltFastening.HasReference(bolt.Head))));
+
+    private async Task<MachineAlarm> CheckHardwareAsync(
         CancellationToken cancellationToken)
     {
         try
         {
+            _io.Initialize();
             _io.CheckReady();
+            StopRunOutputs();
         }
         catch
         {
-            _state.SetError(MachineAlarm.ControlCommunication);
-            return false;
-        }
-
-        if (!_units.BoltFastening)
-        {
-            return true;
+            return MachineAlarm.ControlCommunication;
         }
 
         try
         {
-            await _boltFastening.CheckReadyAsync(cancellationToken);
-            return true;
-        }
-        catch (OperationCanceledException) when (
-            cancellationToken.IsCancellationRequested)
-        {
-            return false;
+            foreach (var motion in EnabledMotions())
+            {
+                motion.Initialize();
+            }
         }
         catch
         {
-            _state.SetError(MachineAlarm.BoltFastening);
-            return false;
+            return MachineAlarm.MotionUnavailable;
         }
+
+        if (_units.Inspection)
+        {
+            try
+            {
+                _light.Initialize();
+                _light.TurnOffAll();
+                _inspectionCamera.Initialize();
+            }
+            catch
+            {
+                return MachineAlarm.Inspection;
+            }
+        }
+
+        if (_units.BoltFastening)
+        {
+            try
+            {
+                await _boltFastening.CheckReadyAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (
+                cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                return MachineAlarm.BoltFastening;
+            }
+        }
+
+        return MachineAlarm.None;
     }
 
     private IEnumerable<IAxisMotion> EnabledMotions()
@@ -552,51 +606,19 @@ public sealed class MachineController
         }
     }
 
-    private void OnConveyorCarrierChanged(
-        ConveyorStation station,
-        bool present)
-    {
-        if (present)
-        {
-            BypassDisabledWork(station);
-        }
-    }
-
     private bool BufferHandlersEnabled =>
         _units.PcbSupply || _units.PcbPlacement;
 
-    private void CompleteDisabledConveyorWork()
+    private void StopRunOutputs()
     {
-        BypassDisabledWork(ConveyorStation.PcbPlacement);
-        BypassDisabledWork(ConveyorStation.BoltFastening);
-        BypassDisabledWork(ConveyorStation.Inspection);
-    }
-
-    private void BypassDisabledWork(ConveyorStation station)
-    {
-        if (!StationWorkEnabled(station) && _conveyor.HasCarrier(station))
+        if (_io.IsReady)
         {
-            _conveyor.BypassWork(station);
+            _conveyor.Stop();
+            _linearBoltFeeder.Stop();
+            _boltFastening.Stop();
+            _ngConveyor.Stop();
+            _supplyHandler.SetUpstreamReady(false);
         }
-    }
-
-    private bool StationWorkEnabled(ConveyorStation station) =>
-        station switch
-        {
-            ConveyorStation.PcbPlacement => _units.PcbPlacement,
-            ConveyorStation.BoltFastening => _units.BoltFastening,
-            ConveyorStation.Inspection => _units.Inspection,
-            _ => throw new ArgumentOutOfRangeException(nameof(station)),
-        };
-
-    private void StopDevices()
-    {
-        _conveyor.Stop();
-        _linearBoltFeeder.Stop();
-        _boltFastening.Stop();
-        _ngConveyor.Stop();
-        _supplyHandler.SetUpstreamReady(false);
-        _light.TurnOffAll();
     }
 
     private void OnIoFaulted()

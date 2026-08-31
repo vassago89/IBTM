@@ -40,13 +40,19 @@ public abstract class Setting
         CancellationToken cancellationToken = default)
     {
         Directory.CreateDirectory(DirectoryPath);
-        await using var stream = File.Create(GetFilePath(GetType()));
-        await JsonSerializer.SerializeAsync(
-            stream,
-            this,
-            GetType(),
-            JsonOptions,
-            cancellationToken);
+        var filePath = GetFilePath(GetType());
+        var temporaryPath = $"{filePath}.tmp";
+        await using (var stream = File.Create(temporaryPath))
+        {
+            await JsonSerializer.SerializeAsync(
+                stream,
+                this,
+                GetType(),
+                JsonOptions,
+                cancellationToken);
+        }
+
+        File.Move(temporaryPath, filePath, overwrite: true);
     }
 
     private static string GetFilePath(Type type) =>

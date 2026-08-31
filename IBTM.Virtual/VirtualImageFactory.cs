@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using IBTM.Core;
 
 namespace IBTM.Virtual;
@@ -11,16 +12,9 @@ internal static class VirtualImageFactory
     public const byte BoltRecessIntensity = 8;
 
     private const int BytesPerPixel = 3;
-    private static readonly (double X, double Y)[] BoltCentres =
-    [
-        (12, 11),
-        (28, 11),
-        (12, 19),
-        (28, 19),
-    ];
-
     public static ImageFrame CreateInspection(
-        (double X, double Y, double Z) center)
+        (double X, double Y, double Z) center,
+        IReadOnlyList<AxisPos> boltCentres)
     {
         var pixels = new byte[Width * Height * BytesPerPixel];
         for (var pixelY = 0; pixelY < Height; pixelY++)
@@ -33,7 +27,7 @@ internal static class VirtualImageFactory
                 var y = center.Y
                     + ((pixelY - (Height / 2))
                        * InspectionMillimetersPerPixel);
-                var color = InspectionColor(x, y);
+                var color = InspectionColor(x, y, boltCentres);
                 SetPixel(
                     pixels,
                     pixelX,
@@ -49,7 +43,8 @@ internal static class VirtualImageFactory
 
     private static (byte Blue, byte Green, byte Red) InspectionColor(
         double x,
-        double y)
+        double y,
+        IReadOnlyList<AxisPos> boltCentres)
     {
         if (OnRectangle(x, y, 0, 0, 40, 30, 0.12))
         {
@@ -68,7 +63,7 @@ internal static class VirtualImageFactory
             return (40, 190, 230);
         }
 
-        foreach (var bolt in BoltCentres)
+        foreach (var bolt in boltCentres)
         {
             var offsetX = Math.Abs(x - bolt.X);
             var offsetY = Math.Abs(y - bolt.Y);

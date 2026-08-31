@@ -13,11 +13,11 @@ public enum MachineDisplayState
     [Description("Motion Fault")]
     MotionFault,
 
+    [Description("Safety Stop")]
+    SafetyStop,
+
     [Description("Ready")]
     Ready,
-
-    [Description("Manual Mode")]
-    ManualMode,
 
     [Description("Running")]
     Running,
@@ -29,8 +29,47 @@ public enum MachineDisplayState
     Alarm,
 }
 
+public enum StartBlockReason
+{
+    [Description("")]
+    None,
+
+    [Description("Clear the cause, then press RESET")]
+    Alarm,
+
+    [Description("Clear PCB buffer, then press RESET")]
+    BufferConflict,
+
+    [Description("Clear the motion fault, then press RESET")]
+    MotionFault,
+
+    [Description("Release E-stop, then press RESET")]
+    EmergencyStop,
+
+    [Description("Restore air pressure, then press RESET")]
+    AirPressure,
+
+    [Description("Press RESET to restore servo power")]
+    ServoOff,
+
+    [Description("Run HOME ALL")]
+    HomeRequired,
+
+    [Description("Close doors, then press RESET")]
+    DoorOpen,
+
+    [Description("Select AUTO mode")]
+    AutoMode,
+
+    [Description("Enable a unit in Settings")]
+    NoUnitEnabled,
+}
+
 public enum HandlerDisplayState
 {
+    [Description("Disabled")]
+    Disabled,
+
     [Description("Waiting for PCB Carrier")]
     WaitingForCarrier,
 
@@ -39,6 +78,9 @@ public enum HandlerDisplayState
 
     [Description("PCB Detected")]
     PcbDetected,
+
+    [Description("PCB at Buffer")]
+    PcbAvailable,
 
     [Description("Waiting for PCB")]
     WaitingForPcb,
@@ -52,14 +94,20 @@ public enum HandlerDisplayState
 
 public enum StationDisplayState
 {
+    [Description("Disabled")]
+    Disabled,
+
     [Description("I/O Alarm")]
     IoAlarm,
 
-    [Description("No Housing")]
-    NoHousing,
+    [Description("Waiting for Carrier")]
+    WaitingForCarrier,
 
-    [Description("Housing Detected")]
-    HousingDetected,
+    [Description("Empty Carrier")]
+    EmptyCarrier,
+
+    [Description("Heat Sink Detected")]
+    HeatSinkDetected,
 
     [Description("Working")]
     Working,
