@@ -4,6 +4,6 @@ namespace IBTM.PcbPlacement;
 
 public sealed class PcbPlacementRecipe
 {
-    public AxisPos HeatSink1PcbPlacementPosition { get; set; } = new();
-    public AxisPos HeatSink2PcbPlacementPosition { get; set; } = new();
+    public AxisPosition HeatSink1PcbPlacementPosition { get; set; } = new();
+    public AxisPosition HeatSink2PcbPlacementPosition { get; set; } = new();
 }

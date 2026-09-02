@@ -9,13 +9,17 @@
     <SolidColorBrush x:Key="MaterialIpmBrush" Color="#89929A"/>
     <SolidColorBrush x:Key="CarrierBrush" Color="#668BA4"/>
     <SolidColorBrush x:Key="HeatSinkBrush" Color="#A98D5C"/>
+    <SolidColorBrush x:Key="AlarmStateBackgroundBrush" Color="#32191B"/>
+    <SolidColorBrush x:Key="ConfirmedStateBackgroundBrush" Color="#1C2C25"/>
+    <SolidColorBrush x:Key="ActiveStateBackgroundBrush" Color="#1B2934"/>
+    <SolidColorBrush x:Key="MapActiveBackgroundBrush" Color="#27323B"/>
 
     <sys:Double x:Key="PcbWidth">60</sys:Double>
     <sys:Double x:Key="PcbHeight">48</sys:Double>
     <sys:Double x:Key="PcbSlotWidth">68</sys:Double>
     <sys:Double x:Key="PcbSlotHeight">56</sys:Double>
-    <sys:Double x:Key="CarrierJigWidth">268</sys:Double>
-    <sys:Double x:Key="CarrierJigHeight">84</sys:Double>
+    <sys:Double x:Key="CarrierWidth">268</sys:Double>
+    <sys:Double x:Key="CarrierHeight">84</sys:Double>
     <sys:Double x:Key="BackupPlateWidth">284</sys:Double>
     <sys:Double x:Key="BackupPlateHeight">100</sys:Double>
 
@@ -79,7 +83,7 @@
         <Setter Property="Panel.ZIndex" Value="3"/>
     </Style>
 
-    <Style x:Key="SafetyTextStyle"
+    <Style x:Key="IndicatorTextStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource MapLabelStyle}">
         <Setter Property="Margin" Value="7,0,0,0"/>
@@ -87,7 +91,7 @@
         <Setter Property="FontSize" Value="13"/>
     </Style>
 
-    <Style x:Key="StatusLedStyle" TargetType="Ellipse">
+    <Style x:Key="SafetyLedStyle" TargetType="Ellipse">
         <Setter Property="Width" Value="14"/>
         <Setter Property="Height" Value="14"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
@@ -100,38 +104,47 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="ReadinessLedStyle"
+    <Style x:Key="SetupLedStyle"
            TargetType="Ellipse"
-           BasedOn="{StaticResource StatusLedStyle}">
+           BasedOn="{StaticResource SafetyLedStyle}">
         <Setter Property="Fill" Value="{StaticResource AccentAmberBrush}"/>
     </Style>
 
-    <Style x:Key="ReadyLedStyle"
+    <Style x:Key="PresenceLedStyle"
            TargetType="Ellipse"
-           BasedOn="{StaticResource StatusLedStyle}">
+           BasedOn="{StaticResource SafetyLedStyle}">
         <Setter Property="Fill" Value="{StaticResource DividerBrush}"/>
-    </Style>
-
-    <Style x:Key="StateTextStyle"
-           TargetType="TextBlock"
-           BasedOn="{StaticResource MapHintStyle}">
-        <Setter Property="FontSize" Value="14"/>
     </Style>
 
     <Style x:Key="ResultTextStyle"
            TargetType="TextBlock"
            BasedOn="{StaticResource MapHintStyle}">
-        <Setter Property="FontSize" Value="14"/>
         <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="HorizontalAlignment" Value="Right"/>
+        <Setter Property="VerticalAlignment" Value="Bottom"/>
+        <Setter Property="Margin" Value="0,0,6,4"/>
+        <Setter Property="Visibility" Value="Collapsed"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static core:PcbResult.Ok}">
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                               Value="{x:Static core:AssemblyResult.Ok}"/>
+                    <Condition Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=Border}}"
+                               Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Visibility" Value="Visible"/>
                 <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static core:PcbResult.Ng}">
+            </MultiDataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                               Value="{x:Static core:AssemblyResult.Ng}"/>
+                    <Condition Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=Border}}"
+                               Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Visibility" Value="Visible"/>
                 <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-            </DataTrigger>
+            </MultiDataTrigger>
         </Style.Triggers>
     </Style>
 
@@ -169,17 +182,20 @@
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:MachineDisplayState.MotionFault}">
-                <Setter Property="Background" Value="#32191B"/>
+                <Setter Property="Background"
+                        Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:MachineDisplayState.SafetyStop}">
-                <Setter Property="Background" Value="#32191B"/>
+                <Setter Property="Background"
+                        Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:MachineDisplayState.Alarm}">
-                <Setter Property="Background" Value="#32191B"/>
+                <Setter Property="Background"
+                        Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
             </DataTrigger>
         </Style.Triggers>
@@ -188,6 +204,7 @@
     <Style x:Key="HandlerStateBadgeStyle"
            TargetType="Border"
            BasedOn="{StaticResource StateBadgeStyle}">
+        <Setter Property="Width" Value="258"/>
         <Setter Property="MinHeight" Value="42"/>
         <Setter Property="Padding" Value="10,7"/>
         <Style.Triggers>
@@ -197,27 +214,32 @@
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:HandlerDisplayState.CarrierAvailable}">
-                <Setter Property="Background" Value="#1C2C25"/>
+                <Setter Property="Background"
+                        Value="{StaticResource ConfirmedStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:HandlerDisplayState.PcbDetected}">
-                <Setter Property="Background" Value="#1C2C25"/>
+                <Setter Property="Background"
+                        Value="{StaticResource ConfirmedStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:HandlerDisplayState.PcbAvailable}">
-                <Setter Property="Background" Value="#1C2C25"/>
+                         Value="{x:Static ui:HandlerDisplayState.BufferPcbAvailable}">
+                <Setter Property="Background"
+                        Value="{StaticResource ConfirmedStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:HandlerDisplayState.Moving}">
-                <Setter Property="Background" Value="#1B2934"/>
+                <Setter Property="Background"
+                        Value="{StaticResource ActiveStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:HandlerDisplayState.IoAlarm}">
-                <Setter Property="Background" Value="#32191B"/>
+                <Setter Property="Background"
+                        Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
             </DataTrigger>
         </Style.Triggers>
@@ -226,6 +248,7 @@
     <Style x:Key="StationStateBadgeStyle"
            TargetType="Border"
            BasedOn="{StaticResource StateBadgeStyle}">
+        <Setter Property="Width" Value="210"/>
         <Setter Property="MinHeight" Value="42"/>
         <Setter Property="Padding" Value="10,7"/>
         <Style.Triggers>
@@ -235,27 +258,32 @@
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:StationDisplayState.HeatSinkDetected}">
-                <Setter Property="Background" Value="#1C2C25"/>
+                <Setter Property="Background"
+                        Value="{StaticResource ConfirmedStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:StationDisplayState.Working}">
-                <Setter Property="Background" Value="#1B2934"/>
+                <Setter Property="Background"
+                        Value="{StaticResource ActiveStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:StationDisplayState.CarrierOk}">
-                <Setter Property="Background" Value="#1C2C25"/>
+                <Setter Property="Background"
+                        Value="{StaticResource ConfirmedStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:StationDisplayState.CarrierNg}">
-                <Setter Property="Background" Value="#32191B"/>
+                <Setter Property="Background"
+                        Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="{x:Static ui:StationDisplayState.IoAlarm}">
-                <Setter Property="Background" Value="#32191B"/>
+                <Setter Property="Background"
+                        Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
             </DataTrigger>
         </Style.Triggers>
@@ -263,7 +291,7 @@
 
     <Style x:Key="PrimaryStateTextStyle"
            TargetType="TextBlock"
-           BasedOn="{StaticResource StateTextStyle}">
+           BasedOn="{StaticResource MapHintStyle}">
         <Setter Property="FontSize" Value="15"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
@@ -303,9 +331,9 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="CarrierJigStyle" TargetType="ContentControl">
-        <Setter Property="Width" Value="{StaticResource CarrierJigWidth}"/>
-        <Setter Property="Height" Value="{StaticResource CarrierJigHeight}"/>
+    <Style x:Key="CarrierStyle" TargetType="ContentControl">
+        <Setter Property="Width" Value="{StaticResource CarrierWidth}"/>
+        <Setter Property="Height" Value="{StaticResource CarrierHeight}"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         <Setter Property="VerticalContentAlignment" Value="Stretch"/>
         <Setter Property="Template">
@@ -345,14 +373,15 @@
         <Style.Triggers>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="True">
-                <Setter Property="Background" Value="#1B2934"/>
+                <Setter Property="Background"
+                        Value="{StaticResource ActiveStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                 <Setter Property="BorderThickness" Value="4"/>
             </DataTrigger>
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="LoadedBoltVisualStyle" TargetType="Ellipse">
+    <Style x:Key="VacuumDetectedVisualStyle" TargetType="Ellipse">
         <Setter Property="Width" Value="10"/>
         <Setter Property="Height" Value="10"/>
         <Setter Property="HorizontalAlignment" Value="Center"/>
@@ -369,9 +398,10 @@
         <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
         <Setter Property="FontSize" Value="10"/>
         <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Panel.ZIndex" Value="5"/>
     </Style>
 
-    <Style x:Key="WorkTargetStyle" TargetType="Border">
+    <Style x:Key="BoltTargetStyle" TargetType="Border">
         <Setter Property="Width" Value="20"/>
         <Setter Property="Height" Value="20"/>
         <Setter Property="CornerRadius" Value="10"/>
@@ -380,18 +410,18 @@
         <Setter Property="BorderThickness" Value="1"/>
         <Style.Triggers>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:WorkTargetState.Active}">
+                         Value="{x:Static ui:BoltTargetState.Active}">
                 <Setter Property="Background" Value="#1C3D61"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                 <Setter Property="BorderThickness" Value="2"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:WorkTargetState.Ok}">
+                         Value="{x:Static ui:BoltTargetState.Ok}">
                 <Setter Property="Background" Value="#244C32"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:WorkTargetState.Ng}">
+                         Value="{x:Static ui:BoltTargetState.Ng}">
                 <Setter Property="Background" Value="#542529"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
             </DataTrigger>
@@ -405,6 +435,8 @@
         <Setter Property="BorderBrush" Value="#61717E"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="2"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
     <Style x:Key="DownFootprintStyle" TargetType="Border">
@@ -446,7 +478,6 @@
            BasedOn="{StaticResource PcbFootprintStyle}">
         <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
     </Style>
 
     <Style x:Key="PcbSlotStyle" TargetType="Border">
@@ -457,6 +488,8 @@
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="1"/>
         <Setter Property="Opacity" Value="0.7"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
     </Style>
 
     <Style x:Key="LeftGripperJawStyle" TargetType="Border">
@@ -485,7 +518,6 @@
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="True">
                 <Setter Property="Margin" Value="0,0,11,4"/>
-                <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
             </DataTrigger>
         </Style.Triggers>
     </Style>
@@ -497,6 +529,7 @@
         <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="2"/>
+        <Setter Property="Panel.ZIndex" Value="1"/>
         <Style.Triggers>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="True">
@@ -514,6 +547,7 @@
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="1"/>
         <Setter Property="Opacity" Value="0.3"/>
+        <Setter Property="Panel.ZIndex" Value="3"/>
         <Style.Triggers>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="True">
@@ -543,7 +577,8 @@
            BasedOn="{StaticResource DeviceBodyStyle}">
         <Style.Triggers>
             <DataTrigger Binding="{Binding BufferConflict}" Value="True">
-                <Setter Property="Background" Value="#32191B"/>
+                <Setter Property="Background"
+                        Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
                 <Setter Property="BorderThickness" Value="2"/>
             </DataTrigger>

@@ -38,6 +38,25 @@
         <DataTemplate DataType="{x:Type training:BoltTrainingViewModel}">
             <training:BoltTrainingView/>
         </DataTemplate>
+        <Style x:Key="NavigationItemStyle"
+               TargetType="RadioButton"
+               BasedOn="{StaticResource NavButtonStyle}">
+            <Setter Property="GroupName" Value="Navigation"/>
+            <Setter Property="Content"
+                    Value="{Binding Tag, RelativeSource={RelativeSource Self},
+                                    Converter={StaticResource EnumDescriptionConverter}}"/>
+            <Setter Property="Command" Value="{Binding NavigateCommand}"/>
+            <Setter Property="CommandParameter"
+                    Value="{Binding Tag, RelativeSource={RelativeSource Self}}"/>
+        </Style>
+        <Style x:Key="SidebarToolButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Margin" Value="8,6,8,0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -67,14 +86,10 @@
                 </Border>
 
                 <StackPanel Grid.Row="1" Margin="0,8">
-                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.Operation},
-                                                   Converter={StaticResource EnumDescriptionConverter}}"
-                                 GroupName="Navigation"
-                                 Command="{Binding NavigateCommand}"
-                                 CommandParameter="{x:Static ui:AppPage.Operation}">
+                    <RadioButton Tag="{x:Static ui:AppPage.Operation}">
                         <RadioButton.Style>
                             <Style TargetType="RadioButton"
-                                   BasedOn="{StaticResource NavButtonStyle}">
+                                   BasedOn="{StaticResource NavigationItemStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}"
                                                  Value="{x:Static ui:AppPage.Operation}">
@@ -85,15 +100,11 @@
                         </RadioButton.Style>
                     </RadioButton>
 
-                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.SupplyTeaching},
-                                                   Converter={StaticResource EnumDescriptionConverter}}"
-                                 Margin="0,12,0,0"
-                                 GroupName="Navigation"
-                                 Command="{Binding NavigateCommand}"
-                                 CommandParameter="{x:Static ui:AppPage.SupplyTeaching}">
+                    <RadioButton Tag="{x:Static ui:AppPage.SupplyTeaching}"
+                                 Margin="0,12,0,0">
                         <RadioButton.Style>
                             <Style TargetType="RadioButton"
-                                   BasedOn="{StaticResource NavButtonStyle}">
+                                   BasedOn="{StaticResource NavigationItemStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}"
                                                  Value="{x:Static ui:AppPage.SupplyTeaching}">
@@ -104,14 +115,10 @@
                         </RadioButton.Style>
                     </RadioButton>
 
-                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.StationTeaching},
-                                                   Converter={StaticResource EnumDescriptionConverter}}"
-                                 GroupName="Navigation"
-                                 Command="{Binding NavigateCommand}"
-                                 CommandParameter="{x:Static ui:AppPage.StationTeaching}">
+                    <RadioButton Tag="{x:Static ui:AppPage.StationTeaching}">
                         <RadioButton.Style>
                             <Style TargetType="RadioButton"
-                                   BasedOn="{StaticResource NavButtonStyle}">
+                                   BasedOn="{StaticResource NavigationItemStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}"
                                                  Value="{x:Static ui:AppPage.StationTeaching}">
@@ -122,14 +129,10 @@
                         </RadioButton.Style>
                     </RadioButton>
 
-                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.BoltTraining},
-                                                   Converter={StaticResource EnumDescriptionConverter}}"
-                                 GroupName="Navigation"
-                                 Command="{Binding NavigateCommand}"
-                                 CommandParameter="{x:Static ui:AppPage.BoltTraining}">
+                    <RadioButton Tag="{x:Static ui:AppPage.BoltTraining}">
                         <RadioButton.Style>
                             <Style TargetType="RadioButton"
-                                   BasedOn="{StaticResource NavButtonStyle}">
+                                   BasedOn="{StaticResource NavigationItemStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}"
                                                  Value="{x:Static ui:AppPage.BoltTraining}">
@@ -140,14 +143,10 @@
                         </RadioButton.Style>
                     </RadioButton>
 
-                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.Settings},
-                                                   Converter={StaticResource EnumDescriptionConverter}}"
-                                 GroupName="Navigation"
-                                 Command="{Binding NavigateCommand}"
-                                 CommandParameter="{x:Static ui:AppPage.Settings}">
+                    <RadioButton Tag="{x:Static ui:AppPage.Settings}">
                         <RadioButton.Style>
                             <Style TargetType="RadioButton"
-                                   BasedOn="{StaticResource NavButtonStyle}">
+                                   BasedOn="{StaticResource NavigationItemStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}"
                                                  Value="{x:Static ui:AppPage.Settings}">
@@ -158,15 +157,11 @@
                         </RadioButton.Style>
                     </RadioButton>
 
-                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.ManualHardware},
-                                                   Converter={StaticResource EnumDescriptionConverter}}"
-                                 Margin="0,12,0,0"
-                                 GroupName="Navigation"
-                                 Command="{Binding NavigateCommand}"
-                                 CommandParameter="{x:Static ui:AppPage.ManualHardware}">
+                    <RadioButton Tag="{x:Static ui:AppPage.ManualHardware}"
+                                 Margin="0,12,0,0">
                         <RadioButton.Style>
                             <Style TargetType="RadioButton"
-                                   BasedOn="{StaticResource NavButtonStyle}">
+                                   BasedOn="{StaticResource NavigationItemStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}"
                                                  Value="{x:Static ui:AppPage.ManualHardware}">
@@ -179,27 +174,16 @@
 
                     <Button Content="INPUTS"
                             Margin="8,8,8,0"
-                            Padding="12,6"
-                            Height="36"
-                            HorizontalContentAlignment="Left"
-                            Style="{StaticResource SecondaryButtonStyle}"
+                            Style="{StaticResource SidebarToolButtonStyle}"
                             Click="OnOpenInputs"/>
 
                     <Button Content="OUTPUTS"
-                            Margin="8,6,8,0"
-                            Padding="12,6"
-                            Height="36"
-                            HorizontalContentAlignment="Left"
-                            Style="{StaticResource SecondaryButtonStyle}"
+                            Style="{StaticResource SidebarToolButtonStyle}"
                             IsEnabled="{Binding ManualControlsEnabled}"
                             Click="OnOpenOutputs"/>
 
                     <Button Content="ADC TEST"
-                            Margin="8,6,8,0"
-                            Padding="12,6"
-                            Height="36"
-                            HorizontalContentAlignment="Left"
-                            Style="{StaticResource SecondaryButtonStyle}"
+                            Style="{StaticResource SidebarToolButtonStyle}"
                             IsEnabled="{Binding ManualControlsEnabled}"
                             Click="OnOpenAdcProtocol"/>
                 </StackPanel>
@@ -209,9 +193,9 @@
 
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
-                <RowDefinition Height="72"/>
+                <RowDefinition Height="64"/>
                 <RowDefinition Height="*"/>
-                <RowDefinition Height="72"/>
+                <RowDefinition Height="64"/>
             </Grid.RowDefinitions>
 
             <Border Background="{StaticResource PanelBgBrush}"
@@ -257,7 +241,7 @@
                             <TextBlock FontWeight="SemiBold">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock"
-                                           BasedOn="{StaticResource StateTextStyle}">
+                                           BasedOn="{StaticResource MapHintStyle}">
                                         <Setter Property="Text" Value="MANUAL"/>
                                         <Setter Property="Foreground"
                                                 Value="{StaticResource AccentAmberBrush}"/>
@@ -273,32 +257,25 @@
                                 </TextBlock.Style>
                             </TextBlock>
                         </Border>
-                        <Border Tag="{Binding Environment}">
+                        <Border>
                             <Border.Style>
                                 <Style TargetType="Border"
                                        BasedOn="{StaticResource StateBadgeStyle}">
-                                    <Setter Property="Opacity" Value="0.55"/>
+                                    <Setter Property="BorderBrush"
+                                            Value="{StaticResource AccentAmberBrush}"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Tag,
-                                                                      RelativeSource={RelativeSource Self}}"
-                                                     Value="{x:Static ui:MachineEnvironmentDisplay.Mixed}">
-                                            <Setter Property="Opacity" Value="1"/>
+                                        <DataTrigger Binding="{Binding Environment}"
+                                                     Value="{x:Static ui:MachineEnvironmentDisplay.Physical}">
+                                            <Setter Property="Opacity" Value="0.55"/>
                                             <Setter Property="BorderBrush"
-                                                    Value="{StaticResource AccentAmberBrush}"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding Tag,
-                                                                      RelativeSource={RelativeSource Self}}"
-                                                     Value="{x:Static ui:MachineEnvironmentDisplay.Virtual}">
-                                            <Setter Property="Opacity" Value="1"/>
-                                            <Setter Property="BorderBrush"
-                                                    Value="{StaticResource AccentAmberBrush}"/>
+                                                    Value="{StaticResource CardBorderBrush}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Border.Style>
                             <TextBlock Text="{Binding Environment,
                                                      Converter={StaticResource EnumDescriptionConverter}}"
-                                       Style="{StaticResource StateTextStyle}"/>
+                                       Style="{StaticResource MapHintStyle}"/>
                         </Border>
                         <Border Style="{StaticResource StateBadgeStyle}"
                                 Margin="8,0,0,0"
@@ -366,15 +343,15 @@
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                            <Ellipse Tag="{Binding Operation.ServoReady}"
-                                     Style="{StaticResource ReadinessLedStyle}"/>
+                            <Ellipse Tag="{Binding Operation.ServoPowerOn}"
+                                     Style="{StaticResource SetupLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock"
-                                           BasedOn="{StaticResource SafetyTextStyle}">
+                                           BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="SERVO OFF"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.ServoReady}"
+                                            <DataTrigger Binding="{Binding Operation.ServoPowerOn}"
                                                          Value="True">
                                                 <Setter Property="Text" Value="SERVO ON"/>
                                             </DataTrigger>
@@ -385,11 +362,11 @@
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                             <Ellipse Tag="{Binding Operation.Homed}"
-                                     Style="{StaticResource ReadinessLedStyle}"/>
+                                     Style="{StaticResource SetupLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock"
-                                           BasedOn="{StaticResource SafetyTextStyle}">
+                                           BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="NOT HOMED"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Operation.Homed}"
@@ -403,11 +380,11 @@
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                             <Ellipse Tag="{Binding Operation.EmergencyStopReleased}"
-                                     Style="{StaticResource StatusLedStyle}"/>
+                                     Style="{StaticResource SafetyLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock"
-                                           BasedOn="{StaticResource SafetyTextStyle}">
+                                           BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="E-STOP PRESSED"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Operation.EmergencyStopReleased}"
@@ -421,11 +398,11 @@
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
                             <Ellipse Tag="{Binding Operation.DoorClosed}"
-                                     Style="{StaticResource StatusLedStyle}"/>
+                                     Style="{StaticResource SafetyLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock"
-                                           BasedOn="{StaticResource SafetyTextStyle}">
+                                           BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="DOORS OPEN"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Operation.DoorClosed}"
@@ -439,11 +416,11 @@
                         </StackPanel>
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Tag="{Binding Operation.AirPressureOk}"
-                                     Style="{StaticResource StatusLedStyle}"/>
+                                     Style="{StaticResource SafetyLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock"
-                                           BasedOn="{StaticResource SafetyTextStyle}">
+                                           BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="AIR LOW"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Operation.AirPressureOk}"
@@ -503,101 +480,83 @@
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center">
-                    <Button Content="HOME ALL"
-                            Command="{Binding Operation.HomeCommand}"
-                            MinWidth="104"
-                            Height="40"
-                            Margin="0,0,6,0">
-                        <Button.Style>
-                            <Style TargetType="Button"
-                                   BasedOn="{StaticResource PrimaryButtonStyle}">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <MultiDataTrigger>
-                                        <MultiDataTrigger.Conditions>
-                                            <Condition Binding="{Binding OperationPageSelected}"
-                                                       Value="True"/>
-                                            <Condition Binding="{Binding Operation.MachineDisplayState}"
-                                                       Value="{x:Static ui:MachineDisplayState.HomeRequired}"/>
-                                        </MultiDataTrigger.Conditions>
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </MultiDataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-                    <Button Content="STOP HOME"
-                            Command="{Binding Operation.StopHomeCommand}"
-                            MinWidth="104"
-                            Height="40"
-                            Margin="0,0,6,0">
-                        <Button.Style>
-                            <Style TargetType="Button"
-                                   BasedOn="{StaticResource SecondaryButtonStyle}">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <MultiDataTrigger>
-                                        <MultiDataTrigger.Conditions>
-                                            <Condition Binding="{Binding OperationPageSelected}"
-                                                       Value="True"/>
-                                            <Condition Binding="{Binding Operation.IsHoming}"
-                                                       Value="True"/>
-                                        </MultiDataTrigger.Conditions>
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </MultiDataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-                    <Button Content="START"
-                            Command="{Binding Operation.StartCommand}"
-                            ToolTip="{Binding Operation.StartBlock,
-                                              Converter={StaticResource EnumDescriptionConverter}}"
-                            MinWidth="144"
-                            Height="48"
-                            Margin="0,0,8,0"
-                            Visibility="{Binding OperationPageSelected,
-                                                 Converter={StaticResource BoolToVis}}">
-                        <Button.Style>
-                            <Style TargetType="Button"
-                                   BasedOn="{StaticResource SecondaryButtonStyle}">
-                                <Style.Triggers>
-                                    <MultiDataTrigger>
-                                        <MultiDataTrigger.Conditions>
-                                            <Condition Binding="{Binding Operation.MachineDisplayState}"
-                                                       Value="{x:Static ui:MachineDisplayState.Ready}"/>
-                                            <Condition Binding="{Binding Operation.StartBlocked}"
-                                                       Value="False"/>
-                                        </MultiDataTrigger.Conditions>
-                                        <Setter Property="Background"
-                                                Value="{StaticResource AccentBlueBrush}"/>
-                                        <Setter Property="BorderBrush"
-                                                 Value="{StaticResource AccentBlueBrush}"/>
-                                        <Setter Property="Foreground" Value="White"/>
-                                    </MultiDataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-                    <Button Content="STOP"
-                            Command="{Binding Operation.StopCommand}"
-                            MinWidth="144"
-                            Height="48">
-                        <Button.Style>
-                            <Style TargetType="Button"
-                                   BasedOn="{StaticResource SecondaryButtonStyle}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Operation.MachineDisplayState}"
-                                                 Value="{x:Static ui:MachineDisplayState.Running}">
-                                        <Setter Property="Background" Value="#59431C"/>
-                                        <Setter Property="BorderBrush"
-                                                Value="{StaticResource AccentAmberBrush}"/>
-                                        <Setter Property="Foreground" Value="White"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding OperationPageSelected,
+                                                         Converter={StaticResource BoolToVis}}">
+                            <Button Content="HOME ALL"
+                                    Command="{Binding Operation.HomeCommand}"
+                                    MinWidth="104"
+                                    Height="40"
+                                    Margin="0,0,6,0">
+                                <Button.Style>
+                                    <Style TargetType="Button"
+                                           BasedOn="{StaticResource PrimaryButtonStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Operation.MachineDisplayState}"
+                                                         Value="{x:Static ui:MachineDisplayState.HomeRequired}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button Content="STOP HOME"
+                                    Command="{Binding Operation.StopHomeCommand}"
+                                    MinWidth="104"
+                                    Height="40"
+                                    Margin="0,0,6,0"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Visibility="{Binding Operation.IsHoming,
+                                                         Converter={StaticResource BoolToVis}}"/>
+                            <Button Content="START"
+                                    Command="{Binding Operation.StartCommand}"
+                                    ToolTip="{Binding Operation.StartBlock,
+                                                      Converter={StaticResource EnumDescriptionConverter}}"
+                                    MinWidth="144"
+                                    Height="48"
+                                    Margin="0,0,8,0">
+                                <Button.Style>
+                                    <Style TargetType="Button"
+                                           BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding Operation.MachineDisplayState}"
+                                                               Value="{x:Static ui:MachineDisplayState.Ready}"/>
+                                                    <Condition Binding="{Binding Operation.StartBlocked}"
+                                                               Value="False"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Background"
+                                                        Value="{StaticResource AccentBlueBrush}"/>
+                                                <Setter Property="BorderBrush"
+                                                        Value="{StaticResource AccentBlueBrush}"/>
+                                                <Setter Property="Foreground" Value="White"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </StackPanel>
+                        <Button Content="STOP"
+                                Command="{Binding Operation.StopCommand}"
+                                MinWidth="144"
+                                Height="48">
+                            <Button.Style>
+                                <Style TargetType="Button"
+                                       BasedOn="{StaticResource SecondaryButtonStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Operation.MachineDisplayState}"
+                                                     Value="{x:Static ui:MachineDisplayState.Running}">
+                                            <Setter Property="Background" Value="#59431C"/>
+                                            <Setter Property="BorderBrush"
+                                                    Value="{StaticResource AccentAmberBrush}"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                     </StackPanel>
                 </Grid>
             </Border>

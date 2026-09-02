@@ -30,6 +30,12 @@ public sealed class AjinMotionService(
     private const uint HomeSuccess = 0x01;
     private const uint HomeSearching = 0x02;
     private const uint HomeUnknown = 0xFF;
+    private const int PositiveLimitBit = 0;
+    private const int NegativeLimitBit = 1;
+    private const int AlarmBit = 4;
+    private const int InPositionBit = 5;
+    private const int EmergencyBit = 6;
+    private const int HomeSensorBit = 7;
     private static readonly TimeSpan StatusPollInterval = TimeSpan.FromMilliseconds(10);
 
     private readonly int _axisX = axisX.Number;
@@ -108,17 +114,18 @@ public sealed class AjinMotionService(
         var velocityX = velocityInUnits * distanceX / totalDistance;
         var velocityY = velocityInUnits * distanceY / totalDistance;
         var accelerationMultiplier = controller.Settings.AccelerationMultiplier;
+        var axes = new[] { _axisX, axisYNumber };
 
         return RunMoveAsync(
             () => AjinNative.AxmMoveMultiPos(
-                2,
-                [_axisX, axisYNumber],
+                axes.Length,
+                axes,
                 [ToUnits(x * _directionX), ToUnits(y * _directionY)],
                 [velocityX, velocityY],
                 [velocityX * accelerationMultiplier, velocityY * accelerationMultiplier],
                 [velocityX * accelerationMultiplier, velocityY * accelerationMultiplier]),
             nameof(AjinNative.AxmMoveMultiPos),
-            [_axisX, axisYNumber],
+            axes,
             cancellationToken);
     }
 
@@ -170,7 +177,9 @@ public sealed class AjinMotionService(
                 ref negativeLevel),
             nameof(AjinNative.AxmSignalGetLimit));
 
-        var detectSignal = _directionZ > 0 ? 0 : 1;
+        var detectSignal = _directionZ > 0
+            ? PositiveLimitBit
+            : NegativeLimitBit;
         var signalEdge = _directionZ > 0
             ? positiveLevel
             : negativeLevel;
@@ -259,12 +268,16 @@ public sealed class AjinMotionService(
         return new AxisState(
             Homed: homeResult == HomeSuccess,
             ServoOn: servoOn != 0,
-            Alarm: Bit(mechanical, 4),
-            InPosition: Bit(mechanical, 5),
-            Emergency: Bit(mechanical, 6),
-            HomeSensor: Bit(mechanical, 7),
-            PositiveLimit: Bit(mechanical, direction > 0 ? 0 : 1),
-            NegativeLimit: Bit(mechanical, direction > 0 ? 1 : 0));
+            Alarm: Bit(mechanical, AlarmBit),
+            InPosition: Bit(mechanical, InPositionBit),
+            Emergency: Bit(mechanical, EmergencyBit),
+            HomeSensor: Bit(mechanical, HomeSensorBit),
+            PositiveLimit: Bit(
+                mechanical,
+                direction > 0 ? PositiveLimitBit : NegativeLimitBit),
+            NegativeLimit: Bit(
+                mechanical,
+                direction > 0 ? NegativeLimitBit : PositiveLimitBit));
     }
 
     protected override async Task<bool> HomeCoreAsync(
@@ -283,11 +296,15 @@ public sealed class AjinMotionService(
             AjinNative.AxmHomeSetVel(
                 axisNumber,
                 velocityInUnits,
-                velocityInUnits / 5,
-                velocityInUnits / 10,
-                velocityInUnits / 100,
+                velocityInUnits
+                * controller.Settings.HomeSecondVelocityRatio,
+                velocityInUnits
+                * controller.Settings.HomeThirdVelocityRatio,
+                velocityInUnits
+                * controller.Settings.HomeLastVelocityRatio,
                 velocityInUnits,
-                velocityInUnits / 10),
+                velocityInUnits
+                * controller.Settings.HomeSecondAccelerationRatio),
             nameof(AjinNative.AxmHomeSetVel));
         AjinController.Check(
             AjinNative.AxmHomeSetStart(axisNumber),
@@ -308,6 +325,7 @@ public sealed class AjinMotionService(
                 AjinController.Check(
                     AjinNative.AxmHomeGetResult(axisNumber, ref result),
                     nameof(AjinNative.AxmHomeGetResult));
+                PublishPosition();
 
                 if (result == HomeSuccess)
                 {
@@ -348,7 +366,7 @@ public sealed class AjinMotionService(
         return result[0] && result[1];
     }
 
-    public override void ResetAlarm()
+    protected override void ResetAlarm()
     {
         foreach (var axis in _axes)
         {
@@ -416,9 +434,9 @@ public sealed class AjinMotionService(
                                 ref mechanical),
                             nameof(AjinNative.AxmStatusReadMechanical));
                         moving |= inMotion != 0;
-                        inPosition &= Bit(mechanical, 5);
-                        faulted |= Bit(mechanical, 4)
-                                   || Bit(mechanical, 6);
+                        inPosition &= Bit(mechanical, InPositionBit);
+                        faulted |= Bit(mechanical, AlarmBit)
+                                   || Bit(mechanical, EmergencyBit);
                     }
 
                     PublishPosition();
@@ -503,6 +521,7 @@ public sealed class AjinMotionService(
         {
             EndMotion();
             monitor.Dispose();
+            PublishPosition();
         }
     }
 

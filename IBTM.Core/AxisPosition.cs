@@ -1,6 +1,6 @@
 namespace IBTM.Core;
 
-public sealed class AxisPos
+public sealed class AxisPosition
 {
     public double X { get; set; }
     public double Y { get; set; }

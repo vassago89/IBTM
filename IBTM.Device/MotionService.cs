@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace IBTM.Device;
 
-public interface IAxisMotion
+public interface IMotionFeedback
 {
     event Action<double, double, double>? PositionChanged;
     event Action<bool>? MovingChanged;
@@ -19,6 +19,13 @@ public interface IAxisMotion
     bool IsMoving { get; }
     bool IsAtHorizontalZ { get; }
 
+    (double X, double Y, double Z) GetPosition();
+    (double Minimum, double Maximum)? GetRange(MotionAxis axis);
+    AxisState GetAxisState(MotionAxis axis);
+}
+
+public interface IAxisMotion : IMotionFeedback
+{
     void Initialize();
     Task MoveXAsync(
         double x,
@@ -52,10 +59,8 @@ public interface IAxisMotion
     void JogX(double velocity, CancellationToken cancellationToken = default);
     void JogY(double velocity, CancellationToken cancellationToken = default);
     void JogZ(double velocity, CancellationToken cancellationToken = default);
+    void Reset();
     void SetServo(MotionAxis axis, bool on);
-    (double X, double Y, double Z) GetPosition();
-    AxisState GetAxisState(MotionAxis axis);
-    void ResetAlarm();
 }
 
 public interface IXyMotion : IAxisMotion
@@ -85,7 +90,7 @@ public abstract class MotionService(
     (double Minimum, double Maximum)? yRange = null,
     (double Minimum, double Maximum)? zRange = null) : IXyMotion
 {
-    private const double PositionTolerance = 0.05;
+    public const double PositionToleranceMillimeters = 0.05;
 
     private readonly MotionAxis[] _axes = (hasY, hasZ) switch
     {
@@ -113,7 +118,8 @@ public abstract class MotionService(
     public bool IsAtHorizontalZ =>
         !hasZ
         || GetAxisState(MotionAxis.Z).Homed
-        && Math.Abs(GetPosition().Z - HorizontalZ) <= PositionTolerance;
+        && Math.Abs(GetPosition().Z - HorizontalZ)
+            <= PositionToleranceMillimeters;
 
     public abstract void Initialize();
 
@@ -193,7 +199,8 @@ public abstract class MotionService(
         ValidateTarget(MotionAxis.Z, clearZ);
         EnsureStopped();
         if (!GetAxisState(MotionAxis.Z).Homed
-            || Math.Abs(GetPosition().Z - clearZ) > PositionTolerance)
+            || Math.Abs(GetPosition().Z - clearZ)
+                > PositionToleranceMillimeters)
         {
             throw new InvalidOperationException(
                 $"X movement requires Z at Clear Z ({clearZ:F3}).");
@@ -378,7 +385,16 @@ public abstract class MotionService(
         return await HomeHorizontalCoreAsync(velocity, cancellationToken);
     }
 
-    public abstract void ResetAlarm();
+    protected abstract void ResetAlarm();
+
+    public void Reset()
+    {
+        ResetAlarm();
+        foreach (var axis in _axes)
+        {
+            SetServo(axis, true);
+        }
+    }
 
     protected abstract Task MoveXYCoreAsync(
         double x,
@@ -508,7 +524,7 @@ public abstract class MotionService(
         }
     }
 
-    protected (double Minimum, double Maximum)? GetRange(MotionAxis axis) =>
+    public (double Minimum, double Maximum)? GetRange(MotionAxis axis) =>
         axis switch
         {
             MotionAxis.X => xRange,

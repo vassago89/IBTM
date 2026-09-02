@@ -4,8 +4,8 @@ namespace IBTM.PcbPlacement;
 
 public enum PcbPlacementState
 {
-    [Description("Waiting for PCB")]
-    WaitingForPcb,
+    [Description("Waiting for Buffer PCB")]
+    WaitingForBufferPcb,
 
     [Description("Raising Handler")]
     RaisingHandler,

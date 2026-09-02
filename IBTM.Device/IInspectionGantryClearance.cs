@@ -6,5 +6,5 @@ public interface IInspectionGantryClearance
 {
     event Action? Changed;
 
-    bool Available { get; }
+    bool IsClear { get; }
 }

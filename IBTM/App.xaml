@@ -1,7 +1,7 @@
 <Application x:Class="IBTM.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:ui="clr-namespace:IBTM.UI"
+             xmlns:sys="clr-namespace:System;assembly=System.Runtime"
              ThemeMode="Dark">
     <Application.Resources>
         <ResourceDictionary>
@@ -11,7 +11,11 @@
                 <ResourceDictionary Source="UI/IoWindowStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="BoolToVis"/>
-            <ui:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
+            <x:Array x:Key="TeachingJogSpeeds" Type="{x:Type sys:Double}">
+                <sys:Double>1</sys:Double>
+                <sys:Double>10</sys:Double>
+                <sys:Double>50</sys:Double>
+            </x:Array>
             <DrawingImage x:Key="AppIcon">
                 <DrawingImage.Drawing>
                     <DrawingGroup>
@@ -26,9 +30,6 @@
                     </DrawingGroup>
                 </DrawingImage.Drawing>
             </DrawingImage>
-            <DataTemplate x:Key="EnumItemTemplate">
-                <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/>
-            </DataTemplate>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

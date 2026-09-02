@@ -3,7 +3,7 @@ using System.ComponentModel;
 
 namespace IBTM.Core;
 
-public enum PcbResult
+public enum AssemblyResult
 {
     [Description("Pending")]
     Pending,
@@ -15,23 +15,23 @@ public enum PcbResult
     Ng,
 }
 
-public sealed class PcbAssembly(HeatSinkSlot heatSink)
+public sealed class HeatSinkAssembly(HeatSinkSlot heatSink)
 {
     public HeatSinkSlot HeatSink { get; } = heatSink;
     public Dictionary<int, BoltResult> PcbBoltResults { get; } = [];
     public Dictionary<int, BoltResult> IpmSeatingResults { get; } = [];
     public Dictionary<int, BoltResult> IpmFinalResults { get; } = [];
     public Dictionary<int, bool> BoltPresenceResults { get; } = [];
-    public PcbResult FasteningResult { get; private set; }
-    public PcbResult InspectionResult { get; private set; }
+    public AssemblyResult FasteningResult { get; private set; }
+    public AssemblyResult InspectionResult { get; private set; }
 
-    public PcbResult Result =>
-        FasteningResult == PcbResult.Ng
-        || InspectionResult == PcbResult.Ng
-            ? PcbResult.Ng
-            : InspectionResult == PcbResult.Ok
-                ? PcbResult.Ok
-                : PcbResult.Pending;
+    public AssemblyResult Result =>
+        (FasteningResult, InspectionResult) switch
+        {
+            (AssemblyResult.Ng, _) or (_, AssemblyResult.Ng) => AssemblyResult.Ng,
+            (_, AssemblyResult.Ok) => AssemblyResult.Ok,
+            _ => AssemblyResult.Pending,
+        };
 
     public void RecordPcbBolt(int number, BoltResult result) =>
         Record(PcbBoltResults, number, result);
@@ -50,15 +50,15 @@ public sealed class PcbAssembly(HeatSinkSlot heatSink)
         results[number] = result;
         if (!result.Success)
         {
-            FasteningResult = PcbResult.Ng;
+            FasteningResult = AssemblyResult.Ng;
         }
     }
 
     public void CompleteFastening()
     {
-        if (FasteningResult != PcbResult.Ng)
+        if (FasteningResult != AssemblyResult.Ng)
         {
-            FasteningResult = PcbResult.Ok;
+            FasteningResult = AssemblyResult.Ok;
         }
     }
 
@@ -67,7 +67,7 @@ public sealed class PcbAssembly(HeatSinkSlot heatSink)
         PcbBoltResults.Clear();
         IpmSeatingResults.Clear();
         IpmFinalResults.Clear();
-        FasteningResult = PcbResult.Pending;
+        FasteningResult = AssemblyResult.Pending;
     }
 
     public void RecordBoltPresence(int number, bool present)
@@ -75,21 +75,21 @@ public sealed class PcbAssembly(HeatSinkSlot heatSink)
         BoltPresenceResults[number] = present;
         if (!present)
         {
-            InspectionResult = PcbResult.Ng;
+            InspectionResult = AssemblyResult.Ng;
         }
     }
 
     public void ResetInspection()
     {
         BoltPresenceResults.Clear();
-        InspectionResult = PcbResult.Pending;
+        InspectionResult = AssemblyResult.Pending;
     }
 
     public void CompleteInspection()
     {
-        if (InspectionResult != PcbResult.Ng)
+        if (InspectionResult != AssemblyResult.Ng)
         {
-            InspectionResult = PcbResult.Ok;
+            InspectionResult = AssemblyResult.Ok;
         }
     }
 }

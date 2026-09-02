@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -9,14 +8,11 @@ using IBTM.Device;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.UI;
 
-public partial class SupplyTeachingViewModel : ObservableObject
+public partial class SupplyTeachingViewModel : TeachingMotionViewModel
 {
-    private readonly IAxisMotion _supplyMotion;
-    private readonly IXyMotion _placementMotion;
     private readonly PcbSupplyHandler _supplyHandler;
     private readonly PcbPlacementHandler _placementHandler;
     private readonly BufferStage _buffer;
@@ -27,11 +23,6 @@ public partial class SupplyTeachingViewModel : ObservableObject
     private readonly TeachingPointMapper _pointMapper;
     private readonly bool _supplyEnabled;
     private readonly bool _placementEnabled;
-    private CancellationTokenSource _motionCancellation = new();
-    private int _positionRefreshQueued;
-
-    [ObservableProperty] private double _jogSpeed = 10.0;
-
     [ObservableProperty]
     private IReadOnlyList<TeachingPoint> _points = [];
 
@@ -41,8 +32,6 @@ public partial class SupplyTeachingViewModel : ObservableObject
     private TeachingPoint? _selectedPoint;
 
     public SupplyTeachingViewModel(
-        [FromKeyedServices(MotionGroup.PcbSupply)] IAxisMotion supplyMotion,
-        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] IXyMotion placementMotion,
         PcbSupplyHandler supplyHandler,
         PcbPlacementHandler placementHandler,
         BufferStage buffer,
@@ -54,8 +43,6 @@ public partial class SupplyTeachingViewModel : ObservableObject
         TeachingPointMapper pointMapper,
         UnitSettings units)
     {
-        _supplyMotion = supplyMotion;
-        _placementMotion = placementMotion;
         _supplyHandler = supplyHandler;
         _placementHandler = placementHandler;
         _buffer = buffer;
@@ -68,15 +55,19 @@ public partial class SupplyTeachingViewModel : ObservableObject
         _placementEnabled = units.PcbPlacement;
         RecipeEditor = recipeEditor;
 
-        supplyMotion.PositionChanged +=
-            (_, _, _) => ApplyPosition(MotionGroup.PcbSupply);
-        placementMotion.PositionChanged +=
-            (_, _, _) => ApplyPosition(MotionGroup.PcbPlacementHandler);
-        supplyMotion.MovingChanged += OnMotionChanged;
-        placementMotion.MovingChanged += OnMotionChanged;
+        supplyHandler.Feedback.PositionChanged += (x, y, z) =>
+            QueuePositionRefresh(MotionGroup.PcbSupply, x, y, z);
+        placementHandler.Feedback.PositionChanged += (x, y, z) =>
+            QueuePositionRefresh(
+                MotionGroup.PcbPlacementHandler,
+                x,
+                y,
+                z);
+        supplyHandler.Feedback.MovingChanged += QueueManualCommandRefresh;
+        placementHandler.Feedback.MovingChanged += QueueManualCommandRefresh;
         supplyHandler.Changed += OnHandlerChanged;
         placementHandler.Changed += OnHandlerChanged;
-        buffer.StateChanged += OnBufferChanged;
+        buffer.StateChanged += QueueManualCommandRefresh;
         recipeEditor.Changed += BuildPoints;
 
         BuildPoints();
@@ -85,17 +76,13 @@ public partial class SupplyTeachingViewModel : ObservableObject
     public RecipeEditor RecipeEditor { get; }
     public bool SupplyEnabled => _supplyEnabled;
     public bool PlacementEnabled => _placementEnabled;
-    public double[] JogSpeeds { get; } = [1.0, 10.0, 50.0];
-    public double CurrentX => CurrentMotion.GetPosition().X;
-    public double CurrentY => CurrentMotion.GetPosition().Y;
-    public double CurrentZ => CurrentMotion.GetPosition().Z;
     private Recipe CurrentRecipe => RecipeEditor.Recipe;
 
     [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
     private async Task TeachCurrentPositionAsync()
     {
         var point = SelectedPoint!;
-        var current = CurrentMotion.GetPosition();
+        var current = CurrentPosition();
         point.Teach(current.X, current.Y, current.Z);
 
         if (IsBuffer(point))
@@ -136,12 +123,13 @@ public partial class SupplyTeachingViewModel : ObservableObject
     {
         RecipeEditor.Refresh();
         BuildPoints();
-        RefreshPosition();
+        ActivatePositionUpdates();
         RefreshActuators();
     }
 
     public void Deactivate()
     {
+        DeactivatePositionUpdates();
         MoveToHorizontalZCommand.Cancel();
         MoveToPointCommand.Cancel();
         ToggleActuatorCommand.Cancel();
@@ -170,11 +158,4 @@ public partial class SupplyTeachingViewModel : ObservableObject
             or TeachingTarget.PlacementBufferBoundary1
             or TeachingTarget.PlacementBufferBoundary2;
 
-    private void OnBufferChanged() =>
-        System.Windows.Application.Current.Dispatcher.BeginInvoke(
-            NotifyManualTeachingCommands);
-
-    private void OnMotionChanged(bool _) =>
-        System.Windows.Application.Current.Dispatcher.BeginInvoke(
-            NotifyManualTeachingCommands);
 }

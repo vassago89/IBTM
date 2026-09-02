@@ -9,8 +9,6 @@ namespace IBTM.PcbPlacement;
 
 public sealed class PcbPlacementHandler : IBufferPlacementState
 {
-    private const double PositionTolerance = 0.05;
-
     private readonly IXyMotion _motion;
     private readonly IIoService _io;
     private readonly PcbPlacementHandlerSettings _settings;
@@ -23,10 +21,14 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         _motion = motion;
         _io = io;
         _settings = settings;
+        Motion = new(motion);
         io.InputChanged += OnInputChanged;
     }
 
     public event Action? Changed;
+
+    public MotionStatus Motion { get; }
+    public IMotionFeedback Feedback => _motion;
 
     public PlacementCylinderState Handler => CylinderState(
         InputIo.PcbPlacementHandlerUp,
@@ -82,17 +84,40 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
     public bool AtBufferZ =>
         IsAtZ(_settings.BufferHandoffPosition);
 
-    public bool IsAtXY(AxisPos position) =>
+    public void InitializeMotion() => _motion.Initialize();
+
+    public void ResetMotion() => _motion.Reset();
+
+    public void SetServo(MotionAxis axis, bool on) =>
+        _motion.SetServo(axis, on);
+
+    public Task<bool> HomeAxisAsync(
+        MotionAxis axis,
+        double velocity,
+        CancellationToken cancellationToken = default) =>
+        _motion.HomeAsync(axis, velocity, cancellationToken);
+
+    public Task<bool> HomeZAsync(
+        double velocity,
+        CancellationToken cancellationToken = default) =>
+        _motion.HomeAsync(MotionAxis.Z, velocity, cancellationToken);
+
+    public Task<bool> HomeHorizontalAsync(
+        double velocity,
+        CancellationToken cancellationToken = default) =>
+        _motion.HomeHorizontalAsync(velocity, cancellationToken);
+
+    public bool IsAtXY(AxisPosition position) =>
         !_motion.IsMoving
         && _motion.GetAxisState(MotionAxis.X).InPosition
         && _motion.GetAxisState(MotionAxis.Y).InPosition
         && IsAtXY(_motion.GetPosition(), position);
 
-    public bool IsAtZ(AxisPos position) =>
+    public bool IsAtZ(AxisPosition position) =>
         !_motion.IsMoving
         && _motion.GetAxisState(MotionAxis.Z).InPosition
         && Math.Abs(_motion.GetPosition().Z - position.Z)
-            <= PositionTolerance;
+            <= MotionService.PositionToleranceMillimeters;
 
     public Task MoveToHorizontalZAsync(
         CancellationToken cancellationToken = default) =>
@@ -111,7 +136,7 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             cancellationToken);
 
     public Task MoveAboveAsync(
-        AxisPos position,
+        AxisPosition position,
         CancellationToken cancellationToken = default) =>
         _motion.MoveToXYAsync(
             position.X,
@@ -120,12 +145,72 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             cancellationToken);
 
     public Task LowerToAsync(
-        AxisPos position,
+        AxisPosition position,
         CancellationToken cancellationToken = default) =>
         _motion.MoveZAsync(
             position.Z,
             _settings.Motion.ZSpeed,
             cancellationToken);
+
+    public Task MoveXAsync(
+        double x,
+        CancellationToken cancellationToken = default) =>
+        _motion.MoveXAsync(
+            x,
+            _settings.Motion.HorizontalSpeed,
+            cancellationToken);
+
+    public Task MoveYAsync(
+        double y,
+        CancellationToken cancellationToken = default) =>
+        _motion.MoveYAsync(
+            y,
+            _settings.Motion.HorizontalSpeed,
+            cancellationToken);
+
+    public Task MoveZAsync(
+        double z,
+        CancellationToken cancellationToken = default) =>
+        _motion.MoveZAsync(
+            z,
+            _settings.Motion.ZSpeed,
+            cancellationToken);
+
+    public Task MoveToXYAsync(
+        double x,
+        double y,
+        CancellationToken cancellationToken = default) =>
+        _motion.MoveToXYAsync(
+            x,
+            y,
+            _settings.Motion.HorizontalSpeed,
+            cancellationToken);
+
+    public Task MoveToAsync(
+        double x,
+        double y,
+        double z,
+        CancellationToken cancellationToken = default) =>
+        _motion.MoveToAsync(x, y, z, cancellationToken);
+
+    public void Jog(
+        MotionAxis axis,
+        double velocity,
+        CancellationToken cancellationToken = default)
+    {
+        switch (axis)
+        {
+            case MotionAxis.X:
+                _motion.JogX(velocity, cancellationToken);
+                break;
+            case MotionAxis.Y:
+                _motion.JogY(velocity, cancellationToken);
+                break;
+            case MotionAxis.Z:
+                _motion.JogZ(velocity, cancellationToken);
+                break;
+        }
+    }
 
     public Task SetHandlerDownAsync(
         bool down,
@@ -207,7 +292,9 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
 
     private static bool IsAtXY(
         (double X, double Y, double Z) current,
-        AxisPos position) =>
-        Math.Abs(current.X - position.X) <= PositionTolerance
-        && Math.Abs(current.Y - position.Y) <= PositionTolerance;
+        AxisPosition position) =>
+        Math.Abs(current.X - position.X)
+            <= MotionService.PositionToleranceMillimeters
+        && Math.Abs(current.Y - position.Y)
+            <= MotionService.PositionToleranceMillimeters;
 }

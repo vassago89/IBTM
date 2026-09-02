@@ -8,5 +8,6 @@ public sealed class HantasSettings : Setting
     public int BaudRate { get; set; } = 115_200;
     public byte PickupSlaveAddress { get; set; } = 1;
     public byte ShootingSlaveAddress { get; set; } = 2;
+    public int ResponseTimeoutMilliseconds { get; set; } = 1_000;
     public int FasteningTimeoutMilliseconds { get; set; } = 15_000;
 }

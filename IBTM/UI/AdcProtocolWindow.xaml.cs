@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using IBTM.Device;
 using IBTM.Hantas;
 
 namespace IBTM.UI;
@@ -12,18 +13,25 @@ public partial class AdcProtocolWindow : Window
     private readonly CancellationTokenSource _lifetime = new();
     private readonly IAdcBus _bus;
 
-    public AdcProtocolWindow(IAdcBus bus)
+    public AdcProtocolWindow(
+        IAdcBus bus,
+        HantasSettings settings)
     {
         _bus = bus;
         InitializeComponent();
         DataContext = this;
         RefreshPorts();
+        BaudBox.SelectedItem = settings.BaudRate;
+        SlaveBox.Text = settings.PickupSlaveAddress.ToString();
+        AccessBox.SelectedItem = AdcRegisterAccess.ReadInputRegisters;
+        AddressBox.Text = ((ushort)AdcResultRegister.EventCount).ToString();
+        CountBox.Text = AdcFasteningResult.RegisterCount.ToString();
         _bus.FrameTransferred += OnFrameTransferred;
         if (_bus.IsOpen)
         {
             PortBox.SelectedItem = _bus.PortName;
             BaudBox.SelectedItem = _bus.BaudRate;
-            ConnectButton.Content = "Connected";
+            ConnectButton.Content = "Disconnect";
             ConnectionStatusText.Text =
                 $"{_bus.PortName} | {_bus.BaudRate}";
         }

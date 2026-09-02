@@ -23,7 +23,7 @@ public sealed class AlphaMotionController(
             Check(
                 nmiMNApi.nmiSetCommSpeed(
                     settings.ControllerNumber,
-                    settings.CommunicationSpeed),
+                    (int)settings.CommunicationSpeed),
                 nameof(nmiMNApi.nmiSetCommSpeed));
             Check(
                 nmiMNApi.nmiSysComm(settings.ControllerNumber),
@@ -54,6 +54,18 @@ public sealed class AlphaMotionController(
                 ref value),
             nameof(nmiMNApi.nmiDiGetBit));
         return value != 0;
+    }
+
+    public uint ReadInputs()
+    {
+        var value = 0U;
+        Check(
+            nmiMNApi.nmiDiGetData(
+                settings.ControllerNumber,
+                settings.StationNumber,
+                ref value),
+            nameof(nmiMNApi.nmiDiGetData));
+        return value;
     }
 
     public bool ReadOutput(int bit)

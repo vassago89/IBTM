@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
@@ -9,9 +10,21 @@ using IBTM.PcbSupply;
 
 namespace IBTM.UI;
 
+public enum SupplyTeachingActuator
+{
+    [Description("Supply Flip")]
+    SupplyFlip,
+
+    [Description("Supply IPM Fixer")]
+    SupplyIpmFixer,
+
+    [Description("Placement IPM Gripper")]
+    PlacementIpmGripper,
+}
+
 public partial class SupplyTeachingViewModel
 {
-    public PcbSupplyRotation SupplyRotation => _supplyHandler.Rotation;
+    public PcbSupplyRotationState SupplyRotation => _supplyHandler.Rotation;
     public bool SupplyIpmFixed =>
         _supplyHandler.IpmFixer == PcbSupplyCylinderState.Forward;
     public bool PlacementIpmGripperClosed =>
@@ -23,21 +36,21 @@ public partial class SupplyTeachingViewModel
 
     [RelayCommand(CanExecute = nameof(CanToggleActuator))]
     private async Task ToggleActuatorAsync(
-        OutputIo output,
+        SupplyTeachingActuator actuator,
         CancellationToken cancellationToken)
     {
-        var value = output switch
+        var value = actuator switch
         {
-            OutputIo.PcbSupplyRotate =>
-                SupplyRotation != PcbSupplyRotation.Rotated,
-            OutputIo.PcbSupplyIpmFixerForward => !SupplyIpmFixed,
-            OutputIo.PcbPlacementIpmGripperClose =>
+            SupplyTeachingActuator.SupplyFlip =>
+                SupplyRotation != PcbSupplyRotationState.Rotated,
+            SupplyTeachingActuator.SupplyIpmFixer => !SupplyIpmFixed,
+            SupplyTeachingActuator.PlacementIpmGripper =>
                 !PlacementIpmGripperClosed,
-            _ => throw new ArgumentOutOfRangeException(nameof(output)),
+            _ => throw new ArgumentOutOfRangeException(nameof(actuator)),
         };
         try
         {
-            await SetActuatorAsync(output, value, cancellationToken);
+            await SetActuatorAsync(actuator, value, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -45,9 +58,9 @@ public partial class SupplyTeachingViewModel
         catch (IoTimeoutException)
         {
             _state.SetError(
-                output == OutputIo.PcbPlacementIpmGripperClose
-                    ? MachineAlarm.Placement
-                    : MachineAlarm.Supply);
+                actuator == SupplyTeachingActuator.PlacementIpmGripper
+                    ? MachineAlarm.PcbPlacement
+                    : MachineAlarm.PcbSupply);
         }
         finally
         {
@@ -55,26 +68,25 @@ public partial class SupplyTeachingViewModel
         }
     }
 
-    private bool CanToggleActuator(OutputIo output) =>
-        (output != OutputIo.PcbSupplyRotate || !_buffer.SupplyInside)
-        && CanUseHandler(
-            output == OutputIo.PcbPlacementIpmGripperClose
+    private bool CanToggleActuator(SupplyTeachingActuator actuator) =>
+        CanUseHandler(
+            actuator == SupplyTeachingActuator.PlacementIpmGripper
                 ? MotionGroup.PcbPlacementHandler
                 : MotionGroup.PcbSupply);
 
     private Task SetActuatorAsync(
-        OutputIo output,
+        SupplyTeachingActuator actuator,
         bool value,
         CancellationToken cancellationToken) =>
-        output switch
+        actuator switch
         {
-            OutputIo.PcbSupplyRotate =>
+            SupplyTeachingActuator.SupplyFlip =>
                 _supplyHandler.SetRotatedAsync(value, cancellationToken),
-            OutputIo.PcbSupplyIpmFixerForward =>
+            SupplyTeachingActuator.SupplyIpmFixer =>
                 _supplyHandler.SetIpmFixerAsync(value, cancellationToken),
-            OutputIo.PcbPlacementIpmGripperClose =>
+            SupplyTeachingActuator.PlacementIpmGripper =>
                 _placementHandler.SetIpmGripperAsync(value, cancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(output)),
+            _ => throw new ArgumentOutOfRangeException(nameof(actuator)),
         };
 
     private void RefreshActuators()
@@ -87,7 +99,19 @@ public partial class SupplyTeachingViewModel
         NotifyManualTeachingCommands();
     }
 
-    private void OnHandlerChanged() =>
-        System.Windows.Application.Current.Dispatcher.BeginInvoke(
-            RefreshActuators);
+    private void OnHandlerChanged()
+    {
+        if (!PositionUpdatesActive)
+        {
+            return;
+        }
+
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+        {
+            if (PositionUpdatesActive)
+            {
+                RefreshActuators();
+            }
+        });
+    }
 }

@@ -4,17 +4,12 @@ using System.Collections.Concurrent;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.Hantas;
+using IBTM.Device;
 
 namespace IBTM.Virtual;
 
 public sealed class VirtualAdcBus : IAdcBus
 {
-    private const byte ReadHoldingRegisters = 0x03;
-    private const byte ReadInputRegisters = 0x04;
-    private const byte WriteSingleRegister = 0x06;
-    private const byte RequestDeviceInformation = 0x11;
-    private const ushort ResultRegisterCount = 14;
     private const string VirtualPort = "Virtual";
 
     private readonly ConcurrentDictionary<byte, Controller> _controllers = [];
@@ -50,7 +45,7 @@ public sealed class VirtualAdcBus : IAdcBus
         CancellationToken cancellationToken = default) =>
         ReadRegistersAsync(
             slaveAddress,
-            ReadHoldingRegisters,
+            AdcFunctionCode.ReadHoldingRegisters,
             address,
             count,
             cancellationToken);
@@ -62,7 +57,7 @@ public sealed class VirtualAdcBus : IAdcBus
         CancellationToken cancellationToken = default) =>
         ReadRegistersAsync(
             slaveAddress,
-            ReadInputRegisters,
+            AdcFunctionCode.ReadInputRegisters,
             address,
             count,
             cancellationToken);
@@ -102,7 +97,10 @@ public sealed class VirtualAdcBus : IAdcBus
         var data = new byte[4];
         BinaryPrimitives.WriteUInt16BigEndian(data, address);
         BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(2), value);
-        var frame = BuildFrame(slaveAddress, WriteSingleRegister, data);
+        var frame = AdcRtuFrame.Build(
+            slaveAddress,
+            AdcFunctionCode.WriteSingleRegister,
+            data);
         Transfer(frame, frame);
         return Task.CompletedTask;
     }
@@ -114,73 +112,20 @@ public sealed class VirtualAdcBus : IAdcBus
         cancellationToken.ThrowIfCancellationRequested();
         var data = Encoding.ASCII.GetBytes("VIRTUAL ADC");
         Transfer(
-            BuildFrame(slaveAddress, RequestDeviceInformation, []),
-            BuildReadResponse(slaveAddress, RequestDeviceInformation, data));
+            AdcRtuFrame.Build(
+                slaveAddress,
+                AdcFunctionCode.RequestDeviceInformation,
+                []),
+            BuildReadResponse(
+                slaveAddress,
+                AdcFunctionCode.RequestDeviceInformation,
+                data));
         return Task.FromResult(data);
     }
 
-    public async Task<AdcFasteningResult> ReadFasteningResultAsync(
-        byte slaveAddress,
-        CancellationToken cancellationToken = default)
-    {
-        var values = await ReadInputRegistersAsync(
-            slaveAddress,
-            (ushort)AdcResultRegister.EventCount,
-            ResultRegisterCount,
-            cancellationToken);
-        return AdcFasteningResult.FromRegisters(values);
-    }
-
-    public Task ResetAlarmAsync(
-        byte slaveAddress,
-        CancellationToken cancellationToken = default) =>
-        WriteRegisterAsync(
-            slaveAddress,
-            (ushort)AdcRemoteRegister.AlarmReset,
-            1,
-            cancellationToken);
-
-    public Task SelectPresetAsync(
-        byte slaveAddress,
-        ushort preset,
-        CancellationToken cancellationToken = default) =>
-        WriteRegisterAsync(
-            slaveAddress,
-            (ushort)AdcRemoteRegister.Preset,
-            preset,
-            cancellationToken);
-
-    public Task SetDirectionAsync(
-        byte slaveAddress,
-        AdcDirection direction,
-        CancellationToken cancellationToken = default) =>
-        WriteRegisterAsync(
-            slaveAddress,
-            (ushort)AdcRemoteRegister.Direction,
-            (ushort)direction,
-            cancellationToken);
-
-    public Task StartAsync(
-        byte slaveAddress,
-        CancellationToken cancellationToken = default) =>
-        WriteRegisterAsync(
-            slaveAddress,
-            (ushort)AdcRemoteRegister.RemoteStart,
-            1,
-            cancellationToken);
-
-    public Task StopAsync(
-        byte slaveAddress,
-        CancellationToken cancellationToken = default) =>
-        WriteRegisterAsync(
-            slaveAddress,
-            (ushort)AdcRemoteRegister.RemoteStart,
-            0,
-            cancellationToken);
-
     private Task<ushort[]> ReadRegistersAsync(
         byte slaveAddress,
-        byte function,
+        AdcFunctionCode function,
         ushort address,
         ushort count,
         CancellationToken cancellationToken)
@@ -191,7 +136,7 @@ public sealed class VirtualAdcBus : IAdcBus
         for (var index = 0; index < count; index++)
         {
             var register = (ushort)(address + index);
-            values[index] = function == ReadInputRegisters
+            values[index] = function == AdcFunctionCode.ReadInputRegisters
                 ? ReadResultRegister(controller, register)
                 : controller.Registers.TryGetValue(register, out var value)
                     ? value
@@ -211,7 +156,7 @@ public sealed class VirtualAdcBus : IAdcBus
         }
 
         Transfer(
-            BuildFrame(slaveAddress, function, requestData),
+            AdcRtuFrame.Build(slaveAddress, function, requestData),
             BuildReadResponse(slaveAddress, function, responseData));
         return Task.FromResult(values);
     }
@@ -245,45 +190,13 @@ public sealed class VirtualAdcBus : IAdcBus
 
     private static byte[] BuildReadResponse(
         byte slaveAddress,
-        byte function,
+        AdcFunctionCode function,
         byte[] data)
     {
         var responseData = new byte[data.Length + 1];
         responseData[0] = (byte)data.Length;
         data.CopyTo(responseData, 1);
-        return BuildFrame(slaveAddress, function, responseData);
-    }
-
-    private static byte[] BuildFrame(
-        byte slaveAddress,
-        byte function,
-        ReadOnlySpan<byte> data)
-    {
-        var frame = new byte[data.Length + 4];
-        frame[0] = slaveAddress;
-        frame[1] = function;
-        data.CopyTo(frame.AsSpan(2));
-        BinaryPrimitives.WriteUInt16LittleEndian(
-            frame.AsSpan(frame.Length - 2),
-            CalculateCrc(frame.AsSpan(0, frame.Length - 2)));
-        return frame;
-    }
-
-    private static ushort CalculateCrc(ReadOnlySpan<byte> data)
-    {
-        ushort crc = 0xFFFF;
-        foreach (var value in data)
-        {
-            crc ^= value;
-            for (var bit = 0; bit < 8; bit++)
-            {
-                crc = (ushort)((crc & 1) == 1
-                    ? (crc >> 1) ^ 0xA001
-                    : crc >> 1);
-            }
-        }
-
-        return crc;
+        return AdcRtuFrame.Build(slaveAddress, function, responseData);
     }
 
     private sealed class Controller

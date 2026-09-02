@@ -7,14 +7,6 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:ManualHardwareViewModel, IsDesignTimeCreatable=False}">
     <UserControl.Resources>
-        <Style x:Key="ManualAxisList" TargetType="ListBox">
-            <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="4"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-        </Style>
         <Style x:Key="ManualAxisListItem"
                TargetType="ListBoxItem"
                BasedOn="{StaticResource FlatListItemStyle}">
@@ -149,7 +141,7 @@
 
                 <ListBox Grid.Row="4"
                          ItemsSource="{Binding Axes}"
-                         Style="{StaticResource ManualAxisList}"
+                         Style="{StaticResource PanelListStyle}"
                          ItemContainerStyle="{StaticResource ManualAxisListItem}"
                          ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListBox.ItemTemplate>

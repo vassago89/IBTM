@@ -1,98 +1,10 @@
 using System;
-using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.NgConveyor;
-
-public enum NgConveyorState
-{
-    [Description("Waiting for NG Carrier")]
-    WaitingForCarrier,
-
-    [Description("Moving Transfer to Carrier")]
-    MovingTransferToCarrier,
-
-    [Description("Lowering Transfer at Carrier")]
-    LoweringTransferAtCarrier,
-
-    [Description("Closing NG Transfer Gripper")]
-    ClosingTransferGripper,
-
-    [Description("Waiting for Carrier Grip")]
-    WaitingForCarrierGrip,
-
-    [Description("Raising NG Transfer")]
-    RaisingCarrierTransfer,
-
-    [Description("Moving Transfer to Shuttle")]
-    MovingTransferToShuttle,
-
-    [Description("Lowering Transfer at Shuttle")]
-    LoweringTransferAtShuttle,
-
-    [Description("Opening NG Transfer Gripper")]
-    OpeningTransferGripper,
-
-    [Description("Waiting for Shuttle Carrier")]
-    WaitingForShuttleCarrier,
-
-    [Description("Lowering NG Shuttle")]
-    LoweringShuttle,
-
-    [Description("Moving to Position 1")]
-    MovingToPosition1,
-
-    [Description("Moving to Position 2")]
-    MovingToPosition2,
-
-    [Description("Shuttle Down / Carrier Position Unknown")]
-    CarrierBetweenPositions,
-
-    [Description("Storing at Position 3")]
-    StoringAtPosition3,
-
-    [Description("Raising NG Shuttle")]
-    RaisingShuttle,
-
-    [Description("NG Conveyor Full")]
-    Full,
-
-    [Description("NG Carrier Ready to Eject")]
-    ReadyToEject,
-
-    [Description("Ejecting NG Carrier")]
-    EjectingCarrier,
-
-    [Description("Securing NG Conveyor Stopper")]
-    SecuringEjectStopper,
-
-    [Description("Compacting NG Carriers")]
-    CompactingCarriers,
-
-    [Description("Remove Carrier · Press EJECT COMPLETE")]
-    WaitingForEjectConfirmation,
-
-    [Description("Acknowledging Eject")]
-    AcknowledgingEject,
-
-    [Description("Release EJECT / COMPLETE Buttons")]
-    WaitingForEjectButtonRelease,
-}
-
-public enum NgShuttleLiftState
-{
-    [Description("Up")]
-    Up,
-
-    [Description("Between")]
-    Between,
-
-    [Description("Down")]
-    Down,
-}
 
 public sealed class NgConveyorLine
 {
@@ -117,7 +29,8 @@ public sealed class NgConveyorLine
         _settings = settings;
         _inspectionBypassToNg = inspectionBypassToNg;
         io.InputChanged += OnInputChanged;
-        inspectionWork.Changed += OnInspectionChanged;
+        inspectionWork.Changed += NotifyChanged;
+        transfer.Changed += NotifyChanged;
     }
 
     public event Action? Changed;
@@ -135,6 +48,14 @@ public sealed class NgConveyorLine
         Position1Occupied
         && Position2Occupied
         && Position3Occupied;
+    public bool Position1Occupied =>
+        _io.GetInput(InputIo.NgConveyorPosition1Occupied);
+    public bool Position2Occupied =>
+        _io.GetInput(InputIo.NgConveyorPosition2Occupied);
+    public bool Position3Occupied =>
+        _io.GetInput(InputIo.NgConveyorPosition3Occupied);
+    public bool ShuttleCarrierDetected =>
+        _io.GetInput(InputIo.NgShuttleCarrierDetected);
     public NgShuttleLiftState ShuttleLift =>
         (ShuttleUp, ShuttleDown) switch
         {
@@ -147,31 +68,29 @@ public sealed class NgConveyorLine
     {
         get
         {
-            if (_ejectionPhase == EjectionPhase.Ejecting)
+            switch (_ejectionPhase)
             {
-                return NgConveyorState.EjectingCarrier;
-            }
+                case EjectionPhase.Ejecting:
+                    return NgConveyorState.EjectingCarrier;
 
-            if (_ejectionPhase == EjectionPhase.WaitingForConfirmation)
-            {
-                if (!_io.GetInput(InputIo.NgConveyorStopperUp))
-                {
-                    return NgConveyorState.SecuringEjectStopper;
-                }
+                case EjectionPhase.WaitingForConfirmation:
+                    if (!_io.GetInput(InputIo.NgConveyorStopperUp))
+                    {
+                        return NgConveyorState.SecuringEjectStopper;
+                    }
 
-                if (NeedsCompaction)
-                {
-                    return NgConveyorState.CompactingCarriers;
-                }
+                    if (NeedsCompaction)
+                    {
+                        return NgConveyorState.CompactingCarriers;
+                    }
 
-                return _io.GetInput(InputIo.NgCarrierEjectCompleteButton)
-                    ? NgConveyorState.AcknowledgingEject
-                    : NgConveyorState.WaitingForEjectConfirmation;
-            }
+                    return _io.GetInput(
+                            InputIo.NgCarrierEjectCompleteButton)
+                        ? NgConveyorState.AcknowledgingEject
+                        : NgConveyorState.WaitingForEjectConfirmation;
 
-            if (_ejectionPhase == EjectionPhase.WaitingForButtonRelease)
-            {
-                return NgConveyorState.WaitingForEjectButtonRelease;
+                case EjectionPhase.WaitingForButtonRelease:
+                    return NgConveyorState.WaitingForEjectButtonRelease;
             }
 
             if (Position1Occupied
@@ -183,19 +102,14 @@ public sealed class NgConveyorLine
                 return NgConveyorState.EjectingCarrier;
             }
 
-            if (_movement == NgMovement.ToPosition1)
+            switch (_movement)
             {
-                return NgConveyorState.MovingToPosition1;
-            }
-
-            if (_movement == NgMovement.ToPosition2)
-            {
-                return NgConveyorState.MovingToPosition2;
-            }
-
-            if (_movement == NgMovement.RaisingShuttle)
-            {
-                return NgConveyorState.RaisingShuttle;
+                case NgMovement.ToPosition1:
+                    return NgConveyorState.MovingToPosition1;
+                case NgMovement.ToPosition2:
+                    return NgConveyorState.MovingToPosition2;
+                case NgMovement.RaisingShuttle:
+                    return NgConveyorState.RaisingShuttle;
             }
 
             if (ShuttleDown && !ShuttleCarrierDetected)
@@ -248,7 +162,7 @@ public sealed class NgConveyorLine
             Changed?.Invoke();
         }
 
-        using var stateChanged = new AsyncAutoResetEvent();
+        var stateChanged = new AsyncAutoResetEvent();
         void OnStateChanged() => stateChanged.Set();
 
         Changed += OnStateChanged;
@@ -300,7 +214,9 @@ public sealed class NgConveyorLine
                         break;
 
                     case NgConveyorState.WaitingForShuttleCarrier:
-                        await _transfer.WaitForShuttleCarrierAsync(
+                        await _io.WaitForInputAsync(
+                            InputIo.NgShuttleCarrierDetected,
+                            true,
                             cancellationToken);
                         break;
 
@@ -369,17 +285,9 @@ public sealed class NgConveyorLine
         _io.SetOutput(OutputIo.Buzzer, false);
     }
 
-    private bool Position1Occupied =>
-        _io.GetInput(InputIo.NgConveyorPosition1Occupied);
-    private bool Position2Occupied =>
-        _io.GetInput(InputIo.NgConveyorPosition2Occupied);
-    private bool Position3Occupied =>
-        _io.GetInput(InputIo.NgConveyorPosition3Occupied);
     private bool NeedsCompaction =>
         !Position1Occupied
         && (Position2Occupied || Position3Occupied);
-    private bool ShuttleCarrierDetected =>
-        _io.GetInput(InputIo.NgShuttleCarrierDetected);
     private bool ShuttleDown =>
         _io.GetInput(InputIo.NgShuttleDown);
     private bool ShuttleUp =>
@@ -476,12 +384,17 @@ public sealed class NgConveyorLine
             : NgConveyorState.ClosingTransferGripper;
     }
 
-    private NgConveyorState TargetState() =>
-        !Position1Occupied
-            ? NgConveyorState.MovingToPosition1
-            : !Position2Occupied
-                ? NgConveyorState.MovingToPosition2
-                : NgConveyorState.StoringAtPosition3;
+    private NgConveyorState TargetState()
+    {
+        if (!Position1Occupied)
+        {
+            return NgConveyorState.MovingToPosition1;
+        }
+
+        return Position2Occupied
+            ? NgConveyorState.StoringAtPosition3
+            : NgConveyorState.MovingToPosition2;
+    }
 
     private async Task LowerShuttleAsync(
         CancellationToken cancellationToken)
@@ -634,14 +547,9 @@ public sealed class NgConveyorLine
             _ejectionPhase = EjectionPhase.Idle;
         }
 
-        if (input is InputIo.NgCarrierDetected
-            or InputIo.NgCarrierGripperClosed
-            or InputIo.NgCarrierGripperOpen
-            or InputIo.NgShuttleDown
+        if (input is InputIo.NgShuttleDown
             or InputIo.NgShuttleUp
             or InputIo.NgShuttleCarrierDetected
-            or InputIo.NgCarrierPickupDown
-            or InputIo.NgCarrierPickupUp
             or InputIo.NgConveyorPosition1Occupied
             or InputIo.NgConveyorPosition2Occupied
             or InputIo.NgConveyorPosition3Occupied
@@ -653,7 +561,7 @@ public sealed class NgConveyorLine
         }
     }
 
-    private void OnInspectionChanged() => Changed?.Invoke();
+    private void NotifyChanged() => Changed?.Invoke();
 
     private enum EjectionPhase
     {

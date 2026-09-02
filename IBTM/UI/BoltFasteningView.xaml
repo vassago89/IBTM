@@ -1,4 +1,4 @@
-<UserControl x:Class="IBTM.UI.Station2View"
+<UserControl x:Class="IBTM.UI.BoltFasteningView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -9,23 +9,33 @@
              d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
              Width="408"
              Height="650">
+    <UserControl.Resources>
+        <Style x:Key="FeederEnabledStyle" TargetType="StackPanel">
+            <Setter Property="Orientation" Value="Horizontal"/>
+            <Setter Property="Margin" Value="0,0,16,0"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                             Value="False">
+                    <Setter Property="Opacity" Value="0.6"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
     <Grid>
         <Canvas>
             <TextBlock Canvas.Left="20" Canvas.Top="14"
-                       Text="S2  BOLT FASTENING"
-                       Foreground="{StaticResource TextPrimaryBrush}"
-                       FontSize="20"
+                       Text="BOLT FASTENING"
+                       Style="{StaticResource TitleStyle}"
                        FontWeight="Bold"/>
             <Button Canvas.Right="20" Canvas.Top="14"
                     Content="RESUME WORK"
-                    Command="{Binding OpenBoltRecoveryCommand}"
+                    Command="{Binding OpenBoltFasteningRecoveryCommand}"
                     Style="{StaticResource SecondaryButtonStyle}"
                     MinWidth="92"
                     Height="30"
-                    Visibility="{Binding BoltRecoveryAvailable,
+                    Visibility="{Binding BoltFasteningRecoveryAvailable,
                                          Converter={StaticResource BoolToVis}}"/>
             <Border Canvas.Left="20" Canvas.Top="52"
-                    Width="210"
                     Tag="{Binding BoltDisplayState}"
                     Style="{StaticResource StationStateBadgeStyle}">
                 <TextBlock Text="{Binding BoltDisplayState,
@@ -38,56 +48,39 @@
                        Text="{Binding BoltFasteningProcessState,
                                       Converter={StaticResource EnumDescriptionConverter}}"
                        TextAlignment="Left"
-                       Foreground="{StaticResource TextSecondaryBrush}"
+                       Style="{StaticResource MapLabelStyle}"
                        FontSize="14"
-                       FontWeight="SemiBold"
                        Visibility="{Binding BoltProcessStateVisible,
                                             Converter={StaticResource BoolToVis}}"/>
 
             <StackPanel Canvas.Left="20" Canvas.Top="140"
                         Orientation="Horizontal">
-                <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding PickupFeederEnabled}"
-                                             Value="False">
-                                    <Setter Property="Opacity" Value="0.6"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </StackPanel.Style>
-                    <Ellipse Tag="{Binding PickupFeederReady}"
-                             Style="{StaticResource ReadyLedStyle}"/>
-                    <TextBlock Text="PICK READY"
+                <StackPanel Tag="{Binding PickupFeederEnabled}"
+                            Style="{StaticResource FeederEnabledStyle}">
+                    <Ellipse Tag="{Binding PickupFeederBoltDetected}"
+                             Style="{StaticResource PresenceLedStyle}"/>
+                    <TextBlock Text="PICK BOLT DETECTED"
                                Margin="6,0,0,0"
                                Style="{StaticResource MapHintStyle}"/>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding LinearFeederEnabled}"
-                                             Value="False">
-                                    <Setter Property="Opacity" Value="0.6"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </StackPanel.Style>
-                    <Ellipse Tag="{Binding LinearFeederReady}"
-                             Style="{StaticResource ReadyLedStyle}"/>
-                    <TextBlock Text="SHOOT READY"
+                <StackPanel Tag="{Binding ShootingFeederEnabled}"
+                            Style="{StaticResource FeederEnabledStyle}">
+                    <Ellipse Tag="{Binding ShootingFeederBoltDetected}"
+                             Style="{StaticResource PresenceLedStyle}"/>
+                    <TextBlock Text="SHOOT BOLT DETECTED"
                                Margin="6,0,0,0"
                                Style="{StaticResource MapHintStyle}"/>
                 </StackPanel>
             </StackPanel>
 
-            <Grid Canvas.Left="{Binding BoltPickupFeederMapLeft}"
-                  Canvas.Top="{Binding BoltPickupFeederMapTop}"
-                  Width="100" Height="86">
+            <Grid Width="100" Height="86">
+                <Grid.RenderTransform>
+                    <TranslateTransform X="{Binding BoltPickupFeederMapLeft}"
+                                        Y="{Binding BoltPickupFeederMapTop}"/>
+                </Grid.RenderTransform>
                 <Border Width="100" Height="68"
                         VerticalAlignment="Top"
-                        Tag="{Binding PickupFeederReady}"
+                        Tag="{Binding PickupFeederBoltDetected}"
                         Style="{StaticResource DeviceBodyStyle}">
                     <Grid Margin="10">
                         <Border Height="18"
@@ -108,16 +101,17 @@
                            Style="{StaticResource EquipmentRoleLabelStyle}"/>
             </Grid>
 
-            <Grid Canvas.Left="{Binding BoltFasteningMapLeft}"
-                  Canvas.Top="{Binding BoltFasteningMapTop}"
-                  Width="126" Height="138"
-                  Panel.ZIndex="20"
-                  ToolTip="{Binding BoltFasteningPosition}">
+            <Grid Width="126" Height="138"
+                  Panel.ZIndex="20">
+                <Grid.RenderTransform>
+                    <TranslateTransform X="{Binding BoltFasteningMapLeft}"
+                                        Y="{Binding BoltFasteningMapTop}"/>
+                </Grid.RenderTransform>
                 <Canvas>
                     <Border Canvas.Top="58"
                             Width="126" Height="80"
                             Panel.ZIndex="1"
-                            Tag="{Binding BoltFasteningMoving}"
+                            Tag="{Binding Fastening.Motion.IsMoving}"
                             Style="{StaticResource OverheadBodyStyle}"/>
                     <Border Canvas.Left="37.5" Canvas.Top="98"
                             Width="51" Height="6"
@@ -131,7 +125,6 @@
                                FontSize="9"
                                Style="{StaticResource EquipmentRoleLabelStyle}"/>
                     <TextBlock Canvas.Left="45" Canvas.Top="65"
-                               Panel.ZIndex="5"
                                Text="{Binding BoltFasteningActiveBolt.Number}">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock"
@@ -153,7 +146,6 @@
                                FontSize="9"
                                Style="{StaticResource EquipmentRoleLabelStyle}"/>
                     <TextBlock Canvas.Left="107" Canvas.Top="65"
-                               Panel.ZIndex="5"
                                Text="{Binding BoltFasteningActiveBolt.Number}">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock"
@@ -171,26 +163,26 @@
                     <Grid Canvas.Left="20.5" Canvas.Top="84"
                           Width="34" Height="34"
                           Panel.ZIndex="5">
-                        <Border Tag="{Binding BoltHead1Down}"
+                        <Border Tag="{Binding PickupHeadDown}"
                                 Style="{StaticResource ToolHeadFootprintStyle}"/>
                         <Border Width="14" Height="4"
                                 Background="{StaticResource TextMutedBrush}"
                                 CornerRadius="2"/>
-                        <Ellipse Style="{StaticResource LoadedBoltVisualStyle}"
-                                 Visibility="{Binding BoltHead1Loaded,
+                        <Ellipse Style="{StaticResource VacuumDetectedVisualStyle}"
+                                 Visibility="{Binding Fastening.PickupBoltLoaded,
                                                       Converter={StaticResource BoolToVis}}"/>
                     </Grid>
                     <Grid Canvas.Left="71.5" Canvas.Top="84"
                           Width="34" Height="34"
                           Panel.ZIndex="5">
-                        <Border Tag="{Binding BoltHead2Down}"
+                        <Border Tag="{Binding ShootingHeadDown}"
                                 Style="{StaticResource ToolHeadFootprintStyle}"/>
                         <Ellipse Width="12" Height="12"
                                  Fill="{StaticResource EquipBgBrush}"
                                  Stroke="{StaticResource TextMutedBrush}"
                                  StrokeThickness="2"/>
-                        <Ellipse Style="{StaticResource LoadedBoltVisualStyle}"
-                                 Visibility="{Binding BoltHead2Loaded,
+                        <Ellipse Style="{StaticResource VacuumDetectedVisualStyle}"
+                                 Visibility="{Binding Fastening.ShootingBoltLoaded,
                                                       Converter={StaticResource BoolToVis}}"/>
                     </Grid>
                 </Canvas>

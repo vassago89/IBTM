@@ -43,19 +43,16 @@ public abstract class StartPreparation
 
 public abstract class StationRecoveryPreparation : StartPreparation
 {
-    private readonly InputIo[] _invalidateInputs;
     private bool _automaticRunning;
 
     protected StationRecoveryPreparation(
         MachineState state,
-        IIoService io,
-        params InputIo[] invalidateInputs)
+        StationWork work)
     {
         State = state;
         _automaticRunning = state.AutomaticRunning;
-        _invalidateInputs = invalidateInputs;
         state.Changed += OnMachineStateChanged;
-        io.InputChanged += OnInputChanged;
+        work.Changed += Invalidate;
     }
 
     protected MachineState State { get; }
@@ -68,14 +65,6 @@ public abstract class StationRecoveryPreparation : StartPreparation
         }
 
         _automaticRunning = State.AutomaticRunning;
-    }
-
-    private void OnInputChanged(InputIo input, bool _)
-    {
-        if (_invalidateInputs.Contains(input))
-        {
-            Invalidate();
-        }
     }
 }
 

@@ -8,7 +8,7 @@ public sealed class UnitSettings : Setting
     public bool PcbSupply { get; set; } = true;
     public bool PcbPlacement { get; set; } = true;
     public bool PickupBoltFeeder { get; set; } = true;
-    public bool LinearBoltFeeder { get; set; } = true;
+    public bool ShootingBoltFeeder { get; set; } = true;
     public bool BoltFastening { get; set; } = true;
     public bool Inspection { get; set; } = true;
     public bool NgConveyor { get; set; } = true;
@@ -18,7 +18,7 @@ public sealed class UnitSettings : Setting
         || PcbSupply
         || PcbPlacement
         || PickupBoltFeeder
-        || LinearBoltFeeder
+        || ShootingBoltFeeder
         || BoltFastening
         || Inspection
         || NgConveyor;
@@ -29,7 +29,7 @@ public sealed class UnitSettings : Setting
         PcbSupply = PcbSupply,
         PcbPlacement = PcbPlacement,
         PickupBoltFeeder = PickupBoltFeeder,
-        LinearBoltFeeder = LinearBoltFeeder,
+        ShootingBoltFeeder = ShootingBoltFeeder,
         BoltFastening = BoltFastening,
         Inspection = Inspection,
         NgConveyor = NgConveyor,

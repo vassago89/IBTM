@@ -21,7 +21,7 @@ public sealed class VirtualBoltRecessSegmenter : IBoltRecessSegmenter
             for (var x = 0; x < size; x++)
             {
                 var source = ((top + y) * image.Stride)
-                             + ((left + x) * 3);
+                             + ((left + x) * ImageFrame.ColorChannelCount);
                 if (image.Pixels[source]
                     == VirtualImageFactory.BoltRecessIntensity)
                 {

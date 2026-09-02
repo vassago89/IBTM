@@ -4,9 +4,5 @@ namespace IBTM.UI;
 
 public partial class StationTeachingView : UserControl
 {
-    public StationTeachingView()
-    {
-        InitializeComponent();
-    }
-
+    public StationTeachingView() => InitializeComponent();
 }

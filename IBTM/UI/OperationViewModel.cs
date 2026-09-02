@@ -5,44 +5,256 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.BoltFastening;
+using IBTM.BoltFeeder;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
+using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.UI;
 
 public partial class OperationViewModel : ObservableObject
 {
-    private const double PickupToolX = 37.5;
-    private const double ShootingToolX = 88.5;
-    private const double BoltToolY = 101;
-    private const double BoltTargetOriginX = 44;
-    private const double BoltTargetOriginY = 456;
-    private const double InspectionCameraX = 40;
-    private const double InspectionToolY = 69;
-    private const double InspectionTargetOriginX = 46;
-    private const double InspectionTargetOriginY = 456;
-    private const double NgGripperX = 82;
-    private const double NgConveyorPosition3X = 243;
-    private const double NgConveyorPosition3Y = 555;
+    private sealed record MachineDisplaySnapshot(
+        MachineDisplayState DisplayState,
+        StartBlockReason StartBlock,
+        bool IsHoming,
+        bool AutomaticRunning,
+        bool ConveyorRunning,
+        MainConveyorState ConveyorState,
+        bool BufferConflict,
+        bool EmergencyStopReleased,
+        bool DoorClosed,
+        bool AirPressureOk,
+        bool AutoMode,
+        MachineAlarm Alarm,
+        bool ServoPowerOn,
+        bool Homed,
+        bool CanStart,
+        bool CanHome);
+
+    [Flags]
+    private enum PositionRefresh
+    {
+        PcbSupply = 1,
+        PcbPlacement = 2,
+        BoltFastening = 4,
+        Inspection = 8,
+        All = PcbSupply | PcbPlacement | BoltFastening | Inspection,
+    }
+
+    [Flags]
+    private enum DisplayRefresh
+    {
+        Machine = 1,
+        PcbSupply = 2,
+        PcbPlacement = 4,
+        Conveyor = 8,
+        BoltFastening = 16,
+        Inspection = 32,
+        NgConveyor = 64,
+    }
+
+    private static readonly string[] MachinePropertyNames =
+    [
+        nameof(MachineDisplayState),
+        nameof(StartBlocked),
+        nameof(StartBlock),
+        nameof(IsHoming),
+        nameof(ConveyorRunning),
+        nameof(MainConveyorState),
+        nameof(CarrierBetweenPlacementAndBolt),
+        nameof(CarrierBetweenBoltAndInspection),
+        nameof(BufferConflict),
+        nameof(EmergencyStopReleased),
+        nameof(DoorClosed),
+        nameof(AirPressureOk),
+        nameof(AutoMode),
+        nameof(HasAlarm),
+        nameof(Alarm),
+        nameof(ServoPowerOn),
+        nameof(Homed),
+        nameof(PcbPlacementRecoveryAvailable),
+        nameof(BoltFasteningRecoveryAvailable),
+        nameof(SupplyDisplayState),
+        nameof(PlacementDisplayState),
+        nameof(BoltDisplayState),
+        nameof(InspectionDisplayState),
+        nameof(BoltProcessStateVisible),
+        nameof(InspectionProcessStateVisible),
+    ];
+
+    private static readonly string[] PcbSupplyPropertyNames =
+    [
+        nameof(PcbSupplyPcbSecured),
+        nameof(PcbSupplyIpmFixed),
+        nameof(PcbSupplyNestForward),
+        nameof(PcbSupplyRotated),
+        nameof(Supply),
+        nameof(SupplyDisplayState),
+    ];
+
+    private static readonly string[] PcbPlacementPropertyNames =
+    [
+        nameof(PcbPlacementPcbSecured),
+        nameof(PcbPlacementHandlerDown),
+        nameof(PcbPlacementIpmDown),
+        nameof(Placement),
+        nameof(PcbPlacementIpmGripperClosed),
+        nameof(PcbPlacementStopperUp),
+        nameof(PcbPlacementBackupPlateUp),
+        nameof(PcbBufferPcbPresent),
+        nameof(PcbPlacementHeatSink1Present),
+        nameof(PcbPlacementHeatSink2Present),
+        nameof(PcbPlacementCarrierPresent),
+        nameof(PcbPlacementHeatSink1Completed),
+        nameof(PcbPlacementHeatSink2Completed),
+        nameof(PcbPlacementProcessState),
+        nameof(PcbPlacementTargetHeatSink),
+        nameof(PlacementDisplayState),
+        nameof(PcbPlacementRecoveryAvailable),
+    ];
+
+    private static readonly string[] ConveyorPropertyNames =
+    [
+        nameof(MainConveyorEntryCarrierDetected),
+        nameof(MainConveyorExitCarrierDetected),
+        nameof(CarrierBetweenPlacementAndBolt),
+        nameof(CarrierBetweenBoltAndInspection),
+    ];
+
+    private static readonly string[] BoltFasteningPropertyNames =
+    [
+        nameof(BoltFasteningHeatSink1Present),
+        nameof(BoltFasteningHeatSink2Present),
+        nameof(BoltFasteningCarrierPresent),
+        nameof(BoltFasteningStopperUp),
+        nameof(BoltFasteningBackupPlateUp),
+        nameof(PickupHeadDown),
+        nameof(ShootingHeadDown),
+        nameof(Fastening),
+        nameof(PickupFeederBoltDetected),
+        nameof(ShootingFeederBoltDetected),
+        nameof(BoltFasteningProcessState),
+        nameof(BoltFasteningActiveBolt),
+        nameof(BoltTargets),
+        nameof(BoltProcessStateVisible),
+        nameof(BoltFasteningHeatSink1Result),
+        nameof(BoltFasteningHeatSink2Result),
+        nameof(BoltDisplayState),
+        nameof(BoltFasteningRecoveryAvailable),
+    ];
+
+    private static readonly string[] InspectionPropertyNames =
+    [
+        nameof(InspectionHeatSink1Present),
+        nameof(InspectionHeatSink2Present),
+        nameof(InspectionCarrierPresent),
+        nameof(InspectionStopperUp),
+        nameof(InspectionBackupPlateUp),
+        nameof(InspectionProcessState),
+        nameof(InspectionActiveBolt),
+        nameof(InspectionTargets),
+        nameof(InspectionProcessStateVisible),
+        nameof(InspectionHeatSink1Result),
+        nameof(InspectionHeatSink2Result),
+        nameof(InspectionDisplayState),
+    ];
+
+    private static readonly string[] NgConveyorPropertyNames =
+    [
+        nameof(NgCarrierGripperClosed),
+        nameof(NgCarrierPickupDown),
+        nameof(NgCarrierDetected),
+        nameof(NgShuttleCarrierDetected),
+        nameof(NgConveyorPosition1Occupied),
+        nameof(NgConveyorPosition2Occupied),
+        nameof(NgConveyorPosition3Occupied),
+        nameof(NgCarrierCount),
+        nameof(NgAlarmCarrierCount),
+        nameof(NgAlarmRequired),
+        nameof(NgConveyorRunCommandOn),
+        nameof(NgShuttleLift),
+        nameof(NgConveyorState),
+    ];
+
+    private static readonly string[] ActivationPropertyNames =
+    [
+        nameof(BoltPickupFeederMapLeft),
+        nameof(BoltPickupFeederMapTop),
+        nameof(NgConveyorMapOffsetLeft),
+        nameof(NgConveyorMapOffsetTop),
+        nameof(MainConveyorEnabled),
+        nameof(PcbSupplyEnabled),
+        nameof(PcbPlacementEnabled),
+        nameof(PickupFeederEnabled),
+        nameof(ShootingFeederEnabled),
+        nameof(BoltFasteningEnabled),
+        nameof(SafetyBypass),
+    ];
+
+    private const double ZSideViewTop = 7;
+    private const double ZSideViewTravel = 33;
+
+    private static readonly (double X, double Y) PcbSupplyPcb1MapAnchor =
+        (59, 116);
+    private static readonly (double X, double Y) PcbSupplyPcb2MapAnchor =
+        (153, 116);
+    private static readonly (double X, double Y) PcbSupplyBufferMapAnchor =
+        (284, 177);
+    private static readonly (double X, double Y) PcbPlacementBufferMapAnchor =
+        (282, 195);
+    private static readonly (double X, double Y) PcbPlacementHeatSink1MapAnchor =
+        (220, 399);
+    private static readonly (double X, double Y) PcbPlacementHeatSink2MapAnchor =
+        (348, 399);
+    private static readonly (double X, double Y) BoltGantryFallbackMapPosition =
+        (18, 390);
+    private static readonly (double X, double Y) BoltShootingUpperLeftMapAnchor =
+        (-44.5, 355);
+    private static readonly (double X, double Y) BoltShootingLowerRightMapAnchor =
+        (187.5, 403);
+    private static readonly (double X, double Y) BoltPickupUpperLeftMapAnchor =
+        (6.5, 355);
+    private static readonly (double X, double Y) BoltPickupToolMapOffset =
+        (37.5, 101);
+    private static readonly (double X, double Y) BoltShootingToolMapOffset =
+        (88.5, 101);
+    private static readonly (double X, double Y) BoltTargetMapOrigin =
+        (44, 456);
+    private static readonly (double X, double Y) BoltPickupFeederMapOffset =
+        (-50, -34);
+    private static readonly (double X, double Y) InspectionFallbackMapPosition =
+        (-40, 390);
+    private static readonly (double X, double Y) InspectionUpperLeftMapAnchor =
+        (6, 387);
+    private static readonly (double X, double Y) InspectionLowerRightMapAnchor =
+        (238, 435);
+    private static readonly (double X, double Y) InspectionPickupMapAnchor =
+        (80, 411);
+    private static readonly (double X, double Y) InspectionCameraMapOffset =
+        (40, 69);
+    private static readonly (double X, double Y) InspectionTargetMapOrigin =
+        (46, 456);
+    private static readonly (double X, double Y) NgGripperMapOffset =
+        (82, 69);
+    private static readonly (double X, double Y) NgConveyorPosition3MapAnchor =
+        (243, 555);
+    private static readonly (double X, double Y) NgConveyorFallbackMapOffset =
+        (0, 0);
 
     private readonly MachineState _state;
     private readonly MachineController _machine;
-    private readonly IIoService _io;
     private readonly UnitSettings _units;
     private readonly MachineOptions _options;
-    private readonly IAxisMotion _pcbSupplyMotion;
-    private readonly IXyMotion _pcbPlacementMotion;
-    private readonly IXyMotion _boltFasteningMotion;
-    private readonly IXyMotion _inspectionGantryMotion;
     private readonly PcbPlacementWork _pcbPlacementWork;
     private readonly BoltFasteningWork _boltFasteningWork;
     private readonly InspectionWork _inspectionWork;
@@ -56,13 +268,31 @@ public partial class OperationViewModel : ObservableObject
     private readonly CarrierReferenceSettings _carrierReference;
     private readonly InspectionGantrySettings _inspectionGantrySettings;
     private readonly NgConveyorSettings _ngConveyorSettings;
+    private readonly MainConveyor _conveyor;
+    private readonly BufferStage _buffer;
+    private readonly PickupBoltFeeder _pickupFeeder;
+    private readonly ShootingBoltFeeder _shootingFeeder;
     private readonly NgConveyorLine _ngConveyor;
+    private readonly NgCarrierTransfer _ngTransfer;
+    private readonly StartPreparationPlan _startPreparations;
+    private MachineDisplaySnapshot _machineDisplay = null!;
+    private PcbPlacementState _pcbPlacementProcessState;
+    private HeatSinkSlot? _pcbPlacementTargetHeatSink;
+    private BoltFasteningProcessState _boltFasteningProcessState;
+    private BoltPoint? _boltFasteningActiveBolt;
+    private InspectionProcessState _inspectionProcessState;
+    private BoltPoint? _inspectionActiveBolt;
+    private IReadOnlyList<BoltTargetView> _boltTargets = [];
+    private IReadOnlyList<BoltTargetView> _inspectionTargets = [];
+    private volatile bool _positionUpdatesActive;
+    private int _pendingPositionRefresh;
     private int _positionRefreshQueued;
+    private int _pendingDisplayRefresh;
+    private int _displayRefreshQueued;
 
     public OperationViewModel(
         MachineState state,
         MachineController machine,
-        IIoService io,
         UnitSettings units,
         MachineOptions options,
         PcbPlacementWork pcbPlacementWork,
@@ -78,16 +308,20 @@ public partial class OperationViewModel : ObservableObject
         CarrierReferenceSettings carrierReference,
         InspectionGantrySettings inspectionGantrySettings,
         NgConveyorSettings ngConveyorSettings,
+        MainConveyor conveyor,
+        BufferStage buffer,
+        PickupBoltFeeder pickupFeeder,
+        ShootingBoltFeeder shootingFeeder,
         NgConveyorLine ngConveyor,
+        NgCarrierTransfer ngTransfer,
         StartPreparationPlan startPreparations,
-        [FromKeyedServices(MotionGroup.PcbSupply)] IAxisMotion pcbSupplyMotion,
-        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] IXyMotion pcbPlacementMotion,
-        [FromKeyedServices(MotionGroup.BoltFastening)] IXyMotion boltFasteningMotion,
-        [FromKeyedServices(MotionGroup.InspectionGantry)] IXyMotion inspectionGantryMotion)
+        PcbSupplyHandler supply,
+        PcbPlacementHandler placement,
+        BoltFasteningStation fastening,
+        InspectionGantry inspectionGantry)
     {
         _state = state;
         _machine = machine;
-        _io = io;
         _units = units;
         _options = options;
         _pcbPlacementWork = pcbPlacementWork;
@@ -105,29 +339,47 @@ public partial class OperationViewModel : ObservableObject
         _ngConveyorSettings = ngConveyorSettings;
         _ngConveyor = ngConveyor;
         _startPreparations = startPreparations;
-        _pcbSupplyMotion = pcbSupplyMotion;
-        _pcbPlacementMotion = pcbPlacementMotion;
-        _boltFasteningMotion = boltFasteningMotion;
-        _inspectionGantryMotion = inspectionGantryMotion;
-        pcbSupplyMotion.PositionChanged += OnPositionChanged;
-        pcbPlacementMotion.PositionChanged += OnPositionChanged;
-        boltFasteningMotion.PositionChanged += OnPositionChanged;
-        inspectionGantryMotion.PositionChanged += OnPositionChanged;
-        pcbPlacementWork.Changed += OnMachineStateChanged;
-        boltFasteningWork.Changed += OnMachineStateChanged;
-        inspectionWork.Changed += OnMachineStateChanged;
+        _conveyor = conveyor;
+        _buffer = buffer;
+        _pickupFeeder = pickupFeeder;
+        _shootingFeeder = shootingFeeder;
+        _ngTransfer = ngTransfer;
+        Supply = supply;
+        Placement = placement;
+        Fastening = fastening;
+        InspectionGantry = inspectionGantry;
+
+        _machineDisplay = CreateMachineDisplaySnapshot();
+        RefreshPcbPlacementDisplay();
+        RefreshBoltFasteningDisplay();
+        RefreshInspectionDisplay();
+
+        supply.Motion.PropertyChanged += OnPcbSupplyMotionChanged;
+        supply.Changed += OnPcbSupplyChanged;
+        placement.Motion.PropertyChanged += OnPcbPlacementMotionChanged;
+        placement.Changed += OnPcbPlacementHardwareChanged;
+        fastening.Motion.PropertyChanged += OnBoltFasteningMotionChanged;
+        fastening.Changed += OnBoltFasteningHardwareChanged;
+        inspectionGantry.Motion.PropertyChanged += OnInspectionGantryMotionChanged;
+        buffer.StateChanged += OnPcbBufferChanged;
+        conveyor.Changed += OnMainConveyorChanged;
+        pickupFeeder.Changed += OnBoltFasteningHardwareChanged;
+        shootingFeeder.Changed += OnBoltFasteningHardwareChanged;
+        pcbPlacementWork.Changed += OnPcbPlacementWorkChanged;
+        boltFasteningWork.Changed += OnBoltFasteningWorkChanged;
+        inspectionWork.Changed += OnInspectionWorkChanged;
+        ngTransfer.Changed += OnNgTransferChanged;
+        ngConveyor.Changed += OnNgConveyorChanged;
         state.Changed += OnMachineStateChanged;
     }
 
-    public string PcbSupplyPosition
-        => FormatPosition(_pcbSupplyMotion.GetPosition());
-
-    public string PcbPlacementPosition =>
-        FormatPosition(_pcbPlacementMotion.GetPosition());
-    public string BoltFasteningPosition =>
-        FormatPosition(_boltFasteningMotion.GetPosition());
-    public string InspectionGantryPosition =>
-        FormatXyPosition(_inspectionGantryMotion.GetPosition());
+    public PcbSupplyHandler Supply { get; }
+    public PcbPlacementHandler Placement { get; }
+    public BoltFasteningStation Fastening { get; }
+    public InspectionGantry InspectionGantry { get; }
+    public double PcbSupplyZTop => ZTop(Supply.Motion);
+    public double PcbPlacementZTop => ZTop(Placement.Motion);
+    public double BoltFasteningZTop => ZTop(Fastening.Motion);
 
     public double PcbSupplyMapLeft => MapPcbSupply().X;
     public double PcbSupplyMapTop => MapPcbSupply().Y;
@@ -135,104 +387,102 @@ public partial class OperationViewModel : ObservableObject
     public double PcbPlacementMapTop => MapPcbPlacement().Y;
     public double BoltFasteningMapLeft => MapBoltFastening().X;
     public double BoltFasteningMapTop => MapBoltFastening().Y;
-    public double BoltPickupFeederMapLeft => BoltPickupCenter().X - 50;
-    public double BoltPickupFeederMapTop => BoltPickupCenter().Y - 34;
+    public double BoltPickupFeederMapLeft =>
+        BoltPickupCenter().X + BoltPickupFeederMapOffset.X;
+    public double BoltPickupFeederMapTop =>
+        BoltPickupCenter().Y + BoltPickupFeederMapOffset.Y;
     public double InspectionGantryMapLeft => MapInspectionGantry().X;
     public double InspectionGantryMapTop => MapInspectionGantry().Y;
     public double NgConveyorMapOffsetLeft => MapNgConveyor().X;
     public double NgConveyorMapOffsetTop => MapNgConveyor().Y;
-    public bool PcbSupplyPcbDetected =>
-        Input(InputIo.PcbSupplyPcbDetected);
-    public bool PcbPlacementPcbDetected =>
-        Input(InputIo.PcbPlacementPcbDetected);
+    private bool PcbSupplyPcbDetected =>
+        Supply.Pcb != PcbSupplyPcbState.None;
+    public bool PcbSupplyPcbSecured =>
+        Supply.Pcb == PcbSupplyPcbState.Secured;
+    private bool PcbPlacementPcbDetected =>
+        Placement.Pcb != PlacementPcbState.None;
+    public bool PcbPlacementPcbSecured =>
+        Placement.PcbSecured;
     public bool PcbPlacementHandlerDown =>
-        Input(InputIo.PcbPlacementHandlerDown);
+        Placement.Handler == PlacementCylinderState.Down;
     public bool PcbPlacementIpmDown =>
-        Input(InputIo.PcbPlacementIpmDown);
-    public bool PcbPlacementVacuumDetected =>
-        Input(InputIo.PcbPlacementVacuumDetected);
+        Placement.Ipm == PlacementCylinderState.Down;
     public bool PcbSupplyIpmFixed =>
-        Input(InputIo.PcbSupplyIpmFixerForward);
+        Supply.IpmFixer == PcbSupplyCylinderState.Forward;
     public bool PcbSupplyNestForward =>
-        Input(InputIo.PcbSupplyNestForward);
+        Supply.Nest == PcbSupplyCylinderState.Forward;
     public bool PcbPlacementIpmGripperClosed =>
-        Input(InputIo.PcbPlacementIpmGripperClosed);
+        Placement.Gripper == PlacementGripperState.Closed;
     public bool PcbPlacementStopperUp =>
-        Input(InputIo.PcbPlacementStopperUp);
+        _pcbPlacementWork.Stopper == StationCylinderState.Up;
     public bool PcbPlacementBackupPlateUp =>
-        Input(InputIo.PcbPlacementBackupPlateUp);
+        _pcbPlacementWork.BackupPlate == StationCylinderState.Up;
     public bool PcbSupplyRotated =>
-        Input(InputIo.PcbSupplyRotated);
-    public bool PcbSupplyAvailableFromFront1 =>
-        Input(InputIo.PcbSupplyAvailableFromFront1);
+        Supply.Rotation == PcbSupplyRotationState.Rotated;
     public bool PcbBufferPcbPresent =>
-        Input(InputIo.PcbBufferPcbPresent);
+        _buffer.PcbPresent;
     public bool PcbPlacementHeatSink1Present =>
-        Input(InputIo.PcbPlacementHeatSink1Present);
+        _pcbPlacementWork.HeatSink1Present;
     public bool PcbPlacementHeatSink2Present =>
-        Input(InputIo.PcbPlacementHeatSink2Present);
+        _pcbPlacementWork.HeatSink2Present;
     public bool PcbPlacementCarrierPresent =>
-        Input(InputIo.PcbPlacementCarrierPresent);
+        _pcbPlacementWork.CarrierPresent;
     public bool MainConveyorEntryCarrierDetected =>
-        Input(InputIo.MainConveyorEntryCarrierDetected);
+        _conveyor.EntryCarrierDetected;
     public bool MainConveyorExitCarrierDetected =>
-        Input(InputIo.MainConveyorExitCarrierDetected);
+        _conveyor.ExitCarrierDetected;
     public bool BoltFasteningHeatSink1Present =>
-        Input(InputIo.BoltFasteningHeatSink1Present);
+        _boltFasteningWork.HeatSink1Present;
     public bool BoltFasteningHeatSink2Present =>
-        Input(InputIo.BoltFasteningHeatSink2Present);
+        _boltFasteningWork.HeatSink2Present;
     public bool BoltFasteningCarrierPresent =>
-        Input(InputIo.BoltFasteningCarrierPresent);
+        _boltFasteningWork.CarrierPresent;
     public bool BoltFasteningStopperUp =>
-        Input(InputIo.BoltFasteningStopperUp);
+        _boltFasteningWork.Stopper == StationCylinderState.Up;
     public bool BoltFasteningBackupPlateUp =>
-        Input(InputIo.BoltFasteningBackupPlateUp);
+        _boltFasteningWork.BackupPlate == StationCylinderState.Up;
     public bool InspectionHeatSink1Present =>
-        Input(InputIo.InspectionHeatSink1Present);
+        _inspectionWork.HeatSink1Present;
     public bool InspectionHeatSink2Present =>
-        Input(InputIo.InspectionHeatSink2Present);
+        _inspectionWork.HeatSink2Present;
     public bool InspectionCarrierPresent =>
-        Input(InputIo.InspectionCarrierPresent);
+        _inspectionWork.CarrierPresent;
     public bool InspectionStopperUp =>
-        Input(InputIo.InspectionStopperUp);
+        _inspectionWork.Stopper == StationCylinderState.Up;
     public bool InspectionBackupPlateUp =>
-        Input(InputIo.InspectionBackupPlateUp);
-    public bool BoltHead1Down =>
-        Input(InputIo.BoltHead1Down);
-    public bool BoltHead2Down =>
-        Input(InputIo.BoltHead2Down);
-    public bool BoltHead1Loaded =>
-        Input(InputIo.BoltHead1VacuumDetected);
-    public bool BoltHead2Loaded =>
-        Input(InputIo.BoltHead2VacuumDetected);
-    public bool PickupFeederReady =>
-        Input(InputIo.PickupFeederBoltDetected);
-    public bool LinearFeederReady =>
-        Input(InputIo.LinearFeederBoltDetected);
+        _inspectionWork.BackupPlate == StationCylinderState.Up;
+    public bool PickupHeadDown =>
+        Fastening.PickupHead == BoltCylinderState.Down;
+    public bool ShootingHeadDown =>
+        Fastening.ShootingHead == BoltCylinderState.Down;
+    public bool PickupFeederBoltDetected =>
+        _pickupFeeder.State == BoltFeederState.BoltReady;
+    public bool ShootingFeederBoltDetected =>
+        _shootingFeeder.State == BoltFeederState.BoltReady;
     public bool NgCarrierGripperClosed =>
-        Input(InputIo.NgCarrierGripperClosed);
+        _ngTransfer.Gripper == NgTransferGripperState.Closed;
     public bool NgCarrierPickupDown =>
-        Input(InputIo.NgCarrierPickupDown);
+        _ngTransfer.Lift == NgTransferLiftState.Down;
     public bool NgCarrierDetected =>
-        Input(InputIo.NgCarrierDetected);
+        _ngTransfer.CarrierDetected;
     public bool NgShuttleCarrierDetected =>
-        Input(InputIo.NgShuttleCarrierDetected);
+        _ngConveyor.ShuttleCarrierDetected;
     public bool NgConveyorPosition1Occupied =>
-        Input(InputIo.NgConveyorPosition1Occupied);
+        _ngConveyor.Position1Occupied;
     public bool NgConveyorPosition2Occupied =>
-        Input(InputIo.NgConveyorPosition2Occupied);
+        _ngConveyor.Position2Occupied;
     public bool NgConveyorPosition3Occupied =>
-        Input(InputIo.NgConveyorPosition3Occupied);
+        _ngConveyor.Position3Occupied;
     public int NgCarrierCount => _ngConveyor.CarrierCount;
     public int NgAlarmCarrierCount => _ngConveyor.AlarmCarrierCount;
     public bool NgAlarmRequired => _ngConveyor.AlarmRequired;
     public bool NgConveyorRunCommandOn => _ngConveyor.RunCommandOn;
     public NgShuttleLiftState NgShuttleLift => _ngConveyor.ShuttleLift;
     public NgConveyorState NgConveyorState => _ngConveyor.State;
-    public bool IsHoming => _state.IsHoming;
-    public bool ConveyorRunning => _state.ConveyorRunning;
+    public bool IsHoming => _machineDisplay.IsHoming;
+    public bool ConveyorRunning => _machineDisplay.ConveyorRunning;
     public MainConveyorState MainConveyorState =>
-        _state.MainConveyorState;
+        _machineDisplay.ConveyorState;
     public bool CarrierBetweenPlacementAndBolt =>
         !PcbPlacementCarrierPresent
         && !BoltFasteningCarrierPresent
@@ -245,19 +495,13 @@ public partial class OperationViewModel : ObservableObject
         && MainConveyorState is
                 MainConveyorState.BoltFasteningCarrierBetweenStations
                 or MainConveyorState.MovingBoltFasteningToInspection;
-    public bool BoltFasteningMoving => _boltFasteningMotion.IsMoving;
-    public bool InspectionGantryMoving => _inspectionGantryMotion.IsMoving;
-    public bool PcbSupplyMoving => _pcbSupplyMotion.IsMoving;
-    public bool PcbPlacementMoving => _pcbPlacementMotion.IsMoving;
-    public bool BufferConflict => _state.BufferConflict;
+    public bool BufferConflict => _machineDisplay.BufferConflict;
     public bool MainConveyorEnabled => _units.MainConveyor;
     public bool PcbSupplyEnabled => _units.PcbSupply;
     public bool PcbPlacementEnabled => _units.PcbPlacement;
     public bool PickupFeederEnabled => _units.PickupBoltFeeder;
-    public bool LinearFeederEnabled => _units.LinearBoltFeeder;
+    public bool ShootingFeederEnabled => _units.ShootingBoltFeeder;
     public bool BoltFasteningEnabled => _units.BoltFastening;
-    public bool InspectionEnabled => _units.Inspection;
-    public bool NgConveyorEnabled => _units.NgConveyor;
     public bool PcbPlacementHeatSink1Completed =>
         PcbPlacementEnabled
         && PcbPlacementCarrierPresent
@@ -269,74 +513,81 @@ public partial class OperationViewModel : ObservableObject
         && PcbPlacementHeatSink2Present
         && HasAssembly(_pcbPlacementWork, HeatSinkSlot.HeatSink2);
     public PcbPlacementState PcbPlacementProcessState =>
-        _pcbPlacementProcess.State(_recipe.PcbPlacement);
+        _pcbPlacementProcessState;
     public HeatSinkSlot? PcbPlacementTargetHeatSink =>
-        _pcbPlacementProcess.TargetHeatSink;
+        _pcbPlacementTargetHeatSink;
     public BoltFasteningProcessState BoltFasteningProcessState =>
-        _boltFasteningProcess.State(_recipe.BoltFastening);
+        _boltFasteningProcessState;
     public InspectionProcessState InspectionProcessState =>
-        _inspectionProcess.State(_recipe.BoltFastening.BoltPoints);
+        _inspectionProcessState;
     public BoltPoint? BoltFasteningActiveBolt =>
         BoltProcessStateVisible
-            ? _boltFasteningProcess.ActiveBolt(_recipe.BoltFastening)
+            ? _boltFasteningActiveBolt
             : null;
     public BoltPoint? InspectionActiveBolt =>
         InspectionProcessStateVisible
-            ? _inspectionProcess.ActiveBolt(_recipe.BoltFastening.BoltPoints)
+            ? _inspectionActiveBolt
             : null;
-    public IReadOnlyList<WorkTargetView> BoltTargets =>
-        CreateFasteningTargets();
-    public IReadOnlyList<WorkTargetView> InspectionTargets =>
-        CreateInspectionTargets();
-    public bool BoltFasteningHeatSink1ResultVisible =>
-        BoltFasteningEnabled
-        && BoltFasteningCarrierPresent
-        && BoltFasteningHeatSink1Present
-        && BoltFasteningHeatSink1Result != PcbResult.Pending;
-    public bool BoltFasteningHeatSink2ResultVisible =>
-        BoltFasteningEnabled
-        && BoltFasteningCarrierPresent
-        && BoltFasteningHeatSink2Present
-        && BoltFasteningHeatSink2Result != PcbResult.Pending;
-    public bool InspectionHeatSink1ResultVisible =>
-        InspectionEnabled
-        && InspectionCarrierPresent
-        && InspectionHeatSink1Present
-        && InspectionHeatSink1Result != PcbResult.Pending;
-    public bool InspectionHeatSink2ResultVisible =>
-        InspectionEnabled
-        && InspectionCarrierPresent
-        && InspectionHeatSink2Present
-        && InspectionHeatSink2Result != PcbResult.Pending;
-    public PcbResult BoltFasteningHeatSink1Result =>
+    public IReadOnlyList<BoltTargetView> BoltTargets => _boltTargets;
+    public IReadOnlyList<BoltTargetView> InspectionTargets => _inspectionTargets;
+    public AssemblyResult BoltFasteningHeatSink1Result =>
         Result(_boltFasteningWork, HeatSinkSlot.HeatSink1, inspection: false);
-    public PcbResult BoltFasteningHeatSink2Result =>
+    public AssemblyResult BoltFasteningHeatSink2Result =>
         Result(_boltFasteningWork, HeatSinkSlot.HeatSink2, inspection: false);
-    public PcbResult InspectionHeatSink1Result =>
+    public AssemblyResult InspectionHeatSink1Result =>
         Result(_inspectionWork, HeatSinkSlot.HeatSink1, inspection: true);
-    public PcbResult InspectionHeatSink2Result =>
+    public AssemblyResult InspectionHeatSink2Result =>
         Result(_inspectionWork, HeatSinkSlot.HeatSink2, inspection: true);
-    public bool BoltFasteningHasHeatSink =>
-        HasHeatSink(
-            InputIo.BoltFasteningHeatSink1Present,
-            InputIo.BoltFasteningHeatSink2Present);
-    public bool InspectionHasHeatSink =>
-        HasHeatSink(
-            InputIo.InspectionHeatSink1Present,
-            InputIo.InspectionHeatSink2Present);
-    public bool EmergencyStopReleased => _state.EmergencyStopReleased;
-    public bool DoorClosed => _state.DoorClosed;
-    public bool AirPressureOk => _state.AirPressureOk;
-    public bool AutoMode => _state.AutoMode;
-    public bool HasAlarm => _state.IsError;
-    public MachineAlarm Alarm => _state.Alarm;
-    public bool ServoReady =>
-        _state.ServoMainContactorOn && _state.ServosOn;
-    public bool Homed => _state.Homed;
+    public bool EmergencyStopReleased => _machineDisplay.EmergencyStopReleased;
+    public bool DoorClosed => _machineDisplay.DoorClosed;
+    public bool AirPressureOk => _machineDisplay.AirPressureOk;
+    public bool AutoMode => _machineDisplay.AutoMode;
+    public bool HasAlarm => _machineDisplay.Alarm != MachineAlarm.None;
+    public MachineAlarm Alarm => _machineDisplay.Alarm;
+    public bool ServoPowerOn => _machineDisplay.ServoPowerOn;
+    public bool Homed => _machineDisplay.Homed;
     public bool SafetyBypass =>
         !_options.UseEmergencyStop
         || !_options.UseDoorInterlock
         || !_options.UseAirPressureInterlock;
+    public bool PcbPlacementRecoveryAvailable =>
+        _startPreparations.CanOpen(
+            StartPreparationType.PcbPlacementRecovery);
+    public bool BoltFasteningRecoveryAvailable =>
+        _startPreparations.CanOpen(
+            StartPreparationType.BoltFasteningRecovery);
+
+    public void Activate()
+    {
+        _machineDisplay = CreateMachineDisplaySnapshot();
+        RefreshPcbPlacementDisplay();
+        RefreshBoltFasteningDisplay();
+        RefreshInspectionDisplay();
+        _positionUpdatesActive = true;
+        QueuePositionRefresh(PositionRefresh.All);
+        QueueDisplayRefresh(
+            DisplayRefresh.Machine
+            | DisplayRefresh.PcbSupply
+            | DisplayRefresh.PcbPlacement
+            | DisplayRefresh.Conveyor
+            | DisplayRefresh.BoltFastening
+            | DisplayRefresh.Inspection
+            | DisplayRefresh.NgConveyor);
+        NotifyProperties(ActivationPropertyNames);
+    }
+
+    public void Deactivate() => _positionUpdatesActive = false;
+
+    [RelayCommand(CanExecute = nameof(CanOpenPcbPlacementRecovery))]
+    private void OpenPcbPlacementRecovery() => _startPreparations.Open(
+        StartPreparationType.PcbPlacementRecovery,
+        Application.Current.MainWindow);
+
+    [RelayCommand(CanExecute = nameof(CanOpenBoltFasteningRecovery))]
+    private void OpenBoltFasteningRecovery() => _startPreparations.Open(
+        StartPreparationType.BoltFasteningRecovery,
+        Application.Current.MainWindow);
+
     [RelayCommand(CanExecute = nameof(CanStart))]
     private async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -346,7 +597,9 @@ public partial class OperationViewModel : ObservableObject
             return;
         }
 
-        await _machine.StartAsync(cancellationToken);
+        await Task.Run(
+            () => _machine.StartAsync(cancellationToken),
+            cancellationToken);
     }
 
     [RelayCommand]
@@ -358,31 +611,35 @@ public partial class OperationViewModel : ObservableObject
 
     [RelayCommand(CanExecute = nameof(CanHome))]
     private Task HomeAsync(CancellationToken cancellationToken) =>
-        _machine.HomeAsync(cancellationToken);
+        Task.Run(
+            () => _machine.HomeAsync(cancellationToken),
+            cancellationToken);
 
     [RelayCommand(CanExecute = nameof(CanStopHome))]
     private void StopHome() => HomeCommand.Cancel();
 
-    private bool CanStart() => _machine.CanStart;
-    private bool CanHome() => _machine.CanHome;
-    private bool CanStopHome() => _state.IsHoming;
+    private bool CanStart() => _machineDisplay.CanStart;
+    private bool CanHome() => _machineDisplay.CanHome;
+    private bool CanStopHome() => _machineDisplay.IsHoming;
+    private bool CanOpenBoltFasteningRecovery() => BoltFasteningRecoveryAvailable;
+    private bool CanOpenPcbPlacementRecovery() =>
+        PcbPlacementRecoveryAvailable;
+
     private void NotifyCanExecuteChanged()
     {
         StartCommand.NotifyCanExecuteChanged();
         HomeCommand.NotifyCanExecuteChanged();
         StopHomeCommand.NotifyCanExecuteChanged();
         OpenPcbPlacementRecoveryCommand.NotifyCanExecuteChanged();
-        OpenBoltRecoveryCommand.NotifyCanExecuteChanged();
+        OpenBoltFasteningRecoveryCommand.NotifyCanExecuteChanged();
     }
-
-    private bool Input(InputIo input) => _io.GetInput(input);
 
     private static bool HasAssembly(
         StationWork work,
         HeatSinkSlot heatSink) =>
         work.Assemblies.Any(assembly => assembly.HeatSink == heatSink);
 
-    private static PcbResult Result(
+    private static AssemblyResult Result(
         StationWork work,
         HeatSinkSlot heatSink,
         bool inspection)
@@ -390,16 +647,13 @@ public partial class OperationViewModel : ObservableObject
         var assembly = work.Assemblies.FirstOrDefault(
             item => item.HeatSink == heatSink);
         return assembly is null
-            ? PcbResult.Pending
+            ? AssemblyResult.Pending
             : inspection
                 ? assembly.InspectionResult
                 : assembly.FasteningResult;
     }
 
-    private bool HasHeatSink(InputIo heatSink1, InputIo heatSink2) =>
-        Input(heatSink1) || Input(heatSink2);
-
-    private IReadOnlyList<WorkTargetView> CreateFasteningTargets()
+    private IReadOnlyList<BoltTargetView> CreateFasteningTargets()
     {
         var active = BoltFasteningActiveBolt;
         return CreateTargets(
@@ -407,11 +661,11 @@ public partial class OperationViewModel : ObservableObject
             BoltFasteningHeatSink2Present,
             BoltFasteningTargetPosition,
             bolt => ReferenceEquals(bolt, active)
-                ? WorkTargetState.Active
+                ? BoltTargetState.Active
                 : FasteningTargetState(bolt));
     }
 
-    private IReadOnlyList<WorkTargetView> CreateInspectionTargets()
+    private IReadOnlyList<BoltTargetView> CreateInspectionTargets()
     {
         var active = InspectionActiveBolt;
         return CreateTargets(
@@ -419,15 +673,15 @@ public partial class OperationViewModel : ObservableObject
             InspectionHeatSink2Present,
             InspectionTargetPosition,
             bolt => ReferenceEquals(bolt, active)
-                ? WorkTargetState.Active
+                ? BoltTargetState.Active
                 : InspectionTargetState(bolt));
     }
 
-    private IReadOnlyList<WorkTargetView> CreateTargets(
+    private IReadOnlyList<BoltTargetView> CreateTargets(
         bool heatSink1Present,
         bool heatSink2Present,
         Func<BoltPoint, (double X, double Y)> position,
-        Func<BoltPoint, WorkTargetState> state)
+        Func<BoltPoint, BoltTargetState> state)
     {
         var bolts = _recipe.BoltFastening.BoltPoints
             .Where(bolt => bolt.X is not null
@@ -445,7 +699,7 @@ public partial class OperationViewModel : ObservableObject
         return bolts.Select(bolt =>
             {
                 var target = position(bolt);
-                return new WorkTargetView(
+                return new BoltTargetView(
                     bolt.Number,
                     bolt.Head,
                     target.X,
@@ -455,13 +709,13 @@ public partial class OperationViewModel : ObservableObject
             .ToArray();
     }
 
-    private WorkTargetState FasteningTargetState(BoltPoint bolt)
+    private BoltTargetState FasteningTargetState(BoltPoint bolt)
     {
         var assembly = _boltFasteningWork.Assemblies.FirstOrDefault(
             item => item.HeatSink == bolt.HeatSink);
         if (assembly is null)
         {
-            return WorkTargetState.Pending;
+            return BoltTargetState.Pending;
         }
 
         if (bolt.Head == FasteningHead.Shooting)
@@ -473,12 +727,12 @@ public partial class OperationViewModel : ObservableObject
             assembly.IpmSeatingResults,
             bolt.Number);
         var final = ResultState(assembly.IpmFinalResults, bolt.Number);
-        return seating == WorkTargetState.Ng || final == WorkTargetState.Ng
-            ? WorkTargetState.Ng
+        return seating == BoltTargetState.Ng || final == BoltTargetState.Ng
+            ? BoltTargetState.Ng
             : final;
     }
 
-    private WorkTargetState InspectionTargetState(BoltPoint bolt)
+    private BoltTargetState InspectionTargetState(BoltPoint bolt)
     {
         var assembly = _inspectionWork.Assemblies.FirstOrDefault(
             item => item.HeatSink == bolt.HeatSink);
@@ -487,50 +741,42 @@ public partial class OperationViewModel : ObservableObject
                 bolt.Number,
                 out var present))
         {
-            return WorkTargetState.Pending;
+            return BoltTargetState.Pending;
         }
 
-        return present ? WorkTargetState.Ok : WorkTargetState.Ng;
+        return present ? BoltTargetState.Ok : BoltTargetState.Ng;
     }
 
-    private static WorkTargetState ResultState(
+    private static BoltTargetState ResultState(
         IReadOnlyDictionary<int, BoltResult> results,
         int number) =>
         results.TryGetValue(number, out var result)
             ? result.Success
-                ? WorkTargetState.Ok
-                : WorkTargetState.Ng
-            : WorkTargetState.Pending;
+                ? BoltTargetState.Ok
+                : BoltTargetState.Ng
+            : BoltTargetState.Pending;
 
     private (double X, double Y) MapPcbSupply()
     {
-        var current = _pcbSupplyMotion.GetPosition();
-        var pcb1X = _recipe.PcbSupply.Pcb1PickPosition.X;
-        var pcb2X = _recipe.PcbSupply.Pcb2PickPosition.X;
+        var current = Supply.Motion.Position;
         var buffer = _pcbSupplySettings.BufferHandoffPosition;
-        if (pcb1X == pcb2X
-            || buffer.X == 0
-            || buffer.Y == _pcbSupplySettings.CarrierY)
-        {
-            return (59, 116);
-        }
-
-        var carrierScale = (153d - 59) / (pcb2X - pcb1X);
-        var originX = 59 - (pcb1X * carrierScale);
-        var bufferScale = (284 - originX) / buffer.X;
-        var lane = (current.Y - _pcbSupplySettings.CarrierY)
-                   / (buffer.Y - _pcbSupplySettings.CarrierY);
-        var xScale = carrierScale
-                     + ((bufferScale - carrierScale) * lane);
-        return (
-            originX + (current.X * xScale),
-            116 + ((177 - 116) * lane));
+        return MapFromThreePoints(
+            current.X,
+            current.Y,
+            (_recipe.PcbSupply.Pcb1PickPosition.X,
+                _pcbSupplySettings.CarrierY),
+            (_recipe.PcbSupply.Pcb2PickPosition.X,
+                _pcbSupplySettings.CarrierY),
+            (buffer.X, buffer.Y),
+            PcbSupplyPcb1MapAnchor,
+            PcbSupplyPcb2MapAnchor,
+            PcbSupplyBufferMapAnchor);
     }
 
     private (double X, double Y) MapPcbPlacement()
     {
-        var current = _pcbPlacementMotion.GetPosition();
-        return MapTriangle(
+        var current = Placement.Motion.Position;
+        return MapFromThreePoints(
             current.X,
             current.Y,
             (_pcbPlacementSettings.BufferHandoffPosition.X,
@@ -539,14 +785,14 @@ public partial class OperationViewModel : ObservableObject
                 _recipe.PcbPlacement.HeatSink1PcbPlacementPosition.Y),
             (_recipe.PcbPlacement.HeatSink2PcbPlacementPosition.X,
                 _recipe.PcbPlacement.HeatSink2PcbPlacementPosition.Y),
-            (282, 195),
-            (220, 399),
-            (348, 399));
+            PcbPlacementBufferMapAnchor,
+            PcbPlacementHeatSink1MapAnchor,
+            PcbPlacementHeatSink2MapAnchor);
     }
 
     private (double X, double Y) MapBoltFastening()
     {
-        var current = _boltFasteningMotion.GetPosition();
+        var current = Fastening.Motion.Position;
         return MapBoltGantry(current.X, current.Y);
     }
 
@@ -558,25 +804,27 @@ public partial class OperationViewModel : ObservableObject
             || shooting.LowerRightLocatingPin is not { } shootingLowerRight
             || pickup.UpperLeftLocatingPin is not { } pickupUpperLeft)
         {
-            return (18, 390);
+            return BoltGantryFallbackMapPosition;
         }
 
-        return MapTriangle(
+        return MapFromThreePoints(
             x,
             y,
             (shootingUpperLeft.X, shootingUpperLeft.Y),
             (shootingLowerRight.X, shootingLowerRight.Y),
             (pickupUpperLeft.X, pickupUpperLeft.Y),
-            (-44.5, 355),
-            (187.5, 403),
-            (6.5, 355));
+            BoltShootingUpperLeftMapAnchor,
+            BoltShootingLowerRightMapAnchor,
+            BoltPickupUpperLeftMapAnchor);
     }
 
     private (double X, double Y) BoltPickupCenter()
     {
         var pickup = _boltFasteningSettings.PickupPosition;
         var root = MapBoltGantry(pickup.X, pickup.Y);
-        return (root.X + PickupToolX, root.Y + BoltToolY);
+        return (
+            root.X + BoltPickupToolMapOffset.X,
+            root.Y + BoltPickupToolMapOffset.Y);
     }
 
     private (double X, double Y) BoltFasteningTargetPosition(
@@ -586,38 +834,38 @@ public partial class OperationViewModel : ObservableObject
             bolt,
             _carrierReference);
         var root = MapBoltGantry(target.X, target.Y);
-        var toolX = bolt.Head == FasteningHead.Pickup
-            ? PickupToolX
-            : ShootingToolX;
+        var toolOffset = bolt.Head == FasteningHead.Pickup
+            ? BoltPickupToolMapOffset
+            : BoltShootingToolMapOffset;
         return (
-            root.X + toolX - BoltTargetOriginX,
-            root.Y + BoltToolY - BoltTargetOriginY);
+            root.X + toolOffset.X - BoltTargetMapOrigin.X,
+            root.Y + toolOffset.Y - BoltTargetMapOrigin.Y);
     }
 
     private (double X, double Y) MapInspectionGantry()
     {
-        var current = _inspectionGantryMotion.GetPosition();
+        var current = InspectionGantry.Motion.Position;
         return MapInspectionGantry(current.X, current.Y);
     }
 
     private (double X, double Y) MapInspectionGantry(double x, double y)
     {
-        if (_carrierReference.UpperLeftPin is not { } upperLeft
-            || _carrierReference.LowerRightPin is not { } lowerRight)
+        if (_carrierReference.UpperLeftLocatingPin is not { } upperLeft
+            || _carrierReference.LowerRightLocatingPin is not { } lowerRight)
         {
-            return (-40, 390);
+            return InspectionFallbackMapPosition;
         }
 
         var pickup = _ngConveyorSettings.CarrierPickupPosition;
-        return MapTriangle(
+        return MapFromThreePoints(
             x,
             y,
             (upperLeft.X, upperLeft.Y),
             (lowerRight.X, lowerRight.Y),
             (pickup.X, pickup.Y),
-            (6, 387),
-            (238, 435),
-            (80, 411));
+            InspectionUpperLeftMapAnchor,
+            InspectionLowerRightMapAnchor,
+            InspectionPickupMapAnchor);
     }
 
     private (double X, double Y) InspectionTargetPosition(BoltPoint bolt)
@@ -627,26 +875,30 @@ public partial class OperationViewModel : ObservableObject
             _carrierReference);
         var root = MapInspectionGantry(target.X, target.Y);
         return (
-            root.X + InspectionCameraX - InspectionTargetOriginX,
-            root.Y + InspectionToolY - InspectionTargetOriginY);
+            root.X + InspectionCameraMapOffset.X
+            - InspectionTargetMapOrigin.X,
+            root.Y + InspectionCameraMapOffset.Y
+            - InspectionTargetMapOrigin.Y);
     }
 
     private (double X, double Y) MapNgConveyor()
     {
-        if (_carrierReference.UpperLeftPin is null
-            || _carrierReference.LowerRightPin is null)
+        if (_carrierReference.UpperLeftLocatingPin is null
+            || _carrierReference.LowerRightLocatingPin is null)
         {
-            return (0, 0);
+            return NgConveyorFallbackMapOffset;
         }
 
         var shuttle = _ngConveyorSettings.ShuttlePlacePosition;
         var root = MapInspectionGantry(shuttle.X, shuttle.Y);
         return (
-            root.X + NgGripperX - NgConveyorPosition3X,
-            root.Y + InspectionToolY - NgConveyorPosition3Y);
+            root.X + NgGripperMapOffset.X
+            - NgConveyorPosition3MapAnchor.X,
+            root.Y + NgGripperMapOffset.Y
+            - NgConveyorPosition3MapAnchor.Y);
     }
 
-    private static (double X, double Y) MapTriangle(
+    private static (double X, double Y) MapFromThreePoints(
         double x,
         double y,
         (double X, double Y) source1,
@@ -681,19 +933,76 @@ public partial class OperationViewModel : ObservableObject
             + (third * target3.Y));
     }
 
-    private static string FormatPosition(
-        (double X, double Y, double Z) position) =>
-        $"X {position.X:F3}   Y {position.Y:F3}   Z {position.Z:F3}";
+    private static double ZTop(MotionStatus motion)
+        => ZTop(
+            motion.Position.Z,
+            motion.ZMinimum,
+            motion.ZMaximum);
 
-    private static string FormatXyPosition(
-        (double X, double Y, double Z) position) =>
-        $"X {position.X:F3}   Y {position.Y:F3}";
-
-    private void OnPositionChanged(double _, double __, double ___) =>
-        QueuePositionRefresh();
-
-    private void QueuePositionRefresh()
+    private static double ZTop(double z, double minimum, double maximum)
     {
+        var ratio = Math.Clamp((z - minimum) / (maximum - minimum), 0, 1);
+        return ZSideViewTop + (ratio * ZSideViewTravel);
+    }
+
+    private void OnPcbSupplyMotionChanged(
+        object? _,
+        PropertyChangedEventArgs e) =>
+        OnMotionChanged(
+            e,
+            PositionRefresh.PcbSupply,
+            DisplayRefresh.PcbSupply);
+
+    private void OnPcbPlacementMotionChanged(
+        object? _,
+        PropertyChangedEventArgs e) =>
+        OnMotionChanged(
+            e,
+            PositionRefresh.PcbPlacement,
+            DisplayRefresh.PcbPlacement,
+            RefreshPcbPlacementDisplay);
+
+    private void OnBoltFasteningMotionChanged(
+        object? _,
+        PropertyChangedEventArgs e) =>
+        OnMotionChanged(
+            e,
+            PositionRefresh.BoltFastening,
+            DisplayRefresh.BoltFastening,
+            RefreshBoltFasteningDisplay);
+
+    private void OnInspectionGantryMotionChanged(
+        object? _,
+        PropertyChangedEventArgs e) =>
+        OnMotionChanged(
+            e,
+            PositionRefresh.Inspection,
+            DisplayRefresh.Inspection,
+            RefreshInspectionDisplay);
+
+    private void OnMotionChanged(
+        PropertyChangedEventArgs e,
+        PositionRefresh positionRefresh,
+        DisplayRefresh displayRefresh,
+        Action? refreshDisplay = null)
+    {
+        if (e.PropertyName == nameof(MotionStatus.IsMoving))
+        {
+            refreshDisplay?.Invoke();
+            QueueDisplayRefresh(displayRefresh);
+            return;
+        }
+
+        if (_positionUpdatesActive
+            && e.PropertyName == nameof(MotionStatus.Position))
+        {
+            QueuePositionRefresh(positionRefresh);
+        }
+    }
+
+    private void QueuePositionRefresh(PositionRefresh refresh)
+    {
+        Interlocked.Or(ref _pendingPositionRefresh, (int)refresh);
         if (Interlocked.Exchange(ref _positionRefreshQueued, 1) != 0)
         {
             return;
@@ -702,36 +1011,388 @@ public partial class OperationViewModel : ObservableObject
         RunOnUi(() =>
         {
             Interlocked.Exchange(ref _positionRefreshQueued, 0);
-            OnPropertyChanged(nameof(PcbSupplyPosition));
-            OnPropertyChanged(nameof(PcbSupplyMapLeft));
-            OnPropertyChanged(nameof(PcbSupplyMapTop));
-            OnPropertyChanged(nameof(PcbPlacementPosition));
-            OnPropertyChanged(nameof(PcbPlacementMapLeft));
-            OnPropertyChanged(nameof(PcbPlacementMapTop));
-            OnPropertyChanged(nameof(PcbPlacementProcessState));
-            OnPropertyChanged(nameof(PcbPlacementTargetHeatSink));
-            OnPropertyChanged(nameof(BoltFasteningPosition));
-            OnPropertyChanged(nameof(BoltFasteningMapLeft));
-            OnPropertyChanged(nameof(BoltFasteningMapTop));
-            OnPropertyChanged(nameof(BoltFasteningProcessState));
-            OnPropertyChanged(nameof(BoltFasteningActiveBolt));
-            OnPropertyChanged(nameof(BoltTargets));
-            OnPropertyChanged(nameof(InspectionGantryPosition));
-            OnPropertyChanged(nameof(InspectionGantryMapLeft));
-            OnPropertyChanged(nameof(InspectionGantryMapTop));
-            OnPropertyChanged(nameof(InspectionProcessState));
-            OnPropertyChanged(nameof(InspectionActiveBolt));
-            OnPropertyChanged(nameof(InspectionTargets));
+            var pending = (PositionRefresh)Interlocked.Exchange(
+                ref _pendingPositionRefresh,
+                0);
+
+            if ((pending & PositionRefresh.PcbSupply) != 0)
+            {
+                OnPropertyChanged(nameof(PcbSupplyZTop));
+                OnPropertyChanged(nameof(PcbSupplyMapLeft));
+                OnPropertyChanged(nameof(PcbSupplyMapTop));
+            }
+
+            if ((pending & PositionRefresh.PcbPlacement) != 0)
+            {
+                OnPropertyChanged(nameof(PcbPlacementZTop));
+                OnPropertyChanged(nameof(PcbPlacementMapLeft));
+                OnPropertyChanged(nameof(PcbPlacementMapTop));
+            }
+
+            if ((pending & PositionRefresh.BoltFastening) != 0)
+            {
+                OnPropertyChanged(nameof(BoltFasteningZTop));
+                OnPropertyChanged(nameof(BoltFasteningMapLeft));
+                OnPropertyChanged(nameof(BoltFasteningMapTop));
+            }
+
+            if ((pending & PositionRefresh.Inspection) != 0)
+            {
+                OnPropertyChanged(nameof(InspectionGantryMapLeft));
+                OnPropertyChanged(nameof(InspectionGantryMapTop));
+            }
+        }, DispatcherPriority.Background);
+    }
+
+    private void OnMachineStateChanged()
+    {
+        var automaticRunning = _machineDisplay.AutomaticRunning;
+        _machineDisplay = CreateMachineDisplaySnapshot();
+        var refresh = DisplayRefresh.Machine;
+        if (automaticRunning != _machineDisplay.AutomaticRunning)
+        {
+            RefreshBoltFasteningDisplay();
+            RefreshInspectionDisplay();
+            refresh |= DisplayRefresh.BoltFastening
+                       | DisplayRefresh.Inspection;
+        }
+
+        QueueDisplayRefresh(refresh);
+    }
+
+    private void OnPcbSupplyChanged() =>
+        QueueDisplayRefresh(DisplayRefresh.PcbSupply);
+
+    private void OnPcbPlacementHardwareChanged()
+    {
+        RefreshPcbPlacementDisplay();
+        QueueDisplayRefresh(DisplayRefresh.PcbPlacement);
+    }
+
+    private void OnPcbBufferChanged()
+    {
+        RefreshPcbPlacementDisplay();
+        QueueDisplayRefresh(DisplayRefresh.PcbPlacement);
+    }
+
+    private void OnMainConveyorChanged() =>
+        QueueDisplayRefresh(DisplayRefresh.Conveyor);
+
+    private void OnPcbPlacementWorkChanged()
+    {
+        RefreshPcbPlacementDisplay();
+        QueueDisplayRefresh(DisplayRefresh.PcbPlacement);
+    }
+
+    private void OnBoltFasteningWorkChanged()
+    {
+        RefreshBoltFasteningDisplay();
+        QueueDisplayRefresh(DisplayRefresh.BoltFastening);
+    }
+
+    private void OnBoltFasteningHardwareChanged()
+    {
+        RefreshBoltFasteningDisplay();
+        QueueDisplayRefresh(DisplayRefresh.BoltFastening);
+    }
+
+    private void OnInspectionWorkChanged()
+    {
+        RefreshInspectionDisplay();
+        QueueDisplayRefresh(DisplayRefresh.Inspection);
+    }
+
+    private void OnNgConveyorChanged() =>
+        QueueDisplayRefresh(DisplayRefresh.NgConveyor);
+
+    private void OnNgTransferChanged() =>
+        QueueDisplayRefresh(
+            DisplayRefresh.NgConveyor | DisplayRefresh.Inspection);
+
+    private void RefreshPcbPlacementDisplay()
+    {
+        _pcbPlacementProcessState =
+            _pcbPlacementProcess.State(_recipe.PcbPlacement);
+        _pcbPlacementTargetHeatSink = _pcbPlacementProcess.TargetHeatSink;
+    }
+
+    private void RefreshBoltFasteningDisplay()
+    {
+        _boltFasteningProcessState =
+            _boltFasteningProcess.State(_recipe.BoltFastening);
+        _boltFasteningActiveBolt =
+            _boltFasteningProcess.ActiveBolt(_recipe.BoltFastening);
+        _boltTargets = CreateFasteningTargets();
+    }
+
+    private void RefreshInspectionDisplay()
+    {
+        var bolts = _recipe.BoltFastening.BoltPoints;
+        _inspectionProcessState = _inspectionProcess.State(bolts);
+        _inspectionActiveBolt = _inspectionProcess.ActiveBolt(bolts);
+        _inspectionTargets = CreateInspectionTargets();
+    }
+
+    private void QueueDisplayRefresh(DisplayRefresh refresh)
+    {
+        if (refresh == 0)
+        {
+            return;
+        }
+
+        Interlocked.Or(ref _pendingDisplayRefresh, (int)refresh);
+        if (Interlocked.Exchange(ref _displayRefreshQueued, 1) != 0)
+        {
+            return;
+        }
+
+        RunOnUi(() =>
+        {
+            Interlocked.Exchange(ref _displayRefreshQueued, 0);
+            var pending = (DisplayRefresh)Interlocked.Exchange(
+                ref _pendingDisplayRefresh,
+                0);
+
+            NotifyProperties(pending);
+            if ((pending & DisplayRefresh.Machine) != 0)
+            {
+                NotifyCanExecuteChanged();
+            }
         });
     }
 
-    private void OnMachineStateChanged() =>
-        RunOnUi(() =>
+    private void NotifyProperties(DisplayRefresh refresh)
+    {
+        if ((refresh & DisplayRefresh.Machine) != 0)
         {
-            OnPropertyChanged(new PropertyChangedEventArgs(null));
-            NotifyCanExecuteChanged();
-        });
+            NotifyProperties(MachinePropertyNames);
+        }
 
-    private static void RunOnUi(Action action) =>
-        Application.Current.Dispatcher.BeginInvoke(action);
+        if ((refresh & DisplayRefresh.PcbSupply) != 0)
+        {
+            NotifyProperties(PcbSupplyPropertyNames);
+        }
+
+        if ((refresh & DisplayRefresh.PcbPlacement) != 0)
+        {
+            NotifyProperties(PcbPlacementPropertyNames);
+        }
+
+        if ((refresh & DisplayRefresh.Conveyor) != 0)
+        {
+            NotifyProperties(ConveyorPropertyNames);
+        }
+
+        if ((refresh & DisplayRefresh.BoltFastening) != 0)
+        {
+            NotifyProperties(BoltFasteningPropertyNames);
+        }
+
+        if ((refresh & DisplayRefresh.Inspection) != 0)
+        {
+            NotifyProperties(InspectionPropertyNames);
+        }
+
+        if ((refresh & DisplayRefresh.NgConveyor) != 0)
+        {
+            NotifyProperties(NgConveyorPropertyNames);
+        }
+    }
+
+    private void NotifyProperties(IEnumerable<string> properties)
+    {
+        foreach (var property in properties)
+        {
+            OnPropertyChanged(property);
+        }
+    }
+
+    private MachineDisplaySnapshot CreateMachineDisplaySnapshot()
+    {
+        var alarm = _state.Alarm;
+        var readiness = _state.MotionReadiness;
+        var emergencyStopReleased = _state.EmergencyStopReleased;
+        var doorClosed = _state.DoorClosed;
+        var airPressureOk = _state.AirPressureOk;
+        var servoMainContactorOn = _state.ServoMainContactorOn;
+        var autoMode = _state.AutoMode;
+        var bufferConflict = _state.BufferConflict;
+        var isHoming = _state.IsHoming;
+        var automaticRunning = _state.AutomaticRunning;
+        var isRunning = _state.IsRunning;
+        var conveyorRunning = _state.ConveyorRunning;
+        var conveyorState = _state.MainConveyorState;
+        var safetyReady =
+            (!_options.UseEmergencyStop || emergencyStopReleased)
+            && (!_options.UseAirPressureInterlock || airPressureOk);
+        var startBlock = StartBlockFor(
+            alarm,
+            readiness,
+            emergencyStopReleased,
+            doorClosed,
+            airPressureOk,
+            servoMainContactorOn,
+            autoMode,
+            bufferConflict);
+        var canStart = !isRunning && startBlock == StartBlockReason.None;
+        var canHome = safetyReady
+            && (!_options.UseDoorInterlock || doorClosed)
+            && readiness.ServosOn
+            && !readiness.Homed
+            && alarm == MachineAlarm.None
+            && !isRunning
+            && _machine.CanHome;
+
+        return new(
+            DisplayStateFor(
+                safetyReady,
+                alarm,
+                readiness,
+                isHoming,
+                servoMainContactorOn,
+                isRunning),
+            startBlock,
+            isHoming,
+            automaticRunning,
+            conveyorRunning,
+            conveyorState,
+            bufferConflict,
+            emergencyStopReleased,
+            doorClosed,
+            airPressureOk,
+            autoMode,
+            alarm,
+            servoMainContactorOn && readiness.ServosOn,
+            readiness.Homed,
+            canStart,
+            canHome);
+    }
+
+    private StartBlockReason StartBlockFor(
+        MachineAlarm alarm,
+        MotionReadiness readiness,
+        bool emergencyStopReleased,
+        bool doorClosed,
+        bool airPressureOk,
+        bool servoMainContactorOn,
+        bool autoMode,
+        bool bufferConflict)
+    {
+        if (alarm == MachineAlarm.EmergencyStop)
+        {
+            return StartBlockReason.EmergencyStop;
+        }
+
+        if (alarm == MachineAlarm.DoorOpen)
+        {
+            return StartBlockReason.DoorOpen;
+        }
+
+        if (alarm == MachineAlarm.AirPressureLow)
+        {
+            return StartBlockReason.AirPressure;
+        }
+
+        if (alarm == MachineAlarm.BufferConflict || bufferConflict)
+        {
+            return StartBlockReason.BufferConflict;
+        }
+
+        if (alarm != MachineAlarm.None)
+        {
+            return StartBlockReason.Alarm;
+        }
+
+        if (_options.UseEmergencyStop && !emergencyStopReleased)
+        {
+            return StartBlockReason.EmergencyStop;
+        }
+
+        if (_options.UseAirPressureInterlock && !airPressureOk)
+        {
+            return StartBlockReason.AirPressure;
+        }
+
+        if (readiness.Faulted)
+        {
+            return StartBlockReason.MotionFault;
+        }
+
+        if (!servoMainContactorOn || !readiness.ServosOn)
+        {
+            return StartBlockReason.ServoOff;
+        }
+
+        if (_options.UseDoorInterlock && !doorClosed)
+        {
+            return StartBlockReason.DoorOpen;
+        }
+
+        if (!readiness.Homed)
+        {
+            return StartBlockReason.HomeRequired;
+        }
+
+        if (!autoMode)
+        {
+            return StartBlockReason.AutoMode;
+        }
+
+        if (!_machine.TeachingReady)
+        {
+            return StartBlockReason.TeachingIncomplete;
+        }
+
+        return _units.HasEnabledUnit()
+            ? StartBlockReason.None
+            : StartBlockReason.NoUnitEnabled;
+    }
+
+    private static MachineDisplayState DisplayStateFor(
+        bool safetyReady,
+        MachineAlarm alarm,
+        MotionReadiness readiness,
+        bool isHoming,
+        bool servoMainContactorOn,
+        bool isRunning)
+    {
+        if (!safetyReady)
+        {
+            return MachineDisplayState.SafetyStop;
+        }
+
+        if (alarm != MachineAlarm.None)
+        {
+            return MachineDisplayState.Alarm;
+        }
+
+        if (readiness.Faulted)
+        {
+            return MachineDisplayState.MotionFault;
+        }
+
+        if (isHoming)
+        {
+            return MachineDisplayState.Homing;
+        }
+
+        if (!servoMainContactorOn || !readiness.ServosOn)
+        {
+            return MachineDisplayState.ServoOff;
+        }
+
+        if (!readiness.Homed)
+        {
+            return MachineDisplayState.HomeRequired;
+        }
+
+        return isRunning
+            ? MachineDisplayState.Running
+            : MachineDisplayState.Ready;
+    }
+
+    private static void RunOnUi(
+        Action action,
+        DispatcherPriority priority = DispatcherPriority.DataBind) =>
+        Application.Current.Dispatcher.BeginInvoke(priority, action);
 }

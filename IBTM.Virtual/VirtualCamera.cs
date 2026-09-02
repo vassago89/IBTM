@@ -8,7 +8,7 @@ namespace IBTM.Virtual;
 
 public sealed class VirtualCamera(
     Func<(double X, double Y, double Z)> getPosition,
-    Func<IEnumerable<AxisPos>> getBoltPositions) : ICamera
+    Func<IEnumerable<AxisPosition>> getBoltPositions) : ICamera
 {
     public event Action<ImageFrame>? FrameReady;
 

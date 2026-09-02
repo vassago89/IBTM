@@ -8,8 +8,6 @@ namespace IBTM.BoltFastening;
 
 public sealed class BoltFasteningStation
 {
-    private const double PositionTolerance = 0.05;
-
     private readonly IBoltHead _shootingHead;
     private readonly IBoltHead _pickupHead;
     private readonly IIoService _io;
@@ -31,22 +29,29 @@ public sealed class BoltFasteningStation
         _motion = motion;
         _settings = settings;
         _carrierReference = carrierReference;
+        Motion = new(motion);
+        io.InputChanged += OnInputChanged;
     }
 
+    public event Action? Changed;
+
+    public MotionStatus Motion { get; }
+    public IMotionFeedback Feedback => _motion;
+
     public bool PickupBoltLoaded =>
-        _io.GetInput(InputIo.BoltHead1VacuumDetected);
+        _io.GetInput(InputIo.PickupHeadVacuumDetected);
     public bool ShootingBoltLoaded =>
-        _io.GetInput(InputIo.BoltHead2VacuumDetected);
+        _io.GetInput(InputIo.ShootingHeadVacuumDetected);
     public BoltCylinderState PickupHead =>
         CylinderState(
             InputIo.BoltTableUp,
             InputIo.BoltTableDown,
-            InputIo.BoltHead1Up,
-            InputIo.BoltHead1Down);
+            InputIo.PickupHeadUp,
+            InputIo.PickupHeadDown);
     public BoltCylinderState ShootingHead =>
         CylinderState(
-            InputIo.BoltHead2Up,
-            InputIo.BoltHead2Down);
+            InputIo.ShootingHeadUp,
+            InputIo.ShootingHeadDown);
     public BoltEscapeState ShootingEscape =>
         (_io.GetInput(InputIo.ShootingEscapeForward),
             _io.GetInput(InputIo.ShootingEscapeBackward)) switch
@@ -81,6 +86,73 @@ public sealed class BoltFasteningStation
     public bool AtPickupPosition => IsAt(_settings.PickupPosition);
 
     public bool AtPickupXY => IsAtXY(_settings.PickupPosition);
+
+    public void InitializeMotion() => _motion.Initialize();
+
+    public void ResetMotion() => _motion.Reset();
+
+    public void SetServo(MotionAxis axis, bool on) =>
+        _motion.SetServo(axis, on);
+
+    public Task<bool> HomeAxisAsync(
+        MotionAxis axis,
+        double velocity,
+        CancellationToken cancellationToken = default) =>
+        _motion.HomeAsync(axis, velocity, cancellationToken);
+
+    public Task<bool> HomeZAsync(
+        double velocity,
+        CancellationToken cancellationToken = default) =>
+        _motion.HomeAsync(MotionAxis.Z, velocity, cancellationToken);
+
+    public Task<bool> HomeHorizontalAsync(
+        double velocity,
+        CancellationToken cancellationToken = default) =>
+        _motion.HomeHorizontalAsync(velocity, cancellationToken);
+
+    public Task MoveToXYAsync(
+        double x,
+        double y,
+        CancellationToken cancellationToken = default) =>
+        _motion.MoveToXYAsync(
+            x,
+            y,
+            _settings.Motion.HorizontalSpeed,
+            cancellationToken);
+
+    public Task MoveZAsync(
+        double z,
+        CancellationToken cancellationToken = default) =>
+        _motion.MoveZAsync(
+            z,
+            _settings.Motion.ZSpeed,
+            cancellationToken);
+
+    public Task MoveToAsync(
+        double x,
+        double y,
+        double z,
+        CancellationToken cancellationToken = default) =>
+        _motion.MoveToAsync(x, y, z, cancellationToken);
+
+    public void Jog(
+        MotionAxis axis,
+        double velocity,
+        CancellationToken cancellationToken = default)
+    {
+        switch (axis)
+        {
+            case MotionAxis.X:
+                _motion.JogX(velocity, cancellationToken);
+                break;
+            case MotionAxis.Y:
+                _motion.JogY(velocity, cancellationToken);
+                break;
+            case MotionAxis.Z:
+                _motion.JogZ(velocity, cancellationToken);
+                break;
+        }
+    }
 
     public async Task CheckReadyAsync(
         CancellationToken cancellationToken = default)
@@ -143,7 +215,7 @@ public sealed class BoltFasteningStation
     {
         await SetPickupHeadDownAsync(false, cancellationToken);
         await _io.SetOutputAndWaitAsync(
-            OutputIo.BoltHead2Down,
+            OutputIo.ShootingHeadDown,
             head == FasteningHead.Shooting,
             cancellationToken);
     }
@@ -151,7 +223,7 @@ public sealed class BoltFasteningStation
     public Task RaiseShootingHeadAsync(
         CancellationToken cancellationToken = default) =>
         _io.SetOutputAndWaitAsync(
-            OutputIo.BoltHead2Down,
+            OutputIo.ShootingHeadDown,
             false,
             cancellationToken);
 
@@ -179,7 +251,7 @@ public sealed class BoltFasteningStation
                 down,
                 cancellationToken),
             _io.SetOutputAndWaitAsync(
-                OutputIo.BoltHead1Down,
+                OutputIo.PickupHeadDown,
                 down,
                 cancellationToken));
 
@@ -194,7 +266,7 @@ public sealed class BoltFasteningStation
             InputIo.ShootingTubeBoltDetected,
             false,
             cancellationToken);
-        _io.SetOutput(OutputIo.BoltHead2VacuumPump, true);
+        _io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
         await _io.SetOutputAndWaitAsync(
             OutputIo.ShootingEscapeForward,
             true,
@@ -207,7 +279,7 @@ public sealed class BoltFasteningStation
                 true,
                 cancellationToken);
             await _io.WaitForInputAsync(
-                InputIo.BoltHead2VacuumDetected,
+                InputIo.ShootingHeadVacuumDetected,
                 true,
                 cancellationToken);
         }
@@ -253,22 +325,27 @@ public sealed class BoltFasteningStation
         _ => throw new ArgumentOutOfRangeException(nameof(head)),
     };
 
-    private bool IsAt(AxisPos target)
+    private bool IsAt(AxisPosition target)
     {
         var current = _motion.GetPosition();
         return HorizontalInPosition
             && _motion.GetAxisState(MotionAxis.Z).InPosition
-            && Math.Abs(current.X - target.X) <= PositionTolerance
-            && Math.Abs(current.Y - target.Y) <= PositionTolerance
-            && Math.Abs(current.Z - target.Z) <= PositionTolerance;
+            && Math.Abs(current.X - target.X)
+                <= MotionService.PositionToleranceMillimeters
+            && Math.Abs(current.Y - target.Y)
+                <= MotionService.PositionToleranceMillimeters
+            && Math.Abs(current.Z - target.Z)
+                <= MotionService.PositionToleranceMillimeters;
     }
 
-    private bool IsAtXY(AxisPos target)
+    private bool IsAtXY(AxisPosition target)
     {
         var current = _motion.GetPosition();
         return HorizontalInPosition
-            && Math.Abs(current.X - target.X) <= PositionTolerance
-            && Math.Abs(current.Y - target.Y) <= PositionTolerance;
+            && Math.Abs(current.X - target.X)
+                <= MotionService.PositionToleranceMillimeters
+            && Math.Abs(current.Y - target.Y)
+                <= MotionService.PositionToleranceMillimeters;
     }
 
     private bool HorizontalInPosition =>
@@ -307,13 +384,30 @@ public sealed class BoltFasteningStation
         CancellationToken cancellationToken)
     {
         var output = head == FasteningHead.Pickup
-            ? OutputIo.BoltHead1VacuumPump
-            : OutputIo.BoltHead2VacuumPump;
+            ? OutputIo.PickupHeadVacuumPump
+            : OutputIo.ShootingHeadVacuumPump;
         var input = head == FasteningHead.Pickup
-            ? InputIo.BoltHead1VacuumDetected
-            : InputIo.BoltHead2VacuumDetected;
+            ? InputIo.PickupHeadVacuumDetected
+            : InputIo.ShootingHeadVacuumDetected;
         _io.SetOutput(output, on);
         await _io.WaitForInputAsync(input, on, cancellationToken);
+    }
+
+    private void OnInputChanged(InputIo input, bool _)
+    {
+        if (input is InputIo.PickupHeadVacuumDetected
+            or InputIo.ShootingHeadVacuumDetected
+            or InputIo.BoltTableUp
+            or InputIo.BoltTableDown
+            or InputIo.PickupHeadUp
+            or InputIo.PickupHeadDown
+            or InputIo.ShootingHeadUp
+            or InputIo.ShootingHeadDown
+            or InputIo.ShootingEscapeForward
+            or InputIo.ShootingEscapeBackward)
+        {
+            Changed?.Invoke();
+        }
     }
 
 }

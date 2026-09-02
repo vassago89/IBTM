@@ -14,7 +14,8 @@ public sealed class VirtualMotionService(
     (double Minimum, double Maximum)? xRange = null,
     (double Minimum, double Maximum)? yRange = null,
     (double Minimum, double Maximum)? zRange = null,
-    double resolutionMillimeters = 0.01,
+    double resolutionMillimeters =
+        MotionHardwareSettings.DefaultMillimetersPerPulse,
     Func<double>? horizontalZ = null,
     Func<bool>? servoPowerOn = null)
     : MotionService(
@@ -28,10 +29,11 @@ public sealed class VirtualMotionService(
         zRange), IDisposable
 {
     private static readonly TimeSpan UpdateInterval = TimeSpan.FromMilliseconds(10);
+    private static readonly int AxisCount = Enum.GetValues<MotionAxis>().Length;
 
-    private readonly bool[] _servoOn = new bool[3];
-    private readonly bool[] _homed = new bool[3];
-    private readonly bool[] _alarm = new bool[3];
+    private readonly bool[] _servoOn = new bool[AxisCount];
+    private readonly bool[] _homed = new bool[AxisCount];
+    private readonly bool[] _alarm = new bool[AxisCount];
     private CancellationTokenSource? _movement;
     private bool _seekingZPositiveLimit;
     private bool _zPositiveLimit;
@@ -188,7 +190,7 @@ public sealed class VirtualMotionService(
         return true;
     }
 
-    public override void ResetAlarm()
+    protected override void ResetAlarm()
     {
         Array.Clear(_alarm);
         PublishStateChanged();

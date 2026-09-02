@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -12,7 +11,7 @@ namespace IBTM.UI;
 
 public sealed record CarrierImageTileView(
     int Number,
-    AxisPos Center,
+    AxisPosition Center,
     BitmapSource Image);
 
 public sealed record ImageMarker(
@@ -23,26 +22,62 @@ public sealed record ImageMarker(
 
 public sealed class ImageTeachingView : FrameworkElement
 {
-    private double _zoom = 1;
+    private const double MinimumZoom = 1;
+    private const double MaximumZoom = 20;
+    private const double ZoomStep = 1.2;
+
+    private static readonly SolidColorBrush CameraFill = FrozenBrush(
+        Color.FromArgb(18, 251, 191, 36));
+    private static readonly SolidColorBrush CameraStroke = FrozenBrush(
+        Color.FromRgb(251, 191, 36));
+    private static readonly SolidColorBrush MarkerStroke = FrozenBrush(
+        Color.FromRgb(56, 189, 248));
+    private static readonly SolidColorBrush SelectedMarkerStroke = FrozenBrush(
+        Color.FromRgb(74, 222, 128));
+    private static readonly Pen CameraPen = FrozenPen(
+        CameraStroke,
+        2,
+        DashStyles.Dash);
+    private static readonly Pen MarkerPen = FrozenPen(MarkerStroke, 1.5);
+    private static readonly Pen SelectedMarkerPen = FrozenPen(
+        SelectedMarkerStroke,
+        2.5);
+    private static readonly Typeface MarkerTypeface = new("Segoe UI");
+
+    private readonly DrawingVisual _mapVisual = new();
+    private readonly DrawingVisual _markerVisual = new();
+    private readonly DrawingVisual _cameraVisual = new();
+    private readonly VisualCollection _visuals;
+
+    private double _zoom = MinimumZoom;
     private Vector _pan;
     private Point? _panStart;
+    private (CarrierImageTileView Tile, Rect World)[] _tileLayout = [];
+    private Rect? _world;
+    private MapView? _layout;
+    private RectangleGeometry? _screenClip;
 
     public static readonly DependencyProperty SourceProperty = Register(
         nameof(Source),
-        typeof(BitmapSource));
+        typeof(BitmapSource),
+        OnMapChanged);
     public static readonly DependencyProperty TilesProperty = Register(
         nameof(Tiles),
-        typeof(IReadOnlyList<CarrierImageTileView>));
+        typeof(IReadOnlyList<CarrierImageTileView>),
+        OnMapChanged);
     public static readonly DependencyProperty MillimetersPerPixelProperty = Register(
         nameof(MillimetersPerPixel),
         typeof(double),
-        0.05);
+        OnMapChanged,
+        Recipe.DefaultCarrierImageMillimetersPerPixel);
     public static readonly DependencyProperty MarkersProperty = Register(
         nameof(Markers),
-        typeof(IReadOnlyList<ImageMarker>));
+        typeof(IReadOnlyList<ImageMarker>),
+        OnMarkersChanged);
     public static readonly DependencyProperty CameraFieldOfViewProperty = Register(
         nameof(CameraFieldOfView),
-        typeof(Rect?));
+        typeof(Rect?),
+        OnCameraChanged);
     public static readonly DependencyProperty HoverPositionTextProperty =
         DependencyProperty.Register(
             nameof(HoverPositionText),
@@ -58,6 +93,16 @@ public sealed class ImageTeachingView : FrameworkElement
             nameof(ClickCommand),
             typeof(ICommand),
             typeof(ImageTeachingView));
+
+    public ImageTeachingView()
+    {
+        _visuals = new VisualCollection(this)
+        {
+            _mapVisual,
+            _markerVisual,
+            _cameraVisual,
+        };
+    }
 
     public BitmapSource? Source
     {
@@ -107,9 +152,19 @@ public sealed class ImageTeachingView : FrameworkElement
         set => SetValue(ClickCommandProperty, value);
     }
 
-    protected override void OnRender(DrawingContext drawingContext)
+    protected override int VisualChildrenCount => _visuals.Count;
+
+    protected override Visual GetVisualChild(int index) => _visuals[index];
+
+    protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
     {
-        base.OnRender(drawingContext);
+        base.OnRenderSizeChanged(sizeInfo);
+        RefreshVisuals();
+    }
+
+    private void DrawMap()
+    {
+        using var drawingContext = _mapVisual.RenderOpen();
         if (Source is not null)
         {
             drawingContext.DrawImage(
@@ -118,16 +173,14 @@ public sealed class ImageTeachingView : FrameworkElement
             return;
         }
 
-        if (!HasMap)
+        if (_layout is not { } layout)
         {
             return;
         }
 
-        var layout = MapLayout();
-        drawingContext.PushClip(new RectangleGeometry(layout.Screen));
-        foreach (var tile in Tiles!.OrderBy(tile => tile.Number))
+        drawingContext.PushClip(_screenClip!);
+        foreach (var (tile, world) in _tileLayout)
         {
-            var world = TileWorldRect(tile);
             drawingContext.DrawImage(
                 tile.Image,
                 WorldRect(
@@ -137,12 +190,18 @@ public sealed class ImageTeachingView : FrameworkElement
                     world.Height,
                     layout));
         }
+        drawingContext.Pop();
+    }
 
-        if (CameraFieldOfView is { } camera)
+    private void DrawMarkers()
+    {
+        using var drawingContext = _markerVisual.RenderOpen();
+        if (_layout is not { } layout)
         {
-            DrawCameraFieldOfView(drawingContext, camera, layout);
+            return;
         }
 
+        drawingContext.PushClip(_screenClip!);
         foreach (var marker in Markers ?? [])
         {
             DrawMarker(
@@ -153,15 +212,28 @@ public sealed class ImageTeachingView : FrameworkElement
         drawingContext.Pop();
     }
 
-    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    private void DrawCamera()
     {
-        base.OnMouseLeftButtonDown(e);
-        if (!HasMap || ClickCommand is null)
+        using var drawingContext = _cameraVisual.RenderOpen();
+        if (_layout is not { } layout
+            || CameraFieldOfView is not { } camera)
         {
             return;
         }
 
-        var layout = MapLayout();
+        drawingContext.PushClip(_screenClip!);
+        DrawCameraFieldOfView(drawingContext, camera, layout);
+        drawingContext.Pop();
+    }
+
+    protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonDown(e);
+        if (_layout is not { } layout || ClickCommand is null)
+        {
+            return;
+        }
+
         var click = e.GetPosition(this);
         if (!layout.Screen.Contains(click))
         {
@@ -169,7 +241,19 @@ public sealed class ImageTeachingView : FrameworkElement
         }
 
         var position = ScreenToWorld(click, layout);
-        if (!Tiles!.Any(tile => TileWorldRect(tile).Contains(position)))
+        var onTile = false;
+        foreach (var tile in _tileLayout)
+        {
+            if (!tile.World.Contains(position))
+            {
+                continue;
+            }
+
+            onTile = true;
+            break;
+        }
+
+        if (!onTile)
         {
             return;
         }
@@ -183,13 +267,12 @@ public sealed class ImageTeachingView : FrameworkElement
     protected override void OnMouseWheel(MouseWheelEventArgs e)
     {
         base.OnMouseWheel(e);
-        if (!HasMap)
+        if (_layout is not { } before)
         {
             return;
         }
 
         var mouse = e.GetPosition(this);
-        var before = MapLayout();
         if (!before.Screen.Contains(mouse))
         {
             return;
@@ -197,28 +280,29 @@ public sealed class ImageTeachingView : FrameworkElement
 
         var world = ScreenToWorld(mouse, before);
         _zoom = Math.Clamp(
-            _zoom * (e.Delta > 0 ? 1.2 : 1 / 1.2),
-            1,
-            20);
-        var after = MapLayout();
+            _zoom * (e.Delta > 0 ? ZoomStep : 1 / ZoomStep),
+            MinimumZoom,
+            MaximumZoom);
+        UpdateMapLayout();
+        var after = _layout!;
         var moved = WorldPoint(world.X, world.Y, after);
         _pan += mouse - moved;
-        InvalidateVisual();
+        RefreshVisuals();
     }
 
     protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseRightButtonDown(e);
-        if (!HasMap)
+        if (_layout is null)
         {
             return;
         }
 
         if (e.ClickCount == 2)
         {
-            _zoom = 1;
+            _zoom = MinimumZoom;
             _pan = default;
-            InvalidateVisual();
+            RefreshVisuals();
             return;
         }
 
@@ -234,10 +318,10 @@ public sealed class ImageTeachingView : FrameworkElement
         {
             _pan += current - previous;
             _panStart = current;
-            InvalidateVisual();
+            RefreshVisuals();
         }
 
-        var layout = HasMap ? MapLayout() : null;
+        var layout = _layout;
         HoverPositionText = layout is not null
             && layout.Screen.Contains(current)
             && CoordinateOrigin is { } origin
@@ -260,14 +344,64 @@ public sealed class ImageTeachingView : FrameworkElement
         ReleaseMouseCapture();
     }
 
-    private MapView MapLayout()
+    private void RebuildMap()
     {
-        var tiles = Tiles!;
-        var left = tiles.Min(tile => TileWorldRect(tile).Left);
-        var top = tiles.Min(tile => TileWorldRect(tile).Top);
-        var right = tiles.Max(tile => TileWorldRect(tile).Right);
-        var bottom = tiles.Max(tile => TileWorldRect(tile).Bottom);
-        var world = new Rect(left, top, right - left, bottom - top);
+        if (!HasMap)
+        {
+            _tileLayout = [];
+            _world = null;
+            RefreshVisuals();
+            return;
+        }
+
+        var ordered = new CarrierImageTileView[Tiles!.Count];
+        for (var index = 0; index < ordered.Length; index++)
+        {
+            ordered[index] = Tiles[index];
+        }
+        Array.Sort(ordered, static (left, right) => left.Number.CompareTo(right.Number));
+
+        _tileLayout = new (CarrierImageTileView, Rect)[ordered.Length];
+        for (var index = 0; index < ordered.Length; index++)
+        {
+            var tile = ordered[index];
+            _tileLayout[index] = (tile, TileWorldRect(tile));
+        }
+
+        var left = _tileLayout[0].World.Left;
+        var top = _tileLayout[0].World.Top;
+        var right = _tileLayout[0].World.Right;
+        var bottom = _tileLayout[0].World.Bottom;
+        for (var index = 1; index < _tileLayout.Length; index++)
+        {
+            var tile = _tileLayout[index].World;
+            left = Math.Min(left, tile.Left);
+            top = Math.Min(top, tile.Top);
+            right = Math.Max(right, tile.Right);
+            bottom = Math.Max(bottom, tile.Bottom);
+        }
+
+        _world = new Rect(left, top, right - left, bottom - top);
+        RefreshVisuals();
+    }
+
+    private void RefreshVisuals()
+    {
+        UpdateMapLayout();
+        DrawMap();
+        DrawMarkers();
+        DrawCamera();
+    }
+
+    private void UpdateMapLayout()
+    {
+        if (_world is not { } world)
+        {
+            _layout = null;
+            _screenClip = null;
+            return;
+        }
+
         var fitted = Fit(world.Width, world.Height);
         var width = fitted.Width * _zoom;
         var height = fitted.Height * _zoom;
@@ -276,7 +410,9 @@ public sealed class ImageTeachingView : FrameworkElement
             fitted.Y - ((height - fitted.Height) / 2) + _pan.Y,
             width,
             height);
-        return new MapView(world, screen, screen.Width / world.Width);
+        _layout = new MapView(world, screen, screen.Width / world.Width);
+        _screenClip = new RectangleGeometry(screen);
+        _screenClip.Freeze();
     }
 
     private Rect TileWorldRect(CarrierImageTileView tile) => new(
@@ -333,11 +469,6 @@ public sealed class ImageTeachingView : FrameworkElement
         Rect fieldOfView,
         MapView layout)
     {
-        var color = Color.FromRgb(251, 191, 36);
-        var pen = new Pen(new SolidColorBrush(color), 2)
-        {
-            DashStyle = DashStyles.Dash,
-        };
         var screen = WorldRect(
             fieldOfView.X,
             fieldOfView.Y,
@@ -348,15 +479,15 @@ public sealed class ImageTeachingView : FrameworkElement
             screen.Left + (screen.Width / 2),
             screen.Top + (screen.Height / 2));
         drawingContext.DrawRectangle(
-            new SolidColorBrush(Color.FromArgb(18, color.R, color.G, color.B)),
-            pen,
+            CameraFill,
+            CameraPen,
             screen);
         drawingContext.DrawLine(
-            pen,
+            CameraPen,
             new Point(center.X - 10, center.Y),
             new Point(center.X + 10, center.Y));
         drawingContext.DrawLine(
-            pen,
+            CameraPen,
             new Point(center.X, center.Y - 10),
             new Point(center.X, center.Y + 10));
     }
@@ -370,10 +501,12 @@ public sealed class ImageTeachingView : FrameworkElement
         Point point,
         ImageMarker marker)
     {
-        var color = marker.Selected
-            ? Color.FromRgb(74, 222, 128)
-            : Color.FromRgb(56, 189, 248);
-        var pen = new Pen(new SolidColorBrush(color), marker.Selected ? 2.5 : 1.5);
+        var brush = marker.Selected
+            ? SelectedMarkerStroke
+            : MarkerStroke;
+        var pen = marker.Selected
+            ? SelectedMarkerPen
+            : MarkerPen;
         drawingContext.DrawEllipse(Brushes.Transparent, pen, point, 7, 7);
         drawingContext.DrawLine(
             pen,
@@ -388,9 +521,9 @@ public sealed class ImageTeachingView : FrameworkElement
             marker.Label,
             CultureInfo.InvariantCulture,
             FlowDirection.LeftToRight,
-            new Typeface("Segoe UI"),
+            MarkerTypeface,
             11,
-            new SolidColorBrush(color),
+            brush,
             1.0);
         drawingContext.DrawText(text, new Point(point.X + 11, point.Y - 9));
     }
@@ -398,14 +531,48 @@ public sealed class ImageTeachingView : FrameworkElement
     private static DependencyProperty Register(
         string name,
         Type type,
+        PropertyChangedCallback changed,
         object? defaultValue = null) =>
         DependencyProperty.Register(
             name,
             type,
             typeof(ImageTeachingView),
-            new FrameworkPropertyMetadata(
-                defaultValue,
-                FrameworkPropertyMetadataOptions.AffectsRender));
+            new FrameworkPropertyMetadata(defaultValue, changed));
+
+    private static void OnMapChanged(
+        DependencyObject sender,
+        DependencyPropertyChangedEventArgs e) =>
+        ((ImageTeachingView)sender).RebuildMap();
+
+    private static void OnMarkersChanged(
+        DependencyObject sender,
+        DependencyPropertyChangedEventArgs e) =>
+        ((ImageTeachingView)sender).DrawMarkers();
+
+    private static void OnCameraChanged(
+        DependencyObject sender,
+        DependencyPropertyChangedEventArgs e) =>
+        ((ImageTeachingView)sender).DrawCamera();
+
+    private static SolidColorBrush FrozenBrush(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
+    }
+
+    private static Pen FrozenPen(
+        Brush brush,
+        double thickness,
+        DashStyle? dashStyle = null)
+    {
+        var pen = new Pen(brush, thickness)
+        {
+            DashStyle = dashStyle,
+        };
+        pen.Freeze();
+        return pen;
+    }
 
     private sealed record MapView(Rect World, Rect Screen, double Scale);
 }

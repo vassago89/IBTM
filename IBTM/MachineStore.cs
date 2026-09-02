@@ -23,6 +23,8 @@ namespace IBTM;
 
 public sealed class MachineStore
 {
+    private const string RecipeFileName = "Recipe.json";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -39,7 +41,7 @@ public sealed class MachineStore
     {
         var recipeDirectory = GetRecipeDirectory(recipe.Name);
         Directory.CreateDirectory(recipeDirectory);
-        var filePath = Path.Combine(recipeDirectory, "Recipe.json");
+        var filePath = Path.Combine(recipeDirectory, RecipeFileName);
         var temporaryPath = $"{filePath}.tmp";
         await using (var stream = File.Create(temporaryPath))
         {
@@ -59,7 +61,7 @@ public sealed class MachineStore
     {
         var filePath = Path.Combine(
             GetRecipeDirectory(recipeName),
-            "Recipe.json");
+            RecipeFileName);
         await using var stream = File.OpenRead(filePath);
         var recipe = await JsonSerializer.DeserializeAsync<Recipe>(
             stream,
@@ -72,7 +74,7 @@ public sealed class MachineStore
 
     public IReadOnlyList<string> GetRecipeNames() =>
         Directory.GetDirectories(_recipeDirectory)
-            .Where(path => File.Exists(Path.Combine(path, "Recipe.json")))
+            .Where(path => File.Exists(Path.Combine(path, RecipeFileName)))
             .Select(path => new DirectoryInfo(path).Name)
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToArray();

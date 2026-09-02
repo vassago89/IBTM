@@ -3,7 +3,6 @@ using System.Linq;
 using System.Windows;
 using IBTM.BoltFastening;
 using IBTM.Core;
-using IBTM.Device;
 
 namespace IBTM.UI;
 
@@ -20,14 +19,8 @@ public sealed class BoltFasteningRecoveryPreparation
         BoltFasteningWork work,
         BoltFasteningProcess process,
         Recipe recipe,
-        UnitSettings units,
-        IIoService io)
-        : base(
-            state,
-            io,
-            InputIo.BoltFasteningCarrierPresent,
-            InputIo.BoltFasteningHeatSink1Present,
-            InputIo.BoltFasteningHeatSink2Present)
+        UnitSettings units)
+        : base(state, work)
     {
         _work = work;
         _process = process;
@@ -47,7 +40,7 @@ public sealed class BoltFasteningRecoveryPreparation
 
     protected override bool Show(Window owner)
     {
-        var items = new List<BoltRecoveryItem>();
+        var items = new List<BoltFasteningRecoveryItem>();
         foreach (var bolt in _recipe.BoltFastening.BoltPoints
                      .Where(bolt => _work.HeatSinkPresent(bolt.HeatSink)))
         {
@@ -66,8 +59,8 @@ public sealed class BoltFasteningRecoveryPreparation
             .ThenBy(item => item.HeatSink)
             .ThenBy(item => item.Number)
             .ToArray();
-        var window = new Station2RecoveryWindow(
-            new BoltRecoveryViewModel(
+        var window = new BoltFasteningRecoveryWindow(
+            new BoltFasteningRecoveryViewModel(
                 orderedItems,
                 _work.HeatSinkPresent(HeatSinkSlot.HeatSink1),
                 _work.HeatSinkPresent(HeatSinkSlot.HeatSink2)))
@@ -88,15 +81,15 @@ public sealed class BoltFasteningRecoveryPreparation
         return true;
     }
 
-    private BoltRecoveryItem CreateItem(
+    private BoltFasteningRecoveryItem CreateItem(
         BoltPoint bolt,
         FasteningPass pass) => new()
-    {
-        HeatSink = bolt.HeatSink,
-        Number = bolt.Number,
-        Pass = pass,
-        Completed = IsCompleted(bolt, pass),
-    };
+        {
+            HeatSink = bolt.HeatSink,
+            Number = bolt.Number,
+            Pass = pass,
+            Completed = IsCompleted(bolt, pass),
+        };
 
     private bool IsCompleted(
         BoltPoint bolt,

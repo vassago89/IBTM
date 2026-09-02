@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
 *
 *	File Version: 1,0,1,1
 *
@@ -406,7 +406,7 @@ public class nmiMNApi
     public static extern int nmiAxGetFilterEnable(int nCon, int nAxis, ref int npEnable);
 
     //====================== HOME-RETURN FUNCTIONS ===========================================================
-  
+
     [DllImport("nmiMNApi.dll")]
     public static extern int nmiAxHomeSetResetPos(int nCon, int nAxis, int nResetPos);
 
@@ -823,20 +823,20 @@ public class nmiMNApi
     [DllImport("nmiMNApi.dll")]
     public static extern int nmiCsContGetCurIndex(int nCon, int nLsi, ref int npIndex);
 
-  //보간이송축이 0 ~ 3축이면 nLsi = 0
- //보간이송축이 4 ~ 7축이면 nLsi = 1
- //저장된 내부 연속 보간 Queue의 복수개의 구동을 시작하는 함수이다
-  [DllImport("nmiMNApi.dll")]
-  public static extern int nmiCsContMoveEx(int nCon, int nLsi );
+    //보간이송축이 0 ~ 3축이면 nLsi = 0
+    //보간이송축이 4 ~ 7축이면 nLsi = 1
+    //저장된 내부 연속 보간 Queue의 복수개의 구동을 시작하는 함수이다
+    [DllImport("nmiMNApi.dll")]
+    public static extern int nmiCsContMoveEx(int nCon, int nLsi);
 
 
- //보간이송축이 0 ~ 3축이면 nLsi = 0
- //보간이송축이 4 ~ 7축이면 nLsi = 1
-  //저장된 내부 연속 보간 Queue의 복수개의 구동을 정지하는 함수이다
-  [DllImport("nmiMNApi.dll")]
-  public static extern int nmiCsContStopEx(int nCon, int nLsi );
+    //보간이송축이 0 ~ 3축이면 nLsi = 0
+    //보간이송축이 4 ~ 7축이면 nLsi = 1
+    //저장된 내부 연속 보간 Queue의 복수개의 구동을 정지하는 함수이다
+    [DllImport("nmiMNApi.dll")]
+    public static extern int nmiCsContStopEx(int nCon, int nLsi);
 
-   //====================== Position Compare ========================================================
+    //====================== Position Compare ========================================================
 
     //Position Trigger 출력 신호 Active Level를 설정한다.
     //nCmp           : 0    비교기[0]
@@ -850,129 +850,129 @@ public class nmiMNApi
     [DllImport("nmiMNApi.dll")]
     public static extern int nmiCmpGetLevel(int nCon, int nCmp, ref int npLevel);
 
-	//Position Trigger를 출력할 축를 설정한다.
-	//nCmp           : 0    비교기[0]
-	//               : 1    비교기[1]
-	[DllImport("nmiMNApi.dll")]
-	public static extern int nmiCmpSetAxis(int nCon, int nCmp, int nAxis);
+    //Position Trigger를 출력할 축를 설정한다.
+    //nCmp           : 0    비교기[0]
+    //               : 1    비교기[1]
+    [DllImport("nmiMNApi.dll")]
+    public static extern int nmiCmpSetAxis(int nCon, int nCmp, int nAxis);
 
-	//Position Trigger를 출력할 축를 반환한다.
-	//nCmp           : 0    비교기[0]
-	//               : 1    비교기[1]
-	[DllImport("nmiMNApi.dll")]
-	public static extern int nmiCmpGetAxis( int nCon, int nCmp, ref int npAxis);	
-                                               
-	//Position Trigger 출력 신호 펄스 폭를 설정한다.
-	//nCmp           : 0    비교기[0]
-	//               : 1    비교기[1]
-	//nPul           : 1 ~ 50000(Pulses)
-	[DllImport("nmiMNApi.dll")]
+    //Position Trigger를 출력할 축를 반환한다.
+    //nCmp           : 0    비교기[0]
+    //               : 1    비교기[1]
+    [DllImport("nmiMNApi.dll")]
+    public static extern int nmiCmpGetAxis(int nCon, int nCmp, ref int npAxis);
+
+    //Position Trigger 출력 신호 펄스 폭를 설정한다.
+    //nCmp           : 0    비교기[0]
+    //               : 1    비교기[1]
+    //nPul           : 1 ~ 50000(Pulses)
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiCmpSetHoldTime(int nCon, int nCmp, int nPulse);
-                                               
-	//Position Trigger 출력 신호 펄스 폭를 반환한다.
-	[DllImport("nmiMNApi.dll")]
+
+    //Position Trigger 출력 신호 펄스 폭를 반환한다.
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiCmpGetHoldTime(int nCon, int nCmp, ref int npPulse);
 
     //Position Trigger 출력 신호를 사용자 지정한 위치에서 한 개의 트리거 펄스를 출력한다.
-	//nCmp           : 0    비교기[0]
-	//               : 1    비교기[1]
-	//dPos           :
-	[DllImport("nmiMNApi.dll")]
-	public static extern int nmiCmpSetSinglePos(int nCon, int nCmp, int nMethod, double dPos);
-                                               
-	//Position Trigger 출력 신호를 사용자 지정한 위치 구간에서 트리거 펄스를 출력한다.
-	//nCmp           : 0    비교기[0]
-	//               : 1    비교기[1]
-	//nMethod        : 0    emEQ_PDIR   - Counting up 중
-	//               : 1    emEQ_NDIR   - Counting down 중
+    //nCmp           : 0    비교기[0]
+    //               : 1    비교기[1]
+    //dPos           :
+    [DllImport("nmiMNApi.dll")]
+    public static extern int nmiCmpSetSinglePos(int nCon, int nCmp, int nMethod, double dPos);
+
+    //Position Trigger 출력 신호를 사용자 지정한 위치 구간에서 트리거 펄스를 출력한다.
+    //nCmp           : 0    비교기[0]
+    //               : 1    비교기[1]
+    //nMethod        : 0    emEQ_PDIR   - Counting up 중
+    //               : 1    emEQ_NDIR   - Counting down 중
     //dNPos          :  -134217728 ~ +134217727    트리거 출력 시작 위치
     //dPPos          :  -134217728 ~ +134217727    트리거 출력 종료 위치
-	[DllImport("nmiMNApi.dll")]
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiCmpSetRangePos(int nCon, int nCmp, int nMethod, double dNPos, double dPPos);
 
-	//Position Trigger 출력 신호를 사용자 지정한 시작위치부터 종료위치까지 일정구간마다 트리거 출력을 설정한다.
-	//nCmp           : 0    비교기[0]
-	//               : 1    비교기[1]
-	//nMethod        : 0    emEQ_PDIR   - Counting up 중
-	//               : 1    emEQ_NDIR   - Counting down 중
-	//nNum           : 0 ~ 1024                    - 출력할 갯수
-	//dSPos          :  -134217728 ~ +134217727    - 트리거 출력 시작 위치
-	//dDist          : 0 ~ +134217727              - 트리거 출력 주기 간격
-	[DllImport("nmiMNApi.dll")]
+    //Position Trigger 출력 신호를 사용자 지정한 시작위치부터 종료위치까지 일정구간마다 트리거 출력을 설정한다.
+    //nCmp           : 0    비교기[0]
+    //               : 1    비교기[1]
+    //nMethod        : 0    emEQ_PDIR   - Counting up 중
+    //               : 1    emEQ_NDIR   - Counting down 중
+    //nNum           : 0 ~ 1024                    - 출력할 갯수
+    //dSPos          :  -134217728 ~ +134217727    - 트리거 출력 시작 위치
+    //dDist          : 0 ~ +134217727              - 트리거 출력 주기 간격
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiCmpSetMultPos(int nCon, int nCmp, int nMethod, int nNum, double dSPos, double dDist);
 
-	//Position Trigger 출력 신호를 사용자 지정한 시작위치부터 종료위치까지 일정구간마다 트리거 출력을 설정한다.
-	//nCmp           : 0    비교기[0]
-	//               : 1    비교기[1]
-	//nMethod        : 0    emEQ_PDIR  - Counting up 중
-	//               : 1    emEQ_NDIR  - Counting down 중
-	//nNum           : 0 ~ 1024        - 출력할 갯수(배열 갯수)
-	//daPos          :                 -트리거 출력 위치배열(nNum 설정한 개수보다 같거나 크게 선언해야됨)
-	[DllImport("nmiMNApi.dll")]
+    //Position Trigger 출력 신호를 사용자 지정한 시작위치부터 종료위치까지 일정구간마다 트리거 출력을 설정한다.
+    //nCmp           : 0    비교기[0]
+    //               : 1    비교기[1]
+    //nMethod        : 0    emEQ_PDIR  - Counting up 중
+    //               : 1    emEQ_NDIR  - Counting down 중
+    //nNum           : 0 ~ 1024        - 출력할 갯수(배열 갯수)
+    //daPos          :                 -트리거 출력 위치배열(nNum 설정한 개수보다 같거나 크게 선언해야됨)
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiCmpSetPosTable(int nCon, int nCmp, int nMethod, int nNum, double[] daPos);
 
-	//Position Trigger 출력 신호 트리거를 시작한다.
-	//nCmp           : 0   비교기[0]
-	//               : 1    비교기[1]
-	[DllImport("nmiMNApi.dll")]
+    //Position Trigger 출력 신호 트리거를 시작한다.
+    //nCmp           : 0   비교기[0]
+    //               : 1    비교기[1]
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiCmpBegin(int nCon, int nCmp);
 
-	//Position Trigger 출력 신호 트리거를 해체한다.
-	//nCmp           : 0    비교기[0]
-	//               : 1    비교기[1]
-	[DllImport("nmiMNApi.dll")]
+    //Position Trigger 출력 신호 트리거를 해체한다.
+    //nCmp           : 0    비교기[0]
+    //               : 1    비교기[1]
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiCmpEnd(int nCon, int nCmp);
 
-	//Position Compare Trigger 신호 출력 발생 할 위치값을 반환한다.
-	//nCmp           : 0    비교기[0]
-	//               : 1    비교기[1]
-	[DllImport("nmiMNApi.dll")]
+    //Position Compare Trigger 신호 출력 발생 할 위치값을 반환한다.
+    //nCmp           : 0    비교기[0]
+    //               : 1    비교기[1]
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiCmpGetPos(int nCon, int nCmp, ref int npNum, ref double dpPos);
 
-  	//====================== Master/Slave Motion Control ========================================================
+    //====================== Master/Slave Motion Control ========================================================
 
-	//동기 제어 마스터축을 설정한다.
-	//int nMAxisNo   :   마스터축 번호( 0 ~ [최대 축개수 - 1] )
-	[DllImport("nmiMNApi.dll")]
+    //동기 제어 마스터축을 설정한다.
+    //int nMAxisNo   :   마스터축 번호( 0 ~ [최대 축개수 - 1] )
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiSyncSetMaster(int nCon, int nMAxis);
 
     //동기 제어 마스터축을 반환한다.
     [DllImport("nmiMNApi.dll")]
     public static extern int nmiSyncGetMaster(int nCon, ref int npMAxis);
 
-	//동기 제어 오차 검출시 동기 오차 알람 발생 여부을 설정한다.
-	//int nSAxis   : 슬레이브축 번호( 0 ~ [최대 축개수 - 1] )
-	//nAction    : 0 emNOTUSED    - 동기 오차 알람 발생하지 않음
-	//             1 emUSED      -  동기 오차 알람 발생
-	[DllImport("nmiMNApi.dll")]
-	public static extern int nmiSyncSetAction(int nCon, int nSAxis, int nAction);
+    //동기 제어 오차 검출시 동기 오차 알람 발생 여부을 설정한다.
+    //int nSAxis   : 슬레이브축 번호( 0 ~ [최대 축개수 - 1] )
+    //nAction    : 0 emNOTUSED    - 동기 오차 알람 발생하지 않음
+    //             1 emUSED      -  동기 오차 알람 발생
+    [DllImport("nmiMNApi.dll")]
+    public static extern int nmiSyncSetAction(int nCon, int nSAxis, int nAction);
 
-	//동기 제어 오차 검출시 동기 오차 알람를 반환한다.
-	[DllImport("nmiMNApi.dll")]
+    //동기 제어 오차 검출시 동기 오차 알람를 반환한다.
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiSyncGetAction(int nCon, int nSAxis, ref int npAction);
 
-	//동기 제어 오차 검출시 동기 오차 알람 발생 여부을 설정한다.
-	//int nSAxis   : 슬레이브축 번호( 0 ~ [최대 축개수 - 1] )
-	//dLimit     : 1 ~ 134217727   - 마스터 축과 슬레이브 사이의 제어 편차 허용량
-	[DllImport("nmiMNApi.dll")]
-	public static extern int nmiSyncSetPosErrorLimit(int nCon, int nSAxis, double dLimit);
+    //동기 제어 오차 검출시 동기 오차 알람 발생 여부을 설정한다.
+    //int nSAxis   : 슬레이브축 번호( 0 ~ [최대 축개수 - 1] )
+    //dLimit     : 1 ~ 134217727   - 마스터 축과 슬레이브 사이의 제어 편차 허용량
+    [DllImport("nmiMNApi.dll")]
+    public static extern int nmiSyncSetPosErrorLimit(int nCon, int nSAxis, double dLimit);
 
-	//동기 제어 오차 검출시 동기 오차 알람를 반환한다.
-	[DllImport("nmiMNApi.dll")]
+    //동기 제어 오차 검출시 동기 오차 알람를 반환한다.
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiSyncGetPosErrorLimit(int nCon, int nSAxis, ref double dpLimit);
 
     //동기 제어 현재 오차 값, 최대 오차값을 반환한다.
-	[DllImport("nmiMNApi.dll")]
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiSyncGetPosError(int nCon, int nSAxis, ref double dpError, ref double dpMaxError);
 
-	//Position Trigger 출력 신호 트리거를 시작한다.
-	//int nSAxis   : 슬레이브축 번호( 0 ~ [최대 축개수 - 1] )
-	[DllImport("nmiMNApi.dll")]
+    //Position Trigger 출력 신호 트리거를 시작한다.
+    //int nSAxis   : 슬레이브축 번호( 0 ~ [최대 축개수 - 1] )
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiSyncBegin(int nCon, int nSAxis);
 
-	//지정 축에 대하여 마스터 축과 동기를 해체 시킨다.
-	//int nSAxis   : 슬레이브축 번호( 0 ~ [최대 축개수 - 1] )
-	[DllImport("nmiMNApi.dll")]
+    //지정 축에 대하여 마스터 축과 동기를 해체 시킨다.
+    //int nSAxis   : 슬레이브축 번호( 0 ~ [최대 축개수 - 1] )
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiSyncEnd(int nCon, int nSAxis);
 
     //====================== Gantry Motion Control ========================================================
@@ -986,42 +986,42 @@ public class nmiMNApi
     [DllImport("nmiMNApi.dll")]
     public static extern int nmiGantGetMaster(int nCon, int nId, ref int npMAxis);
 
-	//겐트리(Gantry) 제어 오차 검출시 동기 오차 알람을 설정한다.
-	//int nSAxis   : 슬레이브축 번호( 1,3,5,7 )
-	//nAction    : 0  emNOTUSED   동기 오차 알람 발생하지 않음
-	//             1  emUSED      동기 오차 알람 발생
-	[DllImport("nmiMNApi.dll")]
+    //겐트리(Gantry) 제어 오차 검출시 동기 오차 알람을 설정한다.
+    //int nSAxis   : 슬레이브축 번호( 1,3,5,7 )
+    //nAction    : 0  emNOTUSED   동기 오차 알람 발생하지 않음
+    //             1  emUSED      동기 오차 알람 발생
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiGantSetAction(int nCon, int nId, int nSAxis, int nAction);
 
-	//겐트리(Gantry) 제어 오차 검출시 동기 오차 알람를 반환한다.
-	[DllImport("nmiMNApi.dll")]
+    //겐트리(Gantry) 제어 오차 검출시 동기 오차 알람를 반환한다.
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiGantGetAction(int nCon, int nId, int nSAxis, ref int npAction);
 
-	//겐트리(Gantry) 제어 마스터 축과 슬레이브 축 사이의 제어 편차의 허용량를 설정한다.
-	//int nSAxis   : 슬레이브축 번호( 1,3,5,7 )
-	//dLimit     : 1 ~ 134217727   - 마스터 축과 슬레이브 사이의 제어 편차 허용량
-	[DllImport("nmiMNApi.dll")]
+    //겐트리(Gantry) 제어 마스터 축과 슬레이브 축 사이의 제어 편차의 허용량를 설정한다.
+    //int nSAxis   : 슬레이브축 번호( 1,3,5,7 )
+    //dLimit     : 1 ~ 134217727   - 마스터 축과 슬레이브 사이의 제어 편차 허용량
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiGantSetPosErrorLimit(int nCon, int nId, int nSAxis, double dLimit);
 
-	//겐트리(Gantry) 제어 마스터 축과 슬레이브 축 사이의 제어 편차 허용량 설정 반환한다.
-	[DllImport("nmiMNApi.dll")]
+    //겐트리(Gantry) 제어 마스터 축과 슬레이브 축 사이의 제어 편차 허용량 설정 반환한다.
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiGantGetPosErrorLimit(int nCon, int nId, int nSAxis, ref double dpLimit);
 
     //겐트리(Gantry) 제어 현재 오차 값, 최대 오차값을 반환한다.
     [DllImport("nmiMNApi.dll")]
     public static extern int nmiGantGetPosError(int nCon, int nId, int nSAxis, ref double dpError, ref double dpMaxError);
 
-	//겐트리(Gantry) 제어 마스터 축과 슬레이브 축을 연결 시킨다.
-	//int nSAxis   : 슬레이브축 번호( 1,3,5,7 )
-	[DllImport("nmiMNApi.dll")]
+    //겐트리(Gantry) 제어 마스터 축과 슬레이브 축을 연결 시킨다.
+    //int nSAxis   : 슬레이브축 번호( 1,3,5,7 )
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiGantBegin(int nCon, int nId, int nSAxis);
 
-	//겐트리(Gantry) 제어 마스터 축과 슬레이브 축 연결을 해제 시킨다.
-	//int nSAxis   : 슬레이브축 번호( 1,3,5,7 )
-	[DllImport("nmiMNApi.dll")]
+    //겐트리(Gantry) 제어 마스터 축과 슬레이브 축 연결을 해제 시킨다.
+    //int nSAxis   : 슬레이브축 번호( 1,3,5,7 )
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiGantEnd(int nCon, int nId, int nSAxis);
 
-   //====================== Manual Pulsar Control ========================================================
+    //====================== Manual Pulsar Control ========================================================
 
     //PA/PB(MPG) input signal mode
     //0x00 1X A/B
@@ -1035,54 +1035,54 @@ public class nmiMNApi
     [DllImport("nmiMNApi.dll")]
     public static extern int nmiMpgGetInType(int nCon, int nAxis, ref int npDir);
 
-	//지정 축에서 MPG(Manual Pulsar)  펄스 입력 방향을 설정한다.
-	//nDir        : 0   emNORMAL    정방향
-	//            : 1   emRESERVE   역방향
-	[DllImport("nmiMNApi.dll")]
-	public static extern int nmiMpgSetDir(int nCon, int nAxis, int nDir);
+    //지정 축에서 MPG(Manual Pulsar)  펄스 입력 방향을 설정한다.
+    //nDir        : 0   emNORMAL    정방향
+    //            : 1   emRESERVE   역방향
+    [DllImport("nmiMNApi.dll")]
+    public static extern int nmiMpgSetDir(int nCon, int nAxis, int nDir);
 
-	//지정 축에서 MPG(Manual Pulsar)  펄스 입력 방향을 반환한다.
-	[DllImport("nmiMNApi.dll")]
-	public static extern int nmiMpgGetDir(int nCon, int nAxis, ref int npDir);
+    //지정 축에서 MPG(Manual Pulsar)  펄스 입력 방향을 반환한다.
+    [DllImport("nmiMNApi.dll")]
+    public static extern int nmiMpgGetDir(int nCon, int nAxis, ref int npDir);
 
-	//지정 축에서 MPG(Manual Pulsar)  펄스 기어비를 설정한다.
-	//nMultiFactor        :  1 ~ 32      1차 출력펄스를 1 ~ 32 배수의 펄스를 재 생성
-	//nDivFactor          :  1 ~ 2048    2차 출력펄스에 (nDivFactor/2048)가 곱해져서 최종 출력펄스 생성
-	[DllImport("nmiMNApi.dll")]
+    //지정 축에서 MPG(Manual Pulsar)  펄스 기어비를 설정한다.
+    //nMultiFactor        :  1 ~ 32      1차 출력펄스를 1 ~ 32 배수의 펄스를 재 생성
+    //nDivFactor          :  1 ~ 2048    2차 출력펄스에 (nDivFactor/2048)가 곱해져서 최종 출력펄스 생성
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiMpgSetGain(int nCon, int nAxis, int nMultiFactor, int nDivFactor);
 
-	//지정 축에서 MPG(Manual Pulsar)  펄스 기어비를 반환한다.
-	[DllImport("nmiMNApi.dll")]
-	public static extern int nmiMpgGetGain(int nCon, int nAxis, ref int npMultiFactor, ref int npDivFactor);
+    //지정 축에서 MPG(Manual Pulsar)  펄스 기어비를 반환한다.
+    [DllImport("nmiMNApi.dll")]
+    public static extern int nmiMpgGetGain(int nCon, int nAxis, ref int npMultiFactor, ref int npDivFactor);
 
-	//지정 축에서 MPG(Manual Pulsar)  펄스 입력 작업을 수행한다..
-	[DllImport("nmiMNApi.dll")]
+    //지정 축에서 MPG(Manual Pulsar)  펄스 입력 작업을 수행한다..
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiMpgBegin(int nCon, int nAxis);
 
-	//지정 축에서 MPG(Manual Pulsar)  펄스 입력 작업을 해체한다..
-	[DllImport("nmiMNApi.dll")]
+    //지정 축에서 MPG(Manual Pulsar)  펄스 입력 작업을 해체한다..
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiMpgEnd(int nCon, int nAxis);
 
-    
+
     //========================================================================================================
     //                                  Interrupt public static extern intS
     //========================================================================================================
-	[DllImport("nmiMNApi.dll")]
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiIntSetHandler(int nCon, int nType, uint hWnd, ref int hHandler, uint nMsg);
-    
+
     //
-	[DllImport("nmiMNApi.dll")]
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiIntSetHandlerEnable(int nCon, int nEnable);
 
     //-------- Axis--------------------------------------------------------------------------------------
     //
-	[DllImport("nmiMNApi.dll")]
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiIntSetAxisEnable(int nCon, int nAxis, uint nMask);
 
-	//
-	[DllImport("nmiMNApi.dll")]
-    public static extern int nmiIntGetAxisEnable(int nCon, int nAxis, ref uint npMask);    
-    
+    //
+    [DllImport("nmiMNApi.dll")]
+    public static extern int nmiIntGetAxisEnable(int nCon, int nAxis, ref uint npMask);
+
     //BIT0	; 자동 정지때
     //BIT1	; 다음 동작 계속 START 때
     //BIT2	; 동작용 2nd pre register 기입 가능 때
@@ -1105,7 +1105,7 @@ public class nmiMNApi
     //BIT19	; /STA 입력 ON 때
 
     //지정 축의 상태를 반환합니다.
-	[DllImport("nmiMNApi.dll")]
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiIntGetAxisStatus(int nCon, int nAxis, ref uint npStatus);
 
     //BIT0 STOP_BY_SLP:   1;	양의 소프트 리미트에 의해 정지
@@ -1127,7 +1127,7 @@ public class nmiMNApi
     //BIT16	STOP_BY_PE:   1;	PA/PB 입력 에러 발생 (정지 하지 않음)
 
     //지정 축의 Error 상태를 반환합니다.
-	[DllImport("nmiMNApi.dll")]
+    [DllImport("nmiMNApi.dll")]
     public static extern int nmiIntGetAxisErrStatus(int nCon, int nAxis, ref uint npStatus);
 
     //====================== DIGITAL I/O FUNCTIONS ===========================================================
@@ -1233,7 +1233,7 @@ public class nmiMNApi
     // 각 스테이션 별 에러 발생 플래그
     [DllImport("nmiMNApi.dll")]
     public static extern int nmiGetCyclicErrFlag(int nCon, int nStNo, ref int npFlag);
-    
+
     // 각 스테이션 별 에러 발생 플래그 해제
     [DllImport("nmiMNApi.dll")]
     public static extern int nmiCyclicErrFlagClear(int nCon, int nStNo);
@@ -1266,7 +1266,7 @@ public class nmiMNApi
     // 축 번호는 Station 번호 순으로 매핑된다.
     [DllImport("nmiMNApi.dll")]
     public static extern int nmiGnCheckAxesMap(int nCon, int nAxis, ref int npActStNo, ref int npActAxis);
-    
+
     //디바이스 정보
     // 2 || 1 || 0  비트
     // 0    0    0  : 32점 출력 전용

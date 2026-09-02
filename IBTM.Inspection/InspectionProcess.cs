@@ -9,8 +9,7 @@ namespace IBTM.Inspection;
 
 public sealed class InspectionProcess(
     InspectionWork work,
-    BoltImageCapture imageCapture,
-    BoltPresenceInspector inspector)
+    BoltInspector inspector)
 {
     public async Task RunAsync(
         IReadOnlyList<BoltPoint> bolts,
@@ -21,7 +20,7 @@ public sealed class InspectionProcess(
             work.RestartInspection();
         }
 
-        using var stateChanged = new AsyncAutoResetEvent();
+        var stateChanged = new AsyncAutoResetEvent();
         void OnStateChanged() => stateChanged.Set();
 
         work.Changed += OnStateChanged;
@@ -49,7 +48,7 @@ public sealed class InspectionProcess(
                         switch (State(bolt))
                         {
                             case InspectionProcessState.MovingToBolt:
-                                await imageCapture.MoveToAsync(
+                                await inspector.MoveToAsync(
                                     bolt!,
                                     stateOperation.Token);
                                 break;
@@ -104,7 +103,7 @@ public sealed class InspectionProcess(
             return InspectionProcessState.CompletingCarrier;
         }
 
-        return imageCapture.IsAt(bolt)
+        return inspector.IsAt(bolt)
             ? InspectionProcessState.InspectingBolt
             : InspectionProcessState.MovingToBolt;
     }
@@ -123,10 +122,9 @@ public sealed class InspectionProcess(
 
     private void Inspect(BoltPoint bolt)
     {
-        var image = imageCapture.Capture();
         work.Assembly(bolt.HeatSink).RecordBoltPresence(
             bolt.Number,
-            inspector.IsPresent(image));
+            inspector.Inspect());
     }
 
     private void CompleteInspection()

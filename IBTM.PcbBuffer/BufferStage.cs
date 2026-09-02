@@ -8,25 +8,23 @@ namespace IBTM.PcbBuffer;
 
 public sealed class BufferStage
 {
-    private const double PositionTolerance = 0.05;
-
     private readonly PcbBufferSettings _settings;
     private readonly IIoService _io;
     private readonly IBufferPlacementState _placementState;
-    private readonly IAxisMotion _supplyMotion;
-    private readonly IAxisMotion _placementMotion;
-    private readonly AxisPos _supplyHandoff;
-    private readonly AxisPos _placementHandoff;
+    private readonly IMotionFeedback _supplyMotion;
+    private readonly IMotionFeedback _placementMotion;
+    private readonly AxisPosition _supplyHandoff;
+    private readonly AxisPosition _placementHandoff;
     private readonly Func<double> _placementEntryZ;
 
     public BufferStage(
         PcbBufferSettings settings,
         IIoService io,
         IBufferPlacementState placementState,
-        IAxisMotion supplyMotion,
-        IAxisMotion placementMotion,
-        AxisPos supplyHandoff,
-        AxisPos placementHandoff,
+        IMotionFeedback supplyMotion,
+        IMotionFeedback placementMotion,
+        AxisPosition supplyHandoff,
+        AxisPosition placementHandoff,
         Func<double> placementEntryZ)
     {
         _settings = settings;
@@ -65,10 +63,7 @@ public sealed class BufferStage
 
     public bool SupplyInside =>
         _supplyMotion.GetAxisState(MotionAxis.X).Homed
-        && Between(
-            _supplyMotion.GetPosition().X,
-            _settings.SupplyBoundary1,
-            _settings.SupplyBoundary2);
+        && _settings.ContainsSupplyX(_supplyMotion.GetPosition().X);
 
     public bool PlacementInside =>
         _placementMotion.GetAxisState(MotionAxis.X).Homed
@@ -97,11 +92,41 @@ public sealed class BufferStage
         PositionKnown
         && PcbPresent
         && (!SupplyInside || SupplyAtHandoff);
-    public bool Conflict =>
-        SupplyInside
-        && PlacementBlocksSupply
-        && !SupplyAtHandoff
-        && !PlacementAtHandoff;
+    public bool Conflict
+    {
+        get
+        {
+            if (!_supplyMotion.GetAxisState(MotionAxis.X).Homed)
+            {
+                return false;
+            }
+
+            var supplyPosition = _supplyMotion.GetPosition();
+            if (!_settings.ContainsSupplyX(supplyPosition.X)
+                || !_placementMotion.GetAxisState(MotionAxis.X).Homed
+                || !_placementMotion.GetAxisState(MotionAxis.Y).Homed)
+            {
+                return false;
+            }
+
+            var placementPosition = _placementMotion.GetPosition();
+            if (!IsInsidePlacement(placementPosition)
+                || placementPosition.Z <= _placementEntryZ())
+            {
+                return false;
+            }
+
+            var supplyAtHandoff = IsSettled(_supplyMotion)
+                                  && IsAt(
+                                      supplyPosition,
+                                      _supplyHandoff);
+            var placementAtHandoff = IsSettled(_placementMotion)
+                                     && IsAt(
+                                         placementPosition,
+                                         _placementHandoff);
+            return !supplyAtHandoff && !placementAtHandoff;
+        }
+    }
 
     public Task WaitForPcbAsync(
         bool present,
@@ -114,7 +139,7 @@ public sealed class BufferStage
     public async Task WaitForSupplyOutsideAsync(
         CancellationToken cancellationToken = default)
     {
-        using var changed = new AsyncAutoResetEvent();
+        var changed = new AsyncAutoResetEvent();
         void OnStateChanged() => changed.Set();
 
         StateChanged += OnStateChanged;
@@ -133,10 +158,13 @@ public sealed class BufferStage
 
     private static bool IsAt(
         (double X, double Y, double Z) current,
-        AxisPos target) =>
-        Math.Abs(current.X - target.X) <= PositionTolerance
-        && Math.Abs(current.Y - target.Y) <= PositionTolerance
-        && Math.Abs(current.Z - target.Z) <= PositionTolerance;
+        AxisPosition target) =>
+        Math.Abs(current.X - target.X)
+            <= MotionService.PositionToleranceMillimeters
+        && Math.Abs(current.Y - target.Y)
+            <= MotionService.PositionToleranceMillimeters
+        && Math.Abs(current.Z - target.Z)
+            <= MotionService.PositionToleranceMillimeters;
 
     private bool IsInsidePlacement((double X, double Y, double Z) position) =>
         Between(
@@ -155,7 +183,7 @@ public sealed class BufferStage
         value >= Math.Min(boundary1, boundary2)
         && value <= Math.Max(boundary1, boundary2);
 
-    private static bool IsSettled(IAxisMotion motion)
+    private static bool IsSettled(IMotionFeedback motion)
     {
         if (motion.IsMoving)
         {

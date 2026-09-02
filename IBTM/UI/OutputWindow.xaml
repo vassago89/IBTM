@@ -87,18 +87,16 @@
                                     Visibility="{Binding HasFeedback, Converter={StaticResource BoolToVis}}">
                             <Ellipse Tag="{Binding InputOn}"
                                      Style="{StaticResource IoInputLedStyle}"/>
-                            <TextBlock Margin="8,0,0,0">
+                            <TextBlock Margin="8,0,0,0"
+                                       Text="{Binding FeedbackState,
+                                                      Converter={StaticResource EnumDescriptionConverter}}">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="Text" Value="Waiting"/>
                                         <Setter Property="Foreground"
                                                 Value="{StaticResource TextSecondaryBrush}"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding InputOn}" Value="True">
-                                                <Setter Property="Text" Value="Matched"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding TimedOut}" Value="True">
-                                                <Setter Property="Text" Value="Timeout"/>
+                                            <DataTrigger Binding="{Binding FeedbackState}"
+                                                         Value="{x:Static ui:OutputFeedbackState.Timeout}">
                                                 <Setter Property="Foreground"
                                                         Value="{StaticResource AccentRedBrush}"/>
                                             </DataTrigger>
@@ -110,7 +108,7 @@
                         <Button Grid.Column="4"
                                 Content="Toggle"
                                 Style="{StaticResource IoToggleButtonStyle}"
-                                Click="OnToggleOutput"/>
+                                Command="{Binding ToggleCommand}"/>
                     </Grid>
                 </DataTemplate>
             </ListBox.ItemTemplate>

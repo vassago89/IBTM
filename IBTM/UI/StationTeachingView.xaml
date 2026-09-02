@@ -8,6 +8,10 @@
              d:DataContext="{d:DesignInstance Type=ui:StationTeachingViewModel, IsDesignTimeCreatable=False}"
              Background="{StaticResource AppBgBrush}">
 
+    <UserControl.Resources>
+        <SolidColorBrush x:Key="TeachingOverlayBrush" Color="#D820252A"/>
+    </UserControl.Resources>
+
     <Grid Margin="24,20">
         <Grid.Style>
             <Style TargetType="Grid">
@@ -66,7 +70,8 @@
                                           RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                     <Border HorizontalAlignment="Left" VerticalAlignment="Top"
                             Margin="8" Padding="8,5"
-                            Background="#D820252A" CornerRadius="2"
+                            Background="{StaticResource TeachingOverlayBrush}"
+                            CornerRadius="2"
                             IsHitTestVisible="False">
                         <Border.Style>
                             <Style TargetType="Border">
@@ -158,7 +163,8 @@
                             Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}"/>
                     <Border HorizontalAlignment="Right" VerticalAlignment="Bottom"
                             Margin="0,0,8,8" Padding="8,5"
-                            Background="#D820252A" CornerRadius="2"
+                            Background="{StaticResource TeachingOverlayBrush}"
+                            CornerRadius="2"
                             Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="mm/px" VerticalAlignment="Center"
@@ -182,7 +188,6 @@
                                    Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,10"/>
                         <ComboBox ItemsSource="{Binding MotionGroups}"
                                   SelectedItem="{Binding SelectedMotionGroup, Mode=TwoWay}"
-                                  ItemTemplate="{StaticResource EnumItemTemplate}"
                                   Padding="8,5"/>
                     </StackPanel>
                 </Border>
@@ -200,20 +205,17 @@
                             <StackPanel>
                                 <TextBlock Text="X" Style="{StaticResource StatLabelStyle}"/>
                                 <TextBlock Text="{Binding CurrentX, StringFormat=F3}"
-                                           FontFamily="Cascadia Mono, Consolas"
                                            Style="{StaticResource StatValueStyle}"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1">
                                 <TextBlock Text="Y" Style="{StaticResource StatLabelStyle}"/>
                                 <TextBlock Text="{Binding CurrentY, StringFormat=F3}"
-                                           FontFamily="Cascadia Mono, Consolas"
                                            Style="{StaticResource StatValueStyle}"/>
                             </StackPanel>
                             <StackPanel Grid.Column="2"
                                         Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="Z" Style="{StaticResource StatLabelStyle}"/>
                                 <TextBlock Text="{Binding CurrentZ, StringFormat=F3}"
-                                           FontFamily="Cascadia Mono, Consolas"
                                            Style="{StaticResource StatValueStyle}"/>
                             </StackPanel>
                         </Grid>
@@ -268,7 +270,7 @@
                                     Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     MinWidth="58" Margin="0,0,6,0"/>
-                            <ComboBox ItemsSource="{Binding JogSpeeds}"
+                            <ComboBox ItemsSource="{StaticResource TeachingJogSpeeds}"
                                       SelectedItem="{Binding JogSpeed, Mode=TwoWay}"
                                       MinWidth="58" Padding="6,4"/>
                             <TextBlock Text="mm/s" FontSize="10" Foreground="{StaticResource TextMutedBrush}"
@@ -362,11 +364,9 @@
                                                          Converter={StaticResource BoolToVis}}">
                             <ComboBox ItemsSource="{Binding HeatSinkSlots}"
                                       SelectedItem="{Binding NewHeatSinkSlot, Mode=TwoWay}"
-                                      ItemTemplate="{StaticResource EnumItemTemplate}"
                                        FontSize="11" MinWidth="74" Margin="0,0,6,0"/>
                             <ComboBox ItemsSource="{Binding FasteningHeads}"
                                       SelectedItem="{Binding NewFasteningHead, Mode=TwoWay}"
-                                      ItemTemplate="{StaticResource EnumItemTemplate}"
                                        FontSize="11" MinWidth="74" Margin="0,0,6,0"/>
                             <Button Content="Add Bolt"
                                     Command="{Binding AddBoltPointCommand}"

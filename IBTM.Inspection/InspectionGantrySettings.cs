@@ -6,18 +6,18 @@ namespace IBTM.Inspection;
 public sealed class InspectionGantrySettings : Setting
 {
     public MotionSettings Motion { get; set; } = new();
-    public AxisPos CarrierScanUpperLeft { get; set; } = new();
-    public AxisPos CarrierScanLowerRight { get; set; } = new();
+    public AxisPosition CarrierScanUpperLeft { get; set; } = new();
+    public AxisPosition CarrierScanLowerRight { get; set; } = new();
     public double CarrierScanOverlapMillimeters { get; set; } = 1.0;
 
-    public AxisPos GetBoltPosition(
+    public AxisPosition GetBoltPosition(
         BoltPoint bolt,
         CarrierReferenceSettings reference) =>
         CarrierCoordinates.ToMachine(
-            new AxisPos
+            new AxisPosition
             {
                 X = bolt.X!.Value,
                 Y = bolt.Y!.Value,
             },
-            reference.UpperLeftPin!);
+            reference.UpperLeftLocatingPin!);
 }

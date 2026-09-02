@@ -84,8 +84,8 @@ public enum TeachingTarget
     [Description("Heat Sink 2 PCB Placement")]
     HeatSink2PcbPlacement,
 
-    [Description("Bolt Work Z")]
-    BoltWorkZ,
+    [Description("Bolt Point Z")]
+    BoltPointZ,
 
     [Description("Carrier Scan Upper Left")]
     CarrierScanUpperLeft,
@@ -99,22 +99,22 @@ public enum TeachingTarget
     [Description("NG Shuttle Place")]
     NgShuttlePlace,
 
-    [Description("Carrier Upper Left Pin")]
+    [Description("Carrier Upper Left Locating Pin")]
     CarrierUpperLeftLocatingPin,
 
-    [Description("Carrier Lower Right Pin")]
+    [Description("Carrier Lower Right Locating Pin")]
     CarrierLowerRightLocatingPin,
 
-    [Description("Shooting Head Upper Left Pin")]
+    [Description("Shooting Head Upper Left Locating Pin")]
     ShootingHeadUpperLeftLocatingPin,
 
-    [Description("Shooting Head Lower Right Pin")]
+    [Description("Shooting Head Lower Right Locating Pin")]
     ShootingHeadLowerRightLocatingPin,
 
-    [Description("Pickup Head Upper Left Pin")]
+    [Description("Pickup Head Upper Left Locating Pin")]
     PickupHeadUpperLeftLocatingPin,
 
-    [Description("Pickup Head Lower Right Pin")]
+    [Description("Pickup Head Lower Right Locating Pin")]
     PickupHeadLowerRightLocatingPin,
 
     [Description("Bolt Pickup")]
@@ -142,7 +142,7 @@ public partial class TeachingPoint : ObservableObject
 
     public string Name => Target switch
     {
-        TeachingTarget.BoltWorkZ or TeachingTarget.BoltReference => $"B{BoltNumber}",
+        TeachingTarget.BoltPointZ or TeachingTarget.BoltReference => $"B{BoltNumber}",
         _ => Target.GetDescription(),
     };
 

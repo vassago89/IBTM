@@ -66,18 +66,15 @@ public interface IIoService
                 completion.TrySetResult();
             }
 
-            try
-            {
-                await completion.Task;
-            }
-            catch (OperationCanceledException)
-                when (!cancellationToken.IsCancellationRequested)
-            {
-                throw new IoTimeoutException(
-                    input,
-                    value,
-                    timeoutMilliseconds);
-            }
+            await completion.Task;
+        }
+        catch (OperationCanceledException)
+            when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new IoTimeoutException(
+                input,
+                value,
+                timeoutMilliseconds);
         }
         finally
         {

@@ -20,7 +20,7 @@ public sealed class VirtualMachine
     private int _pickupVacuumVersion;
     private int _shootingVacuumVersion;
     private int _shootVersion;
-    private int _linearFeederVersion;
+    private int _shootingFeederVersion;
     private int _ngConveyorVersion;
     private int? _supplyPickupSlot;
     private bool _supplyAtBuffer;
@@ -128,7 +128,7 @@ public sealed class VirtualMachine
         double carrierY,
         (double X, double Z) pcb1,
         (double X, double Z) pcb2,
-        AxisPos buffer)
+        AxisPosition buffer)
     {
         _supplyAtBuffer = IsAt(x, y, z, buffer);
         if (_supplyAtBuffer && _supplyHoldingPcb)
@@ -155,7 +155,7 @@ public sealed class VirtualMachine
         double x,
         double y,
         double z,
-        AxisPos bufferPosition)
+        AxisPosition bufferPosition)
     {
         var wasAtBuffer = _placementAtBuffer;
         _placementAtBuffer = IsAt(x, y, z, bufferPosition);
@@ -174,8 +174,8 @@ public sealed class VirtualMachine
     public void UpdateInspectionPosition(
         double x,
         double y,
-        AxisPos pickupPosition,
-        AxisPos shuttlePosition)
+        AxisPosition pickupPosition,
+        AxisPosition shuttlePosition)
     {
         _inspectionAtNgPickup = IsAt(x, y, pickupPosition);
         _inspectionAtNgShuttle = IsAt(x, y, shuttlePosition);
@@ -211,7 +211,7 @@ public sealed class VirtualMachine
             return;
         }
 
-        if (output == OutputIo.BoltHead1VacuumPump)
+        if (output == OutputIo.PickupHeadVacuumPump)
         {
             var vacuumVersion = Interlocked.Increment(
                 ref _pickupVacuumVersion);
@@ -219,7 +219,7 @@ public sealed class VirtualMachine
             return;
         }
 
-        if (output == OutputIo.BoltHead2VacuumPump)
+        if (output == OutputIo.ShootingHeadVacuumPump)
         {
             var vacuumVersion = Interlocked.Increment(
                 ref _shootingVacuumVersion);
@@ -238,13 +238,13 @@ public sealed class VirtualMachine
             return;
         }
 
-        if (output == OutputIo.LinearFeederRunSignal)
+        if (output == OutputIo.ShootingFeederRunSignal)
         {
             var feederVersion = Interlocked.Increment(
-                ref _linearFeederVersion);
+                ref _shootingFeederVersion);
             if (value)
             {
-                _ = FeedLinearBoltAsync(feederVersion);
+                _ = FeedShootingBoltAsync(feederVersion);
             }
 
             return;
@@ -299,7 +299,7 @@ public sealed class VirtualMachine
 
         var loaded = value
             && _io.GetInput(InputIo.PickupFeederBoltDetected);
-        _io.SetInput(InputIo.BoltHead1VacuumDetected, loaded);
+        _io.SetInput(InputIo.PickupHeadVacuumDetected, loaded);
         if (!loaded)
         {
             return;
@@ -310,13 +310,13 @@ public sealed class VirtualMachine
         _io.SetInput(InputIo.PickupFeederBoltDetected, true);
     }
 
-    private async Task FeedLinearBoltAsync(int version)
+    private async Task FeedShootingBoltAsync(int version)
     {
         await Task.Delay(TransferDelayMilliseconds).ConfigureAwait(false);
-        if (_linearFeederVersion == version
-            && _io.GetOutput(OutputIo.LinearFeederRunSignal))
+        if (_shootingFeederVersion == version
+            && _io.GetOutput(OutputIo.ShootingFeederRunSignal))
         {
-            _io.SetInput(InputIo.LinearFeederBoltDetected, true);
+            _io.SetInput(InputIo.ShootingFeederBoltDetected, true);
         }
     }
 
@@ -335,7 +335,7 @@ public sealed class VirtualMachine
         }
 
         if (!_io.GetInput(InputIo.ShootingEscapeForward)
-            || !_io.GetOutput(OutputIo.BoltHead2VacuumPump))
+            || !_io.GetOutput(OutputIo.ShootingHeadVacuumPump))
         {
             return;
         }
@@ -345,7 +345,7 @@ public sealed class VirtualMachine
         if (_shootVersion == version
             && _io.GetOutput(OutputIo.ShootBolt))
         {
-            _io.SetInput(InputIo.BoltHead2VacuumDetected, true);
+            _io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
         }
     }
 
@@ -354,7 +354,7 @@ public sealed class VirtualMachine
         await Task.Delay(TransferDelayMilliseconds).ConfigureAwait(false);
         if (_shootingVacuumVersion == version)
         {
-            _io.SetInput(InputIo.BoltHead2VacuumDetected, false);
+            _io.SetInput(InputIo.ShootingHeadVacuumDetected, false);
         }
     }
 
@@ -568,7 +568,7 @@ public sealed class VirtualMachine
                 break;
 
             case OutputIo.ShootingEscapeForward when value:
-                _io.SetInput(InputIo.LinearFeederBoltDetected, false);
+                _io.SetInput(InputIo.ShootingFeederBoltDetected, false);
                 break;
             case OutputIo.NgCarrierGripperClose:
                 if (value
@@ -677,15 +677,17 @@ public sealed class VirtualMachine
     private static bool IsAt(
         double x,
         double y,
-        AxisPos position) =>
-        Math.Abs(x - position.X) <= 0.05
-        && Math.Abs(y - position.Y) <= 0.05;
+        AxisPosition position) =>
+        Math.Abs(x - position.X)
+            <= MotionService.PositionToleranceMillimeters
+        && Math.Abs(y - position.Y)
+            <= MotionService.PositionToleranceMillimeters;
 
     private static bool IsAt(
         double x,
         double y,
         double z,
-        AxisPos position) =>
+        AxisPosition position) =>
         IsAt(x, y, z, position.X, position.Y, position.Z);
 
     private static bool IsAt(
@@ -695,7 +697,10 @@ public sealed class VirtualMachine
         double targetX,
         double targetY,
         double targetZ) =>
-        Math.Abs(x - targetX) <= 0.05
-        && Math.Abs(y - targetY) <= 0.05
-        && Math.Abs(z - targetZ) <= 0.05;
+        Math.Abs(x - targetX)
+            <= MotionService.PositionToleranceMillimeters
+        && Math.Abs(y - targetY)
+            <= MotionService.PositionToleranceMillimeters
+        && Math.Abs(z - targetZ)
+            <= MotionService.PositionToleranceMillimeters;
 }

@@ -16,10 +16,9 @@ public sealed class PcbPlacementProcess(
         PcbPlacementRecipe recipe,
         CancellationToken cancellationToken = default)
     {
-        using var stateChanged = new AsyncAutoResetEvent();
+        var stateChanged = new AsyncAutoResetEvent();
         void OnStateChanged() => stateChanged.Set();
 
-        handler.Changed += OnStateChanged;
         buffer.StateChanged += OnStateChanged;
         work.Changed += OnStateChanged;
         try
@@ -161,7 +160,6 @@ public sealed class PcbPlacementProcess(
         }
         finally
         {
-            handler.Changed -= OnStateChanged;
             buffer.StateChanged -= OnStateChanged;
             work.Changed -= OnStateChanged;
         }
@@ -176,12 +174,13 @@ public sealed class PcbPlacementProcess(
         PcbPlacementRecipe recipe,
         HeatSinkSlot? heatSink)
     {
+        var pcb = handler.Pcb;
         var currentHeatSink = CurrentHeatSink(recipe);
         if (currentHeatSink is not null
-            && work.Ready
+            && work.CarrierSeated
             && work.HeatSinkPresent(currentHeatSink.Value)
             && !handler.VacuumDetected
-            && handler.Pcb != PlacementPcbState.None)
+            && pcb != PlacementPcbState.None)
         {
             var state = FinishPlacementState(currentHeatSink.Value);
             if (state is not null)
@@ -190,14 +189,14 @@ public sealed class PcbPlacementProcess(
             }
         }
 
-        if (handler.Pcb == PlacementPcbState.Secured)
+        if (pcb == PlacementPcbState.Secured)
         {
             if (buffer.PlacementInside && buffer.SupplyInside)
             {
                 return PcbPlacementState.WaitingForSupplyExit;
             }
 
-            if (work.Ready
+            if (work.CarrierSeated
                 && heatSink is not null
                 && handler.Rotation == PlacementRotationState.Rotated
                 && handler.IsAtXY(HeatSinkPosition(recipe, heatSink.Value)))
@@ -229,7 +228,7 @@ public sealed class PcbPlacementProcess(
                         : PcbPlacementState.MovingToWaitPosition;
             }
 
-            if (!work.Ready)
+            if (!work.CarrierSeated)
             {
                 return PcbPlacementState.WaitingForCarrier;
             }
@@ -240,21 +239,24 @@ public sealed class PcbPlacementProcess(
                     HeatSinkPosition(recipe, heatSink.Value));
         }
 
-        if (work.Ready && !work.Completed && heatSink is null)
+        if (work.CarrierSeated
+            && !work.Completed
+            && heatSink is null)
         {
             return PcbPlacementState.CompletingCarrier;
         }
 
         return buffer.CanPlacementEnter
             ? BufferPickupState()
-            : PcbPlacementState.WaitingForPcb;
+            : PcbPlacementState.WaitingForBufferPcb;
     }
 
     private PcbPlacementState BufferPickupState()
     {
-        var needsClearance = !handler.AtBufferXY
-            || handler.Rotation != PlacementRotationState.Unrotated;
-        if (needsClearance)
+        var atBuffer = handler.AtBufferXY;
+        var rotation = handler.Rotation;
+        if (!atBuffer
+            || rotation != PlacementRotationState.Unrotated)
         {
             if (handler.Handler != PlacementCylinderState.Up)
             {
@@ -267,12 +269,12 @@ public sealed class PcbPlacementProcess(
             }
         }
 
-        if (handler.Rotation != PlacementRotationState.Unrotated)
+        if (rotation != PlacementRotationState.Unrotated)
         {
             return PcbPlacementState.UnrotatingForBuffer;
         }
 
-        if (!handler.AtBufferXY)
+        if (!atBuffer)
         {
             return PcbPlacementState.MovingAboveBuffer;
         }
@@ -310,7 +312,7 @@ public sealed class PcbPlacementProcess(
         return PcbPlacementState.ClosingGripper;
     }
 
-    private PcbPlacementState PlacementState(AxisPos position)
+    private PcbPlacementState PlacementState(AxisPosition position)
     {
         if (!handler.IsAtXY(position))
         {
@@ -337,14 +339,15 @@ public sealed class PcbPlacementProcess(
             return PcbPlacementState.OpeningGripper;
         }
 
-        return PcbPlacementState.WaitingForPcb;
+        return PcbPlacementState.WaitingForBufferPcb;
     }
 
     private PcbPlacementState? FinishPlacementState(HeatSinkSlot heatSink)
     {
+        var ipm = handler.Ipm;
         if (HeatSinkCompleted(heatSink))
         {
-            if (handler.Ipm != PlacementCylinderState.Up)
+            if (ipm != PlacementCylinderState.Up)
             {
                 return PcbPlacementState.RaisingIpm;
             }
@@ -359,12 +362,12 @@ public sealed class PcbPlacementProcess(
                 : PcbPlacementState.RaisingZ;
         }
 
-        if (handler.Ipm == PlacementCylinderState.Down)
+        if (ipm == PlacementCylinderState.Down)
         {
             return PcbPlacementState.RecordingPlacement;
         }
 
-        if (handler.Ipm != PlacementCylinderState.Up)
+        if (ipm != PlacementCylinderState.Up)
         {
             return PcbPlacementState.RaisingIpm;
         }
@@ -403,7 +406,7 @@ public sealed class PcbPlacementProcess(
             : null;
     }
 
-    private static AxisPos HeatSinkPosition(
+    private static AxisPosition HeatSinkPosition(
         PcbPlacementRecipe recipe,
         HeatSinkSlot heatSink) =>
         heatSink == HeatSinkSlot.HeatSink1

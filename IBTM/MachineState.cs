@@ -1,15 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Linq;
 using IBTM.BoltFastening;
 using IBTM.Conveyor;
-using IBTM.Core;
 using IBTM.Device;
+using IBTM.Inspection;
 using IBTM.Inspection.Training;
 using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
-using Microsoft.Extensions.DependencyInjection;
+using IBTM.PcbPlacement;
+using IBTM.PcbSupply;
 
 namespace IBTM;
 
@@ -31,31 +31,28 @@ public enum MachineAlarm
     AirPressureLow,
 
     [Description("Control I/O Communication")]
-    ControlCommunication,
+    IoCommunication,
 
     [Description("Motion Unavailable")]
     MotionUnavailable,
 
     [Description("PCB Supply")]
-    Supply,
+    PcbSupply,
 
     [Description("PCB Placement")]
-    Placement,
+    PcbPlacement,
 
     [Description("Pickup Bolt Feeder")]
     PickupBoltFeeder,
 
-    [Description("Linear Bolt Feeder")]
-    LinearBoltFeeder,
+    [Description("Shooting Bolt Feeder")]
+    ShootingBoltFeeder,
 
     [Description("Bolt Fastening")]
     BoltFastening,
 
     [Description("Inspection")]
     Inspection,
-
-    [Description("Teaching Incomplete")]
-    TeachingIncomplete,
 
     [Description("PCB Buffer Conflict")]
     BufferConflict,
@@ -67,19 +64,21 @@ public enum MachineAlarm
     NgConveyor,
 }
 
+public readonly record struct MotionReadiness(
+    bool Homed,
+    bool ServosOn,
+    bool Faulted);
+
 public sealed class MachineState
 {
     private readonly MachineOptions _options;
-    private readonly UnitSettings _units;
     private readonly IIoService _io;
     private readonly MainConveyor _conveyor;
     private readonly NgConveyorLine _ngConveyor;
     private readonly BufferStage _buffer;
     private readonly BoltTrainingSession _training;
-    private readonly IAxisMotion _pcbSupplyMotion;
-    private readonly IAxisMotion _pcbPlacementMotion;
-    private readonly IAxisMotion _boltFasteningMotion;
-    private readonly IAxisMotion _inspectionGantryMotion;
+    private readonly IMotionFeedback[] _allMotions;
+    private readonly IMotionFeedback[] _enabledMotions;
 
     public MachineState(
         MachineOptions options,
@@ -89,48 +88,112 @@ public sealed class MachineState
         NgConveyorLine ngConveyor,
         BufferStage buffer,
         BoltTrainingSession training,
-        [FromKeyedServices(MotionGroup.PcbSupply)] IAxisMotion pcbSupplyMotion,
-        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] IXyMotion pcbPlacementMotion,
-        [FromKeyedServices(MotionGroup.BoltFastening)] IXyMotion boltFasteningMotion,
-        [FromKeyedServices(MotionGroup.InspectionGantry)] IXyMotion inspectionGantryMotion)
+        PcbSupplyHandler pcbSupply,
+        PcbPlacementHandler pcbPlacement,
+        BoltFasteningStation boltFastening,
+        InspectionGantry inspectionGantry)
     {
         _options = options;
-        _units = units;
         _io = io;
         _conveyor = conveyor;
         _ngConveyor = ngConveyor;
         _buffer = buffer;
         _training = training;
-        _pcbSupplyMotion = pcbSupplyMotion;
-        _pcbPlacementMotion = pcbPlacementMotion;
-        _boltFasteningMotion = boltFasteningMotion;
-        _inspectionGantryMotion = inspectionGantryMotion;
+        _allMotions =
+        [
+            pcbSupply.Feedback,
+            pcbPlacement.Feedback,
+            boltFastening.Feedback,
+            inspectionGantry.Feedback,
+        ];
 
-        io.InputChanged += (_, _) => Refresh();
-        io.OutputChanged += (_, _) => Refresh();
+        var enabledMotions = new List<IMotionFeedback>(4);
+        if (units.PcbSupply || units.PcbPlacement)
+        {
+            enabledMotions.Add(pcbSupply.Feedback);
+            enabledMotions.Add(pcbPlacement.Feedback);
+        }
+
+        if (units.BoltFastening)
+        {
+            enabledMotions.Add(boltFastening.Feedback);
+        }
+
+        if (units.Inspection || units.NgConveyor)
+        {
+            enabledMotions.Add(inspectionGantry.Feedback);
+        }
+
+        _enabledMotions = [.. enabledMotions];
+
+        io.InputChanged += (input, _) =>
+        {
+            if (AffectsMachineState(input))
+            {
+                NotifyChanged();
+            }
+        };
+        io.OutputChanged += (output, _) =>
+        {
+            if (output is OutputIo.MainConveyorRun
+                or OutputIo.NgConveyorRun)
+            {
+                NotifyChanged();
+            }
+        };
         buffer.PositionChanged += OnBufferPositionChanged;
-        pcbSupplyMotion.StateChanged += Refresh;
-        pcbPlacementMotion.StateChanged += Refresh;
-        boltFasteningMotion.StateChanged += Refresh;
-        inspectionGantryMotion.StateChanged += Refresh;
-        conveyor.Changed += Refresh;
-        ngConveyor.Changed += Refresh;
-        training.Changed += Refresh;
+        pcbSupply.Feedback.StateChanged += Refresh;
+        pcbPlacement.Feedback.StateChanged += Refresh;
+        boltFastening.Feedback.StateChanged += NotifyChanged;
+        inspectionGantry.Feedback.StateChanged += NotifyChanged;
+        conveyor.Changed += NotifyChanged;
+        ngConveyor.Changed += NotifyChanged;
+        training.Changed += NotifyChanged;
     }
 
     public event Action? Changed;
 
-    public bool Homed => EnabledMotions().All(motion =>
-        motion.IsReady
-        && motion.Axes.All(axis => motion.GetAxisState(axis).Homed));
-    public bool ServosOn => EnabledMotions().All(motion =>
-        motion.IsReady
-        && motion.Axes.All(axis => motion.GetAxisState(axis).ServoOn));
-    public bool Faulted =>
-        EnabledMotions().Any(motion => !motion.IsReady
-            || motion.Axes.Any(axis => IsFaulted(motion.GetAxisState(axis))));
-    public bool Ready =>
-        ServoMainContactorOn && Homed && ServosOn && !Faulted;
+    public MotionReadiness MotionReadiness
+    {
+        get
+        {
+            var homed = true;
+            var servosOn = true;
+            var faulted = false;
+            foreach (var motion in _enabledMotions)
+            {
+                if (!motion.IsReady)
+                {
+                    return new(false, false, true);
+                }
+
+                foreach (var axis in motion.Axes)
+                {
+                    var state = motion.GetAxisState(axis);
+                    homed &= state.Homed;
+                    servosOn &= state.ServoOn;
+                    faulted |= IsFaulted(state);
+                }
+            }
+
+            return new(homed, servosOn, faulted);
+        }
+    }
+
+    public bool Homed => MotionReadiness.Homed;
+    public bool ServosOn => MotionReadiness.ServosOn;
+    public bool Faulted => MotionReadiness.Faulted;
+    public bool Ready
+    {
+        get
+        {
+            var motion = MotionReadiness;
+            return ServoMainContactorOn
+                   && motion.Homed
+                   && motion.ServosOn
+                   && !motion.Faulted;
+        }
+    }
 
     public bool EmergencyStopReleased =>
         _io.IsReady
@@ -165,7 +228,6 @@ public sealed class MachineState
 
     public bool ConveyorRunning => _conveyor.RunCommandOn;
     public MainConveyorState MainConveyorState => _conveyor.State;
-    public NgConveyorState NgConveyorState => _ngConveyor.State;
     public bool SupplyInBufferArea => _buffer.SupplyInside;
     public bool BufferConflict => _buffer.Conflict;
 
@@ -174,10 +236,7 @@ public sealed class MachineState
         || IsHoming
         || _training.IsRunning
         || ConveyorRunning
-        || _pcbSupplyMotion.IsMoving
-        || _pcbPlacementMotion.IsMoving
-        || _boltFasteningMotion.IsMoving
-        || _inspectionGantryMotion.IsMoving
+        || Array.Exists(_allMotions, static motion => motion.IsMoving)
         || _ngConveyor.RunCommandOn;
 
     public bool CanOperate =>
@@ -195,11 +254,12 @@ public sealed class MachineState
         && !IsRunning;
     public void Refresh()
     {
-        if (BufferConflict && Alarm == MachineAlarm.None)
+        if (Alarm == MachineAlarm.None && BufferConflict)
         {
             Alarm = MachineAlarm.BufferConflict;
         }
-        Changed?.Invoke();
+
+        NotifyChanged();
     }
 
     internal void SetHoming(bool value)
@@ -233,31 +293,30 @@ public sealed class MachineState
 
     private void OnBufferPositionChanged()
     {
-        if (BufferConflict && Alarm == MachineAlarm.None)
+        if (Alarm == MachineAlarm.None && BufferConflict)
         {
             Alarm = MachineAlarm.BufferConflict;
-            Changed?.Invoke();
+            NotifyChanged();
         }
     }
 
-    private IEnumerable<IAxisMotion> EnabledMotions()
-    {
-        if (_units.PcbSupply || _units.PcbPlacement)
-        {
-            yield return _pcbSupplyMotion;
-            yield return _pcbPlacementMotion;
-        }
+    private void NotifyChanged() => Changed?.Invoke();
 
-        if (_units.BoltFastening)
-        {
-            yield return _boltFasteningMotion;
-        }
+    internal static bool IsSafetyInput(InputIo input) => input is
+        InputIo.EmergencyStop1Pressed
+        or InputIo.EmergencyStop2Pressed
+        or InputIo.AutoMode
+        or InputIo.Door1Open
+        or InputIo.Door2Open
+        or InputIo.Door3Open
+        or InputIo.Door4Open
+        or InputIo.Door5Open
+        or InputIo.Door6Open
+        or InputIo.AirPressureLow;
 
-        if (_units.Inspection || _units.NgConveyor)
-        {
-            yield return _inspectionGantryMotion;
-        }
-    }
+    private static bool AffectsMachineState(InputIo input) =>
+        input == InputIo.ServoMainContactorOn
+        || IsSafetyInput(input);
 
     private static bool IsFaulted(AxisState state) =>
         state.Alarm || state.Emergency;

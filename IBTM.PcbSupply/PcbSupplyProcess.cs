@@ -13,7 +13,7 @@ public sealed class PcbSupplyProcess(
 {
     public bool CanHome =>
         handler.CanPrepareHome
-        && (handler.Rotation != PcbSupplyRotation.Unrotated
+        && (handler.Rotation != PcbSupplyRotationState.Unrotated
             || !buffer.PcbPresent);
 
     public async Task RunAsync(
@@ -21,7 +21,7 @@ public sealed class PcbSupplyProcess(
         CancellationToken cancellationToken = default)
     {
         var pickStep = PickStep.Pcb1;
-        using var stateChanged = new AsyncAutoResetEvent();
+        var stateChanged = new AsyncAutoResetEvent();
         void OnStateChanged() => stateChanged.Set();
 
         handler.Changed += OnStateChanged;
@@ -30,12 +30,14 @@ public sealed class PcbSupplyProcess(
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                handler.SetUpstreamReady(
+                var waitingForCarrierExit =
                     pickStep == PickStep.WaitingForCarrierExit
                     && handler.Pcb == PcbSupplyPcbState.None
-                    && handler.Rotation == PcbSupplyRotation.Unrotated
-                    || pickStep == PickStep.Pcb1
-                    && !handler.UpstreamCarrierAvailable);
+                    && handler.Rotation == PcbSupplyRotationState.Unrotated;
+                var waitingForFirstCarrier = pickStep == PickStep.Pcb1
+                    && !handler.UpstreamCarrierAvailable;
+                handler.SetUpstreamReady(
+                    waitingForCarrierExit || waitingForFirstCarrier);
 
                 var state = State(pickStep);
                 switch (state)
@@ -83,7 +85,7 @@ public sealed class PcbSupplyProcess(
                         await handler.MoveClearAsync(cancellationToken);
                         break;
 
-                    case PcbSupplyState.ReturningToPickup:
+                    case PcbSupplyState.UnrotatingForPickup:
                         await handler.SetRotatedAsync(
                             false,
                             cancellationToken);
@@ -115,6 +117,9 @@ public sealed class PcbSupplyProcess(
 
     private PcbSupplyState State(PickStep pickStep)
     {
+        var pcb = handler.Pcb;
+        var rotation = handler.Rotation;
+
         if (buffer.SupplyAtHandoff)
         {
             return buffer.PlacementSecuredAtHandoff
@@ -122,18 +127,17 @@ public sealed class PcbSupplyProcess(
                 : PcbSupplyState.WaitingForPlacement;
         }
 
-        if (buffer.SupplyInside
-            && handler.Pcb != PcbSupplyPcbState.Secured)
+        if (buffer.SupplyInside && pcb != PcbSupplyPcbState.Secured)
         {
             return PcbSupplyState.ReleasingPcb;
         }
 
-        if (handler.Pcb == PcbSupplyPcbState.Detected)
+        if (pcb == PcbSupplyPcbState.Detected)
         {
             return PcbSupplyState.SecuringPcb;
         }
 
-        if (handler.Pcb == PcbSupplyPcbState.Secured)
+        if (pcb == PcbSupplyPcbState.Secured)
         {
             if (!handler.AtHandoffXY)
             {
@@ -142,7 +146,7 @@ public sealed class PcbSupplyProcess(
                     : PcbSupplyState.WaitingForBuffer;
             }
 
-            if (handler.Rotation != PcbSupplyRotation.Rotated)
+            if (rotation != PcbSupplyRotationState.Rotated)
             {
                 return PcbSupplyState.RotatingForBuffer;
             }
@@ -152,9 +156,9 @@ public sealed class PcbSupplyProcess(
                 : PcbSupplyState.WaitingForBuffer;
         }
 
-        if (handler.Rotation != PcbSupplyRotation.Unrotated)
+        if (rotation != PcbSupplyRotationState.Unrotated)
         {
-            return PcbSupplyState.ReturningToPickup;
+            return PcbSupplyState.UnrotatingForPickup;
         }
 
         if (pickStep == PickStep.WaitingForCarrierExit)

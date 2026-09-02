@@ -20,6 +20,7 @@ public sealed class InspectionCameraSettings : Setting
     public double ExposureMicroseconds { get; set; } = 500.0;
     public double Gain { get; set; }
     public int FrameTimeoutMilliseconds { get; set; } = 3_000;
+    public int LiveViewFramesPerSecond { get; set; } = 10;
     public double FieldOfViewWidthMillimeters { get; set; } = 16.0;
     public double FieldOfViewHeightMillimeters { get; set; } = 12.0;
 }

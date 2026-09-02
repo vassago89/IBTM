@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media.Imaging;
@@ -13,21 +12,18 @@ using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.UI;
 
-public partial class StationTeachingViewModel : ObservableObject
+public partial class StationTeachingViewModel : TeachingMotionViewModel
 {
-    private readonly IXyMotion _pcbPlacementMotion;
-    private readonly IXyMotion _boltFasteningMotion;
-    private readonly IXyMotion _inspectionGantryMotion;
-    private readonly ICamera _inspectionCamera;
+    private readonly PcbPlacementHandler _placementHandler;
+    private readonly BoltFasteningStation _fasteningStation;
+    private readonly InspectionGantry _inspectionGantry;
+    private readonly BoltInspector _boltInspector;
     private readonly InspectionCameraSettings _inspectionCameraSettings;
-    private readonly ILightController _light;
     private readonly BufferStage _buffer;
     private readonly MachineState _state;
-    private readonly LightingSettings _lighting;
     private readonly PcbPlacementHandlerSettings _placementSettings;
     private readonly BoltFasteningSettings _fasteningSettings;
     private readonly InspectionGantrySettings _inspectionGantrySettings;
@@ -35,9 +31,6 @@ public partial class StationTeachingViewModel : ObservableObject
     private readonly TeachingPointMapper _pointMapper;
     private readonly bool _inspectionEnabled;
     private readonly bool _ngConveyorEnabled;
-    private CancellationTokenSource _motionCancellation = new();
-    private int _positionRefreshQueued;
-
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInspectionSelected))]
     [NotifyCanExecuteChangedFor(nameof(ToggleLiveViewCommand))]
@@ -50,7 +43,6 @@ public partial class StationTeachingViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(JogYMinusCommand))]
     private MotionGroup _selectedMotionGroup = MotionGroup.InspectionGantry;
 
-    [ObservableProperty] private double _jogSpeed = 10.0;
     [ObservableProperty]
     private FasteningHead _newFasteningHead = FasteningHead.Shooting;
 
@@ -68,11 +60,11 @@ public partial class StationTeachingViewModel : ObservableObject
     private IReadOnlyList<CarrierImageTileView> _carrierImages = [];
 
     [ObservableProperty]
-    private double _millimetersPerPixel = 0.05;
+    private double _millimetersPerPixel;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CaptureCarrierImagesCommand))]
-    private double _scanOverlap = 1.0;
+    private double _scanOverlap;
 
     [ObservableProperty]
     private IReadOnlyList<ImageMarker> _imageMarkers = [];
@@ -90,15 +82,13 @@ public partial class StationTeachingViewModel : ObservableObject
     private TeachingPoint? _selectedPoint;
 
     public StationTeachingViewModel(
-        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] IXyMotion pcbPlacementMotion,
-        [FromKeyedServices(MotionGroup.BoltFastening)] IXyMotion boltFasteningMotion,
-        [FromKeyedServices(MotionGroup.InspectionGantry)] IXyMotion inspectionGantryMotion,
-        ICamera inspectionCamera,
+        PcbPlacementHandler placementHandler,
+        BoltFasteningStation fasteningStation,
+        InspectionGantry inspectionGantry,
+        BoltInspector boltInspector,
         InspectionCameraSettings inspectionCameraSettings,
-        ILightController light,
         BufferStage buffer,
         MachineState state,
-        LightingSettings lighting,
         PcbPlacementHandlerSettings placementSettings,
         BoltFasteningSettings fasteningSettings,
         InspectionGantrySettings inspectionGantrySettings,
@@ -107,15 +97,13 @@ public partial class StationTeachingViewModel : ObservableObject
         TeachingPointMapper pointMapper,
         RecipeEditor recipeEditor)
     {
-        _pcbPlacementMotion = pcbPlacementMotion;
-        _boltFasteningMotion = boltFasteningMotion;
-        _inspectionGantryMotion = inspectionGantryMotion;
-        _inspectionCamera = inspectionCamera;
+        _placementHandler = placementHandler;
+        _fasteningStation = fasteningStation;
+        _inspectionGantry = inspectionGantry;
+        _boltInspector = boltInspector;
         _inspectionCameraSettings = inspectionCameraSettings;
-        _light = light;
         _buffer = buffer;
         _state = state;
-        _lighting = lighting;
         _placementSettings = placementSettings;
         _fasteningSettings = fasteningSettings;
         _inspectionGantrySettings = inspectionGantrySettings;
@@ -150,18 +138,22 @@ public partial class StationTeachingViewModel : ObservableObject
         ScanOverlap =
             inspectionGantrySettings.CarrierScanOverlapMillimeters;
 
-        pcbPlacementMotion.PositionChanged +=
-            (_, _, _) => ApplyPosition(MotionGroup.PcbPlacementHandler);
-        boltFasteningMotion.PositionChanged +=
-            (_, _, _) => ApplyPosition(MotionGroup.BoltFastening);
-        inspectionGantryMotion.PositionChanged +=
-            (_, _, _) => ApplyPosition(MotionGroup.InspectionGantry);
-        pcbPlacementMotion.MovingChanged += OnMotionChanged;
-        boltFasteningMotion.MovingChanged += OnMotionChanged;
-        inspectionGantryMotion.MovingChanged += OnMotionChanged;
-        inspectionCamera.FrameReady += UpdateLiveImage;
-        buffer.StateChanged += OnBufferChanged;
-        state.Changed += OnMachineStateChanged;
+        placementHandler.Feedback.PositionChanged += (x, y, z) =>
+            QueuePositionRefresh(
+                MotionGroup.PcbPlacementHandler,
+                x,
+                y,
+                z);
+        fasteningStation.Feedback.PositionChanged += (x, y, z) =>
+            QueuePositionRefresh(MotionGroup.BoltFastening, x, y, z);
+        inspectionGantry.Feedback.PositionChanged += (x, y, z) =>
+            QueuePositionRefresh(MotionGroup.InspectionGantry, x, y, z);
+        placementHandler.Feedback.MovingChanged += QueueManualCommandRefresh;
+        fasteningStation.Feedback.MovingChanged += QueueManualCommandRefresh;
+        inspectionGantry.Feedback.MovingChanged += QueueManualCommandRefresh;
+        boltInspector.FrameReady += UpdateLiveImage;
+        buffer.StateChanged += QueueManualCommandRefresh;
+        state.Changed += QueueManualCommandRefresh;
         recipeEditor.Changed += OnRecipeChanged;
 
         RefreshTeachingPoints();
@@ -170,16 +162,12 @@ public partial class StationTeachingViewModel : ObservableObject
 
     public RecipeEditor RecipeEditor { get; }
     public MotionGroup[] MotionGroups { get; }
-    public double[] JogSpeeds { get; } = [1.0, 10.0, 50.0];
     public FasteningHead[] FasteningHeads { get; } =
         Enum.GetValues<FasteningHead>();
     public HeatSinkSlot[] HeatSinkSlots { get; } =
         Enum.GetValues<HeatSinkSlot>();
     public BoltFasteningRecipe BoltRecipe => CurrentRecipe.BoltFastening;
-    public double CurrentX => CurrentMotion.GetPosition().X;
-    public double CurrentY => CurrentMotion.GetPosition().Y;
-    public double CurrentZ => CurrentMotion.GetPosition().Z;
-    public bool CurrentMotionHasZ => CurrentMotion.HasZ;
+    public bool CurrentMotionHasZ => CurrentFeedback.HasZ;
     public bool IsInspectionSelected =>
         _inspectionEnabled
         && SelectedMotionGroup == MotionGroup.InspectionGantry;
@@ -198,7 +186,7 @@ public partial class StationTeachingViewModel : ObservableObject
                 return null;
             }
 
-            var origin = _carrierReference.UpperLeftPin!;
+            var origin = _carrierReference.UpperLeftLocatingPin!;
             return new Point(origin.X, origin.Y);
         }
     }
@@ -211,14 +199,13 @@ public partial class StationTeachingViewModel : ObservableObject
                 return null;
             }
 
-            var position = CurrentMotion.GetPosition();
             var width = _inspectionCameraSettings
                 .FieldOfViewWidthMillimeters;
             var height = _inspectionCameraSettings
                 .FieldOfViewHeightMillimeters;
             return new Rect(
-                position.X - (width / 2),
-                position.Y - (height / 2),
+                CurrentX - (width / 2),
+                CurrentY - (height / 2),
                 width,
                 height);
         }
@@ -260,7 +247,7 @@ public partial class StationTeachingViewModel : ObservableObject
     private async Task TeachCurrentPositionAsync()
     {
         var point = SelectedPoint!;
-        var current = CurrentMotion.GetPosition();
+        var current = CurrentPosition();
         point.Teach(current.X, current.Y, current.Z);
         _pointMapper.Apply(CurrentRecipe, FilteredPoints, point);
         if (point.Storage == TeachingStorage.Machine)
@@ -303,7 +290,7 @@ public partial class StationTeachingViewModel : ObservableObject
             point.BoltNumber == number
             && point.Target == (IsInspectionSelected
                 ? TeachingTarget.BoltReference
-                : TeachingTarget.BoltWorkZ));
+                : TeachingTarget.BoltPointZ));
     }
 
     private bool CanAddBoltPoint() =>
@@ -320,7 +307,7 @@ public partial class StationTeachingViewModel : ObservableObject
     }
 
     private bool CanRemoveBoltPoint() =>
-        SelectedPoint?.Target is TeachingTarget.BoltWorkZ
+        SelectedPoint?.Target is TeachingTarget.BoltPointZ
             or TeachingTarget.BoltReference;
 
     public void Activate()
@@ -328,11 +315,13 @@ public partial class StationTeachingViewModel : ObservableObject
         RecipeEditor.Refresh();
         RefreshTeachingPoints();
         ShowRecipeImages();
-        RefreshPosition();
+        ActivatePositionUpdates();
+        NotifyManualTeachingCommands();
     }
 
     public void Deactivate()
     {
+        DeactivatePositionUpdates();
         MoveToHorizontalZCommand.Cancel();
         MoveToPointCommand.Cancel();
         CancelMotion();
@@ -368,13 +357,13 @@ public partial class StationTeachingViewModel : ObservableObject
             return null;
         }
 
-        if (_carrierReference.UpperLeftPin is null)
+        if (_carrierReference.UpperLeftLocatingPin is null)
         {
             return FilteredPoints.FirstOrDefault(point =>
                 point.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
         }
 
-        if (_carrierReference.LowerRightPin is null)
+        if (_carrierReference.LowerRightLocatingPin is null)
         {
             return FilteredPoints.FirstOrDefault(point =>
                 point.Target == TeachingTarget.CarrierLowerRightLocatingPin);
@@ -444,18 +433,6 @@ public partial class StationTeachingViewModel : ObservableObject
                 point == SelectedPoint))
             .ToArray();
     }
-
-    private static void RunOnUi(Action action) =>
-        Application.Current.Dispatcher.BeginInvoke(action);
-
-    private void OnBufferChanged() =>
-        RunOnUi(NotifyManualTeachingCommands);
-
-    private void OnMachineStateChanged() =>
-        RunOnUi(NotifyManualTeachingCommands);
-
-    private void OnMotionChanged(bool _) =>
-        RunOnUi(NotifyManualTeachingCommands);
 
     private bool PointEnabled(TeachingPoint point) => point.Target switch
     {

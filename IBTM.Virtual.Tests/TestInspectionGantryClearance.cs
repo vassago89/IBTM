@@ -15,7 +15,7 @@ internal sealed class TestInspectionGantryClearance : IInspectionGantryClearance
 
     public event Action? Changed;
 
-    public bool Available =>
+    public bool IsClear =>
         _io.GetInput(InputIo.NgCarrierPickupUp)
         && !_io.GetInput(InputIo.NgCarrierPickupDown)
         && !_io.GetInput(InputIo.NgCarrierDetected);

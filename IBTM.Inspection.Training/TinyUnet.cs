@@ -1,12 +1,14 @@
+using IBTM.Core;
 using TorchSharp;
 using static TorchSharp.torch;
 using static TorchSharp.torch.nn;
 
 namespace IBTM.Inspection.Training;
 
-public sealed class TinyUnet : Module<Tensor, Tensor>
+internal sealed class TinyUnet : Module<Tensor, Tensor>
 {
-    private readonly Module<Tensor, Tensor> _encoder1 = Block(3, 8);
+    private readonly Module<Tensor, Tensor> _encoder1 =
+        Block(ImageFrame.ColorChannelCount, 8);
     private readonly Module<Tensor, Tensor> _encoder2 = Block(8, 16);
     private readonly Module<Tensor, Tensor> _encoder3 = Block(16, 32);
     private readonly Module<Tensor, Tensor> _bridge = Block(32, 64);

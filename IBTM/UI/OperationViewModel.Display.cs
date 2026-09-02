@@ -6,134 +6,28 @@ namespace IBTM.UI;
 
 public partial class OperationViewModel
 {
-    public MachineDisplayState MachineDisplayState
-    {
-        get
-        {
-            if (!_state.SafetyReady)
-            {
-                return MachineDisplayState.SafetyStop;
-            }
-
-            if (_state.IsError)
-            {
-                return MachineDisplayState.Alarm;
-            }
-
-            if (_state.Faulted)
-            {
-                return MachineDisplayState.MotionFault;
-            }
-
-            if (IsHoming)
-            {
-                return MachineDisplayState.Homing;
-            }
-
-            if (!_state.ServoMainContactorOn || !_state.ServosOn)
-            {
-                return MachineDisplayState.ServoOff;
-            }
-
-            if (!_state.Homed)
-            {
-                return MachineDisplayState.HomeRequired;
-            }
-
-            return _state.IsRunning
-                ? MachineDisplayState.Running
-                : MachineDisplayState.Ready;
-        }
-    }
+    public MachineDisplayState MachineDisplayState =>
+        _machineDisplay.DisplayState;
 
     public bool StartBlocked =>
-        !_state.IsRunning
-        && !IsHoming
+        !_machineDisplay.CanStart
+        && !_machineDisplay.IsHoming
         && StartBlock != StartBlockReason.None;
 
     public bool BoltProcessStateVisible =>
         BoltFasteningProcessState != BoltFasteningProcessState.Waiting
-        && (_state.AutomaticRunning
-            || BoltFasteningMoving
-            || BoltHead1Down
-            || BoltHead2Down);
+        && (_machineDisplay.AutomaticRunning
+            || Fastening.Motion.IsMoving
+            || PickupHeadDown
+            || ShootingHeadDown);
 
     public bool InspectionProcessStateVisible =>
         InspectionProcessState != InspectionProcessState.Waiting
-        && (_state.AutomaticRunning
-            || InspectionGantryMoving
+        && (_machineDisplay.AutomaticRunning
+            || InspectionGantry.Motion.IsMoving
             || NgCarrierDetected);
 
-    public StartBlockReason StartBlock
-    {
-        get
-        {
-            if (_state.Alarm == MachineAlarm.EmergencyStop)
-            {
-                return StartBlockReason.EmergencyStop;
-            }
-
-            if (_state.Alarm == MachineAlarm.DoorOpen)
-            {
-                return StartBlockReason.DoorOpen;
-            }
-
-            if (_state.Alarm == MachineAlarm.AirPressureLow)
-            {
-                return StartBlockReason.AirPressure;
-            }
-
-            if (_state.Alarm == MachineAlarm.BufferConflict
-                || _state.BufferConflict)
-            {
-                return StartBlockReason.BufferConflict;
-            }
-
-            if (_state.IsError)
-            {
-                return StartBlockReason.Alarm;
-            }
-
-            if (_options.UseEmergencyStop && !_state.EmergencyStopReleased)
-            {
-                return StartBlockReason.EmergencyStop;
-            }
-
-            if (_options.UseAirPressureInterlock && !_state.AirPressureOk)
-            {
-                return StartBlockReason.AirPressure;
-            }
-
-            if (_state.Faulted)
-            {
-                return StartBlockReason.MotionFault;
-            }
-
-            if (!_state.ServoMainContactorOn || !_state.ServosOn)
-            {
-                return StartBlockReason.ServoOff;
-            }
-
-            if (_options.UseDoorInterlock && !_state.DoorClosed)
-            {
-                return StartBlockReason.DoorOpen;
-            }
-
-            if (!_state.Homed)
-            {
-                return StartBlockReason.HomeRequired;
-            }
-
-            if (!_state.AutoMode)
-            {
-                return StartBlockReason.AutoMode;
-            }
-
-            return _units.HasEnabledUnit()
-                ? StartBlockReason.None
-                : StartBlockReason.NoUnitEnabled;
-        }
-    }
+    public StartBlockReason StartBlock => _machineDisplay.StartBlock;
 
     public HandlerDisplayState SupplyDisplayState
     {
@@ -144,12 +38,12 @@ public partial class OperationViewModel
                 return HandlerDisplayState.Disabled;
             }
 
-            if (_state.Alarm == MachineAlarm.Supply)
+            if (Alarm == MachineAlarm.PcbSupply)
             {
                 return HandlerDisplayState.IoAlarm;
             }
 
-            if (_pcbSupplyMotion.IsMoving)
+            if (Supply.Motion.IsMoving)
             {
                 return HandlerDisplayState.Moving;
             }
@@ -159,7 +53,7 @@ public partial class OperationViewModel
                 return HandlerDisplayState.PcbDetected;
             }
 
-            return PcbSupplyAvailableFromFront1
+            return Supply.UpstreamCarrierAvailable
                 ? HandlerDisplayState.CarrierAvailable
                 : HandlerDisplayState.WaitingForCarrier;
         }
@@ -174,12 +68,12 @@ public partial class OperationViewModel
                 return HandlerDisplayState.Disabled;
             }
 
-            if (_state.Alarm == MachineAlarm.Placement)
+            if (Alarm == MachineAlarm.PcbPlacement)
             {
                 return HandlerDisplayState.IoAlarm;
             }
 
-            if (_pcbPlacementMotion.IsMoving)
+            if (Placement.Motion.IsMoving)
             {
                 return HandlerDisplayState.Moving;
             }
@@ -191,10 +85,10 @@ public partial class OperationViewModel
 
             if (PcbBufferPcbPresent)
             {
-                return HandlerDisplayState.PcbAvailable;
+                return HandlerDisplayState.BufferPcbAvailable;
             }
 
-            return HandlerDisplayState.WaitingForPcb;
+            return HandlerDisplayState.WaitingForBufferPcb;
         }
     }
 
@@ -207,8 +101,8 @@ public partial class OperationViewModel
                 return StationDisplayState.Disabled;
             }
 
-            if (_state.Alarm is MachineAlarm.PickupBoltFeeder
-                or MachineAlarm.LinearBoltFeeder
+            if (Alarm is MachineAlarm.PickupBoltFeeder
+                or MachineAlarm.ShootingBoltFeeder
                 or MachineAlarm.BoltFastening)
             {
                 return StationDisplayState.IoAlarm;
@@ -219,7 +113,8 @@ public partial class OperationViewModel
                 return StationDisplayState.WaitingForCarrier;
             }
 
-            if (!BoltFasteningHasHeatSink)
+            if (!BoltFasteningHeatSink1Present
+                && !BoltFasteningHeatSink2Present)
             {
                 return StationDisplayState.EmptyCarrier;
             }
@@ -241,17 +136,17 @@ public partial class OperationViewModel
     {
         get
         {
-            if (!InspectionEnabled)
+            if (!_units.Inspection)
             {
                 return StationDisplayState.Disabled;
             }
 
-            if (_state.Alarm == MachineAlarm.Inspection)
+            if (Alarm == MachineAlarm.Inspection)
             {
                 return StationDisplayState.IoAlarm;
             }
 
-            if (InspectionGantryMoving || NgCarrierDetected)
+            if (InspectionGantry.Motion.IsMoving || NgCarrierDetected)
             {
                 return StationDisplayState.Working;
             }
@@ -261,7 +156,8 @@ public partial class OperationViewModel
                 return StationDisplayState.WaitingForCarrier;
             }
 
-            if (!InspectionHasHeatSink)
+            if (!InspectionHeatSink1Present
+                && !InspectionHeatSink2Present)
             {
                 return StationDisplayState.EmptyCarrier;
             }

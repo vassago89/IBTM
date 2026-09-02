@@ -8,58 +8,41 @@ namespace IBTM.Device;
 
 public abstract class StationWork
 {
-    private readonly IIoService _io;
-    private readonly InputIo _carrier;
-    private readonly InputIo _backupPlateUp;
-    private readonly InputIo _stopperDown;
-    private readonly InputIo _heatSink1;
-    private readonly InputIo _heatSink2;
-    private readonly List<PcbAssembly> _assemblies = [];
+    private readonly List<HeatSinkAssembly> _assemblies = [];
     private bool _completed;
 
-    protected StationWork(
-        IIoService io,
-        InputIo carrier,
-        InputIo backupPlateUp,
-        InputIo stopperDown,
-        InputIo heatSink1,
-        InputIo heatSink2)
+    protected StationWork(ConveyorStation station)
     {
-        _io = io;
-        _carrier = carrier;
-        _backupPlateUp = backupPlateUp;
-        _stopperDown = stopperDown;
-        _heatSink1 = heatSink1;
-        _heatSink2 = heatSink2;
-        io.InputChanged += OnInputChanged;
+        Station = station;
+        station.Changed += OnStationChanged;
+        station.CarrierChanged += OnCarrierChanged;
+        station.HeatSinkChanged += OnHeatSinkChanged;
     }
 
     public event Action? Changed;
-    public event Action<bool>? CarrierChanged;
-
-    public bool CarrierPresent => _io.GetInput(_carrier);
-    public bool Ready =>
-        CarrierPresent
-        && _io.GetInput(_backupPlateUp)
-        && _io.GetInput(_stopperDown);
+    public ConveyorStation Station { get; }
+    public bool CarrierPresent => Station.CarrierPresent;
+    public bool HeatSink1Present => Station.HeatSink1Present;
+    public bool HeatSink2Present => Station.HeatSink2Present;
+    public StationCylinderState BackupPlate => Station.BackupPlate;
+    public StationCylinderState Stopper => Station.Stopper;
+    public bool CarrierSeated => Station.Seated;
     public bool Completed => Volatile.Read(ref _completed);
-    public IReadOnlyList<PcbAssembly> Assemblies => _assemblies;
-    public virtual bool CanReceive => !CarrierPresent;
+    public IReadOnlyList<HeatSinkAssembly> Assemblies => _assemblies;
+    public virtual bool CanReceive => Station.CanReceive;
     public virtual bool HasNg =>
         _assemblies.Any(assembly =>
             HeatSinkPresent(assembly.HeatSink)
-            && assembly.Result == PcbResult.Ng);
+            && assembly.Result == AssemblyResult.Ng);
     public bool CanTransfer =>
         CarrierPresent
         && Completed
-        && _io.GetInput(_stopperDown);
+        && Stopper == StationCylinderState.Down;
 
     public bool HeatSinkPresent(HeatSinkSlot heatSink) =>
-        _io.GetInput(heatSink == HeatSinkSlot.HeatSink1
-            ? _heatSink1
-            : _heatSink2);
+        Station.HeatSinkPresent(heatSink);
 
-    public PcbAssembly Assembly(HeatSinkSlot heatSink)
+    public HeatSinkAssembly Assembly(HeatSinkSlot heatSink)
     {
         var assembly = _assemblies.FirstOrDefault(
             item => item.HeatSink == heatSink);
@@ -68,12 +51,19 @@ public abstract class StationWork
             return assembly;
         }
 
-        assembly = new PcbAssembly(heatSink);
+        assembly = new HeatSinkAssembly(heatSink);
         _assemblies.Add(assembly);
         return assembly;
     }
 
-    public void SetAssemblies(IEnumerable<PcbAssembly> assemblies)
+    public void TransferAssembliesTo(StationWork destination)
+    {
+        destination.SetAssemblies(_assemblies);
+        _assemblies.Clear();
+        Changed?.Invoke();
+    }
+
+    protected void SetAssemblies(IEnumerable<HeatSinkAssembly> assemblies)
     {
         _assemblies.Clear();
         _assemblies.AddRange(assemblies);
@@ -100,30 +90,22 @@ public abstract class StationWork
 
     protected void NotifyChanged() => Changed?.Invoke();
 
-    private void OnInputChanged(InputIo input, bool value)
+    private void OnStationChanged()
     {
-        if (input == _carrier)
-        {
-            if (value)
-            {
-                Volatile.Write(ref _completed, false);
-                _assemblies.Clear();
-            }
+        Changed?.Invoke();
+    }
 
-            CarrierChanged?.Invoke(value);
-        }
-        else if (input == _heatSink1 || input == _heatSink2)
+    private void OnCarrierChanged(bool present)
+    {
+        if (present)
         {
             Volatile.Write(ref _completed, false);
+            _assemblies.Clear();
         }
+    }
 
-        if (input == _carrier
-            || input == _backupPlateUp
-            || input == _stopperDown
-            || input == _heatSink1
-            || input == _heatSink2)
-        {
-            Changed?.Invoke();
-        }
+    private void OnHeatSinkChanged()
+    {
+        Volatile.Write(ref _completed, false);
     }
 }

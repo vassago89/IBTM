@@ -10,6 +10,7 @@ public partial class MainWindow : Window
 {
     private readonly IIoService _io;
     private readonly IAdcBus _adcBus;
+    private readonly HantasSettings _hantasSettings;
     private readonly MachineState _state;
     private InputWindow? _inputWindow;
     private OutputWindow? _outputWindow;
@@ -19,10 +20,12 @@ public partial class MainWindow : Window
         MainViewModel viewModel,
         IIoService io,
         IAdcBus adcBus,
+        HantasSettings hantasSettings,
         MachineState state)
     {
         _io = io;
         _adcBus = adcBus;
+        _hantasSettings = hantasSettings;
         _state = state;
         InitializeComponent();
         DataContext = viewModel;
@@ -69,7 +72,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        _adcProtocolWindow = new AdcProtocolWindow(_adcBus)
+        _adcProtocolWindow = new AdcProtocolWindow(
+            _adcBus,
+            _hantasSettings)
         {
             Owner = this,
         };

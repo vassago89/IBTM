@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
+using IBTM.Core;
 using IBTM.Inspection;
 using TorchSharp;
 using static TorchSharp.torch;
@@ -9,8 +10,10 @@ using static TorchSharp.torch.nn.functional;
 
 namespace IBTM.Inspection.Training;
 
-public sealed class TinyUnetTrainer(int batchSize = 8)
+internal sealed class TinyUnetTrainer(int batchSize = 8)
 {
+    private const double LearningRate = 0.001;
+
     public void Train(
         BoltSegmentationDataset dataset,
         string modelFile,
@@ -19,7 +22,7 @@ public sealed class TinyUnetTrainer(int batchSize = 8)
         CancellationToken cancellationToken)
     {
         using var model = new TinyUnet();
-        using var optimizer = optim.Adam(model.parameters(), 0.001);
+        using var optimizer = optim.Adam(model.parameters(), LearningRate);
         using var positiveWeight = tensor(dataset.PositiveWeight);
         var bestLoss = double.PositiveInfinity;
 
@@ -93,7 +96,7 @@ public sealed class TinyUnetTrainer(int batchSize = 8)
             using var input = tensor(images, dtype: ScalarType.Float32)
                 .reshape(
                     count,
-                    3,
+                    ImageFrame.ColorChannelCount,
                     IBoltRecessSegmenter.InputSize,
                     IBoltRecessSegmenter.InputSize);
             using var target = tensor(masks, dtype: ScalarType.Float32)
@@ -127,10 +130,10 @@ public sealed class TinyUnetTrainer(int batchSize = 8)
         int offset,
         int count)
     {
-        const int Channels = 3;
         var pixels =
             IBoltRecessSegmenter.InputSize * IBoltRecessSegmenter.InputSize;
-        var images = new float[count * Channels * pixels];
+        var images = new float[
+            count * ImageFrame.ColorChannelCount * pixels];
         var masks = new float[count * pixels];
 
         for (var index = 0; index < count; index++)
@@ -140,7 +143,7 @@ public sealed class TinyUnetTrainer(int batchSize = 8)
                 sample.Image,
                 0,
                 images,
-                index * Channels * pixels,
+                index * ImageFrame.ColorChannelCount * pixels,
                 sample.Image.Length);
             Array.Copy(
                 sample.Mask,
@@ -154,7 +157,7 @@ public sealed class TinyUnetTrainer(int batchSize = 8)
     }
 }
 
-public readonly record struct BoltTrainingProgress(
+internal readonly record struct BoltTrainingProgress(
     int Epoch,
     int Epochs,
     double TrainingLoss,

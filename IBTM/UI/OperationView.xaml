@@ -3,31 +3,262 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
              xmlns:ui="clr-namespace:IBTM.UI"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
              Background="{StaticResource AppBgBrush}">
 
-    <Grid Margin="18,14">
+    <UserControl.Resources>
+        <Style x:Key="SideLaneStyle" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
+            <Setter Property="BorderThickness" Value="0,0,1,0"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                             Value="False">
+                    <Setter Property="Opacity" Value="0.35"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="SideCarriageStyle" TargetType="Border">
+            <Setter Property="Height" Value="9"/>
+            <Setter Property="Background" Value="#303B45"/>
+            <Setter Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="2"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                             Value="True">
+                    <Setter Property="Background"
+                            Value="{StaticResource MapActiveBackgroundBrush}"/>
+                    <Setter Property="BorderBrush"
+                            Value="{StaticResource AccentBlueBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="SideScaleTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
+            <Setter Property="FontSize" Value="10"/>
+        </Style>
+        <Style x:Key="SideAxisLabelStyle"
+               TargetType="TextBlock"
+               BasedOn="{StaticResource EquipmentRoleLabelStyle}">
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="TextAlignment" Value="Left"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Margin="18,2">
         <Border Background="{StaticResource EquipBgBrush}"
                 BorderBrush="{StaticResource DividerBrush}"
                 BorderThickness="1"
                 CornerRadius="3"
                 ClipToBounds="True">
-            <Canvas Width="1600"
-                    Height="840"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Top"
-                    Margin="0,18,0,0">
-                <ui:ConveyorView Canvas.Left="24" Canvas.Top="360"
-                                 Panel.ZIndex="0"/>
-                <ui:Station1View Canvas.Left="24" Canvas.Top="0"
-                                 Panel.ZIndex="10"/>
-                <ui:Station2View Canvas.Left="610" Canvas.Top="0"
-                                 Panel.ZIndex="10"/>
-                <ui:Station3View Canvas.Left="1018" Canvas.Top="0"
-                                 Panel.ZIndex="10"/>
-            </Canvas>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="72"/>
+                    <RowDefinition Height="820"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        Background="{StaticResource PanelBgBrush}"
+                        BorderBrush="{StaticResource DividerBrush}"
+                        BorderThickness="0,0,0,1">
+                    <Grid Width="1552"
+                          Margin="0,3"
+                          HorizontalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="283"/>
+                            <ColumnDefinition Width="283"/>
+                            <ColumnDefinition Width="20"/>
+                            <ColumnDefinition Width="408"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0"
+                                Tag="{Binding PcbSupplyEnabled}"
+                                Style="{StaticResource SideLaneStyle}">
+                            <Grid Margin="10,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="104"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Source={x:Static core:MotionGroup.PcbSupply},
+                                                              Converter={StaticResource EnumDescriptionConverter}}"
+                                               Style="{StaticResource SideAxisLabelStyle}"/>
+                                    <TextBlock Text="{Binding Supply.Motion.Position.Z,
+                                                              StringFormat='Z {0:F2} mm'}"
+                                               Style="{StaticResource PrimaryStateTextStyle}"/>
+                                </StackPanel>
+                                <Canvas Grid.Column="1" Width="155" Height="62">
+                                    <Border Canvas.Left="18" Canvas.Top="5"
+                                            Width="124" Height="3"
+                                            Background="{StaticResource CardBorderBrush}"/>
+                                    <Border Canvas.Left="79" Canvas.Top="5"
+                                            Width="2" Height="51"
+                                            Background="{StaticResource DividerBrush}"/>
+                                    <TextBlock Canvas.Left="2" Canvas.Top="0"
+                                               Text="{Binding Supply.Motion.ZMinimum, StringFormat=F0}"
+                                               Style="{StaticResource SideScaleTextStyle}"/>
+                                    <TextBlock Canvas.Left="2" Canvas.Top="46"
+                                               Text="{Binding Supply.Motion.ZMaximum, StringFormat=F0}"
+                                               Style="{StaticResource SideScaleTextStyle}"/>
+                                    <Border Canvas.Left="12" Canvas.Top="56"
+                                            Width="136" Height="3"
+                                            Background="{StaticResource CardBorderBrush}"/>
+                                    <Grid Canvas.Left="59"
+                                          Width="42" Height="18">
+                                        <Grid.RenderTransform>
+                                            <TranslateTransform Y="{Binding PcbSupplyZTop}"/>
+                                        </Grid.RenderTransform>
+                                        <Border Width="42"
+                                                Tag="{Binding Supply.Motion.IsMoving}"
+                                                Style="{StaticResource SideCarriageStyle}"/>
+                                        <Border Width="3" Height="7"
+                                                VerticalAlignment="Top"
+                                                Margin="0,8,0,0"
+                                                Background="{StaticResource TextMutedBrush}"/>
+                                        <Border Width="26" Height="3"
+                                                VerticalAlignment="Bottom"
+                                                Background="{StaticResource MaterialPcbBrush}"
+                                                CornerRadius="1"
+                                                Visibility="{Binding PcbSupplyPcbSecured,
+                                                                     Converter={StaticResource BoolToVis}}"/>
+                                    </Grid>
+                                </Canvas>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="1"
+                                Tag="{Binding PcbPlacementEnabled}"
+                                Style="{StaticResource SideLaneStyle}">
+                            <Grid Margin="10,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="104"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Source={x:Static core:MotionGroup.PcbPlacementHandler},
+                                                              Converter={StaticResource EnumDescriptionConverter}}"
+                                               Style="{StaticResource SideAxisLabelStyle}"/>
+                                    <TextBlock Text="{Binding Placement.Motion.Position.Z,
+                                                              StringFormat='Z {0:F2} mm'}"
+                                               Style="{StaticResource PrimaryStateTextStyle}"/>
+                                </StackPanel>
+                                <Canvas Grid.Column="1" Width="155" Height="62">
+                                    <Border Canvas.Left="18" Canvas.Top="5"
+                                            Width="124" Height="3"
+                                            Background="{StaticResource CardBorderBrush}"/>
+                                    <Border Canvas.Left="79" Canvas.Top="5"
+                                            Width="2" Height="51"
+                                            Background="{StaticResource DividerBrush}"/>
+                                    <TextBlock Canvas.Left="2" Canvas.Top="0"
+                                               Text="{Binding Placement.Motion.ZMinimum, StringFormat=F0}"
+                                               Style="{StaticResource SideScaleTextStyle}"/>
+                                    <TextBlock Canvas.Left="2" Canvas.Top="46"
+                                               Text="{Binding Placement.Motion.ZMaximum, StringFormat=F0}"
+                                               Style="{StaticResource SideScaleTextStyle}"/>
+                                    <Border Canvas.Left="12" Canvas.Top="56"
+                                            Width="136" Height="3"
+                                            Background="{StaticResource CardBorderBrush}"/>
+                                    <Grid Canvas.Left="59"
+                                          Width="42" Height="18">
+                                        <Grid.RenderTransform>
+                                            <TranslateTransform Y="{Binding PcbPlacementZTop}"/>
+                                        </Grid.RenderTransform>
+                                        <Border Width="42"
+                                                Tag="{Binding Placement.Motion.IsMoving}"
+                                                Style="{StaticResource SideCarriageStyle}"/>
+                                        <Border Width="7" Height="7"
+                                                VerticalAlignment="Top"
+                                                Margin="0,8,0,0"
+                                                Background="{StaticResource TextMutedBrush}"
+                                                CornerRadius="1"/>
+                                        <Border Width="26" Height="3"
+                                                VerticalAlignment="Bottom"
+                                                Background="{StaticResource MaterialPcbBrush}"
+                                                CornerRadius="1"
+                                                Visibility="{Binding PcbPlacementPcbSecured,
+                                                                     Converter={StaticResource BoolToVis}}"/>
+                                    </Grid>
+                                </Canvas>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="3"
+                                Tag="{Binding BoltFasteningEnabled}"
+                                Style="{StaticResource SideLaneStyle}">
+                            <Grid Margin="14,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="130"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Source={x:Static core:MotionGroup.BoltFastening},
+                                                              Converter={StaticResource EnumDescriptionConverter}}"
+                                               Style="{StaticResource SideAxisLabelStyle}"/>
+                                    <TextBlock Text="{Binding Fastening.Motion.Position.Z,
+                                                              StringFormat='Z {0:F2} mm'}"
+                                               Style="{StaticResource PrimaryStateTextStyle}"/>
+                                </StackPanel>
+                                <Canvas Grid.Column="1" Width="240" Height="62">
+                                    <Border Canvas.Left="24" Canvas.Top="5"
+                                            Width="190" Height="3"
+                                            Background="{StaticResource CardBorderBrush}"/>
+                                    <Border Canvas.Left="119" Canvas.Top="5"
+                                            Width="2" Height="51"
+                                            Background="{StaticResource DividerBrush}"/>
+                                    <TextBlock Canvas.Left="3" Canvas.Top="0"
+                                               Text="{Binding Fastening.Motion.ZMinimum, StringFormat=F0}"
+                                               Style="{StaticResource SideScaleTextStyle}"/>
+                                    <TextBlock Canvas.Left="3" Canvas.Top="46"
+                                               Text="{Binding Fastening.Motion.ZMaximum, StringFormat=F0}"
+                                               Style="{StaticResource SideScaleTextStyle}"/>
+                                    <Border Canvas.Left="18" Canvas.Top="56"
+                                            Width="204" Height="3"
+                                            Background="{StaticResource CardBorderBrush}"/>
+                                    <Grid Canvas.Left="86"
+                                          Width="68" Height="18">
+                                        <Grid.RenderTransform>
+                                            <TranslateTransform Y="{Binding BoltFasteningZTop}"/>
+                                        </Grid.RenderTransform>
+                                        <Border Width="68"
+                                                Tag="{Binding Fastening.Motion.IsMoving}"
+                                                Style="{StaticResource SideCarriageStyle}"/>
+                                        <Border Width="3" Height="9"
+                                                HorizontalAlignment="Left"
+                                                VerticalAlignment="Top"
+                                                Margin="18,8,0,0"
+                                                Background="{StaticResource TextMutedBrush}"/>
+                                        <Border Width="3" Height="9"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Top"
+                                                Margin="0,8,18,0"
+                                                Background="{StaticResource TextMutedBrush}"/>
+                                    </Grid>
+                                </Canvas>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <Canvas Grid.Row="1"
+                        Width="1600"
+                        Height="820"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Top">
+                    <ui:ConveyorView Canvas.Left="24" Canvas.Top="360"
+                                     Panel.ZIndex="0"/>
+                    <ui:PcbPlacementView Canvas.Left="24" Canvas.Top="0"
+                                         Panel.ZIndex="10"/>
+                    <ui:BoltFasteningView Canvas.Left="610" Canvas.Top="0"
+                                          Panel.ZIndex="10"/>
+                    <ui:InspectionView Canvas.Left="1018" Canvas.Top="0"
+                                       Panel.ZIndex="10"/>
+                </Canvas>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>

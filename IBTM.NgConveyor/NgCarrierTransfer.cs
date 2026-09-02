@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Inspection;
 
 namespace IBTM.NgConveyor;
 
@@ -33,18 +34,17 @@ public enum NgTransferGripperState
 
 public sealed class NgCarrierTransfer : IInspectionGantryClearance
 {
-    private const double PositionTolerance = 0.05;
     private readonly IIoService _io;
-    private readonly IXyMotion _motion;
+    private readonly InspectionGantry _gantry;
     private readonly NgConveyorSettings _settings;
 
     public NgCarrierTransfer(
         IIoService io,
-        IXyMotion motion,
+        InspectionGantry gantry,
         NgConveyorSettings settings)
     {
         _io = io;
-        _motion = motion;
+        _gantry = gantry;
         _settings = settings;
         io.InputChanged += OnInputChanged;
     }
@@ -69,9 +69,9 @@ public sealed class NgCarrierTransfer : IInspectionGantryClearance
             (false, true) => NgTransferGripperState.Closed,
             _ => NgTransferGripperState.Between,
         };
-    public bool AtCarrier => IsAt(_settings.CarrierPickupPosition);
-    public bool AtShuttle => IsAt(_settings.ShuttlePlacePosition);
-    public bool Available => Lift == NgTransferLiftState.Up && !CarrierDetected;
+    public bool AtCarrier => _gantry.IsAt(_settings.CarrierPickupPosition);
+    public bool AtShuttle => _gantry.IsAt(_settings.ShuttlePlacePosition);
+    public bool IsClear => Lift == NgTransferLiftState.Up && !CarrierDetected;
 
     public Task MoveToCarrierAsync(
         CancellationToken cancellationToken = default) =>
@@ -104,36 +104,20 @@ public sealed class NgCarrierTransfer : IInspectionGantryClearance
             true,
             cancellationToken);
 
-    public Task WaitForShuttleCarrierAsync(
-        CancellationToken cancellationToken = default) =>
-        _io.WaitForInputAsync(
-            InputIo.NgShuttleCarrierDetected,
-            true,
-            cancellationToken);
-
     private Task MoveToAsync(
-        AxisPos position,
+        AxisPosition position,
         CancellationToken cancellationToken) =>
-        _motion.MoveToXYAsync(
-            position.X,
-            position.Y,
+        _gantry.MoveToAsync(
+            position,
             _settings.TransferSpeed,
             cancellationToken);
-
-    private bool IsAt(AxisPos position)
-    {
-        var current = _motion.GetPosition();
-        return !_motion.IsMoving
-            && _motion.GetAxisState(MotionAxis.X).InPosition
-            && _motion.GetAxisState(MotionAxis.Y).InPosition
-            && Math.Abs(current.X - position.X) <= PositionTolerance
-            && Math.Abs(current.Y - position.Y) <= PositionTolerance;
-    }
 
     private void OnInputChanged(InputIo input, bool _)
     {
         if (input is InputIo.NgCarrierPickupUp
             or InputIo.NgCarrierPickupDown
+            or InputIo.NgCarrierGripperOpen
+            or InputIo.NgCarrierGripperClosed
             or InputIo.NgCarrierDetected)
         {
             Changed?.Invoke();

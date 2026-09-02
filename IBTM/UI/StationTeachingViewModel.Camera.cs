@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -42,63 +41,38 @@ public partial class StationTeachingViewModel
     private async Task CaptureCarrierImagesAsync(
         CancellationToken cancellationToken)
     {
-        var channel = _lighting.InspectionChannel;
         var completed = false;
         try
         {
             using var motionCancellation = LinkMotion(cancellationToken);
-            var motion = GetMotion(MotionGroup.InspectionGantry);
-            var xPositions = ScanPositions(
-                _inspectionGantrySettings.CarrierScanUpperLeft.X,
-                _inspectionGantrySettings.CarrierScanLowerRight.X,
-                _inspectionCameraSettings.FieldOfViewWidthMillimeters
-                    - ScanOverlap);
-            var yPositions = ScanPositions(
-                _inspectionGantrySettings.CarrierScanUpperLeft.Y,
-                _inspectionGantrySettings.CarrierScanLowerRight.Y,
-                _inspectionCameraSettings.FieldOfViewHeightMillimeters
-                    - ScanOverlap);
-
             await _inspectionGantrySettings.SaveAsync(
                 motionCancellation.Token);
-            var images = new List<CarrierImageTileView>();
             CarrierImages = [];
             LiveImage = null;
-            _light.SetLevel(channel, _lighting.InspectionLevel);
-            _light.TurnOn(channel);
+            var captured = await _boltInspector
+                .CaptureCarrierImagesAsync(motionCancellation.Token);
+            var images = await Task.Run(
+                () => captured
+                    .Select((image, index) => new CarrierImageTileView(
+                        index + 1,
+                        image.Center,
+                        ToBitmapSource(image.Frame)))
+                    .ToArray(),
+                motionCancellation.Token);
 
-            for (var row = 0; row < yPositions.Count; row++)
-            {
-                for (var column = 0; column < xPositions.Count; column++)
-                {
-                    var xIndex = row % 2 == 0
-                        ? column
-                        : xPositions.Count - column - 1;
-                    var center = new AxisPos
-                    {
-                        X = xPositions[xIndex],
-                        Y = yPositions[row],
-                    };
-                    await motion.MoveToXYAsync(
-                        center.X,
-                        center.Y,
-                        _inspectionGantrySettings.Motion.HorizontalSpeed,
-                        motionCancellation.Token);
-                    images.Add(new CarrierImageTileView(
-                        images.Count + 1,
-                        center,
-                        ToBitmapSource(_inspectionCamera.Capture())));
-                    CarrierImages = [.. images];
-                }
-            }
-
+            CarrierImages = [.. images];
             RecipeEditor.ClearCarrierImages();
-            foreach (var image in images)
-            {
-                RecipeEditor.SaveCarrierImage(
-                    image.Center,
-                    image.Image);
-            }
+            await Task.Run(
+                () =>
+                {
+                    foreach (var image in images)
+                    {
+                        RecipeEditor.SaveCarrierImage(
+                            image.Center,
+                            image.Image);
+                    }
+                },
+                motionCancellation.Token);
 
             await RecipeEditor.SaveAsync();
             completed = true;
@@ -110,7 +84,6 @@ public partial class StationTeachingViewModel
         }
         finally
         {
-            _light.TurnOff(channel);
             if (!completed)
             {
                 ShowRecipeImages();
@@ -138,7 +111,7 @@ public partial class StationTeachingViewModel
             CurrentRecipe,
             FilteredPoints,
             point,
-            new AxisPos
+            new AxisPosition
             {
                 X = imagePoint.X,
                 Y = imagePoint.Y,
@@ -178,55 +151,21 @@ public partial class StationTeachingViewModel
             || _pointMapper.CarrierReferenceReady)
         && (SelectedPoint.Target
                 != TeachingTarget.CarrierLowerRightLocatingPin
-            || _carrierReference.UpperLeftPin is not null);
-
-    private static IReadOnlyList<double> ScanPositions(
-        double start,
-        double end,
-        double pitch)
-    {
-        var distance = Math.Abs(end - start);
-        if (distance == 0)
-        {
-            return [start];
-        }
-
-        var segments = (int)Math.Ceiling(distance / pitch);
-        var positions = new double[segments + 1];
-        for (var index = 0; index <= segments; index++)
-        {
-            positions[index] =
-                start + ((end - start) * index / segments);
-        }
-
-        return positions;
-    }
+            || _carrierReference.UpperLeftLocatingPin is not null);
 
     private void StartCamera()
     {
-        var channel = _lighting.InspectionChannel;
-        _light.SetLevel(channel, _lighting.InspectionLevel);
-        _light.TurnOn(channel);
-        try
-        {
-            _inspectionCamera.StartLiveView();
-        }
-        catch
-        {
-            _light.TurnOff(channel);
-            throw;
-        }
+        _boltInspector.StartLiveView();
     }
 
     private void StopCamera()
     {
         try
         {
-            _inspectionCamera.StopLiveView();
+            _boltInspector.StopLiveView();
         }
         finally
         {
-            _light.TurnOff(_lighting.InspectionChannel);
             lock (_liveImageGate)
             {
                 _pendingLiveFrame = null;
@@ -247,23 +186,42 @@ public partial class StationTeachingViewModel
             _liveImageUpdateQueued = true;
         }
 
-        RunOnUi(ApplyLiveImage);
+        _ = Task.Run(ConvertLiveImage);
     }
 
-    private void ApplyLiveImage()
+    private void ConvertLiveImage()
     {
         ImageFrame? frame;
         lock (_liveImageGate)
         {
             frame = _pendingLiveFrame;
             _pendingLiveFrame = null;
-            _liveImageUpdateQueued = false;
         }
 
-        if (IsCameraLive && IsInspectionSelected && frame is not null)
+        var image = frame is null ? null : ToBitmapSource(frame);
+        RunOnUi(() => ApplyLiveImage(image));
+    }
+
+    private static void RunOnUi(Action action) =>
+        Application.Current.Dispatcher.BeginInvoke(action);
+
+    private void ApplyLiveImage(BitmapSource? image)
+    {
+        if (IsCameraLive && IsInspectionSelected && image is not null)
         {
-            LiveImage = ToBitmapSource(frame);
+            LiveImage = image;
         }
+
+        lock (_liveImageGate)
+        {
+            if (_pendingLiveFrame is null)
+            {
+                _liveImageUpdateQueued = false;
+                return;
+            }
+        }
+
+        _ = Task.Run(ConvertLiveImage);
     }
 
     private static BitmapSource ToBitmapSource(ImageFrame frame)

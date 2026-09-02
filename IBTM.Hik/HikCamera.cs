@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using IBTM.Core;
 using IBTM.Device;
@@ -114,9 +115,22 @@ public sealed class HikCamera(InspectionCameraSettings settings)
                 device.Parameters.SetEnumValueByString("TriggerMode", "Off"),
                 "Disable trigger for live view");
 
+            var frameInterval = Stopwatch.Frequency
+                                / settings.LiveViewFramesPerSecond;
+            var nextFrame = 0L;
             EventHandler<FrameGrabbedEventArgs> frameHandler =
-                (_, eventArgs) => FrameReady?.Invoke(
-                    ConvertFrame(device, eventArgs.FrameOut));
+                (_, eventArgs) =>
+                {
+                    var now = Stopwatch.GetTimestamp();
+                    if (now < nextFrame)
+                    {
+                        return;
+                    }
+
+                    nextFrame = now + frameInterval;
+                    FrameReady?.Invoke(
+                        ConvertFrame(device, eventArgs.FrameOut));
+                };
             stream.FrameGrabedEvent += frameHandler;
             _liveFrameHandler = frameHandler;
             try
@@ -250,7 +264,8 @@ public sealed class HikCamera(InspectionCameraSettings settings)
         var image = frameOut.Image;
         var width = checked((int)image.Width);
         var height = checked((int)image.Height);
-        var pixels = new byte[checked(width * height * 3)];
+        var pixels = new byte[checked(
+            width * height * ImageFrame.ColorChannelCount)];
         Check(
             device.PixelTypeConverter.ConvertPixelType(
                 image,
@@ -265,7 +280,11 @@ public sealed class HikCamera(InspectionCameraSettings settings)
                 $"Hik BGR frame size is {convertedSize}; expected {pixels.Length}.");
         }
 
-        return new ImageFrame(width, height, width * 3, pixels);
+        return new ImageFrame(
+            width,
+            height,
+            width * ImageFrame.ColorChannelCount,
+            pixels);
     }
 
     private void Disconnect()

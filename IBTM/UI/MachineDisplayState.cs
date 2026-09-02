@@ -63,6 +63,9 @@ public enum StartBlockReason
 
     [Description("Enable a unit in Settings")]
     NoUnitEnabled,
+
+    [Description("Complete bolt teaching")]
+    TeachingIncomplete,
 }
 
 public enum HandlerDisplayState
@@ -80,10 +83,10 @@ public enum HandlerDisplayState
     PcbDetected,
 
     [Description("PCB at Buffer")]
-    PcbAvailable,
+    BufferPcbAvailable,
 
-    [Description("Waiting for PCB")]
-    WaitingForPcb,
+    [Description("Waiting for Buffer PCB")]
+    WaitingForBufferPcb,
 
     [Description("Moving")]
     Moving,

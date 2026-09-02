@@ -5,25 +5,31 @@ using IBTM.Device;
 
 namespace IBTM.BoltFastening;
 
-public sealed class BoltFasteningWork(IIoService io) : StationWork(
-    io,
-    InputIo.BoltFasteningCarrierPresent,
-    InputIo.BoltFasteningBackupPlateUp,
-    InputIo.BoltFasteningStopperDown,
-    InputIo.BoltFasteningHeatSink1Present,
-    InputIo.BoltFasteningHeatSink2Present)
+public sealed class BoltFasteningWork(ConveyorStation station)
+    : StationWork(station)
 {
     private static readonly BoltResult ManualCompletion =
         new(true, 0, BoltResultSource.Manual);
 
-    public BoltFasteningState State =>
-        !CarrierPresent
-            ? BoltFasteningState.WaitingForCarrier
-            : Completed
-                ? BoltFasteningState.WaitingForTransfer
-                : !Ready
-                    ? BoltFasteningState.WaitingForSeat
-                    : BoltFasteningState.ReadyToFasten;
+    public BoltFasteningState State
+    {
+        get
+        {
+            if (!CarrierPresent)
+            {
+                return BoltFasteningState.WaitingForCarrier;
+            }
+
+            if (Completed)
+            {
+                return BoltFasteningState.WaitingForTransfer;
+            }
+
+            return CarrierSeated
+                ? BoltFasteningState.ReadyToFasten
+                : BoltFasteningState.WaitingForSeat;
+        }
+    }
 
     public void PrepareRecovery(
         IEnumerable<(HeatSinkSlot HeatSink, int Number, FasteningPass Pass)>

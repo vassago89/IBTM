@@ -23,6 +23,7 @@ public sealed class PhysicalIoService(
     private static readonly InputIo[] Inputs = Enum.GetValues<InputIo>();
     private readonly bool[] _inputs = new bool[
         Inputs.Max(input => (int)input) + 1];
+    private readonly uint[] _rtexInputs = new uint[ajin.RtexInputWordCount];
     private CancellationTokenSource? _inputMonitor;
     private Task? _inputMonitorTask;
     private volatile bool _ready;
@@ -148,9 +149,13 @@ public sealed class PhysicalIoService(
         {
             while (true)
             {
+                var alphaInputs = alphaMotion.ReadInputs();
+                ajin.ReadRtexInputs(_rtexInputs);
                 foreach (var input in Inputs)
                 {
-                    var value = ReadInput(inputMap[input]);
+                    var value = ReadMonitoredInput(
+                        inputMap[input],
+                        alphaInputs);
                     if (_inputs[(int)input] == value)
                     {
                         continue;
@@ -174,5 +179,16 @@ public sealed class PhysicalIoService(
             Faulted?.Invoke();
             throw;
         }
+    }
+
+    private bool ReadMonitoredInput(int channel, uint alphaInputs)
+    {
+        if (channel < AlphaMotionChannelCount)
+        {
+            return ((alphaInputs >> channel) & 1) != 0;
+        }
+
+        channel -= AlphaMotionChannelCount;
+        return ((_rtexInputs[channel / 32] >> (channel % 32)) & 1) != 0;
     }
 }

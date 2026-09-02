@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using IBTM.Core;
 
 namespace IBTM.Virtual;
@@ -10,13 +11,20 @@ internal static class VirtualImageFactory
     public const int Height = 240;
     public const double InspectionMillimetersPerPixel = 0.05;
     public const byte BoltRecessIntensity = 8;
+    private const double BoltRadius = 0.35;
 
-    private const int BytesPerPixel = 3;
     public static ImageFrame CreateInspection(
         (double X, double Y, double Z) center,
-        IReadOnlyList<AxisPos> boltCentres)
+        IReadOnlyList<AxisPosition> boltCentres)
     {
-        var pixels = new byte[Width * Height * BytesPerPixel];
+        var halfWidth = (Width / 2) * InspectionMillimetersPerPixel;
+        var halfHeight = (Height / 2) * InspectionMillimetersPerPixel;
+        var visibleBolts = boltCentres.Where(bolt =>
+                Math.Abs(bolt.X - center.X) <= halfWidth + BoltRadius
+                && Math.Abs(bolt.Y - center.Y) <= halfHeight + BoltRadius)
+            .ToArray();
+        var pixels = new byte[
+            Width * Height * ImageFrame.ColorChannelCount];
         for (var pixelY = 0; pixelY < Height; pixelY++)
         {
             for (var pixelX = 0; pixelX < Width; pixelX++)
@@ -27,7 +35,7 @@ internal static class VirtualImageFactory
                 var y = center.Y
                     + ((pixelY - (Height / 2))
                        * InspectionMillimetersPerPixel);
-                var color = InspectionColor(x, y, boltCentres);
+                var color = InspectionColor(x, y, visibleBolts);
                 SetPixel(
                     pixels,
                     pixelX,
@@ -44,7 +52,7 @@ internal static class VirtualImageFactory
     private static (byte Blue, byte Green, byte Red) InspectionColor(
         double x,
         double y,
-        IReadOnlyList<AxisPos> boltCentres)
+        IReadOnlyList<AxisPosition> boltCentres)
     {
         if (OnRectangle(x, y, 0, 0, 40, 30, 0.12))
         {
@@ -76,7 +84,7 @@ internal static class VirtualImageFactory
                     BoltRecessIntensity);
             }
 
-            if (InsideCircle(x, y, bolt.X, bolt.Y, 0.35))
+            if (InsideCircle(x, y, bolt.X, bolt.Y, BoltRadius))
             {
                 return (190, 190, 190);
             }
@@ -121,7 +129,11 @@ internal static class VirtualImageFactory
     }
 
     private static ImageFrame Frame(byte[] pixels) =>
-        new(Width, Height, Width * BytesPerPixel, pixels);
+        new(
+            Width,
+            Height,
+            Width * ImageFrame.ColorChannelCount,
+            pixels);
 
     private static void SetPixel(
         byte[] pixels,
@@ -131,9 +143,9 @@ internal static class VirtualImageFactory
         byte green,
         byte red)
     {
-        var index = ((y * Width) + x) * BytesPerPixel;
-        pixels[index] = blue;
-        pixels[index + 1] = green;
-        pixels[index + 2] = red;
+        var index = ((y * Width) + x) * ImageFrame.ColorChannelCount;
+        pixels[index + ImageFrame.BlueChannel] = blue;
+        pixels[index + ImageFrame.GreenChannel] = green;
+        pixels[index + ImageFrame.RedChannel] = red;
     }
 }

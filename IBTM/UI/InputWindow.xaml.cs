@@ -50,7 +50,7 @@ public partial class InputWindow : Window, INotifyPropertyChanged
 
     private void OnInputChanged(InputIo input, bool value) =>
         Dispatcher.BeginInvoke((Action)(() =>
-            Rows[(int)input].Refresh()));
+            Rows[(int)input].Set(value)));
 
     private void OnMachineStateChanged() =>
         Dispatcher.BeginInvoke((Action)(() =>
@@ -59,11 +59,22 @@ public partial class InputWindow : Window, INotifyPropertyChanged
                 new PropertyChangedEventArgs(nameof(CanToggle)))));
 }
 
-public sealed class InputControlRow(IIoService io, InputIo input)
-    : ObservableObject
+public sealed class InputControlRow : ObservableObject
 {
-    public InputIo Input { get; } = input;
-    public bool IsOn => io.GetInput(Input);
+    private bool _isOn;
 
-    public void Refresh() => OnPropertyChanged(nameof(IsOn));
+    public InputControlRow(IIoService io, InputIo input)
+    {
+        Input = input;
+        _isOn = io.GetInput(input);
+    }
+
+    public InputIo Input { get; }
+    public bool IsOn => _isOn;
+
+    public void Set(bool value)
+    {
+        _isOn = value;
+        OnPropertyChanged(nameof(IsOn));
+    }
 }

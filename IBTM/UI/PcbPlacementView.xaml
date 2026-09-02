@@ -1,4 +1,4 @@
-<UserControl x:Class="IBTM.UI.Station1View"
+<UserControl x:Class="IBTM.UI.PcbPlacementView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -20,9 +20,8 @@
     <Grid>
         <Canvas>
             <TextBlock Canvas.Left="20" Canvas.Top="14"
-                       Text="S1  PCB SUPPLY / PLACEMENT"
-                       Foreground="{StaticResource TextPrimaryBrush}"
-                       FontSize="20"
+                       Text="PCB SUPPLY / PLACEMENT"
+                       Style="{StaticResource TitleStyle}"
                        FontWeight="Bold"/>
             <Button Canvas.Right="20" Canvas.Top="14"
                     Content="RESUME WORK"
@@ -35,8 +34,7 @@
 
             <StackPanel Canvas.Left="20" Canvas.Top="52"
                         Orientation="Horizontal">
-                <Border Width="258"
-                        Tag="{Binding SupplyDisplayState}"
+                <Border Tag="{Binding SupplyDisplayState}"
                         Style="{StaticResource HandlerStateBadgeStyle}"
                         Margin="0,0,10,0">
                     <Grid>
@@ -48,13 +46,12 @@
                                    Style="{StaticResource MapHintStyle}"
                                    VerticalAlignment="Center"/>
                         <TextBlock Grid.Column="1"
-                                   Text="{Binding SupplyDisplayState, Mode=OneWay,
+                                   Text="{Binding SupplyDisplayState,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
                                    Style="{StaticResource PrimaryStateTextStyle}"/>
                     </Grid>
                 </Border>
-                <Border Width="258"
-                        Tag="{Binding PlacementDisplayState}"
+                <Border Tag="{Binding PlacementDisplayState}"
                         Style="{StaticResource HandlerStateBadgeStyle}">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -65,7 +62,7 @@
                                    Style="{StaticResource MapHintStyle}"
                                    VerticalAlignment="Center"/>
                         <TextBlock Grid.Column="1"
-                                   Text="{Binding PlacementDisplayState, Mode=OneWay,
+                                   Text="{Binding PlacementDisplayState,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
                                    Style="{StaticResource PrimaryStateTextStyle}"/>
                     </Grid>
@@ -78,14 +75,12 @@
                                       Converter={StaticResource EnumDescriptionConverter}}"
                        TextAlignment="Left">
                 <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Foreground"
-                                Value="{StaticResource TextSecondaryBrush}"/>
+                    <Style TargetType="TextBlock"
+                           BasedOn="{StaticResource MapLabelStyle}">
                         <Setter Property="FontSize" Value="14"/>
-                        <Setter Property="FontWeight" Value="SemiBold"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding PcbPlacementProcessState}"
-                                         Value="{x:Static placement:PcbPlacementState.WaitingForPcb}">
+                                         Value="{x:Static placement:PcbPlacementState.WaitingForBufferPcb}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding PcbPlacementProcessState}"
@@ -110,7 +105,7 @@
                       VerticalAlignment="Center">
                     <Border Width="192"
                             HorizontalAlignment="Left"
-                            Tag="{Binding PcbSupplyAvailableFromFront1}">
+                            Tag="{Binding Supply.UpstreamCarrierAvailable}">
                         <Border.Style>
                             <Style TargetType="Border">
                                 <Setter Property="Background"
@@ -123,7 +118,8 @@
                                     <DataTrigger Binding="{Binding Tag,
                                                                   RelativeSource={RelativeSource Self}}"
                                                  Value="True">
-                                        <Setter Property="Background" Value="#27323B"/>
+                                        <Setter Property="Background"
+                                                Value="{StaticResource MapActiveBackgroundBrush}"/>
                                         <Setter Property="BorderBrush"
                                                 Value="{StaticResource CarrierBrush}"/>
                                     </DataTrigger>
@@ -143,19 +139,20 @@
                     </Border>
                     <Ellipse HorizontalAlignment="Right"
                              VerticalAlignment="Center"
-                             Tag="{Binding PcbSupplyAvailableFromFront1}"
-                             Style="{StaticResource ReadyLedStyle}"/>
+                             Tag="{Binding Supply.UpstreamCarrierAvailable}"
+                             Style="{StaticResource PresenceLedStyle}"/>
                 </Grid>
             </Border>
-            <Grid Canvas.Left="{Binding PcbSupplyMapLeft}"
-                  Canvas.Top="{Binding PcbSupplyMapTop}"
-                  Width="100" Height="112"
-                  Panel.ZIndex="20"
-                  ToolTip="{Binding PcbSupplyPosition}">
+            <Grid Width="100" Height="112"
+                  Panel.ZIndex="20">
+                <Grid.RenderTransform>
+                    <TranslateTransform X="{Binding PcbSupplyMapLeft}"
+                                        Y="{Binding PcbSupplyMapTop}"/>
+                </Grid.RenderTransform>
                 <Grid Width="92" Height="72"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Bottom">
-                    <Border Tag="{Binding PcbSupplyMoving}"
+                    <Border Tag="{Binding Supply.Motion.IsMoving}"
                             Style="{StaticResource OverheadBodyStyle}"/>
                     <Grid Width="18" Height="18"
                           HorizontalAlignment="Center"
@@ -185,7 +182,7 @@
                           HorizontalAlignment="Center"
                           VerticalAlignment="Bottom"
                           Margin="0,0,0,1"
-                          Visibility="{Binding PcbSupplyPcbDetected,
+                          Visibility="{Binding PcbSupplyPcbSecured,
                                                Converter={StaticResource BoolToVis}}">
                         <Border Style="{StaticResource PcbFootprintStyle}"/>
                         <Border Width="22" Height="4"
@@ -228,9 +225,7 @@
                             BorderBrush="{StaticResource DividerBrush}"
                             BorderThickness="2"
                             CornerRadius="2"/>
-                    <Border Style="{StaticResource PcbSlotStyle}"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"/>
+                    <Border Style="{StaticResource PcbSlotStyle}"/>
                     <Border Style="{StaticResource PcbFootprintStyle}"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
@@ -251,16 +246,17 @@
                 </Grid>
             </Border>
 
-            <Grid Canvas.Left="{Binding PcbPlacementMapLeft}"
-                  Canvas.Top="{Binding PcbPlacementMapTop}"
-                  Width="104" Height="106"
-                  Panel.ZIndex="21"
-                  ToolTip="{Binding PcbPlacementPosition}">
+            <Grid Width="104" Height="106"
+                  Panel.ZIndex="21">
+                <Grid.RenderTransform>
+                    <TranslateTransform X="{Binding PcbPlacementMapLeft}"
+                                        Y="{Binding PcbPlacementMapTop}"/>
+                </Grid.RenderTransform>
                 <Grid Width="92" Height="72"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Bottom"
                       Margin="0,0,0,13">
-                    <Border Tag="{Binding PcbPlacementMoving}"
+                    <Border Tag="{Binding Placement.Motion.IsMoving}"
                             Style="{StaticResource PlacementBodyStyle}"/>
                     <Grid Width="24" Height="18"
                           HorizontalAlignment="Center"
@@ -283,7 +279,7 @@
                             VerticalAlignment="Bottom"
                             Margin="0"
                             Style="{StaticResource PcbFootprintStyle}"
-                            Visibility="{Binding PcbPlacementPcbDetected,
+                            Visibility="{Binding PcbPlacementPcbSecured,
                                                  Converter={StaticResource BoolToVis}}"/>
                     <Ellipse Width="9" Height="9"
                              HorizontalAlignment="Center"
@@ -293,7 +289,7 @@
                              Stroke="{StaticResource AccentGreenBrush}"
                              StrokeThickness="2"
                              Panel.ZIndex="2"
-                             Visibility="{Binding PcbPlacementVacuumDetected,
+                             Visibility="{Binding Placement.VacuumDetected,
                                                   Converter={StaticResource BoolToVis}}"/>
                     <Border Width="24" Height="6"
                             HorizontalAlignment="Center"

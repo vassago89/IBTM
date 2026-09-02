@@ -7,7 +7,7 @@ public sealed class BoltFasteningSettings : Setting
 {
     public MotionSettings Motion { get; set; } = new();
     public double SafeZ { get; set; }
-    public AxisPos PickupPosition { get; set; } = new();
+    public AxisPosition PickupPosition { get; set; } = new();
     public BoltHeadSettings ShootingHead { get; set; } = new();
     public BoltHeadSettings PickupHead { get; set; } = new();
 
@@ -18,19 +18,19 @@ public sealed class BoltFasteningSettings : Setting
         _ => throw new System.ArgumentOutOfRangeException(nameof(head)),
     };
 
-    public AxisPos GetBoltPosition(
+    public AxisPosition GetBoltPosition(
         BoltPoint bolt,
         CarrierReferenceSettings reference)
     {
         var head = GetHead(bolt.Head);
         var position = CarrierCoordinates.ToMachine(
-            new AxisPos
+            new AxisPosition
             {
                 X = bolt.X!.Value,
                 Y = bolt.Y!.Value,
             },
-            reference.UpperLeftPin!,
-            reference.LowerRightPin!,
+            reference.UpperLeftLocatingPin!,
+            reference.LowerRightLocatingPin!,
             head.UpperLeftLocatingPin!,
             head.LowerRightLocatingPin!);
         position.Z = bolt.Z!.Value;
@@ -40,6 +40,6 @@ public sealed class BoltFasteningSettings : Setting
 
 public sealed class BoltHeadSettings
 {
-    public AxisPos? UpperLeftLocatingPin { get; set; }
-    public AxisPos? LowerRightLocatingPin { get; set; }
+    public AxisPosition? UpperLeftLocatingPin { get; set; }
+    public AxisPosition? LowerRightLocatingPin { get; set; }
 }

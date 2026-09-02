@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
@@ -6,6 +7,7 @@ using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Virtual;
 using Xunit;
+using static IBTM.Virtual.Tests.VirtualTest;
 
 namespace IBTM.Virtual.Tests;
 
@@ -25,7 +27,9 @@ public sealed class MotionSafetyTests
         var movedXyBeforeZClear = false;
         motion.PositionChanged += (x, y, z) =>
         {
-            if ((x != 0 || y != 0) && System.Math.Abs(z + 5) > 0.05)
+            if ((x != 0 || y != 0)
+                && System.Math.Abs(z + 5)
+                    > MotionService.PositionToleranceMillimeters)
             {
                 movedXyBeforeZClear = true;
             }
@@ -67,7 +71,8 @@ public sealed class MotionSafetyTests
         var supply = new PcbSupplyHandler(
             motion,
             io,
-            new PcbSupplySettings());
+            new PcbSupplySettings(),
+            new PcbBufferSettings());
         var rotatedBeforeMotion = false;
         var horizontalMovedBeforeZLimit = false;
         var yMovedBeforeXHome = false;
@@ -95,7 +100,9 @@ public sealed class MotionSafetyTests
                 horizontalMovedBeforeZLimit = true;
             }
 
-            if (movedY && System.Math.Abs(x) > 0.05)
+            if (movedY
+                && System.Math.Abs(x)
+                    > MotionService.PositionToleranceMillimeters)
             {
                 yMovedBeforeXHome = true;
             }
@@ -115,7 +122,7 @@ public sealed class MotionSafetyTests
         Assert.True(rotatedBeforeMotion);
         Assert.False(horizontalMovedBeforeZLimit);
         Assert.False(yMovedBeforeXHome);
-        Assert.Equal(PcbSupplyRotation.Rotated, supply.Rotation);
+        Assert.Equal(PcbSupplyRotationState.Rotated, supply.Rotation);
         Assert.Equal((0, 0, 0), motion.GetPosition());
     }
 
@@ -128,7 +135,7 @@ public sealed class MotionSafetyTests
             HorizontalSpeed = 1_000,
             ZSpeed = 1_000,
         };
-        var handoff = new AxisPos { X = 10, Y = 10, Z = 8 };
+        var handoff = new AxisPosition { X = 10, Y = 10, Z = 8 };
         var io = CreateIo();
         using var supply = Motion(settings, operations);
         using var placement = Motion(settings, operations);
@@ -141,8 +148,8 @@ public sealed class MotionSafetyTests
             {
                 SupplyBoundary1 = 5,
                 SupplyBoundary2 = 50,
-                PlacementBoundary1 = new AxisPos { X = 5, Y = 5 },
-                PlacementBoundary2 = new AxisPos { X = 30, Y = 12 },
+                PlacementBoundary1 = new AxisPosition { X = 5, Y = 5 },
+                PlacementBoundary2 = new AxisPosition { X = 30, Y = 12 },
             },
             io,
             placementHandler,
@@ -180,19 +187,69 @@ public sealed class MotionSafetyTests
         Assert.False(buffer.Conflict);
     }
 
+    [Fact]
+    public async Task SupplyMovesAboveBufferBeforeRotatingAndLowersRotated()
+    {
+        var io = CreateIo();
+        var settings = new PcbSupplySettings
+        {
+            Motion = new MotionSettings
+            {
+                HorizontalSpeed = 1_000,
+                ZSpeed = 1_000,
+            },
+            RotationZ = 0,
+            BufferHandoffPosition = new AxisPosition
+            {
+                X = 20,
+                Y = 15,
+                Z = 5,
+            },
+        };
+        using var motion = new VirtualMotionService(
+            settings.Motion,
+            new OperationCancellation(),
+            horizontalZ: () => settings.RotationZ);
+        var supply = new PcbSupplyHandler(
+            motion,
+            io,
+            settings,
+            new PcbBufferSettings
+            {
+                SupplyBoundary1 = 10,
+                SupplyBoundary2 = 30,
+            });
+
+        io.Initialize();
+        motion.Initialize();
+        await HomeAsync(motion);
+
+        var xMovedBeforeY = false;
+        motion.PositionChanged += (x, y, _) =>
+        {
+            if (x > MotionService.PositionToleranceMillimeters
+                && System.Math.Abs(y - 15)
+                    > MotionService.PositionToleranceMillimeters)
+            {
+                xMovedBeforeY = true;
+            }
+        };
+
+        await supply.MoveHorizontalAsync(20, 15);
+
+        Assert.False(xMovedBeforeY);
+        Assert.Equal((20, 15, 0), motion.GetPosition());
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            supply.LowerToHandoffAsync(default));
+
+        await supply.SetRotatedAsync(true);
+        await supply.LowerToHandoffAsync(default);
+        Assert.Equal((20, 15, 5), motion.GetPosition());
+    }
+
     private static VirtualIoService CreateIo() => new(
         new PcbSupplyHardwareSettings().Outputs,
         new MachineOptions());
-
-    private static VirtualMotionService Motion(
-        MotionSettings settings,
-        OperationCancellation operations) => new(
-            settings,
-            xRange: (0, 100),
-            yRange: (0, 100),
-            zRange: (0, 100),
-            horizontalZ: () => 0,
-            operationCancellation: operations);
 
     private static async Task HomeAsync(VirtualMotionService motion)
     {

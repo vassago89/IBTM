@@ -34,11 +34,11 @@ public enum PcbSupplyState
     [Description("Releasing PCB")]
     ReleasingPcb,
 
-    [Description("Returning to Pickup Side")]
-    ReturningToPickup,
+    [Description("Unrotating for Pickup")]
+    UnrotatingForPickup,
 }
 
-public enum PcbSupplyRotation
+public enum PcbSupplyRotationState
 {
     [Description("Unrotated")]
     Unrotated,

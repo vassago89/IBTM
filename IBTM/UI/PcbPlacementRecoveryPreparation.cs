@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using System.Windows;
 using IBTM.Core;
-using IBTM.Device;
 using IBTM.PcbPlacement;
 
 namespace IBTM.UI;
@@ -16,14 +15,8 @@ public sealed class PcbPlacementRecoveryPreparation
     public PcbPlacementRecoveryPreparation(
         MachineState state,
         PcbPlacementWork work,
-        UnitSettings units,
-        IIoService io)
-        : base(
-            state,
-            io,
-            InputIo.PcbPlacementCarrierPresent,
-            InputIo.PcbPlacementHeatSink1Present,
-            InputIo.PcbPlacementHeatSink2Present)
+        UnitSettings units)
+        : base(state, work)
     {
         _work = work;
         _enabled = units.PcbPlacement;
@@ -50,7 +43,7 @@ public sealed class PcbPlacementRecoveryPreparation
                     assembly.HeatSink == heatSink),
             })
             .ToArray();
-        var window = new Station1RecoveryWindow(
+        var window = new PcbPlacementRecoveryWindow(
             new PcbPlacementRecoveryViewModel(items))
         {
             Owner = owner,

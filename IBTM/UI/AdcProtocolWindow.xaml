@@ -58,8 +58,7 @@
                 <ComboBox x:Name="BaudBox"
                           Grid.Column="3"
                           Margin="16,0,0,0"
-                          ItemsSource="{Binding BaudRates}"
-                          SelectedIndex="4"/>
+                          ItemsSource="{Binding BaudRates}"/>
 
                 <TextBlock Grid.Column="4"
                            Margin="16,0,0,0"
@@ -68,8 +67,7 @@
                            Style="{StaticResource SectionHeaderStyle}"/>
                 <TextBox x:Name="SlaveBox"
                          Grid.Column="5"
-                         Margin="10,0,0,0"
-                         Text="1"/>
+                         Margin="10,0,0,0"/>
 
                 <Button x:Name="ConnectButton"
                         Grid.Column="6"
@@ -118,7 +116,7 @@
                     </Grid>
 
                     <WrapPanel Margin="0,0,0,14">
-                        <Button Content="Start Forward"
+                        <Button Content="Start Fastening"
                                 Margin="0,0,8,8"
                                 Style="{StaticResource PrimaryButtonStyle}"
                                 Click="OnStart"/>
@@ -156,9 +154,7 @@
 
                     <ComboBox x:Name="AccessBox"
                               Margin="0,14,0,12"
-                              ItemsSource="{Binding RegisterAccesses}"
-                              ItemTemplate="{StaticResource EnumItemTemplate}"
-                              SelectedIndex="1"/>
+                              ItemsSource="{Binding RegisterAccesses}"/>
 
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -170,11 +166,11 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel>
                             <TextBlock Text="ADDRESS" Style="{StaticResource SectionHeaderStyle}"/>
-                            <TextBox x:Name="AddressBox" Margin="0,6,0,0" Text="3200"/>
+                            <TextBox x:Name="AddressBox" Margin="0,6,0,0"/>
                         </StackPanel>
                         <StackPanel Grid.Column="2">
                             <TextBlock Text="COUNT" Style="{StaticResource SectionHeaderStyle}"/>
-                            <TextBox x:Name="CountBox" Margin="0,6,0,0" Text="14"/>
+                            <TextBox x:Name="CountBox" Margin="0,6,0,0"/>
                         </StackPanel>
                         <StackPanel Grid.Column="4">
                             <TextBlock Text="VALUE" Style="{StaticResource SectionHeaderStyle}"/>

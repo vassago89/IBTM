@@ -12,7 +12,6 @@ using IBTM.Inspection;
 using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM;
 
@@ -33,15 +32,12 @@ public sealed class MachineController
     private readonly BoltFasteningProcess _boltFasteningProcess;
     private readonly InspectionProcess _inspectionProcess;
     private readonly PickupBoltFeeder _pickupBoltFeeder;
-    private readonly LinearBoltFeeder _linearBoltFeeder;
+    private readonly ShootingBoltFeeder _shootingBoltFeeder;
     private readonly PcbSupplyHandler _supplyHandler;
+    private readonly PcbPlacementHandler _placementHandler;
     private readonly BoltFasteningStation _boltFastening;
-    private readonly ILightController _light;
-    private readonly ICamera _inspectionCamera;
-    private readonly IAxisMotion _supplyMotion;
-    private readonly IXyMotion _placementMotion;
-    private readonly IXyMotion _boltFasteningMotion;
-    private readonly IXyMotion _inspectionGantryMotion;
+    private readonly InspectionGantry _inspectionGantry;
+    private readonly BoltInspector _boltInspector;
 
     public MachineController(
         MachineState state,
@@ -59,15 +55,12 @@ public sealed class MachineController
         BoltFasteningProcess boltFasteningProcess,
         InspectionProcess inspectionProcess,
         PickupBoltFeeder pickupBoltFeeder,
-        LinearBoltFeeder linearBoltFeeder,
+        ShootingBoltFeeder shootingBoltFeeder,
         PcbSupplyHandler supplyHandler,
+        PcbPlacementHandler placementHandler,
         BoltFasteningStation boltFastening,
-        ILightController light,
-        ICamera inspectionCamera,
-        [FromKeyedServices(MotionGroup.PcbSupply)] IAxisMotion supplyMotion,
-        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] IXyMotion placementMotion,
-        [FromKeyedServices(MotionGroup.BoltFastening)] IXyMotion boltFasteningMotion,
-        [FromKeyedServices(MotionGroup.InspectionGantry)] IXyMotion inspectionGantryMotion)
+        InspectionGantry inspectionGantry,
+        BoltInspector boltInspector)
     {
         _state = state;
         _operations = operations;
@@ -84,22 +77,19 @@ public sealed class MachineController
         _boltFasteningProcess = boltFasteningProcess;
         _inspectionProcess = inspectionProcess;
         _pickupBoltFeeder = pickupBoltFeeder;
-        _linearBoltFeeder = linearBoltFeeder;
+        _shootingBoltFeeder = shootingBoltFeeder;
         _supplyHandler = supplyHandler;
+        _placementHandler = placementHandler;
         _boltFastening = boltFastening;
-        _light = light;
-        _inspectionCamera = inspectionCamera;
-        _supplyMotion = supplyMotion;
-        _placementMotion = placementMotion;
-        _boltFasteningMotion = boltFasteningMotion;
-        _inspectionGantryMotion = inspectionGantryMotion;
+        _inspectionGantry = inspectionGantry;
+        _boltInspector = boltInspector;
         io.InputChanged += OnInputChanged;
         io.Faulted += OnIoFaulted;
     }
 
     public bool CanReset =>
         !_state.IsRunning
-        && (_state.Alarm == MachineAlarm.ControlCommunication
+        && (_state.Alarm == MachineAlarm.IoCommunication
             || _state.SafetyReady
             && (_state.ManualMode || _state.DoorInterlockReady)
             && (_state.IsError
@@ -117,7 +107,19 @@ public sealed class MachineController
     public bool CanStart =>
         _state.CanAutomaticOperate
         && !_state.IsRunning
-        && _units.HasEnabledUnit();
+        && _units.HasEnabledUnit()
+        && TeachingReady;
+    public bool TeachingReady =>
+        !_units.BoltFastening && !_units.Inspection
+        || _recipe.BoltFastening.BoltPoints.Count > 0
+        && CarrierCoordinates.IsDefined(
+            _carrierReference.UpperLeftLocatingPin,
+            _carrierReference.LowerRightLocatingPin)
+        && _recipe.BoltFastening.BoltPoints.All(bolt =>
+            bolt is { X: not null, Y: not null }
+            && (!_units.BoltFastening
+                || (bolt.Z is not null
+                    && _boltFastening.HasReference(bolt.Head))));
 
     public async Task InitializeAsync()
     {
@@ -172,13 +174,20 @@ public sealed class MachineController
 
         try
         {
-            foreach (var motion in EnabledMotions())
+            if (BufferHandlersEnabled)
             {
-                motion.ResetAlarm();
-                foreach (var axis in motion.Axes)
-                {
-                    motion.SetServo(axis, true);
-                }
+                _supplyHandler.ResetMotion();
+                _placementHandler.ResetMotion();
+            }
+
+            if (_units.BoltFastening)
+            {
+                _boltFastening.ResetMotion();
+            }
+
+            if (_units.Inspection || _units.NgConveyor)
+            {
+                _inspectionGantry.ResetMotion();
             }
         }
         catch
@@ -203,17 +212,20 @@ public sealed class MachineController
         _state.SetHoming(true);
         try
         {
-            var otherMotions = EnabledXyMotions().ToArray();
-            var zHomeTasks = otherMotions
-                .Where(motion => motion.HasZ)
-                .Select(motion => motion.HomeAsync(
-                    MotionAxis.Z,
-                    _home.ZSpeed,
-                    cancellationToken))
-                .ToList();
+            var zHomeTasks = new List<Task<bool>>(3);
             if (BufferHandlersEnabled)
             {
+                zHomeTasks.Add(_placementHandler.HomeZAsync(
+                    _home.ZSpeed,
+                    cancellationToken));
                 zHomeTasks.Add(_supplyHandler.PrepareHomeAsync(
+                    _home.ZSpeed,
+                    cancellationToken));
+            }
+
+            if (_units.BoltFastening)
+            {
+                zHomeTasks.Add(_boltFastening.HomeZAsync(
                     _home.ZSpeed,
                     cancellationToken));
             }
@@ -225,21 +237,48 @@ public sealed class MachineController
                 return;
             }
 
-            await Task.WhenAll(otherMotions
-                .Where(motion => motion.HasZ)
-                .Select(
-                motion => motion.MoveToHorizontalZAsync(cancellationToken)));
-
-            var horizontalHomeTasks = otherMotions.Select(
-                motion => motion.HomeHorizontalAsync(
-                    _home.HorizontalSpeed,
-                    cancellationToken))
-                .ToList();
+            var safeZTasks = new List<Task>(2);
             if (BufferHandlersEnabled)
             {
+                safeZTasks.Add(
+                    _placementHandler.MoveToHorizontalZAsync(
+                        cancellationToken));
+            }
+
+            if (_units.BoltFastening)
+            {
+                safeZTasks.Add(
+                    _boltFastening.MoveToSafeZAsync(cancellationToken));
+            }
+
+            await Task.WhenAll(safeZTasks);
+
+            var horizontalHomeTasks = new List<Task<bool>>(4);
+            if (BufferHandlersEnabled)
+            {
+                horizontalHomeTasks.Add(
+                    _placementHandler.HomeHorizontalAsync(
+                        _home.HorizontalSpeed,
+                        cancellationToken));
                 horizontalHomeTasks.Add(_supplyHandler.CompleteHomeAsync(
                     _home.HorizontalSpeed,
                     _home.ZSpeed,
+                    cancellationToken));
+            }
+
+            if (_units.BoltFastening)
+            {
+                horizontalHomeTasks.Add(
+                    _boltFastening.HomeHorizontalAsync(
+                        _home.HorizontalSpeed,
+                        cancellationToken));
+            }
+
+            if (_units.Inspection || _units.NgConveyor)
+            {
+                horizontalHomeTasks.Add(
+                    _inspectionGantry.HomeHorizontalAsync(
+                    _home.HorizontalSpeed,
                     cancellationToken));
             }
 
@@ -252,7 +291,7 @@ public sealed class MachineController
 
             if (BufferHandlersEnabled)
             {
-                await _supplyMotion.MoveToHorizontalZAsync(cancellationToken);
+                await _supplyHandler.MoveToRotationZAsync(cancellationToken);
             }
         }
         catch (OperationCanceledException)
@@ -275,7 +314,7 @@ public sealed class MachineController
 
     private void OnInputChanged(InputIo input, bool value)
     {
-        if (IsSafetyInput(input))
+        if (MachineState.IsSafetyInput(input))
         {
             var alarm = SafetyAlarm();
             if (alarm != MachineAlarm.None)
@@ -316,30 +355,11 @@ public sealed class MachineController
             : MachineAlarm.None;
     }
 
-    private static bool IsSafetyInput(InputIo input) =>
-        input is InputIo.EmergencyStop1Pressed
-            or InputIo.EmergencyStop2Pressed
-            or InputIo.AutoMode
-            or InputIo.Door1Open
-            or InputIo.Door2Open
-            or InputIo.Door3Open
-            or InputIo.Door4Open
-            or InputIo.Door5Open
-            or InputIo.Door6Open
-            or InputIo.AirPressureLow;
-
     public async Task StartAsync(
         CancellationToken cancellationToken = default)
     {
         if (!CanStart)
         {
-            return;
-        }
-
-        if ((_units.BoltFastening || _units.Inspection)
-            && !TeachingReady())
-        {
-            _state.SetError(MachineAlarm.TeachingIncomplete);
             return;
         }
 
@@ -393,69 +413,57 @@ public sealed class MachineController
             }
 
             var runningProcesses = new List<(Task Task, MachineAlarm Alarm)>();
-            if (_units.MainConveyor)
+            void StartProcess(
+                bool enabled,
+                MachineAlarm alarm,
+                Func<Task> start)
             {
-                runningProcesses.Add((
-                    _conveyor.RunAsync(operation.Token),
-                    MachineAlarm.MainConveyor));
+                if (enabled)
+                {
+                    runningProcesses.Add((start(), alarm));
+                }
             }
 
-            if (_units.PcbSupply)
-            {
-                runningProcesses.Add((
-                    _pcbSupply.RunAsync(
-                        _recipe.PcbSupply,
-                        operation.Token),
-                    MachineAlarm.Supply));
-            }
-
-            if (_units.PcbPlacement)
-            {
-                runningProcesses.Add((
-                    _pcbPlacement.RunAsync(
-                        _recipe.PcbPlacement,
-                        operation.Token),
-                    MachineAlarm.Placement));
-            }
-
-            if (_units.PickupBoltFeeder)
-            {
-                runningProcesses.Add((
-                    _pickupBoltFeeder.RunAsync(operation.Token),
-                    MachineAlarm.PickupBoltFeeder));
-            }
-
-            if (_units.LinearBoltFeeder)
-            {
-                runningProcesses.Add((
-                    _linearBoltFeeder.RunAsync(operation.Token),
-                    MachineAlarm.LinearBoltFeeder));
-            }
-
-            if (_units.BoltFastening)
-            {
-                runningProcesses.Add((
-                    _boltFasteningProcess.RunAsync(
-                        _recipe.BoltFastening,
-                        operation.Token),
-                    MachineAlarm.BoltFastening));
-            }
-
-            if (_units.Inspection)
-            {
-                runningProcesses.Add((
-                    _inspectionProcess.RunAsync(
-                        _recipe.BoltFastening.BoltPoints,
-                        operation.Token),
-                    MachineAlarm.Inspection));
-            }
-
-            if (_units.NgConveyor)
-            {
-                runningProcesses.Add((
-                    _ngConveyor.RunAsync(operation.Token),
-                    MachineAlarm.NgConveyor));
-            }
+            StartProcess(
+                _units.MainConveyor,
+                MachineAlarm.MainConveyor,
+                () => _conveyor.RunAsync(operation.Token));
+            StartProcess(
+                _units.PcbSupply,
+                MachineAlarm.PcbSupply,
+                () => _pcbSupply.RunAsync(
+                    _recipe.PcbSupply,
+                    operation.Token));
+            StartProcess(
+                _units.PcbPlacement,
+                MachineAlarm.PcbPlacement,
+                () => _pcbPlacement.RunAsync(
+                    _recipe.PcbPlacement,
+                    operation.Token));
+            StartProcess(
+                _units.PickupBoltFeeder,
+                MachineAlarm.PickupBoltFeeder,
+                () => _pickupBoltFeeder.RunAsync(operation.Token));
+            StartProcess(
+                _units.ShootingBoltFeeder,
+                MachineAlarm.ShootingBoltFeeder,
+                () => _shootingBoltFeeder.RunAsync(operation.Token));
+            StartProcess(
+                _units.BoltFastening,
+                MachineAlarm.BoltFastening,
+                () => _boltFasteningProcess.RunAsync(
+                    _recipe.BoltFastening,
+                    operation.Token));
+            StartProcess(
+                _units.Inspection,
+                MachineAlarm.Inspection,
+                () => _inspectionProcess.RunAsync(
+                    _recipe.BoltFastening.BoltPoints,
+                    operation.Token));
+            StartProcess(
+                _units.NgConveyor,
+                MachineAlarm.NgConveyor,
+                () => _ngConveyor.RunAsync(operation.Token));
 
             var completed = await Task.WhenAny(
                 runningProcesses.Select(process => process.Task));
@@ -498,35 +506,6 @@ public sealed class MachineController
         }
     }
 
-    private IEnumerable<IXyMotion> EnabledXyMotions()
-    {
-        if (BufferHandlersEnabled)
-        {
-            yield return _placementMotion;
-        }
-
-        if (_units.BoltFastening)
-        {
-            yield return _boltFasteningMotion;
-        }
-
-        if (_units.Inspection || _units.NgConveyor)
-        {
-            yield return _inspectionGantryMotion;
-        }
-    }
-
-    private bool TeachingReady() =>
-        _recipe.BoltFastening.BoltPoints.Count > 0
-        && CarrierCoordinates.IsDefined(
-                _carrierReference.UpperLeftPin,
-                _carrierReference.LowerRightPin)
-            && _recipe.BoltFastening.BoltPoints.All(bolt =>
-                bolt is { X: not null, Y: not null }
-                && (!_units.BoltFastening
-                    || (bolt.Z is not null
-                        && _boltFastening.HasReference(bolt.Head))));
-
     private async Task<MachineAlarm> CheckHardwareAsync(
         CancellationToken cancellationToken)
     {
@@ -538,14 +517,25 @@ public sealed class MachineController
         }
         catch
         {
-            return MachineAlarm.ControlCommunication;
+            return MachineAlarm.IoCommunication;
         }
 
         try
         {
-            foreach (var motion in EnabledMotions())
+            if (BufferHandlersEnabled)
             {
-                motion.Initialize();
+                _supplyHandler.InitializeMotion();
+                _placementHandler.InitializeMotion();
+            }
+
+            if (_units.BoltFastening)
+            {
+                _boltFastening.InitializeMotion();
+            }
+
+            if (_units.Inspection || _units.NgConveyor)
+            {
+                _inspectionGantry.InitializeMotion();
             }
         }
         catch
@@ -557,9 +547,7 @@ public sealed class MachineController
         {
             try
             {
-                _light.Initialize();
-                _light.TurnOffAll();
-                _inspectionCamera.Initialize();
+                _boltInspector.InitializeVision();
             }
             catch
             {
@@ -587,25 +575,6 @@ public sealed class MachineController
         return MachineAlarm.None;
     }
 
-    private IEnumerable<IAxisMotion> EnabledMotions()
-    {
-        if (BufferHandlersEnabled)
-        {
-            yield return _supplyMotion;
-            yield return _placementMotion;
-        }
-
-        if (_units.BoltFastening)
-        {
-            yield return _boltFasteningMotion;
-        }
-
-        if (_units.Inspection || _units.NgConveyor)
-        {
-            yield return _inspectionGantryMotion;
-        }
-    }
-
     private bool BufferHandlersEnabled =>
         _units.PcbSupply || _units.PcbPlacement;
 
@@ -614,7 +583,7 @@ public sealed class MachineController
         if (_io.IsReady)
         {
             _conveyor.Stop();
-            _linearBoltFeeder.Stop();
+            _shootingBoltFeeder.Stop();
             _boltFastening.Stop();
             _ngConveyor.Stop();
             _supplyHandler.SetUpstreamReady(false);
@@ -623,7 +592,7 @@ public sealed class MachineController
 
     private void OnIoFaulted()
     {
-        _state.SetError(MachineAlarm.ControlCommunication);
+        _state.SetError(MachineAlarm.IoCommunication);
         _operations.Cancel();
     }
 }

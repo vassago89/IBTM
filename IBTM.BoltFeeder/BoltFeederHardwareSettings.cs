@@ -10,12 +10,12 @@ public sealed class BoltFeederHardwareSettings : IoHardwareSettings
     {
         Inputs = new()
         {
-            [InputIo.LinearFeederBoltDetected] = 48,
+            [InputIo.ShootingFeederBoltDetected] = 48,
             [InputIo.PickupFeederBoltDetected] = 52,
         };
         Outputs = new()
         {
-            [OutputIo.LinearFeederRunSignal] = Output(45),
+            [OutputIo.ShootingFeederRunSignal] = Output(45),
         };
     }
 }

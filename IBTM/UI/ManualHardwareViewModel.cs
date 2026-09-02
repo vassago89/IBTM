@@ -3,12 +3,16 @@ using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using IBTM.BoltFastening;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
-using Microsoft.Extensions.DependencyInjection;
+using IBTM.Inspection;
+using IBTM.PcbPlacement;
+using IBTM.PcbSupply;
 
 namespace IBTM.UI;
 
@@ -55,39 +59,29 @@ public sealed class ManualAxisRow(
     MotionGroup group,
     MachineAxis signal,
     MotionAxis axis,
-    IAxisMotion motion) : ObservableObject
+    IMotionFeedback feedback) : ObservableObject
 {
+    private double _position = Coordinate(feedback.GetPosition(), axis);
+    private AxisState _axisState = feedback.GetAxisState(axis);
+
     public MotionGroup Group { get; } = group;
     public MachineAxis Signal { get; } = signal;
     public MotionAxis Axis { get; } = axis;
-    internal IAxisMotion Motion { get; } = motion;
-    public double Position
-    {
-        get
-        {
-            var position = Motion.GetPosition();
-            return Axis switch
-            {
-                MotionAxis.X => position.X,
-                MotionAxis.Y => position.Y,
-                MotionAxis.Z => position.Z,
-                _ => throw new ArgumentOutOfRangeException(nameof(Axis)),
-            };
-        }
-    }
-    public bool ServoOn => AxisState.ServoOn;
+    internal IMotionFeedback Feedback { get; } = feedback;
+    public double Position => Volatile.Read(ref _position);
+    public bool ServoOn => _axisState.ServoOn;
     public bool IndividualHomeAvailable =>
         Group != MotionGroup.PcbSupply;
     public ManualAxisStatus Status
     {
         get
         {
-            if (!Motion.IsReady)
+            if (!Feedback.IsReady)
             {
                 return ManualAxisStatus.Unavailable;
             }
 
-            var state = AxisState;
+            var state = _axisState;
             if (state.Emergency)
             {
                 return ManualAxisStatus.Emergency;
@@ -124,22 +118,45 @@ public sealed class ManualAxisRow(
         }
     }
 
-    internal AxisState AxisState => Motion.GetAxisState(Axis);
+    internal void SetPosition(double x, double y, double z) =>
+        Volatile.Write(
+            ref _position,
+            Coordinate((x, y, z), Axis));
 
-    internal void Refresh()
-    {
+    internal void RefreshPosition() =>
         OnPropertyChanged(nameof(Position));
+
+    internal void RefreshState()
+    {
+        _axisState = Feedback.GetAxisState(Axis);
         OnPropertyChanged(nameof(ServoOn));
         OnPropertyChanged(nameof(Status));
     }
+
+    private static double Coordinate(
+        (double X, double Y, double Z) position,
+        MotionAxis axis) => axis switch
+        {
+            MotionAxis.X => position.X,
+            MotionAxis.Y => position.Y,
+            MotionAxis.Z => position.Z,
+            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
+        };
 }
 
 public partial class ManualHardwareViewModel : ObservableObject
 {
+    private readonly PcbSupplyHandler _supply;
+    private readonly PcbPlacementHandler _placement;
+    private readonly BoltFasteningStation _fastening;
+    private readonly InspectionGantry _inspection;
     private readonly MainConveyor _conveyor;
     private readonly MachineState _state;
     private readonly HomeSettings _home;
     private volatile bool _active;
+    private int _pendingPositionGroups;
+    private int _positionRefreshQueued;
+    private int _stateRefreshQueued;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RunConveyorCommand))]
@@ -149,42 +166,47 @@ public partial class ManualHardwareViewModel : ObservableObject
     private bool _isHoming;
 
     public ManualHardwareViewModel(
-        [FromKeyedServices(MotionGroup.PcbSupply)] IAxisMotion supply,
-        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] IXyMotion placement,
-        [FromKeyedServices(MotionGroup.BoltFastening)] IXyMotion fastening,
-        [FromKeyedServices(MotionGroup.InspectionGantry)] IXyMotion inspection,
+        PcbSupplyHandler supply,
+        PcbPlacementHandler placement,
+        BoltFasteningStation fastening,
+        InspectionGantry inspection,
         MainConveyor conveyor,
         MachineState state,
         HomeSettings home)
     {
+        _supply = supply;
+        _placement = placement;
+        _fastening = fastening;
+        _inspection = inspection;
         _conveyor = conveyor;
         _state = state;
         _home = home;
         Axes =
         [
-            new(MotionGroup.PcbSupply, MachineAxis.PcbSupplyX, MotionAxis.X, supply),
-            new(MotionGroup.PcbSupply, MachineAxis.PcbSupplyY, MotionAxis.Y, supply),
-            new(MotionGroup.PcbSupply, MachineAxis.PcbSupplyZ, MotionAxis.Z, supply),
-            new(MotionGroup.PcbPlacementHandler, MachineAxis.PcbPlacementHandlerX, MotionAxis.X, placement),
-            new(MotionGroup.PcbPlacementHandler, MachineAxis.PcbPlacementHandlerY, MotionAxis.Y, placement),
-            new(MotionGroup.PcbPlacementHandler, MachineAxis.PcbPlacementHandlerZ, MotionAxis.Z, placement),
-            new(MotionGroup.BoltFastening, MachineAxis.BoltFasteningX, MotionAxis.X, fastening),
-            new(MotionGroup.BoltFastening, MachineAxis.BoltFasteningY, MotionAxis.Y, fastening),
-            new(MotionGroup.BoltFastening, MachineAxis.BoltFasteningZ, MotionAxis.Z, fastening),
-            new(MotionGroup.InspectionGantry, MachineAxis.InspectionGantryX, MotionAxis.X, inspection),
-            new(MotionGroup.InspectionGantry, MachineAxis.InspectionGantryY, MotionAxis.Y, inspection),
+            new(MotionGroup.PcbSupply, MachineAxis.PcbSupplyX, MotionAxis.X, supply.Feedback),
+            new(MotionGroup.PcbSupply, MachineAxis.PcbSupplyY, MotionAxis.Y, supply.Feedback),
+            new(MotionGroup.PcbSupply, MachineAxis.PcbSupplyZ, MotionAxis.Z, supply.Feedback),
+            new(MotionGroup.PcbPlacementHandler, MachineAxis.PcbPlacementHandlerX, MotionAxis.X, placement.Feedback),
+            new(MotionGroup.PcbPlacementHandler, MachineAxis.PcbPlacementHandlerY, MotionAxis.Y, placement.Feedback),
+            new(MotionGroup.PcbPlacementHandler, MachineAxis.PcbPlacementHandlerZ, MotionAxis.Z, placement.Feedback),
+            new(MotionGroup.BoltFastening, MachineAxis.BoltFasteningX, MotionAxis.X, fastening.Feedback),
+            new(MotionGroup.BoltFastening, MachineAxis.BoltFasteningY, MotionAxis.Y, fastening.Feedback),
+            new(MotionGroup.BoltFastening, MachineAxis.BoltFasteningZ, MotionAxis.Z, fastening.Feedback),
+            new(MotionGroup.InspectionGantry, MachineAxis.InspectionGantryX, MotionAxis.X, inspection.Feedback),
+            new(MotionGroup.InspectionGantry, MachineAxis.InspectionGantryY, MotionAxis.Y, inspection.Feedback),
         ];
 
         state.Changed += OnMachineStateChanged;
-        foreach (var motion in new IAxisMotion[]
+        foreach (var (group, feedback) in new[]
                  {
-                     supply,
-                     placement,
-                     fastening,
-                     inspection,
+                     (MotionGroup.PcbSupply, supply.Feedback),
+                     (MotionGroup.PcbPlacementHandler, placement.Feedback),
+                     (MotionGroup.BoltFastening, fastening.Feedback),
+                     (MotionGroup.InspectionGantry, inspection.Feedback),
                  })
         {
-            motion.PositionChanged += (_, _, _) => OnPositionChanged(motion);
+            feedback.PositionChanged += (x, y, z) =>
+                OnPositionChanged(group, x, y, z);
         }
     }
 
@@ -206,8 +228,9 @@ public partial class ManualHardwareViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanToggleServo))]
     private void ToggleServo(ManualAxisRow row)
     {
-        row.Motion.SetServo(row.Axis, !row.ServoOn);
-        row.Refresh();
+        var servoOn = row.Feedback.GetAxisState(row.Axis).ServoOn;
+        SetServo(row.Group, row.Axis, !servoOn);
+        row.RefreshState();
     }
 
     private bool CanToggleServo(ManualAxisRow? row) =>
@@ -216,7 +239,7 @@ public partial class ManualHardwareViewModel : ObservableObject
         && _state.SafetyReady
         && !IsHoming
         && !_state.IsRunning
-        && row.Motion.IsReady;
+        && row.Feedback.IsReady;
 
     [RelayCommand(CanExecute = nameof(CanHomeAxis))]
     private async Task HomeAxisAsync(
@@ -226,12 +249,7 @@ public partial class ManualHardwareViewModel : ObservableObject
         IsHoming = true;
         try
         {
-            await row.Motion.HomeAsync(
-                row.Axis,
-                row.Axis == MotionAxis.Z
-                    ? _home.ZSpeed
-                    : _home.HorizontalSpeed,
-                cancellationToken);
+            await HomeOwnerAxisAsync(row, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -252,7 +270,7 @@ public partial class ManualHardwareViewModel : ObservableObject
         && !IsHoming
         && !_state.IsRunning
         && BufferAllowsHome(row.Signal)
-        && row.Motion.IsReady
+        && row.Feedback.IsReady
         && row.ServoOn;
 
     private bool BufferAllowsHome(MachineAxis axis) =>
@@ -280,28 +298,54 @@ public partial class ManualHardwareViewModel : ObservableObject
         _conveyor.Stop();
     }
 
-    private void OnPositionChanged(IAxisMotion motion)
+    private void OnPositionChanged(
+        MotionGroup group,
+        double x,
+        double y,
+        double z)
     {
         if (!_active)
         {
             return;
         }
 
-        Application.Current.Dispatcher.BeginInvoke(() =>
+        foreach (var row in Axes)
         {
-            if (!_active)
+            if (row.Group != group)
             {
-                return;
+                continue;
             }
 
-            foreach (var row in Axes)
+            row.SetPosition(x, y, z);
+        }
+
+        Interlocked.Or(ref _pendingPositionGroups, 1 << (int)group);
+        if (Interlocked.Exchange(ref _positionRefreshQueued, 1) != 0)
+        {
+            return;
+        }
+
+        Application.Current.Dispatcher.InvokeAsync(
+            () =>
             {
-                if (ReferenceEquals(row.Motion, motion))
+                Interlocked.Exchange(ref _positionRefreshQueued, 0);
+                if (!_active)
                 {
-                    row.Refresh();
+                    return;
                 }
-            }
-        });
+
+                var pending = Interlocked.Exchange(
+                    ref _pendingPositionGroups,
+                    0);
+                foreach (var row in Axes)
+                {
+                    if ((pending & (1 << (int)row.Group)) != 0)
+                    {
+                        row.RefreshPosition();
+                    }
+                }
+            },
+            DispatcherPriority.Background);
     }
 
     private void OnMachineStateChanged()
@@ -311,8 +355,14 @@ public partial class ManualHardwareViewModel : ObservableObject
             return;
         }
 
+        if (Interlocked.Exchange(ref _stateRefreshQueued, 1) != 0)
+        {
+            return;
+        }
+
         Application.Current.Dispatcher.BeginInvoke(() =>
         {
+            Interlocked.Exchange(ref _stateRefreshQueued, 0);
             if (!_active)
             {
                 return;
@@ -340,9 +390,69 @@ public partial class ManualHardwareViewModel : ObservableObject
 
     private void RefreshRows()
     {
+        IMotionFeedback? feedback = null;
+        (double X, double Y, double Z) position = default;
         foreach (var row in Axes)
         {
-            row.Refresh();
+            if (!ReferenceEquals(feedback, row.Feedback))
+            {
+                feedback = row.Feedback;
+                position = feedback.GetPosition();
+            }
+
+            row.SetPosition(position.X, position.Y, position.Z);
+            row.RefreshPosition();
+            row.RefreshState();
         }
+    }
+
+    private void SetServo(
+        MotionGroup group,
+        MotionAxis axis,
+        bool on)
+    {
+        switch (group)
+        {
+            case MotionGroup.PcbSupply:
+                _supply.SetServo(axis, on);
+                break;
+            case MotionGroup.PcbPlacementHandler:
+                _placement.SetServo(axis, on);
+                break;
+            case MotionGroup.BoltFastening:
+                _fastening.SetServo(axis, on);
+                break;
+            case MotionGroup.InspectionGantry:
+                _inspection.SetServo(axis, on);
+                break;
+        }
+    }
+
+    private Task<bool> HomeOwnerAxisAsync(
+        ManualAxisRow row,
+        CancellationToken cancellationToken)
+    {
+        var velocity = row.Axis == MotionAxis.Z
+            ? _home.ZSpeed
+            : _home.HorizontalSpeed;
+        return row.Group switch
+        {
+            MotionGroup.PcbPlacementHandler =>
+                _placement.HomeAxisAsync(
+                    row.Axis,
+                    velocity,
+                    cancellationToken),
+            MotionGroup.BoltFastening =>
+                _fastening.HomeAxisAsync(
+                    row.Axis,
+                    velocity,
+                    cancellationToken),
+            MotionGroup.InspectionGantry =>
+                _inspection.HomeAxisAsync(
+                    row.Axis,
+                    velocity,
+                    cancellationToken),
+            _ => Task.FromResult(false),
+        };
     }
 }

@@ -11,8 +11,8 @@ namespace IBTM.Inspection.Training;
 
 internal static class BoltTrainingFiles
 {
-    private const string Images = "Images";
-    private const string Masks = "Masks";
+    internal const string ImageDirectoryName = "Images";
+    internal const string MaskDirectoryName = "Masks";
 
     public static BitmapSource CreateInput(ImageFrame frame)
     {
@@ -42,8 +42,8 @@ internal static class BoltTrainingFiles
         BitmapSource image,
         byte[] mask)
     {
-        var imageDirectory = Path.Combine(directory, Images);
-        var maskDirectory = Path.Combine(directory, Masks);
+        var imageDirectory = Path.Combine(directory, ImageDirectoryName);
+        var maskDirectory = Path.Combine(directory, MaskDirectoryName);
         Directory.CreateDirectory(imageDirectory);
         Directory.CreateDirectory(maskDirectory);
 
@@ -68,7 +68,7 @@ internal static class BoltTrainingFiles
             PixelFormats.Bgr24,
             null,
             0);
-        var stride = image.PixelWidth * 3;
+        var stride = image.PixelWidth * ImageFrame.ColorChannelCount;
         var pixels = new byte[stride * image.PixelHeight];
         image.CopyPixels(pixels, stride, 0);
         return new ImageFrame(
@@ -92,10 +92,13 @@ internal static class BoltTrainingFiles
                 continue;
             }
 
-            var pixel = index * 3;
-            pixels[pixel] = (byte)((pixels[pixel] * 2 + 40) / 3);
-            pixels[pixel + 1] = (byte)((pixels[pixel + 1] * 2 + 90) / 3);
-            pixels[pixel + 2] = (byte)((pixels[pixel + 2] + 510) / 3);
+            var pixel = index * ImageFrame.ColorChannelCount;
+            pixels[pixel + ImageFrame.BlueChannel] = (byte)(
+                (pixels[pixel + ImageFrame.BlueChannel] * 2 + 40) / 3);
+            pixels[pixel + ImageFrame.GreenChannel] = (byte)(
+                (pixels[pixel + ImageFrame.GreenChannel] * 2 + 90) / 3);
+            pixels[pixel + ImageFrame.RedChannel] = (byte)(
+                (pixels[pixel + ImageFrame.RedChannel] + 510) / 3);
         }
 
         var overlay = BitmapSource.Create(

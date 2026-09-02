@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 
 namespace IBTM.Inspection.Training;
 
@@ -38,6 +39,7 @@ public sealed class BoltMaskEditor : FrameworkElement
     private BitmapSource? _overlay;
     private Point? _lastPoint;
     private byte _paintValue;
+    private bool _overlayRefreshQueued;
 
     public BoltMaskEditor()
     {
@@ -175,7 +177,7 @@ public sealed class BoltMaskEditor : FrameworkElement
         }
 
         _lastPoint = imagePoint;
-        RefreshOverlay();
+        QueueOverlayRefresh();
     }
 
     private void Stamp(Point point)
@@ -255,5 +257,22 @@ public sealed class BoltMaskEditor : FrameworkElement
                 IBoltRecessSegmenter.InputSize * 4);
         _overlay?.Freeze();
         InvalidateVisual();
+    }
+
+    private void QueueOverlayRefresh()
+    {
+        if (_overlayRefreshQueued)
+        {
+            return;
+        }
+
+        _overlayRefreshQueued = true;
+        Dispatcher.InvokeAsync(
+            () =>
+            {
+                _overlayRefreshQueued = false;
+                RefreshOverlay();
+            },
+            DispatcherPriority.Background);
     }
 }

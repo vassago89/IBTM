@@ -8,14 +8,8 @@ public sealed class InspectionWork : StationWork
     private readonly IInspectionGantryClearance? _gantryClearance;
 
     public InspectionWork(
-        IIoService io,
-        IInspectionGantryClearance? gantryClearance) : base(
-        io,
-        InputIo.InspectionCarrierPresent,
-        InputIo.InspectionBackupPlateUp,
-        InputIo.InspectionStopperDown,
-        InputIo.InspectionHeatSink1Present,
-        InputIo.InspectionHeatSink2Present)
+        ConveyorStation station,
+        IInspectionGantryClearance? gantryClearance) : base(station)
     {
         _gantryClearance = gantryClearance;
         if (gantryClearance is not null)
@@ -26,7 +20,7 @@ public sealed class InspectionWork : StationWork
 
     public override bool CanReceive =>
         base.CanReceive
-        && (_gantryClearance?.Available ?? true);
+        && (_gantryClearance?.IsClear ?? true);
 
     public override bool HasNg =>
         CarrierPresent
@@ -35,16 +29,30 @@ public sealed class InspectionWork : StationWork
             && !HeatSinkPresent(HeatSinkSlot.HeatSink1)
             && !HeatSinkPresent(HeatSinkSlot.HeatSink2));
 
-    public InspectionState State =>
-        !CarrierPresent
-            ? InspectionState.WaitingForCarrier
-            : Completed
-                ? InspectionState.WaitingForTransfer
-                : !Ready
-                    ? InspectionState.WaitingForSeat
-                    : _gantryClearance?.Available == false
-                        ? InspectionState.WaitingForGantry
-                        : InspectionState.ReadyToInspect;
+    public InspectionState State
+    {
+        get
+        {
+            if (!CarrierPresent)
+            {
+                return InspectionState.WaitingForCarrier;
+            }
+
+            if (Completed)
+            {
+                return InspectionState.WaitingForTransfer;
+            }
+
+            if (!CarrierSeated)
+            {
+                return InspectionState.WaitingForSeat;
+            }
+
+            return _gantryClearance?.IsClear == false
+                ? InspectionState.WaitingForGantry
+                : InspectionState.ReadyToInspect;
+        }
+    }
 
     public void RestartInspection()
     {

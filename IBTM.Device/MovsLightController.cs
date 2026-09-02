@@ -6,8 +6,10 @@ namespace IBTM.Device;
 
 public sealed class MovsLightController(string connection) : ILightController, IDisposable
 {
+    private const int BaudRate = 19_200;
+
     private readonly Lock _writeLock = new();
-    private readonly SerialPort _port = new(connection, 19_200);
+    private readonly SerialPort _port = new(connection, BaudRate);
 
     public void Initialize()
     {

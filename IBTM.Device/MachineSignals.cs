@@ -81,8 +81,8 @@ public enum InputIo
     [Description("Bolt Fastening Carrier Present")]
     BoltFasteningCarrierPresent,
 
-    [Description("Bolt Head 2 Vacuum Detected")]
-    BoltHead2VacuumDetected,
+    [Description("Shooting Head Vacuum Detected (Head 2)")]
+    ShootingHeadVacuumDetected,
 
     [Description("Placement Handler Down")]
     PcbPlacementHandlerDown,
@@ -111,23 +111,23 @@ public enum InputIo
     [Description("Bolt Table Up")]
     BoltTableUp,
 
-    [Description("Bolt Head 1 Down")]
-    BoltHead1Down,
+    [Description("Pickup Head Down (Head 1)")]
+    PickupHeadDown,
 
-    [Description("Bolt Head 1 Up")]
-    BoltHead1Up,
+    [Description("Pickup Head Up (Head 1)")]
+    PickupHeadUp,
 
-    [Description("Bolt Head 2 Down")]
-    BoltHead2Down,
+    [Description("Shooting Head Down (Head 2)")]
+    ShootingHeadDown,
 
-    [Description("Bolt Head 2 Up")]
-    BoltHead2Up,
+    [Description("Shooting Head Up (Head 2)")]
+    ShootingHeadUp,
 
-    [Description("Bolt Head 1 Vacuum Detected")]
-    BoltHead1VacuumDetected,
+    [Description("Pickup Head Vacuum Detected (Head 1)")]
+    PickupHeadVacuumDetected,
 
-    [Description("Linear Feeder Bolt Detected")]
-    LinearFeederBoltDetected,
+    [Description("Shooting Feeder Bolt Detected (Linear)")]
+    ShootingFeederBoltDetected,
 
     [Description("Shooting Tube Bolt Detected")]
     ShootingTubeBoltDetected,
@@ -301,14 +301,14 @@ public enum OutputIo
     [Description("Bolt Table Down")]
     BoltTableDown,
 
-    [Description("Bolt Head 1 Down")]
-    BoltHead1Down,
+    [Description("Pickup Head Down (Head 1)")]
+    PickupHeadDown,
 
-    [Description("Bolt Head 2 Down")]
-    BoltHead2Down,
+    [Description("Shooting Head Down (Head 2)")]
+    ShootingHeadDown,
 
-    [Description("Bolt Head 1 Vacuum Pump")]
-    BoltHead1VacuumPump,
+    [Description("Pickup Head Vacuum Pump (Head 1)")]
+    PickupHeadVacuumPump,
 
     [Description("Bolt Fastening Stopper Up")]
     BoltFasteningStopperUp,
@@ -316,8 +316,8 @@ public enum OutputIo
     [Description("Bolt Fastening Backup Plate Up")]
     BoltFasteningBackupPlateUp,
 
-    [Description("Bolt Head 2 Vacuum Pump")]
-    BoltHead2VacuumPump,
+    [Description("Shooting Head Vacuum Pump (Head 2)")]
+    ShootingHeadVacuumPump,
 
     [Description("Inspection Stopper Up")]
     InspectionStopperUp,
@@ -334,8 +334,8 @@ public enum OutputIo
     [Description("NG Shuttle Down")]
     NgShuttleDown,
 
-    [Description("Linear Feeder Run Signal")]
-    LinearFeederRunSignal,
+    [Description("Shooting Feeder Run (Linear)")]
+    ShootingFeederRunSignal,
 
     [Description("Shooting Escape Forward")]
     ShootingEscapeForward,

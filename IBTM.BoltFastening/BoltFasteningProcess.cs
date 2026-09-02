@@ -13,7 +13,7 @@ public sealed class BoltFasteningProcess(
     BoltFasteningStation station,
     BoltFasteningWork work,
     PickupBoltFeeder pickupFeeder,
-    LinearBoltFeeder linearFeeder)
+    ShootingBoltFeeder shootingFeeder)
 {
     public void PrepareRecovery(
         IEnumerable<(HeatSinkSlot HeatSink, int Number, FasteningPass Pass)>
@@ -27,7 +27,7 @@ public sealed class BoltFasteningProcess(
         BoltFasteningRecipe recipe,
         CancellationToken cancellationToken = default)
     {
-        using var stateChanged = new AsyncAutoResetEvent();
+        var stateChanged = new AsyncAutoResetEvent();
         void OnStateChanged() => stateChanged.Set();
 
         work.Changed += OnStateChanged;
@@ -77,44 +77,44 @@ public sealed class BoltFasteningProcess(
     private Task ExecuteAsync(
         BoltFasteningRecipe recipe,
         CancellationToken cancellationToken) => State(recipe) switch
-    {
-        BoltFasteningProcessState.FasteningPcb =>
-            FastenPcbAsync(recipe, cancellationToken),
-        BoltFasteningProcessState.MovingToPcbBolt =>
-            MoveToPcbBoltAsync(recipe, cancellationToken),
-        BoltFasteningProcessState.LoadingShootingBolt =>
-            LoadShootingBoltAsync(cancellationToken),
-        BoltFasteningProcessState.RetractingShootingEscape =>
-            station.RetractShootingEscapeAsync(cancellationToken),
-        BoltFasteningProcessState.ClearingShootingHead =>
-            ClearHeadAsync(FasteningHead.Shooting, cancellationToken),
-        BoltFasteningProcessState.MovingToPickupPosition =>
-            MoveToPickupPositionAsync(cancellationToken),
-        BoltFasteningProcessState.PickingUpBolt =>
-            PickUpBoltAsync(cancellationToken),
-        BoltFasteningProcessState.RaisingPickedBolt =>
-            station.MoveToSafeZAsync(cancellationToken),
-        BoltFasteningProcessState.MovingToIpmSeatingBolt =>
-            MoveToIpmBoltAsync(
-                PendingIpmSeatingBolts(recipe).First(),
-                cancellationToken),
-        BoltFasteningProcessState.LoweringForIpmSeating
-            or BoltFasteningProcessState.LoweringForIpmFinal =>
-            station.SetPickupHeadDownAsync(true, cancellationToken),
-        BoltFasteningProcessState.SeatingIpm =>
-            SeatIpmAsync(recipe, cancellationToken),
-        BoltFasteningProcessState.MovingToIpmFinalBolt =>
-            MoveToIpmBoltAsync(
-                PendingIpmFinalBolts(recipe).First(),
-                cancellationToken),
-        BoltFasteningProcessState.FinalizingIpm =>
-            FinalizeIpmAsync(recipe, cancellationToken),
-        BoltFasteningProcessState.ClearingPickupHead =>
-            ClearHeadAsync(FasteningHead.Pickup, cancellationToken),
-        BoltFasteningProcessState.CompletingCarrier =>
-            CompleteAsync(recipe, cancellationToken),
-        _ => Task.CompletedTask,
-    };
+        {
+            BoltFasteningProcessState.FasteningPcb =>
+                FastenPcbAsync(recipe, cancellationToken),
+            BoltFasteningProcessState.MovingToPcbBolt =>
+                MoveToPcbBoltAsync(recipe, cancellationToken),
+            BoltFasteningProcessState.LoadingShootingBolt =>
+                LoadShootingBoltAsync(cancellationToken),
+            BoltFasteningProcessState.RetractingShootingEscape =>
+                station.RetractShootingEscapeAsync(cancellationToken),
+            BoltFasteningProcessState.ClearingShootingHead =>
+                ClearHeadAsync(FasteningHead.Shooting, cancellationToken),
+            BoltFasteningProcessState.MovingToPickupPosition =>
+                MoveToPickupPositionAsync(cancellationToken),
+            BoltFasteningProcessState.PickingUpBolt =>
+                PickUpBoltAsync(cancellationToken),
+            BoltFasteningProcessState.RaisingPickedBolt =>
+                station.MoveToSafeZAsync(cancellationToken),
+            BoltFasteningProcessState.MovingToIpmSeatingBolt =>
+                MoveToIpmBoltAsync(
+                    PendingIpmSeatingBolts(recipe).First(),
+                    cancellationToken),
+            BoltFasteningProcessState.LoweringForIpmSeating
+                or BoltFasteningProcessState.LoweringForIpmFinal =>
+                station.SetPickupHeadDownAsync(true, cancellationToken),
+            BoltFasteningProcessState.SeatingIpm =>
+                SeatIpmAsync(recipe, cancellationToken),
+            BoltFasteningProcessState.MovingToIpmFinalBolt =>
+                MoveToIpmBoltAsync(
+                    PendingIpmFinalBolts(recipe).First(),
+                    cancellationToken),
+            BoltFasteningProcessState.FinalizingIpm =>
+                FinalizeIpmAsync(recipe, cancellationToken),
+            BoltFasteningProcessState.ClearingPickupHead =>
+                ClearHeadAsync(FasteningHead.Pickup, cancellationToken),
+            BoltFasteningProcessState.CompletingCarrier =>
+                CompleteAsync(recipe, cancellationToken),
+            _ => Task.CompletedTask,
+        };
 
     public BoltFasteningProcessState State(BoltFasteningRecipe recipe)
     {
@@ -314,7 +314,7 @@ public sealed class BoltFasteningProcess(
         await station.SelectHeadAsync(
             FasteningHead.Shooting,
             cancellationToken);
-        await linearFeeder.WaitUntilReadyAsync(cancellationToken);
+        await shootingFeeder.WaitUntilReadyAsync(cancellationToken);
         await station.LoadShootingBoltAsync(cancellationToken);
     }
 
@@ -445,7 +445,7 @@ public sealed class BoltFasteningProcess(
             .Where(bolt => FindAssembly(bolt.HeatSink)?
                 .IpmFinalResults.ContainsKey(bolt.Number) != true);
 
-    private PcbAssembly? FindAssembly(HeatSinkSlot heatSink) =>
+    private HeatSinkAssembly? FindAssembly(HeatSinkSlot heatSink) =>
         work.Assemblies.FirstOrDefault(
             assembly => assembly.HeatSink == heatSink);
 

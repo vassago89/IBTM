@@ -46,10 +46,10 @@ public partial class BoltTrainingViewModel : ObservableObject
         "BoltRecess");
 
     private readonly BoltInspectionSettings _settings;
-    private readonly TinyUnetTrainer _trainer;
+    private readonly TinyUnetTrainer _trainer = new();
     private readonly IBoltRecessSegmenter _segmenter;
     private readonly BoltTrainingSession _session;
-    private readonly BoltImageCapture _imageCapture;
+    private readonly BoltInspector _inspector;
     private readonly InspectionWork _inspectionWork;
     private readonly bool _captureEnabled;
     private readonly Func<IReadOnlyList<BoltPoint>> _boltPoints;
@@ -58,19 +58,17 @@ public partial class BoltTrainingViewModel : ObservableObject
 
     public BoltTrainingViewModel(
         BoltInspectionSettings settings,
-        TinyUnetTrainer trainer,
         IBoltRecessSegmenter segmenter,
         BoltTrainingSession session,
-        BoltImageCapture imageCapture,
+        BoltInspector inspector,
         InspectionWork inspectionWork,
         bool captureEnabled,
         Func<IReadOnlyList<BoltPoint>> boltPoints)
     {
         _settings = settings;
-        _trainer = trainer;
         _segmenter = segmenter;
         _session = session;
-        _imageCapture = imageCapture;
+        _inspector = inspector;
         _inspectionWork = inspectionWork;
         _captureEnabled = captureEnabled;
         _boltPoints = boltPoints;
@@ -185,7 +183,7 @@ public partial class BoltTrainingViewModel : ObservableObject
             {
                 images.Add(new LabelCapture(
                     point,
-                    await _imageCapture.CaptureAsync(
+                    await _inspector.CaptureAsync(
                         point,
                         cancellationToken)));
             }
@@ -289,7 +287,7 @@ public partial class BoltTrainingViewModel : ObservableObject
     {
         if (!_captureEnabled
             || !ConfigurationEnabled
-            || !_inspectionWork.Ready)
+            || !_inspectionWork.CarrierSeated)
         {
             return false;
         }
@@ -298,7 +296,7 @@ public partial class BoltTrainingViewModel : ObservableObject
             .Where(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
             .ToArray();
         return points.Length > 0
-            && points.All(_imageCapture.HasPosition);
+            && points.All(_inspector.HasPosition);
     }
 
     private bool CanTrain() =>

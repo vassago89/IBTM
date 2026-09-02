@@ -6,11 +6,10 @@ namespace IBTM.Ajin;
 public sealed class AjinController(AjinSettings settings) : IDisposable
 {
     private const int RtexChannelCountPerModule = 32;
-    private static readonly int[] RtexInputModules = [0, 1, 4];
-    private static readonly int[] RtexOutputModules = [2, 3, 4];
     private bool _initialized;
 
     internal AjinSettings Settings => settings;
+    public int RtexInputWordCount => settings.RtexInputModules.Length;
 
     public void Initialize()
     {
@@ -50,7 +49,7 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
     public bool ReadRtexInput(int channel)
     {
         var (module, offset) = GetRtexAddress(
-            RtexInputModules,
+            settings.RtexInputModules,
             channel);
         var value = 0U;
         Check(
@@ -62,10 +61,25 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
         return value != 0;
     }
 
+    public void ReadRtexInputs(uint[] values)
+    {
+        for (var index = 0; index < values.Length; index++)
+        {
+            var value = 0U;
+            Check(
+                AjinNative.AxdiReadInportDword(
+                    settings.RtexInputModules[index],
+                    0,
+                    ref value),
+                nameof(AjinNative.AxdiReadInportDword));
+            values[index] = value;
+        }
+    }
+
     public bool ReadRtexOutput(int channel)
     {
         var (module, offset) = GetRtexAddress(
-            RtexOutputModules,
+            settings.RtexOutputModules,
             channel);
         var value = 0U;
         Check(
@@ -80,7 +94,7 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
     public void WriteRtexOutput(int channel, bool value)
     {
         var (module, offset) = GetRtexAddress(
-            RtexOutputModules,
+            settings.RtexOutputModules,
             channel);
         Check(
             AjinNative.AxdoWriteOutportBit(

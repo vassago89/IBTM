@@ -8,11 +8,14 @@ namespace IBTM;
 
 public sealed class Recipe
 {
+    public const double DefaultCarrierImageMillimetersPerPixel = 0.05;
+
     public string Name { get; set; } = "Default";
     public PcbSupplyRecipe PcbSupply { get; set; } = new();
     public PcbPlacementRecipe PcbPlacement { get; set; } = new();
     public BoltFasteningRecipe BoltFastening { get; set; } = new();
-    public double CarrierImageMillimetersPerPixel { get; set; } = 0.05;
+    public double CarrierImageMillimetersPerPixel { get; set; } =
+        DefaultCarrierImageMillimetersPerPixel;
     public List<CarrierImageTile> CarrierImages { get; set; } = [];
 
     public void ReplaceWith(Recipe recipe)
@@ -30,5 +33,5 @@ public sealed class Recipe
 public sealed class CarrierImageTile
 {
     public int Number { get; set; }
-    public AxisPos Center { get; set; } = new();
+    public AxisPosition Center { get; set; } = new();
 }

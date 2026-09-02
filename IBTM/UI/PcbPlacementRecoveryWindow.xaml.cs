@@ -2,9 +2,10 @@ using System.Windows;
 
 namespace IBTM.UI;
 
-public partial class Station2RecoveryWindow : Window
+public partial class PcbPlacementRecoveryWindow : Window
 {
-    public Station2RecoveryWindow(BoltRecoveryViewModel viewModel)
+    public PcbPlacementRecoveryWindow(
+        PcbPlacementRecoveryViewModel viewModel)
     {
         InitializeComponent();
         DataContext = viewModel;

@@ -23,16 +23,16 @@ public sealed class TeachingPointMapper(
 {
     public bool CarrierReferenceReady =>
         CarrierCoordinates.IsDefined(
-            carrierReference.UpperLeftPin,
-            carrierReference.LowerRightPin);
+            carrierReference.UpperLeftLocatingPin,
+            carrierReference.LowerRightLocatingPin);
 
     public bool HasImagePosition(Recipe recipe, TeachingPoint point) =>
         point.Target switch
         {
             TeachingTarget.CarrierUpperLeftLocatingPin =>
-                carrierReference.UpperLeftPin is not null,
+                carrierReference.UpperLeftLocatingPin is not null,
             TeachingTarget.CarrierLowerRightLocatingPin =>
-                carrierReference.LowerRightPin is not null,
+                carrierReference.LowerRightLocatingPin is not null,
             TeachingTarget.BoltReference =>
                 CarrierReferenceReady
                 && FindBolt(recipe, point) is { X: not null, Y: not null },
@@ -42,7 +42,7 @@ public sealed class TeachingPointMapper(
     public bool HasMotionPosition(Recipe recipe, TeachingPoint point) =>
         point.Target switch
         {
-            TeachingTarget.BoltWorkZ =>
+            TeachingTarget.BoltPointZ =>
                 HasFasteningPosition(FindBolt(recipe, point)),
             TeachingTarget.ShootingHeadUpperLeftLocatingPin =>
                 fasteningSettings.ShootingHead.UpperLeftLocatingPin is not null,
@@ -66,13 +66,13 @@ public sealed class TeachingPointMapper(
             Create(
                 TeachingTarget.SupplyCarrierY,
                 MotionGroup.PcbSupply,
-                new AxisPos { Y = supplySettings.CarrierY },
+                new AxisPosition { Y = supplySettings.CarrierY },
                 TeachMode.YOnly,
                 TeachingStorage.Machine),
             Create(
                 TeachingTarget.SupplyPcb1Pick,
                 MotionGroup.PcbSupply,
-                new AxisPos
+                new AxisPosition
                 {
                     X = recipe.PcbSupply.Pcb1PickPosition.X,
                     Y = supplySettings.CarrierY,
@@ -82,7 +82,7 @@ public sealed class TeachingPointMapper(
             Create(
                 TeachingTarget.SupplyPcb2Pick,
                 MotionGroup.PcbSupply,
-                new AxisPos
+                new AxisPosition
                 {
                     X = recipe.PcbSupply.Pcb2PickPosition.X,
                     Y = supplySettings.CarrierY,
@@ -98,7 +98,7 @@ public sealed class TeachingPointMapper(
             Create(
                 TeachingTarget.SupplyBufferClearZ,
                 MotionGroup.PcbSupply,
-                new AxisPos { Z = supplySettings.BufferClearZ },
+                new AxisPosition { Z = supplySettings.BufferClearZ },
                 TeachMode.ZOnly,
                 TeachingStorage.Machine),
             Create(
@@ -110,13 +110,13 @@ public sealed class TeachingPointMapper(
             Create(
                 TeachingTarget.SupplyBufferBoundary1,
                 MotionGroup.PcbSupply,
-                new AxisPos { X = bufferSettings.SupplyBoundary1 },
+                new AxisPosition { X = bufferSettings.SupplyBoundary1 },
                 TeachMode.XOnly,
                 TeachingStorage.Machine),
             Create(
                 TeachingTarget.SupplyBufferBoundary2,
                 MotionGroup.PcbSupply,
-                new AxisPos { X = bufferSettings.SupplyBoundary2 },
+                new AxisPosition { X = bufferSettings.SupplyBoundary2 },
                 TeachMode.XOnly,
                 TeachingStorage.Machine),
             Create(
@@ -157,28 +157,28 @@ public sealed class TeachingPointMapper(
                 TeachingTarget.ShootingHeadUpperLeftLocatingPin,
                 MotionGroup.BoltFastening,
                 fasteningSettings.ShootingHead.UpperLeftLocatingPin
-                    ?? new AxisPos(),
+                    ?? new AxisPosition(),
                 TeachMode.XYOnly,
                 TeachingStorage.Machine),
             Create(
                 TeachingTarget.ShootingHeadLowerRightLocatingPin,
                 MotionGroup.BoltFastening,
                 fasteningSettings.ShootingHead.LowerRightLocatingPin
-                    ?? new AxisPos(),
+                    ?? new AxisPosition(),
                 TeachMode.XYOnly,
                 TeachingStorage.Machine),
             Create(
                 TeachingTarget.PickupHeadUpperLeftLocatingPin,
                 MotionGroup.BoltFastening,
                 fasteningSettings.PickupHead.UpperLeftLocatingPin
-                    ?? new AxisPos(),
+                    ?? new AxisPosition(),
                 TeachMode.XYOnly,
                 TeachingStorage.Machine),
             Create(
                 TeachingTarget.PickupHeadLowerRightLocatingPin,
                 MotionGroup.BoltFastening,
                 fasteningSettings.PickupHead.LowerRightLocatingPin
-                    ?? new AxisPos(),
+                    ?? new AxisPosition(),
                 TeachMode.XYOnly,
                 TeachingStorage.Machine),
             Create(
@@ -208,13 +208,13 @@ public sealed class TeachingPointMapper(
             Create(
                 TeachingTarget.CarrierUpperLeftLocatingPin,
                 MotionGroup.InspectionGantry,
-                carrierReference.UpperLeftPin ?? new AxisPos(),
+                carrierReference.UpperLeftLocatingPin ?? new AxisPosition(),
                 TeachMode.Image,
                 TeachingStorage.Machine),
             Create(
                 TeachingTarget.CarrierLowerRightLocatingPin,
                 MotionGroup.InspectionGantry,
-                carrierReference.LowerRightPin ?? new AxisPos(),
+                carrierReference.LowerRightLocatingPin ?? new AxisPosition(),
                 TeachMode.Image,
                 TeachingStorage.Machine),
             Create(
@@ -233,7 +233,7 @@ public sealed class TeachingPointMapper(
 
         points.AddRange(recipe.BoltFastening.BoltPoints.Select(bolt =>
             CreateBolt(
-                TeachingTarget.BoltWorkZ,
+                TeachingTarget.BoltPointZ,
                 MotionGroup.BoltFastening,
                 bolt,
                 ToFastening(bolt),
@@ -254,7 +254,7 @@ public sealed class TeachingPointMapper(
         IReadOnlyCollection<TeachingPoint> points,
         TeachingPoint point)
     {
-        var position = new AxisPos
+        var position = new AxisPosition
         {
             X = point.X,
             Y = point.Y,
@@ -341,7 +341,7 @@ public sealed class TeachingPointMapper(
             case TeachingTarget.BoltFasteningSafeZ:
                 fasteningSettings.SafeZ = point.Z!.Value;
                 break;
-            case TeachingTarget.BoltWorkZ:
+            case TeachingTarget.BoltPointZ:
                 FindBolt(recipe, point).Z = point.Z!.Value;
                 break;
             case TeachingTarget.CarrierScanUpperLeft:
@@ -368,24 +368,24 @@ public sealed class TeachingPointMapper(
         Recipe recipe,
         IReadOnlyCollection<TeachingPoint> points,
         TeachingPoint point,
-        AxisPos position)
+        AxisPosition position)
     {
         point.Teach(position.X, position.Y, 0);
         switch (point.Target)
         {
             case TeachingTarget.CarrierUpperLeftLocatingPin:
-                carrierReference.UpperLeftPin = position;
-                carrierReference.LowerRightPin = null;
+                carrierReference.UpperLeftLocatingPin = position;
+                carrierReference.LowerRightLocatingPin = null;
                 UpdateInspectionBoltPositions(recipe, points);
                 break;
             case TeachingTarget.CarrierLowerRightLocatingPin:
-                carrierReference.LowerRightPin = position;
+                carrierReference.LowerRightLocatingPin = position;
                 UpdateInspectionBoltPositions(recipe, points);
                 break;
             case TeachingTarget.BoltReference:
                 var carrierPosition = CarrierCoordinates.FromMachine(
                     position,
-                    carrierReference.UpperLeftPin!);
+                    carrierReference.UpperLeftLocatingPin!);
                 var bolt = FindBolt(recipe, point);
                 bolt.X = carrierPosition.X;
                 bolt.Y = carrierPosition.Y;
@@ -405,7 +405,7 @@ public sealed class TeachingPointMapper(
         foreach (var bolt in recipe.BoltFastening.BoltPoints)
         {
             var position = ToFastening(bolt);
-            var point = FindPoint(points, TeachingTarget.BoltWorkZ, bolt.Number);
+            var point = FindPoint(points, TeachingTarget.BoltPointZ, bolt.Number);
             point.X = position.X;
             point.Y = position.Y;
         }
@@ -427,12 +427,12 @@ public sealed class TeachingPointMapper(
         }
     }
 
-    private AxisPos ToInspection(BoltPoint bolt)
+    private AxisPosition ToInspection(BoltPoint bolt)
     {
         if (!CarrierReferenceReady
             || bolt is not { X: not null, Y: not null })
         {
-            return new AxisPos();
+            return new AxisPosition();
         }
 
         return inspectionSettings.GetBoltPosition(
@@ -440,13 +440,13 @@ public sealed class TeachingPointMapper(
             carrierReference);
     }
 
-    private AxisPos ToFastening(BoltPoint bolt)
+    private AxisPosition ToFastening(BoltPoint bolt)
     {
         return HasFasteningPosition(bolt)
             ? fasteningSettings.GetBoltPosition(
                 bolt,
                 carrierReference)
-            : new AxisPos();
+            : new AxisPosition();
     }
 
     private bool HasFasteningPosition(BoltPoint bolt)
@@ -462,7 +462,7 @@ public sealed class TeachingPointMapper(
     private static TeachingPoint Create(
         TeachingTarget target,
         MotionGroup motionGroup,
-        AxisPos position,
+        AxisPosition position,
         TeachMode mode,
         TeachingStorage storage = TeachingStorage.Recipe) => new()
         {
@@ -479,7 +479,7 @@ public sealed class TeachingPointMapper(
         TeachingTarget target,
         MotionGroup motionGroup,
         BoltPoint bolt,
-        AxisPos position,
+        AxisPosition position,
         TeachMode mode) => new()
         {
             Target = target,
@@ -505,7 +505,7 @@ public sealed class TeachingPointMapper(
             point.Target == target
             && point.BoltNumber == boltNumber);
 
-    private static AxisPos Z(double value) => new()
+    private static AxisPosition Z(double value) => new()
     {
         Z = value,
     };

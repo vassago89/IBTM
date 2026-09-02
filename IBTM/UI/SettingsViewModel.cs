@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using IBTM.AlphaMotion;
 using IBTM.Core;
 using IBTM.Device;
 
@@ -58,6 +59,8 @@ public partial class SettingsViewModel : ObservableObject
     public ControlDriver[] ControlDrivers { get; }
     public CameraDriver[] CameraDrivers { get; }
     public BoltDriver[] BoltDrivers { get; }
+    public AlphaMotionCommunicationSpeed[] AlphaMotionCommunicationSpeeds { get; } =
+        Enum.GetValues<AlphaMotionCommunicationSpeed>();
     public AxisDirection[] AxisDirections { get; } =
         Enum.GetValues<AxisDirection>();
     public HardwareMappingRow[] InputMappings { get; }

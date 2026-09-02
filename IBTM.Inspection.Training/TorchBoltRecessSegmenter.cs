@@ -42,7 +42,7 @@ public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
         using var input = tensor(CreateInput(image), dtype: ScalarType.Float32)
             .reshape(
                 1,
-                3,
+                ImageFrame.ColorChannelCount,
                 IBoltRecessSegmenter.InputSize,
                 IBoltRecessSegmenter.InputSize);
         using var mask = _model!.call(input).sigmoid().cpu();
@@ -54,7 +54,7 @@ public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
     private static float[] CreateInput(ImageFrame image)
     {
         var size = IBoltRecessSegmenter.InputSize;
-        var input = new float[3 * size * size];
+        var input = new float[ImageFrame.ColorChannelCount * size * size];
         var plane = size * size;
         var left = (image.Width - size) / 2;
         var top = (image.Height - size) / 2;
@@ -64,11 +64,16 @@ public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
             for (var x = 0; x < size; x++)
             {
                 var source = ((top + y) * image.Stride)
-                             + ((left + x) * 3);
+                             + ((left + x) * ImageFrame.ColorChannelCount);
                 var target = (y * size) + x;
-                input[target] = image.Pixels[source + 2] / 255f;
-                input[plane + target] = image.Pixels[source + 1] / 255f;
-                input[(2 * plane) + target] = image.Pixels[source] / 255f;
+                input[target] = image.Pixels[source + ImageFrame.RedChannel]
+                                / (float)byte.MaxValue;
+                input[plane + target] =
+                    image.Pixels[source + ImageFrame.GreenChannel]
+                    / (float)byte.MaxValue;
+                input[(2 * plane) + target] =
+                    image.Pixels[source + ImageFrame.BlueChannel]
+                    / (float)byte.MaxValue;
             }
         }
 

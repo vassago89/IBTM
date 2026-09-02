@@ -68,8 +68,11 @@ public abstract class IoHardwareSettings : InputHardwareSettings
 
 public abstract class MotionHardwareSettings : IoHardwareSettings
 {
+    public const double DefaultMillimetersPerPulse = 0.01;
+
     public Dictionary<MachineAxis, AxisHardware> Axes { get; set; } = [];
-    public double MillimetersPerPulse { get; set; } = 0.01;
+    public double MillimetersPerPulse { get; set; } =
+        DefaultMillimetersPerPulse;
 
     protected static AxisHardware Axis(
         int number,

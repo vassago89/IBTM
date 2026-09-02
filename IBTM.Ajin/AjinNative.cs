@@ -102,6 +102,12 @@ internal static class AjinNative
         ref uint value);
 
     [DllImport(LibraryName)]
+    internal static extern uint AxdiReadInportDword(
+        int module,
+        int offset,
+        ref uint value);
+
+    [DllImport(LibraryName)]
     internal static extern uint AxdoReadOutportBit(
         int module,
         int offset,

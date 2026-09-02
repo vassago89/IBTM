@@ -102,8 +102,8 @@ public partial class RecipeEditor(
         }
     }
 
-    public CarrierImageTileView SaveCarrierImage(
-        AxisPos center,
+    public void SaveCarrierImage(
+        AxisPosition center,
         BitmapSource image)
     {
         var tile = new CarrierImageTile
@@ -118,7 +118,6 @@ public partial class RecipeEditor(
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(image));
         encoder.Save(stream);
-        return new CarrierImageTileView(tile.Number, tile.Center, image);
     }
 
     public IReadOnlyList<CarrierImageTileView> LoadCarrierImages() =>

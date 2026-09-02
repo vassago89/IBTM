@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Threading;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -52,6 +53,7 @@ public partial class MainViewModel : ObservableObject
     private readonly MachineState _state;
     private readonly bool _supplyTeachingEnabled;
     private readonly bool _stationTeachingEnabled;
+    private int _stateRefreshQueued;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentPage))]
@@ -85,14 +87,13 @@ public partial class MainViewModel : ObservableObject
                                   || units.BoltFastening
                                   || units.Inspection
                                   || units.NgConveyor;
-        var virtualDrivers =
-            Convert.ToInt32(drivers.Control == ControlDriver.Virtual)
-            + Convert.ToInt32(drivers.Camera == CameraDriver.Virtual)
-            + Convert.ToInt32(drivers.Bolt == BoltDriver.Virtual);
-        Environment = virtualDrivers switch
+        var controlVirtual = drivers.Control == ControlDriver.Virtual;
+        var cameraVirtual = drivers.Camera == CameraDriver.Virtual;
+        var boltVirtual = drivers.Bolt == BoltDriver.Virtual;
+        Environment = (controlVirtual, cameraVirtual, boltVirtual) switch
         {
-            0 => MachineEnvironmentDisplay.Physical,
-            3 => MachineEnvironmentDisplay.Virtual,
+            (true, true, true) => MachineEnvironmentDisplay.Virtual,
+            (false, false, false) => MachineEnvironmentDisplay.Physical,
             _ => MachineEnvironmentDisplay.Mixed,
         };
         state.Changed += OnMachineStateChanged;
@@ -132,6 +133,10 @@ public partial class MainViewModel : ObservableObject
         DeactivateCurrentPage();
         SelectedPage = page;
         ActivateCurrentPage();
+        if (page == AppPage.Operation)
+        {
+            _state.Refresh();
+        }
     }
 
     private bool CanNavigate(AppPage page) =>
@@ -151,6 +156,9 @@ public partial class MainViewModel : ObservableObject
     {
         switch (CurrentPage)
         {
+            case OperationViewModel operation:
+                operation.Activate();
+                break;
             case SupplyTeachingViewModel supply:
                 supply.Activate();
                 break;
@@ -170,6 +178,9 @@ public partial class MainViewModel : ObservableObject
     {
         switch (CurrentPage)
         {
+            case OperationViewModel operation:
+                operation.Deactivate();
+                break;
             case SupplyTeachingViewModel supply:
                 supply.Deactivate();
                 break;
@@ -185,9 +196,16 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private void OnMachineStateChanged() =>
+    private void OnMachineStateChanged()
+    {
+        if (Interlocked.Exchange(ref _stateRefreshQueued, 1) != 0)
+        {
+            return;
+        }
+
         Application.Current.Dispatcher.BeginInvoke(() =>
         {
+            Interlocked.Exchange(ref _stateRefreshQueued, 0);
             OnPropertyChanged(nameof(ManualControlsEnabled));
             OnPropertyChanged(nameof(CurrentPageEnabled));
             OnPropertyChanged(nameof(RecipeEditingEnabled));
@@ -205,10 +223,11 @@ public partial class MainViewModel : ObservableObject
             }
             else if (!_state.ManualControlsEnabled
                       && CurrentPage is BoltTrainingViewModel
-                          { IsBusy: false })
+                      { IsBusy: false })
             {
                 Navigate(AppPage.Operation);
             }
         });
+    }
 
 }

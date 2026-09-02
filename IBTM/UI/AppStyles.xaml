@@ -1,5 +1,11 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="clr-namespace:IBTM.UI">
+
+    <ui:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
+    <DataTemplate x:Key="EnumItemTemplate">
+        <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/>
+    </DataTemplate>
 
     <SolidColorBrush x:Key="AppBgBrush" Color="#20262B"/>
     <SolidColorBrush x:Key="SidebarBgBrush" Color="#252B31"/>
@@ -18,11 +24,13 @@
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F2F4F6"/>
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="#C9CED4"/>
     <SolidColorBrush x:Key="TextMutedBrush" Color="#ACB4BC"/>
+    <SolidColorBrush x:Key="ButtonForegroundBrush" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="ControlBgBrush" Color="#252C32"/>
     <SolidColorBrush x:Key="ControlBorderBrush" Color="#66717B"/>
     <SolidColorBrush x:Key="ControlHoverBorderBrush" Color="#7C8791"/>
     <SolidColorBrush x:Key="ControlFocusBorderBrush" Color="#9BA5AE"/>
     <SolidColorBrush x:Key="ControlSelectionBrush" Color="#46515B"/>
+    <SolidColorBrush x:Key="ControlSelectedBackgroundBrush" Color="#38414A"/>
 
     <Style x:Key="CardStyle" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource CardBgBrush}"/>
@@ -65,7 +73,9 @@
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#2A3036"/>
+                            <Setter TargetName="Root"
+                                    Property="Background"
+                                    Value="{StaticResource PanelBgBrush}"/>
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
@@ -116,6 +126,7 @@
 
     <Style x:Key="StatValueStyle" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
         <Setter Property="FontSize" Value="18"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
@@ -147,6 +158,7 @@
            BasedOn="{StaticResource FieldTextBoxStyle}"/>
 
     <Style x:Key="FieldComboBoxStyle" TargetType="ComboBox">
+        <Setter Property="ItemTemplate" Value="{StaticResource EnumItemTemplate}"/>
         <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource ControlBorderBrush}"/>
@@ -268,10 +280,14 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#30373E"/>
+                            <Setter TargetName="Root"
+                                    Property="Background"
+                                    Value="{StaticResource CardBgBrush}"/>
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#38414A"/>
+                            <Setter TargetName="Root"
+                                    Property="Background"
+                                    Value="{StaticResource ControlSelectedBackgroundBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Root" Property="Opacity" Value="0.55"/>
@@ -371,10 +387,11 @@
         </Setter>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="#30373E"/>
+                <Setter Property="Background" Value="{StaticResource CardBgBrush}"/>
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
-                <Setter Property="Background" Value="#38414A"/>
+                <Setter Property="Background"
+                        Value="{StaticResource ControlSelectedBackgroundBrush}"/>
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -382,6 +399,15 @@
     <Style x:Key="FlatListViewItemStyle"
            TargetType="ListViewItem"
            BasedOn="{StaticResource FlatListItemStyle}"/>
+
+    <Style x:Key="PanelListStyle" TargetType="ListBox">
+        <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="4"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+    </Style>
 
     <Style x:Key="ButtonBaseStyle" TargetType="Button">
         <Setter Property="BorderThickness" Value="1"/>
@@ -418,14 +444,14 @@
 
     <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonBaseStyle}">
         <Setter Property="Background" Value="#3F6F98"/>
-        <Setter Property="Foreground" Value="#FFFFFF"/>
+        <Setter Property="Foreground" Value="{StaticResource ButtonForegroundBrush}"/>
         <Setter Property="BorderBrush" Value="#6D96B9"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
 
     <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonBaseStyle}">
         <Setter Property="Background" Value="#963F3F"/>
-        <Setter Property="Foreground" Value="#FFFFFF"/>
+        <Setter Property="Foreground" Value="{StaticResource ButtonForegroundBrush}"/>
         <Setter Property="BorderBrush" Value="#C35B5B"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>

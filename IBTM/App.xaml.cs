@@ -38,7 +38,6 @@ public partial class App : System.Windows.Application
             : new Recipe();
 
         var services = new ServiceCollection()
-            .AddSingleton(settings)
             .AddSingleton(store)
             .AddIbtmApplication(settings, recipe);
         var serviceProvider = services.BuildServiceProvider(

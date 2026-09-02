@@ -4,8 +4,5 @@ namespace IBTM.UI;
 
 public partial class ManualHardwareView : UserControl
 {
-    public ManualHardwareView()
-    {
-        InitializeComponent();
-    }
+    public ManualHardwareView() => InitializeComponent();
 }
