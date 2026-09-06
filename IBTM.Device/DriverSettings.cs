@@ -14,9 +14,20 @@ public enum ControlDriver
     Physical,
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter<InspectionAlgorithm>))]
+public enum InspectionAlgorithm
+{
+    [Description("Simulated")]
+    Virtual,
+
+    [Description("Tiny U-Net")]
+    TinyUnet,
+}
+
 public sealed class DriverSettings : Setting
 {
     public ControlDriver Control { get; set; } = ControlDriver.Virtual;
     public CameraDriver Camera { get; set; } = CameraDriver.Virtual;
     public BoltDriver Bolt { get; set; } = BoltDriver.Virtual;
+    public InspectionAlgorithm Inspection { get; set; } = InspectionAlgorithm.TinyUnet;
 }

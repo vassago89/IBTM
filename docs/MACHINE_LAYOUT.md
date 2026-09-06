@@ -6,6 +6,11 @@ the component hierarchy read from the TMED2 EASM assembly.
 ## Source model
 
 The EASM contains an HSF 19.10 model, material data, scene data, and a preview.
+The saved model payload and preview are under `artifacts/cad/extracted`; the
+original exported EASM and HTML are in the user's Documents folder. Reuse these
+exports and the established layout below for UI work. The small preview shows the
+machine enclosure, not a dimensioned internal plan, so do not infer PCB dimensions
+from it.
 The loaded assembly has 18 root assemblies and 2,201 components. The control UI uses
 the mechanical hierarchy below; covers, doors, frame members, fasteners, and cable
 components are intentionally omitted.
@@ -32,12 +37,14 @@ PCB Supply Handler ---- PCB Buffer ---- PCB Placement Handler
                                                    v
 Front 2 SMEMA --> [PCB Placement] --> [Bolt Fastening] --> [Inspection] --> Rear SMEMA
                    main production carrier conveyor
-                                                     |
-                                            Inspection Gantry
-                                                     |
-                                                NG Conveyor
-                                                     |
-                                                 NG Shuttle
+                                                                 |
+                                                        NG Carrier Transfer
+                                                                 |
+                                                                 v
+                                                            NG Shuttle
+                                                                 |
+                                                                 v
+                                                            NG Conveyor
 ```
 
 The diagram describes ownership and material flow, not physical scale.
@@ -244,17 +251,22 @@ The controlled camera assembly is:
 | --- | --- | --- | --- |
 | Inspection | MV-CU013-A0GMGC | MVL-MF2518M | LAB-IDL100 |
 
-`IBTM.Inspection` owns the shared Inspection Gantry axes and inspection coordinates.
-`IBTM.NgConveyor` owns the NG carrier transfer pneumatics, NG Shuttle, NG Conveyor,
-and their teaching coordinates. It observes the Inspection work result through a
-one-way project reference. Inspection never requests NG transfer; the NG Conveyor
-loop pulls a completed NG Carrier when capacity is available.
+`IBTM.Inspection` owns the shared Inspection Gantry axes, inspection coordinates,
+and NG carrier transfer pneumatics and teaching coordinates. `InspectionStation`
+runs inspection and NG transfer in one loop because they share the gantry.
+`IBTM.NgConveyor` owns the independent NG Shuttle and NG Conveyor. Inspection
+observes shuttle readiness through a one-way project reference. The shuttle reads
+transfer clearance through `INgCarrierTransferFeedback` in `IBTM.Device`; it does
+not reference the Inspection project. A detected carrier does not prove release:
+the shuttle waits for Carrier Pickup Up before lowering, including when the
+transfer's automatic operation is disabled. Reading this feedback does not enable
+the transfer axes or its automatic operation.
 
 Station 3 uses two machine teaching positions for the carrier scan bounds. Scan
 overlap belongs to the Inspection Gantry settings. The two locating-pin positions
 belong to the shared Carrier Reference because Station 2 and Station 3 use the same
 datum without referencing each other's projects. NG pickup and NG shuttle placement
-coordinates belong to the NG Conveyor settings. The tile centres, millimetres per
+coordinates belong to the NG Carrier Transfer settings. The tile centres, millimetres per
 pixel, and original images belong to the recipe image set.
 
 Automatic inspection transforms the same carrier-relative Bolt Points through the
@@ -278,6 +290,37 @@ button; operator confirmation has no automatic timeout.
 
 ## UI rules
 
+- `MachinePlan` owns shared workpiece dimensions and Station 3 layout metrics.
+  Tool centres are calculated from carrier size and camera spacing, not duplicated
+  coordinate literals in the view model. The picker/camera use stacked layout;
+  NG carriers and their labels share the same Grid rows.
+- The NG belt is fixed and centred behind the Station 3 backup plate. Inspection
+  motion uses two affine display regions joined at the taught pin-reference line:
+  one through the carrier pickup and one through the shuttle handoff. Both consume
+  live XY, never a sequence-state animation. This is a readable schematic, not a
+  uniform-scale CAD or clearance measurement. Re-teaching changes the projection,
+  not the fixed belt position.
+- A moving handler is shown only with homed XY and a usable taught display map.
+  Unknown positions are not drawn at a fallback origin. These are derived display
+  conditions only, not persisted teaching flags or additional motion interlocks.
+- Handler badges show stopped/action/waiting information; PCB presence stays on
+  the workpiece drawing. Placement uses its existing process-state description.
+  Station badges describe the current action only. Heat-sink OK/NG results stay
+  inside the matching heat-sink pocket on the carrier and move with it. A station
+  waiting to transfer a completed carrier uses the confirmed green state; this is
+  readiness, not a duplicate carrier result.
+- Feeder-ready feedback stays on the feeder or its matching fastening head. Do not
+  repeat it as a detached text legend. NG capacity is read from P1/P2/P3 occupancy;
+  show text beside the NG conveyor only for an active move, full condition, or
+  required eject action.
+- `OperationView` composes the plan in physical drawing order: lower NG conveyor,
+  main conveyor and backup plates, then moving handlers. `NgConveyorView` is
+  separate from `InspectionView` so the lower conveyor cannot obscure the main
+  lane while the shared inspection camera and NG gripper remain above both.
+- NG position labels and eject instructions stay outside carrier footprints.
+- Shared PCB and carrier XAML resources define their display size. Fixed-size
+  handler borders must not change thickness while moving; doing so shifts their
+  child geometry relative to the taught-position map.
 - Show the machine as one continuous piece of equipment.
 - Show the machine state and the next operator action at the top of the screen.
 - Read the material flow from left to right as `PCB Supply -> Buffer -> Station 1
@@ -294,17 +337,34 @@ button; operator confirmation has no automatic timeout.
 - Keep machine structure subdued. Use green for PCB material, amber for heat sinks,
   blue for carriers and active mechanisms, and red only for alarms that require
   action.
+- Keep the palette semantic: application surfaces use the shared neutral scale;
+  blue means active motion or selection, green means confirmed/ready, amber means
+  attention or an output command, and red means a fault or required operator action.
+  Device and workpiece colors come only from AppStyles.xaml and MachineStyles.xaml,
+  not view-local color literals.
 - Do not show PCB 1 or PCB 2 as present from SMEMA alone. Their presence remains
   unknown until the supply handler's PCB sensor checks each pickup position.
-- Show the inspection camera and NG gripper on the moving Inspection Gantry.
+- Show the inspection camera and NG gripper on the same moving Inspection Gantry.
+  The camera is mounted on the operator side (down in the plan); the carrier picker
+  is behind it (up), not beside it. The picker uses the shared carrier width and
+  height, and its jaws span the carrier rather than a PCB-sized footprint.
 - Show exactly one main carrier conveyor.
 - Show NG Conveyor and NG Shuttle as a secondary path, not as another production
   station or a generic NG Stack box.
-- Keep the NG Conveyor in the lower Station 3 machine bay. Position 3 is the
-  shuttle handoff nearest the shared Inspection Gantry, followed by Position 2 and
-  Position 1 / Eject toward the operator side.
+- Draw the vertical NG Conveyor in the space behind the main Station 3 lane, as
+  corrected by the operator. From top to bottom the positions are P3, P2, P1 / Eject.
+  The shuttle loads at the rear P3; the belt pulls carriers forward through P2 toward
+  the operator-side P1. Position numbering and digital-input mapping do not change.
+  This plan placement is distinct from the lower physical elevation of the NG belt.
+  Camera/picker tool centres and the Station 3/NG handoff anchors must change together
+  when the schematic geometry changes; moving only the drawn belt breaks live XY
+  alignment. UI review teaching belongs to the isolated Virtual verification profile,
+  never the machine's saved teaching.
 - Keep one screen scale for each physical workpiece. A PCB and a production carrier
   retain the same footprint while moving through handlers, stations, and the NG path.
+  WorkpieceStyles.xaml owns the PCB and CarrierView templates; station views bind
+  their own presence inputs and work results rather than duplicate the drawings.
+  Unknown heat-sink contents on a transported carrier are not inferred from its carrier sensor.
 - Show digital inputs as round indicators and outputs as square indicators. Label
   mechanism pairs such as `Grip`, `Stopper`, and `Plate`; tooltips are supplementary.
 - Use input state for mechanism confirmation. Output state only shows the command.
@@ -314,7 +374,8 @@ button; operator confirmation has no automatic timeout.
   delay, then the simulated PCB or carrier position changes.
 - Keep axis coordinates as secondary diagnostic information.
 - Keep covers and frame geometry subdued so material position and mechanism state
-  remain readable.
+  remain readable. Overhead mechanisms remain translucent enough to preserve the
+  carrier, PCB, and heat-sink shape beneath them.
 
 ## Remaining mechanical confirmation
 

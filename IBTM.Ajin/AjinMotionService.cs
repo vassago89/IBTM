@@ -5,7 +5,7 @@ using IBTM.Device;
 
 namespace IBTM.Ajin;
 
-public sealed class AjinMotionService(
+public class AjinMotionService(
     AjinController controller,
     AxisHardware axisX,
     AxisHardware? axisY,
@@ -41,13 +41,6 @@ public sealed class AjinMotionService(
     private readonly int _axisX = axisX.Number;
     private readonly int? _axisY = axisY?.Number;
     private readonly int? _axisZ = axisZ?.Number;
-    private readonly int _directionX = (int)axisX.Direction;
-    private readonly int _directionY = axisY is null
-        ? 0
-        : (int)axisY.Direction;
-    private readonly int _directionZ = axisZ is null
-        ? 0
-        : (int)axisZ.Direction;
     private readonly double _millimetersPerPulse = millimetersPerPulse;
     private readonly int[] _axes = GetAxes(axisX, axisY, axisZ);
     private bool _initialized;
@@ -91,7 +84,6 @@ public sealed class AjinMotionService(
         {
             return MoveAxisAsync(
                 axisYNumber,
-                _directionY,
                 y,
                 velocity,
                 cancellationToken);
@@ -101,7 +93,6 @@ public sealed class AjinMotionService(
         {
             return MoveAxisAsync(
                 _axisX,
-                _directionX,
                 x,
                 velocity,
                 cancellationToken);
@@ -120,7 +111,7 @@ public sealed class AjinMotionService(
             () => AjinNative.AxmMoveMultiPos(
                 axes.Length,
                 axes,
-                [ToUnits(x * _directionX), ToUnits(y * _directionY)],
+                [ToUnits(x), ToUnits(y)],
                 [velocityX, velocityY],
                 [velocityX * accelerationMultiplier, velocityY * accelerationMultiplier],
                 [velocityX * accelerationMultiplier, velocityY * accelerationMultiplier]),
@@ -135,7 +126,6 @@ public sealed class AjinMotionService(
         CancellationToken cancellationToken) =>
         MoveAxisAsync(
             _axisX,
-            _directionX,
             x,
             velocity,
             cancellationToken);
@@ -146,7 +136,6 @@ public sealed class AjinMotionService(
         CancellationToken cancellationToken) =>
         MoveAxisAsync(
             _axisY!.Value,
-            _directionY,
             y,
             velocity,
             cancellationToken);
@@ -157,7 +146,6 @@ public sealed class AjinMotionService(
         CancellationToken cancellationToken = default) =>
         MoveAxisAsync(
             _axisZ!.Value,
-            _directionZ,
             z,
             velocity,
             cancellationToken);
@@ -177,14 +165,8 @@ public sealed class AjinMotionService(
                 ref negativeLevel),
             nameof(AjinNative.AxmSignalGetLimit));
 
-        var detectSignal = _directionZ > 0
-            ? PositiveLimitBit
-            : NegativeLimitBit;
-        var signalEdge = _directionZ > 0
-            ? positiveLevel
-            : negativeLevel;
-        var velocityInUnits = ToUnits(velocity) * _directionZ;
-        var acceleration = Math.Abs(velocityInUnits)
+        var velocityInUnits = ToUnits(velocity);
+        var acceleration = velocityInUnits
                            * controller.Settings.AccelerationMultiplier;
 
         await RunMoveAsync(
@@ -192,8 +174,8 @@ public sealed class AjinMotionService(
                 _axisZ!.Value,
                 velocityInUnits,
                 acceleration,
-                detectSignal,
-                (int)signalEdge,
+                PositiveLimitBit,
+                (int)positiveLevel,
                 (int)stopMode),
             nameof(AjinNative.AxmMoveSignalSearch),
             [_axisZ.Value],
@@ -209,17 +191,17 @@ public sealed class AjinMotionService(
     protected override void JogXCore(
         double velocity,
         CancellationToken cancellationToken) =>
-        Jog(_axisX, velocity * _directionX, cancellationToken);
+        Jog(_axisX, velocity, cancellationToken);
 
     protected override void JogYCore(
         double velocity,
         CancellationToken cancellationToken) =>
-        Jog(_axisY!.Value, velocity * _directionY, cancellationToken);
+        Jog(_axisY!.Value, velocity, cancellationToken);
 
     protected override void JogZCore(
         double velocity,
         CancellationToken cancellationToken) =>
-        Jog(_axisZ!.Value, velocity * _directionZ, cancellationToken);
+        Jog(_axisZ!.Value, velocity, cancellationToken);
 
     public override void SetServo(MotionAxis axis, bool on)
     {
@@ -231,9 +213,9 @@ public sealed class AjinMotionService(
         !_initialized
             ? default
             : (
-                ReadPosition(_axisX) * _directionX,
-                _axisY is null ? 0 : ReadPosition(_axisY.Value) * _directionY,
-                _axisZ is null ? 0 : ReadPosition(_axisZ.Value) * _directionZ);
+                ReadPosition(_axisX),
+                _axisY is null ? 0 : ReadPosition(_axisY.Value),
+                _axisZ is null ? 0 : ReadPosition(_axisZ.Value));
 
     public override AxisState GetAxisState(MotionAxis axis)
     {
@@ -254,7 +236,6 @@ public sealed class AjinMotionService(
         var mechanical = 0U;
         var homeResult = 0U;
         var servoOn = 0U;
-        var direction = GetDirection(axis);
         AjinController.Check(
             AjinNative.AxmStatusReadMechanical(axisNumber, ref mechanical),
             nameof(AjinNative.AxmStatusReadMechanical));
@@ -272,12 +253,8 @@ public sealed class AjinMotionService(
             InPosition: Bit(mechanical, InPositionBit),
             Emergency: Bit(mechanical, EmergencyBit),
             HomeSensor: Bit(mechanical, HomeSensorBit),
-            PositiveLimit: Bit(
-                mechanical,
-                direction > 0 ? PositiveLimitBit : NegativeLimitBit),
-            NegativeLimit: Bit(
-                mechanical,
-                direction > 0 ? NegativeLimitBit : PositiveLimitBit));
+            PositiveLimit: Bit(mechanical, PositiveLimitBit),
+            NegativeLimit: Bit(mechanical, NegativeLimitBit));
     }
 
     protected override async Task<bool> HomeCoreAsync(
@@ -314,10 +291,9 @@ public sealed class AjinMotionService(
             AjinNative.AxmMoveSStop(axisNumber);
             AjinNative.AxmHomeSetResult(axisNumber, HomeUnknown);
         });
-        BeginMotion();
-
         try
         {
+            BeginMotion();
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -341,6 +317,12 @@ public sealed class AjinMotionService(
                     .ConfigureAwait(false);
             }
         }
+        catch
+        {
+            AjinNative.AxmMoveSStop(axisNumber);
+            AjinNative.AxmHomeSetResult(axisNumber, HomeUnknown);
+            throw;
+        }
         finally
         {
             EndMotion();
@@ -360,10 +342,37 @@ public sealed class AjinMotionService(
                 cancellationToken);
         }
 
-        var result = await Task.WhenAll(
-            HomeCoreAsync(MotionAxis.X, velocity, cancellationToken),
-            HomeCoreAsync(MotionAxis.Y, velocity, cancellationToken));
-        return result[0] && result[1];
+        using var homing = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken);
+        async Task<bool> HomeAxisAsync(MotionAxis axis)
+        {
+            var succeeded = false;
+            try
+            {
+                succeeded = await HomeCoreAsync(axis, velocity, homing.Token);
+                return succeeded;
+            }
+            finally
+            {
+                if (!succeeded)
+                {
+                    homing.Cancel();
+                }
+            }
+        }
+
+        try
+        {
+            var result = await Task.WhenAll(
+                HomeAxisAsync(MotionAxis.X),
+                HomeAxisAsync(MotionAxis.Y));
+            return result[0] && result[1];
+        }
+        catch (OperationCanceledException) when (
+            !cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
     }
 
     protected override void ResetAlarm()
@@ -380,7 +389,6 @@ public sealed class AjinMotionService(
 
     private Task MoveAxisAsync(
         int axis,
-        int direction,
         double position,
         double velocity,
         CancellationToken cancellationToken)
@@ -391,7 +399,7 @@ public sealed class AjinMotionService(
         return RunMoveAsync(
             () => AjinNative.AxmMovePos(
                 axis,
-                ToUnits(position * direction),
+                ToUnits(position),
                 velocityInUnits,
                 acceleration,
                 acceleration),
@@ -409,11 +417,12 @@ public sealed class AjinMotionService(
         cancellationToken.ThrowIfCancellationRequested();
         using var cancellationRegistration =
             cancellationToken.Register(StopAxes);
-        BeginMotion();
         try
         {
             try
             {
+                BeginMotion();
+                cancellationToken.ThrowIfCancellationRequested();
                 AjinController.Check(move(), operation);
                 while (true)
                 {
@@ -485,43 +494,80 @@ public sealed class AjinMotionService(
         CancellationToken cancellationToken)
     {
         var monitor = LinkOperation(cancellationToken);
-        monitor.Token.ThrowIfCancellationRequested();
-        var velocityInUnits = ToUnits(velocity);
-        var acceleration = Math.Abs(velocityInUnits)
-                           * controller.Settings.AccelerationMultiplier;
-        AjinController.Check(
-            AjinNative.AxmMoveVel(
-                axis,
-                velocityInUnits,
-                acceleration,
-                acceleration),
-            nameof(AjinNative.AxmMoveVel));
-        BeginMotion();
-        _ = MonitorJogPositionAsync(monitor);
+        try
+        {
+            monitor.Token.ThrowIfCancellationRequested();
+            var velocityInUnits = ToUnits(velocity);
+            var acceleration = Math.Abs(velocityInUnits)
+                               * controller.Settings.AccelerationMultiplier;
+            AjinController.Check(
+                AjinNative.AxmMoveVel(
+                    axis,
+                    velocityInUnits,
+                    acceleration,
+                    acceleration),
+                nameof(AjinNative.AxmMoveVel));
+            try
+            {
+                BeginMotion();
+            }
+            catch
+            {
+                StopAxes();
+                EndMotion();
+                throw;
+            }
+        }
+        catch
+        {
+            monitor.Dispose();
+            throw;
+        }
+        _ = MonitorJogPositionAsync(axis, monitor);
     }
 
     private async Task MonitorJogPositionAsync(
-        CancellationTokenSource monitor)
+        int axis,
+        OperationCancellation.Operation monitor)
     {
-        using var cancellationRegistration =
-            monitor.Token.Register(StopAxes);
-        try
+        using (monitor)
         {
-            while (true)
+            try
             {
-                PublishPosition();
-                await Task.Delay(StatusPollInterval, monitor.Token)
-                    .ConfigureAwait(false);
+                using var cancellationRegistration =
+                    monitor.Token.Register(StopAxes);
+                try
+                {
+                    while (true)
+                    {
+                        var inMotion = 0U;
+                        AjinController.Check(
+                            AjinNative.AxmStatusReadInMotion(axis, ref inMotion),
+                            nameof(AjinNative.AxmStatusReadInMotion));
+                        PublishPosition();
+                        if (inMotion == 0)
+                        {
+                            return;
+                        }
+
+                        await Task.Delay(StatusPollInterval, monitor.Token)
+                            .ConfigureAwait(false);
+                    }
+                }
+                finally
+                {
+                    StopAxes();
+                    EndMotion();
+                    PublishPosition();
+                }
             }
-        }
-        catch (OperationCanceledException) when (monitor.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            EndMotion();
-            monitor.Dispose();
-            PublishPosition();
+            catch (OperationCanceledException) when (monitor.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                PublishFault(exception);
+            }
         }
     }
 
@@ -555,14 +601,6 @@ public sealed class AjinMotionService(
         MotionAxis.X => _axisX,
         MotionAxis.Y => _axisY!.Value,
         MotionAxis.Z => _axisZ!.Value,
-        _ => throw new ArgumentOutOfRangeException(nameof(axis)),
-    };
-
-    private int GetDirection(MotionAxis axis) => axis switch
-    {
-        MotionAxis.X => _directionX,
-        MotionAxis.Y => _directionY,
-        MotionAxis.Z => _directionZ,
         _ => throw new ArgumentOutOfRangeException(nameof(axis)),
     };
 

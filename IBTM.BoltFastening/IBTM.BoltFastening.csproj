@@ -1,11 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>disable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
   <ItemGroup>
     <ProjectReference Include="..\IBTM.BoltFeeder\IBTM.BoltFeeder.csproj" />
     <ProjectReference Include="..\IBTM.Core\IBTM.Core.csproj" />

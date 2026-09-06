@@ -11,9 +11,11 @@ public sealed class UnitSettings : Setting
     public bool ShootingBoltFeeder { get; set; } = true;
     public bool BoltFastening { get; set; } = true;
     public bool Inspection { get; set; } = true;
+    public bool NgCarrierTransfer { get; set; } = true;
+    public bool NgShuttle { get; set; } = true;
     public bool NgConveyor { get; set; } = true;
 
-    public bool HasEnabledUnit() =>
+    internal bool HasEnabledUnit() =>
         MainConveyor
         || PcbSupply
         || PcbPlacement
@@ -21,17 +23,9 @@ public sealed class UnitSettings : Setting
         || ShootingBoltFeeder
         || BoltFastening
         || Inspection
+        || NgCarrierTransfer
+        || NgShuttle
         || NgConveyor;
 
-    public UnitSettings Snapshot() => new()
-    {
-        MainConveyor = MainConveyor,
-        PcbSupply = PcbSupply,
-        PcbPlacement = PcbPlacement,
-        PickupBoltFeeder = PickupBoltFeeder,
-        ShootingBoltFeeder = ShootingBoltFeeder,
-        BoltFastening = BoltFastening,
-        Inspection = Inspection,
-        NgConveyor = NgConveyor,
-    };
+    internal UnitSettings Snapshot() => (UnitSettings)MemberwiseClone();
 }

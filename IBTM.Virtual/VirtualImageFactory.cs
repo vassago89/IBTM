@@ -15,7 +15,7 @@ internal static class VirtualImageFactory
 
     public static ImageFrame CreateInspection(
         (double X, double Y, double Z) center,
-        IReadOnlyList<AxisPosition> boltCentres)
+        IEnumerable<AxisPosition> boltCentres)
     {
         var halfWidth = (Width / 2) * InspectionMillimetersPerPixel;
         var halfHeight = (Height / 2) * InspectionMillimetersPerPixel;
@@ -46,7 +46,11 @@ internal static class VirtualImageFactory
             }
         }
 
-        return Frame(pixels);
+        return new ImageFrame(
+            Width,
+            Height,
+            Width * ImageFrame.ColorChannelCount,
+            pixels);
     }
 
     private static (byte Blue, byte Green, byte Red) InspectionColor(
@@ -127,13 +131,6 @@ internal static class VirtualImageFactory
         return (offsetX * offsetX) + (offsetY * offsetY)
             <= radius * radius;
     }
-
-    private static ImageFrame Frame(byte[] pixels) =>
-        new(
-            Width,
-            Height,
-            Width * ImageFrame.ColorChannelCount,
-            pixels);
 
     private static void SetPixel(
         byte[] pixels,

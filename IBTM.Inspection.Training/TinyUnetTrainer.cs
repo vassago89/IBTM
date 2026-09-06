@@ -58,7 +58,6 @@ internal sealed class TinyUnetTrainer(int batchSize = 8)
 
             progress.Report(new BoltTrainingProgress(
                 epoch,
-                epochs,
                 trainingLoss,
                 validationLoss));
         }
@@ -93,20 +92,20 @@ internal sealed class TinyUnetTrainer(int batchSize = 8)
                 indices,
                 offset,
                 count);
-            using var input = tensor(images, dtype: ScalarType.Float32)
+            var input = tensor(images, dtype: ScalarType.Float32)
                 .reshape(
                     count,
                     ImageFrame.ColorChannelCount,
                     IBoltRecessSegmenter.InputSize,
                     IBoltRecessSegmenter.InputSize);
-            using var target = tensor(masks, dtype: ScalarType.Float32)
+            var target = tensor(masks, dtype: ScalarType.Float32)
                 .reshape(
                     count,
                     1,
                     IBoltRecessSegmenter.InputSize,
                     IBoltRecessSegmenter.InputSize);
-            using var logits = model.call(input);
-            using var loss = binary_cross_entropy_with_logits(
+            var logits = model.call(input);
+            var loss = binary_cross_entropy_with_logits(
                 logits,
                 target,
                 pos_weights: positiveWeight);
@@ -159,6 +158,5 @@ internal sealed class TinyUnetTrainer(int batchSize = 8)
 
 internal readonly record struct BoltTrainingProgress(
     int Epoch,
-    int Epochs,
     double TrainingLoss,
     double ValidationLoss);

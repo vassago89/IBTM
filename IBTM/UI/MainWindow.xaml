@@ -17,6 +17,7 @@
         SnapsToDevicePixels="True"
         TextOptions.TextFormattingMode="Display"
         TextOptions.TextRenderingMode="ClearType"
+        FontFamily="Segoe UI Variable Text, Segoe UI"
         Background="{StaticResource AppBgBrush}">
 
     <Window.Resources>
@@ -184,7 +185,7 @@
 
                     <Button Content="ADC TEST"
                             Style="{StaticResource SidebarToolButtonStyle}"
-                            IsEnabled="{Binding ManualControlsEnabled}"
+                            IsEnabled="{Binding AdcProtocolEnabled}"
                             Click="OnOpenAdcProtocol"/>
                 </StackPanel>
 
@@ -321,7 +322,7 @@
                                                          Converter={StaticResource BoolToVis}}">
                             <TextBox Text="{Binding RecipeEditor.Name,
                                                    UpdateSourceTrigger=PropertyChanged}"
-                                     Width="120"
+                                     Width="200"
                                      Margin="0,0,6,0"/>
                             <Button Content="New"
                                     Command="{Binding RecipeEditor.NewCommand}"
@@ -548,7 +549,7 @@
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Operation.MachineDisplayState}"
                                                      Value="{x:Static ui:MachineDisplayState.Running}">
-                                            <Setter Property="Background" Value="#59431C"/>
+                                            <Setter Property="Background" Value="{StaticResource AttentionBackgroundBrush}"/>
                                             <Setter Property="BorderBrush"
                                                     Value="{StaticResource AccentAmberBrush}"/>
                                             <Setter Property="Foreground" Value="White"/>

@@ -93,20 +93,15 @@ public partial class SupplyTeachingViewModel
     }
 
     [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
-    private async Task MoveToPointAsync(CancellationToken cancellationToken)
+    private Task MoveToPointAsync(CancellationToken cancellationToken)
     {
         var point = SelectedPoint!;
-        await RunMotionAsync(async moveCancellation =>
-        {
-            if (point.MotionGroup == MotionGroup.PcbSupply)
-            {
-                await MoveSupplyPointAsync(point, moveCancellation);
-            }
-            else
-            {
-                await MovePlacementPointAsync(point, moveCancellation);
-            }
-        }, cancellationToken);
+        return RunMotionAsync(
+            moveCancellation =>
+                point.MotionGroup == MotionGroup.PcbSupply
+                    ? MoveSupplyPointAsync(point, moveCancellation)
+                    : MovePlacementPointAsync(point, moveCancellation),
+            cancellationToken);
     }
 
     private async Task MoveSupplyPointAsync(
@@ -133,12 +128,6 @@ public partial class SupplyTeachingViewModel
                     cancellationToken);
                 break;
             case TeachMode.XZOnly:
-                await _supplyHandler.MoveHorizontalAsync(
-                    point.X,
-                    point.Y,
-                    cancellationToken);
-                await MoveSupplyZAsync(point, cancellationToken);
-                break;
             case TeachMode.Full:
                 await _supplyHandler.MoveHorizontalAsync(
                     point.X,
@@ -155,7 +144,7 @@ public partial class SupplyTeachingViewModel
         TeachingPoint point,
         CancellationToken cancellationToken) =>
         point.Target == TeachingTarget.SupplyBufferHandoff
-            ? _supplyHandler.LowerToHandoffAsync(cancellationToken)
+            ? _supplyHandler.LowerToHandoffAsync(cancellationToken, point.Z!.Value)
             : _supplyHandler.MoveTeachingZAsync(
                 point.Z!.Value,
                 cancellationToken);
@@ -180,47 +169,38 @@ public partial class SupplyTeachingViewModel
             _ => true,
         };
 
-    private async Task MovePlacementPointAsync(
+    private Task MovePlacementPointAsync(
         TeachingPoint point,
-        CancellationToken cancellationToken)
-    {
-        switch (point.TeachMode)
+        CancellationToken cancellationToken) =>
+        point.TeachMode switch
         {
-            case TeachMode.XOnly:
-                await _placementHandler.MoveXAsync(point.X, cancellationToken);
-                break;
-            case TeachMode.YOnly:
-                await _placementHandler.MoveYAsync(point.Y, cancellationToken);
-                break;
-            case TeachMode.ZOnly:
-                await _placementHandler.MoveZAsync(
+            TeachMode.XOnly =>
+                _placementHandler.MoveXAsync(point.X, cancellationToken),
+            TeachMode.YOnly =>
+                _placementHandler.MoveYAsync(point.Y, cancellationToken),
+            TeachMode.ZOnly =>
+                _placementHandler.MoveZAsync(
                     point.Z!.Value,
-                    cancellationToken);
-                break;
-            case TeachMode.XYOnly:
-                await _placementHandler.MoveToXYAsync(
+                    cancellationToken),
+            TeachMode.XYOnly =>
+                _placementHandler.MoveToXYAsync(
                     point.X,
                     point.Y,
-                    cancellationToken);
-                break;
-            case TeachMode.XZOnly:
-                await _placementHandler.MoveToAsync(
+                    cancellationToken),
+            TeachMode.XZOnly =>
+                _placementHandler.MoveToAsync(
                     point.X,
                     _placementHandler.Feedback.GetPosition().Y,
                     point.Z!.Value,
-                    cancellationToken);
-                break;
-            case TeachMode.Full:
-                await _placementHandler.MoveToAsync(
+                    cancellationToken),
+            TeachMode.Full =>
+                _placementHandler.MoveToAsync(
                     point.X,
                     point.Y,
                     point.Z!.Value,
-                    cancellationToken);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
-        }
-    }
+                    cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(),
+        };
 
     private bool CanUseCurrentHandler() =>
         CanUseHandler(ActiveMotionGroup);

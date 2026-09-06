@@ -1,4 +1,9 @@
 <Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+    <BuildType Name="Virtual" />
+  </Configurations>
   <Project Path="IBTM.Ajin/IBTM.Ajin.csproj" />
   <Project Path="IBTM.AlphaMotion/IBTM.AlphaMotion.csproj" />
   <Project Path="IBTM.BoltFastening/IBTM.BoltFastening.csproj" />

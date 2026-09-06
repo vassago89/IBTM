@@ -3,9 +3,15 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>disable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Virtual'">
+    <OutputPath>bin\Virtual\</OutputPath>
+    <DefineConstants>$(DefineConstants);VIRTUAL_DEVELOPMENT</DefineConstants>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>portable</DebugType>
+    <Optimize>false</Optimize>
   </PropertyGroup>
 
   <ItemGroup>

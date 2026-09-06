@@ -25,6 +25,9 @@ public sealed class AdcBoltHead(
         await bus.ReadDeviceInformationAsync(
             slaveAddress,
             cancellationToken);
+        ThrowIfControllerError(await bus.ReadFasteningResultAsync(
+            slaveAddress,
+            cancellationToken));
     }
 
     public async Task SelectPresetAsync(
@@ -48,71 +51,65 @@ public sealed class AdcBoltHead(
     public async Task<BoltResult> TightenAsync(
         CancellationToken cancellationToken = default)
     {
-        var current = await bus.ReadFasteningResultAsync(
-            slaveAddress,
-            cancellationToken);
-        if (_fasteningEvent is { } activeEvent
-            && IsCompleted(current, activeEvent))
+        AdcFasteningResult completed;
+        try
+        {
+            var current = await bus.ReadFasteningResultAsync(
+                slaveAddress,
+                cancellationToken);
+            if (current.Status == AdcEventStatus.Error
+                || _fasteningEvent is { } activeEvent
+                && IsCompleted(current, activeEvent))
+            {
+                completed = current;
+            }
+            else
+            {
+                var previousEvent = _fasteningEvent ?? current.EventCount;
+                _fasteningEvent = previousEvent;
+                await bus.SetDirectionAsync(
+                    slaveAddress,
+                    AdcDirection.Fastening,
+                    cancellationToken);
+
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken);
+                timeout.CancelAfter(connection.FasteningTimeoutMilliseconds);
+                try
+                {
+                    await bus.StartAsync(slaveAddress, timeout.Token);
+                    while (true)
+                    {
+                        var result = await bus.ReadFasteningResultAsync(
+                            slaveAddress,
+                            timeout.Token);
+                        if (IsCompleted(result, previousEvent))
+                        {
+                            completed = result;
+                            break;
+                        }
+
+                        await Task.Delay(
+                            ResultPollMilliseconds,
+                            timeout.Token);
+                    }
+                }
+                catch (OperationCanceledException)
+                    when (!cancellationToken.IsCancellationRequested)
+                {
+                    throw new TimeoutException(
+                        $"ADC fastening timed out after "
+                        + $"{connection.FasteningTimeoutMilliseconds} ms.");
+                }
+            }
+        }
+        finally
         {
             await bus.StopAsync(
                 slaveAddress,
                 CancellationToken.None);
-            return Complete(current);
         }
 
-        var previousEvent = _fasteningEvent ?? current.EventCount;
-        _fasteningEvent = previousEvent;
-        await bus.SetDirectionAsync(
-            slaveAddress,
-            AdcDirection.Fastening,
-            cancellationToken);
-
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken);
-        timeout.CancelAfter(connection.FasteningTimeoutMilliseconds);
-
-        AdcFasteningResult completed;
-        try
-        {
-            try
-            {
-                await bus.StartAsync(slaveAddress, timeout.Token);
-                while (true)
-                {
-                    var result = await bus.ReadFasteningResultAsync(
-                        slaveAddress,
-                        timeout.Token);
-                    if (IsCompleted(result, previousEvent))
-                    {
-                        completed = result;
-                        break;
-                    }
-
-                    await Task.Delay(
-                        ResultPollMilliseconds,
-                        timeout.Token);
-                }
-            }
-            catch (OperationCanceledException)
-                when (!cancellationToken.IsCancellationRequested)
-            {
-                throw new TimeoutException(
-                    $"ADC fastening timed out after "
-                    + $"{connection.FasteningTimeoutMilliseconds} ms.");
-            }
-        }
-        catch
-        {
-            await bus.StopAsync(
-                slaveAddress,
-                CancellationToken.None)
-                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-            throw;
-        }
-
-        await bus.StopAsync(
-            slaveAddress,
-            CancellationToken.None);
         return Complete(completed);
     }
 
@@ -121,6 +118,7 @@ public sealed class AdcBoltHead(
     private BoltResult Complete(AdcFasteningResult result)
     {
         _fasteningEvent = null;
+        ThrowIfControllerError(result);
         return new BoltResult(
             result.Status == AdcEventStatus.FasteningOk,
             result.Torque);
@@ -129,8 +127,17 @@ public sealed class AdcBoltHead(
     private static bool IsCompleted(
         AdcFasteningResult result,
         ushort previousEvent) =>
-        result.EventCount != previousEvent
+        result.Status == AdcEventStatus.Error
+        || result.EventCount != previousEvent
         && result.Status is AdcEventStatus.FasteningOk
-            or AdcEventStatus.FasteningNg
-            or AdcEventStatus.Error;
+            or AdcEventStatus.FasteningNg;
+
+    private void ThrowIfControllerError(AdcFasteningResult result)
+    {
+        if (result.Status == AdcEventStatus.Error)
+        {
+            throw new InvalidOperationException(
+                $"ADC {slaveAddress} controller error: {result.Error}.");
+        }
+    }
 }

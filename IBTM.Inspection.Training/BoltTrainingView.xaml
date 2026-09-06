@@ -58,6 +58,8 @@
                         <StackPanel HorizontalAlignment="Right">
                             <TextBlock Text="{Binding LabelImageName}"
                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                       MaxWidth="260"
+                                       TextTrimming="CharacterEllipsis"
                                        HorizontalAlignment="Right"/>
                             <TextBlock HorizontalAlignment="Right"
                                        Foreground="{StaticResource TextMutedBrush}">
@@ -69,7 +71,7 @@
                     </Grid>
 
                     <Border Grid.Row="1"
-                            Background="#05070A"
+                            Background="{StaticResource ImageBackgroundBrush}"
                             BorderBrush="{StaticResource CardBorderBrush}"
                             BorderThickness="1"
                             CornerRadius="2"
@@ -88,10 +90,16 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <Button Content="Capture Taught Points"
-                                Command="{Binding CaptureBoltPointsCommand}"
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                MinWidth="156"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Capture Taught Points"
+                                    Command="{Binding CaptureBoltPointsCommand}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    MinWidth="156"
+                                    Margin="0,0,8,0"/>
+                            <Button Content="Add Images"
+                                    Command="{Binding AddImagesCommand}"
+                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                        </StackPanel>
 
                         <StackPanel Grid.Column="1" Margin="18,0,18,0">
                             <TextBlock Text="BRUSH SIZE"
@@ -147,7 +155,7 @@
                         <TextBlock Text="Dataset Folder"
                                    Foreground="{StaticResource TextMutedBrush}"
                                    Margin="0,0,0,5"/>
-                        <Grid IsEnabled="{Binding ConfigurationEnabled}">
+                        <Grid IsEnabled="{Binding DatasetEditingEnabled}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
@@ -280,7 +288,7 @@
 
                             <Border Width="200"
                                     Height="200"
-                                    Background="#05070A"
+                                    Background="{StaticResource ImageBackgroundBrush}"
                                     BorderBrush="{StaticResource CardBorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="2">

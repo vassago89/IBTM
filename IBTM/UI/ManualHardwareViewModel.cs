@@ -148,7 +148,7 @@ public partial class ManualHardwareViewModel : ObservableObject
 {
     private readonly PcbSupplyHandler _supply;
     private readonly PcbPlacementHandler _placement;
-    private readonly BoltFasteningStation _fastening;
+    private readonly BoltFasteningGantry _fastening;
     private readonly InspectionGantry _inspection;
     private readonly MainConveyor _conveyor;
     private readonly MachineState _state;
@@ -168,7 +168,7 @@ public partial class ManualHardwareViewModel : ObservableObject
     public ManualHardwareViewModel(
         PcbSupplyHandler supply,
         PcbPlacementHandler placement,
-        BoltFasteningStation fastening,
+        BoltFasteningGantry fastening,
         InspectionGantry inspection,
         MainConveyor conveyor,
         MachineState state,
@@ -247,16 +247,41 @@ public partial class ManualHardwareViewModel : ObservableObject
         CancellationToken cancellationToken)
     {
         IsHoming = true;
+        void StopWhenHomeUnavailable()
+        {
+            if (!_state.ManualMode || !_state.SafetyReady || !_state.DoorInterlockReady
+                || _state.IsError || !HomeHardwareReady(row))
+            {
+                HomeAxisCommand.Cancel();
+            }
+        }
+
+        _state.Changed += StopWhenHomeUnavailable;
         try
         {
-            await HomeOwnerAxisAsync(row, cancellationToken);
+            _state.SetHoming(true);
+            if (!await HomeOwnerAxisAsync(row, cancellationToken)
+                && !cancellationToken.IsCancellationRequested)
+            {
+                _state.SetError(MachineAlarm.HomeFailed);
+            }
         }
         catch (OperationCanceledException)
         {
         }
+        catch (Exception exception)
+            when (exception is IoTimeoutException or MotionException)
+        {
+            if (!cancellationToken.IsCancellationRequested)
+            {
+                _state.SetError(MachineAlarm.HomeFailed);
+            }
+        }
         finally
         {
+            _state.Changed -= StopWhenHomeUnavailable;
             IsHoming = false;
+            _state.SetHoming(false);
             RefreshRows();
             _state.Refresh();
         }
@@ -270,8 +295,25 @@ public partial class ManualHardwareViewModel : ObservableObject
         && !IsHoming
         && !_state.IsRunning
         && BufferAllowsHome(row.Signal)
-        && row.Feedback.IsReady
-        && row.ServoOn;
+        && (row.Group != MotionGroup.InspectionGantry || _inspection.CanHome)
+        && HomeHardwareReady(row);
+
+    private bool HomeHardwareReady(ManualAxisRow row)
+    {
+        if (!row.Feedback.IsReady || !_state.ServoMainContactorOn)
+        {
+            return false;
+        }
+
+        foreach (var axis in row.Feedback.Axes)
+        {
+            if (axis != row.Axis && axis != MotionAxis.Z) continue;
+            var state = row.Feedback.GetAxisState(axis);
+            if (!state.ServoOn || state.Alarm || state.Emergency) return false;
+        }
+
+        return true;
+    }
 
     private bool BufferAllowsHome(MachineAxis axis) =>
         axis is not MachineAxis.PcbPlacementHandlerX
@@ -297,6 +339,9 @@ public partial class ManualHardwareViewModel : ObservableObject
         StopHome();
         _conveyor.Stop();
     }
+
+    public Task ShutdownAsync() =>
+        CommandShutdown.StopAsync(Deactivate, HomeAxisCommand);
 
     private void OnPositionChanged(
         MotionGroup group,

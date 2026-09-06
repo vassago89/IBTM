@@ -61,30 +61,16 @@ internal static class BoltTrainingFiles
         Save(maskImage, Path.Combine(maskDirectory, name));
     }
 
-    public static ImageFrame ToFrame(BitmapSource source)
-    {
-        var image = new FormatConvertedBitmap(
-            source,
-            PixelFormats.Bgr24,
-            null,
-            0);
-        var stride = image.PixelWidth * ImageFrame.ColorChannelCount;
-        var pixels = new byte[stride * image.PixelHeight];
-        image.CopyPixels(pixels, stride, 0);
-        return new ImageFrame(
-            image.PixelWidth,
-            image.PixelHeight,
-            stride,
-            pixels);
-    }
-
     public static BitmapSource CreateOverlay(
         BitmapSource source,
         IReadOnlyList<float> mask,
         float threshold)
     {
-        var image = ToFrame(source);
-        var pixels = (byte[])image.Pixels.Clone();
+        var image = BitmapFiles.ToFrame(source);
+        var pixels = image.Pixels;
+        var size = IBoltRecessSegmenter.InputSize;
+        var left = (image.Width - size) / 2;
+        var top = (image.Height - size) / 2;
         for (var index = 0; index < mask.Count; index++)
         {
             if (mask[index] < threshold)
@@ -92,7 +78,8 @@ internal static class BoltTrainingFiles
                 continue;
             }
 
-            var pixel = index * ImageFrame.ColorChannelCount;
+            var pixel = (top + index / size) * image.Stride
+                        + (left + index % size) * ImageFrame.ColorChannelCount;
             pixels[pixel + ImageFrame.BlueChannel] = (byte)(
                 (pixels[pixel + ImageFrame.BlueChannel] * 2 + 40) / 3);
             pixels[pixel + ImageFrame.GreenChannel] = (byte)(
@@ -120,17 +107,6 @@ internal static class BoltTrainingFiles
             .Select(name => int.TryParse(name, out var number) ? number : 0)
             .DefaultIfEmpty()
             .Max() + 1;
-
-    public static BitmapSource Load(string path)
-    {
-        using var stream = File.OpenRead(path);
-        var image = BitmapDecoder.Create(
-            stream,
-            BitmapCreateOptions.PreservePixelFormat,
-            BitmapCacheOption.OnLoad).Frames[0];
-        image.Freeze();
-        return image;
-    }
 
     private static void Save(BitmapSource image, string path)
     {

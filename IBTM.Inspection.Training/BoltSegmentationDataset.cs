@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using IBTM.Core;
 
 namespace IBTM.Inspection.Training;
@@ -22,7 +20,6 @@ internal sealed class BoltSegmentationDataset
 
     public BoltSegmentationDataset(
         string directory,
-        int size,
         CancellationToken cancellationToken = default)
     {
         var imageDirectory = Path.Combine(
@@ -38,8 +35,7 @@ internal sealed class BoltSegmentationDataset
             cancellationToken.ThrowIfCancellationRequested();
             samples.Add(Load(
                 path,
-                Path.Combine(maskDirectory, Path.GetFileName(path)),
-                size));
+                Path.Combine(maskDirectory, Path.GetFileName(path))));
         }
 
         if (samples.Count < MinimumSampleCount)
@@ -80,42 +76,24 @@ internal sealed class BoltSegmentationDataset
 
     private static BoltSample Load(
         string imagePath,
-        string maskPath,
-        int size)
+        string maskPath)
     {
-        var (imagePixels, imageWidth, imageHeight, imageStride) =
-            LoadPixels(imagePath);
-        var (maskPixels, maskWidth, maskHeight, maskStride) =
-            LoadPixels(maskPath);
-        var input = new float[ImageFrame.ColorChannelCount * size * size];
+        var image = BitmapFiles.LoadFrame(imagePath);
+        var maskImage = BitmapFiles.LoadFrame(maskPath);
+        var input = TorchBoltRecessSegmenter.CreateInput(image);
+        var size = IBoltRecessSegmenter.InputSize;
         var mask = new float[size * size];
-        var plane = size * size;
-        var imageLeft = (imageWidth - size) / 2;
-        var imageTop = (imageHeight - size) / 2;
-        var maskLeft = (maskWidth - size) / 2;
-        var maskTop = (maskHeight - size) / 2;
+        var maskLeft = (maskImage.Width - size) / 2;
+        var maskTop = (maskImage.Height - size) / 2;
 
         for (var y = 0; y < size; y++)
         {
             for (var x = 0; x < size; x++)
             {
-                var imageSource = ((imageTop + y) * imageStride)
-                                  + ((imageLeft + x)
-                                     * ImageFrame.ColorChannelCount);
-                var maskSource = ((maskTop + y) * maskStride)
-                                 + ((maskLeft + x)
-                                    * ImageFrame.ColorChannelCount);
+                var maskSource = ((maskTop + y) * maskImage.Stride)
+                                 + ((maskLeft + x) * ImageFrame.ColorChannelCount);
                 var target = (y * size) + x;
-                input[target] =
-                    imagePixels[imageSource + ImageFrame.RedChannel]
-                    / (float)byte.MaxValue;
-                input[plane + target] =
-                    imagePixels[imageSource + ImageFrame.GreenChannel]
-                    / (float)byte.MaxValue;
-                input[(2 * plane) + target] =
-                    imagePixels[imageSource + ImageFrame.BlueChannel]
-                    / (float)byte.MaxValue;
-                mask[target] = maskPixels[maskSource] >= MaskThreshold
+                mask[target] = maskImage.Pixels[maskSource] >= MaskThreshold
                     ? 1f
                     : 0f;
             }
@@ -131,25 +109,6 @@ internal sealed class BoltSegmentationDataset
     private static IEnumerable<BoltSample> TrainingSamples(
         IReadOnlyList<BoltSample> samples) =>
         samples.Where((_, index) => index % ValidationInterval != 0);
-
-    private static (byte[] Pixels, int Width, int Height, int Stride)
-        LoadPixels(string path)
-    {
-        using var stream = File.OpenRead(path);
-        var frame = BitmapDecoder.Create(
-            stream,
-            BitmapCreateOptions.PreservePixelFormat,
-            BitmapCacheOption.OnLoad).Frames[0];
-        var image = new FormatConvertedBitmap(
-            frame,
-            PixelFormats.Bgr24,
-            null,
-            0);
-        var stride = image.PixelWidth * ImageFrame.ColorChannelCount;
-        var pixels = new byte[stride * image.PixelHeight];
-        image.CopyPixels(pixels, stride, 0);
-        return (pixels, image.PixelWidth, image.PixelHeight, stride);
-    }
 }
 
 internal sealed record BoltSample(

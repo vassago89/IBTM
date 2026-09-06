@@ -30,14 +30,25 @@ public interface IIoService
             TimeoutMilliseconds,
             cancellationToken);
 
-    async Task WaitForInputAsync(
+    Task WaitForInputAsync(
         InputIo input,
         bool value,
         int timeoutMilliseconds,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        WaitForInputsAsync(input, value, null, timeoutMilliseconds, cancellationToken);
+
+    private async Task WaitForInputsAsync(
+        InputIo input,
+        bool value,
+        InputIo? offInput,
+        int timeoutMilliseconds,
+        CancellationToken cancellationToken)
     {
+        bool Matches() => GetInput(input) == value
+            && (offInput is null || !GetInput(offInput.Value));
+
         cancellationToken.ThrowIfCancellationRequested();
-        if (GetInput(input) == value)
+        if (Matches())
         {
             return;
         }
@@ -50,7 +61,9 @@ public interface IIoService
 
         void OnInputChanged(InputIo changedInput, bool changedValue)
         {
-            if (changedInput == input && changedValue == value)
+            if (offInput is null
+                ? changedInput == input && changedValue == value
+                : (changedInput == input || changedInput == offInput) && Matches())
             {
                 completion.TrySetResult();
             }
@@ -61,16 +74,22 @@ public interface IIoService
             () => completion.TrySetCanceled(timeout.Token));
         try
         {
-            if (GetInput(input) == value)
+            if (Matches())
             {
                 completion.TrySetResult();
             }
 
             await completion.Task;
+            cancellationToken.ThrowIfCancellationRequested();
         }
         catch (OperationCanceledException)
             when (!cancellationToken.IsCancellationRequested)
         {
+            if (offInput is { } opposite && GetInput(input) == value)
+            {
+                throw new IoTimeoutException(opposite, false, timeoutMilliseconds);
+            }
+
             throw new IoTimeoutException(
                 input,
                 value,
@@ -81,6 +100,7 @@ public interface IIoService
             InputChanged -= OnInputChanged;
         }
     }
+
     void SetOutput(OutputIo output, bool value);
 
     async Task SetOutputAndWaitAsync(
@@ -102,7 +122,9 @@ public interface IIoService
             ?? throw new InvalidOperationException(
                 $"{output.GetDescription()} has no feedback mapping.");
         var expected = value ? feedback.OnInput : feedback.OffInput;
-        await WaitForInputAsync(expected, true, cancellationToken);
+        var opposite = value ? feedback.OffInput : feedback.OnInput;
+        await WaitForInputsAsync(
+            expected, true, opposite, TimeoutMilliseconds, cancellationToken);
     }
 }
 

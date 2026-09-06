@@ -20,7 +20,6 @@ public sealed class OutputHardware
 public sealed class AxisHardware
 {
     public int Number { get; set; }
-    public AxisDirection Direction { get; set; } = AxisDirection.Positive;
     public double Minimum { get; set; }
     public double Maximum { get; set; }
 }

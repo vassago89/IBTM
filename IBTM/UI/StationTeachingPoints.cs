@@ -1,30 +1,50 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
-using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
-using IBTM.PcbSupply;
+using static IBTM.UI.TeachingPoint;
 
 namespace IBTM.UI;
 
-public sealed class TeachingPointMapper(
-    PcbBufferSettings bufferSettings,
-    PcbSupplySettings supplySettings,
+public sealed class StationTeachingPoints(
     PcbPlacementHandlerSettings placementSettings,
     BoltFasteningSettings fasteningSettings,
     InspectionGantrySettings inspectionSettings,
     CarrierReferenceSettings carrierReference,
-    NgConveyorSettings ngConveyorSettings)
+    NgCarrierTransferSettings ngCarrierTransferSettings)
 {
     public bool CarrierReferenceReady =>
         CarrierCoordinates.IsDefined(
             carrierReference.UpperLeftLocatingPin,
             carrierReference.LowerRightLocatingPin);
+
+    public Task SaveAsync(TeachingPoint point)
+    {
+        Setting settings = point.Target switch
+        {
+            TeachingTarget.PlacementBufferEntryZ => placementSettings,
+            TeachingTarget.ShootingHeadUpperLeftLocatingPin
+                or TeachingTarget.ShootingHeadLowerRightLocatingPin
+                or TeachingTarget.PickupHeadUpperLeftLocatingPin
+                or TeachingTarget.PickupHeadLowerRightLocatingPin
+                or TeachingTarget.BoltPickup
+                or TeachingTarget.BoltFasteningSafeZ => fasteningSettings,
+            TeachingTarget.CarrierScanUpperLeft
+                or TeachingTarget.CarrierScanLowerRight => inspectionSettings,
+            TeachingTarget.CarrierUpperLeftLocatingPin
+                or TeachingTarget.CarrierLowerRightLocatingPin => carrierReference,
+            TeachingTarget.NgCarrierPickup
+                or TeachingTarget.NgShuttlePlace => ngCarrierTransferSettings,
+            _ => throw new ArgumentOutOfRangeException(nameof(point), point.Target, null),
+        };
+        return settings.SaveAsync();
+    }
 
     public bool HasImagePosition(Recipe recipe, TeachingPoint point) =>
         point.Target switch
@@ -55,92 +75,14 @@ public sealed class TeachingPointMapper(
             _ => true,
         };
 
-    public List<TeachingPoint> BuildSupply(Recipe recipe) =>
-        [
-            Create(
-                TeachingTarget.SupplyRotationZ,
-                MotionGroup.PcbSupply,
-                Z(supplySettings.RotationZ),
-                TeachMode.ZOnly,
-                TeachingStorage.Machine),
-            Create(
-                TeachingTarget.SupplyCarrierY,
-                MotionGroup.PcbSupply,
-                new AxisPosition { Y = supplySettings.CarrierY },
-                TeachMode.YOnly,
-                TeachingStorage.Machine),
-            Create(
-                TeachingTarget.SupplyPcb1Pick,
-                MotionGroup.PcbSupply,
-                new AxisPosition
-                {
-                    X = recipe.PcbSupply.Pcb1PickPosition.X,
-                    Y = supplySettings.CarrierY,
-                    Z = recipe.PcbSupply.Pcb1PickPosition.Z,
-                },
-                TeachMode.XZOnly),
-            Create(
-                TeachingTarget.SupplyPcb2Pick,
-                MotionGroup.PcbSupply,
-                new AxisPosition
-                {
-                    X = recipe.PcbSupply.Pcb2PickPosition.X,
-                    Y = supplySettings.CarrierY,
-                    Z = recipe.PcbSupply.Pcb2PickPosition.Z,
-                },
-                TeachMode.XZOnly),
-            Create(
-                TeachingTarget.SupplyBufferHandoff,
-                MotionGroup.PcbSupply,
-                supplySettings.BufferHandoffPosition,
-                TeachMode.Full,
-                TeachingStorage.Machine),
-            Create(
-                TeachingTarget.SupplyBufferClearZ,
-                MotionGroup.PcbSupply,
-                new AxisPosition { Z = supplySettings.BufferClearZ },
-                TeachMode.ZOnly,
-                TeachingStorage.Machine),
-            Create(
-                TeachingTarget.PlacementBufferHandoff,
-                MotionGroup.PcbPlacementHandler,
-                placementSettings.BufferHandoffPosition,
-                TeachMode.Full,
-                TeachingStorage.Machine),
-            Create(
-                TeachingTarget.SupplyBufferBoundary1,
-                MotionGroup.PcbSupply,
-                new AxisPosition { X = bufferSettings.SupplyBoundary1 },
-                TeachMode.XOnly,
-                TeachingStorage.Machine),
-            Create(
-                TeachingTarget.SupplyBufferBoundary2,
-                MotionGroup.PcbSupply,
-                new AxisPosition { X = bufferSettings.SupplyBoundary2 },
-                TeachMode.XOnly,
-                TeachingStorage.Machine),
-            Create(
-                TeachingTarget.PlacementBufferBoundary1,
-                MotionGroup.PcbPlacementHandler,
-                bufferSettings.PlacementBoundary1,
-                TeachMode.XYOnly,
-                TeachingStorage.Machine),
-            Create(
-                TeachingTarget.PlacementBufferBoundary2,
-                MotionGroup.PcbPlacementHandler,
-                bufferSettings.PlacementBoundary2,
-                TeachMode.XYOnly,
-                TeachingStorage.Machine),
-        ];
-
-    public List<TeachingPoint> BuildStations(Recipe recipe)
+    public List<TeachingPoint> Build(Recipe recipe)
     {
         List<TeachingPoint> points =
         [
             Create(
                 TeachingTarget.PlacementBufferEntryZ,
                 MotionGroup.PcbPlacementHandler,
-                Z(placementSettings.BufferEntryZ),
+                new AxisPosition { Z = placementSettings.BufferEntryZ },
                 TeachMode.ZOnly,
                 TeachingStorage.Machine),
             Create(
@@ -190,7 +132,7 @@ public sealed class TeachingPointMapper(
             Create(
                 TeachingTarget.BoltFasteningSafeZ,
                 MotionGroup.BoltFastening,
-                Z(fasteningSettings.SafeZ),
+                new AxisPosition { Z = fasteningSettings.SafeZ },
                 TeachMode.ZOnly,
                 TeachingStorage.Machine),
             Create(
@@ -220,13 +162,13 @@ public sealed class TeachingPointMapper(
             Create(
                 TeachingTarget.NgCarrierPickup,
                 MotionGroup.InspectionGantry,
-                ngConveyorSettings.CarrierPickupPosition,
+                ngCarrierTransferSettings.CarrierPickupPosition,
                 TeachMode.XYOnly,
                 TeachingStorage.Machine),
             Create(
                 TeachingTarget.NgShuttlePlace,
                 MotionGroup.InspectionGantry,
-                ngConveyorSettings.ShuttlePlacePosition,
+                ngCarrierTransferSettings.ShuttlePlacePosition,
                 TeachMode.XYOnly,
                 TeachingStorage.Machine),
         ];
@@ -263,51 +205,6 @@ public sealed class TeachingPointMapper(
 
         switch (point.Target)
         {
-            case TeachingTarget.SupplyRotationZ:
-                supplySettings.RotationZ = point.Z!.Value;
-                break;
-            case TeachingTarget.SupplyCarrierY:
-                supplySettings.CarrierY = point.Y;
-                foreach (var pickPoint in points.Where(candidate =>
-                             candidate.Target is TeachingTarget.SupplyPcb1Pick
-                                 or TeachingTarget.SupplyPcb2Pick))
-                {
-                    pickPoint.Y = point.Y;
-                }
-                break;
-            case TeachingTarget.SupplyPcb1Pick:
-                recipe.PcbSupply.Pcb1PickPosition.X = point.X;
-                recipe.PcbSupply.Pcb1PickPosition.Z = point.Z!.Value;
-                break;
-            case TeachingTarget.SupplyPcb2Pick:
-                recipe.PcbSupply.Pcb2PickPosition.X = point.X;
-                recipe.PcbSupply.Pcb2PickPosition.Z = point.Z!.Value;
-                break;
-            case TeachingTarget.SupplyBufferHandoff:
-                supplySettings.BufferHandoffPosition.X = point.X;
-                supplySettings.BufferHandoffPosition.Y = point.Y;
-                supplySettings.BufferHandoffPosition.Z = point.Z!.Value;
-                break;
-            case TeachingTarget.SupplyBufferClearZ:
-                supplySettings.BufferClearZ = point.Z!.Value;
-                break;
-            case TeachingTarget.PlacementBufferHandoff:
-                placementSettings.BufferHandoffPosition.X = point.X;
-                placementSettings.BufferHandoffPosition.Y = point.Y;
-                placementSettings.BufferHandoffPosition.Z = point.Z!.Value;
-                break;
-            case TeachingTarget.SupplyBufferBoundary1:
-                bufferSettings.SupplyBoundary1 = point.X;
-                break;
-            case TeachingTarget.SupplyBufferBoundary2:
-                bufferSettings.SupplyBoundary2 = point.X;
-                break;
-            case TeachingTarget.PlacementBufferBoundary1:
-                bufferSettings.PlacementBoundary1 = position;
-                break;
-            case TeachingTarget.PlacementBufferBoundary2:
-                bufferSettings.PlacementBoundary2 = position;
-                break;
             case TeachingTarget.PlacementBufferEntryZ:
                 placementSettings.BufferEntryZ = point.Z!.Value;
                 break;
@@ -351,10 +248,10 @@ public sealed class TeachingPointMapper(
                 inspectionSettings.CarrierScanLowerRight = position;
                 break;
             case TeachingTarget.NgCarrierPickup:
-                ngConveyorSettings.CarrierPickupPosition = position;
+                ngCarrierTransferSettings.CarrierPickupPosition = position;
                 break;
             case TeachingTarget.NgShuttlePlace:
-                ngConveyorSettings.ShuttlePlacePosition = position;
+                ngCarrierTransferSettings.ShuttlePlacePosition = position;
                 break;
             default:
                 throw new ArgumentOutOfRangeException(
@@ -459,22 +356,6 @@ public sealed class TeachingPointMapper(
             && bolt is { X: not null, Y: not null, Z: not null };
     }
 
-    private static TeachingPoint Create(
-        TeachingTarget target,
-        MotionGroup motionGroup,
-        AxisPosition position,
-        TeachMode mode,
-        TeachingStorage storage = TeachingStorage.Recipe) => new()
-        {
-            Target = target,
-            MotionGroup = motionGroup,
-            TeachMode = mode,
-            Storage = storage,
-            X = position.X,
-            Y = position.Y,
-            Z = position.Z,
-        };
-
     private static TeachingPoint CreateBolt(
         TeachingTarget target,
         MotionGroup motionGroup,
@@ -505,8 +386,4 @@ public sealed class TeachingPointMapper(
             point.Target == target
             && point.BoltNumber == boltNumber);
 
-    private static AxisPosition Z(double value) => new()
-    {
-        Z = value,
-    };
 }

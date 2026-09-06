@@ -87,7 +87,7 @@ public sealed class PcbSupplyHandler
     public void SetServo(MotionAxis axis, bool on) =>
         _motion.SetServo(axis, on);
 
-    public bool AtHandoffXY
+    internal bool AtHandoffXY
     {
         get
         {
@@ -102,18 +102,22 @@ public sealed class PcbSupplyHandler
         }
     }
 
+    internal bool InHandoffZRange
+    {
+        get
+        {
+            var z = _motion.GetPosition().Z;
+            return z > _settings.RotationZ
+                       + MotionService.PositionToleranceMillimeters
+                && z <= _settings.BufferHandoffPosition.Z
+                        + MotionService.PositionToleranceMillimeters;
+        }
+    }
+
     public void SetUpstreamReady(bool ready) =>
         _io.SetOutput(OutputIo.PcbSupplyReadyToFront1, ready);
 
-    public Task WaitForUpstreamCarrierAsync(
-        bool available,
-        CancellationToken cancellationToken = default) =>
-        _io.WaitForInputAsync(
-            InputIo.PcbSupplyAvailableFromFront1,
-            available,
-            cancellationToken);
-
-    public async Task MoveAboveHandoffAsync(
+    internal async Task MoveAboveHandoffAsync(
         CancellationToken cancellationToken)
     {
         await _motion.MoveToHorizontalZAsync(cancellationToken);
@@ -124,16 +128,17 @@ public sealed class PcbSupplyHandler
     }
 
     public Task LowerToHandoffAsync(
-        CancellationToken cancellationToken) =>
+        CancellationToken cancellationToken,
+        double? z = null) =>
         Rotation != PcbSupplyRotationState.Rotated
             ? throw new InvalidOperationException(
                 "Supply must be rotated before lowering into the buffer.")
             : _motion.MoveZAsync(
-                _settings.BufferHandoffPosition.Z,
+                z ?? _settings.BufferHandoffPosition.Z,
                 _settings.Motion.ZSpeed,
                 cancellationToken);
 
-    public async Task PickAsync(
+    internal async Task PickAsync(
         PcbPickPosition position,
         CancellationToken cancellationToken = default)
     {
@@ -145,16 +150,13 @@ public sealed class PcbSupplyHandler
             position.Z,
             _settings.Motion.ZSpeed,
             cancellationToken);
-        if (Pcb != PcbSupplyPcbState.None)
+        if (Pcb == PcbSupplyPcbState.None)
         {
-            await SecurePcbAsync(cancellationToken);
-            return;
+            await _motion.MoveToHorizontalZAsync(cancellationToken);
         }
-
-        await _motion.MoveToHorizontalZAsync(cancellationToken);
     }
 
-    public async Task SecurePcbAsync(
+    internal async Task SecurePcbAsync(
         CancellationToken cancellationToken = default)
     {
         await SetNestAsync(true, cancellationToken);
@@ -170,6 +172,13 @@ public sealed class PcbSupplyHandler
         if (InsideBuffer)
         {
             await MoveXAsync(x, cancellationToken);
+            if (_motion.GetAxisState(MotionAxis.Y).InPosition
+                && Math.Abs(_motion.GetPosition().Y - y)
+                    <= MotionService.PositionToleranceMillimeters)
+            {
+                return;
+            }
+
             await MoveYAsync(y, cancellationToken);
         }
         else
@@ -179,7 +188,7 @@ public sealed class PcbSupplyHandler
         }
     }
 
-    public async Task MoveClearAsync(
+    internal async Task MoveClearAsync(
         CancellationToken cancellationToken = default)
     {
         await _motion.MoveZAsync(
@@ -201,7 +210,7 @@ public sealed class PcbSupplyHandler
             forward,
             cancellationToken);
 
-    public Task SetNestAsync(
+    internal Task SetNestAsync(
         bool forward,
         CancellationToken cancellationToken = default) =>
         _io.SetOutputAndWaitAsync(
@@ -326,6 +335,12 @@ public sealed class PcbSupplyHandler
         bool rotated,
         CancellationToken cancellationToken = default)
     {
+        if (InsideBuffer)
+        {
+            throw new InvalidOperationException(
+                "Supply cannot rotate inside the buffer.");
+        }
+
         await _motion.MoveToHorizontalZAsync(cancellationToken);
         await _io.SetOutputAndWaitAsync(
             OutputIo.PcbSupplyRotate,

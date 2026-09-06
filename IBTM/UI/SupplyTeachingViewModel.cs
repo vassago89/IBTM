@@ -20,7 +20,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
     private readonly PcbBufferSettings _bufferSettings;
     private readonly PcbSupplySettings _supplySettings;
     private readonly PcbPlacementHandlerSettings _placementSettings;
-    private readonly TeachingPointMapper _pointMapper;
+    private readonly SupplyTeachingPoints _teachingPoints;
     private readonly bool _supplyEnabled;
     private readonly bool _placementEnabled;
     [ObservableProperty]
@@ -40,8 +40,9 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         PcbSupplySettings supplySettings,
         PcbPlacementHandlerSettings placementSettings,
         RecipeEditor recipeEditor,
-        TeachingPointMapper pointMapper,
-        UnitSettings units)
+        SupplyTeachingPoints teachingPoints,
+        UnitSettings units,
+        OperationCancellation operations) : base(operations)
     {
         _supplyHandler = supplyHandler;
         _placementHandler = placementHandler;
@@ -50,7 +51,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         _bufferSettings = bufferSettings;
         _supplySettings = supplySettings;
         _placementSettings = placementSettings;
-        _pointMapper = pointMapper;
+        _teachingPoints = teachingPoints;
         _supplyEnabled = units.PcbSupply;
         _placementEnabled = units.PcbPlacement;
         RecipeEditor = recipeEditor;
@@ -68,6 +69,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         supplyHandler.Changed += OnHandlerChanged;
         placementHandler.Changed += OnHandlerChanged;
         buffer.StateChanged += QueueManualCommandRefresh;
+        state.Changed += QueueManualCommandRefresh;
         recipeEditor.Changed += BuildPoints;
 
         BuildPoints();
@@ -90,7 +92,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
             return;
         }
 
-        _pointMapper.Apply(CurrentRecipe, Points, point);
+        _teachingPoints.Apply(CurrentRecipe.PcbSupply, Points, point);
         if (point.Storage == TeachingStorage.Machine)
         {
             await SaveMachinePositionsAsync();
@@ -100,14 +102,15 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         NotifyManualTeachingCommands();
     }
 
-    private bool CanTeachCurrentPosition() => CanUseCurrentHandler();
+    private bool CanTeachCurrentPosition() =>
+        SelectedPoint is not null && CanUseCurrentHandler();
 
     [RelayCommand]
     private async Task SaveBufferSetupAsync()
     {
         foreach (var point in Points.Where(IsBuffer))
         {
-            _pointMapper.Apply(CurrentRecipe, Points, point);
+            _teachingPoints.Apply(CurrentRecipe.PcbSupply, Points, point);
         }
 
         await SaveMachinePositionsAsync();
@@ -136,9 +139,18 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         CancelMotion();
     }
 
+    public Task ShutdownAsync() =>
+        CommandShutdown.StopAsync(
+            Deactivate,
+            MoveToHorizontalZCommand,
+            MoveToPointCommand,
+            ToggleActuatorCommand,
+            TeachCurrentPositionCommand,
+            SaveBufferSetupCommand);
+
     private void BuildPoints()
     {
-        Points = _pointMapper.BuildSupply(CurrentRecipe)
+        Points = _teachingPoints.Build(CurrentRecipe.PcbSupply)
             .Where(point => point.MotionGroup switch
             {
                 MotionGroup.PcbSupply => _supplyEnabled,

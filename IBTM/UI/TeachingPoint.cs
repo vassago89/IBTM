@@ -1,4 +1,3 @@
-using System;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.BoltFastening;
@@ -129,6 +128,22 @@ public enum TeachingTarget
 
 public partial class TeachingPoint : ObservableObject
 {
+    public static TeachingPoint Create(
+        TeachingTarget target,
+        MotionGroup motionGroup,
+        AxisPosition position,
+        TeachMode mode,
+        TeachingStorage storage = TeachingStorage.Recipe) => new()
+        {
+            Target = target,
+            MotionGroup = motionGroup,
+            TeachMode = mode,
+            Storage = storage,
+            X = position.X,
+            Y = position.Y,
+            Z = position.Z,
+        };
+
     public TeachingTarget Target { get; init; }
     public MotionGroup MotionGroup { get; init; }
     public TeachMode TeachMode { get; init; }
@@ -136,9 +151,9 @@ public partial class TeachingPoint : ObservableObject
     public int BoltNumber { get; init; }
     public HeatSinkSlot? HeatSink { get; init; }
     public FasteningHead? Head { get; init; }
-    [ObservableProperty] private double _x;
-    [ObservableProperty] private double _y;
-    [ObservableProperty] private double? _z;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))] private double _x;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))] private double _y;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(PositionLabel))] private double? _z;
 
     public string Name => Target switch
     {
@@ -159,44 +174,21 @@ public partial class TeachingPoint : ObservableObject
 
     public void Teach(double x, double y, double z)
     {
-        switch (TeachMode)
+        if (TeachMode is TeachMode.Image or TeachMode.XYOnly
+            or TeachMode.Full or TeachMode.XZOnly or TeachMode.XOnly)
         {
-            case TeachMode.Image:
-                X = x;
-                Y = y;
-                break;
-            case TeachMode.Full:
-                X = x;
-                Y = y;
-                Z = z;
-                break;
-            case TeachMode.XYOnly:
-                X = x;
-                Y = y;
-                break;
-            case TeachMode.XZOnly:
-                X = x;
-                Z = z;
-                break;
-            case TeachMode.XOnly:
-                X = x;
-                break;
-            case TeachMode.YOnly:
-                Y = y;
-                break;
-            case TeachMode.ZOnly:
-                Z = z;
-                break;
+            X = x;
         }
 
+        if (TeachMode is TeachMode.Image or TeachMode.XYOnly
+            or TeachMode.Full or TeachMode.YOnly)
+        {
+            Y = y;
+        }
+
+        if (TeachMode is TeachMode.Full or TeachMode.XZOnly or TeachMode.ZOnly)
+        {
+            Z = z;
+        }
     }
-
-    partial void OnXChanged(double value) =>
-        OnPropertyChanged(nameof(PositionLabel));
-
-    partial void OnYChanged(double value) =>
-        OnPropertyChanged(nameof(PositionLabel));
-
-    partial void OnZChanged(double? value) =>
-        OnPropertyChanged(nameof(PositionLabel));
 }

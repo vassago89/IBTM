@@ -3,11 +3,11 @@ using IBTM.Device;
 
 namespace IBTM.Virtual.Tests;
 
-internal sealed class TestInspectionGantryClearance : IInspectionGantryClearance
+internal sealed class TestNgCarrierTransferFeedback : INgCarrierTransferFeedback
 {
     private readonly IIoService _io;
 
-    public TestInspectionGantryClearance(IIoService io)
+    public TestNgCarrierTransferFeedback(IIoService io)
     {
         _io = io;
         io.InputChanged += OnInputChanged;
@@ -15,10 +15,11 @@ internal sealed class TestInspectionGantryClearance : IInspectionGantryClearance
 
     public event Action? Changed;
 
-    public bool IsClear =>
+    public bool IsRaised =>
         _io.GetInput(InputIo.NgCarrierPickupUp)
-        && !_io.GetInput(InputIo.NgCarrierPickupDown)
-        && !_io.GetInput(InputIo.NgCarrierDetected);
+        && !_io.GetInput(InputIo.NgCarrierPickupDown);
+
+    public bool IsClear => IsRaised && !_io.GetInput(InputIo.NgCarrierDetected);
 
     private void OnInputChanged(InputIo input, bool _)
     {

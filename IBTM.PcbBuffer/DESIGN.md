@@ -10,6 +10,7 @@ Z, the one permitted overlap is the physical PCB handoff:
 
 ```text
 Supply stops at its handoff position with the IPM fixer forward
+  -> Placement opens its IPM gripper and lowers its IPM before entering
   -> Placement enters and stops at its handoff position
   -> Placement vacuum and IPM gripper inputs turn on
   -> Supply retracts the IPM fixer
@@ -27,12 +28,17 @@ motion command has ended, and X/Y/Z are within 0.05 mm of the taught position.
 Small stopped-position vibration therefore does not require exact coordinate
 equality.
 
-Supply and Placement processes do not read the Buffer PCB input directly. They
+`PcbSupplier` and `PcbPlacer` do not read the Buffer PCB input directly. They
 use the live entry, handoff, and exit conditions from this object. Neither
-process references or calls the other process.
+automatic unit references or calls the other.
 
 Manual teaching is stricter than automatic handoff: a handler cannot be moved
 manually while the other handler is inside the Buffer area.
 
 At startup no Buffer state is restored from a file or memory. Homed axis
 positions and live inputs are the only source of truth.
+
+The Buffer PCB input may turn ON before Supply finishes its Handoff Z descent.
+A stopped Supply already on that taught descent path may finish lowering while
+Placement remains clear. Placement must still wait for Supply to settle at the
+complete Handoff position. This does not permit a new entry into a filled Buffer.

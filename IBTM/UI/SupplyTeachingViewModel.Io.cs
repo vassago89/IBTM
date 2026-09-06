@@ -28,7 +28,7 @@ public partial class SupplyTeachingViewModel
     public bool SupplyIpmFixed =>
         _supplyHandler.IpmFixer == PcbSupplyCylinderState.Forward;
     public bool PlacementIpmGripperClosed =>
-        _placementHandler.Gripper == PlacementGripperState.Closed;
+        _placementHandler.IpmGripper == PlacementGripperState.Closed;
     public bool SupplyPcbDetected =>
         _supplyHandler.Pcb != PcbSupplyPcbState.None;
     public bool PlacementPcbDetected =>
@@ -50,7 +50,8 @@ public partial class SupplyTeachingViewModel
         };
         try
         {
-            await SetActuatorAsync(actuator, value, cancellationToken);
+            using var operation = LinkMotion(cancellationToken);
+            await SetActuatorAsync(actuator, value, operation.Token);
         }
         catch (OperationCanceledException)
         {
@@ -72,7 +73,8 @@ public partial class SupplyTeachingViewModel
         CanUseHandler(
             actuator == SupplyTeachingActuator.PlacementIpmGripper
                 ? MotionGroup.PcbPlacementHandler
-                : MotionGroup.PcbSupply);
+                : MotionGroup.PcbSupply)
+        && (actuator != SupplyTeachingActuator.SupplyFlip || !_buffer.SupplyInside);
 
     private Task SetActuatorAsync(
         SupplyTeachingActuator actuator,

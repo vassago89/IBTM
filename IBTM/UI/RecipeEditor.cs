@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
@@ -34,6 +33,9 @@ public partial class RecipeEditor(
         RefreshRecipes();
     }
 
+    public Task ShutdownAsync() =>
+        CommandShutdown.WaitAsync(CommandShutdown.Capture(SaveCommand, LoadCommand));
+
     [RelayCommand(CanExecute = nameof(CanSave))]
     public async Task SaveAsync()
     {
@@ -44,7 +46,10 @@ public partial class RecipeEditor(
                 name,
                 StringComparison.OrdinalIgnoreCase))
         {
-            CopyCarrierImages(_imageRecipeName, name);
+            store.CopyRecipeImages(
+                _imageRecipeName,
+                name,
+                recipe.CarrierImages.Select(tile => tile.Number));
         }
 
         recipe.Name = name;
@@ -94,12 +99,7 @@ public partial class RecipeEditor(
         Name = recipe.Name;
         OnPropertyChanged(nameof(ActiveName));
         recipe.CarrierImages.Clear();
-        var directory = store.GetRecipeImageDirectory(recipe.Name);
-        Directory.CreateDirectory(directory);
-        foreach (var path in Directory.GetFiles(directory, "*.png"))
-        {
-            File.Delete(path);
-        }
+        store.ClearRecipeImages(recipe.Name);
     }
 
     public void SaveCarrierImage(
@@ -112,12 +112,7 @@ public partial class RecipeEditor(
             Center = center,
         };
         recipe.CarrierImages.Add(tile);
-        var path = store.GetRecipeImagePath(recipe.Name, tile.Number);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        using var stream = File.Create(path);
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(image));
-        encoder.Save(stream);
+        store.SaveRecipeImage(recipe.Name, tile.Number, image);
     }
 
     public IReadOnlyList<CarrierImageTileView> LoadCarrierImages() =>
@@ -125,33 +120,6 @@ public partial class RecipeEditor(
             .Select(tile => new CarrierImageTileView(
                 tile.Number,
                 tile.Center,
-                LoadImage(store.GetRecipeImagePath(
-                    recipe.Name,
-                    tile.Number))))
+                store.LoadRecipeImage(recipe.Name, tile.Number)))
             .ToArray();
-
-    private static BitmapSource LoadImage(string path)
-    {
-        using var stream = File.OpenRead(path);
-        var decoder = new PngBitmapDecoder(
-            stream,
-            BitmapCreateOptions.PreservePixelFormat,
-            BitmapCacheOption.OnLoad);
-        var image = decoder.Frames[0];
-        image.Freeze();
-        return image;
-    }
-
-    private void CopyCarrierImages(string sourceRecipe, string targetRecipe)
-    {
-        Directory.CreateDirectory(
-            store.GetRecipeImageDirectory(targetRecipe));
-        foreach (var tile in recipe.CarrierImages)
-        {
-            File.Copy(
-                store.GetRecipeImagePath(sourceRecipe, tile.Number),
-                store.GetRecipeImagePath(targetRecipe, tile.Number),
-                overwrite: true);
-        }
-    }
 }

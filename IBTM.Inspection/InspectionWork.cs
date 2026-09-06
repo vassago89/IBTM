@@ -1,3 +1,4 @@
+using System.Linq;
 using IBTM.Core;
 using IBTM.Device;
 
@@ -5,56 +6,57 @@ namespace IBTM.Inspection;
 
 public sealed class InspectionWork : StationWork
 {
-    private readonly IInspectionGantryClearance? _gantryClearance;
+    private readonly INgCarrierTransferFeedback _transferFeedback;
 
     public InspectionWork(
         ConveyorStation station,
-        IInspectionGantryClearance? gantryClearance) : base(station)
+        INgCarrierTransferFeedback transferFeedback,
+        bool enabled = true) : base(station, enabled)
     {
-        _gantryClearance = gantryClearance;
-        if (gantryClearance is not null)
-        {
-            gantryClearance.Changed += NotifyChanged;
-        }
+        _transferFeedback = transferFeedback;
+        transferFeedback.Changed += NotifyChanged;
     }
 
     public override bool CanReceive =>
         base.CanReceive
-        && (_gantryClearance?.IsClear ?? true);
+        && _transferFeedback.IsClear;
 
     public override bool HasNg =>
         CarrierPresent
         && (base.HasNg
             || Completed
-            && !HeatSinkPresent(HeatSinkSlot.HeatSink1)
-            && !HeatSinkPresent(HeatSinkSlot.HeatSink2));
+            && (Enabled
+                ? !Assemblies.Any(assembly =>
+                    assembly.InspectionResult != AssemblyResult.Pending)
+                : !HeatSinkPresent(HeatSinkSlot.HeatSink1)
+                  && !HeatSinkPresent(HeatSinkSlot.HeatSink2)));
 
-    public InspectionState State
+    internal InspectionWorkState State
     {
         get
         {
             if (!CarrierPresent)
             {
-                return InspectionState.WaitingForCarrier;
+                return InspectionWorkState.WaitingForCarrier;
             }
 
             if (Completed)
             {
-                return InspectionState.WaitingForTransfer;
+                return InspectionWorkState.WaitingForTransfer;
             }
 
             if (!CarrierSeated)
             {
-                return InspectionState.WaitingForSeat;
+                return InspectionWorkState.WaitingForSeat;
             }
 
-            return _gantryClearance?.IsClear == false
-                ? InspectionState.WaitingForGantry
-                : InspectionState.ReadyToInspect;
+            return !_transferFeedback.IsClear
+                ? InspectionWorkState.WaitingForGantry
+                : InspectionWorkState.ReadyToInspect;
         }
     }
 
-    public void RestartInspection()
+    internal void RestartInspection()
     {
         foreach (var assembly in Assemblies)
         {

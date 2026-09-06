@@ -31,7 +31,8 @@
                BasedOn="{StaticResource FieldComboBoxStyle}">
             <Setter Property="MinWidth" Value="120"/>
         </Style>
-        <Style TargetType="CheckBox">
+        <Style TargetType="CheckBox"
+               BasedOn="{StaticResource {x:Type CheckBox}}">
             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Margin" Value="0,2,12,4"/>
@@ -42,14 +43,6 @@
                BasedOn="{StaticResource FlatListItemStyle}">
             <Setter Property="Padding" Value="5,4"/>
             <Setter Property="Margin" Value="0,0,0,1"/>
-        </Style>
-        <Style x:Key="HardwareAreaText" TargetType="TextBlock">
-            <Setter Property="Text"
-                    Value="{Binding Area, Converter={StaticResource EnumDescriptionConverter}}"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-            <Setter Property="FontSize" Value="9"/>
-            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
         </Style>
         <Style x:Key="HardwareSignalText" TargetType="TextBlock">
             <Setter Property="Text"
@@ -139,7 +132,7 @@
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>
                         <TextBlock Text="Enabled Units" Style="{StaticResource SettingSectionTitle}"/>
-                        <UniformGrid Columns="8">
+                        <UniformGrid Columns="5">
                             <CheckBox Content="Main Conveyor"
                                       IsChecked="{Binding Settings.Units.MainConveyor}"/>
                             <CheckBox Content="PCB Supply"
@@ -154,6 +147,10 @@
                                       IsChecked="{Binding Settings.Units.BoltFastening}"/>
                             <CheckBox Content="Inspection"
                                       IsChecked="{Binding Settings.Units.Inspection}"/>
+                            <CheckBox Content="NG Carrier Transfer"
+                                      IsChecked="{Binding Settings.Units.NgCarrierTransfer}"/>
+                            <CheckBox Content="NG Shuttle"
+                                      IsChecked="{Binding Settings.Units.NgShuttle}"/>
                             <CheckBox Content="NG Conveyor"
                                       IsChecked="{Binding Settings.Units.NgConveyor}"/>
                         </UniformGrid>
@@ -164,7 +161,7 @@
 
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>
-                        <TextBlock Text="NG Conveyor" Style="{StaticResource SettingSectionTitle}"/>
+                        <TextBlock Text="NG Handling" Style="{StaticResource SettingSectionTitle}"/>
                         <UniformGrid Columns="2">
                             <StackPanel Margin="0,0,8,0">
                                 <TextBlock Text="Alarm Count" Style="{StaticResource SettingFieldLabel}"/>
@@ -173,7 +170,7 @@
                             <StackPanel Margin="8,0,0,0">
                                 <TextBlock Text="Transfer Speed (mm/s)"
                                            Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox Text="{Binding Settings.NgConveyor.TransferSpeed, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBox Text="{Binding Settings.NgCarrierTransfer.Speed, UpdateSourceTrigger=PropertyChanged}"/>
                             </StackPanel>
                         </UniformGrid>
                     </StackPanel>
@@ -315,21 +312,22 @@
 
                             <StackPanel>
                                 <TextBlock Text="INPUTS" Style="{StaticResource SettingFieldLabel}"/>
-                                <ListBox ItemsSource="{Binding InputMappings}" Height="420"
+                                <ListBox ItemsSource="{Binding InputMappingView}" Height="420"
                                          Style="{StaticResource PanelListStyle}"
                                          ItemContainerStyle="{StaticResource HardwareListItem}">
+                                    <ListBox.GroupStyle>
+                                        <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
+                                                    HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
+                                    </ListBox.GroupStyle>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
                                             <Grid>
                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="74"/>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="58"/>
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Style="{StaticResource HardwareAreaText}"/>
-                                                <TextBlock Grid.Column="1"
-                                                           Style="{StaticResource HardwareSignalText}"/>
-                                                <TextBox Grid.Column="2" Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}"
+                                                <TextBlock Style="{StaticResource HardwareSignalText}"/>
+                                                <TextBox Grid.Column="1" Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}"
                                                          MinWidth="0" Padding="5,3" Margin="4,0"/>
                                             </Grid>
                                         </DataTemplate>
@@ -339,24 +337,25 @@
 
                             <StackPanel Grid.Column="2">
                                 <TextBlock Text="OUTPUTS" Style="{StaticResource SettingFieldLabel}"/>
-                                <ListBox ItemsSource="{Binding OutputMappings}" Height="420"
+                                <ListBox ItemsSource="{Binding OutputMappingView}" Height="420"
                                          Style="{StaticResource PanelListStyle}"
                                          ItemContainerStyle="{StaticResource HardwareListItem}">
+                                    <ListBox.GroupStyle>
+                                        <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
+                                                    HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
+                                    </ListBox.GroupStyle>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="74"/>
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="58"/>
                                                     <ColumnDefinition Width="58"/>
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Style="{StaticResource HardwareAreaText}"/>
-                                                <TextBlock Grid.Column="1"
-                                                           Style="{StaticResource HardwareSignalText}"/>
-                                                <TextBox Grid.Column="2" Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}"
+                                                <TextBlock Style="{StaticResource HardwareSignalText}"/>
+                                                <TextBox Grid.Column="1" Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}"
                                                          MinWidth="0" Padding="5,3" Margin="4,0"/>
-                                                <TextBox Grid.Column="3" Text="{Binding OffNumber, UpdateSourceTrigger=PropertyChanged}"
+                                                <TextBox Grid.Column="2" Text="{Binding OffNumber, UpdateSourceTrigger=PropertyChanged}"
                                                          ToolTip="Reverse output channel"
                                                          MinWidth="0" Padding="5,3" Margin="4,0"/>
                                             </Grid>
@@ -366,37 +365,32 @@
                             </StackPanel>
 
                             <StackPanel Grid.Column="4">
-                                <TextBlock Text="AREA  AXIS  NUMBER  DIRECTION  MIN  MAX"
+                                <TextBlock Text="AXIS  NUMBER  MIN  MAX"
                                            Style="{StaticResource SettingFieldLabel}"/>
-                                <ListBox ItemsSource="{Binding AxisMappings}" Height="420"
+                                <ListBox ItemsSource="{Binding AxisMappingView}" Height="420"
                                          Style="{StaticResource PanelListStyle}"
                                          ItemContainerStyle="{StaticResource HardwareListItem}">
+                                    <ListBox.GroupStyle>
+                                        <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
+                                                    HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
+                                    </ListBox.GroupStyle>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
                                             <Grid>
                                                  <Grid.ColumnDefinitions>
-                                                     <ColumnDefinition Width="74"/>
                                                      <ColumnDefinition Width="*"/>
                                                      <ColumnDefinition Width="48"/>
-                                                     <ColumnDefinition Width="100"/>
                                                      <ColumnDefinition Width="54"/>
                                                      <ColumnDefinition Width="54"/>
                                                  </Grid.ColumnDefinitions>
-                                                <TextBlock Style="{StaticResource HardwareAreaText}"/>
-                                                <TextBlock Grid.Column="1"
-                                                           Style="{StaticResource HardwareSignalText}"/>
-                                                 <TextBox Grid.Column="2" Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}"
+                                                <TextBlock Style="{StaticResource HardwareSignalText}"/>
+                                                 <TextBox Grid.Column="1" Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}"
                                                           MinWidth="0" Padding="5,3" Margin="4,0"/>
-                                                 <ComboBox Grid.Column="3"
-                                                           ItemsSource="{Binding DataContext.AxisDirections, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                           SelectedItem="{Binding Direction, Mode=TwoWay}"
-                                                           Style="{StaticResource FieldComboBoxStyle}"
-                                                           Padding="4,2" Margin="2,0"/>
-                                                 <TextBox Grid.Column="4"
-                                                          Text="{Binding Minimum, UpdateSourceTrigger=PropertyChanged}"
-                                                          MinWidth="0" Padding="4,3" Margin="2,0"/>
-                                                 <TextBox Grid.Column="5"
-                                                          Text="{Binding Maximum, UpdateSourceTrigger=PropertyChanged}"
+                                                 <TextBox Grid.Column="2"
+                                                           Text="{Binding Minimum, UpdateSourceTrigger=PropertyChanged}"
+                                                           MinWidth="0" Padding="4,3" Margin="2,0"/>
+                                                 <TextBox Grid.Column="3"
+                                                           Text="{Binding Maximum, UpdateSourceTrigger=PropertyChanged}"
                                                           MinWidth="0" Padding="4,3" Margin="2,0"/>
                                             </Grid>
                                         </DataTemplate>
@@ -414,7 +408,7 @@
             <TabItem Header="Devices &amp; Safety">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel MaxWidth="1480"
-                                HorizontalAlignment="Center"
+                                HorizontalAlignment="Stretch"
                                 Margin="0,0,8,0">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -559,6 +553,32 @@
                                 <ComboBox ItemsSource="{Binding CameraDrivers}"
                                           SelectedItem="{Binding Settings.Drivers.Camera, Mode=TwoWay}"
                                           Margin="0,0,0,10"/>
+                                <TextBlock Text="Inspection Algorithm" Style="{StaticResource SettingFieldLabel}"/>
+                                <ComboBox ItemsSource="{Binding InspectionAlgorithms}"
+                                          SelectedItem="{Binding Settings.Drivers.Inspection, Mode=TwoWay}"
+                                          Margin="0,0,0,10"/>
+                                <StackPanel Margin="0,0,0,12"
+                                            Visibility="{Binding IsVirtualCamera, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="Virtual Camera Image" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Text="{Binding VirtualImageName, TargetNullValue=Generated image}"
+                                               TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding LoadVirtualImageCommand.IsRunning}" Value="True">
+                                                        <Setter Property="IsEnabled" Value="False"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <Button Content="Open Image" Command="{Binding LoadVirtualImageCommand}" Margin="0,0,8,0"/>
+                                        <Button Content="Use Generated" Command="{Binding ClearVirtualImageCommand}"/>
+                                    </StackPanel>
+                                    <TextBlock Text="One fixed image for every capture. Select Tiny U-Net and restart to use the trained model."
+                                               TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"/>
+                                    <TextBlock Text="{Binding VirtualImageError}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                </StackPanel>
                                 <TextBlock Text="Bolt Head Driver" Style="{StaticResource SettingFieldLabel}"/>
                                 <ComboBox ItemsSource="{Binding BoltDrivers}"
                                           SelectedItem="{Binding Settings.Drivers.Bolt, Mode=TwoWay}"

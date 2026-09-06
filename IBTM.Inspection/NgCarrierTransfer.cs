@@ -2,11 +2,9 @@ using System;
 using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
-using IBTM.Core;
 using IBTM.Device;
-using IBTM.Inspection;
 
-namespace IBTM.NgConveyor;
+namespace IBTM.Inspection;
 
 public enum NgTransferLiftState
 {
@@ -32,20 +30,13 @@ public enum NgTransferGripperState
     Closed,
 }
 
-public sealed class NgCarrierTransfer : IInspectionGantryClearance
+public sealed class NgCarrierTransfer : INgCarrierTransferFeedback
 {
     private readonly IIoService _io;
-    private readonly InspectionGantry _gantry;
-    private readonly NgConveyorSettings _settings;
 
-    public NgCarrierTransfer(
-        IIoService io,
-        InspectionGantry gantry,
-        NgConveyorSettings settings)
+    public NgCarrierTransfer(IIoService io)
     {
         _io = io;
-        _gantry = gantry;
-        _settings = settings;
         io.InputChanged += OnInputChanged;
     }
 
@@ -69,19 +60,10 @@ public sealed class NgCarrierTransfer : IInspectionGantryClearance
             (false, true) => NgTransferGripperState.Closed,
             _ => NgTransferGripperState.Between,
         };
-    public bool AtCarrier => _gantry.IsAt(_settings.CarrierPickupPosition);
-    public bool AtShuttle => _gantry.IsAt(_settings.ShuttlePlacePosition);
-    public bool IsClear => Lift == NgTransferLiftState.Up && !CarrierDetected;
+    public bool IsRaised => Lift == NgTransferLiftState.Up;
+    public bool IsClear => IsRaised && !CarrierDetected;
 
-    public Task MoveToCarrierAsync(
-        CancellationToken cancellationToken = default) =>
-        MoveToAsync(_settings.CarrierPickupPosition, cancellationToken);
-
-    public Task MoveToShuttleAsync(
-        CancellationToken cancellationToken = default) =>
-        MoveToAsync(_settings.ShuttlePlacePosition, cancellationToken);
-
-    public Task SetLiftDownAsync(
+    internal Task SetLiftDownAsync(
         bool down,
         CancellationToken cancellationToken = default) =>
         _io.SetOutputAndWaitAsync(
@@ -89,7 +71,7 @@ public sealed class NgCarrierTransfer : IInspectionGantryClearance
             down,
             cancellationToken);
 
-    public Task SetGripperClosedAsync(
+    internal Task SetGripperClosedAsync(
         bool closed,
         CancellationToken cancellationToken = default) =>
         _io.SetOutputAndWaitAsync(
@@ -97,19 +79,11 @@ public sealed class NgCarrierTransfer : IInspectionGantryClearance
             closed,
             cancellationToken);
 
-    public Task WaitForCarrierGripAsync(
+    internal Task WaitForCarrierGripAsync(
         CancellationToken cancellationToken = default) =>
         _io.WaitForInputAsync(
             InputIo.NgCarrierDetected,
             true,
-            cancellationToken);
-
-    private Task MoveToAsync(
-        AxisPosition position,
-        CancellationToken cancellationToken) =>
-        _gantry.MoveToAsync(
-            position,
-            _settings.TransferSpeed,
             cancellationToken);
 
     private void OnInputChanged(InputIo input, bool _)

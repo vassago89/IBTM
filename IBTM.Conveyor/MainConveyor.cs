@@ -16,12 +16,9 @@ public sealed class MainConveyor
     private readonly ConveyorStation _placement;
     private readonly ConveyorStation _boltFastening;
     private readonly ConveyorStation _inspection;
-    private readonly bool _placementEnabled;
-    private readonly bool _boltFasteningEnabled;
-    private readonly bool _inspectionEnabled;
     private readonly bool _inspectionBypassToNg;
-    private CancellationTokenSource? _automaticCancellation;
-    private CancellationTokenSource? _manualCancellation;
+    private OperationCancellation.Operation? _automaticCancellation;
+    private OperationCancellation.Operation? _manualCancellation;
     private CancellationTokenRegistration _manualStopRegistration;
     private volatile ConveyorTransfer _transfer;
 
@@ -31,9 +28,6 @@ public sealed class MainConveyor
         StationWork placementWork,
         StationWork boltFasteningWork,
         StationWork inspectionWork,
-        bool placementEnabled,
-        bool boltFasteningEnabled,
-        bool inspectionEnabled,
         bool inspectionBypassToNg)
     {
         _io = io;
@@ -44,14 +38,11 @@ public sealed class MainConveyor
         _placement = placementWork.Station;
         _boltFastening = boltFasteningWork.Station;
         _inspection = inspectionWork.Station;
-        _placementEnabled = placementEnabled;
-        _boltFasteningEnabled = boltFasteningEnabled;
-        _inspectionEnabled = inspectionEnabled;
         _inspectionBypassToNg = inspectionBypassToNg;
         io.InputChanged += OnInputChanged;
-        placementWork.Changed += OnWorkChanged;
-        boltFasteningWork.Changed += OnWorkChanged;
-        inspectionWork.Changed += OnWorkChanged;
+        placementWork.Changed += NotifyChanged;
+        boltFasteningWork.Changed += NotifyChanged;
+        inspectionWork.Changed += NotifyChanged;
         _placement.CarrierChanged += value =>
             OnCarrierChanged(StationPosition.PcbPlacement, value);
         _boltFastening.CarrierChanged += value =>
@@ -104,31 +95,6 @@ public sealed class MainConveyor
                     return MainConveyorState.MovingPcbPlacementToBoltFastening;
             }
 
-            if (TransferPrepared(_boltFastening, _inspection))
-            {
-                return MainConveyorState.BoltFasteningCarrierBetweenStations;
-            }
-
-            if (TransferPrepared(_placement, _boltFastening))
-            {
-                return MainConveyorState.PcbPlacementCarrierBetweenStations;
-            }
-
-            if (CanDischargeInspection)
-            {
-                return MainConveyorState.DischargingInspectionCarrier;
-            }
-
-            if (CanMoveBoltFasteningToInspection)
-            {
-                return MainConveyorState.MovingBoltFasteningToInspection;
-            }
-
-            if (CanMovePlacementToBoltFastening)
-            {
-                return MainConveyorState.MovingPcbPlacementToBoltFastening;
-            }
-
             if (_inspectionWork.CarrierPresent
                 && !_inspectionWork.CarrierSeated)
             {
@@ -145,6 +111,21 @@ public sealed class MainConveyor
                 && !_placementWork.CarrierSeated)
             {
                 return MainConveyorState.SeatingPcbPlacementCarrier;
+            }
+
+            if (CanDischargeInspection)
+            {
+                return MainConveyorState.DischargingInspectionCarrier;
+            }
+
+            if (CanMoveBoltFasteningToInspection)
+            {
+                return MainConveyorState.MovingBoltFasteningToInspection;
+            }
+
+            if (CanMovePlacementToBoltFastening)
+            {
+                return MainConveyorState.MovingPcbPlacementToBoltFastening;
             }
 
             if (CanReceiveAtPlacement)
@@ -167,15 +148,19 @@ public sealed class MainConveyor
     {
         Stop();
         _manualCancellation = _operations.Link(cancellationToken);
-        var runToken = _manualCancellation.Token;
-        runToken.ThrowIfCancellationRequested();
-        _manualStopRegistration = runToken.Register(StopMotor);
-        StartMotor();
-        if (runToken.IsCancellationRequested)
+        try
         {
-            StopMotor();
+            var runToken = _manualCancellation.Token;
+            runToken.ThrowIfCancellationRequested();
+            _manualStopRegistration = runToken.Register(StopMotor);
+            StartMotor(runToken);
+            runToken.ThrowIfCancellationRequested();
         }
-        runToken.ThrowIfCancellationRequested();
+        catch
+        {
+            Stop();
+            throw;
+        }
     }
 
     public async Task RunAsync(
@@ -192,9 +177,6 @@ public sealed class MainConveyor
         Changed += OnStateChanged;
         try
         {
-            BypassDisabledWork(StationPosition.PcbPlacement);
-            BypassDisabledWork(StationPosition.BoltFastening);
-            BypassDisabledWork(StationPosition.Inspection);
             while (!cancellationToken.IsCancellationRequested)
             {
                 switch (State)
@@ -259,13 +241,26 @@ public sealed class MainConveyor
 
     public void Stop()
     {
-        _automaticCancellation?.Cancel();
-        _manualCancellation?.Cancel();
-        _manualStopRegistration.Dispose();
-        _manualCancellation?.Dispose();
+        var manual = _manualCancellation;
         _manualCancellation = null;
-        StopMotor();
-        ResetSmema();
+        try
+        {
+            _automaticCancellation?.Cancel();
+            manual?.Cancel();
+        }
+        finally
+        {
+            try
+            {
+                _manualStopRegistration.Dispose();
+                StopMotor();
+                ResetSmema();
+            }
+            finally
+            {
+                manual?.Dispose();
+            }
+        }
     }
 
     private void ResetSmema()
@@ -338,9 +333,9 @@ public sealed class MainConveyor
 
             if (!_placementWork.CarrierPresent)
             {
-                StartMotor();
                 try
                 {
+                    StartMotor(cancellationToken);
                     if (_transfer == ConveyorTransfer.ReceivingBeforeEntry)
                     {
                         await _io.WaitForInputAsync(
@@ -367,7 +362,6 @@ public sealed class MainConveyor
         }
 
         _transfer = ConveyorTransfer.None;
-        await _placement.SeatAsync(cancellationToken);
     }
 
     private async Task MoveCarrierAsync(
@@ -384,9 +378,9 @@ public sealed class MainConveyor
 
         if (!destination.CarrierPresent)
         {
-            StartMotor();
             try
             {
+                StartMotor(cancellationToken);
                 await destination.WaitForCarrierAsync(cancellationToken);
             }
             finally
@@ -426,9 +420,9 @@ public sealed class MainConveyor
             if (_transfer == ConveyorTransfer.DischargingInspectionToExit
                 || ExitCarrierDetected)
             {
-                StartMotor();
                 try
                 {
+                    StartMotor(cancellationToken);
                     if (_transfer
                         == ConveyorTransfer.DischargingInspectionToExit)
                     {
@@ -460,10 +454,12 @@ public sealed class MainConveyor
         _transfer = ConveyorTransfer.None;
     }
 
-    private void StartMotor()
+    private void StartMotor(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.MainConveyorReverse, false);
         _io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
+        cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.MainConveyorRun, true);
     }
 
@@ -510,49 +506,23 @@ public sealed class MainConveyor
 
         switch (station)
         {
-            case StationPosition.BoltFastening:
+            case StationPosition.BoltFastening
+                when _transfer
+                    == ConveyorTransfer.PcbPlacementToBoltFastening:
                 _placementWork.TransferAssembliesTo(
                     _boltFasteningWork);
                 break;
 
-            case StationPosition.Inspection:
+            case StationPosition.Inspection
+                when _transfer
+                    == ConveyorTransfer.BoltFasteningToInspection:
                 _boltFasteningWork.TransferAssembliesTo(
                     _inspectionWork);
                 break;
         }
-
-        BypassDisabledWork(station);
     }
 
-    private void BypassDisabledWork(StationPosition station)
-    {
-        var (enabled, work) = station switch
-        {
-            StationPosition.PcbPlacement =>
-                (_placementEnabled, (StationWork)_placementWork),
-            StationPosition.BoltFastening =>
-                (_boltFasteningEnabled, _boltFasteningWork),
-            StationPosition.Inspection =>
-                (_inspectionEnabled, _inspectionWork),
-            _ => throw new ArgumentOutOfRangeException(nameof(station)),
-        };
-        if (!enabled && work.CarrierPresent)
-        {
-            work.Complete();
-        }
-    }
-
-    private void OnWorkChanged() => Changed?.Invoke();
-
-    private static bool TransferPrepared(
-        ConveyorStation source,
-        ConveyorStation destination) =>
-        !source.CarrierPresent
-        && source.BackupPlate == StationCylinderState.Down
-        && source.Stopper == StationCylinderState.Down
-        && !destination.CarrierPresent
-        && destination.BackupPlate == StationCylinderState.Down
-        && destination.Stopper == StationCylinderState.Up;
+    private void NotifyChanged() => Changed?.Invoke();
 
     private enum StationPosition
     {

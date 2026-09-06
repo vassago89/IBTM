@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -8,32 +9,32 @@ namespace IBTM.Device;
 
 public abstract class StationWork
 {
-    private readonly List<HeatSinkAssembly> _assemblies = [];
+    private volatile ConcurrentDictionary<HeatSinkSlot, HeatSinkAssembly> _assemblies = new();
     private bool _completed;
 
-    protected StationWork(ConveyorStation station)
+    protected StationWork(ConveyorStation station, bool enabled)
     {
+        Enabled = enabled;
         Station = station;
-        station.Changed += OnStationChanged;
+        station.Changed += NotifyChanged;
         station.CarrierChanged += OnCarrierChanged;
-        station.HeatSinkChanged += OnHeatSinkChanged;
     }
 
     public event Action? Changed;
+    protected bool Enabled { get; }
     public ConveyorStation Station { get; }
     public bool CarrierPresent => Station.CarrierPresent;
-    public bool HeatSink1Present => Station.HeatSink1Present;
-    public bool HeatSink2Present => Station.HeatSink2Present;
     public StationCylinderState BackupPlate => Station.BackupPlate;
     public StationCylinderState Stopper => Station.Stopper;
-    public bool CarrierSeated => Station.Seated;
-    public bool Completed => Volatile.Read(ref _completed);
-    public IReadOnlyList<HeatSinkAssembly> Assemblies => _assemblies;
-    public virtual bool CanReceive => Station.CanReceive;
+    public bool CarrierSeated =>
+        CarrierPresent
+        && BackupPlate == StationCylinderState.Up
+        && Stopper == StationCylinderState.Down;
+    public bool Completed => !Enabled || Volatile.Read(ref _completed);
+    public IEnumerable<HeatSinkAssembly> Assemblies => _assemblies.Select(item => item.Value);
+    public virtual bool CanReceive => !CarrierPresent;
     public virtual bool HasNg =>
-        _assemblies.Any(assembly =>
-            HeatSinkPresent(assembly.HeatSink)
-            && assembly.Result == AssemblyResult.Ng);
+        Assemblies.Any(assembly => assembly.Result == AssemblyResult.Ng);
     public bool CanTransfer =>
         CarrierPresent
         && Completed
@@ -42,31 +43,24 @@ public abstract class StationWork
     public bool HeatSinkPresent(HeatSinkSlot heatSink) =>
         Station.HeatSinkPresent(heatSink);
 
-    public HeatSinkAssembly Assembly(HeatSinkSlot heatSink)
-    {
-        var assembly = _assemblies.FirstOrDefault(
-            item => item.HeatSink == heatSink);
-        if (assembly is not null)
-        {
-            return assembly;
-        }
+    public HeatSinkAssembly Assembly(HeatSinkSlot heatSink) =>
+        _assemblies.GetOrAdd(heatSink, static slot => new HeatSinkAssembly(slot));
 
-        assembly = new HeatSinkAssembly(heatSink);
-        _assemblies.Add(assembly);
-        return assembly;
-    }
+    protected void RemoveAssembly(HeatSinkSlot heatSink) =>
+        _assemblies.TryRemove(heatSink, out _);
 
     public void TransferAssembliesTo(StationWork destination)
     {
-        destination.SetAssemblies(_assemblies);
-        _assemblies.Clear();
+        var assemblies = _assemblies;
+        _assemblies = new();
+        destination.SetAssemblies(assemblies.Select(item => item.Value));
         Changed?.Invoke();
     }
 
     protected void SetAssemblies(IEnumerable<HeatSinkAssembly> assemblies)
     {
-        _assemblies.Clear();
-        _assemblies.AddRange(assemblies);
+        _assemblies = new(assemblies.Select(assembly =>
+            new KeyValuePair<HeatSinkSlot, HeatSinkAssembly>(assembly.HeatSink, assembly)));
         Volatile.Write(ref _completed, false);
         Changed?.Invoke();
     }
@@ -90,22 +84,12 @@ public abstract class StationWork
 
     protected void NotifyChanged() => Changed?.Invoke();
 
-    private void OnStationChanged()
-    {
-        Changed?.Invoke();
-    }
-
     private void OnCarrierChanged(bool present)
     {
         if (present)
         {
             Volatile.Write(ref _completed, false);
-            _assemblies.Clear();
+            _assemblies = new();
         }
-    }
-
-    private void OnHeatSinkChanged()
-    {
-        Volatile.Write(ref _completed, false);
     }
 }

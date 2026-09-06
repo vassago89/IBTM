@@ -19,29 +19,88 @@ public sealed class VirtualIoService(
         Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
     private readonly int[] _feedbackVersions = new int[
         Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
+    private readonly Lock _responseGate = new();
+    private bool _autoResponseEnabled = true;
+    private int _autoResponseVersion;
     private bool _connected = true;
     public event Action<InputIo, bool>? InputChanged;
     public event Action<OutputIo, bool>? OutputChanged;
+    public event Action? AutoResponseChanged;
     public event Action? Faulted;
     public bool IsReady => _connected;
     public int TimeoutMilliseconds => options.TimeoutMilliseconds;
     internal event Action<OutputIo, bool>? OutputApplied;
+    internal event Action? FeedbackSynchronized;
+
+    public bool AutoResponseEnabled
+    {
+        get => Volatile.Read(ref _autoResponseEnabled);
+        set
+        {
+            lock (_responseGate)
+            {
+                if (_autoResponseEnabled == value)
+                {
+                    return;
+                }
+
+                _autoResponseEnabled = value;
+                var responseVersion = ++_autoResponseVersion;
+                if (value)
+                {
+                    foreach (var (output, hardware) in outputs)
+                    {
+                        if (hardware.Feedback is { } feedback)
+                        {
+                            _ = ApplyFeedbackAsync(
+                                output,
+                                GetOutput(output),
+                                feedback,
+                                _feedbackVersions[(int)output],
+                                responseVersion,
+                                notifyApplied: false);
+                        }
+                    }
+                }
+
+                AutoResponseChanged?.Invoke();
+            }
+        }
+    }
+
+    internal int AutoResponseVersion => Volatile.Read(ref _autoResponseVersion);
+
+    internal void ApplyAutoResponse(int version, Action response)
+    {
+        lock (_responseGate)
+        {
+            if (!_autoResponseEnabled || version != _autoResponseVersion)
+            {
+                return;
+            }
+
+            response();
+        }
+    }
 
     public void Initialize()
     {
         CheckReady();
-        foreach (var feedback in outputs.Values
-                     .Select(output => output.Feedback)
-                     .OfType<OutputFeedback>())
+        ApplyAutoResponse(AutoResponseVersion, () =>
         {
-            if (GetInput(feedback.OnInput)
-                || GetInput(feedback.OffInput))
+            foreach (var feedback in outputs.Values
+                         .Select(output => output.Feedback)
+                         .OfType<OutputFeedback>())
             {
-                continue;
-            }
+                if (GetInput(feedback.OnInput)
+                    || GetInput(feedback.OffInput))
+                {
+                    continue;
+                }
 
-            SetInput(feedback.OffInput, true);
-        }
+                SetInput(feedback.OffInput, true);
+            }
+        });
     }
 
     public void CheckReady()
@@ -87,23 +146,27 @@ public sealed class VirtualIoService(
 
     public void SetOutput(OutputIo output, bool value)
     {
-        var index = (int)output;
-        if (_outputs[index] == value)
+        lock (_responseGate)
         {
-            return;
-        }
+            var index = (int)output;
+            if (_outputs[index] == value)
+            {
+                return;
+            }
 
-        _outputs[index] = value;
-        OutputChanged?.Invoke(output, value);
-        var feedbackVersion = Interlocked.Increment(
-            ref _feedbackVersions[index]);
-        if (outputs[output].Feedback is { } feedback)
-        {
-            _ = ApplyFeedbackAsync(
-                output,
-                value,
-                feedback,
-                feedbackVersion);
+            _outputs[index] = value;
+            var feedbackVersion = ++_feedbackVersions[index];
+            var responseVersion = _autoResponseVersion;
+            OutputChanged?.Invoke(output, value);
+            if (_autoResponseEnabled && outputs[output].Feedback is { } feedback)
+            {
+                _ = ApplyFeedbackAsync(
+                    output,
+                    value,
+                    feedback,
+                    feedbackVersion,
+                    responseVersion);
+            }
         }
     }
 
@@ -111,17 +174,29 @@ public sealed class VirtualIoService(
         OutputIo output,
         bool value,
         OutputFeedback feedback,
-        int version)
+        int version,
+        int responseVersion,
+        bool notifyApplied = true)
     {
         await Task.Delay(FeedbackDelayMilliseconds).ConfigureAwait(false);
-        if (_feedbackVersions[(int)output] != version)
+        ApplyAutoResponse(responseVersion, () =>
         {
-            return;
-        }
+            if (_feedbackVersions[(int)output] != version)
+            {
+                return;
+            }
 
-        var expected = value ? feedback.OnInput : feedback.OffInput;
-        SetInput(value ? feedback.OffInput : feedback.OnInput, false);
-        SetInput(expected, true);
-        OutputApplied?.Invoke(output, value);
+            var expected = value ? feedback.OnInput : feedback.OffInput;
+            SetInput(value ? feedback.OffInput : feedback.OnInput, false);
+            SetInput(expected, true);
+            if (notifyApplied)
+            {
+                OutputApplied?.Invoke(output, value);
+            }
+            else
+            {
+                FeedbackSynchronized?.Invoke();
+            }
+        });
     }
 }

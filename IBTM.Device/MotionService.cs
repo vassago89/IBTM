@@ -11,6 +11,7 @@ public interface IMotionFeedback
     event Action<double, double, double>? PositionChanged;
     event Action<bool>? MovingChanged;
     event Action? StateChanged;
+    event Action<Exception>? Faulted;
 
     IReadOnlyList<MotionAxis> Axes { get; }
     bool IsReady { get; }
@@ -106,6 +107,7 @@ public abstract class MotionService(
     public event Action<double, double, double>? PositionChanged;
     public event Action<bool>? MovingChanged;
     public event Action? StateChanged;
+    public event Action<Exception>? Faulted;
 
     public IReadOnlyList<MotionAxis> Axes => _axes;
     public abstract bool IsReady { get; }
@@ -445,7 +447,9 @@ public abstract class MotionService(
 
     protected void PublishStateChanged() => StateChanged?.Invoke();
 
-    protected CancellationTokenSource LinkOperation(
+    protected void PublishFault(Exception exception) => Faulted?.Invoke(exception);
+
+    protected OperationCancellation.Operation LinkOperation(
         CancellationToken cancellationToken = default) =>
         _operationCancellation.Link(cancellationToken);
 

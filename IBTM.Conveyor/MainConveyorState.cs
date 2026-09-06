@@ -13,12 +13,6 @@ public enum MainConveyorState
     [Description("Waiting for downstream")]
     WaitingForRearEquipment,
 
-    [Description("Carrier: S1 → S2")]
-    PcbPlacementCarrierBetweenStations,
-
-    [Description("Carrier: S2 → S3")]
-    BoltFasteningCarrierBetweenStations,
-
     [Description("Seating at S1")]
     SeatingPcbPlacementCarrier,
 

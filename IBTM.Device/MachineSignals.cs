@@ -426,13 +426,3 @@ public enum MachineAxis
     InspectionGantryY,
 }
 
-[JsonConverter(typeof(JsonStringEnumConverter<AxisDirection>))]
-public enum AxisDirection
-{
-    [Description("Positive")]
-    Positive = 1,
-
-    [Description("Negative")]
-    Negative = -1,
-}
-

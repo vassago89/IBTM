@@ -7,7 +7,7 @@
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=ui:OutputWindow, IsDesignTimeCreatable=False}"
         Title="Digital Outputs"
-        Width="1040"
+        Width="1120"
         Height="720"
         MinWidth="900"
         MinHeight="480"
@@ -16,6 +16,7 @@
 
     <Grid Margin="24,20">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -33,37 +34,63 @@
         </Grid>
 
         <TextBlock Grid.Row="1"
-                   Text="DO = command  ·  green = mapped input"
+                   Text="DO = command  ·  blue = energized input"
                    Style="{StaticResource PageSubtitleStyle}"
                    Margin="0,4,0,18"/>
 
         <Grid Grid.Row="2"
+              Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="230"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="SEARCH" Style="{StaticResource SectionHeaderStyle}"/>
+                <TextBox Margin="0,6,0,0"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="UNIT" Style="{StaticResource SectionHeaderStyle}"/>
+                <ComboBox Margin="0,6,0,0"
+                          ItemsSource="{Binding Areas}"
+                          ItemTemplate="{x:Null}"
+                          DisplayMemberPath="Value"
+                          SelectedItem="{Binding SelectedArea, Mode=TwoWay}"/>
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="3"
               Margin="12,0,12,6">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="90"/>
+                <ColumnDefinition Width="400"/>
                 <ColumnDefinition Width="100"/>
-                <ColumnDefinition Width="270"/>
-                <ColumnDefinition Width="120"/>
                 <ColumnDefinition Width="90"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="OUTPUT" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="1" Text="OUTPUT STATE" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="2" Text="FEEDBACK INPUT / EXPECTED" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="3" Text="ACTUAL" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="1" Text="DO" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="2" Text="FEEDBACK INPUTS" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="3" Text="MATCH" Style="{StaticResource SectionHeaderStyle}"/>
         </Grid>
 
-        <ListBox Grid.Row="3"
-                 ItemsSource="{Binding Rows}"
+        <ListBox Grid.Row="4"
+                 ItemsSource="{Binding FilteredRows}"
                  Style="{StaticResource IoListStyle}"
                  ItemContainerStyle="{StaticResource IoListItemStyle}">
+            <ListBox.GroupStyle>
+                <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
+                            HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
+            </ListBox.GroupStyle>
             <ListBox.ItemTemplate>
                 <DataTemplate>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="90"/>
+                            <ColumnDefinition Width="400"/>
                             <ColumnDefinition Width="100"/>
-                            <ColumnDefinition Width="270"/>
-                            <ColumnDefinition Width="120"/>
                             <ColumnDefinition Width="90"/>
                         </Grid.ColumnDefinitions>
 
@@ -74,27 +101,55 @@
                                         Tag="{Binding OutputOn}"
                                         Style="{StaticResource IoOutputStateStyle}"/>
                         <StackPanel Grid.Column="2"
-                                    Orientation="Horizontal"
-                                    VerticalAlignment="Center"
                                     Visibility="{Binding HasFeedback, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{Binding FeedbackInput, Converter={StaticResource EnumDescriptionConverter}}"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       VerticalAlignment="Center"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="18"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Ellipse Tag="{Binding OnInputOn}"
+                                         Style="{StaticResource IoInputLedStyle}"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding OnInput, Converter={StaticResource EnumDescriptionConverter}}"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding OnInput, Converter={StaticResource EnumDescriptionConverter}}"/>
+                            </Grid>
+                            <Grid Margin="0,3,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="18"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Ellipse Tag="{Binding OffInputOn}"
+                                         Style="{StaticResource IoInputLedStyle}"/>
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding OffInput, Converter={StaticResource EnumDescriptionConverter}}"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding OffInput, Converter={StaticResource EnumDescriptionConverter}}"/>
+                            </Grid>
                         </StackPanel>
                         <StackPanel Grid.Column="3"
                                     Orientation="Horizontal"
                                     VerticalAlignment="Center"
                                     Visibility="{Binding HasFeedback, Converter={StaticResource BoolToVis}}">
-                            <Ellipse Tag="{Binding InputOn}"
-                                     Style="{StaticResource IoInputLedStyle}"/>
-                            <TextBlock Margin="8,0,0,0"
-                                       Text="{Binding FeedbackState,
+                            <TextBlock Text="{Binding FeedbackState,
                                                       Converter={StaticResource EnumDescriptionConverter}}">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Foreground"
                                                 Value="{StaticResource TextSecondaryBrush}"/>
                                         <Style.Triggers>
+                                            <DataTrigger Binding="{Binding FeedbackState}"
+                                                         Value="{x:Static ui:OutputFeedbackState.Matched}">
+                                                <Setter Property="Foreground"
+                                                        Value="{StaticResource AccentGreenBrush}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding FeedbackState}"
+                                                         Value="{x:Static ui:OutputFeedbackState.Conflict}">
+                                                <Setter Property="Foreground"
+                                                        Value="{StaticResource AccentRedBrush}"/>
+                                            </DataTrigger>
                                             <DataTrigger Binding="{Binding FeedbackState}"
                                                          Value="{x:Static ui:OutputFeedbackState.Timeout}">
                                                 <Setter Property="Foreground"

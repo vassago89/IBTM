@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "IBTM": {
+      "commandName": "Project"
+    },
+    "Virtual": {
+      "commandName": "Project",
+      "commandLineArgs": "--virtual-development"
+    }
+  }
+}

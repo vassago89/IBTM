@@ -8,50 +8,62 @@ namespace IBTM.Inspection.Training;
 
 public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
 {
-    private readonly string _modelFile;
+    private readonly Func<string> _modelFile;
+    private string? _loadedModelFile;
     private TinyUnet? _model;
 
-    public TorchBoltRecessSegmenter(BoltInspectionSettings settings) : this(
-        Path.Combine(AppContext.BaseDirectory, settings.ModelFile))
+    public TorchBoltRecessSegmenter(BoltInspectionSettings settings)
     {
+        _modelFile = () => Path.Combine(AppContext.BaseDirectory, settings.ModelFile);
     }
 
     public TorchBoltRecessSegmenter(string modelFile)
     {
-        _modelFile = modelFile;
+        _modelFile = () => modelFile;
     }
 
     public void Reload()
     {
+        var modelFile = _modelFile();
         var model = new TinyUnet();
-        model.load(_modelFile);
-        model.eval();
+        try
+        {
+            model.load(modelFile);
+            model.eval();
+        }
+        catch
+        {
+            model.Dispose();
+            throw;
+        }
+
         _model?.Dispose();
         _model = model;
+        _loadedModelFile = modelFile;
     }
 
     public float[] Segment(ImageFrame image)
     {
-        if (_model is null)
+        if (_loadedModelFile != _modelFile())
         {
             Reload();
         }
 
         using var scope = NewDisposeScope();
         using var inference = no_grad();
-        using var input = tensor(CreateInput(image), dtype: ScalarType.Float32)
+        var input = tensor(CreateInput(image), dtype: ScalarType.Float32)
             .reshape(
                 1,
                 ImageFrame.ColorChannelCount,
                 IBoltRecessSegmenter.InputSize,
                 IBoltRecessSegmenter.InputSize);
-        using var mask = _model!.call(input).sigmoid().cpu();
+        var mask = _model!.call(input).sigmoid().cpu();
         return mask.data<float>().ToArray();
     }
 
     public void Dispose() => _model?.Dispose();
 
-    private static float[] CreateInput(ImageFrame image)
+    internal static float[] CreateInput(ImageFrame image)
     {
         var size = IBoltRecessSegmenter.InputSize;
         var input = new float[ImageFrame.ColorChannelCount * size * size];

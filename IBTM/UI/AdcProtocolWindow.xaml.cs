@@ -1,23 +1,39 @@
 using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
+using IBTM.Virtual;
 
 namespace IBTM.UI;
 
 public partial class AdcProtocolWindow : Window
 {
+    private const int MaximumLogCharacters = 64 * 1024;
+
     private readonly CancellationTokenSource _lifetime = new();
     private readonly IAdcBus _bus;
+    private readonly HantasSettings _settings;
+    private readonly MachineController _machine;
+    private readonly OperationCancellation _operations;
+    private CancellationTokenSource? _operationCancellation;
+    private Task _operation = Task.CompletedTask;
+    private bool _closing;
 
     public AdcProtocolWindow(
         IAdcBus bus,
-        HantasSettings settings)
+        HantasSettings settings,
+        MachineController machine,
+        OperationCancellation operations)
     {
         _bus = bus;
+        _settings = settings;
+        _machine = machine;
+        _operations = operations;
         InitializeComponent();
         DataContext = this;
         RefreshPorts();
@@ -26,6 +42,7 @@ public partial class AdcProtocolWindow : Window
         AccessBox.SelectedItem = AdcRegisterAccess.ReadInputRegisters;
         AddressBox.Text = ((ushort)AdcResultRegister.EventCount).ToString();
         CountBox.Text = AdcFasteningResult.RegisterCount.ToString();
+        NextResultBox.SelectedItem = AdcEventStatus.FasteningOk;
         _bus.FrameTransferred += OnFrameTransferred;
         if (_bus.IsOpen)
         {
@@ -41,6 +58,62 @@ public partial class AdcProtocolWindow : Window
     public int[] BaudRates { get; } = [9600, 19200, 38400, 57600, 115200];
     public AdcRegisterAccess[] RegisterAccesses { get; } =
         Enum.GetValues<AdcRegisterAccess>();
+    public bool IsVirtual => _bus is VirtualAdcBus;
+    public AdcEventStatus[] FasteningResults { get; } =
+    [
+        AdcEventStatus.FasteningOk,
+        AdcEventStatus.FasteningNg,
+        AdcEventStatus.Error,
+    ];
+
+    private void OnQueueResult(object sender, RoutedEventArgs e)
+    {
+        if (_bus is not VirtualAdcBus virtualBus)
+        {
+            return;
+        }
+
+        if (!byte.TryParse(SlaveBox.Text, out var slave))
+        {
+            ConnectionStatusText.Text = "Enter a valid slave address";
+            return;
+        }
+
+        var result = (AdcEventStatus)NextResultBox.SelectedItem;
+        virtualBus.SetNextFasteningResult(slave, result);
+        AppendLog($"VIRTUAL  Slave {slave}: {result.GetDescription()} set for one fastening");
+    }
+
+    protected override async void OnClosing(CancelEventArgs e)
+    {
+        if (_operation.IsCompleted)
+        {
+            base.OnClosing(e);
+            return;
+        }
+
+        e.Cancel = true;
+        base.OnClosing(e);
+        if (_closing)
+        {
+            return;
+        }
+
+        _closing = true;
+        _operationCancellation?.Cancel();
+        try
+        {
+            await CommandShutdown.WaitAsync(_operation);
+            _ = Dispatcher.BeginInvoke(Close);
+        }
+        catch (Exception exception)
+        {
+            _closing = false;
+            SetBusy(false);
+            MessageBox.Show(this, exception.Message, "ADC Shutdown Failed",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
 
     protected override void OnClosed(EventArgs e)
     {
@@ -53,7 +126,7 @@ public partial class AdcProtocolWindow : Window
     private void OnRefreshPorts(object sender, RoutedEventArgs e) => RefreshPorts();
 
     private async void OnToggleConnection(object sender, RoutedEventArgs e) =>
-        await ExecuteAsync(() =>
+        await ExecuteAsync(_ =>
         {
             if (_bus.IsOpen)
             {
@@ -73,47 +146,65 @@ public partial class AdcProtocolWindow : Window
         });
 
     private async void OnSelectPreset(object sender, RoutedEventArgs e) =>
-        await ExecuteAsync(async () =>
+        await ExecuteAsync(async cancellationToken =>
         {
             var preset = ushort.Parse(PresetBox.Text);
             await _bus.SelectPresetAsync(
                 SlaveAddress,
                 preset,
-                _lifetime.Token);
+                cancellationToken);
             ResultText.Text = $"Preset {preset} selected";
         });
 
     private async void OnStart(object sender, RoutedEventArgs e) =>
-        await ExecuteAsync(async () =>
-        {
-            await _bus.SetDirectionAsync(
-                SlaveAddress,
-                AdcDirection.Fastening,
-                _lifetime.Token);
-            await _bus.StartAsync(SlaveAddress, _lifetime.Token);
-            ResultText.Text = "Fastening started";
-        });
+        await ExecuteAsync(TestFasteningAsync);
 
-    private async void OnStop(object sender, RoutedEventArgs e) =>
-        await ExecuteAsync(async () =>
+    private async void OnStop(object sender, RoutedEventArgs e)
+    {
+        if (!_operation.IsCompleted)
         {
-            await _bus.StopAsync(SlaveAddress, _lifetime.Token);
+            _operationCancellation!.Cancel();
+            await ShowResultAsync(_operation);
+            return;
+        }
+
+        await ExecuteAsync(async cancellationToken =>
+        {
+            await _bus.StopAsync(SlaveAddress, cancellationToken);
             ResultText.Text = "Stopped";
         });
+    }
+
+    private async Task TestFasteningAsync(CancellationToken cancellationToken)
+    {
+        var connection = new HantasSettings
+        {
+            PortName = _bus.PortName,
+            BaudRate = _bus.BaudRate,
+            ResponseTimeoutMilliseconds = _settings.ResponseTimeoutMilliseconds,
+            FasteningTimeoutMilliseconds = _settings.FasteningTimeoutMilliseconds,
+        };
+        ResultText.Text = "Fastening...";
+        var result = await _machine.TestBoltHeadAsync(
+            new AdcBoltHead(_bus, connection, SlaveAddress),
+            cancellationToken);
+        ResultText.Text =
+            $"{(result.Success ? "OK" : "NG")}  Torque {result.Torque:F2}";
+    }
 
     private async void OnResetAlarm(object sender, RoutedEventArgs e) =>
-        await ExecuteAsync(async () =>
+        await ExecuteAsync(async cancellationToken =>
         {
-            await _bus.ResetAlarmAsync(SlaveAddress, _lifetime.Token);
+            await _bus.ResetAlarmAsync(SlaveAddress, cancellationToken);
             ResultText.Text = "Alarm reset sent";
         });
 
     private async void OnReadResult(object sender, RoutedEventArgs e) =>
-        await ExecuteAsync(async () =>
+        await ExecuteAsync(async cancellationToken =>
         {
             var result = await _bus.ReadFasteningResultAsync(
                 SlaveAddress,
-                _lifetime.Token);
+                cancellationToken);
             ResultText.Text =
                 $"{result.Status}  Event {result.EventCount}\n" +
                 $"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n" +
@@ -121,16 +212,16 @@ public partial class AdcProtocolWindow : Window
         });
 
     private async void OnReadDeviceInformation(object sender, RoutedEventArgs e) =>
-        await ExecuteAsync(async () =>
+        await ExecuteAsync(async cancellationToken =>
         {
             var data = await _bus.ReadDeviceInformationAsync(
                 SlaveAddress,
-                _lifetime.Token);
+                cancellationToken);
             ResultText.Text = $"Device data: {ToHex(data)}";
         });
 
     private async void OnExecuteRegister(object sender, RoutedEventArgs e) =>
-        await ExecuteAsync(async () =>
+        await ExecuteAsync(async cancellationToken =>
         {
             var access = (AdcRegisterAccess)AccessBox.SelectedItem;
             var address = ushort.Parse(AddressBox.Text);
@@ -144,7 +235,7 @@ public partial class AdcProtocolWindow : Window
                             SlaveAddress,
                             address,
                             ushort.Parse(CountBox.Text),
-                            _lifetime.Token));
+                            cancellationToken));
                     break;
                 case AdcRegisterAccess.ReadInputRegisters:
                     RegisterResultText.Text = FormatRegisters(
@@ -153,15 +244,23 @@ public partial class AdcProtocolWindow : Window
                             SlaveAddress,
                             address,
                             ushort.Parse(CountBox.Text),
-                            _lifetime.Token));
+                            cancellationToken));
                     break;
                 case AdcRegisterAccess.WriteSingleRegister:
                     var value = ushort.Parse(ValueBox.Text);
-                    await _bus.WriteRegisterAsync(
-                        SlaveAddress,
-                        address,
-                        value,
-                        _lifetime.Token);
+                    if (address == (ushort)AdcRemoteRegister.RemoteStart
+                        && value != 0)
+                    {
+                        await TestFasteningAsync(cancellationToken);
+                    }
+                    else
+                    {
+                        await _bus.WriteRegisterAsync(
+                            SlaveAddress,
+                            address,
+                            value,
+                            cancellationToken);
+                    }
                     RegisterResultText.Text = $"{address} = {value} (0x{value:X4})";
                     break;
                 default:
@@ -171,36 +270,92 @@ public partial class AdcProtocolWindow : Window
 
     private void OnClearLog(object sender, RoutedEventArgs e) => LogBox.Clear();
 
-    private async Task ExecuteAsync(Func<Task> operation)
+    private Task ExecuteAsync(Func<CancellationToken, Task> operation)
     {
+        if (!_machine.CanUseAdcProtocol || !_operation.IsCompleted || _closing)
+        {
+            return Task.CompletedTask;
+        }
+
+        _operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            _lifetime.Token);
         SetBusy(true);
+        _operation = ExecuteCoreAsync(operation, _operationCancellation.Token);
+        return ShowResultAsync(_operation);
+    }
+
+    private async Task ExecuteCoreAsync(
+        Func<CancellationToken, Task> operation,
+        CancellationToken cancellationToken)
+    {
         try
         {
-            await operation();
+            using var linked = _operations.Link(cancellationToken);
+            await operation(linked.Token);
+        }
+        finally
+        {
+            _operationCancellation!.Dispose();
+            _operationCancellation = null;
+            SetBusy(false);
+        }
+    }
+
+    private async Task ShowResultAsync(Task operation)
+    {
+        try
+        {
+            await operation;
+        }
+        catch (OperationCanceledException)
+        {
+            ResultText.Text = "Stopped";
         }
         catch (Exception exception)
         {
             ConnectionStatusText.Text = exception.Message;
             AppendLog($"ERROR  {exception.Message}");
         }
-        finally
+    }
+
+    public void RefreshControls()
+    {
+        if (!_machine.CanUseAdcProtocol)
         {
-            SetBusy(false);
+            _operationCancellation?.Cancel();
         }
+        SetBusy(!_operation.IsCompleted);
+    }
+
+    internal async Task StopAsync()
+    {
+        var operation = _operation;
+        if (operation.IsCompleted)
+        {
+            return;
+        }
+
+        _operationCancellation?.Cancel();
+        await CommandShutdown.WaitAsync(operation);
     }
 
     private void SetBusy(bool busy)
     {
+        busy |= _closing;
         ConnectionControls.IsEnabled = !busy;
+        var protocolEnabled = !busy && _machine.CanUseAdcProtocol;
         var connected = _bus.IsOpen;
-        PortBox.IsEnabled = !busy && !connected;
-        BaudBox.IsEnabled = !busy && !connected;
-        SlaveBox.IsEnabled = !busy;
-        RefreshPortsButton.IsEnabled = !busy && !connected;
-        ConnectButton.IsEnabled = !busy
+        PortBox.IsEnabled = protocolEnabled && !connected;
+        BaudBox.IsEnabled = protocolEnabled && !connected;
+        SlaveBox.IsEnabled = !busy && (IsVirtual || _machine.CanUseAdcProtocol);
+        RefreshPortsButton.IsEnabled = protocolEnabled && !connected;
+        ConnectButton.IsEnabled = protocolEnabled
             && (connected || PortBox.SelectedItem is string);
-        OperationPanel.IsEnabled = !busy && connected;
-        RegisterPanel.IsEnabled = !busy && connected;
+        OperationPanel.IsEnabled = protocolEnabled && connected;
+        RegisterPanel.IsEnabled = protocolEnabled && connected;
+        StartButton.IsEnabled = protocolEnabled && connected && _machine.CanTestBoltHead;
+        StopButton.IsEnabled = connected && !_closing && _machine.CanUseAdcProtocol;
+        VirtualResultPanel.IsEnabled = !_closing;
     }
 
     private void RefreshPorts()
@@ -223,6 +378,10 @@ public partial class AdcProtocolWindow : Window
     private void AppendLog(string text)
     {
         LogBox.AppendText($"{DateTime.Now:HH:mm:ss.fff}  {text}{Environment.NewLine}");
+        if (LogBox.Text.Length > MaximumLogCharacters)
+        {
+            LogBox.Clear();
+        }
         LogBox.ScrollToEnd();
     }
 

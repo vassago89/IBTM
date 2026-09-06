@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -51,9 +52,12 @@ public partial class MainViewModel : ObservableObject
     private readonly SettingsViewModel _settingsViewModel;
     private readonly ManualHardwareViewModel _manualHardwareViewModel;
     private readonly MachineState _state;
+    private readonly MachineController _machine;
     private readonly bool _supplyTeachingEnabled;
     private readonly bool _stationTeachingEnabled;
+    private readonly bool _virtualBolt;
     private int _stateRefreshQueued;
+    private bool _shuttingDown;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentPage))]
@@ -72,7 +76,8 @@ public partial class MainViewModel : ObservableObject
         RecipeEditor recipeEditor,
         MachineState state,
         UnitSettings units,
-        DriverSettings drivers)
+        DriverSettings drivers,
+        MachineController machine)
     {
         _operationViewModel = operationViewModel;
         _supplyTeachingViewModel = supplyTeachingViewModel;
@@ -82,18 +87,23 @@ public partial class MainViewModel : ObservableObject
         _manualHardwareViewModel = manualHardwareViewModel;
         RecipeEditor = recipeEditor;
         _state = state;
+        _machine = machine;
         _supplyTeachingEnabled = units.PcbSupply || units.PcbPlacement;
         _stationTeachingEnabled = units.PcbPlacement
-                                  || units.BoltFastening
-                                  || units.Inspection
-                                  || units.NgConveyor;
+                                   || units.BoltFastening
+                                   || units.Inspection
+                                   || units.NgCarrierTransfer;
         var controlVirtual = drivers.Control == ControlDriver.Virtual;
         var cameraVirtual = drivers.Camera == CameraDriver.Virtual;
         var boltVirtual = drivers.Bolt == BoltDriver.Virtual;
+        var inspectionSimulated = units.Inspection
+                                  && drivers.Inspection == InspectionAlgorithm.Virtual;
+        _virtualBolt = boltVirtual;
         Environment = (controlVirtual, cameraVirtual, boltVirtual) switch
         {
             (true, true, true) => MachineEnvironmentDisplay.Virtual,
-            (false, false, false) => MachineEnvironmentDisplay.Physical,
+            (false, false, false) when !inspectionSimulated =>
+                MachineEnvironmentDisplay.Physical,
             _ => MachineEnvironmentDisplay.Mixed,
         };
         state.Changed += OnMachineStateChanged;
@@ -120,12 +130,28 @@ public partial class MainViewModel : ObservableObject
         _ => throw new ArgumentOutOfRangeException(nameof(SelectedPage)),
     };
     public bool ManualControlsEnabled => _state.ManualControlsEnabled;
+    public bool AdcProtocolEnabled =>
+        _virtualBolt || _machine.CanUseAdcProtocol;
     public bool CurrentPageEnabled =>
         SelectedPage is AppPage.Operation
             or AppPage.Settings
             or AppPage.ManualHardware
             or AppPage.BoltTraining
         || _state.CanOperate;
+
+    public Task ShutdownAsync()
+    {
+        _shuttingDown = true;
+        _state.Changed -= OnMachineStateChanged;
+        return Task.WhenAll(
+            _operationViewModel.ShutdownAsync(),
+            _supplyTeachingViewModel.ShutdownAsync(),
+            _stationTeachingViewModel.ShutdownAsync(),
+            _manualHardwareViewModel.ShutdownAsync(),
+            _boltTrainingViewModel.ShutdownAsync(),
+            _settingsViewModel.ShutdownAsync(),
+            RecipeEditor.ShutdownAsync());
+    }
 
     [RelayCommand(CanExecute = nameof(CanNavigate))]
     private void Navigate(AppPage page)
@@ -144,7 +170,9 @@ public partial class MainViewModel : ObservableObject
         || ((page == AppPage.Settings && !_state.IsRunning)
             || (page == AppPage.ManualHardware && !_state.IsRunning)
             || (page == AppPage.BoltTraining
-                && _state.ManualControlsEnabled)
+                && _state.ManualMode
+                && _state.SafetyReady
+                && !_state.IsRunning)
             || (page == AppPage.SupplyTeaching
                 && _supplyTeachingEnabled
                 && _state.ManualControlsEnabled)
@@ -198,7 +226,8 @@ public partial class MainViewModel : ObservableObject
 
     private void OnMachineStateChanged()
     {
-        if (Interlocked.Exchange(ref _stateRefreshQueued, 1) != 0)
+        if (_shuttingDown
+            || Interlocked.Exchange(ref _stateRefreshQueued, 1) != 0)
         {
             return;
         }
@@ -206,10 +235,17 @@ public partial class MainViewModel : ObservableObject
         Application.Current.Dispatcher.BeginInvoke(() =>
         {
             Interlocked.Exchange(ref _stateRefreshQueued, 0);
+            if (_shuttingDown)
+            {
+                return;
+            }
+
             OnPropertyChanged(nameof(ManualControlsEnabled));
+            OnPropertyChanged(nameof(AdcProtocolEnabled));
             OnPropertyChanged(nameof(CurrentPageEnabled));
             OnPropertyChanged(nameof(RecipeEditingEnabled));
             NavigateCommand.NotifyCanExecuteChanged();
+            _boltTrainingViewModel.CaptureBoltPointsCommand.NotifyCanExecuteChanged();
             if (_state.AutomaticRunning
                 && SelectedPage != AppPage.Operation)
             {
@@ -221,7 +257,7 @@ public partial class MainViewModel : ObservableObject
             {
                 Navigate(AppPage.Operation);
             }
-            else if (!_state.ManualControlsEnabled
+            else if ((!_state.SafetyReady || !_state.ManualMode)
                       && CurrentPage is BoltTrainingViewModel
                       { IsBusy: false })
             {

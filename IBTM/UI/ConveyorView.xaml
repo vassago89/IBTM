@@ -5,7 +5,6 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="clr-namespace:IBTM.UI"
              xmlns:conveyor="clr-namespace:IBTM.Conveyor;assembly=IBTM.Conveyor"
-             xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
              Width="1552"
@@ -18,34 +17,6 @@
             <Setter Property="Height" Value="20"/>
             <Setter Property="StrokeThickness" Value="2"/>
             <Setter Property="Panel.ZIndex" Value="3"/>
-        </Style>
-        <Style x:Key="HeatSink1LandingTargetStyle"
-               TargetType="Border"
-               BasedOn="{StaticResource PcbLandingTargetStyle}">
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding PcbPlacementTargetHeatSink}"
-                             Value="{x:Static core:HeatSinkSlot.HeatSink1}">
-                    <Setter Property="Background"
-                            Value="{StaticResource MapActiveBackgroundBrush}"/>
-                    <Setter Property="BorderBrush"
-                            Value="{StaticResource AccentBlueBrush}"/>
-                    <Setter Property="BorderThickness" Value="2"/>
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="HeatSink2LandingTargetStyle"
-               TargetType="Border"
-               BasedOn="{StaticResource PcbLandingTargetStyle}">
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding PcbPlacementTargetHeatSink}"
-                             Value="{x:Static core:HeatSinkSlot.HeatSink2}">
-                    <Setter Property="Background"
-                            Value="{StaticResource MapActiveBackgroundBrush}"/>
-                    <Setter Property="BorderBrush"
-                            Value="{StaticResource AccentBlueBrush}"/>
-                    <Setter Property="BorderThickness" Value="2"/>
-                </DataTrigger>
-            </Style.Triggers>
         </Style>
         <DataTemplate x:Key="BoltTargetTemplate">
             <Border Tag="{Binding State}"
@@ -63,7 +34,6 @@
             <Setter Property="Width" Value="250"/>
             <Setter Property="Height" Value="66"/>
             <Setter Property="Panel.ZIndex" Value="2"/>
-            <Setter Property="Grid.ColumnSpan" Value="3"/>
             <Setter Property="ItemTemplate" Value="{StaticResource BoltTargetTemplate}"/>
             <Setter Property="ItemsPanel">
                 <Setter.Value>
@@ -112,11 +82,10 @@
                                 <Style TargetType="TextBlock"
                                        BasedOn="{StaticResource MapHintStyle}">
                                     <Setter Property="Text"
-                                            Value="{Binding MainConveyorState,
+                                            Value="{Binding ConveyorStatus,
                                                             Converter={StaticResource EnumDescriptionConverter}}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding MainConveyorEnabled}" Value="False">
-                                            <Setter Property="Text" Value="Disabled"/>
                                             <Setter Property="Opacity" Value="0.55"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding ConveyorRunning}" Value="True">
@@ -136,17 +105,20 @@
                     Tag="{Binding ConveyorRunning}"
                     Style="{StaticResource ConveyorBedStyle}"/>
 
-            <TextBlock Canvas.Left="194" Canvas.Top="42"
+            <TextBlock Canvas.Left="194" Canvas.Top="{x:Static ui:MachinePlan.StationLabelTop}"
                         Width="{StaticResource BackupPlateWidth}"
-                       Text="PLACE"
+                       Margin="6,0,0,0" TextAlignment="Left"
+                       Text="Station 1"
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
-            <TextBlock Canvas.Left="604" Canvas.Top="42"
+            <TextBlock Canvas.Left="604" Canvas.Top="{x:Static ui:MachinePlan.StationLabelTop}"
                         Width="{StaticResource BackupPlateWidth}"
-                       Text="FASTEN"
+                       Margin="6,0,0,0" TextAlignment="Left"
+                       Text="Station 2"
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
-            <TextBlock Canvas.Left="1014" Canvas.Top="42"
+            <TextBlock Canvas.Left="{x:Static ui:MachinePlan.InspectionPlateLeft}" Canvas.Top="{x:Static ui:MachinePlan.StationLabelTop}"
                         Width="{StaticResource BackupPlateWidth}"
-                       Text="INSPECT"
+                       Margin="6,0,0,0" TextAlignment="Left"
+                       Text="Station 3"
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
 
             <Ellipse Canvas.Left="160" Canvas.Top="108"
@@ -155,66 +127,21 @@
                      Style="{StaticResource MainConveyorSensorStyle}"/>
             <TextBlock Canvas.Left="150" Canvas.Top="137"
                        Width="40"
-                       Text="IN"
-                       FontSize="10"
+                       Text="In"
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
 
             <Border Canvas.Left="194" Canvas.Top="70"
                     Tag="{Binding PcbPlacementBackupPlateUp}"
                     ToolTip="Placement backup plate"
                     Style="{StaticResource BackupPlateVisualStyle}"/>
-            <ContentControl Canvas.Left="202" Canvas.Top="78"
-                            Panel.ZIndex="2"
-                            Style="{StaticResource CarrierStyle}"
-                            Visibility="{Binding PcbPlacementCarrierPresent,
-                                                 Converter={StaticResource BoolToVis}}">
-                <Grid Margin="9">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="9"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <Border Tag="{Binding PcbPlacementHeatSink1Present}"
-                            Style="{StaticResource HeatSinkPocketStyle}">
-                        <Grid>
-                            <TextBlock Text="HS1"
-                                       Style="{StaticResource HeatSinkPocketLabelStyle}"/>
-                            <Border Style="{StaticResource HeatSink1LandingTargetStyle}"
-                                    Visibility="{Binding PcbPlacementHeatSink1Present,
-                                                         Converter={StaticResource BoolToVis}}">
-                                <Grid>
-                                    <Border Style="{StaticResource PcbSlotStyle}"/>
-                                    <Border Style="{StaticResource PcbFootprintStyle}"
-                                             HorizontalAlignment="Center"
-                                             VerticalAlignment="Center"
-                                             Visibility="{Binding PcbPlacementHeatSink1Completed,
-                                                                  Converter={StaticResource BoolToVis}}"/>
-                                </Grid>
-                            </Border>
-                        </Grid>
-                    </Border>
-                    <Border Grid.Column="2"
-                            Tag="{Binding PcbPlacementHeatSink2Present}"
-                            Style="{StaticResource HeatSinkPocketStyle}">
-                        <Grid>
-                            <TextBlock Text="HS2"
-                                       Style="{StaticResource HeatSinkPocketLabelStyle}"/>
-                            <Border Style="{StaticResource HeatSink2LandingTargetStyle}"
-                                    Visibility="{Binding PcbPlacementHeatSink2Present,
-                                                         Converter={StaticResource BoolToVis}}">
-                                <Grid>
-                                    <Border Style="{StaticResource PcbSlotStyle}"/>
-                                    <Border Style="{StaticResource PcbFootprintStyle}"
-                                             HorizontalAlignment="Center"
-                                             VerticalAlignment="Center"
-                                             Visibility="{Binding PcbPlacementHeatSink2Completed,
-                                                                  Converter={StaticResource BoolToVis}}"/>
-                                </Grid>
-                            </Border>
-                        </Grid>
-                    </Border>
-                </Grid>
-            </ContentControl>
+            <ui:CarrierView Canvas.Left="202" Canvas.Top="78" Panel.ZIndex="2"
+                            HeatSink1Present="{Binding PcbPlacementHeatSink1Present}"
+                            HeatSink2Present="{Binding PcbPlacementHeatSink2Present}"
+                            Pcb1Placed="{Binding PcbPlacementHeatSink1Completed}"
+                            Pcb2Placed="{Binding PcbPlacementHeatSink2Completed}"
+                            ShowPcbSlots="True"
+                            ActiveHeatSink="{Binding PcbPlacementTargetHeatSink}"
+                            Visibility="{Binding PcbPlacementCarrierPresent, Converter={StaticResource BoolToVis}}"/>
             <Border Canvas.Left="463" Canvas.Top="105"
                      Tag="{Binding PcbPlacementStopperUp}"
                      ToolTip="Placement stopper"
@@ -223,90 +150,32 @@
                     Tag="{Binding BoltFasteningBackupPlateUp}"
                     ToolTip="Bolt fastening backup plate"
                     Style="{StaticResource BackupPlateVisualStyle}"/>
-            <ContentControl Canvas.Left="612" Canvas.Top="78"
-                            Panel.ZIndex="2"
-                            Style="{StaticResource CarrierStyle}"
-                            Visibility="{Binding BoltFasteningCarrierPresent,
-                                                 Converter={StaticResource BoolToVis}}">
-                <Grid Margin="9">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="9"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <Border Tag="{Binding BoltFasteningHeatSink1Present}"
-                            Style="{StaticResource HeatSinkPocketStyle}">
-                        <Grid>
-                            <TextBlock Text="HS1"
-                                       Style="{StaticResource HeatSinkPocketLabelStyle}"/>
-                            <TextBlock Text="{Binding BoltFasteningHeatSink1Result,
-                                                     Converter={StaticResource EnumDescriptionConverter}}"
-                                       Tag="{Binding BoltFasteningHeatSink1Result}"
-                                       Style="{StaticResource ResultTextStyle}"/>
-                        </Grid>
-                    </Border>
-                    <Border Grid.Column="2"
-                            Tag="{Binding BoltFasteningHeatSink2Present}"
-                            Style="{StaticResource HeatSinkPocketStyle}">
-                        <Grid>
-                            <TextBlock Text="HS2"
-                                       Style="{StaticResource HeatSinkPocketLabelStyle}"/>
-                            <TextBlock Text="{Binding BoltFasteningHeatSink2Result,
-                                                     Converter={StaticResource EnumDescriptionConverter}}"
-                                       Tag="{Binding BoltFasteningHeatSink2Result}"
-                                       Style="{StaticResource ResultTextStyle}"/>
-                        </Grid>
-                    </Border>
-                    <ItemsControl ItemsSource="{Binding BoltTargets}"
-                                  Style="{StaticResource BoltTargetItemsStyle}"/>
-                </Grid>
-            </ContentControl>
+            <ui:CarrierView Canvas.Left="612" Canvas.Top="78" Panel.ZIndex="2"
+                            HeatSink1Present="{Binding BoltFasteningHeatSink1Present}"
+                            HeatSink2Present="{Binding BoltFasteningHeatSink2Present}"
+                            HeatSink1Result="{Binding BoltFasteningHeatSink1Result}"
+                            HeatSink2Result="{Binding BoltFasteningHeatSink2Result}"
+                            Visibility="{Binding BoltFasteningCarrierPresent, Converter={StaticResource BoolToVis}}">
+                <ItemsControl ItemsSource="{Binding BoltTargets}" Style="{StaticResource BoltTargetItemsStyle}"/>
+            </ui:CarrierView>
             <Border Canvas.Left="873" Canvas.Top="105"
                      Tag="{Binding BoltFasteningStopperUp}"
                      ToolTip="Bolt fastening stopper"
                      Style="{StaticResource StopperVisualStyle}"/>
-            <Border Canvas.Left="1014" Canvas.Top="70"
+            <Border Canvas.Left="{x:Static ui:MachinePlan.InspectionPlateLeft}" Canvas.Top="{x:Static ui:MachinePlan.PlateTop}"
                     Tag="{Binding InspectionBackupPlateUp}"
                     ToolTip="Inspection backup plate"
                     Style="{StaticResource BackupPlateVisualStyle}"/>
-            <ContentControl Canvas.Left="1022" Canvas.Top="78"
-                            Panel.ZIndex="2"
-                            Style="{StaticResource CarrierStyle}"
-                            Visibility="{Binding InspectionCarrierPresent,
-                                                 Converter={StaticResource BoolToVis}}">
-                <Grid Margin="9">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="9"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    <Border Tag="{Binding InspectionHeatSink1Present}"
-                            Style="{StaticResource HeatSinkPocketStyle}">
-                        <Grid>
-                            <TextBlock Text="HS1"
-                                       Style="{StaticResource HeatSinkPocketLabelStyle}"/>
-                            <TextBlock Text="{Binding InspectionHeatSink1Result,
-                                                     Converter={StaticResource EnumDescriptionConverter}}"
-                                       Tag="{Binding InspectionHeatSink1Result}"
-                                       Style="{StaticResource ResultTextStyle}"/>
-                        </Grid>
-                    </Border>
-                    <Border Grid.Column="2"
-                            Tag="{Binding InspectionHeatSink2Present}"
-                            Style="{StaticResource HeatSinkPocketStyle}">
-                        <Grid>
-                            <TextBlock Text="HS2"
-                                       Style="{StaticResource HeatSinkPocketLabelStyle}"/>
-                            <TextBlock Text="{Binding InspectionHeatSink2Result,
-                                                     Converter={StaticResource EnumDescriptionConverter}}"
-                                       Tag="{Binding InspectionHeatSink2Result}"
-                                       Style="{StaticResource ResultTextStyle}"/>
-                        </Grid>
-                    </Border>
-                    <ItemsControl ItemsSource="{Binding InspectionTargets}"
-                                  Style="{StaticResource BoltTargetItemsStyle}"/>
-                </Grid>
-            </ContentControl>
+            <ui:CarrierView x:Name="InspectionCarrier"
+                            Canvas.Left="{x:Static ui:MachinePlan.InspectionCarrierLeft}"
+                            Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}" Panel.ZIndex="2"
+                            HeatSink1Present="{Binding InspectionHeatSink1Present}"
+                            HeatSink2Present="{Binding InspectionHeatSink2Present}"
+                            HeatSink1Result="{Binding InspectionHeatSink1Result}"
+                            HeatSink2Result="{Binding InspectionHeatSink2Result}"
+                            Visibility="{Binding InspectionCarrierPresent, Converter={StaticResource BoolToVis}}">
+                <ItemsControl ItemsSource="{Binding InspectionTargets}" Style="{StaticResource BoltTargetItemsStyle}"/>
+            </ui:CarrierView>
             <Border Canvas.Left="1283" Canvas.Top="105"
                      Tag="{Binding InspectionStopperUp}"
                      ToolTip="Inspection stopper"
@@ -317,31 +186,14 @@
                      Style="{StaticResource MainConveyorSensorStyle}"/>
             <TextBlock Canvas.Left="1358" Canvas.Top="137"
                        Width="40"
-                       Text="OUT"
-                       FontSize="10"
+                       Text="Out"
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
-            <ContentControl Canvas.Left="407" Canvas.Top="78"
+            <ui:CarrierView Canvas.Left="407" Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}"
                             Panel.ZIndex="2"
-                            Style="{StaticResource CarrierStyle}"
-                            Visibility="{Binding CarrierBetweenPlacementAndBolt,
-                                                 Converter={StaticResource BoolToVis}}">
-                <TextBlock Text="CARRIER"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Foreground="{StaticResource TextPrimaryBrush}"
-                           Style="{StaticResource EquipmentRoleLabelStyle}"/>
-            </ContentControl>
-            <ContentControl Canvas.Left="817" Canvas.Top="78"
+                            Visibility="{Binding CarrierBetweenPlacementAndBolt, Converter={StaticResource BoolToVis}}"/>
+            <ui:CarrierView Canvas.Left="817" Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}"
                             Panel.ZIndex="2"
-                            Style="{StaticResource CarrierStyle}"
-                            Visibility="{Binding CarrierBetweenBoltAndInspection,
-                                                 Converter={StaticResource BoolToVis}}">
-                <TextBlock Text="CARRIER"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           Foreground="{StaticResource TextPrimaryBrush}"
-                           Style="{StaticResource EquipmentRoleLabelStyle}"/>
-            </ContentControl>
+                            Visibility="{Binding CarrierBetweenBoltAndInspection, Converter={StaticResource BoolToVis}}"/>
 
         </Canvas>
     </Grid>

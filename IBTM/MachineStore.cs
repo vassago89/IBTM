@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Media.Imaging;
 using IBTM.Ajin;
 using IBTM.AlphaMotion;
 using IBTM.BoltFastening;
@@ -79,12 +80,61 @@ public sealed class MachineStore
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-    public string GetRecipeImageDirectory(string recipeName) =>
+    public void ClearRecipeImages(string recipeName)
+    {
+        var directory = GetRecipeImageDirectory(recipeName);
+        Directory.CreateDirectory(directory);
+        foreach (var path in Directory.GetFiles(directory, "*.png"))
+        {
+            File.Delete(path);
+        }
+    }
+
+    public void SaveRecipeImage(
+        string recipeName,
+        int number,
+        BitmapSource image)
+    {
+        Directory.CreateDirectory(GetRecipeImageDirectory(recipeName));
+        using var stream = File.Create(GetRecipeImagePath(recipeName, number));
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(image));
+        encoder.Save(stream);
+    }
+
+    public BitmapSource LoadRecipeImage(string recipeName, int number)
+    {
+        using var stream = File.OpenRead(GetRecipeImagePath(recipeName, number));
+        var decoder = new PngBitmapDecoder(
+            stream,
+            BitmapCreateOptions.PreservePixelFormat,
+            BitmapCacheOption.OnLoad);
+        var image = decoder.Frames[0];
+        image.Freeze();
+        return image;
+    }
+
+    public void CopyRecipeImages(
+        string sourceRecipe,
+        string targetRecipe,
+        IEnumerable<int> numbers)
+    {
+        Directory.CreateDirectory(GetRecipeImageDirectory(targetRecipe));
+        foreach (var number in numbers)
+        {
+            File.Copy(
+                GetRecipeImagePath(sourceRecipe, number),
+                GetRecipeImagePath(targetRecipe, number),
+                overwrite: true);
+        }
+    }
+
+    private string GetRecipeImageDirectory(string recipeName) =>
         Path.Combine(
             GetRecipeDirectory(recipeName),
             "Carrier");
 
-    public string GetRecipeImagePath(string recipeName, int number) =>
+    private string GetRecipeImagePath(string recipeName, int number) =>
         Path.Combine(
             GetRecipeImageDirectory(recipeName),
             $"{number:D4}.png");
@@ -107,6 +157,7 @@ public sealed class MachineStore
             settings.BoltInspection.SaveAsync(cancellationToken),
             settings.Lighting.SaveAsync(cancellationToken),
             settings.Hantas.SaveAsync(cancellationToken),
+            settings.NgCarrierTransfer.SaveAsync(cancellationToken),
             settings.NgConveyor.SaveAsync(cancellationToken),
             settings.PcbBuffer.SaveAsync(cancellationToken),
             settings.PcbSupply.SaveAsync(cancellationToken),
@@ -145,6 +196,9 @@ public sealed class MachineStore
                 cancellationToken),
             Lighting = await Setting.LoadAsync<LightingSettings>(cancellationToken),
             Hantas = await Setting.LoadAsync<HantasSettings>(cancellationToken),
+            NgCarrierTransfer =
+                await Setting.LoadAsync<NgCarrierTransferSettings>(
+                    cancellationToken),
             NgConveyor = await Setting.LoadAsync<NgConveyorSettings>(
                 cancellationToken),
             PcbBuffer = await Setting.LoadAsync<PcbBufferSettings>(
@@ -199,7 +253,9 @@ public sealed class MachineStore
     private string GetRecipeDirectory(string recipeName)
     {
         var directoryName = recipeName.Trim();
-        if (Path.GetFileName(directoryName) != directoryName)
+        if (directoryName.Length == 0
+            || directoryName.EndsWith('.')
+            || directoryName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
             throw new ArgumentException("Invalid recipe name.", nameof(recipeName));
         }

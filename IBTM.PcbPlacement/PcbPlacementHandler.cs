@@ -30,11 +30,11 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
     public MotionStatus Motion { get; }
     public IMotionFeedback Feedback => _motion;
 
-    public PlacementCylinderState Handler => CylinderState(
+    public PlacementCylinderState Lift => CylinderState(
         InputIo.PcbPlacementHandlerUp,
         InputIo.PcbPlacementHandlerDown);
 
-    public PlacementCylinderState Ipm => CylinderState(
+    public PlacementCylinderState IpmLift => CylinderState(
         InputIo.PcbPlacementIpmUp,
         InputIo.PcbPlacementIpmDown);
 
@@ -47,7 +47,7 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             _ => PlacementRotationState.Between,
         };
 
-    public PlacementGripperState Gripper =>
+    public PlacementGripperState IpmGripper =>
         (_io.GetInput(InputIo.PcbPlacementIpmGripperOpen),
             _io.GetInput(InputIo.PcbPlacementIpmGripperClosed)) switch
         {
@@ -66,7 +66,7 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             }
 
             return VacuumDetected
-                && Gripper == PlacementGripperState.Closed
+                && IpmGripper == PlacementGripperState.Closed
                     ? PlacementPcbState.Secured
                     : PlacementPcbState.Detected;
         }
@@ -79,9 +79,9 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         !_motion.IsMoving
         && _motion.GetAxisState(MotionAxis.Z).InPosition
         && _motion.IsAtHorizontalZ;
-    public bool AtBufferXY =>
+    internal bool AtBufferXY =>
         IsAtXY(_settings.BufferHandoffPosition);
-    public bool AtBufferZ =>
+    internal bool AtBufferZ =>
         IsAtZ(_settings.BufferHandoffPosition);
 
     public void InitializeMotion() => _motion.Initialize();
@@ -107,13 +107,13 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         CancellationToken cancellationToken = default) =>
         _motion.HomeHorizontalAsync(velocity, cancellationToken);
 
-    public bool IsAtXY(AxisPosition position) =>
+    internal bool IsAtXY(AxisPosition position) =>
         !_motion.IsMoving
         && _motion.GetAxisState(MotionAxis.X).InPosition
         && _motion.GetAxisState(MotionAxis.Y).InPosition
         && IsAtXY(_motion.GetPosition(), position);
 
-    public bool IsAtZ(AxisPosition position) =>
+    internal bool IsAtZ(AxisPosition position) =>
         !_motion.IsMoving
         && _motion.GetAxisState(MotionAxis.Z).InPosition
         && Math.Abs(_motion.GetPosition().Z - position.Z)
@@ -123,19 +123,19 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         CancellationToken cancellationToken = default) =>
         _motion.MoveToHorizontalZAsync(cancellationToken);
 
-    public Task MoveAboveBufferAsync(
+    internal Task MoveAboveBufferAsync(
         CancellationToken cancellationToken = default) =>
         MoveAboveAsync(
             _settings.BufferHandoffPosition,
             cancellationToken);
 
-    public Task LowerToBufferAsync(
+    internal Task LowerToBufferAsync(
         CancellationToken cancellationToken = default) =>
         LowerToAsync(
             _settings.BufferHandoffPosition,
             cancellationToken);
 
-    public Task MoveAboveAsync(
+    internal Task MoveAboveAsync(
         AxisPosition position,
         CancellationToken cancellationToken = default) =>
         _motion.MoveToXYAsync(
@@ -144,7 +144,7 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             _settings.Motion.HorizontalSpeed,
             cancellationToken);
 
-    public Task LowerToAsync(
+    internal Task LowerToAsync(
         AxisPosition position,
         CancellationToken cancellationToken = default) =>
         _motion.MoveZAsync(
@@ -212,7 +212,7 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         }
     }
 
-    public Task SetHandlerDownAsync(
+    internal Task SetLiftDownAsync(
         bool down,
         CancellationToken cancellationToken = default) =>
         _io.SetOutputAndWaitAsync(
@@ -220,7 +220,7 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             down,
             cancellationToken);
 
-    public Task SetIpmDownAsync(
+    internal Task SetIpmLiftDownAsync(
         bool down,
         CancellationToken cancellationToken = default) =>
         _io.SetOutputAndWaitAsync(
@@ -228,7 +228,7 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             down,
             cancellationToken);
 
-    public Task SetRotatedAsync(
+    internal Task SetRotatedAsync(
         bool rotated,
         CancellationToken cancellationToken = default) =>
         _io.SetOutputAndWaitAsync(
@@ -244,10 +244,11 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             closed,
             cancellationToken);
 
-    public async Task SetVacuumAsync(
+    internal async Task SetVacuumAsync(
         bool on,
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.PcbPlacementVacuumEjector, on);
         await _io.WaitForInputAsync(
             InputIo.PcbPlacementVacuumDetected,
@@ -255,7 +256,7 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             cancellationToken);
     }
 
-    public Task WaitForPcbAsync(
+    internal Task WaitForPcbAsync(
         bool present,
         CancellationToken cancellationToken = default) =>
         _io.WaitForInputAsync(

@@ -8,9 +8,9 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="UI/AppStyles.xaml"/>
                 <ResourceDictionary Source="UI/MachineStyles.xaml"/>
+                <ResourceDictionary Source="UI/WorkpieceStyles.xaml"/>
                 <ResourceDictionary Source="UI/IoWindowStyles.xaml"/>
             </ResourceDictionary.MergedDictionaries>
-            <BooleanToVisibilityConverter x:Key="BoolToVis"/>
             <x:Array x:Key="TeachingJogSpeeds" Type="{x:Type sys:Double}">
                 <sys:Double>1</sys:Double>
                 <sys:Double>10</sys:Double>

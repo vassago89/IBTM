@@ -1,0 +1,123 @@
+<UserControl x:Class="IBTM.UI.NgConveyorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="clr-namespace:IBTM.UI"
+             xmlns:ng="clr-namespace:IBTM.NgConveyor;assembly=IBTM.NgConveyor"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
+             Width="{x:Static ui:MachinePlan.InspectionWidth}"
+             Height="{x:Static ui:MachinePlan.PlanHeight}">
+    <UserControl.Resources>
+        <Style x:Key="NgPositionStyle" TargetType="Border">
+            <Setter Property="Width" Value="{StaticResource CarrierWidth}"/>
+            <Setter Property="Height" Value="{StaticResource CarrierHeight}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="2"/>
+        </Style>
+        <Style x:Key="PositionLabelStyle" TargetType="TextBlock"
+               BasedOn="{StaticResource EquipmentRoleLabelStyle}">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextAlignment" Value="Left"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+    </UserControl.Resources>
+    <Canvas>
+        <StackPanel Canvas.Left="{x:Static ui:MachinePlan.NgStatusLeft}"
+                    Canvas.Top="{x:Static ui:MachinePlan.StatusTop}" Width="170">
+            <TextBlock Text="NG Conveyor" TextAlignment="Left"
+                       Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            <TextBlock Text="{Binding NgConveyorState, Converter={StaticResource EnumDescriptionConverter}}"
+                       TextWrapping="Wrap" Margin="0,6,0,0" FontSize="13">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding NgConveyorState}" Value="{x:Static ng:NgConveyorState.WaitingForCarrier}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding NgConveyorState}" Value="{x:Static ng:NgConveyorState.ReadyToEject}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding NgConveyorState}" Value="{x:Static ng:NgConveyorState.Full}">
+                                <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding NgAlarmRequired}" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+        </StackPanel>
+        <Grid Canvas.Left="{x:Static ui:MachinePlan.NgConveyorLeft}"
+              Canvas.Top="{x:Static ui:MachinePlan.NgConveyorTop}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Border Grid.RowSpan="5" Width="{x:Static ui:MachinePlan.NgConveyorWidth}"
+                    Tag="{Binding NgConveyorRunCommandOn}" Style="{StaticResource ConveyorBedStyle}"/>
+            <Border Grid.Column="1" Grid.RowSpan="5" Width="{x:Static ui:MachinePlan.PositionLabelGap}"/>
+            <Border Height="{x:Static ui:MachinePlan.PlatePadding}"/>
+            <Border Grid.Row="4" Height="{x:Static ui:MachinePlan.PlatePadding}"/>
+            <Grid Grid.Row="1" Height="{x:Static ui:MachinePlan.NgPositionHeight}">
+                <Border Style="{StaticResource NgPositionStyle}"/>
+                <ui:CarrierView>
+                    <ui:CarrierView.Style>
+                        <Style TargetType="{x:Type ui:CarrierView}" BasedOn="{StaticResource CarrierStyle}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding NgConveyorPosition3Occupied}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding NgShuttleCarrierDetected}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ui:CarrierView.Style>
+                </ui:CarrierView>
+                <Border x:Name="NgShuttle">
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource NgPositionStyle}">
+                            <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                            <Setter Property="BorderThickness" Value="2"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding NgShuttleLift}" Value="{x:Static ng:NgShuttleLiftState.Up}">
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding NgShuttleLift}" Value="{x:Static ng:NgShuttleLiftState.Down}">
+                                    <Setter Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                </Border>
+            </Grid>
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="P3" Style="{StaticResource PositionLabelStyle}"/>
+            <Grid Grid.Row="2" Height="{x:Static ui:MachinePlan.NgPositionHeight}">
+                <Border Style="{StaticResource NgPositionStyle}"/>
+                <ui:CarrierView Visibility="{Binding NgConveyorPosition2Occupied, Converter={StaticResource BoolToVis}}"/>
+            </Grid>
+            <TextBlock Grid.Row="2" Grid.Column="2" Text="P2" Style="{StaticResource PositionLabelStyle}"/>
+            <Grid Grid.Row="3" Height="{x:Static ui:MachinePlan.NgPositionHeight}">
+                <Border Style="{StaticResource NgPositionStyle}"/>
+                <ui:CarrierView Visibility="{Binding NgConveyorPosition1Occupied, Converter={StaticResource BoolToVis}}"/>
+            </Grid>
+            <TextBlock Grid.Row="3" Grid.Column="2" Text="P1 / EJECT" Style="{StaticResource PositionLabelStyle}"/>
+        </Grid>
+    </Canvas>
+</UserControl>

@@ -34,7 +34,7 @@ public sealed class VirtualMotionService(
     private readonly bool[] _servoOn = new bool[AxisCount];
     private readonly bool[] _homed = new bool[AxisCount];
     private readonly bool[] _alarm = new bool[AxisCount];
-    private CancellationTokenSource? _movement;
+    private OperationCancellation.Operation? _movement;
     private bool _seekingZPositiveLimit;
     private bool _zPositiveLimit;
     private double _x;
@@ -161,6 +161,7 @@ public sealed class VirtualMotionService(
         }
 
         _homed[(int)axis] = true;
+        PublishStateChanged();
         return true;
     }
 
@@ -187,6 +188,7 @@ public sealed class VirtualMotionService(
             _homed[(int)MotionAxis.Y] = true;
         }
 
+        PublishStateChanged();
         return true;
     }
 
@@ -209,7 +211,7 @@ public sealed class VirtualMotionService(
         x = Quantize(x);
         y = Quantize(y);
         z = Quantize(z);
-        var movement = BeginMovement(cancellationToken);
+        using var movement = BeginMovement(cancellationToken);
         var startX = _x;
         var startY = _y;
         var startZ = _z;
@@ -239,7 +241,7 @@ public sealed class VirtualMotionService(
         }
         finally
         {
-            EndMovement(movement);
+            EndMovement();
         }
     }
 
@@ -249,6 +251,7 @@ public sealed class VirtualMotionService(
         double velocityZ,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var movement = BeginMovement(cancellationToken);
         _ = JogAsync(velocityX, velocityY, velocityZ, movement);
     }
@@ -257,46 +260,72 @@ public sealed class VirtualMotionService(
         double velocityX,
         double velocityY,
         double velocityZ,
-        CancellationTokenSource movement)
+        OperationCancellation.Operation movement)
     {
-        try
+        using (movement)
         {
-            while (true)
+            var startX = _x;
+            var startY = _y;
+            var startZ = _z;
+            var stopwatch = Stopwatch.StartNew();
+            try
             {
-                await Task.Delay(UpdateInterval, movement.Token)
-                    .ConfigureAwait(false);
-                SetPosition(
-                    ClampToRange(
-                        MotionAxis.X,
-                        _x + (velocityX * UpdateInterval.TotalSeconds)),
-                    ClampToRange(
-                        MotionAxis.Y,
-                        _y + (velocityY * UpdateInterval.TotalSeconds)),
-                    ClampToRange(
-                        MotionAxis.Z,
-                        _z + (velocityZ * UpdateInterval.TotalSeconds)));
+                try
+                {
+                    while (true)
+                    {
+                        await Task.Delay(UpdateInterval, movement.Token)
+                            .ConfigureAwait(false);
+                        var elapsed = stopwatch.Elapsed.TotalSeconds;
+                        SetPosition(
+                            ClampToRange(
+                                MotionAxis.X,
+                                startX + (velocityX * elapsed)),
+                            ClampToRange(
+                                MotionAxis.Y,
+                                startY + (velocityY * elapsed)),
+                            ClampToRange(
+                                MotionAxis.Z,
+                                startZ + (velocityZ * elapsed)));
+                    }
+                }
+                finally
+                {
+                    EndMovement();
+                }
+            }
+            catch (OperationCanceledException) when (movement.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                PublishFault(exception);
             }
         }
-        catch (OperationCanceledException) when (movement.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            EndMovement(movement);
-        }
     }
 
-    private CancellationTokenSource BeginMovement(CancellationToken cancellationToken)
+    private OperationCancellation.Operation BeginMovement(
+        CancellationToken cancellationToken)
     {
-        _movement = LinkOperation(cancellationToken);
-        BeginMotion();
-        return _movement;
+        var movement = _movement = LinkOperation(cancellationToken);
+        try
+        {
+            BeginMotion();
+            return movement;
+        }
+        catch
+        {
+            using (movement)
+            {
+                EndMovement();
+                throw;
+            }
+        }
     }
 
-    private void EndMovement(CancellationTokenSource movement)
+    private void EndMovement()
     {
         _movement = null;
-        movement.Dispose();
         EndMotion();
         PublishPositionChanged(_x, _y, _z);
     }

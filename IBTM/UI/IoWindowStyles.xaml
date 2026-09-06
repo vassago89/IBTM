@@ -2,10 +2,57 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Style x:Key="IoListStyle" TargetType="ListBox">
-        <Setter Property="Background" Value="{StaticResource CardBgBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="ScrollViewer.CanContentScroll" Value="True"/>
+        <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True"/>
+        <Setter Property="VirtualizingPanel.IsVirtualizingWhenGrouping" Value="True"/>
+    </Style>
+
+    <DataTemplate x:Key="IoGroupHeaderTemplate">
+        <Grid Margin="12,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Name, Converter={StaticResource EnumDescriptionConverter}}"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       FontSize="14"
+                       FontWeight="SemiBold"/>
+            <TextBlock Grid.Column="1"
+                       Text="{Binding ItemCount, StringFormat={}{0} items}"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       VerticalAlignment="Center"/>
+        </Grid>
+    </DataTemplate>
+
+    <Style x:Key="IoGroupItemStyle" TargetType="GroupItem">
+        <Setter Property="Margin" Value="0,0,0,10"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="GroupItem">
+                    <Border Background="{StaticResource CardBgBrush}"
+                            BorderBrush="{StaticResource CardBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Border Background="{StaticResource ControlBgBrush}"
+                                    BorderBrush="{StaticResource DividerBrush}"
+                                    BorderThickness="0,0,0,1"
+                                    CornerRadius="4,4,0,0">
+                                <ContentPresenter/>
+                            </Border>
+                            <ItemsPresenter Grid.Row="1"/>
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style x:Key="IoListItemStyle"
@@ -31,8 +78,8 @@
         <Style.Triggers>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="True">
-                <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
-                <Setter Property="Stroke" Value="{StaticResource AccentGreenBrush}"/>
+                <Setter Property="Fill" Value="{StaticResource AccentBlueBrush}"/>
+                <Setter Property="Stroke" Value="{StaticResource AccentBlueBrush}"/>
                 <Setter Property="StrokeThickness" Value="2"/>
             </DataTrigger>
         </Style.Triggers>
@@ -60,7 +107,7 @@
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="True">
                 <Setter Property="Content" Value="ON"/>
-                <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
             </DataTrigger>
         </Style.Triggers>
     </Style>
@@ -88,7 +135,7 @@
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="True">
                 <Setter Property="Content" Value="ON"/>
-                <Setter Property="Foreground" Value="{StaticResource OutputActiveBrush}"/>
+                <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
             </DataTrigger>
         </Style.Triggers>
     </Style>

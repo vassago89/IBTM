@@ -54,6 +54,12 @@ public enum MachineAlarm
     [Description("Inspection")]
     Inspection,
 
+    [Description("NG Carrier Transfer")]
+    NgCarrierTransfer,
+
+    [Description("NG Shuttle")]
+    NgShuttle,
+
     [Description("PCB Buffer Conflict")]
     BufferConflict,
 
@@ -64,7 +70,7 @@ public enum MachineAlarm
     NgConveyor,
 }
 
-public readonly record struct MotionReadiness(
+internal readonly record struct MotionReadiness(
     bool Homed,
     bool ServosOn,
     bool Faulted);
@@ -74,7 +80,7 @@ public sealed class MachineState
     private readonly MachineOptions _options;
     private readonly IIoService _io;
     private readonly MainConveyor _conveyor;
-    private readonly NgConveyorLine _ngConveyor;
+    private readonly NgCarrierConveyor _ngConveyor;
     private readonly BufferStage _buffer;
     private readonly BoltTrainingSession _training;
     private readonly IMotionFeedback[] _allMotions;
@@ -85,12 +91,12 @@ public sealed class MachineState
         UnitSettings units,
         IIoService io,
         MainConveyor conveyor,
-        NgConveyorLine ngConveyor,
+        NgCarrierConveyor ngConveyor,
         BufferStage buffer,
         BoltTrainingSession training,
         PcbSupplyHandler pcbSupply,
         PcbPlacementHandler pcbPlacement,
-        BoltFasteningStation boltFastening,
+        BoltFasteningGantry boltFastening,
         InspectionGantry inspectionGantry)
     {
         _options = options;
@@ -119,7 +125,7 @@ public sealed class MachineState
             enabledMotions.Add(boltFastening.Feedback);
         }
 
-        if (units.Inspection || units.NgConveyor)
+        if (units.Inspection || units.NgCarrierTransfer)
         {
             enabledMotions.Add(inspectionGantry.Feedback);
         }
@@ -153,7 +159,7 @@ public sealed class MachineState
 
     public event Action? Changed;
 
-    public MotionReadiness MotionReadiness
+    internal MotionReadiness MotionReadiness
     {
         get
         {
@@ -223,6 +229,7 @@ public sealed class MachineState
 
     public bool IsError => Alarm != MachineAlarm.None;
     public bool AutomaticRunning { get; private set; }
+    public bool BoltTestRunning { get; private set; }
     public bool IsHoming { get; private set; }
     public MachineAlarm Alarm { get; private set; }
 
@@ -233,6 +240,7 @@ public sealed class MachineState
 
     public bool IsRunning =>
         AutomaticRunning
+        || BoltTestRunning
         || IsHoming
         || _training.IsRunning
         || ConveyorRunning
@@ -271,6 +279,12 @@ public sealed class MachineState
     internal void SetAutomaticRunning(bool value)
     {
         AutomaticRunning = value;
+        Changed?.Invoke();
+    }
+
+    internal void SetBoltTestRunning(bool value)
+    {
+        BoltTestRunning = value;
         Changed?.Invoke();
     }
 

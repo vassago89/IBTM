@@ -22,11 +22,35 @@
             <RowDefinition Height="220"/>
         </Grid.RowDefinitions>
 
-        <StackPanel>
-            <TextBlock Text="HANTAS ADC Protocol" Style="{StaticResource TitleStyle}"/>
-            <TextBlock Text="RS422 / Modbus RTU communication test"
-                       Style="{StaticResource PageSubtitleStyle}"/>
-        </StackPanel>
+        <Grid>
+            <StackPanel>
+                <TextBlock Text="HANTAS ADC Protocol" Style="{StaticResource TitleStyle}"/>
+                <TextBlock Text="RS422 / Modbus RTU communication test"
+                           Style="{StaticResource PageSubtitleStyle}"/>
+            </StackPanel>
+            <StackPanel x:Name="VirtualResultPanel"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        Visibility="{Binding IsVirtual, Converter={StaticResource BoolToVis}}">
+                <TextBlock Text="Next Virtual Result"
+                           VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                <ComboBox x:Name="NextResultBox"
+                          Width="155"
+                          Margin="10,0"
+                          ItemsSource="{Binding FasteningResults}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Content="Apply Once"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        Click="OnQueueResult"/>
+            </StackPanel>
+        </Grid>
 
         <Border Grid.Row="1"
                 Margin="0,18,0,12"
@@ -92,8 +116,19 @@
             </Grid.ColumnDefinitions>
 
             <Border Padding="18,16" Style="{StaticResource CardStyle}">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <TextBlock Text="CONTROLLER"
+                                   VerticalAlignment="Center"
+                                   Style="{StaticResource SectionHeaderStyle}"/>
+                        <Button x:Name="StopButton"
+                                Content="Stop"
+                                HorizontalAlignment="Right"
+                                Style="{StaticResource DangerButtonStyle}"
+                                Click="OnStop"/>
+                    </Grid>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel x:Name="OperationPanel" IsEnabled="False">
-                    <TextBlock Text="CONTROLLER" Style="{StaticResource SectionHeaderStyle}"/>
 
                     <Grid Margin="0,14,0,12">
                         <Grid.ColumnDefinitions>
@@ -116,14 +151,11 @@
                     </Grid>
 
                     <WrapPanel Margin="0,0,0,14">
-                        <Button Content="Start Fastening"
+                        <Button x:Name="StartButton"
+                                Content="Start Fastening"
                                 Margin="0,0,8,8"
                                 Style="{StaticResource PrimaryButtonStyle}"
                                 Click="OnStart"/>
-                        <Button Content="Stop"
-                                Margin="0,0,8,8"
-                                Style="{StaticResource DangerButtonStyle}"
-                                Click="OnStop"/>
                         <Button Content="Alarm Reset"
                                 Margin="0,0,8,8"
                                 Style="{StaticResource SecondaryButtonStyle}"
@@ -146,9 +178,12 @@
                                FontFamily="Cascadia Mono, Consolas"
                                Foreground="{StaticResource TextPrimaryBrush}"/>
                 </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
             </Border>
 
             <Border Grid.Column="2" Padding="18,16" Style="{StaticResource CardStyle}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel x:Name="RegisterPanel" IsEnabled="False">
                     <TextBlock Text="REGISTER ACCESS" Style="{StaticResource SectionHeaderStyle}"/>
 
@@ -192,6 +227,7 @@
                                FontFamily="Cascadia Mono, Consolas"
                                Foreground="{StaticResource TextPrimaryBrush}"/>
                 </StackPanel>
+                </ScrollViewer>
             </Border>
         </Grid>
 

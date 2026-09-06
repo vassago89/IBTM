@@ -44,18 +44,8 @@
 
             <Border Grid.Column="2" Background="{StaticResource EquipBgBrush}"
                     BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
-                    CornerRadius="3" ClipToBounds="True">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Visibility" Value="Collapsed"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsInspectionSelected}"
-                                         Value="True">
-                                <Setter Property="Visibility" Value="Visible"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
+                    CornerRadius="3" ClipToBounds="True"
+                    Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
                 <Grid>
                     <ui:ImageTeachingView x:Name="ImageMap"
                                           Source="{Binding LiveImage}"
@@ -89,7 +79,7 @@
                     </Border>
                     <Border HorizontalAlignment="Center" VerticalAlignment="Top"
                             Margin="0,8,0,0" Padding="10,6"
-                            Background="#E020252A" CornerRadius="2"
+                            Background="{StaticResource TeachingOverlayBrush}" CornerRadius="2"
                             IsHitTestVisible="False">
                         <Border.Style>
                             <Style TargetType="Border">
@@ -147,6 +137,8 @@
                                     <DataTrigger Binding="{Binding IsCameraLive}" Value="True">
                                         <Setter Property="Background"
                                                 Value="{StaticResource AccentBrush}"/>
+                                        <Setter Property="Foreground"
+                                                Value="{StaticResource AppBgBrush}"/>
                                         <Setter Property="BorderBrush"
                                                 Value="{StaticResource AccentBlueBrush}"/>
                                     </DataTrigger>
@@ -177,6 +169,20 @@
                                      Width="58"/>
                         </StackPanel>
                     </Border>
+                    <TextBlock Text="{Binding CameraError}" TextWrapping="Wrap"
+                               VerticalAlignment="Bottom" Margin="8,0,8,48" Padding="8"
+                               Background="{StaticResource TeachingOverlayBrush}"
+                               Foreground="{StaticResource AccentRedBrush}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CameraError}" Value="{x:Null}">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </Grid>
             </Border>
 
@@ -315,37 +321,44 @@
                               ItemContainerStyle="{StaticResource FlatListViewItemStyle}">
                         <ListView.ItemTemplate>
                             <DataTemplate>
-                                <Grid Margin="0,2">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="86"/>
-                                        <ColumnDefinition Width="74"/>
-                                        <ColumnDefinition Width="120"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0"
-                                               Text="{Binding Name}"
+                                <StackPanel Margin="4,6">
+                                    <TextBlock Text="{Binding Name}"
                                                ToolTip="{Binding Name}"
                                                TextTrimming="CharacterEllipsis"
-                                               VerticalAlignment="Center"
-                                                FontSize="12"
+                                               FontSize="14"
                                                Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Grid.Column="1"
-                                               Text="{Binding HeatSink, Converter={StaticResource EnumDescriptionConverter}}"
-                                               VerticalAlignment="Center"
-                                                FontFamily="Consolas" FontSize="11"
-                                               Foreground="{StaticResource TextMutedBrush}"/>
-                                    <TextBlock Grid.Column="2"
-                                               Text="{Binding Head, Converter={StaticResource EnumDescriptionConverter}}"
-                                               VerticalAlignment="Center"
-                                                FontFamily="Consolas" FontSize="11"
-                                               Foreground="{StaticResource TextMutedBrush}"/>
-                                    <TextBlock Grid.Column="3"
-                                               Text="{Binding PositionLabel}"
-                                               VerticalAlignment="Center"
+                                    <TextBlock Text="{Binding PositionLabel}"
+                                               Margin="0,3,0,0"
                                                FontFamily="Consolas"
-                                                FontSize="11"
-                                               Foreground="{StaticResource TextSecondaryBrush}"/>
-                                </Grid>
+                                               FontSize="13"
+                                               Foreground="{StaticResource TextSecondaryBrush}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding PositionLabel}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HeatSink}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <TextBlock Text="{Binding HeatSink, Converter={StaticResource EnumDescriptionConverter}}"
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                        <TextBlock Text="{Binding Head, Converter={StaticResource EnumDescriptionConverter}}"
+                                                   Margin="12,0,0,0"
+                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                    </StackPanel>
+                                </StackPanel>
                             </DataTemplate>
                         </ListView.ItemTemplate>
                     </ListView>

@@ -1,18 +1,36 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.AlphaMotion;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Inspection;
+using IBTM.Inspection.Training;
+using IBTM.Virtual;
+using Microsoft.Win32;
 
 namespace IBTM.UI;
 
 public partial class SettingsViewModel : ObservableObject
 {
     private readonly MachineStore _store;
+    private readonly MachineState _state;
+    private readonly VirtualCamera? _virtualCamera;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ClearVirtualImageCommand))]
+    private string? _virtualImageName;
+
+    [ObservableProperty]
+    private string? _virtualImageError;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentMotionSettings))]
@@ -22,9 +40,18 @@ public partial class SettingsViewModel : ObservableObject
 
     public SettingsViewModel(
         MachineStore store,
-        MachineSettings settings)
+        MachineSettings settings,
+        MachineState state,
+        ICamera camera)
     {
         _store = store;
+        _state = state;
+        _virtualCamera = camera as VirtualCamera;
+        state.Changed += () => Application.Current.Dispatcher.BeginInvoke(() =>
+        {
+            LoadVirtualImageCommand.NotifyCanExecuteChanged();
+            ClearVirtualImageCommand.NotifyCanExecuteChanged();
+        });
         Settings = settings;
         ControlDrivers = Enum.GetValues<ControlDriver>();
         CameraDrivers = Enum.GetValues<CameraDriver>();
@@ -45,6 +72,9 @@ public partial class SettingsViewModel : ObservableObject
             .SelectMany(section => section.Axes.Select(mapping =>
                 CreateAxisRow(section, mapping.Key, mapping.Value)))
             .ToArray();
+        InputMappingView = GroupMappings(InputMappings);
+        OutputMappingView = GroupMappings(OutputMappings);
+        AxisMappingView = GroupMappings(AxisMappings);
         FeedbackMappings = hardware
             .OfType<IoHardwareSettings>()
             .SelectMany(section => section.Outputs
@@ -59,13 +89,17 @@ public partial class SettingsViewModel : ObservableObject
     public ControlDriver[] ControlDrivers { get; }
     public CameraDriver[] CameraDrivers { get; }
     public BoltDriver[] BoltDrivers { get; }
+    public InspectionAlgorithm[] InspectionAlgorithms { get; } =
+        Enum.GetValues<InspectionAlgorithm>();
+    public bool IsVirtualCamera => _virtualCamera is not null;
     public AlphaMotionCommunicationSpeed[] AlphaMotionCommunicationSpeeds { get; } =
         Enum.GetValues<AlphaMotionCommunicationSpeed>();
-    public AxisDirection[] AxisDirections { get; } =
-        Enum.GetValues<AxisDirection>();
     public HardwareMappingRow[] InputMappings { get; }
     public HardwareMappingRow[] OutputMappings { get; }
     public HardwareMappingRow[] AxisMappings { get; }
+    public ICollectionView InputMappingView { get; }
+    public ICollectionView OutputMappingView { get; }
+    public ICollectionView AxisMappingView { get; }
     public KeyValuePair<OutputIo, OutputFeedback>[] FeedbackMappings { get; }
     public InputIo[] InputSignals { get; } = Enum.GetValues<InputIo>();
     public MotionGroup[] MotionGroups { get; } =
@@ -98,6 +132,65 @@ public partial class SettingsViewModel : ObservableObject
         ApplyHardwareMappings();
         await _store.SaveSettingsAsync(Settings);
     }
+
+    [RelayCommand(CanExecute = nameof(CanChangeVirtualImage))]
+    private async Task LoadVirtualImageAsync(string? path, CancellationToken cancellationToken)
+    {
+        if (path is null)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "Virtual Camera Image",
+                Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff",
+            };
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+            path = dialog.FileName;
+        }
+
+        try
+        {
+            VirtualImageError = null;
+            var image = await Task.Run(() => BitmapFiles.LoadFrame(path), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!CanChangeVirtualImage())
+            {
+                VirtualImageError = "Stop the machine before changing the camera image.";
+                return;
+            }
+            if (image.Width < IBoltRecessSegmenter.InputSize
+                || image.Height < IBoltRecessSegmenter.InputSize)
+            {
+                throw new InvalidDataException(
+                    $"Image must be at least {IBoltRecessSegmenter.InputSize} x {IBoltRecessSegmenter.InputSize} pixels.");
+            }
+            _virtualCamera!.SourceImage = image;
+            VirtualImageName = Path.GetFileName(path);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            VirtualImageError = exception.Message;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanClearVirtualImage))]
+    private void ClearVirtualImage()
+    {
+        _virtualCamera!.SourceImage = null;
+        VirtualImageName = null;
+        VirtualImageError = null;
+    }
+
+    private bool CanChangeVirtualImage() => IsVirtualCamera && !_state.IsRunning;
+    private bool CanClearVirtualImage() => CanChangeVirtualImage() && VirtualImageName is not null;
+
+    public Task ShutdownAsync() => CommandShutdown.StopAsync(
+        LoadVirtualImageCommand.Cancel, SaveSettingsCommand, LoadVirtualImageCommand);
 
     private void ApplyHardwareMappings()
     {
@@ -149,11 +242,24 @@ public partial class SettingsViewModel : ObservableObject
             row =>
             {
                 hardware.Number = row.Number;
-                hardware.Direction = row.Direction;
                 hardware.Minimum = row.Minimum;
                 hardware.Maximum = row.Maximum;
             },
-            hardware.Direction,
             hardware.Minimum,
             hardware.Maximum);
+
+    private static ICollectionView GroupMappings(
+        IEnumerable<HardwareMappingRow> mappings)
+    {
+        var view = CollectionViewSource.GetDefaultView(mappings);
+        view.SortDescriptions.Add(new(
+            nameof(HardwareMappingRow.Area),
+            System.ComponentModel.ListSortDirection.Ascending));
+        view.SortDescriptions.Add(new(
+            nameof(HardwareMappingRow.Signal),
+            System.ComponentModel.ListSortDirection.Ascending));
+        view.GroupDescriptions.Add(new PropertyGroupDescription(
+            nameof(HardwareMappingRow.Area)));
+        return view;
+    }
 }

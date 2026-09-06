@@ -10,24 +10,31 @@
              Width="408"
              Height="650">
     <UserControl.Resources>
-        <Style x:Key="FeederEnabledStyle" TargetType="StackPanel">
-            <Setter Property="Orientation" Value="Horizontal"/>
-            <Setter Property="Margin" Value="0,0,16,0"/>
+        <Style x:Key="FeederDeviceStyle" TargetType="Grid">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                              Value="False">
-                    <Setter Property="Opacity" Value="0.6"/>
+                    <Setter Property="Opacity" Value="0.5"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="FeederLabelStyle" TargetType="TextBlock"
+               BasedOn="{StaticResource EquipmentRoleLabelStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                             Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
     </UserControl.Resources>
     <Grid>
         <Canvas>
-            <TextBlock Canvas.Left="20" Canvas.Top="14"
-                       Text="BOLT FASTENING"
+            <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
+                       Text="Bolt Fastening"
                        Style="{StaticResource TitleStyle}"
                        FontWeight="Bold"/>
-            <Button Canvas.Right="20" Canvas.Top="14"
+            <Button Canvas.Right="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
                     Content="RESUME WORK"
                     Command="{Binding OpenBoltFasteningRecoveryCommand}"
                     Style="{StaticResource SecondaryButtonStyle}"
@@ -35,7 +42,7 @@
                     Height="30"
                     Visibility="{Binding BoltFasteningRecoveryAvailable,
                                          Converter={StaticResource BoolToVis}}"/>
-            <Border Canvas.Left="20" Canvas.Top="52"
+            <Border Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.StatusTop}"
                     Tag="{Binding BoltDisplayState}"
                     Style="{StaticResource StationStateBadgeStyle}">
                 <TextBlock Text="{Binding BoltDisplayState,
@@ -43,44 +50,26 @@
                            Style="{StaticResource PrimaryStateTextStyle}"/>
             </Border>
 
-            <TextBlock Canvas.Left="20" Canvas.Top="108"
+            <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.DetailTop}"
                        Width="340"
-                       Text="{Binding BoltFasteningProcessState,
+                       Text="{Binding FasteningState,
                                       Converter={StaticResource EnumDescriptionConverter}}"
                        TextAlignment="Left"
                        Style="{StaticResource MapLabelStyle}"
                        FontSize="14"
-                       Visibility="{Binding BoltProcessStateVisible,
+                       Visibility="{Binding FasteningStateVisible,
                                             Converter={StaticResource BoolToVis}}"/>
 
-            <StackPanel Canvas.Left="20" Canvas.Top="140"
-                        Orientation="Horizontal">
-                <StackPanel Tag="{Binding PickupFeederEnabled}"
-                            Style="{StaticResource FeederEnabledStyle}">
-                    <Ellipse Tag="{Binding PickupFeederBoltDetected}"
-                             Style="{StaticResource PresenceLedStyle}"/>
-                    <TextBlock Text="PICK BOLT DETECTED"
-                               Margin="6,0,0,0"
-                               Style="{StaticResource MapHintStyle}"/>
-                </StackPanel>
-                <StackPanel Tag="{Binding ShootingFeederEnabled}"
-                            Style="{StaticResource FeederEnabledStyle}">
-                    <Ellipse Tag="{Binding ShootingFeederBoltDetected}"
-                             Style="{StaticResource PresenceLedStyle}"/>
-                    <TextBlock Text="SHOOT BOLT DETECTED"
-                               Margin="6,0,0,0"
-                               Style="{StaticResource MapHintStyle}"/>
-                </StackPanel>
-            </StackPanel>
-
-            <Grid Width="100" Height="86">
+            <Grid Width="100" Height="86"
+                  Tag="{Binding PickupFeederEnabled}"
+                  Style="{StaticResource FeederDeviceStyle}"
+                  Visibility="{Binding BoltFeederPositionKnown, Converter={StaticResource BoolToVis}}">
                 <Grid.RenderTransform>
                     <TranslateTransform X="{Binding BoltPickupFeederMapLeft}"
                                         Y="{Binding BoltPickupFeederMapTop}"/>
                 </Grid.RenderTransform>
                 <Border Width="100" Height="68"
                         VerticalAlignment="Top"
-                        Tag="{Binding PickupFeederBoltDetected}"
                         Style="{StaticResource DeviceBodyStyle}">
                     <Grid Margin="10">
                         <Border Height="18"
@@ -90,18 +79,19 @@
                                 BorderThickness="1"
                                 CornerRadius="1"/>
                         <Ellipse Width="18" Height="18"
-                                 Fill="{StaticResource ControlBgBrush}"
-                                 Stroke="{StaticResource TextMutedBrush}"
-                                 StrokeThickness="2"/>
+                                 Tag="{Binding PickupFeederBoltDetected}"
+                                 ToolTip="Pickup feeder bolt ready"
+                                 Style="{StaticResource PresenceLedStyle}"/>
                     </Grid>
                 </Border>
-                <TextBlock Text="PICK FEEDER"
+                <TextBlock Text="Pick Feeder"
+                           Tag="{Binding PickupFeederBoltDetected}"
                            VerticalAlignment="Bottom"
-                           FontSize="9"
-                           Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                           Style="{StaticResource FeederLabelStyle}"/>
             </Grid>
 
             <Grid Width="126" Height="138"
+                  Visibility="{Binding FasteningPositionKnown, Converter={StaticResource BoolToVis}}"
                   Panel.ZIndex="20">
                 <Grid.RenderTransform>
                     <TranslateTransform X="{Binding BoltFasteningMapLeft}"
@@ -121,8 +111,8 @@
                     <TextBlock Canvas.Left="20.5" Canvas.Top="65"
                                Width="28" Height="14"
                                Panel.ZIndex="4"
-                               Text="PICK"
-                               FontSize="9"
+                               Text="Pick"
+                               FontSize="11"
                                Style="{StaticResource EquipmentRoleLabelStyle}"/>
                     <TextBlock Canvas.Left="45" Canvas.Top="65"
                                Text="{Binding BoltFasteningActiveBolt.Number}">
@@ -140,11 +130,13 @@
                         </TextBlock.Style>
                     </TextBlock>
                     <TextBlock Canvas.Left="71.5" Canvas.Top="65"
-                               Width="30" Height="14"
+                               Width="34" Height="14"
                                Panel.ZIndex="4"
-                               Text="SHOOT"
-                               FontSize="9"
-                               Style="{StaticResource EquipmentRoleLabelStyle}"/>
+                               Text="Shoot"
+                               Tag="{Binding ShootingFeederBoltDetected}"
+                               ToolTip="Shooting feeder bolt ready"
+                               FontSize="11"
+                               Style="{StaticResource FeederLabelStyle}"/>
                     <TextBlock Canvas.Left="107" Canvas.Top="65"
                                Text="{Binding BoltFasteningActiveBolt.Number}">
                         <TextBlock.Style>

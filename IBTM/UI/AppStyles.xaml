@@ -2,41 +2,45 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:ui="clr-namespace:IBTM.UI">
 
+    <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     <ui:EnumDescriptionConverter x:Key="EnumDescriptionConverter"/>
     <DataTemplate x:Key="EnumItemTemplate">
         <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/>
     </DataTemplate>
 
-    <SolidColorBrush x:Key="AppBgBrush" Color="#20262B"/>
-    <SolidColorBrush x:Key="SidebarBgBrush" Color="#252B31"/>
-    <SolidColorBrush x:Key="PanelBgBrush" Color="#2A3036"/>
-    <SolidColorBrush x:Key="CardBgBrush" Color="#30373E"/>
-    <SolidColorBrush x:Key="CardBorderBrush" Color="#68737D"/>
-    <SolidColorBrush x:Key="DividerBrush" Color="#4B555E"/>
-    <SolidColorBrush x:Key="EquipBgBrush" Color="#191F24"/>
+    <SolidColorBrush x:Key="AppBgBrush" Color="#1F252A"/>
+    <SolidColorBrush x:Key="SidebarBgBrush" Color="#22292F"/>
+    <SolidColorBrush x:Key="PanelBgBrush" Color="#282F35"/>
+    <SolidColorBrush x:Key="CardBgBrush" Color="#2E363D"/>
+    <SolidColorBrush x:Key="CardBorderBrush" Color="#4A5660"/>
+    <SolidColorBrush x:Key="DividerBrush" Color="#39434B"/>
+    <SolidColorBrush x:Key="EquipBgBrush" Color="#171C21"/>
+    <SolidColorBrush x:Key="ImageBackgroundBrush" Color="#0B0F12"/>
 
     <SolidColorBrush x:Key="AccentBrush" Color="#D9DCE1"/>
-    <SolidColorBrush x:Key="AccentGreenBrush" Color="#63A36F"/>
-    <SolidColorBrush x:Key="AccentBlueBrush" Color="#6594BF"/>
-    <SolidColorBrush x:Key="AccentAmberBrush" Color="#C9A052"/>
-    <SolidColorBrush x:Key="OutputActiveBrush" Color="#C7A15A"/>
-    <SolidColorBrush x:Key="AccentRedBrush" Color="#D25555"/>
-    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F2F4F6"/>
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#C9CED4"/>
-    <SolidColorBrush x:Key="TextMutedBrush" Color="#ACB4BC"/>
-    <SolidColorBrush x:Key="ButtonForegroundBrush" Color="#FFFFFF"/>
-    <SolidColorBrush x:Key="ControlBgBrush" Color="#252C32"/>
-    <SolidColorBrush x:Key="ControlBorderBrush" Color="#66717B"/>
-    <SolidColorBrush x:Key="ControlHoverBorderBrush" Color="#7C8791"/>
-    <SolidColorBrush x:Key="ControlFocusBorderBrush" Color="#9BA5AE"/>
-    <SolidColorBrush x:Key="ControlSelectionBrush" Color="#46515B"/>
-    <SolidColorBrush x:Key="ControlSelectedBackgroundBrush" Color="#38414A"/>
+    <SolidColorBrush x:Key="AccentGreenBrush" Color="#6FAE7E"/>
+    <SolidColorBrush x:Key="AccentBlueBrush" Color="#70A3CF"/>
+    <SolidColorBrush x:Key="AccentAmberBrush" Color="#D0A754"/>
+    <SolidColorBrush x:Key="AccentRedBrush" Color="#D65D5D"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F1F3F5"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#C7CDD2"/>
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#98A3AC"/>
+    <SolidColorBrush x:Key="ControlBgBrush" Color="#232A30"/>
+    <SolidColorBrush x:Key="ControlBorderBrush" Color="#4C5862"/>
+    <SolidColorBrush x:Key="ControlHoverBorderBrush" Color="#6A7883"/>
+    <SolidColorBrush x:Key="ControlFocusBorderBrush" Color="#94A1AC"/>
+    <SolidColorBrush x:Key="ControlSelectionBrush" Color="#43505A"/>
+    <SolidColorBrush x:Key="ControlSelectedBackgroundBrush" Color="#343E47"/>
+    <SolidColorBrush x:Key="PrimaryButtonBackgroundBrush" Color="#477CA6"/>
+    <SolidColorBrush x:Key="DangerButtonBackgroundBrush" Color="#8D4242"/>
+    <SolidColorBrush x:Key="DangerButtonBorderBrush" Color="#BA5D5D"/>
+    <SolidColorBrush x:Key="AttentionBackgroundBrush" Color="#4B3A1D"/>
 
     <Style x:Key="CardStyle" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource CardBgBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="3"/>
+        <Setter Property="CornerRadius" Value="5"/>
     </Style>
 
     <Style x:Key="SectionStyle" TargetType="Border">
@@ -60,15 +64,15 @@
                         <Border x:Name="Root"
                                 Padding="{TemplateBinding Padding}"
                                 Background="Transparent"
-                                CornerRadius="2">
+                                CornerRadius="4">
                             <ContentPresenter VerticalAlignment="Center"/>
                         </Border>
                         <Border x:Name="Active"
-                                Width="4"
+                                Width="3"
                                 HorizontalAlignment="Left"
                                 VerticalAlignment="Stretch"
                                 Background="{StaticResource AccentBlueBrush}"
-                                CornerRadius="1"
+                                CornerRadius="2"
                                 Visibility="Collapsed"/>
                     </Grid>
                     <ControlTemplate.Triggers>
@@ -79,7 +83,7 @@
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#343B42"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource CardBgBrush}"/>
                             <Setter TargetName="Active" Property="Visibility" Value="Visible"/>
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -176,7 +180,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="2">
+                                CornerRadius="4">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
@@ -229,7 +233,7 @@
                                     Background="{StaticResource ControlBgBrush}"
                                     BorderBrush="{StaticResource ControlBorderBrush}"
                                     BorderThickness="1"
-                                    CornerRadius="2">
+                                    CornerRadius="4">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                                     <StackPanel IsItemsHost="True"
                                                 KeyboardNavigation.DirectionalNavigation="Contained"/>
@@ -275,7 +279,7 @@
                     <Border x:Name="Root"
                             Padding="{TemplateBinding Padding}"
                             Background="{TemplateBinding Background}"
-                            CornerRadius="2">
+                            CornerRadius="4">
                         <ContentPresenter VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -318,7 +322,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="1"
-                                CornerRadius="2">
+                                CornerRadius="4">
                             <Path x:Name="Check"
                                   Width="10"
                                   Height="8"
@@ -410,6 +414,7 @@
     </Style>
 
     <Style x:Key="ButtonBaseStyle" TargetType="Button">
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="20,7"/>
         <Setter Property="FontSize" Value="13"/>
@@ -422,8 +427,9 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="2">
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            CornerRadius="4">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -443,23 +449,23 @@
     </Style>
 
     <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonBaseStyle}">
-        <Setter Property="Background" Value="#3F6F98"/>
-        <Setter Property="Foreground" Value="{StaticResource ButtonForegroundBrush}"/>
-        <Setter Property="BorderBrush" Value="#6D96B9"/>
+        <Setter Property="Background" Value="{StaticResource PrimaryButtonBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
 
     <Style x:Key="DangerButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonBaseStyle}">
-        <Setter Property="Background" Value="#963F3F"/>
-        <Setter Property="Foreground" Value="{StaticResource ButtonForegroundBrush}"/>
-        <Setter Property="BorderBrush" Value="#C35B5B"/>
+        <Setter Property="Background" Value="{StaticResource DangerButtonBackgroundBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource DangerButtonBorderBrush}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
     </Style>
 
     <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource ButtonBaseStyle}">
-        <Setter Property="Background" Value="#272D33"/>
+        <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-        <Setter Property="BorderBrush" Value="#535C65"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
     </Style>
 
     <Style x:Key="JogButtonStyle"

@@ -1,25 +1,22 @@
 using System;
-using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Device;
 
 namespace IBTM.UI;
 
-public sealed partial class HardwareMappingRow(
+public sealed class HardwareMappingRow(
     HardwareArea area,
     Enum signal,
     int number,
     Action<HardwareMappingRow> apply,
-    AxisDirection direction = AxisDirection.Positive,
     double minimum = 0,
-    double maximum = 0) : ObservableObject
+    double maximum = 0)
 {
     public HardwareArea Area { get; } = area;
     public Enum Signal { get; } = signal;
-    [ObservableProperty] private int _number = number;
-    [ObservableProperty] private int? _offNumber;
-    [ObservableProperty] private AxisDirection _direction = direction;
-    [ObservableProperty] private double _minimum = minimum;
-    [ObservableProperty] private double _maximum = maximum;
+    public int Number { get; set; } = number;
+    public int? OffNumber { get; set; }
+    public double Minimum { get; set; } = minimum;
+    public double Maximum { get; set; } = maximum;
 
     public void Apply() => apply(this);
 }

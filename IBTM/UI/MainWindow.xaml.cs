@@ -1,4 +1,8 @@
+using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using IBTM.Device;
@@ -9,27 +13,82 @@ namespace IBTM.UI;
 public partial class MainWindow : Window
 {
     private readonly IIoService _io;
+    private readonly IReadOnlyDictionary<InputIo, HardwareArea> _inputAreas;
+    private readonly IReadOnlyDictionary<OutputIo, HardwareArea> _outputAreas;
     private readonly IAdcBus _adcBus;
     private readonly HantasSettings _hantasSettings;
-    private readonly MachineState _state;
+    private readonly MachineController _machine;
+    private readonly OperationCancellation _operations;
     private InputWindow? _inputWindow;
     private OutputWindow? _outputWindow;
     private AdcProtocolWindow? _adcProtocolWindow;
+    private bool _closing;
+    private bool _shutdownCompleted;
 
     public MainWindow(
         MainViewModel viewModel,
         IIoService io,
+        IReadOnlyDictionary<InputIo, HardwareArea> inputAreas,
+        IReadOnlyDictionary<OutputIo, HardwareArea> outputAreas,
         IAdcBus adcBus,
         HantasSettings hantasSettings,
-        MachineState state)
+        MachineController machine,
+        OperationCancellation operations)
     {
         _io = io;
+        _inputAreas = inputAreas;
+        _outputAreas = outputAreas;
         _adcBus = adcBus;
         _hantasSettings = hantasSettings;
-        _state = state;
+        _machine = machine;
+        _operations = operations;
         InitializeComponent();
         DataContext = viewModel;
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
+    }
+
+    protected override async void OnClosing(CancelEventArgs e)
+    {
+        if (_shutdownCompleted)
+        {
+            base.OnClosing(e);
+            return;
+        }
+
+        e.Cancel = true;
+        base.OnClosing(e);
+        if (_closing)
+        {
+            return;
+        }
+
+        _closing = true;
+        IsEnabled = false;
+        foreach (var window in OwnedWindows.Cast<Window>().ToArray())
+        {
+            window.IsEnabled = false;
+            if (window is not AdcProtocolWindow and not OutputWindow)
+            {
+                window.Close();
+            }
+        }
+
+        try
+        {
+            await CommandShutdown.WaitAsync(
+                _adcProtocolWindow?.StopAsync() ?? Task.CompletedTask,
+                _outputWindow?.ShutdownAsync() ?? Task.CompletedTask,
+                ((MainViewModel)DataContext).ShutdownAsync(),
+                _machine.ShutdownAsync());
+            _shutdownCompleted = true;
+            _ = Dispatcher.BeginInvoke(Close);
+        }
+        catch (Exception exception)
+        {
+            _closing = false;
+            MessageBox.Show(this, exception.Message, "Shutdown Failed",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void OnOpenInputs(object sender, RoutedEventArgs e)
@@ -40,7 +99,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _inputWindow = new InputWindow(_io, _state)
+        _inputWindow = new InputWindow(_io, _inputAreas)
         {
             Owner = this,
         };
@@ -56,7 +115,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _outputWindow = new OutputWindow(_io)
+        _outputWindow = new OutputWindow(_io, _outputAreas)
         {
             Owner = this,
         };
@@ -74,7 +133,9 @@ public partial class MainWindow : Window
 
         _adcProtocolWindow = new AdcProtocolWindow(
             _adcBus,
-            _hantasSettings)
+            _hantasSettings,
+            _machine,
+            _operations)
         {
             Owner = this,
         };
@@ -97,11 +158,30 @@ public partial class MainWindow : Window
         object? sender,
         PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MainViewModel.ManualControlsEnabled)
-            && sender is MainViewModel { ManualControlsEnabled: false })
+        if (_closing || sender is not MainViewModel viewModel)
         {
-            _outputWindow?.Close();
-            _adcProtocolWindow?.Close();
+            return;
+        }
+
+        if (e.PropertyName == nameof(MainViewModel.ManualControlsEnabled))
+        {
+            if (!viewModel.ManualControlsEnabled)
+            {
+                _outputWindow?.Close();
+            }
+            _adcProtocolWindow?.RefreshControls();
+        }
+
+        if (e.PropertyName == nameof(MainViewModel.AdcProtocolEnabled))
+        {
+            if (!viewModel.AdcProtocolEnabled)
+            {
+                _adcProtocolWindow?.Close();
+            }
+            else
+            {
+                _adcProtocolWindow?.RefreshControls();
+            }
         }
     }
 }

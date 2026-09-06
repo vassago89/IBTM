@@ -4,7 +4,6 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="clr-namespace:IBTM.UI"
-             xmlns:placement="clr-namespace:IBTM.PcbPlacement;assembly=IBTM.PcbPlacement"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
              Width="566"
@@ -19,11 +18,11 @@
     </UserControl.Resources>
     <Grid>
         <Canvas>
-            <TextBlock Canvas.Left="20" Canvas.Top="14"
-                       Text="PCB SUPPLY / PLACEMENT"
+            <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
+                       Text="PCB Supply / Placement"
                        Style="{StaticResource TitleStyle}"
                        FontWeight="Bold"/>
-            <Button Canvas.Right="20" Canvas.Top="14"
+            <Button Canvas.Right="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
                     Content="RESUME WORK"
                     Command="{Binding OpenPcbPlacementRecoveryCommand}"
                     Style="{StaticResource SecondaryButtonStyle}"
@@ -32,69 +31,38 @@
                     Visibility="{Binding PcbPlacementRecoveryAvailable,
                                          Converter={StaticResource BoolToVis}}"/>
 
-            <StackPanel Canvas.Left="20" Canvas.Top="52"
+            <StackPanel Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.StatusTop}"
                         Orientation="Horizontal">
                 <Border Tag="{Binding SupplyDisplayState}"
                         Style="{StaticResource HandlerStateBadgeStyle}"
                         Margin="0,0,10,0">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="68"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                    <StackPanel>
                         <TextBlock Text="SUPPLY"
-                                   Style="{StaticResource MapHintStyle}"
-                                   VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1"
-                                   Text="{Binding SupplyDisplayState,
+                                   Style="{StaticResource EquipmentRoleLabelStyle}"
+                                   HorizontalAlignment="Left"/>
+                        <TextBlock Text="{Binding SupplyDisplayState,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
+                                   Margin="0,4,0,0"
                                    Style="{StaticResource PrimaryStateTextStyle}"/>
-                    </Grid>
+                    </StackPanel>
                 </Border>
                 <Border Tag="{Binding PlacementDisplayState}"
                         Style="{StaticResource HandlerStateBadgeStyle}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="92"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
+                    <StackPanel>
                         <TextBlock Text="PLACEMENT"
-                                   Style="{StaticResource MapHintStyle}"
-                                   VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1"
-                                   Text="{Binding PlacementDisplayState,
+                                   Style="{StaticResource EquipmentRoleLabelStyle}"
+                                   HorizontalAlignment="Left"/>
+                        <TextBlock Text="{Binding PlacementStatus,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
+                                   Margin="0,4,0,0"
                                    Style="{StaticResource PrimaryStateTextStyle}"/>
-                    </Grid>
+                    </StackPanel>
                 </Border>
             </StackPanel>
 
-            <TextBlock Canvas.Left="304" Canvas.Top="108"
-                       Width="190"
-                       Text="{Binding PcbPlacementProcessState,
-                                      Converter={StaticResource EnumDescriptionConverter}}"
-                       TextAlignment="Left">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock"
-                           BasedOn="{StaticResource MapLabelStyle}">
-                        <Setter Property="FontSize" Value="14"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding PcbPlacementProcessState}"
-                                         Value="{x:Static placement:PcbPlacementState.WaitingForBufferPcb}">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding PcbPlacementProcessState}"
-                                         Value="{x:Static placement:PcbPlacementState.WaitingForCarrier}">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
-
             <TextBlock Canvas.Left="54" Canvas.Top="142"
                        Width="220"
-                       Text="PCB IN"
+                       Text="PCB In"
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
 
             <Border Canvas.Left="54" Canvas.Top="164"
@@ -144,6 +112,7 @@
                 </Grid>
             </Border>
             <Grid Width="100" Height="112"
+                  Visibility="{Binding SupplyPositionKnown, Converter={StaticResource BoolToVis}}"
                   Panel.ZIndex="20">
                 <Grid.RenderTransform>
                     <TranslateTransform X="{Binding PcbSupplyMapLeft}"
@@ -171,7 +140,7 @@
                             HorizontalAlignment="Center"
                             VerticalAlignment="Bottom"
                             Margin="0,0,0,2"
-                            Background="#26313C"
+                            Background="{StaticResource MachineStructureBrush}"
                             BorderBrush="{StaticResource TextMutedBrush}"
                             BorderThickness="1"
                             CornerRadius="2"
@@ -182,7 +151,7 @@
                           HorizontalAlignment="Center"
                           VerticalAlignment="Bottom"
                           Margin="0,0,0,1"
-                          Visibility="{Binding PcbSupplyPcbSecured,
+                          Visibility="{Binding PcbSupplyPcbDetected,
                                                Converter={StaticResource BoolToVis}}">
                         <Border Style="{StaticResource PcbFootprintStyle}"/>
                         <Border Width="22" Height="4"
@@ -209,11 +178,6 @@
                             Style="{StaticResource RightGripperJawStyle}"/>
                 </Grid>
             </Grid>
-
-            <TextBlock Canvas.Left="276" Canvas.Top="216"
-                       Width="116"
-                       Text="BUFFER"
-                       Style="{StaticResource EquipmentRoleLabelStyle}"/>
 
             <Border Canvas.Left="276" Canvas.Top="236"
                     Width="116" Height="84"
@@ -247,6 +211,7 @@
             </Border>
 
             <Grid Width="104" Height="106"
+                  Visibility="{Binding PlacementPositionKnown, Converter={StaticResource BoolToVis}}"
                   Panel.ZIndex="21">
                 <Grid.RenderTransform>
                     <TranslateTransform X="{Binding PcbPlacementMapLeft}"
@@ -279,7 +244,7 @@
                             VerticalAlignment="Bottom"
                             Margin="0"
                             Style="{StaticResource PcbFootprintStyle}"
-                            Visibility="{Binding PcbPlacementPcbSecured,
+                            Visibility="{Binding PcbPlacementPcbDetected,
                                                  Converter={StaticResource BoolToVis}}"/>
                     <Ellipse Width="9" Height="9"
                              HorizontalAlignment="Center"

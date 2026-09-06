@@ -27,6 +27,12 @@ public sealed class BoltInspector(
         remove => camera.FrameReady -= value;
     }
 
+    public event Action<Exception>? LiveViewFailed
+    {
+        add => camera.LiveViewFailed += value;
+        remove => camera.LiveViewFailed -= value;
+    }
+
     public void InitializeVision()
     {
         light.Initialize();
@@ -40,7 +46,7 @@ public sealed class BoltInspector(
             carrierReference.LowerRightLocatingPin)
         && point is { X: not null, Y: not null };
 
-    public bool IsAt(BoltPoint point) =>
+    internal bool IsAt(BoltPoint point) =>
         gantry.IsAt(Position(point));
 
     public Task MoveToAsync(
@@ -66,10 +72,14 @@ public sealed class BoltInspector(
         CancellationToken cancellationToken = default)
     {
         await MoveToAsync(point, cancellationToken);
-        return Capture();
+        return await Task.Run(Capture, cancellationToken);
     }
 
-    public bool Inspect() => presenceDetector.IsPresent(Capture());
+    internal Task<bool> InspectAsync(
+        CancellationToken cancellationToken = default) =>
+        Task.Run(
+            () => presenceDetector.IsPresent(Capture()),
+            cancellationToken);
 
     public async Task<IReadOnlyList<CarrierScanImage>>
         CaptureCarrierImagesAsync(

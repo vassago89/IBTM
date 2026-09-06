@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
+using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.UI;
@@ -19,9 +20,31 @@ public enum StartPreparationType
 public abstract class StartPreparation
 {
     private volatile bool _prepared;
+    private readonly MachineState _state;
+    private readonly StationWork _work;
+    private readonly bool _enabled;
+    private bool _automaticRunning;
+
+    protected StartPreparation(
+        MachineState state,
+        StationWork work,
+        bool enabled)
+    {
+        _state = state;
+        _work = work;
+        _enabled = enabled;
+        _automaticRunning = state.AutomaticRunning;
+        state.Changed += OnMachineStateChanged;
+        work.Changed += Invalidate;
+    }
 
     public abstract StartPreparationType Type { get; }
-    public abstract bool Required { get; }
+    public bool Required =>
+        _enabled
+        && !_state.AutomaticRunning
+        && _work.CarrierPresent
+        && (_work.HeatSinkPresent(HeatSinkSlot.HeatSink1)
+            || _work.HeatSinkPresent(HeatSinkSlot.HeatSink2));
 
     public bool Prepare(Window owner) =>
         !Required || _prepared || Open(owner);
@@ -37,34 +60,17 @@ public abstract class StartPreparation
         return true;
     }
 
-    protected void Invalidate() => _prepared = false;
+    private void Invalidate() => _prepared = false;
     protected abstract bool Show(Window owner);
-}
-
-public abstract class StationRecoveryPreparation : StartPreparation
-{
-    private bool _automaticRunning;
-
-    protected StationRecoveryPreparation(
-        MachineState state,
-        StationWork work)
-    {
-        State = state;
-        _automaticRunning = state.AutomaticRunning;
-        state.Changed += OnMachineStateChanged;
-        work.Changed += Invalidate;
-    }
-
-    protected MachineState State { get; }
 
     private void OnMachineStateChanged()
     {
-        if (_automaticRunning && !State.AutomaticRunning)
+        if (_automaticRunning && !_state.AutomaticRunning)
         {
             Invalidate();
         }
 
-        _automaticRunning = State.AutomaticRunning;
+        _automaticRunning = _state.AutomaticRunning;
     }
 }
 
@@ -74,18 +80,8 @@ public sealed class StartPreparationPlan(
     private readonly StartPreparation[] _preparations =
         [.. preparations.OrderBy(preparation => preparation.Type)];
 
-    public bool Prepare(Window owner)
-    {
-        foreach (var preparation in _preparations)
-        {
-            if (!preparation.Prepare(owner))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
+    public bool Prepare(Window owner) =>
+        _preparations.All(preparation => preparation.Prepare(owner));
 
     public bool CanOpen(StartPreparationType type) =>
         Find(type).Required;

@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading;
 using System.Windows;
 using IBTM.UI;
@@ -12,9 +13,23 @@ public partial class App : System.Windows.Application
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        if (e.Args.Contains(DevelopmentProfile.Argument)
+            && !DevelopmentProfile.IsEnabled)
+        {
+            MessageBox.Show(
+                "Select the Virtual build configuration for the Virtual launch profile.",
+                "IBTM",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            Shutdown();
+            return;
+        }
+
         var instanceMutex = new Mutex(
             initiallyOwned: true,
-            @"Global\IBTM.Application",
+            DevelopmentProfile.IsEnabled
+                ? @"Global\IBTM.VirtualDevelopment"
+                : @"Global\IBTM.Application",
             out var createdNew);
         if (!createdNew)
         {
@@ -32,7 +47,15 @@ public partial class App : System.Windows.Application
         base.OnStartup(e);
 
         var store = new MachineStore();
+        if (DevelopmentProfile.IsEnabled)
+        {
+            await DevelopmentProfile.PrepareAsync(store);
+        }
         var settings = await store.LoadSettingsAsync();
+        if (DevelopmentProfile.IsEnabled)
+        {
+            DevelopmentProfile.UseVirtualHardware(settings);
+        }
         var recipe = settings.RecipeSelection.LastRecipeName is { } recipeName
             ? await store.LoadRecipeAsync(recipeName)
             : new Recipe();

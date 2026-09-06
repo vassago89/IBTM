@@ -56,9 +56,8 @@ public sealed class ConveyorStation
         io.InputChanged += OnInputChanged;
     }
 
-    public event Action? Changed;
+    internal event Action? Changed;
     public event Action<bool>? CarrierChanged;
-    public event Action? HeatSinkChanged;
 
     public static ConveyorStation PcbPlacement(IIoService io) => new(
         io,
@@ -97,23 +96,16 @@ public sealed class ConveyorStation
         OutputIo.InspectionStopperUp);
 
     public bool CarrierPresent => _io.GetInput(_carrier);
-    public bool HeatSink1Present => _io.GetInput(_heatSink1);
-    public bool HeatSink2Present => _io.GetInput(_heatSink2);
     public StationCylinderState BackupPlate => CylinderState(
         _backupPlateUp,
         _backupPlateDown);
     public StationCylinderState Stopper => CylinderState(
         _stopperUp,
         _stopperDown);
-    public bool Seated =>
-        CarrierPresent
-        && BackupPlate == StationCylinderState.Up
-        && Stopper == StationCylinderState.Down;
-    public bool CanReceive => !CarrierPresent;
-    public bool HeatSinkPresent(HeatSinkSlot heatSink) =>
-        heatSink == HeatSinkSlot.HeatSink1
-            ? HeatSink1Present
-            : HeatSink2Present;
+    internal bool HeatSinkPresent(HeatSinkSlot heatSink) =>
+        _io.GetInput(heatSink == HeatSinkSlot.HeatSink1
+            ? _heatSink1
+            : _heatSink2);
 
     public Task PrepareToReceiveAsync(
         CancellationToken cancellationToken) =>
@@ -177,11 +169,6 @@ public sealed class ConveyorStation
         if (input == _carrier)
         {
             CarrierChanged?.Invoke(value);
-        }
-
-        if (input == _heatSink1 || input == _heatSink2)
-        {
-            HeatSinkChanged?.Invoke();
         }
 
         if (input == _carrier

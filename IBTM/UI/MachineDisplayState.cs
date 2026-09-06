@@ -70,6 +70,27 @@ public enum StartBlockReason
 
 public enum HandlerDisplayState
 {
+    [Description("Position unknown")]
+    PositionUnknown,
+
+    [Description("Stopped")]
+    Stopped,
+
+    [Description("Working")]
+    Working,
+
+    [Description("Waiting for Buffer")]
+    WaitingForBuffer,
+
+    [Description("Waiting for Placement")]
+    WaitingForPlacement,
+
+    [Description("Waiting for Supply")]
+    WaitingForSupply,
+
+    [Description("Waiting for Carrier")]
+    WaitingForMainCarrier,
+
     [Description("Disabled")]
     Disabled,
 
@@ -79,28 +100,25 @@ public enum HandlerDisplayState
     [Description("PCB Carrier Available")]
     CarrierAvailable,
 
-    [Description("PCB Detected")]
-    PcbDetected,
-
-    [Description("PCB at Buffer")]
-    BufferPcbAvailable,
-
     [Description("Waiting for Buffer PCB")]
     WaitingForBufferPcb,
 
     [Description("Moving")]
     Moving,
 
-    [Description("I/O Alarm")]
+    [Description("Fault")]
     IoAlarm,
 }
 
 public enum StationDisplayState
 {
+    [Description("Position unknown")]
+    PositionUnknown,
+
     [Description("Disabled")]
     Disabled,
 
-    [Description("I/O Alarm")]
+    [Description("Fault")]
     IoAlarm,
 
     [Description("Waiting for Carrier")]
@@ -115,9 +133,6 @@ public enum StationDisplayState
     [Description("Working")]
     Working,
 
-    [Description("Carrier OK")]
-    CarrierOk,
-
-    [Description("Carrier NG")]
-    CarrierNg,
+    [Description("Waiting for Transfer")]
+    WaitingForTransfer,
 }

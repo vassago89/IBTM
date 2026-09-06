@@ -10,7 +10,8 @@ using IBTM.Device;
 
 namespace IBTM.UI;
 
-public abstract partial class TeachingMotionViewModel : ObservableObject
+public abstract partial class TeachingMotionViewModel(
+    OperationCancellation operations) : ObservableObject
 {
     private sealed record DisplayPosition(double X, double Y, double Z);
 
@@ -92,9 +93,9 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
         }
     }
 
-    protected CancellationTokenSource LinkMotion(
+    protected OperationCancellation.Operation LinkMotion(
         CancellationToken cancellationToken) =>
-        CancellationTokenSource.CreateLinkedTokenSource(
+        operations.Link(
             cancellationToken,
             _motionCancellation.Token);
 

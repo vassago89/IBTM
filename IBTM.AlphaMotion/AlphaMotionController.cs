@@ -97,13 +97,19 @@ public sealed class AlphaMotionController(
             return;
         }
 
-        Check(
-            nmiMNApi.nmiCyclicEnd(settings.ControllerNumber),
-            nameof(nmiMNApi.nmiCyclicEnd));
-        Check(
-            nmiMNApi.nmiSysUnload(),
-            nameof(nmiMNApi.nmiSysUnload));
-        _initialized = false;
+        try
+        {
+            Check(
+                nmiMNApi.nmiCyclicEnd(settings.ControllerNumber),
+                nameof(nmiMNApi.nmiCyclicEnd));
+        }
+        finally
+        {
+            Check(
+                nmiMNApi.nmiSysUnload(),
+                nameof(nmiMNApi.nmiSysUnload));
+            _initialized = false;
+        }
     }
 
     private static void Check(int result, string operation)

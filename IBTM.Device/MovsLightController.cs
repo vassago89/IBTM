@@ -38,12 +38,14 @@ public sealed class MovsLightController(string connection) : ILightController, I
 
     public void Dispose()
     {
-        if (_port.IsOpen)
+        try
         {
             TurnOffAll();
         }
-
-        _port.Dispose();
+        finally
+        {
+            _port.Dispose();
+        }
     }
 
     private void Write(string command)

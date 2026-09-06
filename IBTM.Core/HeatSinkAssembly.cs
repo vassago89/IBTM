@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 
 namespace IBTM.Core;
 
@@ -17,33 +19,37 @@ public enum AssemblyResult
 
 public sealed class HeatSinkAssembly(HeatSinkSlot heatSink)
 {
+    private static readonly BoltResult ManualCompletion =
+        new(true, 0, BoltResultSource.Manual);
+    private readonly ConcurrentDictionary<int, BoltResult> _pcbBoltResults = new();
+    private readonly ConcurrentDictionary<int, BoltResult> _ipmSeatingResults = new();
+    private readonly ConcurrentDictionary<int, BoltResult> _ipmFinalResults = new();
+    private readonly ConcurrentDictionary<int, bool> _boltPresenceResults = new();
+
     public HeatSinkSlot HeatSink { get; } = heatSink;
-    public Dictionary<int, BoltResult> PcbBoltResults { get; } = [];
-    public Dictionary<int, BoltResult> IpmSeatingResults { get; } = [];
-    public Dictionary<int, BoltResult> IpmFinalResults { get; } = [];
-    public Dictionary<int, bool> BoltPresenceResults { get; } = [];
+    public IReadOnlyDictionary<int, BoltResult> PcbBoltResults => _pcbBoltResults;
+    public IReadOnlyDictionary<int, BoltResult> IpmSeatingResults => _ipmSeatingResults;
+    public IReadOnlyDictionary<int, BoltResult> IpmFinalResults => _ipmFinalResults;
+    public IReadOnlyDictionary<int, bool> BoltPresenceResults => _boltPresenceResults;
     public AssemblyResult FasteningResult { get; private set; }
     public AssemblyResult InspectionResult { get; private set; }
 
     public AssemblyResult Result =>
-        (FasteningResult, InspectionResult) switch
-        {
-            (AssemblyResult.Ng, _) or (_, AssemblyResult.Ng) => AssemblyResult.Ng,
-            (_, AssemblyResult.Ok) => AssemblyResult.Ok,
-            _ => AssemblyResult.Pending,
-        };
+        FasteningResult == AssemblyResult.Ng
+            ? AssemblyResult.Ng
+            : InspectionResult;
 
     public void RecordPcbBolt(int number, BoltResult result) =>
-        Record(PcbBoltResults, number, result);
+        Record(_pcbBoltResults, number, result);
 
     public void RecordIpmSeating(int number, BoltResult result) =>
-        Record(IpmSeatingResults, number, result);
+        Record(_ipmSeatingResults, number, result);
 
     public void RecordIpmFinal(int number, BoltResult result) =>
-        Record(IpmFinalResults, number, result);
+        Record(_ipmFinalResults, number, result);
 
     private void Record(
-        Dictionary<int, BoltResult> results,
+        ConcurrentDictionary<int, BoltResult> results,
         int number,
         BoltResult result)
     {
@@ -62,17 +68,42 @@ public sealed class HeatSinkAssembly(HeatSinkSlot heatSink)
         }
     }
 
-    public void ResetFastening()
+    public void PrepareFasteningRecovery(
+        IEnumerable<(int Number, bool Completed)> pcbBolts,
+        IEnumerable<(int Number, bool Completed)> ipmSeatingBolts,
+        IEnumerable<(int Number, bool Completed)> ipmFinalBolts)
     {
-        PcbBoltResults.Clear();
-        IpmSeatingResults.Clear();
-        IpmFinalResults.Clear();
-        FasteningResult = AssemblyResult.Pending;
+        ApplyCompletion(_pcbBoltResults, pcbBolts);
+        ApplyCompletion(_ipmSeatingResults, ipmSeatingBolts);
+        ApplyCompletion(_ipmFinalResults, ipmFinalBolts);
+        FasteningResult = _pcbBoltResults.Values
+            .Concat(_ipmSeatingResults.Values)
+            .Concat(_ipmFinalResults.Values)
+            .Any(result => !result.Success)
+            ? AssemblyResult.Ng
+            : AssemblyResult.Pending;
+    }
+
+    private static void ApplyCompletion(
+        ConcurrentDictionary<int, BoltResult> results,
+        IEnumerable<(int Number, bool Completed)> items)
+    {
+        foreach (var (number, completed) in items)
+        {
+            if (completed)
+            {
+                results.TryAdd(number, ManualCompletion);
+            }
+            else
+            {
+                results.TryRemove(number, out _);
+            }
+        }
     }
 
     public void RecordBoltPresence(int number, bool present)
     {
-        BoltPresenceResults[number] = present;
+        _boltPresenceResults[number] = present;
         if (!present)
         {
             InspectionResult = AssemblyResult.Ng;
@@ -81,7 +112,7 @@ public sealed class HeatSinkAssembly(HeatSinkSlot heatSink)
 
     public void ResetInspection()
     {
-        BoltPresenceResults.Clear();
+        _boltPresenceResults.Clear();
         InspectionResult = AssemblyResult.Pending;
     }
 

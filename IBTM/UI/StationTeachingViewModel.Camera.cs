@@ -16,6 +16,7 @@ public partial class StationTeachingViewModel
     private readonly object _liveImageGate = new();
     private ImageFrame? _pendingLiveFrame;
     private bool _liveImageUpdateQueued;
+    private Task _liveImageUpdate = Task.CompletedTask;
 
     [RelayCommand(CanExecute = nameof(CanToggleLiveView))]
     private void ToggleLiveView()
@@ -23,13 +24,20 @@ public partial class StationTeachingViewModel
         if (IsCameraLive)
         {
             StopCamera();
-            IsCameraLive = false;
             ShowRecipeImages();
         }
         else
         {
-            StartCamera();
+            CameraError = null;
             IsCameraLive = true;
+            try
+            {
+                _boltInspector.StartLiveView();
+            }
+            catch (Exception exception)
+            {
+                HandleLiveViewFailure(exception);
+            }
         }
     }
 
@@ -60,7 +68,8 @@ public partial class StationTeachingViewModel
                     .ToArray(),
                 motionCancellation.Token);
 
-            CarrierImages = [.. images];
+            motionCancellation.Token.ThrowIfCancellationRequested();
+            CarrierImages = images;
             RecipeEditor.ClearCarrierImages();
             await Task.Run(
                 () =>
@@ -71,8 +80,7 @@ public partial class StationTeachingViewModel
                             image.Center,
                             image.Image);
                     }
-                },
-                motionCancellation.Token);
+                });
 
             await RecipeEditor.SaveAsync();
             completed = true;
@@ -93,6 +101,7 @@ public partial class StationTeachingViewModel
 
     private bool CanCaptureCarrierImages() =>
         IsInspectionSelected
+        && _inspectionGantry.CanMove
         && !IsCameraLive
         && MillimetersPerPixel > 0
         && ScanOverlap >= 0
@@ -107,7 +116,7 @@ public partial class StationTeachingViewModel
     private async Task TeachImagePointAsync(Point imagePoint)
     {
         var point = SelectedPoint!;
-        _pointMapper.ApplyImage(
+        _teachingPoints.ApplyImage(
             CurrentRecipe,
             FilteredPoints,
             point,
@@ -120,7 +129,7 @@ public partial class StationTeachingViewModel
             TeachingTarget.CarrierUpperLeftLocatingPin
             or TeachingTarget.CarrierLowerRightLocatingPin)
         {
-            await _carrierReference.SaveAsync();
+            await _teachingPoints.SaveAsync(point);
             OnPropertyChanged(nameof(CarrierOrigin));
         }
         else if (point.Target == TeachingTarget.BoltReference)
@@ -148,21 +157,21 @@ public partial class StationTeachingViewModel
         && !IsCameraLive
         && SelectedPoint?.TeachMode == TeachMode.Image
         && (SelectedPoint.Target != TeachingTarget.BoltReference
-            || _pointMapper.CarrierReferenceReady)
+            || _teachingPoints.CarrierReferenceReady)
         && (SelectedPoint.Target
                 != TeachingTarget.CarrierLowerRightLocatingPin
             || _carrierReference.UpperLeftLocatingPin is not null);
 
-    private void StartCamera()
-    {
-        _boltInspector.StartLiveView();
-    }
-
     private void StopCamera()
     {
+        IsCameraLive = false;
         try
         {
             _boltInspector.StopLiveView();
+        }
+        catch (Exception exception)
+        {
+            CameraError = exception.Message;
         }
         finally
         {
@@ -173,8 +182,29 @@ public partial class StationTeachingViewModel
         }
     }
 
+    private void OnLiveViewFailed(Exception exception) =>
+        Application.Current.Dispatcher.BeginInvoke(
+            () => HandleLiveViewFailure(exception));
+
+    private void HandleLiveViewFailure(Exception exception)
+    {
+        if (!IsCameraLive)
+        {
+            return;
+        }
+
+        StopCamera();
+        CameraError = exception.Message;
+        LiveImage = null;
+    }
+
     private void UpdateLiveImage(ImageFrame frame)
     {
+        if (!IsCameraLive)
+        {
+            return;
+        }
+
         lock (_liveImageGate)
         {
             _pendingLiveFrame = frame;
@@ -184,44 +214,57 @@ public partial class StationTeachingViewModel
             }
 
             _liveImageUpdateQueued = true;
+            _liveImageUpdate = Task.Run(UpdateLiveImagesAsync);
         }
-
-        _ = Task.Run(ConvertLiveImage);
     }
 
-    private void ConvertLiveImage()
+    private async Task UpdateLiveImagesAsync()
     {
-        ImageFrame? frame;
-        lock (_liveImageGate)
+        try
         {
-            frame = _pendingLiveFrame;
-            _pendingLiveFrame = null;
-        }
-
-        var image = frame is null ? null : ToBitmapSource(frame);
-        RunOnUi(() => ApplyLiveImage(image));
-    }
-
-    private static void RunOnUi(Action action) =>
-        Application.Current.Dispatcher.BeginInvoke(action);
-
-    private void ApplyLiveImage(BitmapSource? image)
-    {
-        if (IsCameraLive && IsInspectionSelected && image is not null)
-        {
-            LiveImage = image;
-        }
-
-        lock (_liveImageGate)
-        {
-            if (_pendingLiveFrame is null)
+            while (true)
             {
-                _liveImageUpdateQueued = false;
-                return;
+                ImageFrame frame;
+                lock (_liveImageGate)
+                {
+                    if (_pendingLiveFrame is null)
+                    {
+                        _liveImageUpdateQueued = false;
+                        return;
+                    }
+
+                    frame = _pendingLiveFrame;
+                    _pendingLiveFrame = null;
+                }
+
+                var image = ToBitmapSource(frame);
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    if (IsCameraLive && IsInspectionSelected)
+                    {
+                        LiveImage = image;
+                    }
+                });
             }
         }
-
-        _ = Task.Run(ConvertLiveImage);
+        catch (Exception exception)
+        {
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                try
+                {
+                    HandleLiveViewFailure(exception);
+                }
+                finally
+                {
+                    lock (_liveImageGate)
+                    {
+                        _pendingLiveFrame = null;
+                        _liveImageUpdateQueued = false;
+                    }
+                }
+            });
+        }
     }
 
     private static BitmapSource ToBitmapSource(ImageFrame frame)

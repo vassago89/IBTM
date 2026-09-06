@@ -2,7 +2,7 @@ using System.ComponentModel;
 
 namespace IBTM.BoltFastening;
 
-public enum BoltFasteningState
+internal enum BoltFasteningWorkState
 {
     [Description("Waiting for Carrier")]
     WaitingForCarrier,
@@ -17,7 +17,7 @@ public enum BoltFasteningState
     WaitingForTransfer,
 }
 
-public enum BoltFasteningProcessState
+public enum BoltFasteningState
 {
     [Description("Waiting")]
     Waiting,
@@ -27,6 +27,9 @@ public enum BoltFasteningProcessState
 
     [Description("Loading Shooting Bolt")]
     LoadingShootingBolt,
+
+    [Description("Waiting for Shooting Tube")]
+    WaitingForShootingTubeClear,
 
     [Description("Retracting Shooting Escape")]
     RetractingShootingEscape,
@@ -95,7 +98,7 @@ public enum BoltCylinderState
     Down,
 }
 
-public enum BoltEscapeState
+internal enum BoltEscapeState
 {
     [Description("Forward")]
     Forward,

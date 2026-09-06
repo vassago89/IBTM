@@ -16,13 +16,13 @@
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                              Value="False">
-                    <Setter Property="Opacity" Value="0.35"/>
+                    <Setter Property="Opacity" Value="0.5"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="SideCarriageStyle" TargetType="Border">
             <Setter Property="Height" Value="9"/>
-            <Setter Property="Background" Value="#303B45"/>
+            <Setter Property="Background" Value="{StaticResource CardBgBrush}"/>
             <Setter Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="2"/>
@@ -88,7 +88,8 @@
                                     <TextBlock Text="{Binding Source={x:Static core:MotionGroup.PcbSupply},
                                                               Converter={StaticResource EnumDescriptionConverter}}"
                                                Style="{StaticResource SideAxisLabelStyle}"/>
-                                    <TextBlock Text="{Binding Supply.Motion.Position.Z,
+                                    <TextBlock Visibility="{Binding SupplyPositionKnown, Converter={StaticResource BoolToVis}}"
+                                               Text="{Binding Supply.Motion.Position.Z,
                                                               StringFormat='Z {0:F2} mm'}"
                                                Style="{StaticResource PrimaryStateTextStyle}"/>
                                 </StackPanel>
@@ -109,6 +110,7 @@
                                             Width="136" Height="3"
                                             Background="{StaticResource CardBorderBrush}"/>
                                     <Grid Canvas.Left="59"
+                                          Visibility="{Binding SupplyPositionKnown, Converter={StaticResource BoolToVis}}"
                                           Width="42" Height="18">
                                         <Grid.RenderTransform>
                                             <TranslateTransform Y="{Binding PcbSupplyZTop}"/>
@@ -143,7 +145,8 @@
                                     <TextBlock Text="{Binding Source={x:Static core:MotionGroup.PcbPlacementHandler},
                                                               Converter={StaticResource EnumDescriptionConverter}}"
                                                Style="{StaticResource SideAxisLabelStyle}"/>
-                                    <TextBlock Text="{Binding Placement.Motion.Position.Z,
+                                    <TextBlock Visibility="{Binding PlacementPositionKnown, Converter={StaticResource BoolToVis}}"
+                                               Text="{Binding Placement.Motion.Position.Z,
                                                               StringFormat='Z {0:F2} mm'}"
                                                Style="{StaticResource PrimaryStateTextStyle}"/>
                                 </StackPanel>
@@ -164,6 +167,7 @@
                                             Width="136" Height="3"
                                             Background="{StaticResource CardBorderBrush}"/>
                                     <Grid Canvas.Left="59"
+                                          Visibility="{Binding PlacementPositionKnown, Converter={StaticResource BoolToVis}}"
                                           Width="42" Height="18">
                                         <Grid.RenderTransform>
                                             <TranslateTransform Y="{Binding PcbPlacementZTop}"/>
@@ -199,7 +203,8 @@
                                     <TextBlock Text="{Binding Source={x:Static core:MotionGroup.BoltFastening},
                                                               Converter={StaticResource EnumDescriptionConverter}}"
                                                Style="{StaticResource SideAxisLabelStyle}"/>
-                                    <TextBlock Text="{Binding Fastening.Motion.Position.Z,
+                                    <TextBlock Visibility="{Binding FasteningPositionKnown, Converter={StaticResource BoolToVis}}"
+                                               Text="{Binding Fastening.Motion.Position.Z,
                                                               StringFormat='Z {0:F2} mm'}"
                                                Style="{StaticResource PrimaryStateTextStyle}"/>
                                 </StackPanel>
@@ -220,6 +225,7 @@
                                             Width="204" Height="3"
                                             Background="{StaticResource CardBorderBrush}"/>
                                     <Grid Canvas.Left="86"
+                                          Visibility="{Binding FasteningPositionKnown, Converter={StaticResource BoolToVis}}"
                                           Width="68" Height="18">
                                         <Grid.RenderTransform>
                                             <TranslateTransform Y="{Binding BoltFasteningZTop}"/>
@@ -249,13 +255,15 @@
                         Height="820"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Top">
-                    <ui:ConveyorView Canvas.Left="24" Canvas.Top="360"
+                    <ui:NgConveyorView Canvas.Left="{x:Static ui:MachinePlan.InspectionLeft}" Canvas.Top="0"
+                                       Panel.ZIndex="-10"/>
+                    <ui:ConveyorView Canvas.Left="{x:Static ui:MachinePlan.MainLeft}" Canvas.Top="{x:Static ui:MachinePlan.MainTop}"
                                      Panel.ZIndex="0"/>
                     <ui:PcbPlacementView Canvas.Left="24" Canvas.Top="0"
                                          Panel.ZIndex="10"/>
                     <ui:BoltFasteningView Canvas.Left="610" Canvas.Top="0"
                                           Panel.ZIndex="10"/>
-                    <ui:InspectionView Canvas.Left="1018" Canvas.Top="0"
+                    <ui:InspectionView Canvas.Left="{x:Static ui:MachinePlan.InspectionLeft}" Canvas.Top="0"
                                        Panel.ZIndex="10"/>
                 </Canvas>
             </Grid>

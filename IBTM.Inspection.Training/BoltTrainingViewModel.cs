@@ -10,6 +10,7 @@ using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
+using IBTM.Device;
 using Microsoft.Win32;
 
 namespace IBTM.Inspection.Training;
@@ -22,11 +23,17 @@ public enum BoltTrainingState
     [Description("Capturing Bolt Points")]
     Capturing,
 
+    [Description("Loading Images")]
+    LoadingImages,
+
     [Description("Loading Data")]
     LoadingData,
 
     [Description("Training")]
     Training,
+
+    [Description("Applying Model")]
+    Applying,
 
     [Description("Review Model")]
     Reviewing,
@@ -49,9 +56,10 @@ public partial class BoltTrainingViewModel : ObservableObject
     private readonly TinyUnetTrainer _trainer = new();
     private readonly IBoltRecessSegmenter _segmenter;
     private readonly BoltTrainingSession _session;
+    private readonly OperationCancellation _operations;
     private readonly BoltInspector _inspector;
     private readonly InspectionWork _inspectionWork;
-    private readonly bool _captureEnabled;
+    private readonly Func<bool> _captureEnabled;
     private readonly Func<IReadOnlyList<BoltPoint>> _boltPoints;
     private IReadOnlyList<LabelCapture> _labelImages = [];
     private int _labelIndex;
@@ -60,14 +68,16 @@ public partial class BoltTrainingViewModel : ObservableObject
         BoltInspectionSettings settings,
         IBoltRecessSegmenter segmenter,
         BoltTrainingSession session,
+        OperationCancellation operations,
         BoltInspector inspector,
         InspectionWork inspectionWork,
-        bool captureEnabled,
+        Func<bool> captureEnabled,
         Func<IReadOnlyList<BoltPoint>> boltPoints)
     {
         _settings = settings;
         _segmenter = segmenter;
         _session = session;
+        _operations = operations;
         _inspector = inspector;
         _inspectionWork = inspectionWork;
         _captureEnabled = captureEnabled;
@@ -89,19 +99,21 @@ public partial class BoltTrainingViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     [NotifyCanExecuteChangedFor(nameof(SelectDatasetCommand))]
     [NotifyCanExecuteChangedFor(nameof(CaptureBoltPointsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AddImagesCommand))]
     [NotifyCanExecuteChangedFor(nameof(CompleteLabelCommand))]
     [NotifyCanExecuteChangedFor(nameof(EmptyLabelCommand))]
-    [NotifyPropertyChangedFor(nameof(InputsEnabled))]
     [NotifyPropertyChangedFor(nameof(ConfigurationEnabled))]
+    [NotifyPropertyChangedFor(nameof(DatasetEditingEnabled))]
     private bool _isBusy;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CompleteLabelCommand))]
     [NotifyCanExecuteChangedFor(nameof(EmptyLabelCommand))]
     [NotifyCanExecuteChangedFor(nameof(CaptureBoltPointsCommand))]
+    [NotifyCanExecuteChangedFor(nameof(AddImagesCommand))]
     [NotifyCanExecuteChangedFor(nameof(TrainCommand))]
     [NotifyCanExecuteChangedFor(nameof(SelectDatasetCommand))]
-    [NotifyPropertyChangedFor(nameof(HasLabelImage))]
+    [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     [NotifyPropertyChangedFor(nameof(ConfigurationEnabled))]
     private BitmapSource? _labelImage;
 
@@ -133,9 +145,9 @@ public partial class BoltTrainingViewModel : ObservableObject
     [ObservableProperty]
     private string? _error;
 
-    public bool InputsEnabled => !IsBusy;
-    public bool HasLabelImage => LabelImage is not null;
-    public bool ConfigurationEnabled => InputsEnabled && !HasLabelImage;
+    private bool HasLabelImage => LabelImage is not null;
+    public bool ConfigurationEnabled => !IsBusy && !HasLabelImage;
+    public bool DatasetEditingEnabled => !IsBusy;
 
     public void Activate()
     {
@@ -146,6 +158,7 @@ public partial class BoltTrainingViewModel : ObservableObject
     public void Deactivate()
     {
         CaptureBoltPointsCommand.Cancel();
+        AddImagesCommand.Cancel();
         TrainCommand.Cancel();
         if (!IsBusy)
         {
@@ -153,7 +166,28 @@ public partial class BoltTrainingViewModel : ObservableObject
         }
     }
 
-    [RelayCommand(CanExecute = nameof(ConfigurationEnabled))]
+    public async Task ShutdownAsync()
+    {
+        var pending = new[]
+            {
+                CaptureBoltPointsCommand.ExecutionTask,
+                AddImagesCommand.ExecutionTask,
+                TrainCommand.ExecutionTask,
+            }
+            .OfType<Task>()
+            .Where(task => !task.IsCompleted)
+            .ToArray();
+        try
+        {
+            Deactivate();
+        }
+        finally
+        {
+            await Task.WhenAll(pending);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(DatasetEditingEnabled))]
     private void SelectDataset()
     {
         var dialog = new OpenFolderDialog
@@ -167,6 +201,64 @@ public partial class BoltTrainingViewModel : ObservableObject
         }
     }
 
+    [RelayCommand(CanExecute = nameof(ConfigurationEnabled))]
+    private async Task AddImagesAsync(string[]? files, CancellationToken cancellationToken)
+    {
+        if (files is null)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "Add Bolt Images",
+                Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff",
+                Multiselect = true,
+            };
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+            files = dialog.FileNames;
+        }
+
+        Begin(BoltTrainingState.LoadingImages);
+        try
+        {
+            var images = await Task.Run(() =>
+            {
+                var captures = new List<LabelCapture>(files.Length);
+                foreach (var path in files)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var image = BitmapFiles.LoadFrame(path);
+                    var size = IBoltRecessSegmenter.InputSize;
+                    if (image.Width < size || image.Height < size)
+                    {
+                        throw new InvalidOperationException(
+                            $"{Path.GetFileName(path)} must be at least {size} x {size} pixels.");
+                    }
+
+                    captures.Add(new LabelCapture(Path.GetFileName(path), image));
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+                return captures;
+            }, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            BeginLabeling(images);
+        }
+        catch (OperationCanceledException)
+        {
+            State = BoltTrainingState.Cancelled;
+        }
+        catch (Exception exception)
+        {
+            Fail(exception);
+        }
+        finally
+        {
+            End();
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(CanCapture))]
     private async Task CaptureBoltPointsAsync(
         CancellationToken cancellationToken)
@@ -174,6 +266,8 @@ public partial class BoltTrainingViewModel : ObservableObject
         Begin(BoltTrainingState.Capturing);
         try
         {
+            using var operation = _operations.Link(cancellationToken);
+            cancellationToken = operation.Token;
             var points = _boltPoints()
                 .Where(point =>
                     _inspectionWork.HeatSinkPresent(point.HeatSink))
@@ -182,17 +276,14 @@ public partial class BoltTrainingViewModel : ObservableObject
             foreach (var point in points.OrderBy(point => point.Number))
             {
                 images.Add(new LabelCapture(
-                    point,
+                    $"{point.HeatSink.GetDescription()} · Bolt {point.Number}",
                     await _inspector.CaptureAsync(
                         point,
                         cancellationToken)));
             }
 
-            _labelImages = images;
-            _labelIndex = 0;
-            SelectedImageCount = _labelImages.Count;
-            ShowLabelImage();
-            State = BoltTrainingState.Ready;
+            cancellationToken.ThrowIfCancellationRequested();
+            BeginLabeling(images);
         }
         catch (OperationCanceledException)
         {
@@ -219,7 +310,6 @@ public partial class BoltTrainingViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanTrain))]
     private async Task TrainAsync(CancellationToken cancellationToken)
     {
-        var modelFile = ModelFilePath();
         Review = null;
         Begin(BoltTrainingState.LoadingData);
         Epoch = 0;
@@ -228,38 +318,7 @@ public partial class BoltTrainingViewModel : ObservableObject
 
         try
         {
-            var dataset = await Task.Run(
-                () => new BoltSegmentationDataset(
-                    DatasetDirectory,
-                    IBoltRecessSegmenter.InputSize,
-                    cancellationToken),
-                cancellationToken);
-            State = BoltTrainingState.Training;
-
-            var progress = new Progress<BoltTrainingProgress>(value =>
-            {
-                Epoch = value.Epoch;
-                TrainingLoss = value.TrainingLoss;
-                ValidationLoss = value.ValidationLoss;
-            });
-            await Task.Run(
-                () => _trainer.Train(
-                    dataset,
-                    modelFile,
-                    Epochs,
-                    progress,
-                    cancellationToken),
-                cancellationToken);
-
-            _segmenter.Reload();
-            Review = await Task.Run(
-                () => BoltModelReview.Load(
-                    modelFile,
-                    dataset.Validation,
-                    _settings,
-                    cancellationToken),
-                cancellationToken);
-            await _settings.SaveAsync(cancellationToken);
+            Review = await TrainModelAsync(cancellationToken);
             State = BoltTrainingState.Reviewing;
         }
         catch (OperationCanceledException)
@@ -276,16 +335,77 @@ public partial class BoltTrainingViewModel : ObservableObject
         }
     }
 
+    private async Task<BoltModelReview> TrainModelAsync(CancellationToken cancellationToken)
+    {
+        var modelFile = Path.Combine(AppContext.BaseDirectory, _settings.ModelFile);
+        var trainingFile = modelFile + ".training";
+        try
+        {
+            var dataset = await Task.Run(
+                () => new BoltSegmentationDataset(
+                    DatasetDirectory,
+                    cancellationToken),
+                cancellationToken);
+            State = BoltTrainingState.Training;
+
+            var progress = new Progress<BoltTrainingProgress>(value =>
+            {
+                Epoch = value.Epoch;
+                TrainingLoss = value.TrainingLoss;
+                ValidationLoss = value.ValidationLoss;
+            });
+            await Task.Run(
+                () => _trainer.Train(
+                    dataset,
+                    trainingFile,
+                    Epochs,
+                    progress,
+                    cancellationToken),
+                cancellationToken);
+
+            var review = await Task.Run(
+                () => BoltModelReview.Load(
+                        trainingFile,
+                        dataset.Validation,
+                        _settings,
+                        cancellationToken),
+                cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            State = BoltTrainingState.Applying;
+            await Task.Run(async () =>
+            {
+                File.Move(trainingFile, modelFile, overwrite: true);
+                _segmenter.Reload();
+                review.CalibrateMinimumMaskRatio();
+                await _settings.SaveAsync();
+            });
+            return review;
+        }
+        finally
+        {
+            File.Delete(trainingFile);
+        }
+    }
+
     [RelayCommand(CanExecute = nameof(CanCancel))]
     private void Cancel()
     {
         CaptureBoltPointsCommand.Cancel();
+        AddImagesCommand.Cancel();
         TrainCommand.Cancel();
+        if (!IsBusy)
+        {
+            BeginLabeling([]);
+            Error = null;
+            State = BoltTrainingState.Cancelled;
+            _session.SetRunning(false);
+        }
     }
 
     private bool CanCapture()
     {
-        if (!_captureEnabled
+        if (!_captureEnabled()
             || !ConfigurationEnabled
             || !_inspectionWork.CarrierSeated)
         {
@@ -304,27 +424,50 @@ public partial class BoltTrainingViewModel : ObservableObject
         && Epochs > 0
         && !string.IsNullOrWhiteSpace(DatasetDirectory);
 
-    private bool CanLabel() => InputsEnabled && HasLabelImage;
-    private bool CanCancel() => IsBusy
-                                && State is BoltTrainingState.Capturing
-                                    or BoltTrainingState.LoadingData
-                                    or BoltTrainingState.Training;
+    private bool CanLabel() => !IsBusy && HasLabelImage;
+    private bool CanCancel() => !IsBusy && HasLabelImage
+                               || IsBusy && State is BoltTrainingState.Capturing
+                                   or BoltTrainingState.LoadingImages
+                                   or BoltTrainingState.LoadingData
+                                   or BoltTrainingState.Training;
     private void SaveLabel(byte[] mask)
     {
+        try
+        {
+            BoltTrainingFiles.SaveSample(
+                DatasetDirectory,
+                LabelImage!,
+                mask);
+        }
+        catch (Exception exception)
+        {
+            Fail(exception);
+            return;
+        }
+
         Review = null;
-        BoltTrainingFiles.SaveSample(
-            DatasetDirectory,
-            LabelImage!,
-            mask);
+        Error = null;
+        State = BoltTrainingState.Ready;
         _labelIndex++;
         ShowLabelImage();
         _session.SetRunning(HasLabelImage);
+    }
+
+    private void BeginLabeling(IReadOnlyList<LabelCapture> images)
+    {
+        _labelImages = images;
+        _labelIndex = 0;
+        SelectedImageCount = images.Count;
+        ShowLabelImage();
+        State = BoltTrainingState.Ready;
     }
 
     private void ShowLabelImage()
     {
         if (_labelIndex >= _labelImages.Count)
         {
+            _labelImages = [];
+            _labelIndex = 0;
             LabelImage = null;
             LabelImageName = null;
             LabelImageNumber = 0;
@@ -334,8 +477,7 @@ public partial class BoltTrainingViewModel : ObservableObject
 
         var capture = _labelImages[_labelIndex];
         LabelImage = BoltTrainingFiles.CreateInput(capture.Image);
-        LabelImageName =
-            $"{capture.Point.HeatSink.GetDescription()} · Bolt {capture.Point.Number}";
+        LabelImageName = capture.Name;
         LabelImageNumber = _labelIndex + 1;
     }
 
@@ -363,11 +505,7 @@ public partial class BoltTrainingViewModel : ObservableObject
         Application.Current.Dispatcher.BeginInvoke(
             CaptureBoltPointsCommand.NotifyCanExecuteChanged);
 
-    private string ModelFilePath() => Path.Combine(
-        AppContext.BaseDirectory,
-        _settings.ModelFile);
-
     partial void OnDatasetDirectoryChanged(string value) => Review = null;
 
-    private sealed record LabelCapture(BoltPoint Point, ImageFrame Image);
+    private sealed record LabelCapture(string Name, ImageFrame Image);
 }

@@ -214,7 +214,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         {
             var tail = new byte[3];
             await stream.ReadExactlyAsync(tail, cancellationToken);
-            var errorFrame = Join(header, tail);
+            byte[] errorFrame = [.. header, .. tail];
             ValidateFrame(
                 errorFrame,
                 slaveAddress,
@@ -229,7 +229,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         {
             var tail = new byte[6];
             await stream.ReadExactlyAsync(tail, cancellationToken);
-            response = Join(header, tail);
+            response = [.. header, .. tail];
         }
         else
         {
@@ -238,10 +238,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
             var byteCount = count[0];
             var tail = new byte[byteCount + 2];
             await stream.ReadExactlyAsync(tail, cancellationToken);
-            response = new byte[3 + tail.Length];
-            header.CopyTo(response, 0);
-            response[2] = byteCount;
-            tail.CopyTo(response, 3);
+            response = [.. header, byteCount, .. tail];
         }
 
         ValidateFrame(response, slaveAddress, (byte)function);
@@ -275,13 +272,5 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         InvalidCrc = 0x07,
         ByteCountExceeded = 0x0C,
         ValueOutOfRange = 0x0E,
-    }
-
-    private static byte[] Join(byte[] first, byte[] second)
-    {
-        var result = new byte[first.Length + second.Length];
-        first.CopyTo(result, 0);
-        second.CopyTo(result, first.Length);
-        return result;
     }
 }

@@ -176,7 +176,8 @@
                                     Command="{Binding JogStopCommand}"
                                     Style="{StaticResource JogStopButtonStyle}"/>
                             <Button Grid.Column="2"
-                                    Content="{Binding HorizontalZTarget, Converter={StaticResource EnumDescriptionConverter}}"
+                                    Content="Travel Z"
+                                    ToolTip="{Binding HorizontalZTarget, Converter={StaticResource EnumDescriptionConverter}}"
                                     Command="{Binding MoveToHorizontalZCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}"/>
                         </Grid>

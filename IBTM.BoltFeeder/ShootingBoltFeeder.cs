@@ -15,8 +15,5 @@ public sealed class ShootingBoltFeeder(
         SetFeeding(false);
 
     protected override void SetFeeding(bool value)
-    {
-        Io.SetOutput(OutputIo.ShootingFeederRunSignal, value);
-        NotifyChanged();
-    }
+        => Io.SetOutput(OutputIo.ShootingFeederRunSignal, value);
 }

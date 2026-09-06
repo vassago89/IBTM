@@ -11,11 +11,18 @@ public partial class StationTeachingViewModel
 {
     protected override MotionGroup CurrentMotionGroup =>
         SelectedMotionGroup;
-    private IMotionFeedback CurrentFeedback =>
-        Feedback(SelectedMotionGroup);
+    private IMotionFeedback CurrentFeedback => SelectedMotionGroup switch
+    {
+        MotionGroup.PcbPlacementHandler => _placementHandler.Feedback,
+        MotionGroup.BoltFastening => _fasteningGantry.Feedback,
+        MotionGroup.InspectionGantry => _inspectionGantry.Feedback,
+        _ => throw new ArgumentOutOfRangeException(nameof(SelectedMotionGroup)),
+    };
 
     protected override bool CanJog(MotionAxis axis) =>
         CanUseCurrentHandler()
+        && (SelectedMotionGroup != MotionGroup.InspectionGantry
+            || _inspectionGantry.CanMove)
         && (axis == MotionAxis.Z
             ? CurrentFeedback.HasZ
             : CurrentFeedback.IsAtHorizontalZ);
@@ -34,7 +41,7 @@ public partial class StationTeachingViewModel
                 _placementHandler.Jog(axis, velocity, cancellationToken);
                 break;
             case MotionGroup.BoltFastening:
-                _fasteningStation.Jog(axis, velocity, cancellationToken);
+                _fasteningGantry.Jog(axis, velocity, cancellationToken);
                 break;
             case MotionGroup.InspectionGantry:
                 _inspectionGantry.Jog(axis, velocity, cancellationToken);
@@ -49,16 +56,16 @@ public partial class StationTeachingViewModel
             MotionGroup.PcbPlacementHandler =>
                 _placementHandler.MoveToHorizontalZAsync(cancellationToken),
             MotionGroup.BoltFastening =>
-                _fasteningStation.MoveToSafeZAsync(cancellationToken),
+                _fasteningGantry.MoveToSafeZAsync(cancellationToken),
             MotionGroup.InspectionGantry => Task.CompletedTask,
             _ => throw new ArgumentOutOfRangeException(),
         };
 
     [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
-    private async Task MoveToPointAsync(CancellationToken cancellationToken)
+    private Task MoveToPointAsync(CancellationToken cancellationToken)
     {
         var point = SelectedPoint!;
-        await RunMotionAsync(
+        return RunMotionAsync(
             moveCancellation => MovePointAsync(point, moveCancellation),
             cancellationToken);
     }
@@ -89,8 +96,7 @@ public partial class StationTeachingViewModel
                 point.X,
                 point.Y,
                 cancellationToken),
-            TeachMode.ZOnly
-                when point.Target != TeachingTarget.BoltPointZ =>
+            TeachMode.ZOnly =>
                 _placementHandler.MoveZAsync(
                     point.Z!.Value,
                     cancellationToken),
@@ -106,16 +112,16 @@ public partial class StationTeachingViewModel
         CancellationToken cancellationToken) =>
         point.TeachMode switch
         {
-            TeachMode.XYOnly => _fasteningStation.MoveToXYAsync(
+            TeachMode.XYOnly => _fasteningGantry.MoveToXYAsync(
                 point.X,
                 point.Y,
                 cancellationToken),
             TeachMode.ZOnly
                 when point.Target != TeachingTarget.BoltPointZ =>
-                _fasteningStation.MoveZAsync(
+                _fasteningGantry.MoveZAsync(
                     point.Z!.Value,
                     cancellationToken),
-            _ => _fasteningStation.MoveToAsync(
+            _ => _fasteningGantry.MoveToAsync(
                 point.X,
                 point.Y,
                 point.Z!.Value,
@@ -124,7 +130,9 @@ public partial class StationTeachingViewModel
 
     private bool CanMoveToPoint() =>
         CanTeachCurrentPosition()
-        && _pointMapper.HasMotionPosition(
+        && (SelectedMotionGroup != MotionGroup.InspectionGantry
+            || _inspectionGantry.CanMove)
+        && _teachingPoints.HasMotionPosition(
             CurrentRecipe,
             SelectedPoint!);
 
@@ -142,14 +150,6 @@ public partial class StationTeachingViewModel
         CaptureCarrierImagesCommand.NotifyCanExecuteChanged();
         TeachImagePointCommand.NotifyCanExecuteChanged();
     }
-
-    private IMotionFeedback Feedback(MotionGroup group) => group switch
-    {
-        MotionGroup.PcbPlacementHandler => _placementHandler.Feedback,
-        MotionGroup.BoltFastening => _fasteningStation.Feedback,
-        MotionGroup.InspectionGantry => _inspectionGantry.Feedback,
-        _ => throw new ArgumentOutOfRangeException(nameof(group)),
-    };
 
     protected override void RefreshPositionBindings()
     {

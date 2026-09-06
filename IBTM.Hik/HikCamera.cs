@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Threading;
 using IBTM.Core;
 using IBTM.Device;
 using MvCameraControl;
@@ -25,6 +26,7 @@ public sealed class HikCamera(InspectionCameraSettings settings)
     private bool _liveView;
 
     public event Action<ImageFrame>? FrameReady;
+    public event Action<Exception>? LiveViewFailed;
 
     public void Initialize()
     {
@@ -118,18 +120,34 @@ public sealed class HikCamera(InspectionCameraSettings settings)
             var frameInterval = Stopwatch.Frequency
                                 / settings.LiveViewFramesPerSecond;
             var nextFrame = 0L;
+            var failed = 0;
             EventHandler<FrameGrabbedEventArgs> frameHandler =
                 (_, eventArgs) =>
                 {
-                    var now = Stopwatch.GetTimestamp();
-                    if (now < nextFrame)
+                    if (Volatile.Read(ref failed) != 0)
                     {
                         return;
                     }
 
-                    nextFrame = now + frameInterval;
-                    FrameReady?.Invoke(
-                        ConvertFrame(device, eventArgs.FrameOut));
+                    try
+                    {
+                        var now = Stopwatch.GetTimestamp();
+                        if (now < nextFrame)
+                        {
+                            return;
+                        }
+
+                        nextFrame = now + frameInterval;
+                        FrameReady?.Invoke(
+                            ConvertFrame(device, eventArgs.FrameOut));
+                    }
+                    catch (Exception exception)
+                    {
+                        if (Interlocked.Exchange(ref failed, 1) == 0)
+                        {
+                            LiveViewFailed?.Invoke(exception);
+                        }
+                    }
                 };
             stream.FrameGrabedEvent += frameHandler;
             _liveFrameHandler = frameHandler;
@@ -166,9 +184,9 @@ public sealed class HikCamera(InspectionCameraSettings settings)
             }
 
             _liveFrameHandler = null;
+            _liveView = false;
             Check(stream.StopGrabbing(), "Stop Hik live view");
             _grabbing = false;
-            _liveView = false;
 
             ConfigureSingleCapture(_device!);
             Check(

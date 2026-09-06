@@ -2,7 +2,7 @@ using System.ComponentModel;
 
 namespace IBTM.PcbSupply;
 
-public enum PcbSupplyState
+internal enum PcbSupplyState
 {
     [Description("Waiting for Carrier")]
     WaitingForCarrier,
@@ -16,6 +16,9 @@ public enum PcbSupplyState
     [Description("Securing PCB")]
     SecuringPcb,
 
+    [Description("Raising for Pickup")]
+    RaisingForPickup,
+
     [Description("Moving Above Buffer")]
     MovingAboveBuffer,
 
@@ -27,6 +30,9 @@ public enum PcbSupplyState
 
     [Description("Moving to Buffer")]
     MovingToBuffer,
+
+    [Description("Waiting for Buffer PCB")]
+    WaitingForBufferPcb,
 
     [Description("Waiting for Placement Handler")]
     WaitingForPlacement,

@@ -39,8 +39,6 @@ public partial class BoltModelReview : ObservableObject
     {
         _samples = samples;
         _settings = settings;
-        ImageCount = samples.Count;
-        CalibrateMinimumMaskRatio();
         Show();
     }
 
@@ -50,8 +48,7 @@ public partial class BoltModelReview : ObservableObject
     [ObservableProperty]
     private int _imageNumber;
 
-    [ObservableProperty]
-    private int _imageCount;
+    public int ImageCount => _samples.Count;
 
     [ObservableProperty]
     private double _maskRatioPercent;
@@ -79,10 +76,10 @@ public partial class BoltModelReview : ObservableObject
         foreach (var sample in validationSamples)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var image = BoltTrainingFiles.Load(sample.ImagePath);
+            var image = BitmapFiles.Load(sample.ImagePath);
             samples.Add(new BoltValidationSample(
                 image,
-                segmenter.Segment(BoltTrainingFiles.ToFrame(image)),
+                segmenter.Segment(BitmapFiles.ToFrame(image)),
                 sample.BoltPresent
                     ? BoltValidationResult.Bolt
                     : BoltValidationResult.Empty));
@@ -119,12 +116,9 @@ public partial class BoltModelReview : ObservableObject
     private void Refresh()
     {
         var sample = _samples[_index];
-        var positive = sample.PredictedMask.Count(
-            value => value >= _settings.MaskThreshold);
-        MaskRatioPercent = (double)positive
-                           / sample.PredictedMask.Length
-                           * 100;
-        Result = MaskRatioPercent >= _settings.MinimumMaskRatio * 100
+        var ratio = MaskRatio(sample.PredictedMask);
+        MaskRatioPercent = ratio * 100;
+        Result = ratio >= _settings.MinimumMaskRatio
             ? BoltValidationResult.Bolt
             : BoltValidationResult.Empty;
         Expected = sample.Expected;
@@ -138,7 +132,7 @@ public partial class BoltModelReview : ObservableObject
             _settings.MaskThreshold);
     }
 
-    private void CalibrateMinimumMaskRatio()
+    internal void CalibrateMinimumMaskRatio()
     {
         var scores = _samples
             .Select(sample => new BoltValidationScore(
@@ -163,6 +157,7 @@ public partial class BoltModelReview : ObservableObject
             .ThenByDescending(candidate => candidate.Margin)
             .First()
             .Threshold;
+        Refresh();
     }
 
     private double MaskRatio(IReadOnlyList<float> mask) =>

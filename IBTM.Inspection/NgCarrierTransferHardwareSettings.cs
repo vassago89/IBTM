@@ -1,6 +1,6 @@
 using IBTM.Device;
 
-namespace IBTM.NgConveyor;
+namespace IBTM.Inspection;
 
 public sealed class NgCarrierTransferHardwareSettings : IoHardwareSettings
 {

@@ -70,9 +70,21 @@ public sealed class BufferStage
         && _placementMotion.GetAxisState(MotionAxis.Y).Homed
         && IsInsidePlacement(_placementMotion.GetPosition());
 
-    public bool PlacementBlocksSupply =>
-        PlacementInside
-        && _placementMotion.GetPosition().Z > _placementEntryZ();
+    private bool PlacementBlocksSupply
+    {
+        get
+        {
+            if (!_placementMotion.GetAxisState(MotionAxis.X).Homed
+                || !_placementMotion.GetAxisState(MotionAxis.Y).Homed)
+            {
+                return false;
+            }
+
+            var position = _placementMotion.GetPosition();
+            return IsInsidePlacement(position)
+                && position.Z > _placementEntryZ();
+        }
+    }
 
     public bool SupplyAtHandoff =>
         IsSettled(_supplyMotion)
@@ -86,8 +98,8 @@ public sealed class BufferStage
         IsSettled(_placementMotion)
         && IsAt(_placementMotion.GetPosition(), _placementHandoff);
 
-    public bool CanSupplyEnter =>
-        PositionKnown && !PcbPresent && !PlacementBlocksSupply;
+    public bool CanSupplyLower => PositionKnown && !PlacementBlocksSupply;
+    public bool CanSupplyEnter => CanSupplyLower && !PcbPresent;
     public bool CanPlacementEnter =>
         PositionKnown
         && PcbPresent

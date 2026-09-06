@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using IBTM.Core;
 using IBTM.Device;
 
@@ -11,17 +10,29 @@ public sealed class VirtualCamera(
     Func<IEnumerable<AxisPosition>> getBoltPositions) : ICamera
 {
     public event Action<ImageFrame>? FrameReady;
+    public event Action<Exception>? LiveViewFailed;
+    public ImageFrame? SourceImage { get; set; }
 
     public void Initialize()
     {
     }
 
     public ImageFrame Capture() =>
-        VirtualImageFactory.CreateInspection(
+        SourceImage ?? VirtualImageFactory.CreateInspection(
             getPosition(),
-            getBoltPositions().ToArray());
+            getBoltPositions());
 
-    public void StartLiveView() => FrameReady?.Invoke(Capture());
+    public void StartLiveView()
+    {
+        try
+        {
+            FrameReady?.Invoke(Capture());
+        }
+        catch (Exception exception)
+        {
+            LiveViewFailed?.Invoke(exception);
+        }
+    }
 
     public void StopLiveView()
     {

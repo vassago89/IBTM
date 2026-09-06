@@ -7,36 +7,27 @@ using IBTM.Core;
 namespace IBTM.UI;
 
 public sealed class BoltFasteningRecoveryPreparation
-    : StationRecoveryPreparation
+    : StartPreparation
 {
     private readonly BoltFasteningWork _work;
-    private readonly BoltFasteningProcess _process;
+    private readonly BoltFasteningStation _fastening;
     private readonly Recipe _recipe;
-    private readonly bool _enabled;
 
     public BoltFasteningRecoveryPreparation(
         MachineState state,
         BoltFasteningWork work,
-        BoltFasteningProcess process,
+        BoltFasteningStation fastening,
         Recipe recipe,
         UnitSettings units)
-        : base(state, work)
+        : base(state, work, units.BoltFastening)
     {
         _work = work;
-        _process = process;
+        _fastening = fastening;
         _recipe = recipe;
-        _enabled = units.BoltFastening;
     }
 
     public override StartPreparationType Type =>
         StartPreparationType.BoltFasteningRecovery;
-
-    public override bool Required =>
-        _enabled
-        && !State.AutomaticRunning
-        && _work.CarrierPresent
-        && (_work.HeatSinkPresent(HeatSinkSlot.HeatSink1)
-            || _work.HeatSinkPresent(HeatSinkSlot.HeatSink2));
 
     protected override bool Show(Window owner)
     {
@@ -72,12 +63,12 @@ public sealed class BoltFasteningRecoveryPreparation
             return false;
         }
 
-        _process.PrepareRecovery(orderedItems
-            .Where(item => item.Completed)
+        _fastening.PrepareRecovery(orderedItems
             .Select(item => (
                 item.HeatSink,
                 item.Number,
-                item.Pass)));
+                item.Pass,
+                item.Completed)));
         return true;
     }
 

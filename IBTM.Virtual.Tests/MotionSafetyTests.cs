@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
@@ -13,6 +14,57 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class MotionSafetyTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HomePublishesTheCompletedState(bool horizontal)
+    {
+        using var motion = new VirtualMotionService(
+            new MotionSettings(),
+            new OperationCancellation(),
+            hasZ: false);
+        motion.Initialize();
+        var homed = false;
+        motion.StateChanged += () => homed =
+            motion.GetAxisState(MotionAxis.X).Homed
+            && (!horizontal || motion.GetAxisState(MotionAxis.Y).Homed);
+
+        var completed = horizontal
+            ? await motion.HomeHorizontalAsync(100)
+            : await motion.HomeAsync(MotionAxis.X, 100);
+
+        Assert.True(completed);
+        Assert.True(homed);
+    }
+
+    [Fact]
+    public async Task SlowJogAccumulatesSubPulseDistanceAndStopsOnCancellation()
+    {
+        using var motion = new VirtualMotionService(
+            new MotionSettings(),
+            new OperationCancellation(),
+            hasY: false,
+            hasZ: false);
+        motion.Initialize();
+        using var stop = new CancellationTokenSource();
+
+        motion.JogX(0.2, stop.Token);
+        Assert.True(await WaitUntilAsync(
+            () => motion.GetPosition().X >= 0.01,
+            TimeSpan.FromSeconds(1)));
+        stop.Cancel();
+        Assert.True(await WaitUntilAsync(
+            () => !motion.IsMoving,
+            TimeSpan.FromSeconds(1)));
+
+        var stoppedPosition = motion.GetPosition();
+        await Task.Delay(30);
+        Assert.Equal(stoppedPosition, motion.GetPosition());
+        Assert.Throws<OperationCanceledException>(() =>
+            motion.JogX(0.2, stop.Token));
+        Assert.False(motion.IsMoving);
+    }
+
     [Fact]
     public async Task MotionRetractsZBeforeXyMovement()
     {
@@ -22,7 +74,7 @@ public sealed class MotionSafetyTests
             new OperationCancellation(),
             horizontalZ: () => -5);
         motion.Initialize();
-        await HomeAsync(motion);
+        await HomeAsync(motion, 1_000);
         await motion.MoveZAsync(8, 100);
         var movedXyBeforeZClear = false;
         motion.PositionChanged += (x, y, z) =>
@@ -80,7 +132,7 @@ public sealed class MotionSafetyTests
 
         io.Initialize();
         motion.Initialize();
-        await HomeAsync(motion);
+        await HomeAsync(motion, 1_000);
         await motion.MoveToAsync(100, 80, 0);
         previous = motion.GetPosition();
         motion.MovingChanged += moving =>
@@ -162,14 +214,13 @@ public sealed class MotionSafetyTests
         io.Initialize();
         supply.Initialize();
         placement.Initialize();
-        await Task.WhenAll(HomeAsync(supply), HomeAsync(placement));
+        await Task.WhenAll(HomeAsync(supply, 1_000), HomeAsync(placement, 1_000));
 
         await placement.MoveToAsync(10, 10, 0);
-        Assert.False(buffer.PlacementBlocksSupply);
         Assert.True(buffer.CanSupplyEnter);
         await placement.MoveZAsync(8, settings.ZSpeed);
-        Assert.True(buffer.PlacementBlocksSupply);
         Assert.False(buffer.CanSupplyEnter);
+        Assert.False(buffer.CanSupplyLower);
         await placement.MoveToAsync(0, 0, 0);
 
         await supply.MoveToAsync(20, 10, 8);
@@ -188,7 +239,7 @@ public sealed class MotionSafetyTests
     }
 
     [Fact]
-    public async Task SupplyMovesAboveBufferBeforeRotatingAndLowersRotated()
+    public async Task SupplyRotatesBeforeBufferEntryAndMovesYBeforeX()
     {
         var io = CreateIo();
         var settings = new PcbSupplySettings
@@ -222,7 +273,7 @@ public sealed class MotionSafetyTests
 
         io.Initialize();
         motion.Initialize();
-        await HomeAsync(motion);
+        await HomeAsync(motion, 1_000);
 
         var xMovedBeforeY = false;
         motion.PositionChanged += (x, y, _) =>
@@ -235,14 +286,14 @@ public sealed class MotionSafetyTests
             }
         };
 
-        await supply.MoveHorizontalAsync(20, 15);
-
-        Assert.False(xMovedBeforeY);
-        Assert.Equal((20, 15, 0), motion.GetPosition());
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             supply.LowerToHandoffAsync(default));
 
         await supply.SetRotatedAsync(true);
+        await supply.MoveHorizontalAsync(20, 15);
+
+        Assert.False(xMovedBeforeY);
+        Assert.Equal((20, 15, 0), motion.GetPosition());
         await supply.LowerToHandoffAsync(default);
         Assert.Equal((20, 15, 5), motion.GetPosition());
     }
@@ -251,10 +302,4 @@ public sealed class MotionSafetyTests
         new PcbSupplyHardwareSettings().Outputs,
         new MachineOptions());
 
-    private static async Task HomeAsync(VirtualMotionService motion)
-    {
-        await motion.HomeAsync(MotionAxis.Z, 1_000);
-        await motion.HomeAsync(MotionAxis.X, 1_000);
-        await motion.HomeAsync(MotionAxis.Y, 1_000);
-    }
 }

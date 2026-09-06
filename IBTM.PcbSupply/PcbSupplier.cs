@@ -2,12 +2,11 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
-using IBTM.Device;
 using IBTM.PcbBuffer;
 
 namespace IBTM.PcbSupply;
 
-public sealed class PcbSupplyProcess(
+public sealed class PcbSupplier(
     PcbSupplyHandler handler,
     BufferStage buffer)
 {
@@ -22,7 +21,16 @@ public sealed class PcbSupplyProcess(
     {
         var pickStep = PickStep.Pcb1;
         var stateChanged = new AsyncAutoResetEvent();
-        void OnStateChanged() => stateChanged.Set();
+        void OnStateChanged()
+        {
+            if (pickStep == PickStep.WaitingForCarrierExit
+                && !handler.UpstreamCarrierAvailable)
+            {
+                pickStep = PickStep.Pcb1;
+            }
+
+            stateChanged.Set();
+        }
 
         handler.Changed += OnStateChanged;
         buffer.StateChanged += OnStateChanged;
@@ -30,17 +38,19 @@ public sealed class PcbSupplyProcess(
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                var waitingForCarrierExit =
-                    pickStep == PickStep.WaitingForCarrierExit
-                    && handler.Pcb == PcbSupplyPcbState.None
-                    && handler.Rotation == PcbSupplyRotationState.Unrotated;
-                var waitingForFirstCarrier = pickStep == PickStep.Pcb1
-                    && !handler.UpstreamCarrierAvailable;
-                handler.SetUpstreamReady(
-                    waitingForCarrierExit || waitingForFirstCarrier);
+                if (pickStep != PickStep.WaitingForCarrierExit)
+                {
+                    handler.SetUpstreamReady(
+                        pickStep == PickStep.Pcb1
+                        && !handler.UpstreamCarrierAvailable);
+                }
+                else if (handler.IsAtRotationZ
+                         && handler.Pcb != PcbSupplyPcbState.Detected)
+                {
+                    handler.SetUpstreamReady(true);
+                }
 
-                var state = State(pickStep);
-                switch (state)
+                switch (State(pickStep))
                 {
                     case PcbSupplyState.PickingPcb:
                         await handler.PickAsync(
@@ -57,6 +67,11 @@ public sealed class PcbSupplyProcess(
                         await handler.SecurePcbAsync(cancellationToken);
                         break;
 
+                    case PcbSupplyState.RaisingForPickup:
+                        await handler.MoveToRotationZAsync(
+                            cancellationToken);
+                        break;
+
                     case PcbSupplyState.MovingAboveBuffer:
                         await handler.MoveAboveHandoffAsync(
                             cancellationToken);
@@ -70,6 +85,9 @@ public sealed class PcbSupplyProcess(
 
                     case PcbSupplyState.MovingToBuffer:
                         await handler.LowerToHandoffAsync(cancellationToken);
+                        break;
+
+                    case PcbSupplyState.WaitingForBufferPcb:
                         await buffer.WaitForPcbAsync(
                             true,
                             cancellationToken);
@@ -89,13 +107,6 @@ public sealed class PcbSupplyProcess(
                         await handler.SetRotatedAsync(
                             false,
                             cancellationToken);
-                        break;
-
-                    case PcbSupplyState.WaitingForCarrierExit:
-                        await handler.WaitForUpstreamCarrierAsync(
-                            false,
-                            cancellationToken);
-                        pickStep = PickStep.Pcb1;
                         break;
 
                     default:
@@ -122,6 +133,11 @@ public sealed class PcbSupplyProcess(
 
         if (buffer.SupplyAtHandoff)
         {
+            if (!buffer.PcbPresent)
+            {
+                return PcbSupplyState.WaitingForBufferPcb;
+            }
+
             return buffer.PlacementSecuredAtHandoff
                 ? PcbSupplyState.ReleasingPcb
                 : PcbSupplyState.WaitingForPlacement;
@@ -139,6 +155,11 @@ public sealed class PcbSupplyProcess(
 
         if (pcb == PcbSupplyPcbState.Secured)
         {
+            if (rotation != PcbSupplyRotationState.Rotated)
+            {
+                return PcbSupplyState.RotatingForBuffer;
+            }
+
             if (!handler.AtHandoffXY)
             {
                 return buffer.CanSupplyEnter
@@ -146,14 +167,15 @@ public sealed class PcbSupplyProcess(
                     : PcbSupplyState.WaitingForBuffer;
             }
 
-            if (rotation != PcbSupplyRotationState.Rotated)
-            {
-                return PcbSupplyState.RotatingForBuffer;
-            }
-
-            return buffer.CanSupplyEnter
+            return (buffer.CanSupplyEnter
+                    || handler.InHandoffZRange && buffer.CanSupplyLower)
                 ? PcbSupplyState.MovingToBuffer
                 : PcbSupplyState.WaitingForBuffer;
+        }
+
+        if (!handler.IsAtRotationZ)
+        {
+            return PcbSupplyState.RaisingForPickup;
         }
 
         if (rotation != PcbSupplyRotationState.Unrotated)

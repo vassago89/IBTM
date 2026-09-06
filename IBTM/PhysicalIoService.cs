@@ -23,7 +23,11 @@ public sealed class PhysicalIoService(
     private static readonly InputIo[] Inputs = Enum.GetValues<InputIo>();
     private readonly bool[] _inputs = new bool[
         Inputs.Max(input => (int)input) + 1];
+    private readonly bool[] _inputScan = new bool[
+        Inputs.Max(input => (int)input) + 1];
+    private readonly InputIo[] _changedInputs = new InputIo[Inputs.Length];
     private readonly uint[] _rtexInputs = new uint[ajin.RtexInputWordCount];
+    private readonly Lock _lifecycleGate = new();
     private CancellationTokenSource? _inputMonitor;
     private Task? _inputMonitorTask;
     private volatile bool _ready;
@@ -36,59 +40,65 @@ public sealed class PhysicalIoService(
 
     public void Initialize()
     {
-        if (_ready)
+        lock (_lifecycleGate)
         {
-            return;
-        }
+            if (_ready)
+            {
+                return;
+            }
 
-        _inputMonitor?.Cancel();
-        _inputMonitor?.Dispose();
-        alphaMotion.Initialize();
-        ajin.Initialize();
-        foreach (var input in Inputs)
-        {
-            _inputs[(int)input] = ReadInput(inputMap[input]);
-        }
+            StopInputMonitor();
+            alphaMotion.Initialize();
+            ajin.Initialize();
+            foreach (var input in Inputs)
+            {
+                _inputs[(int)input] = ReadInput(inputMap[input]);
+            }
 
-        _ready = true;
-        _inputMonitor = new CancellationTokenSource();
-        _inputMonitorTask = Task.Run(
-            () => MonitorInputsAsync(_inputMonitor.Token));
+            _ready = true;
+            _inputMonitor = new CancellationTokenSource();
+            var cancellationToken = _inputMonitor.Token;
+            _inputMonitorTask = Task.Run(
+                () => MonitorInputsAsync(cancellationToken));
+        }
     }
 
     public void CheckReady()
     {
-        if (!_ready)
+        lock (_lifecycleGate)
         {
-            Initialize();
-            return;
-        }
-
-        try
-        {
-            foreach (var channel in inputMap.Values.Distinct())
+            if (!_ready)
             {
-                _ = ReadInput(channel);
+                Initialize();
+                return;
             }
 
-            foreach (var output in outputMap.Values)
+            try
             {
-                _ = ReadOutput(output.Number);
-                if (output.OffNumber is { } offChannel)
+                foreach (var channel in inputMap.Values.Distinct())
                 {
-                    _ = ReadOutput(offChannel);
+                    _ = ReadInput(channel);
+                }
+
+                foreach (var output in outputMap.Values)
+                {
+                    _ = ReadOutput(output.Number);
+                    if (output.OffNumber is { } offChannel)
+                    {
+                        _ = ReadOutput(offChannel);
+                    }
                 }
             }
-
-        }
-        catch
-        {
-            _ready = false;
-            throw;
+            catch
+            {
+                _ready = false;
+                throw;
+            }
         }
     }
 
-    public bool GetInput(InputIo input) => ReadInput(inputMap[input]);
+    public bool GetInput(InputIo input) =>
+        Volatile.Read(ref _inputs[(int)input]);
 
     public bool GetOutput(OutputIo output) =>
         ReadOutput(outputMap[output].Number);
@@ -114,12 +124,22 @@ public sealed class PhysicalIoService(
 
     public void Dispose()
     {
-        _inputMonitor?.Cancel();
-        if (_inputMonitorTask is { IsFaulted: false } monitor)
+        lock (_lifecycleGate)
         {
-            monitor.GetAwaiter().GetResult();
+            StopInputMonitor();
+            _ready = false;
         }
+    }
+
+    private void StopInputMonitor()
+    {
+        _inputMonitor?.Cancel();
+        // Monitor failures have already been reported through Faulted.
+        _inputMonitorTask?.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing)
+            .GetAwaiter().GetResult();
         _inputMonitor?.Dispose();
+        _inputMonitor = null;
+        _inputMonitorTask = null;
     }
 
     private bool ReadInput(int channel) =>
@@ -149,20 +169,34 @@ public sealed class PhysicalIoService(
         {
             while (true)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var alphaInputs = alphaMotion.ReadInputs();
                 ajin.ReadRtexInputs(_rtexInputs);
                 foreach (var input in Inputs)
                 {
-                    var value = ReadMonitoredInput(
+                    _inputScan[(int)input] = ReadMonitoredInput(
                         inputMap[input],
                         alphaInputs);
-                    if (_inputs[(int)input] == value)
+                }
+
+                var changedCount = 0;
+                foreach (var input in Inputs)
+                {
+                    var index = (int)input;
+                    var value = _inputScan[index];
+                    if (Volatile.Read(ref _inputs[index]) == value)
                     {
                         continue;
                     }
 
-                    _inputs[(int)input] = value;
-                    InputChanged?.Invoke(input, value);
+                    Volatile.Write(ref _inputs[index], value);
+                    _changedInputs[changedCount++] = input;
+                }
+
+                for (var index = 0; index < changedCount; index++)
+                {
+                    var input = _changedInputs[index];
+                    InputChanged?.Invoke(input, _inputScan[(int)input]);
                 }
 
                 await Task.Delay(InputPollInterval, cancellationToken)

@@ -27,6 +27,13 @@ internal static class VirtualTest
             .SelectMany(section => section.Outputs)
             .ToDictionary();
 
+    public static async Task HomeAsync(VirtualMotionService motion, double speed)
+    {
+        await motion.HomeAsync(MotionAxis.Z, speed);
+        await motion.HomeAsync(MotionAxis.X, speed);
+        await motion.HomeAsync(MotionAxis.Y, speed);
+    }
+
     public static async Task WaitForOutputAsync(
         IIoService io,
         OutputIo output,

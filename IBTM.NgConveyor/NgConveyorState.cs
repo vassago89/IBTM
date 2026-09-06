@@ -7,35 +7,8 @@ public enum NgConveyorState
     [Description("Waiting for NG Carrier")]
     WaitingForCarrier,
 
-    [Description("Moving Transfer to Carrier")]
-    MovingTransferToCarrier,
-
-    [Description("Lowering Transfer at Carrier")]
-    LoweringTransferAtCarrier,
-
-    [Description("Closing NG Transfer Gripper")]
-    ClosingTransferGripper,
-
-    [Description("Waiting for Carrier Grip")]
-    WaitingForCarrierGrip,
-
-    [Description("Raising NG Transfer")]
-    RaisingCarrierTransfer,
-
-    [Description("Moving Transfer to Shuttle")]
-    MovingTransferToShuttle,
-
-    [Description("Lowering Transfer at Shuttle")]
-    LoweringTransferAtShuttle,
-
-    [Description("Opening NG Transfer Gripper")]
-    OpeningTransferGripper,
-
-    [Description("Waiting for Shuttle Carrier")]
-    WaitingForShuttleCarrier,
-
-    [Description("Lowering NG Shuttle")]
-    LoweringShuttle,
+    [Description("Waiting for NG Shuttle Down")]
+    WaitingForShuttleDown,
 
     [Description("Moving to Position 1")]
     MovingToPosition1,
@@ -43,14 +16,8 @@ public enum NgConveyorState
     [Description("Moving to Position 2")]
     MovingToPosition2,
 
-    [Description("Shuttle Down / Carrier Position Unknown")]
-    CarrierBetweenPositions,
-
-    [Description("Storing at Position 3")]
-    StoringAtPosition3,
-
-    [Description("Raising NG Shuttle")]
-    RaisingShuttle,
+    [Description("Waiting for NG Shuttle Up")]
+    WaitingForShuttleUp,
 
     [Description("NG Conveyor Full")]
     Full,
@@ -77,6 +44,30 @@ public enum NgConveyorState
     WaitingForEjectButtonRelease,
 }
 
+public enum NgShuttleState
+{
+    [Description("Waiting for Carrier")]
+    WaitingForCarrier,
+
+    [Description("Waiting for Carrier Pickup Up")]
+    WaitingForCarrierPickupUp,
+
+    [Description("Waiting for Position 3")]
+    WaitingForPosition3,
+
+    [Description("Lowering NG Shuttle")]
+    Lowering,
+
+    [Description("Waiting for NG Conveyor")]
+    WaitingForConveyor,
+
+    [Description("Raising NG Shuttle")]
+    Raising,
+
+    [Description("Carrier Position Unknown")]
+    CarrierPositionUnknown,
+}
+
 public enum NgShuttleLiftState
 {
     [Description("Up")]
@@ -87,4 +78,11 @@ public enum NgShuttleLiftState
 
     [Description("Down")]
     Down,
+}
+
+internal enum NgConveyorPosition
+{
+    Position1 = 1,
+    Position2 = 2,
+    Position3 = 3,
 }

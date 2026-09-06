@@ -5,66 +5,42 @@ using IBTM.Device;
 
 namespace IBTM.BoltFastening;
 
-public sealed class BoltFasteningWork(ConveyorStation station)
-    : StationWork(station)
+public sealed class BoltFasteningWork(ConveyorStation station, bool enabled = true)
+    : StationWork(station, enabled)
 {
-    private static readonly BoltResult ManualCompletion =
-        new(true, 0, BoltResultSource.Manual);
-
-    public BoltFasteningState State
+    internal BoltFasteningWorkState State
     {
         get
         {
             if (!CarrierPresent)
             {
-                return BoltFasteningState.WaitingForCarrier;
+                return BoltFasteningWorkState.WaitingForCarrier;
             }
 
             if (Completed)
             {
-                return BoltFasteningState.WaitingForTransfer;
+                return BoltFasteningWorkState.WaitingForTransfer;
             }
 
             return CarrierSeated
-                ? BoltFasteningState.ReadyToFasten
-                : BoltFasteningState.WaitingForSeat;
+                ? BoltFasteningWorkState.ReadyToFasten
+                : BoltFasteningWorkState.WaitingForSeat;
         }
     }
 
     public void PrepareRecovery(
-        IEnumerable<(HeatSinkSlot HeatSink, int Number, FasteningPass Pass)>
-            completed)
+        IEnumerable<(HeatSinkSlot HeatSink, int Number, FasteningPass Pass, bool Completed)>
+            items)
     {
-        foreach (var assembly in Assemblies)
+        foreach (var group in items.GroupBy(item => item.HeatSink))
         {
-            assembly.ResetFastening();
-        }
-
-        foreach (var heatSink in System.Enum.GetValues<HeatSinkSlot>()
-                     .Where(HeatSinkPresent))
-        {
-            _ = Assembly(heatSink);
-        }
-
-        foreach (var bolt in completed)
-        {
-            var assembly = Assembly(bolt.HeatSink);
-            switch (bolt.Pass)
-            {
-                case FasteningPass.Pcb:
-                    assembly.RecordPcbBolt(bolt.Number, ManualCompletion);
-                    break;
-                case FasteningPass.IpmSeating:
-                    assembly.RecordIpmSeating(
-                        bolt.Number,
-                        ManualCompletion);
-                    break;
-                case FasteningPass.IpmFinal:
-                    assembly.RecordIpmFinal(
-                        bolt.Number,
-                        ManualCompletion);
-                    break;
-            }
+            Assembly(group.Key).PrepareFasteningRecovery(
+                group.Where(item => item.Pass == FasteningPass.Pcb)
+                    .Select(item => (item.Number, item.Completed)),
+                group.Where(item => item.Pass == FasteningPass.IpmSeating)
+                    .Select(item => (item.Number, item.Completed)),
+                group.Where(item => item.Pass == FasteningPass.IpmFinal)
+                    .Select(item => (item.Number, item.Completed)));
         }
 
         Restart();

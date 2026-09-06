@@ -66,8 +66,6 @@ public abstract class BoltFeeder
     {
     }
 
-    protected void NotifyChanged() => Changed?.Invoke();
-
     private void OnInputChanged(InputIo input, bool _)
     {
         if (input == _boltDetected)

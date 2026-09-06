@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +12,7 @@ namespace IBTM.Virtual;
 public sealed class VirtualAdcBus : IAdcBus
 {
     private const string VirtualPort = "Virtual";
+    private const int FasteningMilliseconds = 250;
 
     private readonly ConcurrentDictionary<byte, Controller> _controllers = [];
     public bool IsOpen { get; private set; }
@@ -21,8 +23,14 @@ public sealed class VirtualAdcBus : IAdcBus
 
     public void SetNextFasteningResult(
         byte slaveAddress,
-        AdcEventStatus status) =>
-        GetController(slaveAddress).NextStatus = status;
+        AdcEventStatus status)
+    {
+        var controller = GetController(slaveAddress);
+        lock (controller)
+        {
+            controller.NextStatus = status;
+        }
+    }
 
     public string[] GetPortNames() => [VirtualPort];
 
@@ -70,28 +78,39 @@ public sealed class VirtualAdcBus : IAdcBus
     {
         cancellationToken.ThrowIfCancellationRequested();
         var controller = GetController(slaveAddress);
-        controller.Registers[address] = value;
-
-        switch ((AdcRemoteRegister)address)
+        lock (controller)
         {
-            case AdcRemoteRegister.AlarmReset:
-                controller.Error = 0;
-                controller.Status = AdcEventStatus.AlarmReset;
-                break;
-            case AdcRemoteRegister.RemoteStart when value != 0:
-                controller.EventCount++;
-                controller.ScrewCount++;
-                controller.Status = controller.NextStatus;
-                controller.NextStatus = AdcEventStatus.FasteningOk;
-                break;
-            case AdcRemoteRegister.Preset:
-                controller.Preset = value;
-                controller.Status = AdcEventStatus.PresetChanged;
-                break;
-            case AdcRemoteRegister.Direction:
-                controller.Direction = (AdcDirection)value;
-                controller.Status = AdcEventStatus.DirectionChanged;
-                break;
+            controller.Registers[address] = value;
+            switch ((AdcRemoteRegister)address)
+            {
+                case AdcRemoteRegister.AlarmReset:
+                    controller.Status = AdcEventStatus.AlarmReset;
+                    break;
+                case AdcRemoteRegister.RemoteStart:
+                    var version = ++controller.FasteningVersion;
+                    if (value != 0 && controller.Status != AdcEventStatus.Error)
+                    {
+                        controller.Status = AdcEventStatus.None;
+                        var status = controller.NextStatus;
+                        controller.NextStatus = AdcEventStatus.FasteningOk;
+                        _ = CompleteFasteningAsync(controller, version, status);
+                    }
+                    break;
+                case AdcRemoteRegister.Preset:
+                    controller.Preset = value;
+                    if (controller.Status != AdcEventStatus.Error)
+                    {
+                        controller.Status = AdcEventStatus.PresetChanged;
+                    }
+                    break;
+                case AdcRemoteRegister.Direction:
+                    controller.Direction = (AdcDirection)value;
+                    if (controller.Status != AdcEventStatus.Error)
+                    {
+                        controller.Status = AdcEventStatus.DirectionChanged;
+                    }
+                    break;
+            }
         }
 
         var data = new byte[4];
@@ -133,14 +152,17 @@ public sealed class VirtualAdcBus : IAdcBus
         cancellationToken.ThrowIfCancellationRequested();
         var controller = GetController(slaveAddress);
         var values = new ushort[count];
-        for (var index = 0; index < count; index++)
+        lock (controller)
         {
-            var register = (ushort)(address + index);
-            values[index] = function == AdcFunctionCode.ReadInputRegisters
-                ? ReadResultRegister(controller, register)
-                : controller.Registers.TryGetValue(register, out var value)
-                    ? value
-                    : (ushort)0;
+            for (var index = 0; index < count; index++)
+            {
+                var register = (ushort)(address + index);
+                values[index] = function == AdcFunctionCode.ReadInputRegisters
+                    ? ReadResultRegister(controller, register)
+                    : controller.Registers.TryGetValue(register, out var value)
+                        ? value
+                        : (ushort)0;
+            }
         }
 
         var requestData = new byte[4];
@@ -164,19 +186,37 @@ public sealed class VirtualAdcBus : IAdcBus
     private Controller GetController(byte slaveAddress) =>
         _controllers.GetOrAdd(slaveAddress, static _ => new Controller());
 
+    private static async Task CompleteFasteningAsync(
+        Controller controller,
+        int version,
+        AdcEventStatus status)
+    {
+        await Task.Delay(FasteningMilliseconds).ConfigureAwait(false);
+        lock (controller)
+        {
+            if (controller.FasteningVersion != version)
+            {
+                return;
+            }
+
+            controller.EventCount++;
+            controller.ScrewCount++;
+            controller.Status = status;
+        }
+    }
+
     private static ushort ReadResultRegister(
         Controller controller,
         ushort address) =>
         (AdcResultRegister)address switch
         {
             AdcResultRegister.EventCount => controller.EventCount,
-            AdcResultRegister.FasteningTime => 250,
+            AdcResultRegister.FasteningTime => FasteningMilliseconds,
             AdcResultRegister.Preset => controller.Preset,
             AdcResultRegister.TargetTorque => 100,
             AdcResultRegister.ConvertedTorque => 100,
             AdcResultRegister.TargetSpeed => 1_000,
             AdcResultRegister.ScrewCount => controller.ScrewCount,
-            AdcResultRegister.Error => controller.Error,
             AdcResultRegister.Direction => (ushort)controller.Direction,
             AdcResultRegister.Status => (ushort)controller.Status,
             _ => 0,
@@ -191,24 +231,19 @@ public sealed class VirtualAdcBus : IAdcBus
     private static byte[] BuildReadResponse(
         byte slaveAddress,
         AdcFunctionCode function,
-        byte[] data)
-    {
-        var responseData = new byte[data.Length + 1];
-        responseData[0] = (byte)data.Length;
-        data.CopyTo(responseData, 1);
-        return AdcRtuFrame.Build(slaveAddress, function, responseData);
-    }
+        byte[] data) =>
+        AdcRtuFrame.Build(slaveAddress, function, [(byte)data.Length, .. data]);
 
     private sealed class Controller
     {
-        public ConcurrentDictionary<ushort, ushort> Registers { get; } = [];
+        public Dictionary<ushort, ushort> Registers { get; } = [];
         public ushort EventCount { get; set; }
         public ushort Preset { get; set; }
         public ushort ScrewCount { get; set; }
-        public ushort Error { get; set; }
         public AdcDirection Direction { get; set; }
         public AdcEventStatus Status { get; set; }
         public AdcEventStatus NextStatus { get; set; } =
             AdcEventStatus.FasteningOk;
+        public int FasteningVersion { get; set; }
     }
 }

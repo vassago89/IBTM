@@ -28,6 +28,7 @@ public sealed class MachineSettings
     public InspectionCameraSettings InspectionCamera { get; set; } = new();
     public BoltInspectionSettings BoltInspection { get; set; } = new();
     public LightingSettings Lighting { get; set; } = new();
+    public NgCarrierTransferSettings NgCarrierTransfer { get; set; } = new();
     public NgConveyorSettings NgConveyor { get; set; } = new();
 
     public PcbSupplySettings PcbSupply { get; set; } = new();
@@ -52,7 +53,7 @@ public sealed class MachineSettings
     public NgShuttleHardwareSettings NgShuttleHardware { get; set; } = new();
     public NgConveyorHardwareSettings NgConveyorHardware { get; set; } = new();
 
-    public HardwareSettings[] HardwareSections =>
+    internal HardwareSettings[] HardwareSections =>
     [
         MachineHardware,
         PcbSupplyHardware,
