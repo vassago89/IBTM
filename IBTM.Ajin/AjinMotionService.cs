@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Device;
@@ -44,7 +45,8 @@ public class AjinMotionService(
     private readonly int? _axisY = axisY?.Number;
     private readonly int? _axisZ = axisZ?.Number;
     private readonly double _millimetersPerPulse = millimetersPerPulse;
-    private readonly int[] _axes = GetAxes(axisX, axisY, axisZ);
+    private readonly int[] _axes = new[] { axisX, axisY, axisZ }
+        .OfType<AxisHardware>().Select(axis => axis.Number).ToArray();
     private bool _initialized;
 
     public override bool IsReady => _initialized;
@@ -423,23 +425,20 @@ public class AjinMotionService(
             cancellationToken.Register(StopAxes);
         try
         {
-            try
-            {
-                BeginMotion(horizontal);
-                cancellationToken.ThrowIfCancellationRequested();
-                AjinController.Check(move(), operation);
-                await WaitForMoveAsync(axes, cancellationToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                StopAxes();
-                throw;
-            }
-            catch (Exception exception)
-            {
-                StopAxes();
-                throw new MotionException(operation, exception);
-            }
+            BeginMotion(horizontal);
+            cancellationToken.ThrowIfCancellationRequested();
+            AjinController.Check(move(), operation);
+            await WaitForMoveAsync(axes, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            StopAxes();
+            throw;
+        }
+        catch (Exception exception)
+        {
+            StopAxes();
+            throw new MotionException(operation, exception);
         }
         finally
         {
@@ -614,28 +613,6 @@ public class AjinMotionService(
 
     private static bool Bit(uint value, int bit) =>
         ((value >> bit) & 1) != 0;
-
-    private static int[] GetAxes(
-        AxisHardware axisX,
-        AxisHardware? axisY,
-        AxisHardware? axisZ)
-    {
-        var axes = new System.Collections.Generic.List<int>
-        {
-            axisX.Number,
-        };
-        if (axisY is { } y)
-        {
-            axes.Add(y.Number);
-        }
-
-        if (axisZ is { } z)
-        {
-            axes.Add(z.Number);
-        }
-
-        return [.. axes];
-    }
 
     private void PublishPosition()
     {

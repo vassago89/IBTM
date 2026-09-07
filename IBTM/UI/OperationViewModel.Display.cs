@@ -9,19 +9,14 @@ namespace IBTM.UI;
 
 public partial class OperationViewModel
 {
-    public bool SupplyPositionKnown => XyHomed(Supply.Feedback) && SupplyMapDefined;
-    public bool PlacementPositionKnown => XyHomed(Placement.Feedback) && PlacementMapDefined;
-    public bool FasteningPositionKnown => XyHomed(Fastening.Feedback) && FasteningMapDefined;
-    public bool InspectionPositionKnown => XyHomed(InspectionGantry.Feedback) && InspectionMapDefined;
-    public bool BoltFeederPositionKnown => FasteningMapDefined;
+    public bool SupplyPositionKnown => XyHomed(Supply.Feedback) && _map.SupplyDefined;
+    public bool PlacementPositionKnown => XyHomed(Placement.Feedback) && _map.PlacementDefined;
+    public bool FasteningPositionKnown => XyHomed(Fastening.Feedback) && _map.FasteningDefined;
+    public bool InspectionPositionKnown => XyHomed(InspectionGantry.Feedback) && _map.InspectionDefined;
+    public bool BoltFeederPositionKnown => _map.FasteningDefined;
 
     private static bool XyHomed(IMotionFeedback motion) =>
         motion.GetAxisState(MotionAxis.X).Homed && motion.GetAxisState(MotionAxis.Y).Homed;
-
-    private bool SupplyMapDefined => _map.SupplyDefined;
-    private bool PlacementMapDefined => _map.PlacementDefined;
-    private bool FasteningMapDefined => _map.FasteningDefined;
-    private bool InspectionMapDefined => _map.InspectionDefined;
 
     public Enum PlacementStatus => PlacementDisplayState is HandlerDisplayState.Working or HandlerDisplayState.Moving
         ? PlacementState : PlacementDisplayState;

@@ -74,51 +74,19 @@ public sealed class ManualAxisRow(
     public bool ServoOn => _axisState.ServoOn;
     public bool IndividualHomeAvailable =>
         Group != MotionGroup.PcbSupply;
-    public ManualAxisStatus Status
-    {
-        get
+    public ManualAxisStatus Status => !Feedback.IsReady
+        ? ManualAxisStatus.Unavailable
+        : _axisState switch
         {
-            if (!Feedback.IsReady)
-            {
-                return ManualAxisStatus.Unavailable;
-            }
-
-            var state = _axisState;
-            if (state.Emergency)
-            {
-                return ManualAxisStatus.Emergency;
-            }
-
-            if (state.Alarm)
-            {
-                return ManualAxisStatus.Alarm;
-            }
-
-            if (state.NegativeLimit)
-            {
-                return ManualAxisStatus.NegativeLimit;
-            }
-
-            if (state.PositiveLimit)
-            {
-                return ManualAxisStatus.PositiveLimit;
-            }
-
-            if (!state.ServoOn)
-            {
-                return ManualAxisStatus.ServoOff;
-            }
-
-            if (!state.Homed)
-            {
-                return ManualAxisStatus.HomeRequired;
-            }
-
-            return !state.InPosition
-                ? ManualAxisStatus.Moving
-                : ManualAxisStatus.Ready;
-        }
-    }
+            { Emergency: true } => ManualAxisStatus.Emergency,
+            { Alarm: true } => ManualAxisStatus.Alarm,
+            { NegativeLimit: true } => ManualAxisStatus.NegativeLimit,
+            { PositiveLimit: true } => ManualAxisStatus.PositiveLimit,
+            { ServoOn: false } => ManualAxisStatus.ServoOff,
+            { Homed: false } => ManualAxisStatus.HomeRequired,
+            { InPosition: false } => ManualAxisStatus.Moving,
+            _ => ManualAxisStatus.Ready,
+        };
 
     internal void SetPosition(double x, double y, double z) =>
         Volatile.Write(
@@ -246,9 +214,7 @@ public partial class ManualHardwareViewModel : ObservableObject
         IsHoming = true;
         void StopWhenHomeUnavailable()
         {
-            if (!_state.ManualMode || !_state.SafetyReady || !_state.DoorInterlockReady
-                || _state.IsError || !HomeHardwareReady(row)
-                || _machine.GetHomeBlock(row.Group) != HomeBlockReason.None)
+            if (!HomeConditionsReady(row))
             {
                 HomeAxisCommand.Cancel();
             }
@@ -272,7 +238,7 @@ public partial class ManualHardwareViewModel : ObservableObject
         {
             if (!cancellationToken.IsCancellationRequested)
             {
-                _state.SetError(MachineAlarm.HomeFailed);
+                _state.SetError(MachineAlarm.HomeFailed, exception);
             }
         }
         finally
@@ -287,12 +253,16 @@ public partial class ManualHardwareViewModel : ObservableObject
 
     private bool CanHomeAxis(ManualAxisRow? row) =>
         row is { IndividualHomeAvailable: true }
-        && _state.ManualMode
-        && _state.SafetyReady
-        && _state.DoorInterlockReady
         && !IsHoming
         && !_state.IsRunning
-        && BufferAllowsHome(row.Signal)
+        && (row.Group != MotionGroup.PcbPlacementHandler || !_state.SupplyInBufferArea)
+        && HomeConditionsReady(row);
+
+    private bool HomeConditionsReady(ManualAxisRow row) =>
+        _state.ManualMode
+        && _state.SafetyReady
+        && _state.DoorInterlockReady
+        && !_state.IsError
         && _machine.GetHomeBlock(row.Group) == HomeBlockReason.None
         && HomeHardwareReady(row);
 
@@ -312,12 +282,6 @@ public partial class ManualHardwareViewModel : ObservableObject
 
         return true;
     }
-
-    private bool BufferAllowsHome(MachineAxis axis) =>
-        axis is not MachineAxis.PcbPlacementHandlerX
-            and not MachineAxis.PcbPlacementHandlerY
-            and not MachineAxis.PcbPlacementHandlerZ
-        || !_state.SupplyInBufferArea;
 
     [RelayCommand(CanExecute = nameof(CanStopHome))]
     private void StopHome() => HomeAxisCommand.Cancel();

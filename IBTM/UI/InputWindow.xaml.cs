@@ -15,8 +15,7 @@ public partial class InputWindow : Window, INotifyPropertyChanged
     public InputWindow(IIoService io, IoSignals signals)
     {
         _virtualIo = io as VirtualIoService;
-        Rows = signals.Inputs.Values.OrderBy(row => row.Signal).ToArray();
-        Filter = new(Rows, row => row);
+        Filter = new(signals.Inputs.Values.ToArray(), row => row);
         InitializeComponent();
         if (_virtualIo is not null)
             _virtualIo.AutoResponseChanged += OnAutoResponseChanged;
@@ -24,7 +23,6 @@ public partial class InputWindow : Window, INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
-    public IoSignal<InputIo>[] Rows { get; }
     public IoList<IoSignal<InputIo>, InputIo> Filter { get; }
     public bool IsVirtual => _virtualIo is not null;
     public bool AutoResponseEnabled

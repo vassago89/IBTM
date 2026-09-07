@@ -37,18 +37,12 @@ public partial class OutputWindow : Window
     public OutputControlRow[] Rows { get; }
     public IoList<OutputControlRow, OutputIo> Filter { get; }
 
-    public async Task ShutdownAsync()
+    public Task ShutdownAsync()
     {
-        var pending = CommandShutdown.Capture(Rows.Select(row => row.ToggleCommand).ToArray());
         IsEnabled = false;
-        try
-        {
-            foreach (var row in Rows) row.ToggleCommand.Cancel();
-        }
-        finally
-        {
-            await CommandShutdown.WaitAsync(pending);
-        }
+        return CommandShutdown.StopAsync(
+            () => { foreach (var row in Rows) row.ToggleCommand.Cancel(); },
+            Rows.Select(row => row.ToggleCommand).ToArray());
     }
 
     protected override async void OnClosing(CancelEventArgs e)
@@ -138,16 +132,15 @@ public sealed partial class OutputControlRow : ObservableObject
     private void SetWaiting(bool value)
     {
         _waitingForFeedback = value;
-        NotifyFeedbackChanged();
+        OnPropertyChanged(nameof(FeedbackState));
     }
 
     public void Refresh()
     {
         _timedOut = false;
-        NotifyFeedbackChanged();
+        OnPropertyChanged(nameof(FeedbackState));
     }
 
-    private void OnFeedbackChanged(object? sender, PropertyChangedEventArgs args) => NotifyFeedbackChanged();
-
-    private void NotifyFeedbackChanged() => OnPropertyChanged(nameof(FeedbackState));
+    private void OnFeedbackChanged(object? sender, PropertyChangedEventArgs args) =>
+        OnPropertyChanged(nameof(FeedbackState));
 }

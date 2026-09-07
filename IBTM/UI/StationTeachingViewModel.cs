@@ -369,19 +369,26 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         var selectedTarget = SelectedPoint?.Target;
         var selectedBolt = SelectedPoint?.BoltNumber;
-        TeachingPosition[] positions =
-        [
-            .. _placementSettings.GetTeachingPositions(),
-            .. CurrentRecipe.PcbPlacement.GetTeachingPositions(),
-            .. _fasteningSettings.GetTeachingPositions(CurrentRecipe.BoltFastening, _carrierReference),
-            .. _inspectionGantrySettings.GetTeachingPositions(_carrierReference),
-            .. _inspectionGantrySettings.GetBoltTeachingPositions(CurrentRecipe.BoltFastening.BoltPoints, _carrierReference),
-            .. _ngTransferSettings.GetTeachingPositions(),
-        ];
+        TeachingPosition[] positions = SelectedMotionGroup switch
+        {
+            MotionGroup.PcbPlacementHandler =>
+            [
+                .. _placementSettings.GetTeachingPositions(),
+                .. CurrentRecipe.PcbPlacement.GetTeachingPositions(),
+            ],
+            MotionGroup.BoltFastening =>
+                _fasteningSettings.GetTeachingPositions(CurrentRecipe.BoltFastening, _carrierReference),
+            MotionGroup.InspectionGantry =>
+            [
+                .. _units.Inspection ? _inspectionGantrySettings.GetTeachingPositions(_carrierReference) : [],
+                .. _units.Inspection ? _inspectionGantrySettings.GetBoltTeachingPositions(
+                    CurrentRecipe.BoltFastening.BoltPoints, _carrierReference) : [],
+                .. _units.NgCarrierTransfer ? _ngTransferSettings.GetTeachingPositions() : [],
+            ],
+            _ => throw new ArgumentOutOfRangeException(nameof(SelectedMotionGroup)),
+        };
         FilteredPoints = positions
-            .Where(point => point.MotionGroup == SelectedMotionGroup)
             .Select(position => new TeachingPoint(position))
-            .Where(PointEnabled)
             .ToArray();
         SelectedPoint = FilteredPoints.FirstOrDefault(point =>
                 point.Target == selectedTarget
@@ -509,15 +516,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         OnPropertyChanged(nameof(CarrierOrigin));
         RefreshImageMarkers();
     }
-
-    private bool PointEnabled(TeachingPoint point) => point.Target switch
-    {
-        TeachingTarget.NgCarrierPickup
-            or TeachingTarget.NgShuttlePlace => _units.NgCarrierTransfer,
-        _ when point.MotionGroup == MotionGroup.InspectionGantry =>
-            _units.Inspection,
-        _ => true,
-    };
 
     private void RefreshMotionGroups()
     {

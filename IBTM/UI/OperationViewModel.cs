@@ -624,7 +624,7 @@ public partial class OperationViewModel : ObservableObject
 
     private IReadOnlyList<BoltTargetView> CreateFasteningTargets()
     {
-        if (!_units.BoltFastening || !FasteningMapDefined)
+        if (!_units.BoltFastening || !_map.FasteningDefined)
         {
             return [];
         }
@@ -643,7 +643,7 @@ public partial class OperationViewModel : ObservableObject
 
     private IReadOnlyList<BoltTargetView> CreateInspectionTargets()
     {
-        if (!_units.Inspection || !InspectionMapDefined)
+        if (!_units.Inspection || !_map.InspectionDefined)
         {
             return [];
         }
@@ -1023,17 +1023,8 @@ public partial class OperationViewModel : ObservableObject
     {
         var alarm = _state.Alarm;
         var readiness = _state.MotionReadiness;
-        var emergencyStopReleased = _state.EmergencyStopReleased;
-        var doorClosed = _state.DoorClosed;
-        var airPressureOk = _state.AirPressureOk;
         var servoMainContactorOn = _state.ServoMainContactorOn;
-        var autoMode = _state.AutoMode;
-        var bufferConflict = _state.BufferConflict;
         var isHoming = _state.IsHoming;
-        var automaticRunning = _state.AutomaticRunning;
-        var isRunning = _state.IsRunning;
-        var conveyorRunning = _state.ConveyorRunning;
-        var conveyorState = _state.MainConveyorState;
         return new(
             DisplayStateFor(
                 _state.SafetyReady,
@@ -1041,18 +1032,18 @@ public partial class OperationViewModel : ObservableObject
                 readiness,
                 isHoming,
                 servoMainContactorOn,
-                isRunning),
+                _state.IsRunning),
             _machine.StartBlock,
             _machine.HomeBlock,
             isHoming,
-            automaticRunning,
-            conveyorRunning,
-            conveyorState,
-            bufferConflict,
-            emergencyStopReleased,
-            doorClosed,
-            airPressureOk,
-            autoMode,
+            _state.AutomaticRunning,
+            _state.ConveyorRunning,
+            _state.MainConveyorState,
+            _state.BufferConflict,
+            _state.EmergencyStopReleased,
+            _state.DoorClosed,
+            _state.AirPressureOk,
+            _state.AutoMode,
             alarm,
             _state.AlarmDetail,
             servoMainContactorOn && readiness.ServosOn,

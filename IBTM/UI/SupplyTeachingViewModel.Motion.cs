@@ -100,18 +100,12 @@ public partial class SupplyTeachingViewModel
 
         return axis switch
         {
-            MotionAxis.X => ActiveMotionGroup == MotionGroup.PcbSupply
+            MotionAxis.Y when !HasY
+                || ActiveMotionGroup == MotionGroup.PcbSupply && _buffer.SupplyInside => false,
+            MotionAxis.X or MotionAxis.Y => ActiveMotionGroup == MotionGroup.PcbSupply
                 ? _supplyHandler.IsAtRotationZ
                 : _placementHandler.CanMoveHorizontal
                   && _placementHandler.AtHorizontalZ,
-            MotionAxis.Y =>
-                HasY
-                && (ActiveMotionGroup == MotionGroup.PcbSupply
-                    ? _supplyHandler.IsAtRotationZ
-                    : _placementHandler.CanMoveHorizontal
-                      && _placementHandler.AtHorizontalZ)
-                && (ActiveMotionGroup != MotionGroup.PcbSupply
-                    || !_buffer.SupplyInside),
             MotionAxis.Z =>
                 ActiveMotionGroup != MotionGroup.PcbSupply
                 || !_buffer.SupplyInside,
@@ -146,12 +140,6 @@ public partial class SupplyTeachingViewModel
             case TeachMode.ZOnly:
                 await _supplyHandler.MoveTeachingZAsync(
                     point.Z!.Value,
-                    cancellationToken);
-                break;
-            case TeachMode.XYOnly:
-                await _supplyHandler.MoveHorizontalAsync(
-                    point.X,
-                    point.Y,
                     cancellationToken);
                 break;
             case TeachMode.XZOnly:
@@ -203,10 +191,6 @@ public partial class SupplyTeachingViewModel
         CancellationToken cancellationToken) =>
         point.TeachMode switch
         {
-            TeachMode.XOnly =>
-                _placementHandler.MoveXAsync(point.X, cancellationToken),
-            TeachMode.YOnly =>
-                _placementHandler.MoveYAsync(point.Y, cancellationToken),
             TeachMode.ZOnly =>
                 _placementHandler.MoveZAsync(
                     point.Z!.Value,
@@ -215,12 +199,6 @@ public partial class SupplyTeachingViewModel
                 _placementHandler.MoveToXYAsync(
                     point.X,
                     point.Y,
-                    cancellationToken),
-            TeachMode.XZOnly =>
-                _placementHandler.MoveToAsync(
-                    point.X,
-                    _placementHandler.Feedback.GetPosition().Y,
-                    point.Z!.Value,
                     cancellationToken),
             TeachMode.Full =>
                 _placementHandler.MoveToAsync(

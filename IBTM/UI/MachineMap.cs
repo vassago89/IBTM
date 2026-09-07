@@ -26,9 +26,6 @@ public sealed class MachineMap(
     private static readonly (double X, double Y) ShootingUpperLeft = MachinePlan.Offset(MachinePlan.FasteningUpperLeft, MachinePlan.ShootingToolCenter);
     private static readonly (double X, double Y) ShootingLowerRight = MachinePlan.Offset(MachinePlan.FasteningLowerRight, MachinePlan.ShootingToolCenter);
     private static readonly (double X, double Y) PickupUpperLeft = MachinePlan.Offset(MachinePlan.FasteningUpperLeft, MachinePlan.PickupToolCenter);
-    private static readonly (double X, double Y) PickupToolOffset = MachinePlan.PickupToolCenter;
-    private static readonly (double X, double Y) ShootingToolOffset = MachinePlan.ShootingToolCenter;
-    private static readonly (double X, double Y) BoltTargetOrigin = MachinePlan.FasteningContentOrigin;
     private static readonly (double X, double Y) PickupFeederOffset = (-MachinePlan.PickupFeederWidth / 2, -MachinePlan.PickupFeederHeight / 2);
 
     public bool SupplyDefined => MachinePlan.Side(
@@ -49,42 +46,7 @@ public sealed class MachineMap(
     private static bool HasPins(BoltHeadSettings head) =>
         CarrierCoordinates.IsDefined(head.UpperLeftLocatingPin, head.LowerRightLocatingPin);
 
-    private bool BothHeadsMapped =>
-        fastening.ShootingHead.UpperLeftLocatingPin is { } first
-        && fastening.ShootingHead.LowerRightLocatingPin is { } second
-        && fastening.PickupHead.UpperLeftLocatingPin is { } pickup
-        && CarrierCoordinates.IsDefined(
-            carrier.UpperLeftLocatingPin,
-            carrier.LowerRightLocatingPin)
-        && MachinePlan.Side(
-            (pickup.X, pickup.Y),
-            (first.X, first.Y),
-            (second.X, second.Y)) != 0;
-
     public bool InspectionDefined => carrier.IsDefined;
-
-    private bool NgMapDefined
-    {
-        get
-        {
-            if (carrier.UpperLeftLocatingPin is not { } first
-                || carrier.LowerRightLocatingPin is not { } second)
-            {
-                return false;
-            }
-
-            var pickup = transfer.CarrierPickupPosition;
-            var shuttle = transfer.ShuttlePlacePosition;
-            return MachinePlan.Side(
-                       (pickup.X, pickup.Y),
-                       (first.X, first.Y),
-                       (second.X, second.Y))
-                   * MachinePlan.Side(
-                       (shuttle.X, shuttle.Y),
-                       (first.X, first.Y),
-                       (second.X, second.Y)) < 0;
-        }
-    }
 
     public (double X, double Y) Supply(MotionPosition current) =>
         FromThreePoints(
@@ -117,8 +79,8 @@ public sealed class MachineMap(
     {
         var point = fastening.PickupPosition;
         var mapped = MapFastening(point.X, point.Y);
-        return (mapped.X + PickupToolOffset.X + PickupFeederOffset.X,
-            mapped.Y + PickupToolOffset.Y + PickupFeederOffset.Y);
+        return (mapped.X + MachinePlan.PickupToolCenter.X + PickupFeederOffset.X,
+            mapped.Y + MachinePlan.PickupToolCenter.Y + PickupFeederOffset.Y);
     }
 
     public (double X, double Y) FasteningTarget(BoltPoint bolt)
@@ -126,10 +88,10 @@ public sealed class MachineMap(
         var target = fastening.GetBoltPosition(bolt, carrier);
         var mapped = MapFastening(target.X, target.Y);
         var tool = bolt.Head == FasteningHead.Pickup
-            ? PickupToolOffset
-            : ShootingToolOffset;
-        return (mapped.X + tool.X - BoltTargetOrigin.X,
-            mapped.Y + tool.Y - BoltTargetOrigin.Y);
+            ? MachinePlan.PickupToolCenter
+            : MachinePlan.ShootingToolCenter;
+        return (mapped.X + tool.X - MachinePlan.FasteningContentOrigin.X,
+            mapped.Y + tool.Y - MachinePlan.FasteningContentOrigin.Y);
     }
 
     public (double X, double Y) Inspection(MotionPosition current) =>
@@ -146,30 +108,25 @@ public sealed class MachineMap(
     private (double X, double Y) MapFastening(double x, double y)
     {
         if (!FasteningDefined) return default;
-        if (!BothHeadsMapped)
+
+        if (fastening.ShootingHead.UpperLeftLocatingPin is { } first
+            && fastening.ShootingHead.LowerRightLocatingPin is { } second
+            && fastening.PickupHead.UpperLeftLocatingPin is { } pickup
+            && MachinePlan.Side((pickup.X, pickup.Y), (first.X, first.Y), (second.X, second.Y)) != 0)
         {
-            var shooting = HasPins(fastening.ShootingHead);
-            var head = shooting ? fastening.ShootingHead : fastening.PickupHead;
-            var tool = shooting ? ShootingToolOffset : PickupToolOffset;
-            return FromTwoPoints(x, y,
-                (head.UpperLeftLocatingPin!.X, head.UpperLeftLocatingPin.Y),
-                (head.LowerRightLocatingPin!.X, head.LowerRightLocatingPin.Y),
-                MachinePlan.Offset(MachinePlan.FasteningUpperLeft, tool),
-                MachinePlan.Offset(MachinePlan.FasteningLowerRight, tool));
+            return FromThreePoints(x, y,
+                (first.X, first.Y), (second.X, second.Y), (pickup.X, pickup.Y),
+                ShootingUpperLeft, ShootingLowerRight, PickupUpperLeft);
         }
 
-        var shootingUpperLeft = fastening.ShootingHead.UpperLeftLocatingPin!;
-        var shootingLowerRight = fastening.ShootingHead.LowerRightLocatingPin!;
-        var pickupUpperLeft = fastening.PickupHead.UpperLeftLocatingPin!;
-        return FromThreePoints(
-            x,
-            y,
-            (shootingUpperLeft.X, shootingUpperLeft.Y),
-            (shootingLowerRight.X, shootingLowerRight.Y),
-            (pickupUpperLeft.X, pickupUpperLeft.Y),
-            ShootingUpperLeft,
-            ShootingLowerRight,
-            PickupUpperLeft);
+        var shooting = HasPins(fastening.ShootingHead);
+        var head = shooting ? fastening.ShootingHead : fastening.PickupHead;
+        var tool = shooting ? MachinePlan.ShootingToolCenter : MachinePlan.PickupToolCenter;
+        return FromTwoPoints(x, y,
+            (head.UpperLeftLocatingPin!.X, head.UpperLeftLocatingPin.Y),
+            (head.LowerRightLocatingPin!.X, head.LowerRightLocatingPin.Y),
+            MachinePlan.Offset(MachinePlan.FasteningUpperLeft, tool),
+            MachinePlan.Offset(MachinePlan.FasteningLowerRight, tool));
     }
 
     private (double X, double Y) MapInspection(double x, double y)
@@ -177,30 +134,27 @@ public sealed class MachineMap(
         if (!InspectionDefined) return default;
         var upperLeft = carrier.UpperLeftLocatingPin!;
         var lowerRight = carrier.LowerRightLocatingPin!;
-
-        if (!NgMapDefined)
-            return FromTwoPoints(x, y,
-                (upperLeft.X, upperLeft.Y), (lowerRight.X, lowerRight.Y),
-                MachinePlan.Offset(MachinePlan.InspectionUpperLeft, MachinePlan.CameraCenter),
-                MachinePlan.Offset(MachinePlan.InspectionLowerRight, MachinePlan.CameraCenter));
-
-        var pickup = transfer.CarrierPickupPosition;
-        var shuttle = transfer.ShuttlePlacePosition;
         var first = (upperLeft.X, upperLeft.Y);
         var second = (lowerRight.X, lowerRight.Y);
-        var pickupSide = MachinePlan.Side((x, y), first, second)
-                         * MachinePlan.Side((pickup.X, pickup.Y), first, second) >= 0;
-        return FromThreePoints(
-            x,
-            y,
-            first,
-            second,
-            pickupSide ? (pickup.X, pickup.Y) : (shuttle.X, shuttle.Y),
-            MachinePlan.Offset(MachinePlan.InspectionUpperLeft, MachinePlan.CameraCenter),
-            MachinePlan.Offset(MachinePlan.InspectionLowerRight, MachinePlan.CameraCenter),
-            MachinePlan.Offset(
-                pickupSide ? MachinePlan.InspectionCarrierCenter : MachinePlan.NgShuttleCenter,
-                MachinePlan.NgPickerCenter));
+        var pickup = transfer.CarrierPickupPosition;
+        var shuttle = transfer.ShuttlePlacePosition;
+        var pickupSide = MachinePlan.Side((pickup.X, pickup.Y), first, second);
+        var shuttleSide = MachinePlan.Side((shuttle.X, shuttle.Y), first, second);
+        var cameraUpperLeft = MachinePlan.Offset(MachinePlan.InspectionUpperLeft, MachinePlan.CameraCenter);
+        var cameraLowerRight = MachinePlan.Offset(MachinePlan.InspectionLowerRight, MachinePlan.CameraCenter);
+
+        if (pickupSide * shuttleSide < 0)
+        {
+            var towardPickup = MachinePlan.Side((x, y), first, second) * pickupSide >= 0;
+            return FromThreePoints(x, y, first, second,
+                towardPickup ? (pickup.X, pickup.Y) : (shuttle.X, shuttle.Y),
+                cameraUpperLeft, cameraLowerRight,
+                MachinePlan.Offset(
+                    towardPickup ? MachinePlan.InspectionCarrierCenter : MachinePlan.NgShuttleCenter,
+                    MachinePlan.NgPickerCenter));
+        }
+
+        return FromTwoPoints(x, y, first, second, cameraUpperLeft, cameraLowerRight);
     }
 
     private static (double X, double Y) FromTwoPoints(
@@ -234,19 +188,11 @@ public sealed class MachineMap(
         (double X, double Y) target2,
         (double X, double Y) target3)
     {
-        var denominator = ((source2.Y - source3.Y) * (source1.X - source3.X))
-                          + ((source3.X - source2.X) * (source1.Y - source3.Y));
-        if (denominator == 0)
-        {
-            return default;
-        }
+        var area = MachinePlan.Side(source1, source2, source3);
+        if (area == 0) return default;
 
-        var first = (((source2.Y - source3.Y) * (x - source3.X))
-                     + ((source3.X - source2.X) * (y - source3.Y)))
-                    / denominator;
-        var second = (((source3.Y - source1.Y) * (x - source3.X))
-                      + ((source1.X - source3.X) * (y - source3.Y)))
-                     / denominator;
+        var first = MachinePlan.Side((x, y), source2, source3) / area;
+        var second = MachinePlan.Side((x, y), source3, source1) / area;
         var third = 1 - first - second;
         return ((first * target1.X) + (second * target2.X) + (third * target3.X),
             (first * target1.Y) + (second * target2.Y) + (third * target3.Y));

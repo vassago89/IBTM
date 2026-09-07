@@ -49,10 +49,8 @@ public abstract partial class TeachingMotionViewModel(
     IReadOnlyDictionary<MotionGroup, IoStatus[]> ioGroups,
     IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : ObservableObject
 {
-    private sealed record DisplayPosition(double X, double Y, double Z);
-
     private CancellationTokenSource _motionCancellation = new();
-    private DisplayPosition _position = new(0, 0, 0);
+    private MotionPosition _position = new(0, 0, 0);
     private bool _positionUpdatesActive;
     private int _positionRefreshQueued;
 

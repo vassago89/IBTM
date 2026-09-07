@@ -45,6 +45,15 @@ public sealed class RecipeTests
         Assert.Equal(head.X + MachinePlan.ShootingToolCenter.X, mark.X + MachinePlan.FasteningContentOrigin.X, 6);
         Assert.Equal(head.Y + MachinePlan.ShootingToolCenter.Y, mark.Y + MachinePlan.FasteningContentOrigin.Y, 6);
 
+        settings.BoltFastening.PickupHead.UpperLeftLocatingPin = new() { X = 50, Y = 80 };
+        settings.BoltFastening.PickupHead.LowerRightLocatingPin = new() { X = 150, Y = 130 };
+        head = map.Fastening(new(50, 80, 0));
+        Assert.Equal(MachinePlan.FasteningUpperLeft.X, head.X + MachinePlan.PickupToolCenter.X, 6);
+        Assert.Equal(MachinePlan.FasteningUpperLeft.Y, head.Y + MachinePlan.PickupToolCenter.Y, 6);
+        head = map.Fastening(new(130, 90, 0));
+        Assert.Equal(MachinePlan.FasteningLowerRight.X, head.X + MachinePlan.ShootingToolCenter.X, 6);
+        Assert.Equal(MachinePlan.FasteningLowerRight.Y, head.Y + MachinePlan.ShootingToolCenter.Y, 6);
+
         settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 60, Y = 110 };
         settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 60, Y = -10 };
         var pickup = map.Inspection(new(60, 110, 0));

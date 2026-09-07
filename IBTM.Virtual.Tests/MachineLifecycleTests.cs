@@ -1972,9 +1972,11 @@ public sealed class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task FailedHomeStopsOtherHomingAxesImmediately(bool exception)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task FailedHomeReportsCauseAndStopsOtherHomingAxes(bool exception, bool individual)
     {
         var settings = FlowSettings();
         settings.Home.ZSpeed = 1;
@@ -2003,16 +2005,20 @@ public sealed class MachineLifecycleTests
             MotionGroup.PcbPlacementHandler);
         var supply = services.GetRequiredKeyedService<IAxisMotion>(
             MotionGroup.PcbSupply);
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
         await machine.InitializeAsync();
         await placement.MoveZAsync(50, 10_000);
 
-        var homing = machine.HomeAsync(CancellationToken.None);
+        var homing = individual
+            ? manual.HomeAxisCommand.ExecuteAsync(manual.Axes.Single(row => row.Signal == MachineAxis.BoltFasteningZ))
+            : machine.HomeAsync(CancellationToken.None);
         try
         {
-            await WaitUntilAsync(() => placement.IsMoving && supply.IsMoving);
+            await WaitUntilAsync(() => individual ? state.IsHoming : placement.IsMoving && supply.IsMoving);
             if (exception)
             {
-                homeResult!.Result.SetException(new InvalidOperationException("Home command failed."));
+                homeResult!.Result.SetException(new MotionException(
+                    "Home", new InvalidOperationException("Home command failed.")));
             }
             else
             {
@@ -2021,6 +2027,9 @@ public sealed class MachineLifecycleTests
             await homing.WaitAsync(TimeSpan.FromSeconds(2));
 
             Assert.Equal(MachineAlarm.HomeFailed, state.Alarm);
+            if (exception) Assert.Contains("Home command failed.", state.AlarmDetail);
+            Assert.False(manual.HomeAxisCommand.CanExecute(
+                manual.Axes.Single(row => row.Signal == MachineAxis.BoltFasteningZ)));
             Assert.False(state.IsHoming);
             Assert.False(placement.IsMoving);
             Assert.False(supply.IsMoving);
@@ -2029,6 +2038,7 @@ public sealed class MachineLifecycleTests
         }
         finally
         {
+            manual.HomeAxisCommand.Cancel();
             machine.Stop();
             await homing;
         }
