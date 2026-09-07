@@ -110,7 +110,7 @@ public sealed class MachineController
         fasteningGantry.Feedback.Faulted += OnMotionFaulted;
         inspectionGantry.Feedback.Faulted += OnMotionFaulted;
         placementHandler.Feedback.MovingChanged += _ => CheckMotionInterlocks();
-        fasteningGantry.Feedback.MovingChanged += _ => CheckMotionInterlocks();
+        fasteningGantry.Feedback.StateChanged += CheckMotionInterlocks;
         inspectionGantry.Feedback.MovingChanged += _ => CheckMotionInterlocks();
     }
 
@@ -175,13 +175,11 @@ public sealed class MachineController
 
         if ((group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
                 || group is null && BufferHandlersEnabled)
-            && (_placementHandler.Lift != PlacementCylinderState.Up
-                || _placementHandler.IpmLift != PlacementCylinderState.Up))
+            && !_placementHandler.CanMoveHorizontal)
             return HomeBlockReason.PlacementNotRaised;
 
         if ((group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
-            && (_fasteningGantry.PickupHeadPosition != BoltCylinderState.Up
-                || _fasteningGantry.ShootingHeadPosition != BoltCylinderState.Up))
+            && !_fasteningGantry.CanMoveHorizontal)
             return HomeBlockReason.FasteningNotRaised;
 
         if ((group == MotionGroup.InspectionGantry || group is null && InspectionGantryEnabled)
@@ -416,7 +414,7 @@ public sealed class MachineController
             StopWhenUnavailable();
             var tasks = new List<Task>(3);
             if (BufferHandlersEnabled)
-                tasks.Add(RaiseAsync(_placementHandler.RaiseCylindersAsync, MachineAlarm.PcbPlacement));
+                tasks.Add(RaiseAsync(_placementHandler.RaiseAsync, MachineAlarm.PcbPlacement));
             if (_units.BoltFastening)
                 tasks.Add(RaiseAsync(_fasteningGantry.RaiseCylindersAsync, MachineAlarm.BoltFastening));
             if (InspectionGantryEnabled)
@@ -591,12 +589,9 @@ public sealed class MachineController
 
     private void OnInputChanged(InputIo input, bool value)
     {
-        if (input is InputIo.PcbPlacementHandlerUp
+        if (input is InputIo.AutoMode
+            or InputIo.PcbPlacementHandlerUp
             or InputIo.PcbPlacementHandlerDown
-            or InputIo.PcbPlacementIpmUp
-            or InputIo.PcbPlacementIpmDown
-            or InputIo.BoltTableUp
-            or InputIo.BoltTableDown
             or InputIo.PickupHeadUp
             or InputIo.PickupHeadDown
             or InputIo.ShootingHeadUp
@@ -610,8 +605,6 @@ public sealed class MachineController
 
         if (Array.IndexOf(CarrierInputs, input) >= 0
             || input is InputIo.PcbPlacementHandlerUp or InputIo.PcbPlacementHandlerDown
-                or InputIo.PcbPlacementIpmUp or InputIo.PcbPlacementIpmDown
-                or InputIo.BoltTableUp or InputIo.BoltTableDown
                 or InputIo.PickupHeadUp or InputIo.PickupHeadDown
                 or InputIo.ShootingHeadUp or InputIo.ShootingHeadDown
                 or InputIo.NgCarrierPickupUp or InputIo.NgCarrierPickupDown)
@@ -639,11 +632,19 @@ public sealed class MachineController
 
     private void CheckMotionInterlocks()
     {
-        var alarm = _placementHandler.Feedback.IsMoving
+        if (_fasteningGantry.Feedback.Command == MotionCommand.Adjustment
+            && (!_state.ManualMode || !_state.CanOperate
+                || _state.AutomaticRunning || _state.IsHoming || _state.BoltTestRunning))
+        {
+            Stop();
+        }
+
+        var fasteningBlocked = _fasteningGantry.Feedback.Command == MotionCommand.Positioning
+            && _fasteningGantry.Feedback.IsMovingHorizontal && !_fasteningGantry.CanMoveHorizontal;
+        var alarm = _placementHandler.Feedback.IsMovingHorizontal
                     && !_placementHandler.CanMoveHorizontal
             ? MachineAlarm.PcbPlacement
-            : _fasteningGantry.Feedback.IsMoving
-              && !_fasteningGantry.CanMoveHorizontal
+            : fasteningBlocked
                 ? MachineAlarm.BoltFastening
                 : _inspectionGantry.Feedback.IsMoving
                   && !_inspectionGantry.CanMove

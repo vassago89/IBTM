@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Serialization;
 using IBTM.Core;
 
@@ -28,11 +30,18 @@ public abstract class HardwareSettings : Setting
 {
     [JsonIgnore]
     public abstract HardwareArea Area { get; }
+
+    public virtual IoSection? GetSection(Enum signal) => null;
 }
 
 public abstract class InputHardwareSettings : HardwareSettings
 {
     public Dictionary<InputIo, int> Inputs { get; set; } = [];
+
+    public IoStatus CreateIoStatus(IoSignals io) => io.Select(
+        Area,
+        Inputs.Keys,
+        this is IoHardwareSettings hardware ? hardware.Outputs.Keys : []);
 }
 
 public abstract class IoHardwareSettings : InputHardwareSettings
@@ -65,19 +74,23 @@ public abstract class IoHardwareSettings : InputHardwareSettings
         };
 }
 
-public abstract class MotionHardwareSettings : IoHardwareSettings
+public abstract class MotionHardwareSettings(
+    MotionGroup group,
+    params (MotionAxis Axis, MachineAxis Signal, int Number, double Maximum)[] axes) : IoHardwareSettings
 {
     public const double DefaultMillimetersPerPulse = 0.01;
 
-    public Dictionary<MachineAxis, AxisHardware> Axes { get; set; } = [];
+    [JsonIgnore]
+    public MotionGroup Group { get; } = group;
+    [JsonIgnore]
+    public IReadOnlyDictionary<MotionAxis, MachineAxis> AxisSignals { get; } =
+        axes.ToDictionary(axis => axis.Axis, axis => axis.Signal);
+    public Dictionary<MachineAxis, AxisHardware> Axes { get; set; } =
+        axes.ToDictionary(axis => axis.Signal,
+            axis => new AxisHardware { Number = axis.Number, Maximum = axis.Maximum });
     public double MillimetersPerPulse { get; set; } =
         DefaultMillimetersPerPulse;
 
-    protected static AxisHardware Axis(
-        int number,
-        double maximum = 200) => new()
-        {
-            Number = number,
-            Maximum = maximum,
-        };
+    public AxisHardware? GetAxis(MotionAxis axis) =>
+        AxisSignals.TryGetValue(axis, out var signal) ? Axes[signal] : null;
 }

@@ -21,12 +21,13 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
     private readonly PcbBufferSettings _bufferSettings;
     private readonly PcbSupplySettings _supplySettings;
     private readonly PcbPlacementHandlerSettings _placementSettings;
-    private readonly SupplyTeachingPoints _teachingPoints;
     private readonly UnitSettings _units;
     [ObservableProperty]
     private IReadOnlyList<TeachingPoint> _points = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IoGroups))]
+    [NotifyPropertyChangedFor(nameof(TeachingOutputs))]
     [NotifyCanExecuteChangedFor(nameof(TeachCurrentPositionCommand))]
     [NotifyCanExecuteChangedFor(nameof(MoveToPointCommand))]
     private TeachingPoint? _selectedPoint;
@@ -40,9 +41,11 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         PcbSupplySettings supplySettings,
         PcbPlacementHandlerSettings placementSettings,
         RecipeEditor recipeEditor,
-        SupplyTeachingPoints teachingPoints,
         UnitSettings units,
-        OperationCancellation operations) : base(operations, state)
+        OperationCancellation operations,
+        IReadOnlyDictionary<MotionGroup, IoStatus[]> ioGroups,
+        IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs)
+        : base(operations, state, ioGroups, teachingOutputs)
     {
         _supplyHandler = supplyHandler;
         _placementHandler = placementHandler;
@@ -51,7 +54,6 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         _bufferSettings = bufferSettings;
         _supplySettings = supplySettings;
         _placementSettings = placementSettings;
-        _teachingPoints = teachingPoints;
         _units = units;
         RecipeEditor = recipeEditor;
 
@@ -65,8 +67,8 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
                 z);
         supplyHandler.Feedback.MovingChanged += QueueManualCommandRefresh;
         placementHandler.Feedback.MovingChanged += QueueManualCommandRefresh;
-        supplyHandler.Changed += OnHandlerChanged;
-        placementHandler.Changed += OnHandlerChanged;
+        supplyHandler.Changed += QueueManualCommandRefresh;
+        placementHandler.Changed += QueueManualCommandRefresh;
         buffer.StateChanged += QueueManualCommandRefresh;
         state.Changed += QueueManualCommandRefresh;
         recipeEditor.Changed += BuildPoints;
@@ -75,6 +77,12 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
     }
 
     public RecipeEditor RecipeEditor { get; }
+    protected override IReadOnlyList<TeachingPoint> CurrentPoints => Points;
+    protected override TeachingPoint? CurrentPoint
+    {
+        get => SelectedPoint;
+        set => SelectedPoint = value;
+    }
     public bool SupplyEnabled => _units.PcbSupply;
     public bool PlacementEnabled => _units.PcbPlacement;
     public TeachingSaveBehavior SaveBehavior => SelectedPoint is { } point && IsBuffer(point)
@@ -96,10 +104,13 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
             return;
         }
 
-        _teachingPoints.Apply(CurrentRecipe.PcbSupply, Points, point);
+        point.Apply();
+        foreach (var currentPoint in Points.Where(candidate => !IsBuffer(candidate)))
+            currentPoint.Refresh();
         if (point.Storage == TeachingStorage.Machine)
         {
-            await SaveMachinePositionsAsync();
+            using var operation = LinkMotion(CancellationToken.None);
+            await point.Position.Setting!.SaveAsync();
         }
 
         OnPropertyChanged(nameof(HorizontalZ));
@@ -112,25 +123,19 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
     [RelayCommand(CanExecute = nameof(CanSaveBufferSetup))]
     private async Task SaveBufferSetupAsync()
     {
-        foreach (var point in Points.Where(IsBuffer))
+        var points = Points.Where(IsBuffer).ToArray();
+        foreach (var point in points)
         {
-            _teachingPoints.Apply(CurrentRecipe.PcbSupply, Points, point);
+            point.Apply();
         }
 
-        await SaveMachinePositionsAsync();
+        using var operation = LinkMotion(CancellationToken.None);
+        await Task.WhenAll(points.Select(point => point.Position.Setting!)
+            .Distinct().Select(setting => setting.SaveAsync()));
         NotifyManualTeachingCommands();
     }
 
     private bool CanSaveBufferSetup() => _state.ManualControlsEnabled;
-
-    private async Task SaveMachinePositionsAsync()
-    {
-        using var operation = LinkMotion(CancellationToken.None);
-        await Task.WhenAll(
-            _supplySettings.SaveAsync(),
-            _placementSettings.SaveAsync(),
-            _bufferSettings.SaveAsync());
-    }
 
     public void Activate()
     {
@@ -139,16 +144,18 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         OnPropertyChanged(nameof(PlacementEnabled));
         BuildPoints();
         ActivatePositionUpdates();
-        RefreshActuators();
+        NotifyManualTeachingCommands();
     }
 
     public void Deactivate()
     {
         DeactivatePositionUpdates();
         StepCommand.Cancel();
+        JogCommand.Cancel();
         MoveToHorizontalZCommand.Cancel();
         MoveToPointCommand.Cancel();
-        ToggleActuatorCommand.Cancel();
+        SetOutputOnCommand.Cancel();
+        SetOutputOffCommand.Cancel();
         CancelMotion();
     }
 
@@ -156,32 +163,37 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         CommandShutdown.StopAsync(
             Deactivate,
             StepCommand,
+            JogCommand,
             MoveToHorizontalZCommand,
             MoveToPointCommand,
-            ToggleActuatorCommand,
+            SetOutputOnCommand,
+            SetOutputOffCommand,
             TeachCurrentPositionCommand,
             SaveBufferSetupCommand);
 
     private void BuildPoints()
     {
-        Points = _teachingPoints.Build(CurrentRecipe.PcbSupply)
+        TeachingPosition[] positions =
+        [
+            .. _supplySettings.GetTeachingPositions(CurrentRecipe.PcbSupply),
+            .. _placementSettings.GetTeachingPositions(),
+            _placementSettings.GetBufferTeachingPosition(),
+            .. _bufferSettings.GetTeachingPositions(),
+        ];
+        Points = positions
             .Where(point => point.MotionGroup switch
             {
                 MotionGroup.PcbSupply => SupplyEnabled,
                 MotionGroup.PcbPlacementHandler => PlacementEnabled,
                 _ => false,
             })
+            .OrderBy(position => position.MotionGroup)
+            .Select(position => new TeachingPoint(position))
             .ToArray();
         SelectedPoint = Points.FirstOrDefault();
     }
 
     private static bool IsBuffer(TeachingPoint point) =>
-        point.Target is TeachingTarget.SupplyBufferHandoff
-            or TeachingTarget.SupplyBufferClearZ
-            or TeachingTarget.PlacementBufferHandoff
-            or TeachingTarget.SupplyBufferBoundary1
-            or TeachingTarget.SupplyBufferBoundary2
-            or TeachingTarget.PlacementBufferBoundary1
-            or TeachingTarget.PlacementBufferBoundary2;
+        point.Storage == TeachingStorage.Buffer;
 
 }

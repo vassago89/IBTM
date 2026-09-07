@@ -283,9 +283,6 @@ public class AjinMotionService(
                 velocityInUnits
                 * controller.Settings.HomeSecondAccelerationRatio),
             nameof(AjinNative.AxmHomeSetVel));
-        AjinController.Check(
-            AjinNative.AxmHomeSetStart(axisNumber),
-            nameof(AjinNative.AxmHomeSetStart));
         using var cancellationRegistration = cancellationToken.Register(() =>
         {
             AjinNative.AxmMoveSStop(axisNumber);
@@ -293,7 +290,11 @@ public class AjinMotionService(
         });
         try
         {
-            BeginMotion();
+            BeginMotion(axis != MotionAxis.Z);
+            cancellationToken.ThrowIfCancellationRequested();
+            AjinController.Check(
+                AjinNative.AxmHomeSetStart(axisNumber),
+                nameof(AjinNative.AxmHomeSetStart));
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -325,7 +326,7 @@ public class AjinMotionService(
         }
         finally
         {
-            EndMotion();
+            EndMotion(axis != MotionAxis.Z);
             PublishPosition();
         }
     }
@@ -415,13 +416,14 @@ public class AjinMotionService(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var horizontal = Array.Exists(axes, axis => axis != _axisZ);
         using var cancellationRegistration =
             cancellationToken.Register(StopAxes);
         try
         {
             try
             {
-                BeginMotion();
+                BeginMotion(horizontal);
                 cancellationToken.ThrowIfCancellationRequested();
                 AjinController.Check(move(), operation);
                 while (true)
@@ -483,7 +485,7 @@ public class AjinMotionService(
         }
         finally
         {
-            EndMotion();
+            EndMotion(horizontal);
             PublishPosition();
         }
     }
@@ -496,25 +498,25 @@ public class AjinMotionService(
         var monitor = LinkOperation(cancellationToken);
         try
         {
-            monitor.Token.ThrowIfCancellationRequested();
-            var velocityInUnits = ToUnits(velocity);
-            var acceleration = Math.Abs(velocityInUnits)
-                               * controller.Settings.AccelerationMultiplier;
-            AjinController.Check(
-                AjinNative.AxmMoveVel(
-                    axis,
-                    velocityInUnits,
-                    acceleration,
-                    acceleration),
-                nameof(AjinNative.AxmMoveVel));
             try
             {
-                BeginMotion();
+                BeginMotion(axis != _axisZ);
+                monitor.Token.ThrowIfCancellationRequested();
+                var velocityInUnits = ToUnits(velocity);
+                var acceleration = Math.Abs(velocityInUnits)
+                                   * controller.Settings.AccelerationMultiplier;
+                AjinController.Check(
+                    AjinNative.AxmMoveVel(
+                        axis,
+                        velocityInUnits,
+                        acceleration,
+                        acceleration),
+                    nameof(AjinNative.AxmMoveVel));
             }
             catch
             {
                 StopAxes();
-                EndMotion();
+                EndMotion(axis != _axisZ);
                 throw;
             }
         }
@@ -557,7 +559,7 @@ public class AjinMotionService(
                 finally
                 {
                     StopAxes();
-                    EndMotion();
+                    EndMotion(axis != _axisZ);
                     PublishPosition();
                 }
             }

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
@@ -174,7 +176,8 @@ public partial class ManualHardwareViewModel : ObservableObject
         MainConveyor conveyor,
         MachineState state,
         MachineController machine,
-        HomeSettings home)
+        HomeSettings home,
+        IReadOnlyList<MotionHardwareSettings> hardware)
     {
         _supply = supply;
         _placement = placement;
@@ -184,29 +187,18 @@ public partial class ManualHardwareViewModel : ObservableObject
         _state = state;
         _machine = machine;
         _home = home;
-        Axes =
-        [
-            new(MotionGroup.PcbSupply, MachineAxis.PcbSupplyX, MotionAxis.X, supply.Feedback),
-            new(MotionGroup.PcbSupply, MachineAxis.PcbSupplyY, MotionAxis.Y, supply.Feedback),
-            new(MotionGroup.PcbSupply, MachineAxis.PcbSupplyZ, MotionAxis.Z, supply.Feedback),
-            new(MotionGroup.PcbPlacementHandler, MachineAxis.PcbPlacementHandlerX, MotionAxis.X, placement.Feedback),
-            new(MotionGroup.PcbPlacementHandler, MachineAxis.PcbPlacementHandlerY, MotionAxis.Y, placement.Feedback),
-            new(MotionGroup.PcbPlacementHandler, MachineAxis.PcbPlacementHandlerZ, MotionAxis.Z, placement.Feedback),
-            new(MotionGroup.BoltFastening, MachineAxis.BoltFasteningX, MotionAxis.X, fastening.Feedback),
-            new(MotionGroup.BoltFastening, MachineAxis.BoltFasteningY, MotionAxis.Y, fastening.Feedback),
-            new(MotionGroup.BoltFastening, MachineAxis.BoltFasteningZ, MotionAxis.Z, fastening.Feedback),
-            new(MotionGroup.InspectionGantry, MachineAxis.InspectionGantryX, MotionAxis.X, inspection.Feedback),
-            new(MotionGroup.InspectionGantry, MachineAxis.InspectionGantryY, MotionAxis.Y, inspection.Feedback),
-        ];
+        var feedbacks = new Dictionary<MotionGroup, IMotionFeedback>
+        {
+            [MotionGroup.PcbSupply] = supply.Feedback,
+            [MotionGroup.PcbPlacementHandler] = placement.Feedback,
+            [MotionGroup.BoltFastening] = fastening.Feedback,
+            [MotionGroup.InspectionGantry] = inspection.Feedback,
+        };
+        Axes = hardware.SelectMany(section => section.AxisSignals.Select(axis =>
+            new ManualAxisRow(section.Group, axis.Value, axis.Key, feedbacks[section.Group]))).ToArray();
 
         state.Changed += OnMachineStateChanged;
-        foreach (var (group, feedback) in new[]
-                 {
-                     (MotionGroup.PcbSupply, supply.Feedback),
-                     (MotionGroup.PcbPlacementHandler, placement.Feedback),
-                     (MotionGroup.BoltFastening, fastening.Feedback),
-                     (MotionGroup.InspectionGantry, inspection.Feedback),
-                 })
+        foreach (var (group, feedback) in feedbacks)
         {
             feedback.PositionChanged += (x, y, z) =>
                 OnPositionChanged(group, x, y, z);

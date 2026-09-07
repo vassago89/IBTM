@@ -202,6 +202,13 @@ public sealed class PcbSupplyHandler
             cancellationToken);
     }
 
+    public TeachingOutput[] GetTeachingOutputs() =>
+    [
+        new(OutputIo.PcbSupplyNestForward, SetNestAsync),
+        new(OutputIo.PcbSupplyIpmFixerForward, SetIpmFixerAsync),
+        new(OutputIo.PcbSupplyRotate, SetRotatedAsync, () => !InsideBuffer),
+    ];
+
     public Task SetIpmFixerAsync(
         bool forward,
         CancellationToken cancellationToken = default) =>

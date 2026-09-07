@@ -50,27 +50,9 @@
             </TextBlock.Style>
         </TextBlock>
 
-        <Grid Grid.Row="2"
-              Margin="0,0,0,14">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="230"/>
-            </Grid.ColumnDefinitions>
-            <StackPanel>
-                <TextBlock Text="SEARCH" Style="{StaticResource SectionHeaderStyle}"/>
-                <TextBox Margin="0,6,0,0"
-                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
-            </StackPanel>
-            <StackPanel Grid.Column="2">
-                <TextBlock Text="UNIT" Style="{StaticResource SectionHeaderStyle}"/>
-                <ComboBox Margin="0,6,0,0"
-                          ItemsSource="{Binding Areas}"
-                          ItemTemplate="{x:Null}"
-                          DisplayMemberPath="Value"
-                          SelectedItem="{Binding SelectedArea, Mode=TwoWay}"/>
-            </StackPanel>
-        </Grid>
+        <ContentControl Grid.Row="2" Margin="0,0,0,14"
+                        Content="{Binding Filter}" ContentTemplate="{StaticResource IoFilterTemplate}"
+                        HorizontalContentAlignment="Stretch"/>
 
         <Grid Grid.Row="3"
               Margin="12,0,12,6">
@@ -86,7 +68,7 @@
         </Grid>
 
         <ListBox Grid.Row="4"
-                 ItemsSource="{Binding FilteredRows}"
+                 ItemsSource="{Binding Filter.FilteredRows}"
                  Style="{StaticResource IoListStyle}"
                  ItemContainerStyle="{StaticResource IoListItemStyle}">
             <ListBox.GroupStyle>
@@ -104,7 +86,7 @@
                             <ColumnDefinition Width="90"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="{Binding Input,
+                        <TextBlock Text="{Binding Signal,
                                                  Converter={StaticResource EnumDescriptionConverter}}"
                                    Foreground="{StaticResource TextPrimaryBrush}"
                                    VerticalAlignment="Center"/>

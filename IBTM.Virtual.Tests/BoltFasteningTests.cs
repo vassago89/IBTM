@@ -348,6 +348,9 @@ public sealed class BoltFasteningTests
             motion,
             settings,
             carrierReference);
+        var movedWithLoweredCylinder = false;
+        motion.PositionChanged += (_, _, _) =>
+            movedWithLoweredCylinder |= motion.IsMovingHorizontal && !gantry.CanMoveHorizontal;
         var work = new BoltFasteningWork(
             ConveyorStation.BoltFastening(io));
         var feederSettings = new BoltFeederSettings();
@@ -397,10 +400,17 @@ public sealed class BoltFasteningTests
 
         using var firstStop = new CancellationTokenSource();
         var firstRun = station.RunAsync(recipe, firstStop.Token);
-        Assert.True(await WaitUntilAsync(
+        var firstBoltCompleted = await WaitUntilAsync(
             () => work.Assembly(HeatSinkSlot.HeatSink1)
                 .PcbBoltResults.Count == 1,
-            TimeSpan.FromSeconds(5)));
+            TimeSpan.FromSeconds(5));
+        Assert.True(
+            firstBoltCompleted,
+            $"State={station.State(recipe)}, Run={firstRun.Status}, "
+            + $"Pickup={gantry.PickupHeadPosition}, "
+            + $"Shooting={gantry.ShootingHeadPosition}, "
+            + $"Loaded={gantry.ShootingBoltLoaded}, "
+            + $"Error={firstRun.Exception?.GetBaseException().Message}");
         firstStop.Cancel();
         await firstRun;
 
@@ -423,7 +433,14 @@ public sealed class BoltFasteningTests
         feederCancellation.Cancel();
         await feederRuns;
 
-        Assert.True(completed);
+        Assert.True(
+            completed,
+            $"State={station.State(recipe)}, Run={resumedRun.Status}, "
+            + $"Pickup={gantry.PickupHeadPosition}, "
+            + $"Shooting={gantry.ShootingHeadPosition}, "
+            + $"PickupLoaded={gantry.PickupBoltLoaded}, "
+            + $"ShootingLoaded={gantry.ShootingBoltLoaded}, "
+            + $"Error={resumedRun.Exception?.GetBaseException().Message}");
         Assert.Equal(2, work.Assemblies.Count());
         var heatSink1 = work.Assembly(HeatSinkSlot.HeatSink1);
         var heatSink2 = work.Assembly(HeatSinkSlot.HeatSink2);
@@ -437,6 +454,8 @@ public sealed class BoltFasteningTests
         Assert.True(heatSink2.IpmFinalResults[3].Success);
         Assert.Equal(BoltHeadState.Ready, pickupHead.State);
         Assert.Equal(BoltHeadState.Ready, shootingHead.State);
+        Assert.False(movedWithLoweredCylinder);
+        Assert.True(gantry.CanMoveHorizontal);
         Assert.Equal(
             new (byte Head, ushort Preset)[]
             {

@@ -1,10 +1,18 @@
 using System;
+using System.ComponentModel;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace IBTM.Device;
+
+public enum MotionCommand
+{
+    [Description("Idle")] None,
+    [Description("Positioning")] Positioning,
+    [Description("Manual Adjustment")] Adjustment,
+}
 
 public interface IMotionFeedback
 {
@@ -18,6 +26,8 @@ public interface IMotionFeedback
     bool HasY { get; }
     bool HasZ { get; }
     bool IsMoving { get; }
+    bool IsMovingHorizontal { get; }
+    MotionCommand Command { get; }
     bool IsAtHorizontalZ { get; }
 
     (double X, double Y, double Z) GetPosition();
@@ -66,6 +76,11 @@ public interface IAxisMotion : IMotionFeedback
 
 public interface IXyMotion : IAxisMotion
 {
+    Task AdjustAxisAsync(
+        MotionAxis axis,
+        double position,
+        double velocity,
+        CancellationToken cancellationToken = default);
     Task MoveToAsync(
         double x,
         double y,
@@ -103,6 +118,8 @@ public abstract class MotionService(
     private readonly OperationCancellation _operationCancellation =
         operationCancellation;
     private int _activeMotions;
+    private int _activeHorizontalMotions;
+    private MotionCommand _command = MotionCommand.Positioning;
 
     public event Action<double, double, double>? PositionChanged;
     public event Action<bool>? MovingChanged;
@@ -114,6 +131,8 @@ public abstract class MotionService(
     public bool HasY => hasY;
     public bool HasZ => hasZ;
     public bool IsMoving => Volatile.Read(ref _activeMotions) > 0;
+    public bool IsMovingHorizontal => Volatile.Read(ref _activeHorizontalMotions) > 0;
+    public MotionCommand Command => IsMoving ? _command : MotionCommand.None;
 
     private double HorizontalZ => horizontalZ!();
 
@@ -124,6 +143,34 @@ public abstract class MotionService(
             <= PositionToleranceMillimeters;
 
     public abstract void Initialize();
+
+    public async Task AdjustAxisAsync(
+        MotionAxis axis,
+        double position,
+        double velocity,
+        CancellationToken cancellationToken = default)
+    {
+        using var operation = LinkOperation(cancellationToken);
+        EnsureStopped();
+        if (axis == MotionAxis.Y) EnsureHasY();
+        if (axis == MotionAxis.Z) EnsureHasZ();
+        ValidateTarget(axis, position);
+        _command = MotionCommand.Adjustment;
+        try
+        {
+            await (axis switch
+            {
+                MotionAxis.X => MoveXCoreAsync(position, velocity, operation.Token),
+                MotionAxis.Y => MoveYCoreAsync(position, velocity, operation.Token),
+                MotionAxis.Z => MoveZCoreAsync(position, velocity, operation.Token),
+                _ => throw new ArgumentOutOfRangeException(nameof(axis)),
+            });
+        }
+        finally
+        {
+            if (!IsMoving) _command = MotionCommand.Positioning;
+        }
+    }
 
     public async Task MoveToAsync(
         double x,
@@ -453,8 +500,9 @@ public abstract class MotionService(
         CancellationToken cancellationToken = default) =>
         _operationCancellation.Link(cancellationToken);
 
-    protected void BeginMotion()
+    protected void BeginMotion(bool horizontal)
     {
+        if (horizontal) Interlocked.Increment(ref _activeHorizontalMotions);
         if (Interlocked.Increment(ref _activeMotions) == 1)
         {
             MovingChanged?.Invoke(true);
@@ -462,10 +510,12 @@ public abstract class MotionService(
         }
     }
 
-    protected void EndMotion()
+    protected void EndMotion(bool horizontal)
     {
+        if (horizontal) Interlocked.Decrement(ref _activeHorizontalMotions);
         if (Interlocked.Decrement(ref _activeMotions) == 0)
         {
+            _command = MotionCommand.Positioning;
             MovingChanged?.Invoke(false);
             PublishStateChanged();
         }

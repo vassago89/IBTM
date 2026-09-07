@@ -14,6 +14,54 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class InspectionTests
 {
+    [Theory]
+    [InlineData(2, 3, 32, 23)]
+    [InlineData(32, 23, 2, 3)]
+    public async Task CarrierScanUsesTheTwoReferencePins(
+        double left, double top, double right, double bottom)
+    {
+        var reference = new CarrierReferenceSettings
+        {
+            UpperLeftLocatingPin = new() { X = left, Y = top },
+            LowerRightLocatingPin = new() { X = right, Y = bottom },
+        };
+        var settings = new InspectionGantrySettings
+        {
+            Motion = new() { HorizontalSpeed = 1_000 },
+        };
+        var operations = new OperationCancellation();
+        using var motion = new VirtualMotionService(
+            settings.Motion, operations, hasZ: false,
+            xRange: (0, 40), yRange: (0, 30));
+        var io = new VirtualIoService(
+            new NgCarrierTransferHardwareSettings().Outputs, new());
+        io.Initialize();
+        motion.Initialize();
+        var gantry = new InspectionGantry(motion, new NgCarrierTransfer(io), operations);
+        Assert.True(await gantry.HomeHorizontalAsync(1_000));
+        var inspector = new BoltInspector(
+            gantry,
+            new VirtualCamera(motion.GetPosition, () => []),
+            new InspectionCameraSettings(),
+            new VirtualLightController(),
+            new BoltPresenceDetector(new(), new VirtualBoltRecessSegmenter()),
+            settings, reference, new LightingSettings());
+
+        var images = await inspector.CaptureCarrierImagesAsync();
+        var middleX = (left + right) / 2;
+        var middleY = (top + bottom) / 2;
+        Assert.Equal(
+            new[]
+            {
+                (left, top), (middleX, top), (right, top),
+                (right, middleY), (middleX, middleY), (left, middleY),
+                (left, bottom), (middleX, bottom), (right, bottom),
+            },
+            images.Select(image => (image.Center.X, image.Center.Y)));
+        Assert.True(gantry.IsAt(reference.LowerRightLocatingPin));
+        Assert.All(images, image => Assert.NotEmpty(image.Frame.Pixels));
+    }
+
     [Fact]
     public async Task InspectionUsesCurrentCarrierSensorsAndRestartsIncompleteWork()
     {

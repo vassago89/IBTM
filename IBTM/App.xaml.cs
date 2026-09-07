@@ -46,12 +46,12 @@ public partial class App : System.Windows.Application
 
         base.OnStartup(e);
 
-        var store = new MachineStore();
+        var store = new RecipeStore();
         if (DevelopmentProfile.IsEnabled)
         {
             await DevelopmentProfile.PrepareAsync(store);
         }
-        var settings = await store.LoadSettingsAsync();
+        var settings = await MachineSettings.LoadAsync();
         if (DevelopmentProfile.IsEnabled)
         {
             DevelopmentProfile.UseVirtualHardware(settings);

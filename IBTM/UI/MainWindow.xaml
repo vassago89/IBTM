@@ -322,14 +322,17 @@
                                                          Converter={StaticResource BoolToVis}}">
                             <TextBox Text="{Binding RecipeEditor.Name,
                                                    UpdateSourceTrigger=PropertyChanged}"
+                                     IsEnabled="{Binding ManualControlsEnabled}"
                                      Width="200"
                                      Margin="0,0,6,0"/>
                             <Button Content="New"
+                                    IsEnabled="{Binding ManualControlsEnabled}"
                                     Command="{Binding RecipeEditor.NewCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     Padding="10,5"
                                     Margin="0,0,4,0"/>
                             <Button Content="Save"
+                                    IsEnabled="{Binding ManualControlsEnabled}"
                                     Command="{Binding RecipeEditor.SaveCommand}"
                                     Style="{StaticResource PrimaryButtonStyle}"
                                     Padding="10,5"

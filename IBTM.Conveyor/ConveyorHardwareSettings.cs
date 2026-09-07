@@ -6,6 +6,28 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
 {
     public override HardwareArea Area => HardwareArea.MainConveyor;
 
+    public override IoSection? GetSection(System.Enum signal) => signal switch
+    {
+        InputIo.MainConveyorAvailableFromFront2 or InputIo.MainConveyorReadyFromRear
+            or InputIo.MainConveyorEntryCarrierDetected or InputIo.MainConveyorExitCarrierDetected
+            or OutputIo.MainConveyorReadyToFront2 or OutputIo.MainConveyorAvailableToRear
+            or OutputIo.MainConveyorRun or OutputIo.MainConveyorReverse
+            or OutputIo.MainConveyorNormalSpeed => IoSection.MainConveyorInterfaceDrive,
+        InputIo.PcbPlacementCarrierPresent or InputIo.PcbPlacementStopperUp
+            or InputIo.PcbPlacementStopperDown or InputIo.PcbPlacementBackupPlateUp
+            or InputIo.PcbPlacementBackupPlateDown or OutputIo.PcbPlacementStopperUp
+            or OutputIo.PcbPlacementBackupPlateUp => IoSection.MainConveyorStation1,
+        InputIo.BoltFasteningCarrierPresent or InputIo.BoltFasteningStopperUp
+            or InputIo.BoltFasteningStopperDown or InputIo.BoltFasteningBackupPlateUp
+            or InputIo.BoltFasteningBackupPlateDown or OutputIo.BoltFasteningStopperUp
+            or OutputIo.BoltFasteningBackupPlateUp => IoSection.MainConveyorStation2,
+        InputIo.InspectionCarrierPresent or InputIo.InspectionStopperUp
+            or InputIo.InspectionStopperDown or InputIo.InspectionBackupPlateUp
+            or InputIo.InspectionBackupPlateDown or OutputIo.InspectionStopperUp
+            or OutputIo.InspectionBackupPlateUp => IoSection.MainConveyorStation3,
+        _ => null,
+    };
+
     public ConveyorHardwareSettings()
     {
         Inputs = new()

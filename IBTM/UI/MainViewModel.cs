@@ -108,9 +108,14 @@ public partial class MainViewModel : ObservableObject
             recipeEditor.LoadCommand,
             supplyTeachingViewModel.TeachCurrentPositionCommand,
             supplyTeachingViewModel.MoveToPointCommand,
+            supplyTeachingViewModel.SetOutputOnCommand,
+            supplyTeachingViewModel.SetOutputOffCommand,
             stationTeachingViewModel.TeachCurrentPositionCommand,
             stationTeachingViewModel.TeachImagePointCommand,
             stationTeachingViewModel.MoveToPointCommand,
+            stationTeachingViewModel.MoveToXYCommand,
+            stationTeachingViewModel.SetOutputOnCommand,
+            stationTeachingViewModel.SetOutputOffCommand,
             stationTeachingViewModel.CaptureCarrierImagesCommand,
         ];
         foreach (var command in _recipeEditingCommands)
@@ -128,7 +133,8 @@ public partial class MainViewModel : ObservableObject
         SelectedPage is AppPage.SupplyTeaching
             or AppPage.StationTeaching;
     public bool RecipeEditingEnabled =>
-        !_state.IsRunning
+        _state.ManualMode
+        && !_state.IsRunning
         && Array.TrueForAll(_recipeEditingCommands, static command => !command.IsRunning);
     public bool OperationPageSelected =>
         SelectedPage == AppPage.Operation;
@@ -151,8 +157,7 @@ public partial class MainViewModel : ObservableObject
             or AppPage.Settings
             or AppPage.ManualHardware
             or AppPage.BoltTraining
-        || (_state.CanOperate
-            && !RecipeEditor.SaveCommand.IsRunning
+        || (!RecipeEditor.SaveCommand.IsRunning
             && !RecipeEditor.LoadCommand.IsRunning);
 
     public Task ShutdownAsync()
@@ -189,21 +194,15 @@ public partial class MainViewModel : ObservableObject
 
     private bool CanNavigate(AppPage page) =>
         page == AppPage.Operation
-        || ((page == AppPage.Settings && !_state.IsRunning)
-            || (page == AppPage.ManualHardware && !_state.IsRunning)
-            || (page == AppPage.BoltTraining
-                && _state.ManualMode
-                && _state.SafetyReady
-                && !_state.IsRunning)
-            || (page == AppPage.SupplyTeaching
-                && (_units.PcbSupply || _units.PcbPlacement)
-                && _state.ManualControlsEnabled)
-            || (page == AppPage.StationTeaching
-                && (_units.PcbPlacement
-                    || _units.BoltFastening
-                    || _units.Inspection
-                    || _units.NgCarrierTransfer)
-                && _state.ManualControlsEnabled));
+        || !_state.IsRunning && page switch
+        {
+            AppPage.Settings or AppPage.ManualHardware => true,
+            AppPage.BoltTraining => _state.ManualMode && _state.SafetyReady,
+            AppPage.SupplyTeaching => _state.ManualMode && (_units.PcbSupply || _units.PcbPlacement),
+            AppPage.StationTeaching => _state.ManualMode
+                && (_units.PcbPlacement || _units.BoltFastening || _units.Inspection || _units.NgCarrierTransfer),
+            _ => false,
+        };
 
     private void ActivateCurrentPage()
     {
@@ -286,7 +285,7 @@ public partial class MainViewModel : ObservableObject
             {
                 Navigate(AppPage.Operation);
             }
-            else if (!_state.CanOperate
+            else if (!_state.ManualMode
                 && CurrentPage is SupplyTeachingViewModel
                     or StationTeachingViewModel)
             {

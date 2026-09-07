@@ -133,10 +133,13 @@ public sealed class PcbTransferTests
             work);
         var bufferEntries = 0;
         var enteredBufferPrepared = true;
+        var movedWithLoweredCylinder = false;
         var wasInsideBuffer = false;
         var heatSinkChangedDuringMove = false;
         placementMotion.PositionChanged += (x, y, _) =>
         {
+            movedWithLoweredCylinder |= placementMotion.IsMovingHorizontal
+                && !placementHandler.CanMoveHorizontal;
             var inside = x is >= 40 and <= 60 && y is >= 0 and <= 15;
             if (inside && !wasInsideBuffer)
             {
@@ -238,6 +241,7 @@ public sealed class PcbTransferTests
 
         Assert.True(completed);
         Assert.True(prefetched);
+        Assert.False(movedWithLoweredCylinder);
         Assert.True(heatSinkChangedDuringMove);
         Assert.True(io.GetInput(InputIo.PcbPlacementHeatSink1Present));
         Assert.False(io.GetInput(InputIo.PcbPlacementHeatSink2Present));

@@ -1,3 +1,6 @@
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using IBTM.Ajin;
 using IBTM.AlphaMotion;
 using IBTM.BoltFastening;
@@ -53,6 +56,14 @@ public sealed class MachineSettings
     public NgShuttleHardwareSettings NgShuttleHardware { get; set; } = new();
     public NgConveyorHardwareSettings NgConveyorHardware { get; set; } = new();
 
+    internal (MotionSettings Settings, MotionHardwareSettings Hardware)[] MotionSections =>
+    [
+        (PcbSupply.Motion, PcbSupplyHardware),
+        (PcbPlacementHandler.Motion, PcbPlacementHandlerHardware),
+        (BoltFastening.Motion, BoltFasteningHardware),
+        (InspectionGantry.Motion, InspectionGantryHardware),
+    ];
+
     internal HardwareSettings[] HardwareSections =>
     [
         MachineHardware,
@@ -70,5 +81,56 @@ public sealed class MachineSettings
         NgShuttleHardware,
         NgConveyorHardware,
     ];
+
+    public Task SaveAsync(CancellationToken cancellationToken = default) =>
+        Task.WhenAll(Sections.Select(section => section.SaveAsync(cancellationToken)));
+
+    private Setting[] Sections =>
+    [
+        .. HardwareSections,
+        Drivers, Units, Options, Home, RecipeSelection, CarrierReference,
+        Ajin, AlphaMotion, InspectionCamera, BoltInspection, Lighting, Hantas,
+        NgCarrierTransfer, NgConveyor, PcbBuffer, PcbSupply,
+        PcbPlacementHandler, BoltFeeder, BoltFastening, InspectionGantry,
+    ];
+
+    public static async Task<MachineSettings> LoadAsync(
+        CancellationToken cancellationToken = default) => new()
+    {
+        Drivers = await Setting.LoadAsync<DriverSettings>(cancellationToken),
+        Units = await Setting.LoadAsync<UnitSettings>(cancellationToken),
+        Options = await Setting.LoadAsync<MachineOptions>(cancellationToken),
+        Home = await Setting.LoadAsync<HomeSettings>(cancellationToken),
+        RecipeSelection = await Setting.LoadAsync<RecipeSelectionSettings>(cancellationToken),
+        CarrierReference = await Setting.LoadAsync<CarrierReferenceSettings>(cancellationToken),
+        MachineHardware = await Setting.LoadAsync<MachineHardwareSettings>(cancellationToken),
+        ConveyorHardware = await Setting.LoadAsync<ConveyorHardwareSettings>(cancellationToken),
+        Ajin = await Setting.LoadAsync<AjinSettings>(cancellationToken),
+        AlphaMotion = await Setting.LoadAsync<AlphaMotionSettings>(cancellationToken),
+        InspectionCamera = await Setting.LoadAsync<InspectionCameraSettings>(cancellationToken),
+        BoltInspection = await Setting.LoadAsync<BoltInspectionSettings>(cancellationToken),
+        Lighting = await Setting.LoadAsync<LightingSettings>(cancellationToken),
+        Hantas = await Setting.LoadAsync<HantasSettings>(cancellationToken),
+        NgCarrierTransfer = await Setting.LoadAsync<NgCarrierTransferSettings>(cancellationToken),
+        NgConveyor = await Setting.LoadAsync<NgConveyorSettings>(cancellationToken),
+        PcbBuffer = await Setting.LoadAsync<PcbBufferSettings>(cancellationToken),
+        PcbBufferHardware = await Setting.LoadAsync<PcbBufferHardwareSettings>(cancellationToken),
+        PcbSupply = await Setting.LoadAsync<PcbSupplySettings>(cancellationToken),
+        PcbSupplyHardware = await Setting.LoadAsync<PcbSupplyHardwareSettings>(cancellationToken),
+        PcbPlacementHandler = await Setting.LoadAsync<PcbPlacementHandlerSettings>(cancellationToken),
+        PcbPlacementHandlerHardware = await Setting.LoadAsync<PcbPlacementHandlerHardwareSettings>(cancellationToken),
+        PcbPlacementStationHardware = await Setting.LoadAsync<PcbPlacementStationHardwareSettings>(cancellationToken),
+        BoltFeeder = await Setting.LoadAsync<BoltFeederSettings>(cancellationToken),
+        BoltFeederHardware = await Setting.LoadAsync<BoltFeederHardwareSettings>(cancellationToken),
+        BoltFastening = await Setting.LoadAsync<BoltFasteningSettings>(cancellationToken),
+        BoltFasteningHardware = await Setting.LoadAsync<BoltFasteningHardwareSettings>(cancellationToken),
+        BoltFasteningStationHardware = await Setting.LoadAsync<BoltFasteningStationHardwareSettings>(cancellationToken),
+        InspectionGantry = await Setting.LoadAsync<InspectionGantrySettings>(cancellationToken),
+        InspectionStationHardware = await Setting.LoadAsync<InspectionStationHardwareSettings>(cancellationToken),
+        InspectionGantryHardware = await Setting.LoadAsync<InspectionGantryHardwareSettings>(cancellationToken),
+        NgCarrierTransferHardware = await Setting.LoadAsync<NgCarrierTransferHardwareSettings>(cancellationToken),
+        NgShuttleHardware = await Setting.LoadAsync<NgShuttleHardwareSettings>(cancellationToken),
+        NgConveyorHardware = await Setting.LoadAsync<NgConveyorHardwareSettings>(cancellationToken),
+    };
 }
 

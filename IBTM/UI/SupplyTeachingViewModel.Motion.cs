@@ -24,17 +24,13 @@ public partial class SupplyTeachingViewModel
                 && !_placementHandler.CanMoveHorizontal)
                 return TeachingMotionHint.RaisePlacementCylinders;
             return _state.ManualControlsEnabled && !CanJog(MotionAxis.X)
-                ? TeachingMotionHint.TravelZRequired
+                ? TeachingMotionHint.SafeZRequired
                 : TeachingMotionHint.None;
         }
     }
     public double HorizontalZ => ActiveMotionGroup == MotionGroup.PcbSupply
         ? _supplySettings.RotationZ
         : _placementSettings.BufferEntryZ;
-    public TeachingTarget HorizontalZTarget =>
-        ActiveMotionGroup == MotionGroup.PcbSupply
-            ? TeachingTarget.SupplyRotationZ
-            : TeachingTarget.PlacementBufferEntryZ;
 
     protected override MotionGroup CurrentMotionGroup =>
         ActiveMotionGroup;
@@ -44,7 +40,7 @@ public partial class SupplyTeachingViewModel
             ? _supplyHandler.Feedback
             : _placementHandler.Feedback;
 
-    protected override void JogCurrent(
+    protected override Task JogCurrentAsync(
         MotionAxis axis,
         double velocity,
         CancellationToken cancellationToken)
@@ -57,6 +53,7 @@ public partial class SupplyTeachingViewModel
         {
             _placementHandler.Jog(axis, velocity, cancellationToken);
         }
+        return Task.CompletedTask;
     }
 
     protected override Task MoveCurrentToHorizontalZAsync(
@@ -83,12 +80,12 @@ public partial class SupplyTeachingViewModel
         TeachingPoint? newValue)
     {
         CancelMotion();
+        NotifyPointSelectionCommands();
 
         OnPropertyChanged(nameof(ActiveMotionGroup));
         OnPropertyChanged(nameof(HasY));
         OnPropertyChanged(nameof(HasZ));
         OnPropertyChanged(nameof(HorizontalZ));
-        OnPropertyChanged(nameof(HorizontalZTarget));
         OnPropertyChanged(nameof(SaveBehavior));
         NotifyManualTeachingCommands();
         RefreshPosition();
@@ -234,7 +231,7 @@ public partial class SupplyTeachingViewModel
             _ => throw new ArgumentOutOfRangeException(),
         };
 
-    private bool CanUseCurrentHandler() =>
+    protected override bool CanUseCurrentHandler() =>
         CanUseHandler(ActiveMotionGroup);
 
     private bool CanUseHandler(MotionGroup motionGroup) =>
@@ -258,7 +255,6 @@ public partial class SupplyTeachingViewModel
         TeachCurrentPositionCommand.NotifyCanExecuteChanged();
         SaveBufferSetupCommand.NotifyCanExecuteChanged();
         MoveToPointCommand.NotifyCanExecuteChanged();
-        ToggleActuatorCommand.NotifyCanExecuteChanged();
     }
 
 }

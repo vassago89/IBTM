@@ -96,6 +96,12 @@ public sealed class ConveyorStation
         OutputIo.InspectionStopperUp);
 
     public bool CarrierPresent => _io.GetInput(_carrier);
+
+    public IoStatus CreateIoStatus(HardwareArea area, IoSignals io) => io.Select(
+        area,
+        [_carrier, _backupPlateUp, _backupPlateDown, _stopperUp, _stopperDown, _heatSink1, _heatSink2],
+        [_backupPlate, _stopper]);
+
     public StationCylinderState BackupPlate => CylinderState(
         _backupPlateUp,
         _backupPlateDown);

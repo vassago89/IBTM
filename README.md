@@ -71,7 +71,7 @@ The same rule applies within an AJIN XY group: one failed home cancels its sibli
 Home All and individual-axis Home require all carrier detection inputs to be OFF:
 main conveyor entry/stations/exit, NG pickup, NG shuttle and NG conveyor P1/P2/P3.
 The operator must raise the cylinders on the units being homed beforehand:
-Placement handler/IPM, bolt table/both heads, and NG pickup. Both the Up input and
+Placement handler, both fastening heads, and NG pickup. Both the Up input and
 the absence of Down feedback are checked. Disabled units are excluded from Home
 All cylinder checks; an individual Home still checks its selected unit. NG shuttle
 height, stoppers and backup plates are not handler-cylinder Home prerequisites.
@@ -79,7 +79,7 @@ Inspection Home no longer opens the gripper or raises the pickup automatically.
 The separate **RAISE CYLINDERS** button raises the required enabled units together
 and waits for their mapped Up/Down feedback, using the configured I/O timeout.
 It requires an empty machine and idle, safe Manual operation. It neither moves nor
-homes axes and does not change grippers, vacuum, stoppers, plates or NG shuttle
+homes axes and does not change IPM cylinders, grippers, vacuum, stoppers, plates or NG shuttle
 height. After the inputs confirm Up, use **HOME ALL** separately. STOP cancels the
 feedback waits while retaining pneumatic outputs; a timeout alarms the affected
 unit. Repeating the button with cylinders already Up is allowed.
@@ -88,9 +88,23 @@ the existing cancellation path stops homing. OUTPUTS remains available before
 homing when I/O is ready and the machine is idle, safe, alarm-free and in Manual
 mode; axis movement remains locked until homed. The Supply rotation/limit-search
 home sequence is unchanged.
-Jog and commanded XY moves require the same pickup-up feedback. Losing it during
-movement stops the machine. Background Jog failures also report a motion alarm
-and cancel the machine's other operations.
+Automatic, saved-position and Home X/Y moves require raised-cylinder feedback
+from its unit: Placement Handler, Fastening Head 1/Head 2, or NG Pickup.
+Up must be ON and Down must be OFF. Loss of this condition during X/Y movement
+alarms the unit and cancels the machine's operations. Z-only movement is separate;
+the condition is checked again before the following X/Y command starts.
+Placement enters buffer X/Y with its Handler raised and IPM lowered for pickup.
+IPM lift and gripper feedback do not restrict Home or X/Y movement.
+Bolt teaching Jog/Step are separate manual adjustments: they keep the other axes,
+including Z, at their current positions and may run with the heads lowered.
+They use the selected teaching speed and configured axis limits. Jog stops at its
+axis limit or when released/canceled. Manual mode and motion/safety readiness
+remain required; switching to Auto or losing readiness cancels the adjustment.
+The current motion command identifies adjustment versus positioning; there is no
+global interlock-disable switch. Other handlers retain their existing Jog rules.
+Fastening raises both heads before each X/Y move, lowers the selected
+head at its target, and preserves the PCB → IPM seating → IPM final pass order.
+Background Jog failures also report a motion alarm and cancel other operations.
 
 Each automatic loop evaluates live inputs, executes the applicable action and
 otherwise waits on relevant IO or motion-state changes. `AsyncAutoResetEvent`
@@ -270,6 +284,28 @@ machine setting.
 
 Digital Inputs supports text search and a unit filter. Filtering only changes the
 visible rows; all inputs continue updating. IO numbers remain in Settings.
+
+Supply and Station Teaching share a read-only **Related I/O** panel. Selecting a
+point/unit selects its handler and related buffer, feeder or station signals.
+`IoSignals` creates one read-only signal object per configured DI/DO.
+`InputHardwareSettings.CreateIoStatus` and `ConveyorStation.CreateIoStatus` select
+from these same objects; they do not subscribe or copy state again. The host
+composes related units once through DI, with no per-signal lists in the views.
+Input, Output and both teaching pages share these objects. DI is blue, DO is
+amber, and each mapped output shows both feedback inputs independently. Values
+read the IO service directly and changes notify only the affected rows. The panel
+does not issue outputs or add timers. Output commands retain only their own
+waiting/timeout state. Both diagnostic windows share the generic `IoList` filter
+and XAML search/feedback templates. Each hardware-owning project supplies its
+signal sections through `HardwareSettings.GetSection`, also used by Settings.
+Mapping changes apply after restart.
+
+Each motion hardware definition declares its group and X/Y/Z signal mapping once.
+Driver construction, Settings and the manual axis list reuse this definition;
+Inspection does not acquire a Z axis through a separate UI assumption.
+`MachineSettings` loads/saves the responsibility-owned Settings files.
+`RecipeStore` manages only recipes and their images. Existing file locations and
+JSON formats are unchanged.
 
 One RS-422 bus addresses both ADC controllers. Presets are configured on the
 controllers; recipes select preset numbers. `AdcBus` serializes requests and

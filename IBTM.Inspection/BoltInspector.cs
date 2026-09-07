@@ -94,12 +94,12 @@ public sealed class BoltInspector(
     {
         var overlap = gantrySettings.CarrierScanOverlapMillimeters;
         var xPositions = ScanPositions(
-            gantrySettings.CarrierScanUpperLeft.X,
-            gantrySettings.CarrierScanLowerRight.X,
+            carrierReference.UpperLeftLocatingPin!.X,
+            carrierReference.LowerRightLocatingPin!.X,
             cameraSettings.FieldOfViewWidthMillimeters - overlap);
         var yPositions = ScanPositions(
-            gantrySettings.CarrierScanUpperLeft.Y,
-            gantrySettings.CarrierScanLowerRight.Y,
+            carrierReference.UpperLeftLocatingPin.Y,
+            carrierReference.LowerRightLocatingPin.Y,
             cameraSettings.FieldOfViewHeightMillimeters - overlap);
         var images = new List<CarrierScanImage>(
             xPositions.Count * yPositions.Count);

@@ -97,10 +97,7 @@ public sealed class BoltFasteningStation(
                     PendingPcbBolts(recipe).First(),
                     cancellationToken),
             BoltFasteningState.LoweringForPcb =>
-                gantry.SetHeadDownAsync(
-                    FasteningHead.Shooting,
-                    true,
-                    cancellationToken),
+                LowerShootingHeadAsync(cancellationToken),
             BoltFasteningState.LoadingShootingBolt =>
                 LoadShootingBoltAsync(cancellationToken),
             BoltFasteningState.WaitingForShootingTubeClear =>
@@ -190,7 +187,7 @@ public sealed class BoltFasteningStation(
         }
 
         if ((bolt is null || !gantry.IsAt(bolt))
-            && !gantry.CanMoveHorizontal)
+            && gantry.ShootingHeadPosition != BoltCylinderState.Up)
         {
             return BoltFasteningState.ClearingShootingHead;
         }
@@ -240,7 +237,7 @@ public sealed class BoltFasteningStation(
         {
             var finalBolt = PendingIpmFinalBolts(recipe)
                 .FirstOrDefault();
-            return !gantry.AtSafeZ
+            return (!gantry.AtSafeZ || !gantry.CanMoveHorizontal)
                    && (finalBolt is null || !gantry.IsAt(finalBolt))
                 ? BoltFasteningState.ClearingPickupHead
                 : null;
@@ -287,7 +284,7 @@ public sealed class BoltFasteningStation(
 
         if (bolt is null)
         {
-            return gantry.AtSafeZ
+            return gantry.AtSafeZ && gantry.CanMoveHorizontal
                 ? null
                 : BoltFasteningState.ClearingPickupHead;
         }
@@ -348,6 +345,12 @@ public sealed class BoltFasteningStation(
     {
         await shootingFeeder.WaitUntilReadyAsync(cancellationToken);
         await gantry.LoadShootingBoltAsync(cancellationToken);
+    }
+
+    private async Task LowerShootingHeadAsync(CancellationToken cancellationToken)
+    {
+        await gantry.SetPickupHeadDownAsync(false, cancellationToken);
+        await gantry.SetHeadDownAsync(FasteningHead.Shooting, true, cancellationToken);
     }
 
     private async Task MoveToPickupPositionAsync(

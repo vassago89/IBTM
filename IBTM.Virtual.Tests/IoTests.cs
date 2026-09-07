@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.BoltFastening;
@@ -16,6 +17,55 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class IoTests
 {
+    [Fact]
+    public void IoStatusUsesHardwareMappingsAndLiveSignals()
+    {
+        var hardware = new NgShuttleHardwareSettings();
+        hardware.Inputs.Add(InputIo.PcbSupplyPcbDetected, 999);
+        var io = new VirtualIoService(hardware.Outputs, new MachineOptions())
+        {
+            AutoResponseEnabled = false,
+        };
+        var signals = new IoSignals([hardware], io);
+        var status = hardware.CreateIoStatus(signals);
+        Assert.Equal(hardware.Area, status.Area);
+        Assert.Equal(hardware.Inputs.Keys.Order(), status.Inputs.Select(row => row.Signal));
+        var output = Assert.Single(status.Outputs);
+        Assert.Equal(OutputIo.NgShuttleDown, output.Signal);
+        Assert.Equal(new[] { InputIo.NgShuttleDown, InputIo.NgShuttleUp },
+            output.Feedback.Select(row => row.Signal));
+        Assert.All(output.Feedback, row =>
+        {
+            Assert.Same(status.Inputs.Single(input => input.Signal == row.Signal), row);
+            Assert.DoesNotContain(row, status.Sensors);
+        });
+
+        var sensor = status.Sensors.Single(row => row.Signal == InputIo.PcbSupplyPcbDetected);
+        var changes = 0;
+        sensor.PropertyChanged += (_, _) => changes++;
+        io.SetInput(InputIo.AutoMode, true);
+        Assert.Equal(0, changes);
+        io.SetInput(sensor.Signal, true);
+        Assert.True(sensor.IsOn);
+        Assert.Equal(1, changes);
+        io.SetInput(sensor.Signal, false);
+        Assert.False(sensor.IsOn);
+        Assert.Equal(2, changes);
+
+        var outputChanges = 0;
+        output.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(output.IsOn)) outputChanges++;
+        };
+        io.SetOutput(output.Signal, true);
+        Assert.True(output.IsOn);
+        Assert.Equal(1, outputChanges);
+        Assert.All(output.Feedback, row => Assert.False(row.IsOn));
+        io.SetInput(InputIo.NgShuttleUp, true);
+        io.SetInput(InputIo.NgShuttleDown, true);
+        Assert.All(output.Feedback, row => Assert.True(row.IsOn));
+    }
+
     [Fact]
     public async Task CylinderFeedbackRequiresOneEndpointAndRejectsContradictoryInputs()
     {

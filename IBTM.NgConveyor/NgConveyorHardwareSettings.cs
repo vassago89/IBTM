@@ -6,6 +6,19 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings
 {
     public override HardwareArea Area => HardwareArea.NgConveyor;
 
+    public override IoSection? GetSection(System.Enum signal) => signal switch
+    {
+        InputIo.NgConveyorPosition1Occupied or InputIo.NgConveyorPosition2Occupied
+            or InputIo.NgConveyorPosition3Occupied or InputIo.NgConveyorStopperUp
+            or InputIo.NgConveyorStopperDown or OutputIo.NgConveyorStopperUp
+            or OutputIo.NgConveyorRun or OutputIo.NgConveyorReverse
+            or OutputIo.NgConveyorNormalSpeed => IoSection.NgConveyorStorage,
+        InputIo.NgCarrierEjectButton or InputIo.NgCarrierEjectCompleteButton
+            or OutputIo.NgCarrierEjectLamp or OutputIo.NgCarrierEjectCompleteLamp =>
+            IoSection.NgConveyorOperatorEject,
+        _ => null,
+    };
+
     public NgConveyorHardwareSettings()
     {
         Inputs = new()

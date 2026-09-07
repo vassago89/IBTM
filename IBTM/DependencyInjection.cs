@@ -31,16 +31,10 @@ public static class DependencyInjection
     {
         var hardware = settings.HardwareSections;
         services.AddSingleton(settings);
-        services.AddSingleton<IReadOnlyDictionary<InputIo, HardwareArea>>(
-            hardware.OfType<InputHardwareSettings>()
-                .SelectMany(section => section.Inputs.Keys.Select(input =>
-                    new KeyValuePair<InputIo, HardwareArea>(input, section.Area)))
-                .ToDictionary());
-        services.AddSingleton<IReadOnlyDictionary<OutputIo, HardwareArea>>(
-            hardware.OfType<IoHardwareSettings>()
-                .SelectMany(section => section.Outputs.Keys.Select(output =>
-                    new KeyValuePair<OutputIo, HardwareArea>(output, section.Area)))
-                .ToDictionary());
+        services.AddSingleton<IReadOnlyList<MotionHardwareSettings>>(
+            hardware.OfType<MotionHardwareSettings>().ToArray());
+        services.AddSingleton(provider => new IoSignals(
+            hardware, provider.GetRequiredService<IIoService>()));
         services.AddSingleton<IReadOnlyDictionary<InputIo, int>>(
             hardware
                 .OfType<InputHardwareSettings>()
@@ -83,6 +77,44 @@ public static class DependencyInjection
         services.AddSingleton(recipe ?? new Recipe());
 
         AddControlHardware(services, settings);
+        services.AddSingleton<IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>>>(provider =>
+            new Dictionary<MotionGroup, TeachingOutput[]>
+            {
+                [MotionGroup.PcbSupply] = provider.GetRequiredService<PcbSupplyHandler>().GetTeachingOutputs(),
+                [MotionGroup.PcbPlacementHandler] = provider.GetRequiredService<PcbPlacementHandler>().GetTeachingOutputs(),
+                [MotionGroup.BoltFastening] = provider.GetRequiredService<BoltFasteningGantry>().GetTeachingOutputs(),
+                [MotionGroup.InspectionGantry] = provider.GetRequiredService<NgCarrierTransfer>().GetTeachingOutputs(),
+            }.ToDictionary(pair => pair.Key,
+                pair => (IReadOnlyDictionary<OutputIo, TeachingOutput>)pair.Value.ToDictionary(output => output.Signal)));
+        services.AddSingleton<IReadOnlyDictionary<MotionGroup, IoStatus[]>>(provider =>
+        {
+            var io = provider.GetRequiredService<IoSignals>();
+            var buffer = settings.PcbBufferHardware.CreateIoStatus(io);
+            return new Dictionary<MotionGroup, IoStatus[]>
+            {
+                [MotionGroup.PcbSupply] =
+                [
+                    settings.PcbSupplyHardware.CreateIoStatus(io), buffer,
+                ],
+                [MotionGroup.PcbPlacementHandler] =
+                [
+                    settings.PcbPlacementHandlerHardware.CreateIoStatus(io), buffer,
+                    provider.GetRequiredService<PcbPlacementWork>().Station.CreateIoStatus(HardwareArea.PcbPlacementStation, io),
+                ],
+                [MotionGroup.BoltFastening] =
+                [
+                    settings.BoltFasteningHardware.CreateIoStatus(io),
+                    settings.BoltFeederHardware.CreateIoStatus(io),
+                    provider.GetRequiredService<BoltFasteningWork>().Station.CreateIoStatus(HardwareArea.BoltFasteningStation, io),
+                ],
+                [MotionGroup.InspectionGantry] =
+                [
+                    settings.NgCarrierTransferHardware.CreateIoStatus(io),
+                    settings.NgShuttleHardware.CreateIoStatus(io),
+                    provider.GetRequiredService<InspectionWork>().Station.CreateIoStatus(HardwareArea.InspectionStation, io),
+                ],
+            };
+        });
         services.AddSingleton(provider =>
         {
             var units = provider.GetRequiredService<UnitSettings>();
@@ -222,8 +254,6 @@ public static class DependencyInjection
             settings.BoltFastening,
             settings.CarrierReference));
         services.AddSingleton<MachineState>();
-        services.AddSingleton<SupplyTeachingPoints>();
-        services.AddSingleton<StationTeachingPoints>();
         services.AddSingleton<MachineController>();
         services.AddSingleton<PcbSupplier>();
         services.AddSingleton<PcbPlacer>();
@@ -310,40 +340,25 @@ public static class DependencyInjection
                 settings.Drivers.Control,
                 settings.PcbSupply.Motion,
                 () => settings.PcbSupply.RotationZ,
-                settings.PcbSupplyHardware,
-                MachineAxis.PcbSupplyX,
-                MachineAxis.PcbSupplyY,
-                MachineAxis.PcbSupplyZ));
+                settings.PcbSupplyHardware));
         AddXyMotion(
             services,
             settings.Drivers.Control,
-            MotionGroup.PcbPlacementHandler,
             settings.PcbPlacementHandler.Motion,
             () => settings.PcbPlacementHandler.BufferEntryZ,
-            settings.PcbPlacementHandlerHardware,
-            MachineAxis.PcbPlacementHandlerX,
-            MachineAxis.PcbPlacementHandlerY,
-            MachineAxis.PcbPlacementHandlerZ);
+            settings.PcbPlacementHandlerHardware);
         AddXyMotion(
             services,
             settings.Drivers.Control,
-            MotionGroup.BoltFastening,
             settings.BoltFastening.Motion,
             () => settings.BoltFastening.SafeZ,
-            settings.BoltFasteningHardware,
-            MachineAxis.BoltFasteningX,
-            MachineAxis.BoltFasteningY,
-            MachineAxis.BoltFasteningZ);
+            settings.BoltFasteningHardware);
         AddXyMotion(
             services,
             settings.Drivers.Control,
-            MotionGroup.InspectionGantry,
             settings.InspectionGantry.Motion,
             null,
-            settings.InspectionGantryHardware,
-            MachineAxis.InspectionGantryX,
-            MachineAxis.InspectionGantryY,
-            null);
+            settings.InspectionGantryHardware);
     }
 
     private static void AddCameraHardware(
@@ -424,25 +439,18 @@ public static class DependencyInjection
     private static void AddXyMotion(
         IServiceCollection services,
         ControlDriver driver,
-        MotionGroup group,
         MotionSettings settings,
         Func<double>? horizontalZ,
-        MotionHardwareSettings hardware,
-        MachineAxis axisX,
-        MachineAxis? axisY,
-        MachineAxis? axisZ)
+        MotionHardwareSettings hardware)
     {
         services.AddKeyedSingleton<IXyMotion>(
-            group,
+            hardware.Group,
             (provider, _) => CreateMotion(
                 provider,
                 driver,
                 settings,
                 horizontalZ,
-                hardware,
-                axisX,
-                axisY,
-                axisZ));
+                hardware));
     }
 
     private static IXyMotion CreateMotion(
@@ -450,14 +458,11 @@ public static class DependencyInjection
         ControlDriver driver,
         MotionSettings settings,
         Func<double>? horizontalZ,
-        MotionHardwareSettings hardware,
-        MachineAxis axisX,
-        MachineAxis? axisY,
-        MachineAxis? axisZ)
+        MotionHardwareSettings hardware)
     {
-        var x = hardware.Axes[axisX];
-        var y = axisY is null ? null : hardware.Axes[axisY.Value];
-        var z = axisZ is null ? null : hardware.Axes[axisZ.Value];
+        var x = hardware.GetAxis(MotionAxis.X)!;
+        var y = hardware.GetAxis(MotionAxis.Y);
+        var z = hardware.GetAxis(MotionAxis.Z);
         var cancellation = provider.GetRequiredService<OperationCancellation>();
         if (driver == ControlDriver.Physical)
         {

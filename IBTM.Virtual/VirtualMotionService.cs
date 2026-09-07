@@ -56,25 +56,25 @@ public sealed class VirtualMotionService(
         double y,
         double velocity,
         CancellationToken cancellationToken = default) =>
-        SimulateMoveAsync(x, y, _z, velocity, cancellationToken);
+        SimulateMoveAsync(x, y, _z, velocity, true, cancellationToken);
 
     protected override Task MoveXCoreAsync(
         double x,
         double velocity,
         CancellationToken cancellationToken) =>
-        SimulateMoveAsync(x, _y, _z, velocity, cancellationToken);
+        SimulateMoveAsync(x, _y, _z, velocity, true, cancellationToken);
 
     protected override Task MoveYCoreAsync(
         double y,
         double velocity,
         CancellationToken cancellationToken) =>
-        SimulateMoveAsync(_x, y, _z, velocity, cancellationToken);
+        SimulateMoveAsync(_x, y, _z, velocity, true, cancellationToken);
 
     protected override Task MoveZCoreAsync(
         double z,
         double velocity,
         CancellationToken cancellationToken = default) =>
-        SimulateMoveAsync(_x, _y, z, velocity, cancellationToken);
+        SimulateMoveAsync(_x, _y, z, velocity, false, cancellationToken);
 
     protected override async Task MoveZToPositiveLimitCoreAsync(
         double velocity,
@@ -91,6 +91,7 @@ public sealed class VirtualMotionService(
                 _y,
                 maximum,
                 velocity,
+                false,
                 cancellationToken);
         }
         finally
@@ -148,13 +149,13 @@ public sealed class VirtualMotionService(
         switch (axis)
         {
             case MotionAxis.X:
-                await SimulateMoveAsync(0, _y, _z, velocity, cancellationToken);
+                await SimulateMoveAsync(0, _y, _z, velocity, true, cancellationToken);
                 break;
             case MotionAxis.Y:
-                await SimulateMoveAsync(_x, 0, _z, velocity, cancellationToken);
+                await SimulateMoveAsync(_x, 0, _z, velocity, true, cancellationToken);
                 break;
             case MotionAxis.Z:
-                await SimulateMoveAsync(_x, _y, 0, velocity, cancellationToken);
+                await SimulateMoveAsync(_x, _y, 0, velocity, false, cancellationToken);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(axis));
@@ -181,6 +182,7 @@ public sealed class VirtualMotionService(
             HasY ? 0 : _y,
             _z,
             velocity,
+            true,
             cancellationToken);
         _homed[(int)MotionAxis.X] = true;
         if (HasY)
@@ -205,13 +207,14 @@ public sealed class VirtualMotionService(
         double y,
         double z,
         double velocity,
+        bool horizontal,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         x = Quantize(x);
         y = Quantize(y);
         z = Quantize(z);
-        using var movement = BeginMovement(cancellationToken);
+        using var movement = BeginMovement(horizontal, cancellationToken);
         var startX = _x;
         var startY = _y;
         var startZ = _z;
@@ -241,7 +244,7 @@ public sealed class VirtualMotionService(
         }
         finally
         {
-            EndMovement();
+            EndMovement(horizontal);
         }
     }
 
@@ -252,7 +255,7 @@ public sealed class VirtualMotionService(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var movement = BeginMovement(cancellationToken);
+        var movement = BeginMovement(velocityX != 0 || velocityY != 0, cancellationToken);
         _ = JogAsync(velocityX, velocityY, velocityZ, movement);
     }
 
@@ -291,7 +294,7 @@ public sealed class VirtualMotionService(
                 }
                 finally
                 {
-                    EndMovement();
+                    EndMovement(velocityX != 0 || velocityY != 0);
                 }
             }
             catch (OperationCanceledException) when (movement.IsCancellationRequested)
@@ -305,28 +308,29 @@ public sealed class VirtualMotionService(
     }
 
     private OperationCancellation.Operation BeginMovement(
+        bool horizontal,
         CancellationToken cancellationToken)
     {
         var movement = _movement = LinkOperation(cancellationToken);
         try
         {
-            BeginMotion();
+            BeginMotion(horizontal);
             return movement;
         }
         catch
         {
             using (movement)
             {
-                EndMovement();
+                EndMovement(horizontal);
                 throw;
             }
         }
     }
 
-    private void EndMovement()
+    private void EndMovement(bool horizontal)
     {
         _movement = null;
-        EndMotion();
+        EndMotion(horizontal);
         PublishPositionChanged(_x, _y, _z);
     }
 

@@ -10,9 +10,9 @@ public enum HomeBlockReason
     IoUnavailable,
     [Description("Remove all carriers before HOME")]
     CarrierDetected,
-    [Description("Raise the Placement handler and IPM cylinders before HOME")]
+    [Description("Raise the Placement handler before HOME")]
     PlacementNotRaised,
-    [Description("Raise the bolt table and both heads before HOME")]
+    [Description("Raise both fastening heads before HOME")]
     FasteningNotRaised,
     [Description("Raise the NG pickup before HOME")]
     NgPickupNotRaised,

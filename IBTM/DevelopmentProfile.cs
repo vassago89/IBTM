@@ -25,7 +25,7 @@ internal static class DevelopmentProfile
         settings.Drivers.Bolt = BoltDriver.Virtual;
     }
 
-    public static async Task PrepareAsync(MachineStore store)
+    public static async Task PrepareAsync(RecipeStore store)
     {
         var settingsDirectory = Path.Combine(AppContext.BaseDirectory, "Settings");
         if (Directory.Exists(settingsDirectory)
@@ -39,7 +39,7 @@ internal static class DevelopmentProfile
         var recipe = CreateRecipe();
         settings.RecipeSelection.LastRecipeName = recipe.Name;
         await store.SaveRecipeAsync(recipe);
-        await store.SaveSettingsAsync(settings);
+        await settings.SaveAsync();
     }
 
     // Same synthetic teaching positions as the full-equipment WPF verification.
@@ -82,8 +82,6 @@ internal static class DevelopmentProfile
         settings.InspectionGantry.Motion.HorizontalSpeed = 25;
         settings.CarrierReference.UpperLeftLocatingPin = new() { X = 2, Y = 2 };
         settings.CarrierReference.LowerRightLocatingPin = new() { X = 38, Y = 28 };
-        settings.InspectionGantry.CarrierScanUpperLeft = new() { X = 2, Y = 2 };
-        settings.InspectionGantry.CarrierScanLowerRight = new() { X = 38, Y = 28 };
         settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 13.48275862, Y = 15 };
         settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 26.05172414, Y = 55.625 };
         settings.NgCarrierTransfer.Speed = 25;

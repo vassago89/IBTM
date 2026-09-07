@@ -21,9 +21,9 @@ namespace IBTM.UI;
 
 public partial class SettingsViewModel : ObservableObject
 {
-    private readonly MachineStore _store;
     private readonly MachineState _state;
     private readonly VirtualCamera? _virtualCamera;
+    private readonly Dictionary<MotionGroup, (MotionSettings Settings, MotionHardwareSettings Hardware)> _motions;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ClearVirtualImageCommand))]
@@ -39,12 +39,10 @@ public partial class SettingsViewModel : ObservableObject
     private MotionGroup _selectedMotionGroup = MotionGroup.PcbSupply;
 
     public SettingsViewModel(
-        MachineStore store,
         MachineSettings settings,
         MachineState state,
         ICamera camera)
     {
-        _store = store;
         _state = state;
         _virtualCamera = camera as VirtualCamera;
         state.Changed += () => Application.Current.Dispatcher.BeginInvoke(() =>
@@ -53,6 +51,8 @@ public partial class SettingsViewModel : ObservableObject
             ClearVirtualImageCommand.NotifyCanExecuteChanged();
         });
         Settings = settings;
+        _motions = settings.MotionSections.ToDictionary(section => section.Hardware.Group);
+        MotionGroups = _motions.Keys.ToArray();
         ControlDrivers = Enum.GetValues<ControlDriver>();
         CameraDrivers = Enum.GetValues<CameraDriver>();
         BoltDrivers = Enum.GetValues<BoltDriver>();
@@ -102,35 +102,18 @@ public partial class SettingsViewModel : ObservableObject
     public ICollectionView AxisMappingView { get; }
     public KeyValuePair<OutputIo, OutputFeedback>[] FeedbackMappings { get; }
     public InputIo[] InputSignals { get; } = Enum.GetValues<InputIo>();
-    public MotionGroup[] MotionGroups { get; } =
-        Enum.GetValues<MotionGroup>();
-    public MotionSettings CurrentMotionSettings => SelectedMotionGroup switch
-    {
-        MotionGroup.PcbSupply => Settings.PcbSupply.Motion,
-        MotionGroup.PcbPlacementHandler => Settings.PcbPlacementHandler.Motion,
-        MotionGroup.BoltFastening => Settings.BoltFastening.Motion,
-        MotionGroup.InspectionGantry => Settings.InspectionGantry.Motion,
-        _ => throw new ArgumentOutOfRangeException(
-            nameof(SelectedMotionGroup)),
-    };
+    public MotionGroup[] MotionGroups { get; }
+    public MotionSettings CurrentMotionSettings => _motions[SelectedMotionGroup].Settings;
     public MotionHardwareSettings CurrentMotionHardwareSettings =>
-        SelectedMotionGroup switch
-        {
-            MotionGroup.PcbSupply => Settings.PcbSupplyHardware,
-            MotionGroup.PcbPlacementHandler => Settings.PcbPlacementHandlerHardware,
-            MotionGroup.BoltFastening => Settings.BoltFasteningHardware,
-            MotionGroup.InspectionGantry => Settings.InspectionGantryHardware,
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(SelectedMotionGroup)),
-        };
+        _motions[SelectedMotionGroup].Hardware;
     public bool CurrentMotionHasZ =>
-        SelectedMotionGroup != MotionGroup.InspectionGantry;
+        CurrentMotionHardwareSettings.AxisSignals.ContainsKey(MotionAxis.Z);
 
     [RelayCommand]
     private async Task SaveSettingsAsync()
     {
         ApplyHardwareMappings();
-        await _store.SaveSettingsAsync(Settings);
+        await Settings.SaveAsync();
         _state.Refresh();
     }
 
@@ -208,7 +191,7 @@ public partial class SettingsViewModel : ObservableObject
         InputIo input,
         int number) =>
         new(
-            section.Area,
+            section,
             input,
             number,
             row => section.Inputs[input] = row.Number);
@@ -219,7 +202,7 @@ public partial class SettingsViewModel : ObservableObject
         OutputHardware hardware)
     {
         var row = new HardwareMappingRow(
-            section.Area,
+            section,
             output,
             hardware.Number,
             changed =>
@@ -237,7 +220,7 @@ public partial class SettingsViewModel : ObservableObject
         MachineAxis axis,
         AxisHardware hardware) =>
         new(
-            section.Area,
+            section,
             axis,
             hardware.Number,
             row =>

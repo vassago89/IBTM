@@ -1,3 +1,4 @@
+using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.PcbSupply;
@@ -6,7 +7,11 @@ public sealed class PcbSupplyHardwareSettings : MotionHardwareSettings
 {
     public override HardwareArea Area => HardwareArea.PcbSupply;
 
-    public PcbSupplyHardwareSettings()
+    public PcbSupplyHardwareSettings() : base(
+        MotionGroup.PcbSupply,
+        (MotionAxis.X, MachineAxis.PcbSupplyX, 0, 200),
+        (MotionAxis.Y, MachineAxis.PcbSupplyY, 1, 200),
+        (MotionAxis.Z, MachineAxis.PcbSupplyZ, 2, 100))
     {
         Inputs = new()
         {
@@ -37,12 +42,6 @@ public sealed class PcbSupplyHardwareSettings : MotionHardwareSettings
                 27,
                 InputIo.PcbSupplyIpmFixerForward,
                 InputIo.PcbSupplyIpmFixerBackward),
-        };
-        Axes = new()
-        {
-            [MachineAxis.PcbSupplyX] = Axis(0, 200),
-            [MachineAxis.PcbSupplyY] = Axis(1, 200),
-            [MachineAxis.PcbSupplyZ] = Axis(2, 100),
         };
     }
 }

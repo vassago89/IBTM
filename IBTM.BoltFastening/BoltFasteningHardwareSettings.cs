@@ -1,3 +1,4 @@
+using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.BoltFastening;
@@ -6,12 +7,27 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
 {
     public override HardwareArea Area => HardwareArea.BoltFastening;
 
-    public BoltFasteningHardwareSettings()
+    public override IoSection? GetSection(System.Enum signal) => signal switch
+    {
+        InputIo.PickupHeadDown or InputIo.PickupHeadUp or InputIo.PickupHeadVacuumDetected
+            or OutputIo.PickupHeadDown or OutputIo.PickupHeadVacuumPump =>
+            IoSection.BoltFasteningPickupHead,
+        InputIo.ShootingHeadDown or InputIo.ShootingHeadUp or InputIo.ShootingHeadVacuumDetected
+            or InputIo.ShootingTubeBoltDetected or InputIo.ShootingEscapeForward
+            or InputIo.ShootingEscapeBackward or OutputIo.ShootingHeadDown
+            or OutputIo.ShootingHeadVacuumPump or OutputIo.ShootingEscapeForward
+            or OutputIo.ShootBolt => IoSection.BoltFasteningShootingHead,
+        _ => null,
+    };
+
+    public BoltFasteningHardwareSettings() : base(
+        MotionGroup.BoltFastening,
+        (MotionAxis.X, MachineAxis.BoltFasteningX, 6, 200),
+        (MotionAxis.Y, MachineAxis.BoltFasteningY, 7, 200),
+        (MotionAxis.Z, MachineAxis.BoltFasteningZ, 8, 200))
     {
         Inputs = new()
         {
-            [InputIo.BoltTableDown] = 40,
-            [InputIo.BoltTableUp] = 41,
             [InputIo.PickupHeadDown] = 42,
             [InputIo.PickupHeadUp] = 43,
             [InputIo.ShootingHeadDown] = 44,
@@ -24,11 +40,6 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
         };
         Outputs = new()
         {
-            [OutputIo.BoltTableDown] = Output(
-                37,
-                38,
-                InputIo.BoltTableDown,
-                InputIo.BoltTableUp),
             [OutputIo.PickupHeadDown] = Output(
                 39,
                 40,
@@ -46,12 +57,6 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
                 InputIo.ShootingEscapeForward,
                 InputIo.ShootingEscapeBackward),
             [OutputIo.ShootBolt] = Output(47),
-        };
-        Axes = new()
-        {
-            [MachineAxis.BoltFasteningX] = Axis(6),
-            [MachineAxis.BoltFasteningY] = Axis(7),
-            [MachineAxis.BoltFasteningZ] = Axis(8),
         };
     }
 

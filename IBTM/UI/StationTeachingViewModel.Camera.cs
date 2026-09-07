@@ -55,6 +55,11 @@ public partial class StationTeachingViewModel
         {
             using var motionCancellation = LinkMotion(cancellationToken);
             CameraError = null;
+            if (IsCameraLive)
+            {
+                StopCamera();
+                if (CameraError is not null) return;
+            }
             await _inspectionGantrySettings.SaveAsync(
                 motionCancellation.Token);
             CarrierImages = [];
@@ -75,7 +80,7 @@ public partial class StationTeachingViewModel
             await RecipeEditor.SaveCarrierImagesAsync(images);
             completed = true;
             SelectedPoint = FilteredPoints.FirstOrDefault(point =>
-                point.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
+                point.Target == TeachingTarget.BoltReference);
         }
         catch (OperationCanceledException)
         {
@@ -97,7 +102,7 @@ public partial class StationTeachingViewModel
     private bool CanCaptureCarrierImages() =>
         IsInspectionSelected
         && _inspectionGantry.CanMove
-        && !IsCameraLive
+        && _carrierReference.IsDefined
         && MillimetersPerPixel > 0
         && ScanOverlap >= 0
         && ScanOverlap
@@ -111,40 +116,10 @@ public partial class StationTeachingViewModel
     private async Task TeachImagePointAsync(Point imagePoint)
     {
         var point = SelectedPoint!;
-        _teachingPoints.ApplyImage(
-            CurrentRecipe,
-            FilteredPoints,
-            point,
-            new AxisPosition
-            {
-                X = imagePoint.X,
-                Y = imagePoint.Y,
-            });
-        if (point.Target is
-            TeachingTarget.CarrierUpperLeftLocatingPin
-            or TeachingTarget.CarrierLowerRightLocatingPin)
-        {
-            using var operation = LinkMotion(CancellationToken.None);
-            await _teachingPoints.SaveAsync(point);
-            OnPropertyChanged(nameof(CarrierOrigin));
-        }
-        else if (point.Target == TeachingTarget.BoltReference)
-        {
-            await RecipeEditor.SaveAsync();
-        }
-
-        SelectedPoint = point.Target switch
-        {
-            TeachingTarget.CarrierUpperLeftLocatingPin =>
-                FilteredPoints.FirstOrDefault(candidate =>
-                    candidate.Target
-                        == TeachingTarget.CarrierLowerRightLocatingPin),
-            TeachingTarget.CarrierLowerRightLocatingPin =>
-                FilteredPoints.FirstOrDefault(candidate =>
-                    candidate.Target == TeachingTarget.BoltReference),
-            _ => SelectedPoint,
-        };
-        RefreshImageMarkers();
+        point.Teach(imagePoint.X, imagePoint.Y, 0);
+        point.Apply();
+        RefreshPointPositions();
+        await RecipeEditor.SaveAsync();
         NotifyManualTeachingCommands();
     }
 
@@ -153,11 +128,7 @@ public partial class StationTeachingViewModel
         && HasCarrierImages
         && !IsCameraLive
         && SelectedPoint?.TeachMode == TeachMode.Image
-        && (SelectedPoint.Target != TeachingTarget.BoltReference
-            || _teachingPoints.CarrierReferenceReady)
-        && (SelectedPoint.Target
-                != TeachingTarget.CarrierLowerRightLocatingPin
-            || _carrierReference.UpperLeftLocatingPin is not null);
+        && _carrierReference.IsDefined;
 
     private void StopCamera()
     {

@@ -232,8 +232,18 @@ accepted. A tightening NG or pneumatic feedback timeout raises the Bolt Fastenin
 alarm. Bolt feeding runs independently, while bolt pickup, shooting, and fastening
 belong to the fastening process.
 
-Both fastening-head up inputs are confirmed before the shared gantry moves. This also
-resolves a head left down by Stop before a restarted fastening cycle can move X/Y.
+Both fastening-head Up inputs must be ON, and their Down inputs OFF,
+before automatic or saved-position shared-gantry X/Y moves and horizontal Home.
+The selected head lowers only at the target.
+This applies between individual bolts, including the shooting head's PCB pass;
+the shooting head no longer stays lowered while moving to the next bolt. On restart,
+the same live-DI states retract a lowered head before the next X/Y move.
+Bolt teaching Jog/Step are manual single-axis adjustments at the current Z, with
+head-down adjustment allowed. They do not run the Travel-Z positioning sequence;
+saved-position commands still require raised heads. Axis limits, cancellation and
+manual motion/safety readiness remain in force. A software axis range is not a
+verified mechanical clearance envelope; commissioning must establish suitable
+adjustment speeds and collision-free travel around the workpiece.
 The pickup-feeder loop waits for its prepared-bolt sensor. The linear-feeder loop
 runs only until its prepared-bolt sensor turns on. The fastening process owns the
 shooting escape, shooting tube, pickup vacuum, and the two-head fastening order.

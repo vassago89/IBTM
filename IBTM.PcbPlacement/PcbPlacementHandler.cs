@@ -80,8 +80,7 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         && _motion.GetAxisState(MotionAxis.Z).InPosition
         && _motion.IsAtHorizontalZ;
     public bool CanMoveHorizontal =>
-        Lift == PlacementCylinderState.Up
-        && IpmLift == PlacementCylinderState.Up;
+        Lift == PlacementCylinderState.Up;
     internal bool AtBufferXY =>
         IsAtXY(_settings.BufferHandoffPosition);
     internal bool AtBufferZ =>
@@ -146,15 +145,8 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
 
     internal Task MoveAboveAsync(
         AxisPosition position,
-        CancellationToken cancellationToken = default)
-    {
-        EnsureCanMoveHorizontal(cancellationToken);
-        return _motion.MoveToXYAsync(
-            position.X,
-            position.Y,
-            _settings.Motion.HorizontalSpeed,
-            cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        MoveToXYAsync(position.X, position.Y, cancellationToken);
 
     internal Task LowerToAsync(
         AxisPosition position,
@@ -246,10 +238,18 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             down,
             cancellationToken);
 
-    public Task RaiseCylindersAsync(CancellationToken cancellationToken = default) =>
-        Task.WhenAll(
-            SetLiftDownAsync(false, cancellationToken),
-            SetIpmLiftDownAsync(false, cancellationToken));
+    public TeachingOutput[] GetTeachingOutputs() =>
+    [
+        new(OutputIo.PcbPlacementHandlerDown, SetLiftDownAsync),
+        new(OutputIo.PcbPlacementIpmDown, SetIpmLiftDownAsync),
+        new(OutputIo.PcbPlacementIpmGripperClose, SetIpmGripperAsync),
+        new(OutputIo.PcbPlacementVacuumEjector, SetVacuumAsync),
+        new(OutputIo.PcbPlacementHandlerRotate, SetRotatedAsync,
+            () => AtHorizontalZ && CanMoveHorizontal),
+    ];
+
+    public Task RaiseAsync(CancellationToken cancellationToken = default) =>
+        SetLiftDownAsync(false, cancellationToken);
 
     internal Task SetIpmLiftDownAsync(
         bool down,
@@ -310,7 +310,7 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         if (!CanMoveHorizontal)
         {
             throw new InvalidOperationException(
-                "Raise the placement handler and IPM cylinders before moving X/Y.");
+                "Raise the placement handler before moving X/Y.");
         }
     }
 

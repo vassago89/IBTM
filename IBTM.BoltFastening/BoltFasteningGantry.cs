@@ -46,8 +46,6 @@ public sealed class BoltFasteningGantry
         _io.GetInput(InputIo.ShootingTubeBoltDetected);
     public BoltCylinderState PickupHeadPosition =>
         CylinderState(
-            InputIo.BoltTableUp,
-            InputIo.BoltTableDown,
             InputIo.PickupHeadUp,
             InputIo.PickupHeadDown);
     public BoltCylinderState ShootingHeadPosition =>
@@ -85,12 +83,20 @@ public sealed class BoltFasteningGantry
             reference.LowerRightLocatingPin);
     }
 
-    internal bool IsAtXY(BoltPoint bolt) =>
-        IsAtXY(_settings.GetBoltPosition(bolt, _carrierReference));
-
     internal bool AtPickupPosition => IsAt(_settings.PickupPosition);
 
     internal bool AtPickupXY => IsAtXY(_settings.PickupPosition);
+
+    public TeachingOutput[] GetTeachingOutputs() =>
+    [
+        new(OutputIo.PickupHeadDown, SetPickupHeadDownAsync),
+        new(OutputIo.ShootingHeadDown,
+            (down, token) => SetHeadDownAsync(FasteningHead.Shooting, down, token)),
+        new(OutputIo.PickupHeadVacuumPump,
+            (on, token) => SetVacuumAsync(FasteningHead.Pickup, on, token)),
+        new(OutputIo.ShootingHeadVacuumPump,
+            (on, token) => SetVacuumAsync(FasteningHead.Shooting, on, token)),
+    ];
 
     public void InitializeMotion() => _motion.Initialize();
 
@@ -152,26 +158,26 @@ public sealed class BoltFasteningGantry
         return _motion.MoveToAsync(x, y, z, cancellationToken);
     }
 
-    public void Jog(
+    public Task JogAsync(
         MotionAxis axis,
         double velocity,
         CancellationToken cancellationToken = default)
     {
-        switch (axis)
-        {
-            case MotionAxis.X:
-                EnsureCanMoveHorizontal(cancellationToken);
-                _motion.JogX(velocity, cancellationToken);
-                break;
-            case MotionAxis.Y:
-                EnsureCanMoveHorizontal(cancellationToken);
-                _motion.JogY(velocity, cancellationToken);
-                break;
-            case MotionAxis.Z:
-                _motion.JogZ(velocity, cancellationToken);
-                break;
-        }
+        var range = _motion.GetRange(axis)
+            ?? throw new InvalidOperationException("Set the axis range before jogging.");
+        return AdjustAxisAsync(
+            axis,
+            velocity < 0 ? range.Minimum : range.Maximum,
+            Math.Abs(velocity),
+            cancellationToken);
     }
+
+    public Task AdjustAxisAsync(
+        MotionAxis axis,
+        double position,
+        double velocity,
+        CancellationToken cancellationToken = default) =>
+        _motion.AdjustAxisAsync(axis, position, velocity, cancellationToken);
 
     public async Task CheckReadyAsync(
         CancellationToken cancellationToken = default)
@@ -272,15 +278,10 @@ public sealed class BoltFasteningGantry
     internal Task SetPickupHeadDownAsync(
         bool down,
         CancellationToken cancellationToken = default) =>
-        Task.WhenAll(
-            _io.SetOutputAndWaitAsync(
-                OutputIo.BoltTableDown,
-                down,
-                cancellationToken),
-            _io.SetOutputAndWaitAsync(
-                OutputIo.PickupHeadDown,
-                down,
-                cancellationToken));
+        _io.SetOutputAndWaitAsync(
+            OutputIo.PickupHeadDown,
+            down,
+            cancellationToken);
 
     internal async Task LoadShootingBoltAsync(
         CancellationToken cancellationToken = default)
@@ -394,21 +395,6 @@ public sealed class BoltFasteningGantry
         && _motion.GetAxisState(MotionAxis.Y).InPosition;
 
     private BoltCylinderState CylinderState(
-        InputIo firstUp,
-        InputIo firstDown,
-        InputIo secondUp,
-        InputIo secondDown) =>
-        (_io.GetInput(firstUp),
-            _io.GetInput(firstDown),
-            _io.GetInput(secondUp),
-            _io.GetInput(secondDown)) switch
-        {
-            (true, false, true, false) => BoltCylinderState.Up,
-            (false, true, false, true) => BoltCylinderState.Down,
-            _ => BoltCylinderState.Between,
-        };
-
-    private BoltCylinderState CylinderState(
         InputIo up,
         InputIo down) =>
         (_io.GetInput(up), _io.GetInput(down)) switch
@@ -439,8 +425,6 @@ public sealed class BoltFasteningGantry
         if (input is InputIo.PickupHeadVacuumDetected
             or InputIo.ShootingHeadVacuumDetected
             or InputIo.ShootingTubeBoltDetected
-            or InputIo.BoltTableUp
-            or InputIo.BoltTableDown
             or InputIo.PickupHeadUp
             or InputIo.PickupHeadDown
             or InputIo.ShootingHeadUp
@@ -458,7 +442,7 @@ public sealed class BoltFasteningGantry
         if (!CanMoveHorizontal)
         {
             throw new InvalidOperationException(
-                "Raise the fastening table and both heads before moving X/Y.");
+                "Raise both fastening heads before moving X/Y.");
         }
     }
 

@@ -105,12 +105,6 @@ public enum InputIo
     [Description("Placement Vacuum Detected")]
     PcbPlacementVacuumDetected,
 
-    [Description("Bolt Table Down")]
-    BoltTableDown,
-
-    [Description("Bolt Table Up")]
-    BoltTableUp,
-
     [Description("Pickup Head Down (Head 1)")]
     PickupHeadDown,
 
@@ -297,9 +291,6 @@ public enum OutputIo
 
     [Description("Placement Vacuum Ejector")]
     PcbPlacementVacuumEjector,
-
-    [Description("Bolt Table Down")]
-    BoltTableDown,
 
     [Description("Pickup Head Down (Head 1)")]
     PickupHeadDown,

@@ -1,3 +1,4 @@
+using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.PcbPlacement;
@@ -6,7 +7,11 @@ public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
 {
     public override HardwareArea Area => HardwareArea.PcbPlacementHandler;
 
-    public PcbPlacementHandlerHardwareSettings()
+    public PcbPlacementHandlerHardwareSettings() : base(
+        MotionGroup.PcbPlacementHandler,
+        (MotionAxis.X, MachineAxis.PcbPlacementHandlerX, 3, 200),
+        (MotionAxis.Y, MachineAxis.PcbPlacementHandlerY, 4, 400),
+        (MotionAxis.Z, MachineAxis.PcbPlacementHandlerZ, 5, 200))
     {
         Inputs = new()
         {
@@ -44,12 +49,6 @@ public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
                 InputIo.PcbPlacementIpmGripperClosed,
                 InputIo.PcbPlacementIpmGripperOpen),
             [OutputIo.PcbPlacementVacuumEjector] = Output(36),
-        };
-        Axes = new()
-        {
-            [MachineAxis.PcbPlacementHandlerX] = Axis(3, 200),
-            [MachineAxis.PcbPlacementHandlerY] = Axis(4, 400),
-            [MachineAxis.PcbPlacementHandlerZ] = Axis(5, 200),
         };
     }
 }

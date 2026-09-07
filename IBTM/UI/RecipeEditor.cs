@@ -9,7 +9,7 @@ using IBTM.Device;
 namespace IBTM.UI;
 
 public partial class RecipeEditor(
-    MachineStore store,
+    RecipeStore store,
     RecipeSelectionSettings selection,
     Recipe recipe,
     OperationCancellation operations) : ObservableObject

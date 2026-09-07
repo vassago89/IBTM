@@ -1,5 +1,8 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ui="clr-namespace:IBTM.UI">
+
+    <ui:TeachingOutputConverter x:Key="TeachingOutputConverter"/>
 
     <Style x:Key="IoListStyle" TargetType="ListBox">
         <Setter Property="Background" Value="Transparent"/>
@@ -174,4 +177,113 @@
             </DataTrigger>
         </Style.Triggers>
     </Style>
+    <DataTemplate x:Key="IoFilterTemplate">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="230"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="SEARCH" Style="{StaticResource SectionHeaderStyle}"/>
+                <TextBox Margin="0,6,0,0"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="UNIT" Style="{StaticResource SectionHeaderStyle}"/>
+                <ComboBox Margin="0,6,0,0" ItemsSource="{Binding Areas}"
+                          ItemTemplate="{x:Null}" DisplayMemberPath="Value"
+                          SelectedItem="{Binding SelectedArea, Mode=TwoWay}"/>
+            </StackPanel>
+        </Grid>
+    </DataTemplate>
+
+    <DataTemplate x:Key="IoSignalReadoutTemplate">
+        <Grid Margin="0,3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="52"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                       TextWrapping="Wrap" Margin="0,0,8,0" VerticalAlignment="Center"
+                       Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
+            <ContentControl Grid.Column="1" Tag="{Binding IsOn}"
+                            Style="{StaticResource IoInputStateStyle}" FontSize="11"/>
+        </Grid>
+    </DataTemplate>
+
+    <DataTemplate x:Key="IoStatusTemplate">
+        <DockPanel LastChildFill="True">
+            <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+                <TextBlock Text="Related I/O" Style="{StaticResource PanelTitleStyle}"/>
+                <TextBlock Text="DI = feedback · DO = command"
+                           Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,5,0,0"/>
+            </StackPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding IoGroups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,0,10,18">
+                                <TextBlock Text="{Binding Area, Converter={StaticResource EnumDescriptionConverter}}"
+                                           FontSize="14" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                                <ItemsControl ItemsSource="{Binding Sensors}"
+                                              ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
+                                <ItemsControl ItemsSource="{Binding Outputs}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="0,8,0,0">
+                                                <Grid Margin="0,0,0,3">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="52"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                                                               TextWrapping="Wrap" Margin="0,0,8,0" FontSize="12"
+                                                               Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                                    <ContentControl Grid.Column="1" Tag="{Binding IsOn}"
+                                                                    Style="{StaticResource IoOutputStateStyle}" FontSize="11"/>
+                                                </Grid>
+                                                <ItemsControl ItemsSource="{Binding Feedback}" Margin="12,0,0,0"
+                                                              ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
+                                                <ContentControl HorizontalAlignment="Right" Margin="0,4,0,0">
+                                                    <ContentControl.Content>
+                                                        <MultiBinding Converter="{StaticResource TeachingOutputConverter}">
+                                                            <Binding Path="Signal"/>
+                                                            <Binding Path="DataContext.TeachingOutputs" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                                                        </MultiBinding>
+                                                    </ContentControl.Content>
+                                                    <ContentControl.Style>
+                                                        <Style TargetType="ContentControl">
+                                                            <Style.Triggers>
+                                                                <Trigger Property="Content" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </ContentControl.Style>
+                                                    <ContentControl.ContentTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <Button Content="ON" CommandParameter="{Binding}"
+                                                                        Command="{Binding DataContext.SetOutputOnCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                        Style="{StaticResource SecondaryButtonStyle}" Padding="12,4" MinWidth="48" Margin="0,0,6,0"/>
+                                                                <Button Content="OFF" CommandParameter="{Binding}"
+                                                                        Command="{Binding DataContext.SetOutputOffCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                        Style="{StaticResource SecondaryButtonStyle}" Padding="12,4" MinWidth="48"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ContentControl.ContentTemplate>
+                                                </ContentControl>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </DockPanel>
+    </DataTemplate>
 </ResourceDictionary>

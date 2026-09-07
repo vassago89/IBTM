@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,8 +12,7 @@ namespace IBTM.UI;
 public partial class MainWindow : Window
 {
     private readonly IIoService _io;
-    private readonly IReadOnlyDictionary<InputIo, HardwareArea> _inputAreas;
-    private readonly IReadOnlyDictionary<OutputIo, HardwareArea> _outputAreas;
+    private readonly IoSignals _signals;
     private readonly IAdcBus _adcBus;
     private readonly HantasSettings _hantasSettings;
     private readonly MachineController _machine;
@@ -27,15 +25,13 @@ public partial class MainWindow : Window
     public MainWindow(
         MainViewModel viewModel,
         IIoService io,
-        IReadOnlyDictionary<InputIo, HardwareArea> inputAreas,
-        IReadOnlyDictionary<OutputIo, HardwareArea> outputAreas,
+        IoSignals signals,
         IAdcBus adcBus,
         HantasSettings hantasSettings,
         MachineController machine)
     {
         _io = io;
-        _inputAreas = inputAreas;
-        _outputAreas = outputAreas;
+        _signals = signals;
         _adcBus = adcBus;
         _hantasSettings = hantasSettings;
         _machine = machine;
@@ -96,7 +92,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _inputWindow = new InputWindow(_io, _inputAreas)
+        _inputWindow = new InputWindow(_io, _signals)
         {
             Owner = this,
         };
@@ -112,7 +108,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _outputWindow = new OutputWindow(_io, _outputAreas)
+        _outputWindow = new OutputWindow(_io, _signals)
         {
             Owner = this,
         };

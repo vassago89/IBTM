@@ -9,20 +9,18 @@ namespace IBTM.UI;
 
 public partial class StationTeachingViewModel
 {
-    public override TeachingMotionHint MotionHint =>
-        SelectedMotionGroup == MotionGroup.PcbPlacementHandler && _buffer.SupplyInside
-            ? TeachingMotionHint.SupplyInBuffer
-            : SelectedMotionGroup == MotionGroup.PcbPlacementHandler
-              && !_placementHandler.CanMoveHorizontal
-                ? TeachingMotionHint.RaisePlacementCylinders
-                : SelectedMotionGroup == MotionGroup.BoltFastening
-                  && !_fasteningGantry.CanMoveHorizontal
-                    ? TeachingMotionHint.RaiseFasteningCylinders
-            : SelectedMotionGroup == MotionGroup.InspectionGantry && !_inspectionGantry.CanMove
-                ? TeachingMotionHint.RaiseNgPickup
-                : !CurrentFeedback.IsAtHorizontalZ
-                    ? TeachingMotionHint.TravelZRequired
-                    : TeachingMotionHint.None;
+    public override TeachingMotionHint MotionHint => SelectedMotionGroup switch
+    {
+        MotionGroup.PcbPlacementHandler when _buffer.SupplyInside =>
+            TeachingMotionHint.SupplyInBuffer,
+        MotionGroup.PcbPlacementHandler when !_placementHandler.CanMoveHorizontal =>
+            TeachingMotionHint.RaisePlacementCylinders,
+        MotionGroup.BoltFastening => TeachingMotionHint.BoltAdjustment,
+        MotionGroup.InspectionGantry when !_inspectionGantry.CanMove =>
+            TeachingMotionHint.RaiseNgPickup,
+        _ when !CurrentFeedback.IsAtHorizontalZ => TeachingMotionHint.SafeZRequired,
+        _ => TeachingMotionHint.None,
+    };
 
     protected override MotionGroup CurrentMotionGroup =>
         SelectedMotionGroup;
@@ -38,10 +36,10 @@ public partial class StationTeachingViewModel
         CanUseCurrentHandler()
         && (axis == MotionAxis.Z
             ? CurrentFeedback.HasZ
-            : CanMoveHorizontal()
-              && CurrentFeedback.IsAtHorizontalZ);
+            : SelectedMotionGroup == MotionGroup.BoltFastening
+              || CanMoveHorizontal() && CurrentFeedback.IsAtHorizontalZ);
 
-    protected override void JogCurrent(
+    protected override Task JogCurrentAsync(
         MotionAxis axis,
         double velocity,
         CancellationToken cancellationToken)
@@ -52,12 +50,12 @@ public partial class StationTeachingViewModel
                 _placementHandler.Jog(axis, velocity, cancellationToken);
                 break;
             case MotionGroup.BoltFastening:
-                _fasteningGantry.Jog(axis, velocity, cancellationToken);
-                break;
+                return _fasteningGantry.JogAsync(axis, velocity, cancellationToken);
             case MotionGroup.InspectionGantry:
                 _inspectionGantry.Jog(axis, velocity, cancellationToken);
                 break;
         }
+        return Task.CompletedTask;
     }
 
     protected override Task MoveCurrentToHorizontalZAsync(
@@ -83,8 +81,7 @@ public partial class StationTeachingViewModel
             (MotionGroup.PcbPlacementHandler, MotionAxis.X) => _placementHandler.MoveXAsync(position, cancellationToken),
             (MotionGroup.PcbPlacementHandler, MotionAxis.Y) => _placementHandler.MoveYAsync(position, cancellationToken),
             (MotionGroup.PcbPlacementHandler, MotionAxis.Z) => _placementHandler.MoveZAsync(position, cancellationToken),
-            (MotionGroup.BoltFastening, MotionAxis.Z) => _fasteningGantry.MoveZAsync(position, cancellationToken),
-            (MotionGroup.BoltFastening, _) => _fasteningGantry.MoveToXYAsync(x, y, cancellationToken),
+            (MotionGroup.BoltFastening, _) => _fasteningGantry.AdjustAxisAsync(axis, position, JogSpeed, cancellationToken),
             (MotionGroup.InspectionGantry, _) => _inspectionGantry.MoveToAsync(
                 new AxisPosition { X = x, Y = y }, _inspectionGantrySettings.Motion.HorizontalSpeed, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(axis)),
@@ -99,6 +96,21 @@ public partial class StationTeachingViewModel
             moveCancellation => MovePointAsync(point, moveCancellation),
             cancellationToken);
     }
+
+    [RelayCommand(CanExecute = nameof(CanMoveToXY))]
+    private Task MoveToXYAsync(CancellationToken cancellationToken)
+    {
+        var point = SelectedPoint!;
+        return RunMotionAsync(
+            token => _fasteningGantry.MoveToXYAsync(point.X, point.Y, token),
+            cancellationToken);
+    }
+
+    private bool CanMoveToXY() =>
+        SelectedPoint is { Target: TeachingTarget.BoltPointZ } point
+        && CanUseCurrentHandler()
+        && _fasteningGantry.CanMoveHorizontal
+        && _fasteningSettings.HasBoltXY(point.Position.Bolt!, _carrierReference);
 
     private Task MovePointAsync(
         TeachingPoint point,
@@ -162,10 +174,9 @@ public partial class StationTeachingViewModel
         SelectedPoint is not null
         && CanUseCurrentHandler()
         && (SelectedPoint.TeachMode == TeachMode.ZOnly
+            && SelectedPoint.Target != TeachingTarget.BoltPointZ
             || CanMoveHorizontal())
-        && _teachingPoints.HasMotionPosition(
-            CurrentRecipe,
-            SelectedPoint!);
+        && SelectedPoint.Position.HasPosition;
 
     private bool CanMoveHorizontal() => SelectedMotionGroup switch
     {
@@ -175,19 +186,30 @@ public partial class StationTeachingViewModel
         _ => false,
     };
 
-    private bool CanUseCurrentHandler() =>
+    protected override bool CanUseTeachingOutputs =>
+        SelectedMotionGroup != MotionGroup.InspectionGantry || _units.NgCarrierTransfer;
+
+    protected override bool CanUseCurrentHandler() =>
         _state.ManualControlsEnabled
         && (SelectedMotionGroup != MotionGroup.PcbPlacementHandler
             || !_buffer.SupplyInside);
 
     protected override void NotifyManualTeachingCommands()
     {
+        if (IsCameraLive && !_state.CanOperate)
+        {
+            StopCamera();
+            LiveImage = null;
+        }
         NotifyMotionCommands();
         TeachCurrentPositionCommand.NotifyCanExecuteChanged();
         MoveToPointCommand.NotifyCanExecuteChanged();
+        MoveToXYCommand.NotifyCanExecuteChanged();
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
         CaptureCarrierImagesCommand.NotifyCanExecuteChanged();
         TeachImagePointCommand.NotifyCanExecuteChanged();
+        AddBoltPointCommand.NotifyCanExecuteChanged();
+        RemoveBoltPointCommand.NotifyCanExecuteChanged();
     }
 
     protected override void RefreshPositionBindings()
