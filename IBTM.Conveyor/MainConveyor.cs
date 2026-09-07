@@ -16,7 +16,7 @@ public sealed class MainConveyor
     private readonly ConveyorStation _placement;
     private readonly ConveyorStation _boltFastening;
     private readonly ConveyorStation _inspection;
-    private readonly bool _inspectionBypassToNg;
+    private readonly Func<bool> _routeInspectionToNg;
     private OperationCancellation.Operation? _automaticCancellation;
     private OperationCancellation.Operation? _manualCancellation;
     private CancellationTokenRegistration _manualStopRegistration;
@@ -28,7 +28,7 @@ public sealed class MainConveyor
         StationWork placementWork,
         StationWork boltFasteningWork,
         StationWork inspectionWork,
-        bool inspectionBypassToNg)
+        Func<bool> routeInspectionToNg)
     {
         _io = io;
         _operations = operations;
@@ -38,7 +38,7 @@ public sealed class MainConveyor
         _placement = placementWork.Station;
         _boltFastening = boltFasteningWork.Station;
         _inspection = inspectionWork.Station;
-        _inspectionBypassToNg = inspectionBypassToNg;
+        _routeInspectionToNg = routeInspectionToNg;
         io.InputChanged += OnInputChanged;
         placementWork.Changed += NotifyChanged;
         boltFasteningWork.Changed += NotifyChanged;
@@ -273,11 +273,10 @@ public sealed class MainConveyor
         _io.SetOutput(OutputIo.MainConveyorRun, false);
 
     private bool CanOfferToRear =>
-        !_inspectionBypassToNg
-        && (ExitCarrierDetected
+        ExitCarrierDetected
             || InspectionDischargeActive
-            || !_inspectionWork.HasNg
-            && _inspectionWork.CanTransfer);
+            || !_routeInspectionToNg()
+            && _inspectionWork.CanTransfer;
 
     private bool CanDischargeInspection =>
         CanOfferToRear
@@ -372,12 +371,11 @@ public sealed class MainConveyor
     {
         _transfer = transfer;
         ResetSmema();
-        await Task.WhenAll(
-            source.ReleaseAsync(cancellationToken),
-            destination.PrepareToReceiveAsync(cancellationToken));
-
         if (!destination.CarrierPresent)
         {
+            await Task.WhenAll(
+                source.ReleaseAsync(cancellationToken),
+                destination.PrepareToReceiveAsync(cancellationToken));
             try
             {
                 StartMotor(cancellationToken);

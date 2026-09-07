@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media.Imaging;
@@ -27,18 +28,13 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     private readonly InspectionGantrySettings _inspectionGantrySettings;
     private readonly CarrierReferenceSettings _carrierReference;
     private readonly StationTeachingPoints _teachingPoints;
-    private readonly bool _inspectionEnabled;
-    private readonly bool _ngCarrierTransferEnabled;
+    private readonly UnitSettings _units;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInspectionSelected))]
     [NotifyCanExecuteChangedFor(nameof(ToggleLiveViewCommand))]
     [NotifyCanExecuteChangedFor(nameof(CaptureCarrierImagesCommand))]
     [NotifyCanExecuteChangedFor(nameof(TeachImagePointCommand))]
     [NotifyCanExecuteChangedFor(nameof(AddBoltPointCommand))]
-    [NotifyCanExecuteChangedFor(nameof(JogXPlusCommand))]
-    [NotifyCanExecuteChangedFor(nameof(JogXMinusCommand))]
-    [NotifyCanExecuteChangedFor(nameof(JogYPlusCommand))]
-    [NotifyCanExecuteChangedFor(nameof(JogYMinusCommand))]
     private MotionGroup _selectedMotionGroup = MotionGroup.InspectionGantry;
 
     [ObservableProperty]
@@ -95,7 +91,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         UnitSettings units,
         StationTeachingPoints teachingPoints,
         RecipeEditor recipeEditor,
-        OperationCancellation operations) : base(operations)
+        OperationCancellation operations) : base(operations, state)
     {
         _placementHandler = placementHandler;
         _fasteningGantry = fasteningGantry;
@@ -106,31 +102,10 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         _state = state;
         _inspectionGantrySettings = inspectionGantrySettings;
         _carrierReference = carrierReference;
-        _inspectionEnabled = units.Inspection;
-        _ngCarrierTransferEnabled = units.NgCarrierTransfer;
+        _units = units;
         _teachingPoints = teachingPoints;
         RecipeEditor = recipeEditor;
-        var motionGroups = new List<MotionGroup>();
-        if (units.PcbPlacement)
-        {
-            motionGroups.Add(MotionGroup.PcbPlacementHandler);
-        }
-
-        if (units.BoltFastening)
-        {
-            motionGroups.Add(MotionGroup.BoltFastening);
-        }
-
-        if (units.Inspection || units.NgCarrierTransfer)
-        {
-            motionGroups.Add(MotionGroup.InspectionGantry);
-        }
-
-        MotionGroups = motionGroups.ToArray();
-        if (MotionGroups.Length > 0)
-        {
-            SelectedMotionGroup = MotionGroups[0];
-        }
+        RefreshMotionGroups();
 
         MillimetersPerPixel = CurrentRecipe.CarrierImageMillimetersPerPixel;
         ScanOverlap =
@@ -160,15 +135,19 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     }
 
     public RecipeEditor RecipeEditor { get; }
-    public MotionGroup[] MotionGroups { get; }
+    public MotionGroup[] MotionGroups { get; private set; } = [];
     public FasteningHead[] FasteningHeads { get; } =
         Enum.GetValues<FasteningHead>();
     public HeatSinkSlot[] HeatSinkSlots { get; } =
         Enum.GetValues<HeatSinkSlot>();
     public BoltFasteningRecipe BoltRecipe => CurrentRecipe.BoltFastening;
-    public bool CurrentMotionHasZ => CurrentFeedback.HasZ;
+    public TeachingSaveBehavior SaveBehavior => SelectedPoint?.TeachMode == TeachMode.Image
+        ? TeachingSaveBehavior.Image
+        : SelectedPoint?.Storage == TeachingStorage.Machine
+            ? TeachingSaveBehavior.Machine
+            : TeachingSaveBehavior.Recipe;
     public bool IsInspectionSelected =>
-        _inspectionEnabled
+        _units.Inspection
         && SelectedMotionGroup == MotionGroup.InspectionGantry;
     public bool BoltPointEditorVisible =>
         SelectedMotionGroup == MotionGroup.BoltFastening
@@ -224,12 +203,11 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         RefreshTeachingPoints();
         ShowRecipeImages();
         RefreshPosition();
-        OnPropertyChanged(nameof(CurrentMotionHasZ));
+        OnPropertyChanged(nameof(HasY));
+        OnPropertyChanged(nameof(HasZ));
         OnPropertyChanged(nameof(BoltPointEditorVisible));
         OnPropertyChanged(nameof(BoltPresetEditorVisible));
-        JogZPlusCommand.NotifyCanExecuteChanged();
-        JogZMinusCommand.NotifyCanExecuteChanged();
-        MoveToHorizontalZCommand.NotifyCanExecuteChanged();
+        NotifyMotionCommands();
     }
 
     [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
@@ -241,6 +219,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         _teachingPoints.Apply(CurrentRecipe, FilteredPoints, point);
         if (point.Storage == TeachingStorage.Machine)
         {
+            using var operation = LinkMotion(CancellationToken.None);
             await _teachingPoints.SaveAsync(point);
         }
 
@@ -293,6 +272,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     public void Activate()
     {
         RecipeEditor.Refresh();
+        RefreshMotionGroups();
         RefreshTeachingPoints();
         ShowRecipeImages();
         ActivatePositionUpdates();
@@ -302,6 +282,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     public void Deactivate()
     {
         DeactivatePositionUpdates();
+        StepCommand.Cancel();
         MoveToHorizontalZCommand.Cancel();
         MoveToPointCommand.Cancel();
         CaptureCarrierImagesCommand.Cancel();
@@ -320,6 +301,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         {
             await CommandShutdown.StopAsync(
                 Deactivate,
+                StepCommand,
                 MoveToHorizontalZCommand,
                 MoveToPointCommand,
                 CaptureCarrierImagesCommand,
@@ -377,8 +359,11 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             && !_teachingPoints.HasImagePosition(CurrentRecipe, point));
     }
 
-    partial void OnSelectedPointChanged(TeachingPoint? value) =>
+    partial void OnSelectedPointChanged(TeachingPoint? value)
+    {
+        OnPropertyChanged(nameof(SaveBehavior));
         RefreshImageMarkers();
+    }
 
     partial void OnMillimetersPerPixelChanged(double value)
     {
@@ -440,9 +425,38 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     private bool PointEnabled(TeachingPoint point) => point.Target switch
     {
         TeachingTarget.NgCarrierPickup
-            or TeachingTarget.NgShuttlePlace => _ngCarrierTransferEnabled,
+            or TeachingTarget.NgShuttlePlace => _units.NgCarrierTransfer,
         _ when point.MotionGroup == MotionGroup.InspectionGantry =>
-            _inspectionEnabled,
+            _units.Inspection,
         _ => true,
     };
+
+    private void RefreshMotionGroups()
+    {
+        var groups = new List<MotionGroup>();
+        if (_units.PcbPlacement)
+        {
+            groups.Add(MotionGroup.PcbPlacementHandler);
+        }
+
+        if (_units.BoltFastening)
+        {
+            groups.Add(MotionGroup.BoltFastening);
+        }
+
+        if (_units.Inspection || _units.NgCarrierTransfer)
+        {
+            groups.Add(MotionGroup.InspectionGantry);
+        }
+
+        MotionGroups = [.. groups];
+        OnPropertyChanged(nameof(MotionGroups));
+        OnPropertyChanged(nameof(IsInspectionSelected));
+        OnPropertyChanged(nameof(BoltPointEditorVisible));
+        OnPropertyChanged(nameof(BoltPresetEditorVisible));
+        if (groups.Count > 0 && !groups.Contains(SelectedMotionGroup))
+        {
+            SelectedMotionGroup = groups[0];
+        }
+    }
 }

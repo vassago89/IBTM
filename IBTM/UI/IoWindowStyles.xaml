@@ -55,6 +55,41 @@
         </Setter>
     </Style>
 
+    <DataTemplate x:Key="IoSectionGroupHeaderTemplate">
+        <Border x:Name="Header"
+                Padding="12,7"
+                Background="{StaticResource EquipBgBrush}"
+                BorderBrush="{StaticResource DividerBrush}"
+                BorderThickness="0,0,0,1">
+            <TextBlock Text="{Binding Name, Converter={StaticResource EnumDescriptionConverter}}"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       FontSize="12"
+                       FontWeight="SemiBold"/>
+        </Border>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding Name}" Value="{x:Null}">
+                <Setter TargetName="Header" Property="Visibility" Value="Collapsed"/>
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <Style x:Key="IoSectionGroupItemStyle" TargetType="GroupItem">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="GroupItem">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <ContentPresenter/>
+                        <ItemsPresenter Grid.Row="1"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="IoListItemStyle"
            TargetType="ListBoxItem"
            BasedOn="{StaticResource FlatListItemStyle}">

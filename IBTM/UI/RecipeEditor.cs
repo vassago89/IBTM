@@ -2,17 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using IBTM.Core;
+using IBTM.Device;
 
 namespace IBTM.UI;
 
 public partial class RecipeEditor(
     MachineStore store,
     RecipeSelectionSettings selection,
-    Recipe recipe) : ObservableObject
+    Recipe recipe,
+    OperationCancellation operations) : ObservableObject
 {
     private string _imageRecipeName = recipe.Name;
 
@@ -39,6 +39,7 @@ public partial class RecipeEditor(
     [RelayCommand(CanExecute = nameof(CanSave))]
     public async Task SaveAsync()
     {
+        using var operation = operations.Link();
         var name = Name.Trim();
         if (recipe.CarrierImages.Count > 0
             && !string.Equals(
@@ -46,10 +47,10 @@ public partial class RecipeEditor(
                 name,
                 StringComparison.OrdinalIgnoreCase))
         {
-            store.CopyRecipeImages(
+            recipe.CarrierImages = store.CopyRecipeImages(
                 _imageRecipeName,
                 name,
-                recipe.CarrierImages.Select(tile => tile.Number));
+                recipe.CarrierImages);
         }
 
         recipe.Name = name;
@@ -66,6 +67,7 @@ public partial class RecipeEditor(
     [RelayCommand]
     private async Task LoadAsync(string recipeName)
     {
+        using var operation = operations.Link();
         recipe.ReplaceWith(await store.LoadRecipeAsync(recipeName));
         _imageRecipeName = recipe.Name;
         Name = recipe.Name;
@@ -92,27 +94,15 @@ public partial class RecipeEditor(
         return selection.SaveAsync();
     }
 
-    public void ClearCarrierImages()
+    public async Task SaveCarrierImagesAsync(
+        IReadOnlyList<CarrierImageTileView> images)
     {
-        recipe.Name = Name.Trim();
-        _imageRecipeName = recipe.Name;
-        Name = recipe.Name;
-        OnPropertyChanged(nameof(ActiveName));
-        recipe.CarrierImages.Clear();
-        store.ClearRecipeImages(recipe.Name);
-    }
-
-    public void SaveCarrierImage(
-        AxisPosition center,
-        BitmapSource image)
-    {
-        var tile = new CarrierImageTile
-        {
-            Number = recipe.CarrierImages.Count + 1,
-            Center = center,
-        };
-        recipe.CarrierImages.Add(tile);
-        store.SaveRecipeImage(recipe.Name, tile.Number, image);
+        var name = Name.Trim();
+        recipe.CarrierImages = await Task.Run(() => store.SaveRecipeImages(
+            name,
+            images.Select(image => (image.Center, image.Image))));
+        _imageRecipeName = name;
+        await SaveAsync();
     }
 
     public IReadOnlyList<CarrierImageTileView> LoadCarrierImages() =>

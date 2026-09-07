@@ -79,6 +79,7 @@ public sealed class HikCamera(InspectionCameraSettings settings)
             var device = _device
                 ?? throw new InvalidOperationException("Hik camera is not initialized.");
             var stream = _streamGrabber!;
+            ApplyExposureAndGain(device);
             Check(stream.ClearImageBuffer(), "Clear Hik image buffer");
             Check(
                 device.Parameters.SetCommandValue("TriggerSoftware"),
@@ -113,6 +114,7 @@ public sealed class HikCamera(InspectionCameraSettings settings)
             var stream = _streamGrabber!;
             Check(stream.StopGrabbing(), "Stop software-trigger grabbing");
             _grabbing = false;
+            ApplyExposureAndGain(device);
             Check(
                 device.Parameters.SetEnumValueByString("TriggerMode", "Off"),
                 "Disable trigger for live view");
@@ -220,13 +222,19 @@ public sealed class HikCamera(InspectionCameraSettings settings)
             parameters.SetEnumValueByString("ExposureAuto", "Off"),
             "Disable ExposureAuto");
         Check(
+            parameters.SetEnumValueByString("GainAuto", "Off"),
+            "Disable GainAuto");
+        ApplyExposureAndGain(device);
+    }
+
+    private void ApplyExposureAndGain(IDevice device)
+    {
+        var parameters = device.Parameters;
+        Check(
             parameters.SetFloatValue(
                 "ExposureTime",
                 checked((float)settings.ExposureMicroseconds)),
             "Set ExposureTime");
-        Check(
-            parameters.SetEnumValueByString("GainAuto", "Off"),
-            "Disable GainAuto");
         Check(
             parameters.SetFloatValue("Gain", checked((float)settings.Gain)),
             "Set Gain");

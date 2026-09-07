@@ -12,7 +12,14 @@ public sealed class HardwareMappingRow(
     double maximum = 0)
 {
     public HardwareArea Area { get; } = area;
+    public IoSection? Section { get; } = signal switch
+    {
+        InputIo input => input.GetIoSection(),
+        OutputIo output => output.GetIoSection(),
+        _ => null,
+    };
     public Enum Signal { get; } = signal;
+    public int Order { get; } = Convert.ToInt32(signal);
     public int Number { get; set; } = number;
     public int? OffNumber { get; set; }
     public double Minimum { get; set; } = minimum;

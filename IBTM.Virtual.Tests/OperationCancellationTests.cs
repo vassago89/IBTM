@@ -42,6 +42,7 @@ public sealed class OperationCancellationTests
             operations.Link(new CancellationToken(canceled: true)));
         using var outer = operations.Link();
         using var inner = operations.Link(outer.Token);
+        Assert.True(operations.HasActiveOperations);
 
         var shutdown = operations.ShutdownAsync();
 
@@ -54,8 +55,10 @@ public sealed class OperationCancellationTests
 
         outer.Dispose();
         Assert.False(shutdown.IsCompleted);
+        Assert.True(operations.HasActiveOperations);
         inner.Dispose();
         await shutdown.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(operations.HasActiveOperations);
     }
 
     [Fact]

@@ -40,6 +40,8 @@ public sealed class BoltInspector(
         camera.Initialize();
     }
 
+    public void CheckReady() => presenceDetector.CheckReady();
+
     public bool HasPosition(BoltPoint point) =>
         CarrierCoordinates.IsDefined(
             carrierReference.UpperLeftLocatingPin,
@@ -78,7 +80,12 @@ public sealed class BoltInspector(
     internal Task<bool> InspectAsync(
         CancellationToken cancellationToken = default) =>
         Task.Run(
-            () => presenceDetector.IsPresent(Capture()),
+            () =>
+            {
+                var image = Capture();
+                cancellationToken.ThrowIfCancellationRequested();
+                return presenceDetector.IsPresent(image);
+            },
             cancellationToken);
 
     public async Task<IReadOnlyList<CarrierScanImage>>

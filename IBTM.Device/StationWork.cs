@@ -9,19 +9,22 @@ namespace IBTM.Device;
 
 public abstract class StationWork
 {
+    private readonly Func<bool> _isEnabled;
     private volatile ConcurrentDictionary<HeatSinkSlot, HeatSinkAssembly> _assemblies = new();
     private bool _completed;
 
-    protected StationWork(ConveyorStation station, bool enabled)
+    protected StationWork(
+        ConveyorStation station,
+        Func<bool>? isEnabled = null)
     {
-        Enabled = enabled;
+        _isEnabled = isEnabled ?? AlwaysEnabled;
         Station = station;
         station.Changed += NotifyChanged;
         station.CarrierChanged += OnCarrierChanged;
     }
 
     public event Action? Changed;
-    protected bool Enabled { get; }
+    public bool Enabled => _isEnabled();
     public ConveyorStation Station { get; }
     public bool CarrierPresent => Station.CarrierPresent;
     public StationCylinderState BackupPlate => Station.BackupPlate;
@@ -83,6 +86,8 @@ public abstract class StationWork
     }
 
     protected void NotifyChanged() => Changed?.Invoke();
+
+    private static bool AlwaysEnabled() => true;
 
     private void OnCarrierChanged(bool present)
     {

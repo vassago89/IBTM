@@ -102,7 +102,6 @@ public sealed class PcbPlacer(
 
                     case PcbPlacementState.WaitingForPcbDetection:
                         await handler.WaitForPcbAsync(
-                            true,
                             cancellationToken);
                         break;
 

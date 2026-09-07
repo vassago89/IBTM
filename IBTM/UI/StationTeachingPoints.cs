@@ -62,6 +62,8 @@ public sealed class StationTeachingPoints(
     public bool HasMotionPosition(Recipe recipe, TeachingPoint point) =>
         point.Target switch
         {
+            _ when point.TeachMode == TeachMode.Image =>
+                HasImagePosition(recipe, point),
             TeachingTarget.BoltPointZ =>
                 HasFasteningPosition(FindBolt(recipe, point)),
             TeachingTarget.ShootingHeadUpperLeftLocatingPin =>
@@ -216,7 +218,6 @@ public sealed class StationTeachingPoints(
                 break;
             case TeachingTarget.ShootingHeadUpperLeftLocatingPin:
                 fasteningSettings.ShootingHead.UpperLeftLocatingPin = position;
-                fasteningSettings.ShootingHead.LowerRightLocatingPin = null;
                 UpdateBoltPositions(recipe, points);
                 break;
             case TeachingTarget.ShootingHeadLowerRightLocatingPin:
@@ -225,7 +226,6 @@ public sealed class StationTeachingPoints(
                 break;
             case TeachingTarget.PickupHeadUpperLeftLocatingPin:
                 fasteningSettings.PickupHead.UpperLeftLocatingPin = position;
-                fasteningSettings.PickupHead.LowerRightLocatingPin = null;
                 UpdateBoltPositions(recipe, points);
                 break;
             case TeachingTarget.PickupHeadLowerRightLocatingPin:
@@ -240,6 +240,7 @@ public sealed class StationTeachingPoints(
                 break;
             case TeachingTarget.BoltPointZ:
                 FindBolt(recipe, point).Z = point.Z!.Value;
+                UpdateBoltPositions(recipe, points);
                 break;
             case TeachingTarget.CarrierScanUpperLeft:
                 inspectionSettings.CarrierScanUpperLeft = position;
@@ -272,7 +273,6 @@ public sealed class StationTeachingPoints(
         {
             case TeachingTarget.CarrierUpperLeftLocatingPin:
                 carrierReference.UpperLeftLocatingPin = position;
-                carrierReference.LowerRightLocatingPin = null;
                 UpdateInspectionBoltPositions(recipe, points);
                 break;
             case TeachingTarget.CarrierLowerRightLocatingPin:

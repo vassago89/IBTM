@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -53,6 +54,7 @@ public partial class StationTeachingViewModel
         try
         {
             using var motionCancellation = LinkMotion(cancellationToken);
+            CameraError = null;
             await _inspectionGantrySettings.SaveAsync(
                 motionCancellation.Token);
             CarrierImages = [];
@@ -70,25 +72,18 @@ public partial class StationTeachingViewModel
 
             motionCancellation.Token.ThrowIfCancellationRequested();
             CarrierImages = images;
-            RecipeEditor.ClearCarrierImages();
-            await Task.Run(
-                () =>
-                {
-                    foreach (var image in images)
-                    {
-                        RecipeEditor.SaveCarrierImage(
-                            image.Center,
-                            image.Image);
-                    }
-                });
-
-            await RecipeEditor.SaveAsync();
+            await RecipeEditor.SaveCarrierImagesAsync(images);
             completed = true;
             SelectedPoint = FilteredPoints.FirstOrDefault(point =>
                 point.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
         }
         catch (OperationCanceledException)
         {
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException)
+        {
+            CameraError = exception.Message;
         }
         finally
         {
@@ -129,6 +124,7 @@ public partial class StationTeachingViewModel
             TeachingTarget.CarrierUpperLeftLocatingPin
             or TeachingTarget.CarrierLowerRightLocatingPin)
         {
+            using var operation = LinkMotion(CancellationToken.None);
             await _teachingPoints.SaveAsync(point);
             OnPropertyChanged(nameof(CarrierOrigin));
         }
@@ -149,6 +145,7 @@ public partial class StationTeachingViewModel
             _ => SelectedPoint,
         };
         RefreshImageMarkers();
+        NotifyManualTeachingCommands();
     }
 
     private bool CanTeachImagePoint(Point _) =>
@@ -173,12 +170,9 @@ public partial class StationTeachingViewModel
         {
             CameraError = exception.Message;
         }
-        finally
+        lock (_liveImageGate)
         {
-            lock (_liveImageGate)
-            {
-                _pendingLiveFrame = null;
-            }
+            _pendingLiveFrame = null;
         }
     }
 
@@ -251,17 +245,11 @@ public partial class StationTeachingViewModel
         {
             await Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                try
+                HandleLiveViewFailure(exception);
+                lock (_liveImageGate)
                 {
-                    HandleLiveViewFailure(exception);
-                }
-                finally
-                {
-                    lock (_liveImageGate)
-                    {
-                        _pendingLiveFrame = null;
-                        _liveImageUpdateQueued = false;
-                    }
+                    _pendingLiveFrame = null;
+                    _liveImageUpdateQueued = false;
                 }
             });
         }

@@ -35,22 +35,21 @@ public partial class OperationViewModel
     public bool StartBlocked =>
         !_machineDisplay.CanStart
         && !_machineDisplay.IsHoming
-        && StartBlock != StartBlockReason.None;
+        && _machineDisplay.StartBlock != StartBlockReason.None;
 
     public bool FasteningStateVisible =>
-        FasteningState != BoltFasteningState.Waiting
-        && (_machineDisplay.AutomaticRunning
-            || Fastening.Motion.IsMoving
-            || PickupHeadDown
-            || ShootingHeadDown);
+        _machineDisplay.AutomaticRunning
+        && FasteningState != BoltFasteningState.Waiting;
 
     public bool InspectionStateVisible =>
-        InspectionState != InspectionStationState.Waiting
-        && (_machineDisplay.AutomaticRunning
-            || InspectionGantry.Motion.IsMoving
-            || NgCarrierDetected);
+        _machineDisplay.AutomaticRunning
+        && InspectionState != InspectionStationState.Waiting;
 
-    public StartBlockReason StartBlock => _machineDisplay.StartBlock;
+    public HomeBlockReason HomeBlock => _machineDisplay.HomeBlock;
+    public Enum StartBlock =>
+        _machineDisplay.StartBlock == StartBlockReason.HomeRequired
+            && HomeBlock != HomeBlockReason.None
+                ? HomeBlock : _machineDisplay.StartBlock;
 
     public HandlerDisplayState SupplyDisplayState
     {
@@ -67,12 +66,12 @@ public partial class OperationViewModel
             }
 
             if (!SupplyPositionKnown) return HandlerDisplayState.PositionUnknown;
-            if (!_machineDisplay.AutomaticRunning) return HandlerDisplayState.Stopped;
-
             if (Supply.Motion.IsMoving)
             {
                 return HandlerDisplayState.Moving;
             }
+
+            if (!_machineDisplay.AutomaticRunning) return HandlerDisplayState.Stopped;
 
             if (_buffer.SupplyAtHandoff)
             {
@@ -105,12 +104,12 @@ public partial class OperationViewModel
             }
 
             if (!PlacementPositionKnown) return HandlerDisplayState.PositionUnknown;
-            if (!_machineDisplay.AutomaticRunning) return HandlerDisplayState.Stopped;
-
             if (Placement.Motion.IsMoving)
             {
                 return HandlerDisplayState.Moving;
             }
+
+            if (!_machineDisplay.AutomaticRunning) return HandlerDisplayState.Stopped;
 
             return PlacementState switch
             {
@@ -139,6 +138,10 @@ public partial class OperationViewModel
             }
 
             if (!FasteningPositionKnown) return StationDisplayState.PositionUnknown;
+
+            if (Fastening.Motion.IsMoving || _state.BoltTestRunning)
+                return StationDisplayState.Working;
+            if (!_machineDisplay.AutomaticRunning) return StationDisplayState.Stopped;
 
             if (!BoltFasteningCarrierPresent)
             {
@@ -178,7 +181,12 @@ public partial class OperationViewModel
 
             if (!InspectionPositionKnown) return StationDisplayState.PositionUnknown;
 
-            if (InspectionGantry.Motion.IsMoving || NgCarrierDetected)
+            if (!_machineDisplay.AutomaticRunning && !InspectionGantry.Motion.IsMoving)
+                return StationDisplayState.Stopped;
+
+            if (InspectionGantry.Motion.IsMoving
+                || NgCarrierDetected
+                || InspectionTransferWorking)
             {
                 return StationDisplayState.Working;
             }
@@ -204,5 +212,16 @@ public partial class OperationViewModel
                 : StationDisplayState.HeatSinkDetected;
         }
     }
+
+    private bool InspectionTransferWorking => InspectionState is
+        InspectionStationState.MovingTransferToCarrier
+        or InspectionStationState.LoweringTransferAtCarrier
+        or InspectionStationState.ClosingTransferGripper
+        or InspectionStationState.WaitingForCarrierGrip
+        or InspectionStationState.RaisingCarrierTransfer
+        or InspectionStationState.MovingTransferToShuttle
+        or InspectionStationState.LoweringTransferAtShuttle
+        or InspectionStationState.OpeningTransferGripper
+        or InspectionStationState.WaitingForShuttleCarrier;
 
 }

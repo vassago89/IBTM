@@ -21,6 +21,9 @@ public enum OutputFeedbackState
     [Description("Matched")]
     Matched,
 
+    [Description("Waiting")]
+    Waiting,
+
     [Description("Input conflict")]
     Conflict,
 
@@ -60,26 +63,41 @@ public partial class OutputWindow : Window, INotifyPropertyChanged
             nameof(OutputControlRow.Area),
             ListSortDirection.Ascending));
         FilteredRows.SortDescriptions.Add(new(
+            nameof(OutputControlRow.Section),
+            ListSortDirection.Ascending));
+        FilteredRows.SortDescriptions.Add(new(
             nameof(OutputControlRow.Output),
             ListSortDirection.Ascending));
         FilteredRows.GroupDescriptions.Add(new PropertyGroupDescription(
             nameof(OutputControlRow.Area)));
+        FilteredRows.GroupDescriptions.Add(new PropertyGroupDescription(
+            nameof(OutputControlRow.Section)));
+
+        bool Matches(Enum? signal) => signal is not null
+            && (signal.GetDescription().Contains(
+                    _searchText,
+                    StringComparison.OrdinalIgnoreCase)
+                || signal.ToString().Contains(
+                    _searchText,
+                    StringComparison.OrdinalIgnoreCase));
+
         FilteredRows.Filter = item =>
         {
             var row = (OutputControlRow)item;
             return (_selectedArea.Key is null || row.Area == _selectedArea.Key)
-                && (row.Output.GetDescription().Contains(
-                        _searchText,
-                        StringComparison.OrdinalIgnoreCase)
-                    || row.Output.ToString().Contains(
-                        _searchText,
-                        StringComparison.OrdinalIgnoreCase));
+                && (Matches(row.Output)
+                    || Matches(row.OnInput)
+                    || Matches(row.OffInput));
         };
 
         InitializeComponent();
         DataContext = this;
         _io.InputChanged += OnInputChanged;
         _io.OutputChanged += OnOutputChanged;
+        foreach (var row in Rows)
+        {
+            row.Refresh();
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -171,17 +189,18 @@ public partial class OutputWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private void OnInputChanged(InputIo input, bool value) =>
+    private void OnInputChanged(InputIo input, bool _) =>
         Dispatcher.BeginInvoke(() =>
         {
+            var value = _io.GetInput(input);
             foreach (var row in Rows)
             {
                 row.SetInput(input, value);
             }
         });
 
-    private void OnOutputChanged(OutputIo output, bool value) =>
-        Dispatcher.BeginInvoke(() => Rows[(int)output].SetOutput(value));
+    private void OnOutputChanged(OutputIo output, bool _) =>
+        Dispatcher.BeginInvoke(() => Rows[(int)output].SetOutput(_io.GetOutput(output)));
 }
 
 public sealed partial class OutputControlRow : ObservableObject
@@ -189,6 +208,7 @@ public sealed partial class OutputControlRow : ObservableObject
     private readonly IIoService _io;
     private readonly OutputFeedback? _feedback;
     private bool _timedOut;
+    private bool _waitingForFeedback;
     private bool _outputOn;
     private bool _onInput;
     private bool _offInput;
@@ -203,11 +223,12 @@ public sealed partial class OutputControlRow : ObservableObject
         _feedback = feedback;
         Output = output;
         Area = area;
-        ReadHardware();
+        Section = output.GetIoSection();
     }
 
     public OutputIo Output { get; }
     public HardwareArea Area { get; }
+    public IoSection? Section { get; }
     public bool HasFeedback => _feedback is not null;
     public bool OutputOn => _outputOn;
     public InputIo? OnInput => _feedback?.OnInput;
@@ -223,7 +244,9 @@ public sealed partial class OutputControlRow : ObservableObject
                 ? OutputFeedbackState.Conflict
                 : ExpectedInputOn
                     ? OutputFeedbackState.Matched
-                    : OutputFeedbackState.NotMatched;
+                    : _waitingForFeedback
+                        ? OutputFeedbackState.Waiting
+                        : OutputFeedbackState.NotMatched;
 
     [RelayCommand]
     private async Task ToggleAsync(CancellationToken cancellationToken)
@@ -238,18 +261,22 @@ public sealed partial class OutputControlRow : ObservableObject
 
             if (HasFeedback)
             {
+                SetWaiting(true);
                 await _io.WaitForOutputFeedbackAsync(
                     Output, value, cancellationToken);
             }
         }
+        catch (IoTimeoutException)
+        {
+            _timedOut = true;
+        }
         catch (OperationCanceledException)
         {
         }
-        catch (IoTimeoutException)
+        finally
         {
-            MarkTimeout();
+            SetWaiting(false);
         }
-
     }
 
     private void ClearTimeout()
@@ -258,9 +285,9 @@ public sealed partial class OutputControlRow : ObservableObject
         OnPropertyChanged(nameof(FeedbackState));
     }
 
-    private void MarkTimeout()
+    private void SetWaiting(bool value)
     {
-        _timedOut = true;
+        _waitingForFeedback = value;
         OnPropertyChanged(nameof(FeedbackState));
     }
 

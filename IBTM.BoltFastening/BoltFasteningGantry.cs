@@ -54,6 +54,9 @@ public sealed class BoltFasteningGantry
         CylinderState(
             InputIo.ShootingHeadUp,
             InputIo.ShootingHeadDown);
+    public bool CanMoveHorizontal =>
+        PickupHeadPosition == BoltCylinderState.Up
+        && ShootingHeadPosition == BoltCylinderState.Up;
     internal BoltEscapeState ShootingEscape =>
         (_io.GetInput(InputIo.ShootingEscapeForward),
             _io.GetInput(InputIo.ShootingEscapeBackward)) switch
@@ -99,8 +102,11 @@ public sealed class BoltFasteningGantry
     public Task<bool> HomeAxisAsync(
         MotionAxis axis,
         double velocity,
-        CancellationToken cancellationToken = default) =>
-        _motion.HomeAsync(axis, velocity, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        if (axis != MotionAxis.Z) EnsureCanMoveHorizontal(cancellationToken);
+        return _motion.HomeAsync(axis, velocity, cancellationToken);
+    }
 
     public Task<bool> HomeZAsync(
         double velocity,
@@ -109,18 +115,24 @@ public sealed class BoltFasteningGantry
 
     public Task<bool> HomeHorizontalAsync(
         double velocity,
-        CancellationToken cancellationToken = default) =>
-        _motion.HomeHorizontalAsync(velocity, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCanMoveHorizontal(cancellationToken);
+        return _motion.HomeHorizontalAsync(velocity, cancellationToken);
+    }
 
     public Task MoveToXYAsync(
         double x,
         double y,
-        CancellationToken cancellationToken = default) =>
-        _motion.MoveToXYAsync(
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCanMoveHorizontal(cancellationToken);
+        return _motion.MoveToXYAsync(
             x,
             y,
             _settings.Motion.HorizontalSpeed,
             cancellationToken);
+    }
 
     public Task MoveZAsync(
         double z,
@@ -134,8 +146,11 @@ public sealed class BoltFasteningGantry
         double x,
         double y,
         double z,
-        CancellationToken cancellationToken = default) =>
-        _motion.MoveToAsync(x, y, z, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCanMoveHorizontal(cancellationToken);
+        return _motion.MoveToAsync(x, y, z, cancellationToken);
+    }
 
     public void Jog(
         MotionAxis axis,
@@ -145,9 +160,11 @@ public sealed class BoltFasteningGantry
         switch (axis)
         {
             case MotionAxis.X:
+                EnsureCanMoveHorizontal(cancellationToken);
                 _motion.JogX(velocity, cancellationToken);
                 break;
             case MotionAxis.Y:
+                EnsureCanMoveHorizontal(cancellationToken);
                 _motion.JogY(velocity, cancellationToken);
                 break;
             case MotionAxis.Z:
@@ -178,6 +195,7 @@ public sealed class BoltFasteningGantry
                 cancellationToken);
         }
 
+        EnsureCanMoveHorizontal(cancellationToken);
         await _motion.MoveToAsync(
             position.X,
             position.Y,
@@ -205,22 +223,21 @@ public sealed class BoltFasteningGantry
             false,
             cancellationToken);
 
-        if (head == FasteningHead.Pickup)
-        {
-            await SetPickupHeadDownAsync(false, cancellationToken);
-        }
+        await SetHeadDownAsync(head, false, cancellationToken);
     }
 
-    internal async Task SelectHeadAsync(
+    internal Task SetHeadDownAsync(
         FasteningHead head,
-        CancellationToken cancellationToken = default)
-    {
-        await SetPickupHeadDownAsync(false, cancellationToken);
-        await _io.SetOutputAndWaitAsync(
-            OutputIo.ShootingHeadDown,
-            head == FasteningHead.Shooting,
-            cancellationToken);
-    }
+        bool down,
+        CancellationToken cancellationToken = default) => head switch
+        {
+            FasteningHead.Pickup => SetPickupHeadDownAsync(down, cancellationToken),
+            FasteningHead.Shooting => _io.SetOutputAndWaitAsync(
+                OutputIo.ShootingHeadDown,
+                down,
+                cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(head)),
+        };
 
     internal Task RaiseShootingHeadAsync(
         CancellationToken cancellationToken = default) =>
@@ -229,13 +246,21 @@ public sealed class BoltFasteningGantry
             false,
             cancellationToken);
 
+    public Task RaiseCylindersAsync(CancellationToken cancellationToken = default) =>
+        Task.WhenAll(
+            SetPickupHeadDownAsync(false, cancellationToken),
+            RaiseShootingHeadAsync(cancellationToken));
+
     internal Task MoveToPickupPositionAsync(
-        CancellationToken cancellationToken = default) =>
-        _motion.MoveToAsync(
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCanMoveHorizontal(cancellationToken);
+        return _motion.MoveToAsync(
             _settings.PickupPosition.X,
             _settings.PickupPosition.Y,
             _settings.PickupPosition.Z,
             cancellationToken);
+    }
 
     internal Task PickUpBoltAsync(
         CancellationToken cancellationToken = default) =>
@@ -424,6 +449,16 @@ public sealed class BoltFasteningGantry
             or InputIo.ShootingEscapeBackward)
         {
             Changed?.Invoke();
+        }
+    }
+
+    private void EnsureCanMoveHorizontal(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!CanMoveHorizontal)
+        {
+            throw new InvalidOperationException(
+                "Raise the fastening table and both heads before moving X/Y.");
         }
     }
 

@@ -12,6 +12,42 @@ namespace IBTM.Virtual.Tests;
 public sealed class NgConveyorTests
 {
     [Fact]
+    public async Task CompactionResumesBetweenPositionSensors()
+    {
+        var system = CreateSystem();
+        system.Io.AutoResponseEnabled = false;
+        system.Io.SetInput(InputIo.NgShuttleUp, true);
+        system.Io.SetInput(InputIo.NgShuttleDown, false);
+        system.Io.SetInput(InputIo.NgConveyorStopperUp, true);
+        system.Io.SetInput(InputIo.NgConveyorStopperDown, false);
+        system.Io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
+        using var stop = new CancellationTokenSource();
+        void StopBetweenSensors(OutputIo output, bool value)
+        {
+            if (output == OutputIo.NgConveyorRun && value)
+            {
+                system.Io.SetInput(InputIo.NgConveyorPosition2Occupied, false);
+                stop.Cancel();
+            }
+        }
+
+        system.Io.OutputChanged += StopBetweenSensors;
+        await system.Conveyor.RunAsync(stop.Token);
+        system.Io.OutputChanged -= StopBetweenSensors;
+        Assert.False(system.Conveyor.RunCommandOn);
+        Assert.Equal(NgConveyorState.CompactingCarriers, system.Conveyor.State);
+
+        using var resumed = new CancellationTokenSource();
+        var run = system.Conveyor.RunAsync(resumed.Token);
+        Assert.True(system.Conveyor.RunCommandOn);
+        system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+        await WaitForOutputAsync(system.Io, OutputIo.NgConveyorRun, false);
+        resumed.Cancel();
+        await run;
+        Assert.Equal(NgConveyorState.ReadyToEject, system.Conveyor.State);
+    }
+
+    [Fact]
     public async Task StopDuringMotorSetupCannotTurnRunBackOn()
     {
         var system = CreateSystem();
@@ -89,8 +125,10 @@ public sealed class NgConveyorTests
         await runs;
     }
 
-    [Fact]
-    public async Task ResumesSelectedDestinationAfterStop()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ResumesSelectedDestinationAfterStop(bool stopAtDestination)
     {
         var system = CreateSystem();
         await system.Signals.SetOutputAndWaitAsync(
@@ -100,9 +138,21 @@ public sealed class NgConveyorTests
         system.Io.SetInput(InputIo.NgConveyorPosition3Occupied, true);
 
         using var stop = new CancellationTokenSource();
+        var motorStarts = 0;
         system.Io.OutputChanged += (output, value) =>
         {
             if (output == OutputIo.NgConveyorRun && value)
+            {
+                motorStarts++;
+                if (!stopAtDestination)
+                {
+                    stop.Cancel();
+                }
+            }
+        };
+        system.Io.InputChanged += (input, value) =>
+        {
+            if (stopAtDestination && input == InputIo.NgConveyorPosition1Occupied && value)
             {
                 stop.Cancel();
             }
@@ -121,6 +171,7 @@ public sealed class NgConveyorTests
         await runs;
 
         Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
+        Assert.Equal(stopAtDestination ? 1 : 2, motorStarts);
     }
 
     private static TestSystem CreateSystem(int alarmCarrierCount = 3)

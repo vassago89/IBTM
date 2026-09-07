@@ -15,6 +15,55 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class ConveyorTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ArrivedCarrierIsNotLoweredAgainAfterRestart(bool toInspection)
+    {
+        var io = CreateIo();
+        _ = new VirtualMachine(io, []);
+        var conveyor = CreateConveyor(io,
+            placementEnabled: toInspection,
+            boltFasteningEnabled: !toInspection);
+        io.Initialize();
+        io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
+        io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+        await SetSeatedCarrierAsync(io, io,
+            toInspection ? InputIo.BoltFasteningCarrierPresent : InputIo.PcbPlacementCarrierPresent,
+            toInspection ? OutputIo.BoltFasteningBackupPlateUp : OutputIo.PcbPlacementBackupPlateUp);
+        var plateUp = toInspection
+            ? InputIo.InspectionBackupPlateUp : InputIo.BoltFasteningBackupPlateUp;
+        var plateOutput = toInspection
+            ? OutputIo.InspectionBackupPlateUp : OutputIo.BoltFasteningBackupPlateUp;
+        var stopperDown = toInspection
+            ? InputIo.InspectionStopperDown : InputIo.BoltFasteningStopperDown;
+        using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        void StopAtPlate(InputIo input, bool value)
+        {
+            if (input == plateUp && value)
+            {
+                firstStop.Cancel();
+            }
+        }
+
+        io.InputChanged += StopAtPlate;
+        await conveyor.RunAsync(firstStop.Token);
+        io.InputChanged -= StopAtPlate;
+        Assert.True(io.GetInput(plateUp));
+        var loweredAgain = false;
+        io.OutputChanged += (output, value) => loweredAgain |= output == plateOutput && !value;
+        using var resumed = new CancellationTokenSource();
+        var run = conveyor.RunAsync(resumed.Token);
+        var seated = await WaitUntilAsync(
+            () => io.GetInput(plateUp) && io.GetInput(stopperDown) && !conveyor.RunCommandOn,
+            TimeSpan.FromSeconds(3));
+        resumed.Cancel();
+        await run;
+
+        Assert.True(seated);
+        Assert.False(loweredAgain);
+    }
+
     [Fact]
     public void HeatSinkInputChangesDoNotEraseCompletionOrTransferredNg()
     {
@@ -117,7 +166,7 @@ public sealed class ConveyorTests
             placementWork,
             boltWork,
             inspectionWork,
-            inspectionBypassToNg: false);
+            routeInspectionToNg: () => inspectionWork.RouteToNg);
         using var cancellation = new CancellationTokenSource();
 
         io.Initialize();
@@ -158,6 +207,75 @@ public sealed class ConveyorTests
 
         cancellation.Cancel();
         await run;
+    }
+
+    [Fact]
+    public async Task DisabledNgTransferLetsNgCarrierLeaveAtRear()
+    {
+        var virtualIo = CreateIo();
+        IIoService io = virtualIo;
+        _ = new VirtualMachine(virtualIo, []);
+        var inspectionWork = new InspectionWork(
+            ConveyorStation.Inspection(io),
+            new TestNgCarrierTransferFeedback(io));
+        var ngTransferEnabled = true;
+        var conveyor = new MainConveyor(
+            io,
+            new OperationCancellation(),
+            new PcbPlacementWork(
+                ConveyorStation.PcbPlacement(io),
+                isEnabled: () => false),
+            new BoltFasteningWork(
+                ConveyorStation.BoltFastening(io),
+                isEnabled: () => false),
+            inspectionWork,
+            routeInspectionToNg: () => ngTransferEnabled && inspectionWork.RouteToNg);
+        var discharged = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var reachedExit = false;
+        io.InputChanged += (input, value) =>
+        {
+            if (input != InputIo.MainConveyorExitCarrierDetected)
+            {
+                return;
+            }
+
+            reachedExit |= value;
+            if (reachedExit && !value)
+            {
+                discharged.TrySetResult();
+            }
+        };
+
+        io.Initialize();
+        virtualIo.SetInput(InputIo.InspectionHeatSink1Present, true);
+        await SetSeatedCarrierAsync(
+            virtualIo,
+            io,
+            InputIo.InspectionCarrierPresent,
+            OutputIo.InspectionBackupPlateUp);
+        var assembly = inspectionWork.Assembly(HeatSinkSlot.HeatSink1);
+        assembly.RecordBoltPresence(1, false);
+        assembly.CompleteInspection();
+        inspectionWork.Complete();
+        Assert.True(inspectionWork.HasNg);
+        virtualIo.SetInput(InputIo.MainConveyorReadyFromRear, true);
+        Assert.NotEqual(
+            MainConveyorState.DischargingInspectionCarrier,
+            conveyor.State);
+        ngTransferEnabled = false;
+        Assert.Equal(
+            MainConveyorState.DischargingInspectionCarrier,
+            conveyor.State);
+
+        using var cancellation = new CancellationTokenSource();
+        var run = conveyor.RunAsync(cancellation.Token);
+        await discharged.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        cancellation.Cancel();
+        await run;
+
+        Assert.False(io.GetInput(InputIo.InspectionCarrierPresent));
+        Assert.False(conveyor.RunCommandOn);
     }
 
     [Fact]
@@ -295,7 +413,7 @@ public sealed class ConveyorTests
             boltWork,
             new InspectionWork(
                 ConveyorStation.Inspection(io), new TestNgCarrierTransferFeedback(io)),
-            inspectionBypassToNg: false);
+            routeInspectionToNg: () => false);
 
         io.Initialize();
         virtualIo.SetInput(
@@ -361,7 +479,7 @@ public sealed class ConveyorTests
             placementWork,
             new BoltFasteningWork(ConveyorStation.BoltFastening(io)),
             inspectionWork,
-            inspectionBypassToNg: false);
+            routeInspectionToNg: () => false);
 
         io.Initialize();
         await SetSeatedCarrierAsync(
@@ -445,7 +563,7 @@ public sealed class ConveyorTests
             boltWork,
             new InspectionWork(
                 ConveyorStation.Inspection(io), new TestNgCarrierTransferFeedback(io)),
-            inspectionBypassToNg: false);
+            routeInspectionToNg: () => false);
 
         io.Initialize();
         var assembly = placementWork.Assembly(HeatSinkSlot.HeatSink1);
@@ -456,17 +574,22 @@ public sealed class ConveyorTests
     }
 
     [Fact]
-    public void DisabledStationRemainsCompleteWhenHeatSinkArrivesLater()
+    public void StationWorkReadsCurrentUnitSetting()
     {
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
+        var enabled = false;
         var placementWork = new PcbPlacementWork(
-            ConveyorStation.PcbPlacement(io), enabled: false);
+            ConveyorStation.PcbPlacement(io), () => enabled);
 
         io.Initialize();
         virtualIo.SetInput(InputIo.PcbPlacementCarrierPresent, true);
         virtualIo.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
 
+        Assert.True(placementWork.Completed);
+        enabled = true;
+        Assert.False(placementWork.Completed);
+        enabled = false;
         Assert.True(placementWork.Completed);
     }
 
@@ -484,7 +607,7 @@ public sealed class ConveyorTests
         var work = new InspectionWork(
             ConveyorStation.Inspection(io),
             new TestNgCarrierTransferFeedback(io),
-            enabled: false);
+            isEnabled: () => false);
 
         Assert.True(work.CarrierSeated);
         Assert.True(work.CanTransfer);
@@ -563,13 +686,17 @@ public sealed class ConveyorTests
         bool inspectionEnabled = true) => new(
             io,
             new OperationCancellation(),
-            new PcbPlacementWork(ConveyorStation.PcbPlacement(io), placementEnabled),
-            new BoltFasteningWork(ConveyorStation.BoltFastening(io), boltFasteningEnabled),
+            new PcbPlacementWork(
+                ConveyorStation.PcbPlacement(io),
+                () => placementEnabled),
+            new BoltFasteningWork(
+                ConveyorStation.BoltFastening(io),
+                () => boltFasteningEnabled),
             new InspectionWork(
                 ConveyorStation.Inspection(io),
                 new TestNgCarrierTransferFeedback(io),
-                inspectionEnabled),
-            inspectionBypassToNg: false);
+                () => inspectionEnabled),
+            routeInspectionToNg: () => false);
 
     private static VirtualIoService CreateIo() => new(
         Outputs(new ConveyorHardwareSettings(), new NgCarrierTransferHardwareSettings()),

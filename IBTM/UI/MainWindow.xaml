@@ -180,7 +180,7 @@
 
                     <Button Content="OUTPUTS"
                             Style="{StaticResource SidebarToolButtonStyle}"
-                            IsEnabled="{Binding ManualControlsEnabled}"
+                            IsEnabled="{Binding ManualOutputsEnabled}"
                             Click="OnOpenOutputs"/>
 
                     <Button Content="ADC TEST"
@@ -484,8 +484,24 @@
                         <StackPanel Orientation="Horizontal"
                                     Visibility="{Binding OperationPageSelected,
                                                          Converter={StaticResource BoolToVis}}">
+                            <Button Command="{Binding Operation.RaiseCylindersCommand}"
+                                    ToolTip="Raise cylinders for the homing units only. Does not move or home axes."
+                                    MinWidth="156" Height="40" Margin="0,0,6,0">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Setter Property="Content" Value="RAISE CYLINDERS"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Operation.RaiseCylindersCommand.IsRunning}" Value="True">
+                                                <Setter Property="Content" Value="RAISING..."/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
                             <Button Content="HOME ALL"
                                     Command="{Binding Operation.HomeCommand}"
+                                    ToolTip="{Binding Operation.HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
+                                    ToolTipService.ShowOnDisabled="True"
                                     MinWidth="104"
                                     Height="40"
                                     Margin="0,0,6,0">

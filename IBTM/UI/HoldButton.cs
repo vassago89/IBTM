@@ -37,14 +37,16 @@ public sealed class HoldButton : Button
         MouseButtonEventArgs e)
     {
         base.OnPreviewMouseLeftButtonDown(e);
-        if (PressCommand?.CanExecute(CommandParameter) != true)
+        if (PressCommand?.CanExecute(CommandParameter) != true || !CaptureMouse())
         {
             return;
         }
 
         _holding = true;
-        CaptureMouse();
+        // CanExecute admits a new jog; it becomes false while this jog is running.
+        Command = null;
         PressCommand.Execute(CommandParameter);
+        e.Handled = true;
     }
 
     protected override void OnPreviewMouseLeftButtonUp(
@@ -91,7 +93,7 @@ public sealed class HoldButton : Button
     private static void OnPressCommandChanged(
         DependencyObject sender,
         DependencyPropertyChangedEventArgs e) =>
-        ((HoldButton)sender).Command = (ICommand?)e.NewValue;
+        ((HoldButton)sender).Command = ((HoldButton)sender)._holding ? null : (ICommand?)e.NewValue;
 
     private void EndHold()
     {
@@ -102,6 +104,7 @@ public sealed class HoldButton : Button
 
         _holding = false;
         ReleaseCommand?.Execute(CommandParameter);
+        Command = PressCommand;
         ReleaseMouseCapture();
     }
 }

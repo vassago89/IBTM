@@ -26,6 +26,4 @@ public sealed class UnitSettings : Setting
         || NgCarrierTransfer
         || NgShuttle
         || NgConveyor;
-
-    internal UnitSettings Snapshot() => (UnitSettings)MemberwiseClone();
 }

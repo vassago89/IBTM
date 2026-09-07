@@ -63,6 +63,9 @@ public sealed class NgCarrierTransfer : INgCarrierTransferFeedback
     public bool IsRaised => Lift == NgTransferLiftState.Up;
     public bool IsClear => IsRaised && !CarrierDetected;
 
+    public Task RaiseAsync(CancellationToken cancellationToken = default) =>
+        SetLiftDownAsync(false, cancellationToken);
+
     internal Task SetLiftDownAsync(
         bool down,
         CancellationToken cancellationToken = default) =>

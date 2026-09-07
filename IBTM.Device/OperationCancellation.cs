@@ -12,6 +12,13 @@ public sealed class OperationCancellation
     private TaskCompletionSource? _shutdown;
     private TaskCompletionSource? _drained;
 
+    public event Action? ActivityChanged;
+
+    public bool HasActiveOperations
+    {
+        get { lock (_gate) return _activeOperations > 0; }
+    }
+
     public bool IsShuttingDown
     {
         get { lock (_gate) return _shutdown is not null; }
@@ -21,6 +28,8 @@ public sealed class OperationCancellation
         CancellationToken cancellationToken = default,
         CancellationToken additionalCancellationToken = default)
     {
+        Operation operation;
+        bool becameActive;
         lock (_gate)
         {
             if (_shutdown is not null)
@@ -34,9 +43,16 @@ public sealed class OperationCancellation
                 cancellationToken,
                 additionalCancellationToken,
                 _source.Token);
-            _activeOperations++;
-            return new Operation(this, source);
+            becameActive = ++_activeOperations == 1;
+            operation = new Operation(this, source);
         }
+
+        if (becameActive)
+        {
+            ActivityChanged?.Invoke();
+        }
+
+        return operation;
     }
 
     public void Cancel()
@@ -113,12 +129,21 @@ public sealed class OperationCancellation
 
     private void CompleteOperation()
     {
+        bool becameIdle;
         lock (_gate)
         {
-            if (--_activeOperations == 0)
+            becameIdle = --_activeOperations == 0;
+            if (becameIdle)
             {
                 _drained?.TrySetResult();
             }
+            // Shutdown may dispose subscribers once the drain completes.
+            becameIdle &= _shutdown is null;
+        }
+
+        if (becameIdle)
+        {
+            ActivityChanged?.Invoke();
         }
     }
 

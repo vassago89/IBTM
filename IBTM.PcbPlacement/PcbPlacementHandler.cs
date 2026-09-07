@@ -79,6 +79,9 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         !_motion.IsMoving
         && _motion.GetAxisState(MotionAxis.Z).InPosition
         && _motion.IsAtHorizontalZ;
+    public bool CanMoveHorizontal =>
+        Lift == PlacementCylinderState.Up
+        && IpmLift == PlacementCylinderState.Up;
     internal bool AtBufferXY =>
         IsAtXY(_settings.BufferHandoffPosition);
     internal bool AtBufferZ =>
@@ -94,8 +97,11 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
     public Task<bool> HomeAxisAsync(
         MotionAxis axis,
         double velocity,
-        CancellationToken cancellationToken = default) =>
-        _motion.HomeAsync(axis, velocity, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        if (axis != MotionAxis.Z) EnsureCanMoveHorizontal(cancellationToken);
+        return _motion.HomeAsync(axis, velocity, cancellationToken);
+    }
 
     public Task<bool> HomeZAsync(
         double velocity,
@@ -104,8 +110,11 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
 
     public Task<bool> HomeHorizontalAsync(
         double velocity,
-        CancellationToken cancellationToken = default) =>
-        _motion.HomeHorizontalAsync(velocity, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCanMoveHorizontal(cancellationToken);
+        return _motion.HomeHorizontalAsync(velocity, cancellationToken);
+    }
 
     internal bool IsAtXY(AxisPosition position) =>
         !_motion.IsMoving
@@ -137,12 +146,15 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
 
     internal Task MoveAboveAsync(
         AxisPosition position,
-        CancellationToken cancellationToken = default) =>
-        _motion.MoveToXYAsync(
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCanMoveHorizontal(cancellationToken);
+        return _motion.MoveToXYAsync(
             position.X,
             position.Y,
             _settings.Motion.HorizontalSpeed,
             cancellationToken);
+    }
 
     internal Task LowerToAsync(
         AxisPosition position,
@@ -154,19 +166,25 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
 
     public Task MoveXAsync(
         double x,
-        CancellationToken cancellationToken = default) =>
-        _motion.MoveXAsync(
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCanMoveHorizontal(cancellationToken);
+        return _motion.MoveXAsync(
             x,
             _settings.Motion.HorizontalSpeed,
             cancellationToken);
+    }
 
     public Task MoveYAsync(
         double y,
-        CancellationToken cancellationToken = default) =>
-        _motion.MoveYAsync(
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCanMoveHorizontal(cancellationToken);
+        return _motion.MoveYAsync(
             y,
             _settings.Motion.HorizontalSpeed,
             cancellationToken);
+    }
 
     public Task MoveZAsync(
         double z,
@@ -179,19 +197,25 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
     public Task MoveToXYAsync(
         double x,
         double y,
-        CancellationToken cancellationToken = default) =>
-        _motion.MoveToXYAsync(
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCanMoveHorizontal(cancellationToken);
+        return _motion.MoveToXYAsync(
             x,
             y,
             _settings.Motion.HorizontalSpeed,
             cancellationToken);
+    }
 
     public Task MoveToAsync(
         double x,
         double y,
         double z,
-        CancellationToken cancellationToken = default) =>
-        _motion.MoveToAsync(x, y, z, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCanMoveHorizontal(cancellationToken);
+        return _motion.MoveToAsync(x, y, z, cancellationToken);
+    }
 
     public void Jog(
         MotionAxis axis,
@@ -201,9 +225,11 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         switch (axis)
         {
             case MotionAxis.X:
+                EnsureCanMoveHorizontal(cancellationToken);
                 _motion.JogX(velocity, cancellationToken);
                 break;
             case MotionAxis.Y:
+                EnsureCanMoveHorizontal(cancellationToken);
                 _motion.JogY(velocity, cancellationToken);
                 break;
             case MotionAxis.Z:
@@ -219,6 +245,11 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             OutputIo.PcbPlacementHandlerDown,
             down,
             cancellationToken);
+
+    public Task RaiseCylindersAsync(CancellationToken cancellationToken = default) =>
+        Task.WhenAll(
+            SetLiftDownAsync(false, cancellationToken),
+            SetIpmLiftDownAsync(false, cancellationToken));
 
     internal Task SetIpmLiftDownAsync(
         bool down,
@@ -257,11 +288,10 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
     }
 
     internal Task WaitForPcbAsync(
-        bool present,
         CancellationToken cancellationToken = default) =>
         _io.WaitForInputAsync(
             InputIo.PcbPlacementPcbDetected,
-            present,
+            true,
             cancellationToken);
 
     private PlacementCylinderState CylinderState(
@@ -273,6 +303,16 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             (false, true) => PlacementCylinderState.Down,
             _ => PlacementCylinderState.Between,
         };
+
+    private void EnsureCanMoveHorizontal(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!CanMoveHorizontal)
+        {
+            throw new InvalidOperationException(
+                "Raise the placement handler and IPM cylinders before moving X/Y.");
+        }
+    }
 
     private void OnInputChanged(InputIo input, bool _)
     {

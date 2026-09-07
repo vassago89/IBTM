@@ -40,10 +40,15 @@ public partial class InputWindow : Window, INotifyPropertyChanged
             nameof(InputControlRow.Area),
             ListSortDirection.Ascending));
         FilteredRows.SortDescriptions.Add(new(
+            nameof(InputControlRow.Section),
+            ListSortDirection.Ascending));
+        FilteredRows.SortDescriptions.Add(new(
             nameof(InputControlRow.Input),
             ListSortDirection.Ascending));
         FilteredRows.GroupDescriptions.Add(new PropertyGroupDescription(
             nameof(InputControlRow.Area)));
+        FilteredRows.GroupDescriptions.Add(new PropertyGroupDescription(
+            nameof(InputControlRow.Section)));
         FilteredRows.Filter = item =>
         {
             var row = (InputControlRow)item;
@@ -54,17 +59,9 @@ public partial class InputWindow : Window, INotifyPropertyChanged
 
         InitializeComponent();
         _io.InputChanged += OnInputChanged;
-        try
+        foreach (var row in Rows)
         {
-            foreach (var row in Rows)
-            {
-                row.Set(_io.GetInput(row.Input));
-            }
-        }
-        catch
-        {
-            _io.InputChanged -= OnInputChanged;
-            throw;
+            row.Set(_io.GetInput(row.Input));
         }
         if (_virtualIo is not null)
         {
@@ -126,9 +123,9 @@ public partial class InputWindow : Window, INotifyPropertyChanged
         _virtualIo!.SetInput(row.Input, !_virtualIo.GetInput(row.Input));
     }
 
-    private void OnInputChanged(InputIo input, bool value) =>
+    private void OnInputChanged(InputIo input, bool _) =>
         Dispatcher.BeginInvoke((Action)(() =>
-            Rows[(int)input].Set(value)));
+            Rows[(int)input].Set(_io.GetInput(input))));
 
     private void OnAutoResponseChanged() =>
         Dispatcher.BeginInvoke((Action)(() =>
@@ -145,6 +142,7 @@ public sealed class InputControlRow(
 
     public InputIo Input { get; } = input;
     public HardwareArea Area { get; } = area;
+    public IoSection? Section { get; } = input.GetIoSection();
     public bool IsOn => _isOn;
 
     public void Set(bool value)

@@ -38,9 +38,5 @@ internal static class CommandShutdown
         catch (OperationCanceledException) when (completion.IsCanceled)
         {
         }
-        catch (OperationCanceledException)
-        {
-            throw completion.Exception!;
-        }
     }
 }

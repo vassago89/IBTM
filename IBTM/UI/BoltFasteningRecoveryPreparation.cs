@@ -17,9 +17,8 @@ public sealed class BoltFasteningRecoveryPreparation
         MachineState state,
         BoltFasteningWork work,
         BoltFasteningStation fastening,
-        Recipe recipe,
-        UnitSettings units)
-        : base(state, work, units.BoltFastening)
+        Recipe recipe)
+        : base(state, work)
     {
         _work = work;
         _fastening = fastening;

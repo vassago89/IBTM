@@ -89,7 +89,6 @@ public sealed class PcbSupplier(
 
                     case PcbSupplyState.WaitingForBufferPcb:
                         await buffer.WaitForPcbAsync(
-                            true,
                             cancellationToken);
                         break;
 

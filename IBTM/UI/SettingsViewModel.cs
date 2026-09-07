@@ -131,6 +131,7 @@ public partial class SettingsViewModel : ObservableObject
     {
         ApplyHardwareMappings();
         await _store.SaveSettingsAsync(Settings);
+        _state.Refresh();
     }
 
     [RelayCommand(CanExecute = nameof(CanChangeVirtualImage))]
@@ -256,10 +257,15 @@ public partial class SettingsViewModel : ObservableObject
             nameof(HardwareMappingRow.Area),
             System.ComponentModel.ListSortDirection.Ascending));
         view.SortDescriptions.Add(new(
-            nameof(HardwareMappingRow.Signal),
+            nameof(HardwareMappingRow.Section),
+            System.ComponentModel.ListSortDirection.Ascending));
+        view.SortDescriptions.Add(new(
+            nameof(HardwareMappingRow.Order),
             System.ComponentModel.ListSortDirection.Ascending));
         view.GroupDescriptions.Add(new PropertyGroupDescription(
             nameof(HardwareMappingRow.Area)));
+        view.GroupDescriptions.Add(new PropertyGroupDescription(
+            nameof(HardwareMappingRow.Section)));
         return view;
     }
 }

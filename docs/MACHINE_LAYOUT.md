@@ -207,9 +207,10 @@ Commission the image map in this order:
 3. Adjust millimetres per pixel until features in the overlap coincide.
 4. Click the upper-left and lower-right locating pins. Before both pins are taught,
    the image map does not display machine coordinates. Afterward it displays only
-   upper-left-relative carrier X/Y. Re-teaching the upper-left pin clears the previous
-   lower-right pin so references from two calibrations cannot be mixed. Untaught pins
-   and bolts are not drawn as markers.
+   upper-left-relative carrier X/Y. Each locating pin can be re-taught independently;
+   re-teaching the upper-left pin preserves the existing lower-right pin. The same
+   rule applies to both Station 2 fastening heads. Untaught pins and bolts are not
+   drawn as markers.
 5. Teach one bolt in Station 3, teach the matching head references in Station 2, and
    verify that transformed point before adding the remaining bolts.
 

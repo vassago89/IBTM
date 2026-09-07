@@ -51,7 +51,7 @@ installation prerequisites even when some automatic units are disabled.
 
 `UnitSettings.json` enables Main Conveyor, PCB Supply, PCB Placement, Pickup Bolt
 Feeder, Shooting Bolt Feeder, Bolt Fastening, Inspection, NG Carrier Transfer,
-NG Shuttle and NG Conveyor separately. Changes apply after restart.
+NG Shuttle and NG Conveyor separately. Unit changes apply to the next run.
 
 Inspection and NG Carrier Transfer have separate enable flags but share the
 InspectionStation loop. The other enabled automatic units run independently.
@@ -62,11 +62,32 @@ homing because their shared handoff interlock uses both positions.
 units share the same cancellation token. A unit fault cancels the other units.
 Motion objects stop the axes they own on cancellation. Pneumatic outputs are
 maintained; conveyor, feeder and shooting run outputs are stopped.
+Start remains blocked while a previous operation scope is still active, even if
+the axes have stopped. The existing scope count covers manual image acquisition,
+scan saving and canceled-operation cleanup; cancellation itself is still immediate.
 An unsuccessful home result immediately cancels the other homing axes; horizontal
 homing starts only after the preceding Z preparation has completed successfully.
 The same rule applies within an AJIN XY group: one failed home cancels its sibling.
-Inspection XY Home requires the operator to release any detected NG carrier first,
-then confirms the empty gripper open and pickup raised before moving the axes.
+Home All and individual-axis Home require all carrier detection inputs to be OFF:
+main conveyor entry/stations/exit, NG pickup, NG shuttle and NG conveyor P1/P2/P3.
+The operator must raise the cylinders on the units being homed beforehand:
+Placement handler/IPM, bolt table/both heads, and NG pickup. Both the Up input and
+the absence of Down feedback are checked. Disabled units are excluded from Home
+All cylinder checks; an individual Home still checks its selected unit. NG shuttle
+height, stoppers and backup plates are not handler-cylinder Home prerequisites.
+Inspection Home no longer opens the gripper or raises the pickup automatically.
+The separate **RAISE CYLINDERS** button raises the required enabled units together
+and waits for their mapped Up/Down feedback, using the configured I/O timeout.
+It requires an empty machine and idle, safe Manual operation. It neither moves nor
+homes axes and does not change grippers, vacuum, stoppers, plates or NG shuttle
+height. After the inputs confirm Up, use **HOME ALL** separately. STOP cancels the
+feedback waits while retaining pneumatic outputs; a timeout alarms the affected
+unit. Repeating the button with cylinders already Up is allowed.
+If a required cylinder loses its raised state or a carrier is detected during Home,
+the existing cancellation path stops homing. OUTPUTS remains available before
+homing when I/O is ready and the machine is idle, safe, alarm-free and in Manual
+mode; axis movement remains locked until homed. The Supply rotation/limit-search
+home sequence is unchanged.
 Jog and commanded XY moves require the same pickup-up feedback. Losing it during
 movement stops the machine. Background Jog failures also report a motion alarm
 and cancel the machine's other operations.
@@ -113,15 +134,19 @@ and lowers its plate. It stops at the destination carrier sensor, raises the pla
 and lowers the stopper. Stations process the heat sinks detected at job start;
 an empty carrier passes through, and Inspection marks an empty inspection job NG.
 Completed inspection results, rather than later presence changes, determine the
-normal/NG route. With inspection disabled, existing presence-based bypass rules
-still apply.
+normal/NG route. With inspection disabled, the NG Transfer enable setting
+determines the bypass route.
 
 The Supply PCB-carrier SMEMA and main-conveyor SMEMA are separate.
 Main-conveyor Front Ready drops when the entry sensor detects the carrier.
 Rear discharge completes after the exit sensor turns ON then OFF.
 An already active entry/exit sensor takes priority when resuming.
-A carrier stopped between point sensors with all related inputs OFF cannot be
-located automatically.
+An in-progress transfer keeps its destination/phase across Stop, including NG
+conveyor compaction between sensors. This is motion progress, not remembered
+carrier presence, and is not persisted. After a program restart, a carrier between
+sensors with all related inputs OFF cannot be located automatically.
+An arrived carrier resumes seating without lowering its backup plate again;
+an already reached NG destination does not restart the conveyor motor.
 
 Supply X/Y move individually through `IAxisMotion`; Placement, Fastening and
 Inspection use `IXyMotion`. Supply checks both PCB positions independently and
@@ -151,6 +176,9 @@ Inspection moves to each taught bolt point and checks presence. NG carriers move
 on the shared gantry to the independent NG shuttle, then onto the vertical NG
 conveyor at position 3. The conveyor fills position 1 first, then 2, then 3.
 The alarm carrier count is configurable.
+At the shuttle, the NG pickup confirms the gripper open and shuttle carrier input
+before raising. Restart during raising does not close the gripper again, even if
+the pickup's carrier sensor still detects the released carrier.
 
 With Inspection disabled and NG Carrier Transfer enabled, Station 3 carriers route
 to NG. Disabling transfer prevents its automatic motion/IO, not its physical
@@ -200,6 +228,16 @@ Recipes/<Recipe name>/Recipe.json
 Recipes/<Recipe name>/Carrier/0001.png
 ```
 
+Recapture and Save As write new numbered PNGs before replacing the recipe's image list.
+Previous images remain intact if an image or the recipe file cannot be saved.
+After `Recipe.json` is replaced, unreferenced PNGs are removed. Image numbers
+therefore do not necessarily restart at 1 for each scan.
+The recipe toolbar stays disabled throughout teaching, capture and recipe-file
+commands, including their stationary imaging/saving intervals.
+Recipe Save/Load also hold an operation scope until file work finishes, keeping
+Auto Start unavailable. Their commands disable teaching-page edits for the same
+interval; the operation page and Stop remain accessible.
+
 The inspection pipeline uses a centred 128×128 ROI from each camera frame for
 bolt-recess segmentation.
 Training and inference use the same RGB preprocessing. The count of pixels above
@@ -212,6 +250,8 @@ Hardware choices are independent: Control is Virtual/Physical, Camera is
 Virtual/Hik and Bolt is Virtual/HantasAdc. Inspection Algorithm independently
 selects Simulated or Tiny U-Net, so a Virtual camera can run the real trained model.
 Tiny U-Net requires a saved model; it does not silently substitute simulated results.
+Model readiness is checked before automatic units start. Initial setup, Home,
+camera teaching and training remain available before the first model is created.
 With physical hardware and an enabled Simulated inspection, the environment badge
 shows Mixed rather than Physical.
 Virtual IO produces mapped actuator DI

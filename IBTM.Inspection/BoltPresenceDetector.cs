@@ -7,6 +7,8 @@ public sealed class BoltPresenceDetector(
     BoltInspectionSettings settings,
     IBoltRecessSegmenter segmenter)
 {
+    internal void CheckReady() => segmenter.CheckReady();
+
     internal bool IsPresent(ImageFrame image)
     {
         var mask = segmenter.Segment(image);

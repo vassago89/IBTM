@@ -92,6 +92,8 @@
             <ListBox.GroupStyle>
                 <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
                             HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
+                <GroupStyle ContainerStyle="{StaticResource IoSectionGroupItemStyle}"
+                            HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>
             </ListBox.GroupStyle>
             <ListBox.ItemTemplate>
                 <DataTemplate>

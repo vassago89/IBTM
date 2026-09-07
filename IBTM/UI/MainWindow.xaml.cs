@@ -18,7 +18,6 @@ public partial class MainWindow : Window
     private readonly IAdcBus _adcBus;
     private readonly HantasSettings _hantasSettings;
     private readonly MachineController _machine;
-    private readonly OperationCancellation _operations;
     private InputWindow? _inputWindow;
     private OutputWindow? _outputWindow;
     private AdcProtocolWindow? _adcProtocolWindow;
@@ -32,8 +31,7 @@ public partial class MainWindow : Window
         IReadOnlyDictionary<OutputIo, HardwareArea> outputAreas,
         IAdcBus adcBus,
         HantasSettings hantasSettings,
-        MachineController machine,
-        OperationCancellation operations)
+        MachineController machine)
     {
         _io = io;
         _inputAreas = inputAreas;
@@ -41,7 +39,6 @@ public partial class MainWindow : Window
         _adcBus = adcBus;
         _hantasSettings = hantasSettings;
         _machine = machine;
-        _operations = operations;
         InitializeComponent();
         DataContext = viewModel;
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -134,8 +131,7 @@ public partial class MainWindow : Window
         _adcProtocolWindow = new AdcProtocolWindow(
             _adcBus,
             _hantasSettings,
-            _machine,
-            _operations)
+            _machine)
         {
             Owner = this,
         };
@@ -165,11 +161,13 @@ public partial class MainWindow : Window
 
         if (e.PropertyName == nameof(MainViewModel.ManualControlsEnabled))
         {
-            if (!viewModel.ManualControlsEnabled)
-            {
-                _outputWindow?.Close();
-            }
             _adcProtocolWindow?.RefreshControls();
+        }
+
+        if (e.PropertyName == nameof(MainViewModel.ManualOutputsEnabled)
+            && !viewModel.ManualOutputsEnabled)
+        {
+            _outputWindow?.Close();
         }
 
         if (e.PropertyName == nameof(MainViewModel.AdcProtocolEnabled))

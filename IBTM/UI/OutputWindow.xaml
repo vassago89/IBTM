@@ -82,6 +82,8 @@
             <ListBox.GroupStyle>
                 <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
                             HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
+                <GroupStyle ContainerStyle="{StaticResource IoSectionGroupItemStyle}"
+                            HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>
             </ListBox.GroupStyle>
             <ListBox.ItemTemplate>
                 <DataTemplate>
@@ -149,6 +151,11 @@
                                                          Value="{x:Static ui:OutputFeedbackState.Conflict}">
                                                 <Setter Property="Foreground"
                                                         Value="{StaticResource AccentRedBrush}"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding FeedbackState}"
+                                                         Value="{x:Static ui:OutputFeedbackState.Waiting}">
+                                                <Setter Property="Foreground"
+                                                        Value="{StaticResource AccentAmberBrush}"/>
                                             </DataTrigger>
                                             <DataTrigger Binding="{Binding FeedbackState}"
                                                          Value="{x:Static ui:OutputFeedbackState.Timeout}">

@@ -141,11 +141,10 @@ public sealed class BufferStage
     }
 
     public Task WaitForPcbAsync(
-        bool present,
         CancellationToken cancellationToken = default) =>
         _io.WaitForInputAsync(
             InputIo.PcbBufferPcbPresent,
-            present,
+            true,
             cancellationToken);
 
     public async Task WaitForSupplyOutsideAsync(

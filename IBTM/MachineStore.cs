@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -54,6 +55,7 @@ public sealed class MachineStore
         }
 
         File.Move(temporaryPath, filePath, overwrite: true);
+        DeleteUnusedRecipeImages(recipe);
     }
 
     public async Task<Recipe> LoadRecipeAsync(
@@ -80,26 +82,43 @@ public sealed class MachineStore
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-    public void ClearRecipeImages(string recipeName)
+    private void DeleteUnusedRecipeImages(Recipe recipe)
     {
-        var directory = GetRecipeImageDirectory(recipeName);
-        Directory.CreateDirectory(directory);
+        var directory = GetRecipeImageDirectory(recipe.Name);
+        if (!Directory.Exists(directory))
+        {
+            return;
+        }
+
+        var retained = recipe.CarrierImages
+            .Select(tile => GetRecipeImagePath(recipe.Name, tile.Number))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var path in Directory.GetFiles(directory, "*.png"))
         {
-            File.Delete(path);
+            if (!retained.Contains(path))
+            {
+                File.Delete(path);
+            }
         }
     }
 
-    public void SaveRecipeImage(
+    public List<CarrierImageTile> SaveRecipeImages(
         string recipeName,
-        int number,
-        BitmapSource image)
+        IEnumerable<(AxisPosition Center, BitmapSource Image)> images)
     {
-        Directory.CreateDirectory(GetRecipeImageDirectory(recipeName));
-        using var stream = File.Create(GetRecipeImagePath(recipeName, number));
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(image));
-        encoder.Save(stream);
+        var number = GetNextRecipeImageNumber(recipeName);
+        List<CarrierImageTile> tiles = [];
+        foreach (var (center, image) in images)
+        {
+            var tile = new CarrierImageTile { Number = number++, Center = center };
+            using var stream = File.Create(GetRecipeImagePath(recipeName, tile.Number));
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(image));
+            encoder.Save(stream);
+            tiles.Add(tile);
+        }
+
+        return tiles;
     }
 
     public BitmapSource LoadRecipeImage(string recipeName, int number)
@@ -114,19 +133,34 @@ public sealed class MachineStore
         return image;
     }
 
-    public void CopyRecipeImages(
+    public List<CarrierImageTile> CopyRecipeImages(
         string sourceRecipe,
         string targetRecipe,
-        IEnumerable<int> numbers)
+        IEnumerable<CarrierImageTile> sourceTiles)
     {
-        Directory.CreateDirectory(GetRecipeImageDirectory(targetRecipe));
-        foreach (var number in numbers)
+        var number = GetNextRecipeImageNumber(targetRecipe);
+        List<CarrierImageTile> tiles = [];
+        foreach (var source in sourceTiles)
         {
+            var tile = new CarrierImageTile { Number = number++, Center = source.Center };
             File.Copy(
-                GetRecipeImagePath(sourceRecipe, number),
-                GetRecipeImagePath(targetRecipe, number),
-                overwrite: true);
+                GetRecipeImagePath(sourceRecipe, source.Number),
+                GetRecipeImagePath(targetRecipe, tile.Number));
+            tiles.Add(tile);
         }
+
+        return tiles;
+    }
+
+    private int GetNextRecipeImageNumber(string recipeName)
+    {
+        var directory = GetRecipeImageDirectory(recipeName);
+        Directory.CreateDirectory(directory);
+        return Directory.GetFiles(directory, "*.png")
+            .Select(path => int.Parse(
+                Path.GetFileNameWithoutExtension(path), CultureInfo.InvariantCulture))
+            .DefaultIfEmpty()
+            .Max() + 1;
     }
 
     private string GetRecipeImageDirectory(string recipeName) =>

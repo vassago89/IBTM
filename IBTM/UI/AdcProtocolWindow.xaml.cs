@@ -19,7 +19,6 @@ public partial class AdcProtocolWindow : Window
     private readonly IAdcBus _bus;
     private readonly HantasSettings _settings;
     private readonly MachineController _machine;
-    private readonly OperationCancellation _operations;
     private CancellationTokenSource? _operationCancellation;
     private Task _operation = Task.CompletedTask;
     private bool _closing;
@@ -27,13 +26,11 @@ public partial class AdcProtocolWindow : Window
     public AdcProtocolWindow(
         IAdcBus bus,
         HantasSettings settings,
-        MachineController machine,
-        OperationCancellation operations)
+        MachineController machine)
     {
         _bus = bus;
         _settings = settings;
         _machine = machine;
-        _operations = operations;
         InitializeComponent();
         DataContext = this;
         RefreshPorts();
@@ -290,8 +287,7 @@ public partial class AdcProtocolWindow : Window
     {
         try
         {
-            using var linked = _operations.Link(cancellationToken);
-            await operation(linked.Token);
+            await _machine.RunAdcProtocolAsync(operation, cancellationToken);
         }
         finally
         {
@@ -318,14 +314,7 @@ public partial class AdcProtocolWindow : Window
         }
     }
 
-    public void RefreshControls()
-    {
-        if (!_machine.CanUseAdcProtocol)
-        {
-            _operationCancellation?.Cancel();
-        }
-        SetBusy(!_operation.IsCompleted);
-    }
+    public void RefreshControls() => SetBusy(!_operation.IsCompleted);
 
     internal async Task StopAsync()
     {
@@ -354,7 +343,8 @@ public partial class AdcProtocolWindow : Window
         OperationPanel.IsEnabled = protocolEnabled && connected;
         RegisterPanel.IsEnabled = protocolEnabled && connected;
         StartButton.IsEnabled = protocolEnabled && connected && _machine.CanTestBoltHead;
-        StopButton.IsEnabled = connected && !_closing && _machine.CanUseAdcProtocol;
+        StopButton.IsEnabled = connected && !_closing
+            && (busy ? _machine.AdcProtocolAvailable : _machine.CanUseAdcProtocol);
         VirtualResultPanel.IsEnabled = !_closing;
     }
 

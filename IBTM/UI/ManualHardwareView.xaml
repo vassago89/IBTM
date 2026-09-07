@@ -25,8 +25,11 @@
         </Grid.RowDefinitions>
 
         <Grid>
-            <TextBlock Text="Manual"
-                       Style="{StaticResource TitleStyle}"/>
+            <StackPanel>
+                <TextBlock Text="Manual" Style="{StaticResource TitleStyle}"/>
+                <TextBlock Text="{Binding HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
+                           Foreground="{StaticResource AccentAmberBrush}"/>
+            </StackPanel>
             <Button Content="Stop Home"
                     Command="{Binding StopHomeCommand}"
                     Style="{StaticResource DangerButtonStyle}"

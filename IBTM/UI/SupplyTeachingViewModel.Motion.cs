@@ -12,9 +12,22 @@ public partial class SupplyTeachingViewModel
 {
     public MotionGroup ActiveMotionGroup =>
         SelectedPoint?.MotionGroup ?? MotionGroup.PcbSupply;
-    public bool HasY => ActiveMotionGroup == MotionGroup.PcbSupply
-        ? _supplyHandler.Feedback.HasY
-        : _placementHandler.Feedback.HasY;
+    public override TeachingMotionHint MotionHint
+    {
+        get
+        {
+            var block = HandlerBlock(ActiveMotionGroup);
+            if (block != TeachingMotionHint.None) return block;
+            if (ActiveMotionGroup == MotionGroup.PcbSupply && _buffer.SupplyInside)
+                return TeachingMotionHint.SupplyInBufferRestricted;
+            if (ActiveMotionGroup == MotionGroup.PcbPlacementHandler
+                && !_placementHandler.CanMoveHorizontal)
+                return TeachingMotionHint.RaisePlacementCylinders;
+            return _state.ManualControlsEnabled && !CanJog(MotionAxis.X)
+                ? TeachingMotionHint.TravelZRequired
+                : TeachingMotionHint.None;
+        }
+    }
     public double HorizontalZ => ActiveMotionGroup == MotionGroup.PcbSupply
         ? _supplySettings.RotationZ
         : _placementSettings.BufferEntryZ;
@@ -26,10 +39,10 @@ public partial class SupplyTeachingViewModel
     protected override MotionGroup CurrentMotionGroup =>
         ActiveMotionGroup;
 
-    protected override (double X, double Y, double Z) CurrentPosition() =>
+    protected override IMotionFeedback CurrentFeedback =>
         ActiveMotionGroup == MotionGroup.PcbSupply
-            ? _supplyHandler.Feedback.GetPosition()
-            : _placementHandler.Feedback.GetPosition();
+            ? _supplyHandler.Feedback
+            : _placementHandler.Feedback;
 
     protected override void JogCurrent(
         MotionAxis axis,
@@ -52,6 +65,19 @@ public partial class SupplyTeachingViewModel
             ? _supplyHandler.MoveToRotationZAsync(cancellationToken)
             : _placementHandler.MoveToHorizontalZAsync(cancellationToken);
 
+    protected override Task MoveCurrentAxisAsync(
+        MotionAxis axis, double position, CancellationToken cancellationToken) =>
+        (ActiveMotionGroup, axis) switch
+        {
+            (MotionGroup.PcbSupply, MotionAxis.X) => _supplyHandler.MoveXAsync(position, cancellationToken),
+            (MotionGroup.PcbSupply, MotionAxis.Y) => _supplyHandler.MoveYAsync(position, cancellationToken),
+            (MotionGroup.PcbSupply, MotionAxis.Z) => _supplyHandler.MoveTeachingZAsync(position, cancellationToken),
+            (MotionGroup.PcbPlacementHandler, MotionAxis.X) => _placementHandler.MoveXAsync(position, cancellationToken),
+            (MotionGroup.PcbPlacementHandler, MotionAxis.Y) => _placementHandler.MoveYAsync(position, cancellationToken),
+            (MotionGroup.PcbPlacementHandler, MotionAxis.Z) => _placementHandler.MoveZAsync(position, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
+        };
+
     partial void OnSelectedPointChanged(
         TeachingPoint? oldValue,
         TeachingPoint? newValue)
@@ -60,8 +86,10 @@ public partial class SupplyTeachingViewModel
 
         OnPropertyChanged(nameof(ActiveMotionGroup));
         OnPropertyChanged(nameof(HasY));
+        OnPropertyChanged(nameof(HasZ));
         OnPropertyChanged(nameof(HorizontalZ));
         OnPropertyChanged(nameof(HorizontalZTarget));
+        OnPropertyChanged(nameof(SaveBehavior));
         NotifyManualTeachingCommands();
         RefreshPosition();
     }
@@ -77,12 +105,14 @@ public partial class SupplyTeachingViewModel
         {
             MotionAxis.X => ActiveMotionGroup == MotionGroup.PcbSupply
                 ? _supplyHandler.IsAtRotationZ
-                : _placementHandler.AtHorizontalZ,
+                : _placementHandler.CanMoveHorizontal
+                  && _placementHandler.AtHorizontalZ,
             MotionAxis.Y =>
                 HasY
                 && (ActiveMotionGroup == MotionGroup.PcbSupply
                     ? _supplyHandler.IsAtRotationZ
-                    : _placementHandler.AtHorizontalZ)
+                    : _placementHandler.CanMoveHorizontal
+                      && _placementHandler.AtHorizontalZ)
                 && (ActiveMotionGroup != MotionGroup.PcbSupply
                     || !_buffer.SupplyInside),
             MotionAxis.Z =>
@@ -153,7 +183,9 @@ public partial class SupplyTeachingViewModel
         CanUseCurrentHandler()
         && SelectedPoint is { } point
         && (point.MotionGroup != MotionGroup.PcbSupply
-            || CanMoveSupplyPoint(point));
+            ? point.TeachMode == TeachMode.ZOnly
+              || _placementHandler.CanMoveHorizontal
+            : CanMoveSupplyPoint(point));
 
     private bool CanMoveSupplyPoint(TeachingPoint point) =>
         (!_buffer.SupplyInside
@@ -207,14 +239,16 @@ public partial class SupplyTeachingViewModel
 
     private bool CanUseHandler(MotionGroup motionGroup) =>
         _state.ManualControlsEnabled
-        && motionGroup switch
+        && HandlerBlock(motionGroup) == TeachingMotionHint.None;
+
+    private TeachingMotionHint HandlerBlock(MotionGroup motionGroup) =>
+        motionGroup switch
         {
-            MotionGroup.PcbSupply =>
-                _supplyEnabled
-                && !_buffer.PlacementInside,
-            MotionGroup.PcbPlacementHandler =>
-                _placementEnabled
-                && !_buffer.SupplyInside,
+            MotionGroup.PcbSupply when !SupplyEnabled => TeachingMotionHint.UnitDisabled,
+            MotionGroup.PcbPlacementHandler when !PlacementEnabled => TeachingMotionHint.UnitDisabled,
+            MotionGroup.PcbSupply when _buffer.PlacementInside => TeachingMotionHint.PlacementInBuffer,
+            MotionGroup.PcbPlacementHandler when _buffer.SupplyInside => TeachingMotionHint.SupplyInBuffer,
+            MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler => TeachingMotionHint.None,
             _ => throw new ArgumentOutOfRangeException(nameof(motionGroup)),
         };
 
@@ -222,6 +256,7 @@ public partial class SupplyTeachingViewModel
     {
         NotifyMotionCommands();
         TeachCurrentPositionCommand.NotifyCanExecuteChanged();
+        SaveBufferSetupCommand.NotifyCanExecuteChanged();
         MoveToPointCommand.NotifyCanExecuteChanged();
         ToggleActuatorCommand.NotifyCanExecuteChanged();
     }

@@ -9,9 +9,24 @@ namespace IBTM.UI;
 
 public partial class StationTeachingViewModel
 {
+    public override TeachingMotionHint MotionHint =>
+        SelectedMotionGroup == MotionGroup.PcbPlacementHandler && _buffer.SupplyInside
+            ? TeachingMotionHint.SupplyInBuffer
+            : SelectedMotionGroup == MotionGroup.PcbPlacementHandler
+              && !_placementHandler.CanMoveHorizontal
+                ? TeachingMotionHint.RaisePlacementCylinders
+                : SelectedMotionGroup == MotionGroup.BoltFastening
+                  && !_fasteningGantry.CanMoveHorizontal
+                    ? TeachingMotionHint.RaiseFasteningCylinders
+            : SelectedMotionGroup == MotionGroup.InspectionGantry && !_inspectionGantry.CanMove
+                ? TeachingMotionHint.RaiseNgPickup
+                : !CurrentFeedback.IsAtHorizontalZ
+                    ? TeachingMotionHint.TravelZRequired
+                    : TeachingMotionHint.None;
+
     protected override MotionGroup CurrentMotionGroup =>
         SelectedMotionGroup;
-    private IMotionFeedback CurrentFeedback => SelectedMotionGroup switch
+    protected override IMotionFeedback CurrentFeedback => SelectedMotionGroup switch
     {
         MotionGroup.PcbPlacementHandler => _placementHandler.Feedback,
         MotionGroup.BoltFastening => _fasteningGantry.Feedback,
@@ -21,14 +36,10 @@ public partial class StationTeachingViewModel
 
     protected override bool CanJog(MotionAxis axis) =>
         CanUseCurrentHandler()
-        && (SelectedMotionGroup != MotionGroup.InspectionGantry
-            || _inspectionGantry.CanMove)
         && (axis == MotionAxis.Z
             ? CurrentFeedback.HasZ
-            : CurrentFeedback.IsAtHorizontalZ);
-
-    protected override (double X, double Y, double Z) CurrentPosition() =>
-        CurrentFeedback.GetPosition();
+            : CanMoveHorizontal()
+              && CurrentFeedback.IsAtHorizontalZ);
 
     protected override void JogCurrent(
         MotionAxis axis,
@@ -60,6 +71,25 @@ public partial class StationTeachingViewModel
             MotionGroup.InspectionGantry => Task.CompletedTask,
             _ => throw new ArgumentOutOfRangeException(),
         };
+
+    protected override Task MoveCurrentAxisAsync(
+        MotionAxis axis, double position, CancellationToken cancellationToken)
+    {
+        var current = CurrentPosition();
+        var x = axis == MotionAxis.X ? position : current.X;
+        var y = axis == MotionAxis.Y ? position : current.Y;
+        return (SelectedMotionGroup, axis) switch
+        {
+            (MotionGroup.PcbPlacementHandler, MotionAxis.X) => _placementHandler.MoveXAsync(position, cancellationToken),
+            (MotionGroup.PcbPlacementHandler, MotionAxis.Y) => _placementHandler.MoveYAsync(position, cancellationToken),
+            (MotionGroup.PcbPlacementHandler, MotionAxis.Z) => _placementHandler.MoveZAsync(position, cancellationToken),
+            (MotionGroup.BoltFastening, MotionAxis.Z) => _fasteningGantry.MoveZAsync(position, cancellationToken),
+            (MotionGroup.BoltFastening, _) => _fasteningGantry.MoveToXYAsync(x, y, cancellationToken),
+            (MotionGroup.InspectionGantry, _) => _inspectionGantry.MoveToAsync(
+                new AxisPosition { X = x, Y = y }, _inspectionGantrySettings.Motion.HorizontalSpeed, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
+        };
+    }
 
     [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
     private Task MoveToPointAsync(CancellationToken cancellationToken)
@@ -129,12 +159,21 @@ public partial class StationTeachingViewModel
         };
 
     private bool CanMoveToPoint() =>
-        CanTeachCurrentPosition()
-        && (SelectedMotionGroup != MotionGroup.InspectionGantry
-            || _inspectionGantry.CanMove)
+        SelectedPoint is not null
+        && CanUseCurrentHandler()
+        && (SelectedPoint.TeachMode == TeachMode.ZOnly
+            || CanMoveHorizontal())
         && _teachingPoints.HasMotionPosition(
             CurrentRecipe,
             SelectedPoint!);
+
+    private bool CanMoveHorizontal() => SelectedMotionGroup switch
+    {
+        MotionGroup.PcbPlacementHandler => _placementHandler.CanMoveHorizontal,
+        MotionGroup.BoltFastening => _fasteningGantry.CanMoveHorizontal,
+        MotionGroup.InspectionGantry => _inspectionGantry.CanMove,
+        _ => false,
+    };
 
     private bool CanUseCurrentHandler() =>
         _state.ManualControlsEnabled

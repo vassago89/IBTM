@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using IBTM.BoltFastening;
 using IBTM.Conveyor;
@@ -70,6 +69,24 @@ public enum MachineAlarm
     NgConveyor,
 }
 
+public enum ManualControlBlock
+{
+    [Description("")]
+    None,
+    [Description("Reset the machine alarm.")]
+    Alarm,
+    [Description("Enable the servos and home the axes; clear motion alarms.")]
+    MotionNotReady,
+    [Description("Check emergency stops and air pressure.")]
+    SafetyNotReady,
+    [Description("Clear the PCB buffer conflict.")]
+    BufferConflict,
+    [Description("Switch the machine to Manual mode.")]
+    AutoMode,
+    [Description("Wait for the current operation to stop.")]
+    Busy,
+}
+
 internal readonly record struct MotionReadiness(
     bool Homed,
     bool ServosOn,
@@ -78,17 +95,23 @@ internal readonly record struct MotionReadiness(
 public sealed class MachineState
 {
     private readonly MachineOptions _options;
+    private readonly UnitSettings _units;
+    private readonly OperationCancellation _operations;
     private readonly IIoService _io;
     private readonly MainConveyor _conveyor;
     private readonly NgCarrierConveyor _ngConveyor;
     private readonly BufferStage _buffer;
     private readonly BoltTrainingSession _training;
     private readonly IMotionFeedback[] _allMotions;
-    private readonly IMotionFeedback[] _enabledMotions;
+    private readonly IMotionFeedback _supplyMotion;
+    private readonly IMotionFeedback _placementMotion;
+    private readonly IMotionFeedback _fasteningMotion;
+    private readonly IMotionFeedback _inspectionMotion;
 
     public MachineState(
         MachineOptions options,
         UnitSettings units,
+        OperationCancellation operations,
         IIoService io,
         MainConveyor conveyor,
         NgCarrierConveyor ngConveyor,
@@ -100,37 +123,24 @@ public sealed class MachineState
         InspectionGantry inspectionGantry)
     {
         _options = options;
+        _units = units;
+        _operations = operations;
         _io = io;
         _conveyor = conveyor;
         _ngConveyor = ngConveyor;
         _buffer = buffer;
         _training = training;
+        _supplyMotion = pcbSupply.Feedback;
+        _placementMotion = pcbPlacement.Feedback;
+        _fasteningMotion = boltFastening.Feedback;
+        _inspectionMotion = inspectionGantry.Feedback;
         _allMotions =
         [
-            pcbSupply.Feedback,
-            pcbPlacement.Feedback,
-            boltFastening.Feedback,
-            inspectionGantry.Feedback,
+            _supplyMotion,
+            _placementMotion,
+            _fasteningMotion,
+            _inspectionMotion,
         ];
-
-        var enabledMotions = new List<IMotionFeedback>(4);
-        if (units.PcbSupply || units.PcbPlacement)
-        {
-            enabledMotions.Add(pcbSupply.Feedback);
-            enabledMotions.Add(pcbPlacement.Feedback);
-        }
-
-        if (units.BoltFastening)
-        {
-            enabledMotions.Add(boltFastening.Feedback);
-        }
-
-        if (units.Inspection || units.NgCarrierTransfer)
-        {
-            enabledMotions.Add(inspectionGantry.Feedback);
-        }
-
-        _enabledMotions = [.. enabledMotions];
 
         io.InputChanged += (input, _) =>
         {
@@ -155,6 +165,7 @@ public sealed class MachineState
         conveyor.Changed += NotifyChanged;
         ngConveyor.Changed += NotifyChanged;
         training.Changed += NotifyChanged;
+        operations.ActivityChanged += NotifyChanged;
     }
 
     public event Action? Changed;
@@ -166,11 +177,14 @@ public sealed class MachineState
             var homed = true;
             var servosOn = true;
             var faulted = false;
-            foreach (var motion in _enabledMotions)
+            void Read(IMotionFeedback motion)
             {
                 if (!motion.IsReady)
                 {
-                    return new(false, false, true);
+                    homed = false;
+                    servosOn = false;
+                    faulted = true;
+                    return;
                 }
 
                 foreach (var axis in motion.Axes)
@@ -180,6 +194,22 @@ public sealed class MachineState
                     servosOn &= state.ServoOn;
                     faulted |= IsFaulted(state);
                 }
+            }
+
+            if (_units.PcbSupply || _units.PcbPlacement)
+            {
+                Read(_supplyMotion);
+                Read(_placementMotion);
+            }
+
+            if (_units.BoltFastening)
+            {
+                Read(_fasteningMotion);
+            }
+
+            if (_units.Inspection || _units.NgCarrierTransfer)
+            {
+                Read(_inspectionMotion);
             }
 
             return new(homed, servosOn, faulted);
@@ -239,7 +269,8 @@ public sealed class MachineState
     public bool BufferConflict => _buffer.Conflict;
 
     public bool IsRunning =>
-        AutomaticRunning
+        _operations.HasActiveOperations
+        || AutomaticRunning
         || BoltTestRunning
         || IsHoming
         || _training.IsRunning
@@ -256,9 +287,23 @@ public sealed class MachineState
         CanOperate
         && AutoMode
         && DoorInterlockReady;
-    public bool ManualControlsEnabled =>
-        CanOperate
+    public ManualControlBlock ManualBlock => this switch
+    {
+        { IsError: true } => ManualControlBlock.Alarm,
+        { Ready: false } => ManualControlBlock.MotionNotReady,
+        { SafetyReady: false } => ManualControlBlock.SafetyNotReady,
+        { BufferConflict: true } => ManualControlBlock.BufferConflict,
+        { AutoMode: true } => ManualControlBlock.AutoMode,
+        { IsRunning: true } => ManualControlBlock.Busy,
+        _ => ManualControlBlock.None,
+    };
+    public bool ManualControlsEnabled => ManualBlock == ManualControlBlock.None;
+    public bool ManualOutputsEnabled =>
+        _io.IsReady
+        && !_operations.IsShuttingDown
         && ManualMode
+        && SafetyReady
+        && !IsError
         && !IsRunning;
     public void Refresh()
     {

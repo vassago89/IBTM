@@ -26,7 +26,7 @@ public sealed class InspectionGantry
     public MotionStatus Motion { get; }
     public IMotionFeedback Feedback => _motion;
     public bool CanMove => _transfer.IsRaised;
-    public bool CanHome => !_transfer.CarrierDetected;
+    public bool CanHome => _transfer.IsClear;
 
     public void InitializeMotion() => _motion.Initialize();
 
@@ -41,7 +41,7 @@ public sealed class InspectionGantry
         CancellationToken cancellationToken = default)
     {
         using var operation = _operations.Link(cancellationToken);
-        await PrepareHomeAsync(operation.Token);
+        EnsureCanHome(operation.Token);
         return await _motion.HomeAsync(axis, velocity, operation.Token);
     }
 
@@ -50,7 +50,7 @@ public sealed class InspectionGantry
         CancellationToken cancellationToken = default)
     {
         using var operation = _operations.Link(cancellationToken);
-        await PrepareHomeAsync(operation.Token);
+        EnsureCanHome(operation.Token);
         return await _motion.HomeHorizontalAsync(velocity, operation.Token);
     }
 
@@ -105,22 +105,13 @@ public sealed class InspectionGantry
         }
     }
 
-    private async Task PrepareHomeAsync(CancellationToken cancellationToken)
-    {
-        EnsureCarrierReleased(cancellationToken);
-        await _transfer.SetGripperClosedAsync(false, cancellationToken);
-        await _transfer.SetLiftDownAsync(false, cancellationToken);
-        EnsureCarrierReleased(cancellationToken);
-        EnsureCanMove(cancellationToken);
-    }
-
-    private void EnsureCarrierReleased(CancellationToken cancellationToken)
+    private void EnsureCanHome(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!CanHome)
         {
             throw new InvalidOperationException(
-                "Release the NG carrier before homing the inspection XY axes.");
+                "Release the NG carrier and raise the pickup before homing the inspection XY axes.");
         }
     }
 }

@@ -7,6 +7,7 @@
              xmlns:ui="clr-namespace:IBTM.UI"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:SupplyTeachingViewModel, IsDesignTimeCreatable=False}"
+             Foreground="{StaticResource TextPrimaryBrush}"
              Background="{StaticResource AppBgBrush}">
 
     <UserControl.Resources>
@@ -34,176 +35,19 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Column="0">
-                <Border Style="{StaticResource CardStyle}"
-                        Padding="16"
-                        Margin="0,0,0,12">
-                    <StackPanel>
-                        <Grid Margin="0,0,0,14">
-                            <TextBlock Text="Current Position"
-                                       Style="{StaticResource PanelTitleStyle}"/>
-                            <TextBlock Text="{Binding ActiveMotionGroup, Converter={StaticResource EnumDescriptionConverter}}"
-                                       HorizontalAlignment="Right"
-                                       FontFamily="Cascadia Mono, Consolas"
-                                       FontSize="10"
-                                       Foreground="{StaticResource TextSecondaryBrush}"/>
-                        </Grid>
-
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel>
-                                <TextBlock Text="X"
-                                           Style="{StaticResource StatLabelStyle}"/>
-                                <TextBlock Text="{Binding CurrentX, StringFormat=F3}"
-                                           Style="{StaticResource StatValueStyle}"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Column="1"
-                                        Visibility="{Binding HasY, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="Y"
-                                           Style="{StaticResource StatLabelStyle}"/>
-                                <TextBlock Text="{Binding CurrentY, StringFormat=F3}"
-                                           Style="{StaticResource StatValueStyle}"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="Z"
-                                           Style="{StaticResource StatLabelStyle}"/>
-                                <TextBlock Text="{Binding CurrentZ, StringFormat=F3}"
-                                           Style="{StaticResource StatValueStyle}"/>
-                            </StackPanel>
-                        </Grid>
-
-                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                            <TextBlock Text="{Binding HorizontalZTarget, Converter={StaticResource EnumDescriptionConverter}}"
-                                       Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <TextBlock Text="{Binding HorizontalZ, StringFormat={}{0:F3} mm}"
-                                       Margin="6,0,0,0"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       FontFamily="Cascadia Mono, Consolas"/>
-                        </StackPanel>
+            <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="16">
+                <StackPanel>
+                    <TextBlock Text="{Binding ActiveMotionGroup, Converter={StaticResource EnumDescriptionConverter}}"
+                               Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,16"/>
+                    <ui:TeachingMotionView/>
+                    <StackPanel Margin="0,12,0,0">
+                        <TextBlock Text="{Binding HorizontalZTarget, Converter={StaticResource EnumDescriptionConverter}}"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="{Binding HorizontalZ, StringFormat={}{0:F3} mm}"
+                                   Foreground="{StaticResource TextSecondaryBrush}" FontFamily="Cascadia Mono, Consolas"/>
                     </StackPanel>
-                </Border>
-
-                <Border Style="{StaticResource CardStyle}"
-                        Padding="16"
-                        Margin="0,0,0,12">
-                    <StackPanel>
-                        <TextBlock Text="Jog"
-                                   Style="{StaticResource PanelTitleStyle}"
-                                   Margin="0,0,0,12"/>
-
-                        <Grid Margin="0,0,0,8">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="36"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="8"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="X"
-                                       VerticalAlignment="Center"
-                                       Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <ui:HoldButton Grid.Column="1"
-                                           Content="-"
-                                           Style="{StaticResource JogButtonStyle}"
-                                           PressCommand="{Binding JogXMinusCommand}"
-                                           ReleaseCommand="{Binding JogStopCommand}"/>
-                            <ui:HoldButton Grid.Column="3"
-                                           Content="+"
-                                           Style="{StaticResource JogButtonStyle}"
-                                           PressCommand="{Binding JogXPlusCommand}"
-                                           ReleaseCommand="{Binding JogStopCommand}"/>
-
-                        </Grid>
-
-                        <Grid Margin="0,0,0,8"
-                              Visibility="{Binding HasY, Converter={StaticResource BoolToVis}}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="36"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="8"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Y"
-                                       VerticalAlignment="Center"
-                                       Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <ui:HoldButton Grid.Column="1"
-                                           Content="-"
-                                           Style="{StaticResource JogButtonStyle}"
-                                           PressCommand="{Binding JogYMinusCommand}"
-                                           ReleaseCommand="{Binding JogStopCommand}"/>
-                            <ui:HoldButton Grid.Column="3"
-                                           Content="+"
-                                           Style="{StaticResource JogButtonStyle}"
-                                           PressCommand="{Binding JogYPlusCommand}"
-                                           ReleaseCommand="{Binding JogStopCommand}"/>
-                        </Grid>
-
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="36"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="8"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Z"
-                                       VerticalAlignment="Center"
-                                       Foreground="{StaticResource TextSecondaryBrush}"/>
-                            <ui:HoldButton Grid.Column="1"
-                                           Content="-"
-                                           Style="{StaticResource JogButtonStyle}"
-                                           PressCommand="{Binding JogZMinusCommand}"
-                                           ReleaseCommand="{Binding JogStopCommand}"/>
-                            <ui:HoldButton Grid.Column="3"
-                                           Content="+"
-                                           Style="{StaticResource JogButtonStyle}"
-                                           PressCommand="{Binding JogZPlusCommand}"
-                                           ReleaseCommand="{Binding JogStopCommand}"/>
-                        </Grid>
-
-                        <Grid Margin="0,12,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="8"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Button Content="STOP"
-                                    Command="{Binding JogStopCommand}"
-                                    Style="{StaticResource JogStopButtonStyle}"/>
-                            <Button Grid.Column="2"
-                                    Content="Travel Z"
-                                    ToolTip="{Binding HorizontalZTarget, Converter={StaticResource EnumDescriptionConverter}}"
-                                    Command="{Binding MoveToHorizontalZCommand}"
-                                    Style="{StaticResource SecondaryButtonStyle}"/>
-                        </Grid>
-
-                        <StackPanel Orientation="Horizontal"
-                                    HorizontalAlignment="Right"
-                                    Margin="0,10,0,0">
-                            <TextBlock Text="Jog speed"
-                                       FontSize="10"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,8,0"/>
-                            <ComboBox ItemsSource="{StaticResource TeachingJogSpeeds}"
-                                      SelectedItem="{Binding JogSpeed, Mode=TwoWay}"
-                                      MinWidth="72"
-                                      Padding="8,5"/>
-                            <TextBlock Text="mm/s"
-                                       FontSize="10"
-                                       Foreground="{StaticResource TextMutedBrush}"
-                                       VerticalAlignment="Center"
-                                       Margin="6,0,0,0"/>
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-
-            </StackPanel>
+                </StackPanel>
+            </Border>
 
             <Border Grid.Column="2"
                     Style="{StaticResource CardStyle}"
@@ -309,7 +153,7 @@
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="180"/>
+                                            <ColumnDefinition Width="270"/>
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Grid.Column="0"
@@ -330,9 +174,10 @@
                         </ListBox.ItemTemplate>
                     </ListBox>
 
-                    <WrapPanel Grid.Row="2"
-                               HorizontalAlignment="Right"
-                               Margin="0,14,0,0">
+                    <StackPanel Grid.Row="2" Margin="0,14,0,0">
+                        <TextBlock Text="{Binding SaveBehavior, Converter={StaticResource EnumDescriptionConverter}}"
+                                   TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10"/>
+                        <WrapPanel HorizontalAlignment="Right">
                         <Button Content="Move To"
                                 Command="{Binding MoveToPointCommand}"
                                 Style="{StaticResource SecondaryButtonStyle}"
@@ -343,11 +188,12 @@
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 MinWidth="110"
                                 Margin="0,0,8,0"/>
-                        <Button Content="Save Buffer Setup"
+                        <Button Content="Apply &amp; Save Buffer"
                                 Command="{Binding SaveBufferSetupCommand}"
                                 Style="{StaticResource PrimaryButtonStyle}"
                                 MinWidth="140"/>
-                    </WrapPanel>
+                        </WrapPanel>
+                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>

@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using IBTM.Core;
 using IBTM.Device;
@@ -11,7 +12,7 @@ public sealed class InspectionWork : StationWork
     public InspectionWork(
         ConveyorStation station,
         INgCarrierTransferFeedback transferFeedback,
-        bool enabled = true) : base(station, enabled)
+        Func<bool>? isEnabled = null) : base(station, isEnabled)
     {
         _transferFeedback = transferFeedback;
         transferFeedback.Changed += NotifyChanged;
@@ -20,6 +21,8 @@ public sealed class InspectionWork : StationWork
     public override bool CanReceive =>
         base.CanReceive
         && _transferFeedback.IsClear;
+
+    public bool RouteToNg => !Enabled || HasNg;
 
     public override bool HasNg =>
         CarrierPresent

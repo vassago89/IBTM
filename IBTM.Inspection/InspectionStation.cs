@@ -16,8 +16,7 @@ public sealed class InspectionStation
     private readonly InspectionGantry _gantry;
     private readonly NgCarrierTransferSettings _transferSettings;
     private readonly NgShuttle _shuttle;
-    private readonly bool _inspectionEnabled;
-    private readonly bool _transferEnabled;
+    private readonly Func<bool> _isTransferEnabled;
     private HeatSinkSlot[]? _runTargets;
 
     public InspectionStation(
@@ -27,8 +26,7 @@ public sealed class InspectionStation
         InspectionGantry gantry,
         NgCarrierTransferSettings transferSettings,
         NgShuttle shuttle,
-        bool inspectionEnabled,
-        bool transferEnabled)
+        Func<bool> isTransferEnabled)
     {
         _work = work;
         _inspector = inspector;
@@ -36,8 +34,7 @@ public sealed class InspectionStation
         _gantry = gantry;
         _transferSettings = transferSettings;
         _shuttle = shuttle;
-        _inspectionEnabled = inspectionEnabled;
-        _transferEnabled = transferEnabled;
+        _isTransferEnabled = isTransferEnabled;
         work.Changed += NotifyChanged;
         transfer.Changed += NotifyChanged;
         shuttle.Changed += NotifyChanged;
@@ -50,7 +47,7 @@ public sealed class InspectionStation
         TransferState() ?? NextInspectionState(NextBolt(bolts));
 
     public BoltPoint? ActiveBolt(IReadOnlyList<BoltPoint> bolts) =>
-        _inspectionEnabled
+        _work.Enabled
         && _work.State == InspectionWorkState.ReadyToInspect
             ? NextBolt(bolts)
             : null;
@@ -59,7 +56,7 @@ public sealed class InspectionStation
         IReadOnlyList<BoltPoint> bolts,
         CancellationToken cancellationToken = default)
     {
-        if (_inspectionEnabled && _work.CarrierPresent && !_work.Completed)
+        if (_work.Enabled && _work.CarrierPresent && !_work.Completed)
         {
             _work.RestartInspection();
         }
@@ -141,7 +138,7 @@ public sealed class InspectionStation
     private bool CarrierReadyForNg =>
         _work.CarrierSeated
         && _work.Completed
-        && (!_inspectionEnabled || _work.HasNg)
+        && _work.RouteToNg
         && _shuttle.CanReceive;
 
     private bool TransferAtCarrier =>
@@ -151,18 +148,33 @@ public sealed class InspectionStation
 
     private InspectionStationState? TransferState()
     {
-        if (!_transferEnabled)
+        if (!_isTransferEnabled())
         {
             return null;
         }
 
-        if (TransferAtShuttle
-            && _transfer.Lift == NgTransferLiftState.Down
-            && _transfer.Gripper == NgTransferGripperState.Open)
+        if (TransferAtShuttle)
         {
-            return _shuttle.Feedback.CarrierDetected
-                ? InspectionStationState.RaisingCarrierTransfer
-                : InspectionStationState.WaitingForShuttleCarrier;
+            if (_transfer.Gripper == NgTransferGripperState.Open)
+            {
+                if (_transfer.Lift != NgTransferLiftState.Up)
+                {
+                    return _shuttle.Feedback.CarrierDetected
+                        ? InspectionStationState.RaisingCarrierTransfer
+                        : InspectionStationState.WaitingForShuttleCarrier;
+                }
+
+                if (_transfer.CarrierDetected || _shuttle.Feedback.CarrierDetected)
+                {
+                    return null;
+                }
+            }
+
+            if (_transfer.Lift == NgTransferLiftState.Down
+                && _shuttle.Feedback.CarrierDetected)
+            {
+                return InspectionStationState.OpeningTransferGripper;
+            }
         }
 
         if (_transfer.CarrierDetected)
@@ -303,7 +315,7 @@ public sealed class InspectionStation
 
     private InspectionStationState NextInspectionState(BoltPoint? bolt)
     {
-        if (!_inspectionEnabled
+        if (!_work.Enabled
             || _work.State != InspectionWorkState.ReadyToInspect)
         {
             return InspectionStationState.Waiting;

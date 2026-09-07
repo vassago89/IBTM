@@ -6,6 +6,7 @@
              xmlns:ui="clr-namespace:IBTM.UI"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:StationTeachingViewModel, IsDesignTimeCreatable=False}"
+             Foreground="{StaticResource TextPrimaryBrush}"
              Background="{StaticResource AppBgBrush}">
 
     <UserControl.Resources>
@@ -17,6 +18,10 @@
             <Style TargetType="Grid">
                 <Style.Triggers>
                     <DataTrigger Binding="{Binding CaptureCarrierImagesCommand.IsRunning}"
+                                 Value="True">
+                        <Setter Property="IsEnabled" Value="False"/>
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding TeachImagePointCommand.IsRunning}"
                                  Value="True">
                         <Setter Property="IsEnabled" Value="False"/>
                     </DataTrigger>
@@ -198,93 +203,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border Style="{StaticResource SectionStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Current Position"
-                                   Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,10"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="X" Style="{StaticResource StatLabelStyle}"/>
-                                <TextBlock Text="{Binding CurrentX, StringFormat=F3}"
-                                           Style="{StaticResource StatValueStyle}"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1">
-                                <TextBlock Text="Y" Style="{StaticResource StatLabelStyle}"/>
-                                <TextBlock Text="{Binding CurrentY, StringFormat=F3}"
-                                           Style="{StaticResource StatValueStyle}"/>
-                            </StackPanel>
-                            <StackPanel Grid.Column="2"
-                                        Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}">
-                                <TextBlock Text="Z" Style="{StaticResource StatLabelStyle}"/>
-                                <TextBlock Text="{Binding CurrentZ, StringFormat=F3}"
-                                           Style="{StaticResource StatValueStyle}"/>
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
-                <Border Style="{StaticResource SectionStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Jog" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,10"/>
-                        <Grid HorizontalAlignment="Center">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="46"/>
-                                <ColumnDefinition Width="46"/>
-                                <ColumnDefinition Width="46"/>
-                                <ColumnDefinition Width="12"/>
-                                <ColumnDefinition Width="46"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="40"/>
-                                <RowDefinition Height="40"/>
-                                <RowDefinition Height="40"/>
-                            </Grid.RowDefinitions>
-
-                            <ui:HoldButton Grid.Row="0" Grid.Column="1" Content="Y+" Style="{StaticResource JogButtonStyle}"
-                                           PressCommand="{Binding JogYPlusCommand}"
-                                           ReleaseCommand="{Binding JogStopCommand}"/>
-                            <ui:HoldButton Grid.Row="1" Grid.Column="0" Content="X-" Style="{StaticResource JogButtonStyle}"
-                                           PressCommand="{Binding JogXMinusCommand}"
-                                           ReleaseCommand="{Binding JogStopCommand}"/>
-                            <Button Grid.Row="1" Grid.Column="1" Content="STOP" Style="{StaticResource JogStopButtonStyle}"
-                                    Command="{Binding JogStopCommand}"/>
-                            <ui:HoldButton Grid.Row="1" Grid.Column="2" Content="X+" Style="{StaticResource JogButtonStyle}"
-                                           PressCommand="{Binding JogXPlusCommand}"
-                                           ReleaseCommand="{Binding JogStopCommand}"/>
-                            <ui:HoldButton Grid.Row="2" Grid.Column="1" Content="Y-" Style="{StaticResource JogButtonStyle}"
-                                           PressCommand="{Binding JogYMinusCommand}"
-                                           ReleaseCommand="{Binding JogStopCommand}"/>
-
-                            <ui:HoldButton Grid.Row="0" Grid.Column="4" Content="Z+" Style="{StaticResource JogButtonStyle}"
-                                           Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"
-                                           PressCommand="{Binding JogZPlusCommand}"
-                                           ReleaseCommand="{Binding JogStopCommand}"/>
-                            <ui:HoldButton Grid.Row="2" Grid.Column="4" Content="Z-" Style="{StaticResource JogButtonStyle}"
-                                           Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"
-                                           PressCommand="{Binding JogZMinusCommand}"
-                                           ReleaseCommand="{Binding JogStopCommand}"/>
-                        </Grid>
-
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
-                            <Button Content="Travel Z"
-                                    Command="{Binding MoveToHorizontalZCommand}"
-                                    Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    MinWidth="58" Margin="0,0,6,0"/>
-                            <ComboBox ItemsSource="{StaticResource TeachingJogSpeeds}"
-                                      SelectedItem="{Binding JogSpeed, Mode=TwoWay}"
-                                      MinWidth="58" Padding="6,4"/>
-                            <TextBlock Text="mm/s" FontSize="10" Foreground="{StaticResource TextMutedBrush}"
-                                       VerticalAlignment="Center" Margin="6,0,0,0"/>
-                        </StackPanel>
-                    </StackPanel>
-                </Border>
-
+                <ui:TeachingMotionView/>
               </StackPanel>
             </Border>
 
@@ -364,6 +283,8 @@
                     </ListView>
 
                     <StackPanel Grid.Row="2" Margin="0,8,0,0">
+                        <TextBlock Text="{Binding SaveBehavior, Converter={StaticResource EnumDescriptionConverter}}"
+                                   TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                             <Button Content="Teach"
                                     Command="{Binding TeachCurrentPositionCommand}"
@@ -372,22 +293,20 @@
                                     Command="{Binding MoveToPointCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}" MinWidth="70"/>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal"
-                                    Visibility="{Binding BoltPointEditorVisible,
-                                                         Converter={StaticResource BoolToVis}}">
-                            <ComboBox ItemsSource="{Binding HeatSinkSlots}"
-                                      SelectedItem="{Binding NewHeatSinkSlot, Mode=TwoWay}"
-                                       FontSize="11" MinWidth="74" Margin="0,0,6,0"/>
-                            <ComboBox ItemsSource="{Binding FasteningHeads}"
-                                      SelectedItem="{Binding NewFasteningHead, Mode=TwoWay}"
-                                       FontSize="11" MinWidth="74" Margin="0,0,6,0"/>
-                            <Button Content="Add Bolt"
-                                    Command="{Binding AddBoltPointCommand}"
-                                    Style="{StaticResource SecondaryButtonStyle}" MinWidth="70" Margin="0,0,6,0"/>
-                            <Button Content="Remove"
-                                    Command="{Binding RemoveBoltPointCommand}"
-                                    Style="{StaticResource DangerButtonStyle}" MinWidth="70"/>
-                        </StackPanel>
+                        <Grid Visibility="{Binding BoltPointEditorVisible, Converter={StaticResource BoolToVis}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/><ColumnDefinition Width="6"/><ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/><RowDefinition Height="6"/><RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <ComboBox ItemsSource="{Binding HeatSinkSlots}" SelectedItem="{Binding NewHeatSinkSlot}" FontSize="11"/>
+                            <ComboBox Grid.Column="2" ItemsSource="{Binding FasteningHeads}" SelectedItem="{Binding NewFasteningHead}" FontSize="11"/>
+                            <Button Grid.Row="2" Content="Add Bolt" Command="{Binding AddBoltPointCommand}"
+                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                            <Button Grid.Row="2" Grid.Column="2" Content="Remove" Command="{Binding RemoveBoltPointCommand}"
+                                    Style="{StaticResource DangerButtonStyle}"/>
+                        </Grid>
                         <StackPanel Orientation="Horizontal"
                                     Margin="0,6,0,0"
                                     Visibility="{Binding BoltPresetEditorVisible,

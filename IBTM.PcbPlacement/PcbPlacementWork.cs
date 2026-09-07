@@ -1,11 +1,14 @@
+using System;
 using System.Collections.Generic;
 using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.PcbPlacement;
 
-public sealed class PcbPlacementWork(ConveyorStation station, bool enabled = true)
-    : StationWork(station, enabled)
+public sealed class PcbPlacementWork(
+    ConveyorStation station,
+    Func<bool>? isEnabled = null)
+    : StationWork(station, isEnabled)
 {
     public void PrepareRecovery(
         IEnumerable<(HeatSinkSlot HeatSink, bool Completed)> items)

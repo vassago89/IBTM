@@ -13,9 +13,8 @@ public sealed class PcbPlacementRecoveryPreparation
 
     public PcbPlacementRecoveryPreparation(
         MachineState state,
-        PcbPlacementWork work,
-        UnitSettings units)
-        : base(state, work, units.PcbPlacement)
+        PcbPlacementWork work)
+        : base(state, work)
     {
         _work = work;
     }

@@ -17,6 +17,20 @@ namespace IBTM;
 
 public sealed class MachineController
 {
+    private static readonly InputIo[] CarrierInputs =
+    [
+        InputIo.MainConveyorEntryCarrierDetected,
+        InputIo.PcbPlacementCarrierPresent,
+        InputIo.BoltFasteningCarrierPresent,
+        InputIo.InspectionCarrierPresent,
+        InputIo.MainConveyorExitCarrierDetected,
+        InputIo.NgCarrierDetected,
+        InputIo.NgShuttleCarrierDetected,
+        InputIo.NgConveyorPosition1Occupied,
+        InputIo.NgConveyorPosition2Occupied,
+        InputIo.NgConveyorPosition3Occupied,
+    ];
+
     private readonly MachineState _state;
     private readonly OperationCancellation _operations;
     private readonly MachineOptions _options;
@@ -38,6 +52,7 @@ public sealed class MachineController
     private readonly PcbPlacementHandler _placementHandler;
     private readonly BoltFasteningGantry _fasteningGantry;
     private readonly InspectionGantry _inspectionGantry;
+    private readonly NgCarrierTransfer _ngTransfer;
     private readonly BoltInspector _boltInspector;
 
     public MachineController(
@@ -62,6 +77,7 @@ public sealed class MachineController
         PcbPlacementHandler placementHandler,
         BoltFasteningGantry fasteningGantry,
         InspectionGantry inspectionGantry,
+        NgCarrierTransfer ngTransfer,
         BoltInspector boltInspector)
     {
         _state = state;
@@ -85,6 +101,7 @@ public sealed class MachineController
         _placementHandler = placementHandler;
         _fasteningGantry = fasteningGantry;
         _inspectionGantry = inspectionGantry;
+        _ngTransfer = ngTransfer;
         _boltInspector = boltInspector;
         io.InputChanged += OnInputChanged;
         io.Faulted += OnIoFaulted;
@@ -92,7 +109,9 @@ public sealed class MachineController
         placementHandler.Feedback.Faulted += OnMotionFaulted;
         fasteningGantry.Feedback.Faulted += OnMotionFaulted;
         inspectionGantry.Feedback.Faulted += OnMotionFaulted;
-        inspectionGantry.Feedback.MovingChanged += _ => CheckInspectionMotion();
+        placementHandler.Feedback.MovingChanged += _ => CheckMotionInterlocks();
+        fasteningGantry.Feedback.MovingChanged += _ => CheckMotionInterlocks();
+        inspectionGantry.Feedback.MovingChanged += _ => CheckMotionInterlocks();
     }
 
     public bool CanReset
@@ -139,10 +158,39 @@ public sealed class MachineController
                 && !motion.Homed
                 && !_state.IsError
                 && !_state.IsRunning
-                && (!InspectionGantryEnabled || _inspectionGantry.CanHome)
+                && HomeBlock == HomeBlockReason.None
                 && (!BufferHandlersEnabled || _pcbSupply.CanHome);
         }
     }
+    public HomeBlockReason HomeBlock => GetHomeBlock();
+    public bool CanRaiseCylinders =>
+        _state.ManualOutputsEnabled
+        && (BufferHandlersEnabled || _units.BoltFastening || InspectionGantryEnabled)
+        && !Array.Exists(CarrierInputs, _io.GetInput);
+
+    internal HomeBlockReason GetHomeBlock(MotionGroup? group = null)
+    {
+        if (!_io.IsReady) return HomeBlockReason.IoUnavailable;
+        if (Array.Exists(CarrierInputs, _io.GetInput)) return HomeBlockReason.CarrierDetected;
+
+        if ((group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
+                || group is null && BufferHandlersEnabled)
+            && (_placementHandler.Lift != PlacementCylinderState.Up
+                || _placementHandler.IpmLift != PlacementCylinderState.Up))
+            return HomeBlockReason.PlacementNotRaised;
+
+        if ((group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
+            && (_fasteningGantry.PickupHeadPosition != BoltCylinderState.Up
+                || _fasteningGantry.ShootingHeadPosition != BoltCylinderState.Up))
+            return HomeBlockReason.FasteningNotRaised;
+
+        if ((group == MotionGroup.InspectionGantry || group is null && InspectionGantryEnabled)
+            && !_inspectionGantry.CanMove)
+            return HomeBlockReason.NgPickupNotRaised;
+
+        return HomeBlockReason.None;
+    }
+
     public bool CanStart =>
         !_operations.IsShuttingDown
         && _state.CanAutomaticOperate
@@ -152,10 +200,11 @@ public sealed class MachineController
     public bool CanTestBoltHead =>
         !_operations.IsShuttingDown && _state.ManualControlsEnabled;
     public bool CanUseAdcProtocol =>
+        AdcProtocolAvailable && !_state.IsRunning;
+    public bool AdcProtocolAvailable =>
         !_operations.IsShuttingDown
         && _state.ManualMode
-        && _state.SafetyReady
-        && (!_state.IsRunning || _state.BoltTestRunning);
+        && _state.SafetyReady;
     public bool TeachingReady =>
         !_units.BoltFastening && !_units.Inspection
         || _recipe.BoltFastening.BoltPoints.Count > 0
@@ -214,14 +263,14 @@ public sealed class MachineController
         }
     }
 
-    public async Task<BoltResult> TestBoltHeadAsync(
-        IBoltHead head,
-        CancellationToken cancellationToken = default)
+    public async Task RunAdcProtocolAsync(
+        Func<CancellationToken, Task> command,
+        CancellationToken cancellationToken)
     {
-        if (!CanTestBoltHead)
+        if (!CanUseAdcProtocol)
         {
             throw new InvalidOperationException(
-                "Bolt testing requires an idle machine in manual mode.");
+                "ADC diagnostics require an idle machine in manual mode.");
         }
 
         using var operation = _operations.Link(cancellationToken);
@@ -229,7 +278,8 @@ public sealed class MachineController
         {
             try
             {
-                if (_state.CanOperate && _state.ManualMode)
+                if (AdcProtocolAvailable
+                    && (!_state.BoltTestRunning || _state.CanOperate))
                 {
                     return;
                 }
@@ -245,10 +295,32 @@ public sealed class MachineController
         _state.Changed += StopWhenUnavailable;
         try
         {
-            _state.SetBoltTestRunning(true);
             StopWhenUnavailable();
-            await head.CheckReadyAsync(operation.Token);
-            return await head.TightenAsync(operation.Token);
+            operation.Token.ThrowIfCancellationRequested();
+            await command(operation.Token);
+        }
+        finally
+        {
+            _state.Changed -= StopWhenUnavailable;
+        }
+    }
+
+    internal async Task<BoltResult> TestBoltHeadAsync(
+        IBoltHead head,
+        CancellationToken cancellationToken)
+    {
+        // RunAdcProtocolAsync owns admission and cancellation for this command.
+        if (!_state.CanOperate || !_state.ManualMode)
+        {
+            throw new InvalidOperationException(
+                "Bolt testing requires a ready machine in manual mode.");
+        }
+
+        try
+        {
+            _state.SetBoltTestRunning(true);
+            await head.CheckReadyAsync(cancellationToken);
+            return await head.TightenAsync(cancellationToken);
         }
         catch (Exception exception)
             when (exception is not OperationCanceledException)
@@ -258,7 +330,6 @@ public sealed class MachineController
         }
         finally
         {
-            _state.Changed -= StopWhenUnavailable;
             _state.SetBoltTestRunning(false);
         }
     }
@@ -313,6 +384,51 @@ public sealed class MachineController
         _state.Refresh();
     }
 
+    public async Task RaiseCylindersAsync(CancellationToken cancellationToken)
+    {
+        if (!CanRaiseCylinders) return;
+
+        using var operation = _operations.Link(cancellationToken);
+        void StopWhenUnavailable()
+        {
+            if (!_state.ManualMode || !_state.SafetyReady || _state.IsError
+                || !_io.IsReady || Array.Exists(CarrierInputs, _io.GetInput))
+                operation.Cancel();
+        }
+
+        async Task RaiseAsync(Func<CancellationToken, Task> raise, MachineAlarm alarm)
+        {
+            try
+            {
+                await raise(operation.Token);
+            }
+            catch (Exception exception)
+            {
+                if (exception is not OperationCanceledException && !operation.IsCancellationRequested)
+                    _state.SetError(alarm);
+                operation.Cancel();
+            }
+        }
+
+        _state.Changed += StopWhenUnavailable;
+        try
+        {
+            StopWhenUnavailable();
+            var tasks = new List<Task>(3);
+            if (BufferHandlersEnabled)
+                tasks.Add(RaiseAsync(_placementHandler.RaiseCylindersAsync, MachineAlarm.PcbPlacement));
+            if (_units.BoltFastening)
+                tasks.Add(RaiseAsync(_fasteningGantry.RaiseCylindersAsync, MachineAlarm.BoltFastening));
+            if (InspectionGantryEnabled)
+                tasks.Add(RaiseAsync(_ngTransfer.RaiseAsync, MachineAlarm.NgCarrierTransfer));
+            await Task.WhenAll(tasks);
+        }
+        finally
+        {
+            _state.Changed -= StopWhenUnavailable;
+        }
+    }
+
     public async Task HomeAsync(CancellationToken cancellationToken)
     {
         if (!CanHome)
@@ -347,14 +463,32 @@ public sealed class MachineController
                 operation.Cancel();
                 _state.SetError(MachineAlarm.MotionUnavailable);
             }
-            else if (_state.IsError)
+            else if (_state.IsError || HomeBlock != HomeBlockReason.None)
             {
                 operation.Cancel();
             }
         }
 
+        async Task RunHomeStepAsync(Task step)
+        {
+            try
+            {
+                await step;
+            }
+            catch
+            {
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    _state.SetError(MachineAlarm.HomeFailed);
+                }
+
+                throw;
+            }
+        }
+
         async Task CheckHomeAsync(Task<bool> homing)
         {
+            await RunHomeStepAsync(homing);
             if (!await homing)
             {
                 _state.SetError(MachineAlarm.HomeFailed);
@@ -389,15 +523,15 @@ public sealed class MachineController
             var safeZTasks = new List<Task>(2);
             if (BufferHandlersEnabled)
             {
-                safeZTasks.Add(
+                safeZTasks.Add(RunHomeStepAsync(
                     _placementHandler.MoveToHorizontalZAsync(
-                        cancellationToken));
+                        cancellationToken)));
             }
 
             if (_units.BoltFastening)
             {
-                safeZTasks.Add(
-                    _fasteningGantry.MoveToSafeZAsync(cancellationToken));
+                safeZTasks.Add(RunHomeStepAsync(
+                    _fasteningGantry.MoveToSafeZAsync(cancellationToken)));
             }
 
             await Task.WhenAll(safeZTasks);
@@ -443,11 +577,7 @@ public sealed class MachineController
         catch (OperationCanceledException)
         {
         }
-        catch (IoTimeoutException)
-        {
-            _state.SetError(MachineAlarm.HomeFailed);
-        }
-        catch (MotionException)
+        catch (Exception)
         {
             _state.SetError(MachineAlarm.HomeFailed);
         }
@@ -461,13 +591,31 @@ public sealed class MachineController
 
     private void OnInputChanged(InputIo input, bool value)
     {
-        if (input is InputIo.NgCarrierPickupUp
+        if (input is InputIo.PcbPlacementHandlerUp
+            or InputIo.PcbPlacementHandlerDown
+            or InputIo.PcbPlacementIpmUp
+            or InputIo.PcbPlacementIpmDown
+            or InputIo.BoltTableUp
+            or InputIo.BoltTableDown
+            or InputIo.PickupHeadUp
+            or InputIo.PickupHeadDown
+            or InputIo.ShootingHeadUp
+            or InputIo.ShootingHeadDown
+            or InputIo.NgCarrierPickupUp
             or InputIo.NgCarrierPickupDown
             or InputIo.NgCarrierDetected)
         {
-            CheckInspectionMotion();
-            _state.Refresh();
+            CheckMotionInterlocks();
         }
+
+        if (Array.IndexOf(CarrierInputs, input) >= 0
+            || input is InputIo.PcbPlacementHandlerUp or InputIo.PcbPlacementHandlerDown
+                or InputIo.PcbPlacementIpmUp or InputIo.PcbPlacementIpmDown
+                or InputIo.BoltTableUp or InputIo.BoltTableDown
+                or InputIo.PickupHeadUp or InputIo.PickupHeadDown
+                or InputIo.ShootingHeadUp or InputIo.ShootingHeadDown
+                or InputIo.NgCarrierPickupUp or InputIo.NgCarrierPickupDown)
+            _state.Refresh();
 
         if (MachineState.IsSafetyInput(input))
         {
@@ -489,12 +637,24 @@ public sealed class MachineController
         }
     }
 
-    private void CheckInspectionMotion()
+    private void CheckMotionInterlocks()
     {
-        if (_inspectionGantry.Feedback.IsMoving && !_inspectionGantry.CanMove
-            || InspectionGantryEnabled && _state.IsHoming && !_inspectionGantry.CanHome)
+        var alarm = _placementHandler.Feedback.IsMoving
+                    && !_placementHandler.CanMoveHorizontal
+            ? MachineAlarm.PcbPlacement
+            : _fasteningGantry.Feedback.IsMoving
+              && !_fasteningGantry.CanMoveHorizontal
+                ? MachineAlarm.BoltFastening
+                : _inspectionGantry.Feedback.IsMoving
+                  && !_inspectionGantry.CanMove
+                  || InspectionGantryEnabled
+                  && _state.IsHoming
+                  && !_inspectionGantry.CanHome
+                    ? MachineAlarm.NgCarrierTransfer
+                    : MachineAlarm.None;
+        if (alarm != MachineAlarm.None)
         {
-            _state.SetError(MachineAlarm.NgCarrierTransfer);
+            _state.SetError(alarm);
             Stop();
         }
     }
@@ -564,6 +724,18 @@ public sealed class MachineController
         try
         {
             var startAlarm = await CheckHardwareAsync(operation.Token);
+            if (startAlarm == MachineAlarm.None && _units.Inspection)
+            {
+                try
+                {
+                    await Task.Run(_boltInspector.CheckReady, operation.Token);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    startAlarm = MachineAlarm.Inspection;
+                }
+            }
+
             operation.Token.ThrowIfCancellationRequested();
             if (startAlarm != MachineAlarm.None)
             {

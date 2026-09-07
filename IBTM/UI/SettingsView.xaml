@@ -111,6 +111,16 @@
     </UserControl.Resources>
 
     <Grid Margin="24,20">
+        <Grid.Style>
+            <Style TargetType="Grid">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding SaveSettingsCommand.IsRunning}"
+                                 Value="True">
+                        <Setter Property="IsEnabled" Value="False"/>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Grid.Style>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -318,6 +328,8 @@
                                     <ListBox.GroupStyle>
                                         <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
                                                     HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
+                                        <GroupStyle ContainerStyle="{StaticResource IoSectionGroupItemStyle}"
+                                                    HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>
                                     </ListBox.GroupStyle>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
@@ -343,6 +355,8 @@
                                     <ListBox.GroupStyle>
                                         <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
                                                     HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
+                                        <GroupStyle ContainerStyle="{StaticResource IoSectionGroupItemStyle}"
+                                                    HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>
                                     </ListBox.GroupStyle>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
@@ -373,6 +387,8 @@
                                     <ListBox.GroupStyle>
                                         <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
                                                     HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
+                                        <GroupStyle ContainerStyle="{StaticResource IoSectionGroupItemStyle}"
+                                                    HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>
                                     </ListBox.GroupStyle>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
@@ -463,6 +479,9 @@
                                 <TextBox Text="{Binding Settings.InspectionCamera.ExposureMicroseconds, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"/>
                                 <TextBlock Text="Gain" Style="{StaticResource SettingFieldLabel}"/>
                                 <TextBox Text="{Binding Settings.InspectionCamera.Gain, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"/>
+                                <TextBlock Text="Exposure and gain apply on the next capture or live preview start."
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
                                 <UniformGrid Columns="2" Margin="0,0,0,10">
                                     <StackPanel Margin="0,0,4,0">
                                         <TextBlock Text="Frame Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
@@ -646,7 +665,7 @@
                 BorderThickness="0,1,0,0"
                 Padding="0,10,0,0">
             <Grid>
-                <TextBlock Text="Driver, unit, connection, I/O and axis changes apply after restart."
+                <TextBlock Text="Unit changes apply to the next run. Driver, connection, I/O and axis mapping changes require restart."
                            VerticalAlignment="Center"
                            Foreground="{StaticResource TextMutedBrush}"/>
                 <Button Content="Save Settings"

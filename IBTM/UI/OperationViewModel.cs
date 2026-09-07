@@ -26,6 +26,7 @@ public partial class OperationViewModel : ObservableObject
     private sealed record MachineDisplaySnapshot(
         MachineDisplayState DisplayState,
         StartBlockReason StartBlock,
+        HomeBlockReason HomeBlock,
         bool IsHoming,
         bool AutomaticRunning,
         bool ConveyorRunning,
@@ -39,7 +40,8 @@ public partial class OperationViewModel : ObservableObject
         bool ServoPowerOn,
         bool Homed,
         bool CanStart,
-        bool CanHome);
+        bool CanHome,
+        bool CanRaiseCylinders);
 
     [Flags]
     private enum PositionRefresh
@@ -68,6 +70,7 @@ public partial class OperationViewModel : ObservableObject
         nameof(MachineDisplayState),
         nameof(StartBlocked),
         nameof(StartBlock),
+        nameof(HomeBlock),
         nameof(IsHoming),
         nameof(ConveyorRunning),
         nameof(MainConveyorState),
@@ -520,20 +523,17 @@ public partial class OperationViewModel : ObservableObject
 
     public void Deactivate() => _active = false;
 
-    public async Task ShutdownAsync()
-    {
-        var pending = CommandShutdown.Capture(StartCommand, HomeCommand);
-        try
+    public Task ShutdownAsync() => CommandShutdown.StopAsync(
+        () =>
         {
             Deactivate();
             StartCommand.Cancel();
             HomeCommand.Cancel();
-        }
-        finally
-        {
-            await CommandShutdown.WaitAsync(pending);
-        }
-    }
+            RaiseCylindersCommand.Cancel();
+        },
+        StartCommand,
+        HomeCommand,
+        RaiseCylindersCommand);
 
     [RelayCommand(CanExecute = nameof(CanOpenPcbPlacementRecovery))]
     private void OpenPcbPlacementRecovery() => _startPreparations.Open(
@@ -563,8 +563,15 @@ public partial class OperationViewModel : ObservableObject
     private void Stop()
     {
         StartCommand.Cancel();
+        RaiseCylindersCommand.Cancel();
         _machine.Stop();
     }
+
+    [RelayCommand(CanExecute = nameof(CanRaiseCylinders))]
+    private Task RaiseCylindersAsync(CancellationToken cancellationToken) =>
+        Task.Run(
+            () => _machine.RaiseCylindersAsync(cancellationToken),
+            cancellationToken);
 
     [RelayCommand(CanExecute = nameof(CanHome))]
     private Task HomeAsync(CancellationToken cancellationToken) =>
@@ -577,6 +584,7 @@ public partial class OperationViewModel : ObservableObject
 
     private bool CanStart() => _machineDisplay.CanStart;
     private bool CanHome() => _machineDisplay.CanHome;
+    private bool CanRaiseCylinders() => _machineDisplay.CanRaiseCylinders;
     private bool CanStopHome() => _machineDisplay.IsHoming;
     private bool CanOpenBoltFasteningRecovery() => BoltFasteningRecoveryAvailable;
     private bool CanOpenPcbPlacementRecovery() =>
@@ -586,6 +594,7 @@ public partial class OperationViewModel : ObservableObject
     {
         StartCommand.NotifyCanExecuteChanged();
         HomeCommand.NotifyCanExecuteChanged();
+        RaiseCylindersCommand.NotifyCanExecuteChanged();
         StopHomeCommand.NotifyCanExecuteChanged();
         OpenPcbPlacementRecoveryCommand.NotifyCanExecuteChanged();
         OpenBoltFasteningRecoveryCommand.NotifyCanExecuteChanged();
@@ -914,7 +923,7 @@ public partial class OperationViewModel : ObservableObject
         _fasteningState = ready
             ? _boltFastening.State(_recipe.BoltFastening)
             : BoltFasteningState.Waiting;
-        _boltFasteningActiveBolt = ready
+        _boltFasteningActiveBolt = ready && _state.AutomaticRunning
             ? _boltFastening.ActiveBolt(_recipe.BoltFastening)
             : null;
         _boltTargets = CreateFasteningTargets();
@@ -927,7 +936,7 @@ public partial class OperationViewModel : ObservableObject
         _inspectionStationState = ready
             ? _inspectionStation.State(bolts)
             : InspectionStationState.Waiting;
-        _inspectionActiveBolt = ready
+        _inspectionActiveBolt = ready && _state.AutomaticRunning
             ? _inspectionStation.ActiveBolt(bolts)
             : null;
         _inspectionTargets = CreateInspectionTargets();
@@ -1052,6 +1061,7 @@ public partial class OperationViewModel : ObservableObject
                 servoMainContactorOn,
                 isRunning),
             startBlock,
+            _machine.HomeBlock,
             isHoming,
             automaticRunning,
             conveyorRunning,
@@ -1065,7 +1075,8 @@ public partial class OperationViewModel : ObservableObject
             servoMainContactorOn && readiness.ServosOn,
             readiness.Homed,
             canStart,
-            canHome);
+            canHome,
+            _machine.CanRaiseCylinders);
     }
 
     private StartBlockReason StartBlockFor(

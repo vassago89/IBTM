@@ -63,7 +63,7 @@ public static class DependencyInjection
                                 mapping.Value.Feedback.OffInput),
                     }));
         services.AddSingleton(settings.Drivers);
-        services.AddSingleton(settings.Units.Snapshot());
+        services.AddSingleton(settings.Units);
         services.AddSingleton(settings.Options);
         services.AddSingleton(settings.Home);
         services.AddSingleton(settings.RecipeSelection);
@@ -83,32 +83,44 @@ public static class DependencyInjection
         services.AddSingleton(recipe ?? new Recipe());
 
         AddControlHardware(services, settings);
-        services.AddSingleton(provider => new PcbPlacementWork(
-            ConveyorStation.PcbPlacement(
-                provider.GetRequiredService<IIoService>()),
-            provider.GetRequiredService<UnitSettings>().PcbPlacement));
-        services.AddSingleton(provider => new BoltFasteningWork(
-            ConveyorStation.BoltFastening(
-                provider.GetRequiredService<IIoService>()),
-            provider.GetRequiredService<UnitSettings>().BoltFastening));
-        services.AddSingleton(provider => new InspectionWork(
-            ConveyorStation.Inspection(
-                provider.GetRequiredService<IIoService>()),
-            provider.GetRequiredService<INgCarrierTransferFeedback>(),
-            provider.GetRequiredService<UnitSettings>().Inspection));
+        services.AddSingleton(provider =>
+        {
+            var units = provider.GetRequiredService<UnitSettings>();
+            return new PcbPlacementWork(
+                ConveyorStation.PcbPlacement(
+                    provider.GetRequiredService<IIoService>()),
+                () => units.PcbPlacement);
+        });
+        services.AddSingleton(provider =>
+        {
+            var units = provider.GetRequiredService<UnitSettings>();
+            return new BoltFasteningWork(
+                ConveyorStation.BoltFastening(
+                    provider.GetRequiredService<IIoService>()),
+                () => units.BoltFastening);
+        });
+        services.AddSingleton(provider =>
+        {
+            var units = provider.GetRequiredService<UnitSettings>();
+            return new InspectionWork(
+                ConveyorStation.Inspection(
+                    provider.GetRequiredService<IIoService>()),
+                provider.GetRequiredService<INgCarrierTransferFeedback>(),
+                () => units.Inspection);
+        });
         services.AddSingleton<BoltPresenceDetector>();
         services.AddSingleton<BoltTrainingSession>();
         services.AddSingleton(provider =>
         {
             var units = provider.GetRequiredService<UnitSettings>();
+            var inspection = provider.GetRequiredService<InspectionWork>();
             return new MainConveyor(
                 provider.GetRequiredService<IIoService>(),
                 provider.GetRequiredService<OperationCancellation>(),
                 provider.GetRequiredService<PcbPlacementWork>(),
                 provider.GetRequiredService<BoltFasteningWork>(),
-                provider.GetRequiredService<InspectionWork>(),
-                inspectionBypassToNg:
-                    !units.Inspection && units.NgCarrierTransfer);
+                inspection,
+                routeInspectionToNg: () => units.NgCarrierTransfer && inspection.RouteToNg);
         });
         services.AddSingleton<NgCarrierTransfer>();
         services.AddSingleton(provider =>
@@ -235,8 +247,7 @@ public static class DependencyInjection
                 provider.GetRequiredService<InspectionGantry>(),
                 settings.NgCarrierTransfer,
                 provider.GetRequiredService<NgShuttle>(),
-                units.Inspection,
-                units.NgCarrierTransfer);
+                () => units.NgCarrierTransfer);
         });
         services.AddSingleton<RecipeEditor>();
         services.AddSingleton<StartPreparation,

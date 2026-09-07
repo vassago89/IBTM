@@ -152,6 +152,7 @@ public partial class ManualHardwareViewModel : ObservableObject
     private readonly InspectionGantry _inspection;
     private readonly MainConveyor _conveyor;
     private readonly MachineState _state;
+    private readonly MachineController _machine;
     private readonly HomeSettings _home;
     private volatile bool _active;
     private int _pendingPositionGroups;
@@ -172,6 +173,7 @@ public partial class ManualHardwareViewModel : ObservableObject
         InspectionGantry inspection,
         MainConveyor conveyor,
         MachineState state,
+        MachineController machine,
         HomeSettings home)
     {
         _supply = supply;
@@ -180,6 +182,7 @@ public partial class ManualHardwareViewModel : ObservableObject
         _inspection = inspection;
         _conveyor = conveyor;
         _state = state;
+        _machine = machine;
         _home = home;
         Axes =
         [
@@ -211,6 +214,7 @@ public partial class ManualHardwareViewModel : ObservableObject
     }
 
     public ManualAxisRow[] Axes { get; }
+    public HomeBlockReason HomeBlock => _machine.HomeBlock;
     public ManualConveyorStatus ConveyorStatus =>
         _state.ConveyorRunning
             ? ManualConveyorStatus.Running
@@ -246,11 +250,13 @@ public partial class ManualHardwareViewModel : ObservableObject
         ManualAxisRow row,
         CancellationToken cancellationToken)
     {
+        if (!CanHomeAxis(row)) return;
         IsHoming = true;
         void StopWhenHomeUnavailable()
         {
             if (!_state.ManualMode || !_state.SafetyReady || !_state.DoorInterlockReady
-                || _state.IsError || !HomeHardwareReady(row))
+                || _state.IsError || !HomeHardwareReady(row)
+                || _machine.GetHomeBlock(row.Group) != HomeBlockReason.None)
             {
                 HomeAxisCommand.Cancel();
             }
@@ -295,7 +301,7 @@ public partial class ManualHardwareViewModel : ObservableObject
         && !IsHoming
         && !_state.IsRunning
         && BufferAllowsHome(row.Signal)
-        && (row.Group != MotionGroup.InspectionGantry || _inspection.CanHome)
+        && _machine.GetHomeBlock(row.Group) == HomeBlockReason.None
         && HomeHardwareReady(row);
 
     private bool HomeHardwareReady(ManualAxisRow row)
@@ -426,6 +432,7 @@ public partial class ManualHardwareViewModel : ObservableObject
             }
 
             OnPropertyChanged(nameof(ConveyorStatus));
+            OnPropertyChanged(nameof(HomeBlock));
             RefreshRows();
             RunConveyorCommand.NotifyCanExecuteChanged();
             ToggleServoCommand.NotifyCanExecuteChanged();

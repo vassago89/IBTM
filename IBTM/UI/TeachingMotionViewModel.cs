@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -10,8 +11,40 @@ using IBTM.Device;
 
 namespace IBTM.UI;
 
+public enum TeachingMoveMode
+{
+    [Description("Hold to jog")]
+    Jog,
+    [Description("Step")]
+    Step,
+}
+
+public enum TeachingDirection
+{
+    [Description("X−")] XMinus,
+    [Description("X+")] XPlus,
+    [Description("Y−")] YMinus,
+    [Description("Y+")] YPlus,
+    [Description("Z−")] ZMinus,
+    [Description("Z+")] ZPlus,
+}
+
+public enum TeachingMotionHint
+{
+    [Description("")] None,
+    [Description("This unit is disabled in Settings.")] UnitDisabled,
+    [Description("Supply is inside the buffer area.")] SupplyInBuffer,
+    [Description("Placement is inside the buffer area.")] PlacementInBuffer,
+    [Description("Raise the NG pickup before moving XY.")] RaiseNgPickup,
+    [Description("Raise the placement handler and IPM before moving X/Y.")] RaisePlacementCylinders,
+    [Description("Raise the fastening table and both heads before moving X/Y.")] RaiseFasteningCylinders,
+    [Description("Move to Travel Z before moving X/Y.")] TravelZRequired,
+    [Description("Inside buffer: Y and Z moves are disabled.")] SupplyInBufferRestricted,
+}
+
 public abstract partial class TeachingMotionViewModel(
-    OperationCancellation operations) : ObservableObject
+    OperationCancellation operations,
+    MachineState state) : ObservableObject
 {
     private sealed record DisplayPosition(double X, double Y, double Z);
 
@@ -23,6 +56,20 @@ public abstract partial class TeachingMotionViewModel(
     [ObservableProperty]
     private double _jogSpeed = 10.0;
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(StepCommand))]
+    private double _stepDistance = 0.1;
+
+    [ObservableProperty]
+    private TeachingMoveMode _moveMode;
+
+    public TeachingMoveMode[] MoveModes { get; } = Enum.GetValues<TeachingMoveMode>();
+    public ManualControlBlock ManualBlock => state.ManualBlock;
+    public abstract TeachingMotionHint MotionHint { get; }
+    public bool HasY => CurrentFeedback.HasY;
+    public bool HasZ => CurrentFeedback.HasZ;
+    protected abstract IMotionFeedback CurrentFeedback { get; }
+
     protected abstract MotionGroup CurrentMotionGroup { get; }
     protected bool PositionUpdatesActive => _positionUpdatesActive;
 
@@ -30,35 +77,60 @@ public abstract partial class TeachingMotionViewModel(
     public double CurrentY => _position.Y;
     public double CurrentZ => _position.Z;
 
-    [RelayCommand(CanExecute = nameof(CanJogX))]
-    private void JogXPlus() =>
-        JogCurrent(MotionAxis.X, JogSpeed, _motionCancellation.Token);
+    [RelayCommand(CanExecute = nameof(CanMoveDirection))]
+    private void Jog(TeachingDirection direction)
+    {
+        var (axis, sign) = Resolve(direction);
+        JogCurrent(axis, sign * JogSpeed, _motionCancellation.Token);
+    }
 
-    [RelayCommand(CanExecute = nameof(CanJogX))]
-    private void JogXMinus() =>
-        JogCurrent(MotionAxis.X, -JogSpeed, _motionCancellation.Token);
+    [RelayCommand(CanExecute = nameof(CanStep))]
+    private Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken)
+    {
+        var (axis, target) = StepTarget(direction);
+        return RunMotionAsync(
+            token => MoveCurrentAxisAsync(axis, target, token),
+            cancellationToken);
+    }
 
-    [RelayCommand(CanExecute = nameof(CanJogY))]
-    private void JogYPlus() =>
-        JogCurrent(MotionAxis.Y, JogSpeed, _motionCancellation.Token);
+    private (MotionAxis Axis, double Position) StepTarget(TeachingDirection direction)
+    {
+        var (axis, sign) = Resolve(direction);
+        var current = CurrentPosition();
+        var position = axis switch
+        {
+            MotionAxis.X => current.X,
+            MotionAxis.Y => current.Y,
+            MotionAxis.Z => current.Z,
+            _ => throw new ArgumentOutOfRangeException(nameof(direction)),
+        };
+        return (axis, position + sign * StepDistance);
+    }
 
-    [RelayCommand(CanExecute = nameof(CanJogY))]
-    private void JogYMinus() =>
-        JogCurrent(MotionAxis.Y, -JogSpeed, _motionCancellation.Token);
+    private bool CanStep(TeachingDirection direction)
+    {
+        if (!CanMoveDirection(direction)) return false;
+        var (axis, target) = StepTarget(direction);
+        return CurrentFeedback.GetRange(axis) is not { } range
+               || target >= range.Minimum && target <= range.Maximum;
+    }
 
-    [RelayCommand(CanExecute = nameof(CanJogZ))]
-    private void JogZPlus() =>
-        JogCurrent(MotionAxis.Z, JogSpeed, _motionCancellation.Token);
+    private static (MotionAxis Axis, int Sign) Resolve(TeachingDirection direction) => direction switch
+    {
+        TeachingDirection.XMinus => (MotionAxis.X, -1),
+        TeachingDirection.XPlus => (MotionAxis.X, 1),
+        TeachingDirection.YMinus => (MotionAxis.Y, -1),
+        TeachingDirection.YPlus => (MotionAxis.Y, 1),
+        TeachingDirection.ZMinus => (MotionAxis.Z, -1),
+        TeachingDirection.ZPlus => (MotionAxis.Z, 1),
+        _ => throw new ArgumentOutOfRangeException(nameof(direction)),
+    };
 
-    [RelayCommand(CanExecute = nameof(CanJogZ))]
-    private void JogZMinus() =>
-        JogCurrent(MotionAxis.Z, -JogSpeed, _motionCancellation.Token);
+    private bool CanMoveDirection(TeachingDirection direction) => CanJog(Resolve(direction).Axis);
 
     [RelayCommand]
     private void JogStop() => CancelMotion();
 
-    private bool CanJogX() => CanJog(MotionAxis.X);
-    private bool CanJogY() => CanJog(MotionAxis.Y);
     private bool CanJogZ() => CanJog(MotionAxis.Z);
     protected abstract bool CanJog(MotionAxis axis);
     protected abstract void NotifyManualTeachingCommands();
@@ -77,7 +149,10 @@ public abstract partial class TeachingMotionViewModel(
     protected abstract Task MoveCurrentToHorizontalZAsync(
         CancellationToken cancellationToken);
 
-    protected abstract (double X, double Y, double Z) CurrentPosition();
+    protected abstract Task MoveCurrentAxisAsync(
+        MotionAxis axis, double position, CancellationToken cancellationToken);
+
+    protected (double X, double Y, double Z) CurrentPosition() => CurrentFeedback.GetPosition();
 
     protected async Task RunMotionAsync(
         Func<CancellationToken, Task> move,
@@ -109,13 +184,11 @@ public abstract partial class TeachingMotionViewModel(
 
     protected void NotifyMotionCommands()
     {
-        JogXPlusCommand.NotifyCanExecuteChanged();
-        JogXMinusCommand.NotifyCanExecuteChanged();
-        JogYPlusCommand.NotifyCanExecuteChanged();
-        JogYMinusCommand.NotifyCanExecuteChanged();
-        JogZPlusCommand.NotifyCanExecuteChanged();
-        JogZMinusCommand.NotifyCanExecuteChanged();
+        JogCommand.NotifyCanExecuteChanged();
+        StepCommand.NotifyCanExecuteChanged();
         MoveToHorizontalZCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(ManualBlock));
+        OnPropertyChanged(nameof(MotionHint));
     }
 
     protected virtual void RefreshPosition()

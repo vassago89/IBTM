@@ -118,6 +118,9 @@ public enum StationDisplayState
     [Description("Disabled")]
     Disabled,
 
+    [Description("Stopped")]
+    Stopped,
+
     [Description("Fault")]
     IoAlarm,
 

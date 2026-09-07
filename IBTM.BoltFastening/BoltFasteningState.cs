@@ -25,6 +25,9 @@ public enum BoltFasteningState
     [Description("Moving to PCB Bolt")]
     MovingToPcbBolt,
 
+    [Description("Lowering for PCB Fastening")]
+    LoweringForPcb,
+
     [Description("Loading Shooting Bolt")]
     LoadingShootingBolt,
 

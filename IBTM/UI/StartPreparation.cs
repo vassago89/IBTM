@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -22,17 +21,14 @@ public abstract class StartPreparation
     private volatile bool _prepared;
     private readonly MachineState _state;
     private readonly StationWork _work;
-    private readonly bool _enabled;
     private bool _automaticRunning;
 
     protected StartPreparation(
         MachineState state,
-        StationWork work,
-        bool enabled)
+        StationWork work)
     {
         _state = state;
         _work = work;
-        _enabled = enabled;
         _automaticRunning = state.AutomaticRunning;
         state.Changed += OnMachineStateChanged;
         work.Changed += Invalidate;
@@ -40,7 +36,7 @@ public abstract class StartPreparation
 
     public abstract StartPreparationType Type { get; }
     public bool Required =>
-        _enabled
+        _work.Enabled
         && !_state.AutomaticRunning
         && _work.CarrierPresent
         && (_work.HeatSinkPresent(HeatSinkSlot.HeatSink1)

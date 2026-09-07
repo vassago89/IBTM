@@ -164,12 +164,12 @@ public partial class TeachingPoint : ObservableObject
     public string PositionLabel => TeachMode switch
     {
         TeachMode.Image => string.Empty,
-        TeachMode.XYOnly => $"{X:F1}, {Y:F1}",
-        TeachMode.XZOnly => $"{X:F1}, {Z:F1}",
-        TeachMode.XOnly => $"{X:F1}",
-        TeachMode.YOnly => $"{Y:F1}",
-        TeachMode.ZOnly => Z is { } z ? $"{z:F1}" : string.Empty,
-        _ => $"{X:F1}, {Y:F1}, {Z:F1}",
+        TeachMode.XYOnly => $"{X:F3}, {Y:F3}",
+        TeachMode.XZOnly => $"{X:F3}, {Z:F3}",
+        TeachMode.XOnly => $"{X:F3}",
+        TeachMode.YOnly => $"{Y:F3}",
+        TeachMode.ZOnly => Z is { } z ? $"{z:F3}" : string.Empty,
+        _ => $"{X:F3}, {Y:F3}, {Z:F3}",
     };
 
     public void Teach(double x, double y, double z)
@@ -191,4 +191,16 @@ public partial class TeachingPoint : ObservableObject
             Z = z;
         }
     }
+}
+
+public enum TeachingSaveBehavior
+{
+    [Description("Machine position · Teach saves automatically.")]
+    Machine,
+    [Description("Recipe position · Use Save Recipe after teaching.")]
+    Recipe,
+    [Description("Buffer setup · Apply & Save Buffer before leaving this page; otherwise staged changes are discarded.")]
+    Buffer,
+    [Description("Image point · Click the image to teach and save automatically.")]
+    Image,
 }

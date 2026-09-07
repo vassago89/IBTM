@@ -53,9 +53,9 @@ public partial class MainViewModel : ObservableObject
     private readonly ManualHardwareViewModel _manualHardwareViewModel;
     private readonly MachineState _state;
     private readonly MachineController _machine;
-    private readonly bool _supplyTeachingEnabled;
-    private readonly bool _stationTeachingEnabled;
+    private readonly UnitSettings _units;
     private readonly bool _virtualBolt;
+    private readonly IAsyncRelayCommand[] _recipeEditingCommands;
     private int _stateRefreshQueued;
     private bool _shuttingDown;
 
@@ -88,11 +88,7 @@ public partial class MainViewModel : ObservableObject
         RecipeEditor = recipeEditor;
         _state = state;
         _machine = machine;
-        _supplyTeachingEnabled = units.PcbSupply || units.PcbPlacement;
-        _stationTeachingEnabled = units.PcbPlacement
-                                   || units.BoltFastening
-                                   || units.Inspection
-                                   || units.NgCarrierTransfer;
+        _units = units;
         var controlVirtual = drivers.Control == ControlDriver.Virtual;
         var cameraVirtual = drivers.Camera == CameraDriver.Virtual;
         var boltVirtual = drivers.Bolt == BoltDriver.Virtual;
@@ -106,6 +102,21 @@ public partial class MainViewModel : ObservableObject
                 MachineEnvironmentDisplay.Physical,
             _ => MachineEnvironmentDisplay.Mixed,
         };
+        _recipeEditingCommands =
+        [
+            recipeEditor.SaveCommand,
+            recipeEditor.LoadCommand,
+            supplyTeachingViewModel.TeachCurrentPositionCommand,
+            supplyTeachingViewModel.MoveToPointCommand,
+            stationTeachingViewModel.TeachCurrentPositionCommand,
+            stationTeachingViewModel.TeachImagePointCommand,
+            stationTeachingViewModel.MoveToPointCommand,
+            stationTeachingViewModel.CaptureCarrierImagesCommand,
+        ];
+        foreach (var command in _recipeEditingCommands)
+        {
+            command.PropertyChanged += OnRecipeCommandChanged;
+        }
         state.Changed += OnMachineStateChanged;
         ActivateCurrentPage();
     }
@@ -116,7 +127,9 @@ public partial class MainViewModel : ObservableObject
     public bool RecipeToolsVisible =>
         SelectedPage is AppPage.SupplyTeaching
             or AppPage.StationTeaching;
-    public bool RecipeEditingEnabled => !_state.IsRunning;
+    public bool RecipeEditingEnabled =>
+        !_state.IsRunning
+        && Array.TrueForAll(_recipeEditingCommands, static command => !command.IsRunning);
     public bool OperationPageSelected =>
         SelectedPage == AppPage.Operation;
     public ObservableObject CurrentPage => SelectedPage switch
@@ -130,19 +143,26 @@ public partial class MainViewModel : ObservableObject
         _ => throw new ArgumentOutOfRangeException(nameof(SelectedPage)),
     };
     public bool ManualControlsEnabled => _state.ManualControlsEnabled;
+    public bool ManualOutputsEnabled => _state.ManualOutputsEnabled;
     public bool AdcProtocolEnabled =>
-        _virtualBolt || _machine.CanUseAdcProtocol;
+        _virtualBolt || _machine.AdcProtocolAvailable;
     public bool CurrentPageEnabled =>
         SelectedPage is AppPage.Operation
             or AppPage.Settings
             or AppPage.ManualHardware
             or AppPage.BoltTraining
-        || _state.CanOperate;
+        || (_state.CanOperate
+            && !RecipeEditor.SaveCommand.IsRunning
+            && !RecipeEditor.LoadCommand.IsRunning);
 
     public Task ShutdownAsync()
     {
         _shuttingDown = true;
         _state.Changed -= OnMachineStateChanged;
+        foreach (var command in _recipeEditingCommands)
+        {
+            command.PropertyChanged -= OnRecipeCommandChanged;
+        }
         return Task.WhenAll(
             _operationViewModel.ShutdownAsync(),
             _supplyTeachingViewModel.ShutdownAsync(),
@@ -154,12 +174,14 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(CanNavigate))]
-    private void Navigate(AppPage page)
+    private void Navigate(AppPage page) => SelectedPage = page;
+
+    partial void OnSelectedPageChanging(AppPage value) => DeactivateCurrentPage();
+
+    partial void OnSelectedPageChanged(AppPage value)
     {
-        DeactivateCurrentPage();
-        SelectedPage = page;
         ActivateCurrentPage();
-        if (page == AppPage.Operation)
+        if (value == AppPage.Operation)
         {
             _state.Refresh();
         }
@@ -174,10 +196,13 @@ public partial class MainViewModel : ObservableObject
                 && _state.SafetyReady
                 && !_state.IsRunning)
             || (page == AppPage.SupplyTeaching
-                && _supplyTeachingEnabled
+                && (_units.PcbSupply || _units.PcbPlacement)
                 && _state.ManualControlsEnabled)
             || (page == AppPage.StationTeaching
-                && _stationTeachingEnabled
+                && (_units.PcbPlacement
+                    || _units.BoltFastening
+                    || _units.Inspection
+                    || _units.NgCarrierTransfer)
                 && _state.ManualControlsEnabled));
 
     private void ActivateCurrentPage()
@@ -224,6 +249,15 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    private void OnRecipeCommandChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IAsyncRelayCommand.IsRunning))
+        {
+            OnPropertyChanged(nameof(RecipeEditingEnabled));
+            OnPropertyChanged(nameof(CurrentPageEnabled));
+        }
+    }
+
     private void OnMachineStateChanged()
     {
         if (_shuttingDown
@@ -241,6 +275,7 @@ public partial class MainViewModel : ObservableObject
             }
 
             OnPropertyChanged(nameof(ManualControlsEnabled));
+            OnPropertyChanged(nameof(ManualOutputsEnabled));
             OnPropertyChanged(nameof(AdcProtocolEnabled));
             OnPropertyChanged(nameof(CurrentPageEnabled));
             OnPropertyChanged(nameof(RecipeEditingEnabled));

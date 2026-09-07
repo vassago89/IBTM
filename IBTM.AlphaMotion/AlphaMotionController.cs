@@ -5,6 +5,10 @@ namespace IBTM.AlphaMotion;
 public sealed class AlphaMotionController(
     AlphaMotionSettings settings) : IDisposable
 {
+    private readonly int _controllerNumber = settings.ControllerNumber;
+    private readonly int _stationNumber = settings.StationNumber;
+    private readonly AlphaMotionCommunicationSpeed _communicationSpeed =
+        settings.CommunicationSpeed;
     private bool _initialized;
 
     public void Initialize()
@@ -22,14 +26,14 @@ public sealed class AlphaMotionController(
         {
             Check(
                 nmiMNApi.nmiSetCommSpeed(
-                    settings.ControllerNumber,
-                    (int)settings.CommunicationSpeed),
+                    _controllerNumber,
+                    (int)_communicationSpeed),
                 nameof(nmiMNApi.nmiSetCommSpeed));
             Check(
-                nmiMNApi.nmiSysComm(settings.ControllerNumber),
+                nmiMNApi.nmiSysComm(_controllerNumber),
                 nameof(nmiMNApi.nmiSysComm));
             Check(
-                nmiMNApi.nmiCyclicBegin(settings.ControllerNumber),
+                nmiMNApi.nmiCyclicBegin(_controllerNumber),
                 nameof(nmiMNApi.nmiCyclicBegin));
             Check(
                 nmiMNApi.nmiConParamLoad(),
@@ -48,8 +52,8 @@ public sealed class AlphaMotionController(
         var value = 0U;
         Check(
             nmiMNApi.nmiDiGetBit(
-                settings.ControllerNumber,
-                settings.StationNumber,
+                _controllerNumber,
+                _stationNumber,
                 bit,
                 ref value),
             nameof(nmiMNApi.nmiDiGetBit));
@@ -61,8 +65,8 @@ public sealed class AlphaMotionController(
         var value = 0U;
         Check(
             nmiMNApi.nmiDiGetData(
-                settings.ControllerNumber,
-                settings.StationNumber,
+                _controllerNumber,
+                _stationNumber,
                 ref value),
             nameof(nmiMNApi.nmiDiGetData));
         return value;
@@ -73,8 +77,8 @@ public sealed class AlphaMotionController(
         var value = 0U;
         Check(
             nmiMNApi.nmiDoGetBit(
-                settings.ControllerNumber,
-                settings.StationNumber,
+                _controllerNumber,
+                _stationNumber,
                 bit,
                 ref value),
             nameof(nmiMNApi.nmiDoGetBit));
@@ -84,8 +88,8 @@ public sealed class AlphaMotionController(
     public void WriteOutput(int bit, bool value) =>
         Check(
             nmiMNApi.nmiDoSetBit(
-                settings.ControllerNumber,
-                settings.StationNumber,
+                _controllerNumber,
+                _stationNumber,
                 bit,
                 value ? 1U : 0U),
             nameof(nmiMNApi.nmiDoSetBit));
@@ -100,7 +104,7 @@ public sealed class AlphaMotionController(
         try
         {
             Check(
-                nmiMNApi.nmiCyclicEnd(settings.ControllerNumber),
+                nmiMNApi.nmiCyclicEnd(_controllerNumber),
                 nameof(nmiMNApi.nmiCyclicEnd));
         }
         finally

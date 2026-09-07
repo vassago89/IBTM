@@ -22,6 +22,14 @@ public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
         _modelFile = () => modelFile;
     }
 
+    public void CheckReady()
+    {
+        if (_loadedModelFile != _modelFile())
+        {
+            Reload();
+        }
+    }
+
     public void Reload()
     {
         var modelFile = _modelFile();
@@ -44,10 +52,7 @@ public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
 
     public float[] Segment(ImageFrame image)
     {
-        if (_loadedModelFile != _modelFile())
-        {
-            Reload();
-        }
+        CheckReady();
 
         using var scope = NewDisposeScope();
         using var inference = no_grad();

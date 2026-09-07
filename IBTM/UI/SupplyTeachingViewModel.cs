@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -21,8 +22,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
     private readonly PcbSupplySettings _supplySettings;
     private readonly PcbPlacementHandlerSettings _placementSettings;
     private readonly SupplyTeachingPoints _teachingPoints;
-    private readonly bool _supplyEnabled;
-    private readonly bool _placementEnabled;
+    private readonly UnitSettings _units;
     [ObservableProperty]
     private IReadOnlyList<TeachingPoint> _points = [];
 
@@ -42,7 +42,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         RecipeEditor recipeEditor,
         SupplyTeachingPoints teachingPoints,
         UnitSettings units,
-        OperationCancellation operations) : base(operations)
+        OperationCancellation operations) : base(operations, state)
     {
         _supplyHandler = supplyHandler;
         _placementHandler = placementHandler;
@@ -52,8 +52,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         _supplySettings = supplySettings;
         _placementSettings = placementSettings;
         _teachingPoints = teachingPoints;
-        _supplyEnabled = units.PcbSupply;
-        _placementEnabled = units.PcbPlacement;
+        _units = units;
         RecipeEditor = recipeEditor;
 
         supplyHandler.Feedback.PositionChanged += (x, y, z) =>
@@ -76,8 +75,13 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
     }
 
     public RecipeEditor RecipeEditor { get; }
-    public bool SupplyEnabled => _supplyEnabled;
-    public bool PlacementEnabled => _placementEnabled;
+    public bool SupplyEnabled => _units.PcbSupply;
+    public bool PlacementEnabled => _units.PcbPlacement;
+    public TeachingSaveBehavior SaveBehavior => SelectedPoint is { } point && IsBuffer(point)
+        ? TeachingSaveBehavior.Buffer
+        : SelectedPoint?.Storage == TeachingStorage.Machine
+            ? TeachingSaveBehavior.Machine
+            : TeachingSaveBehavior.Recipe;
     private Recipe CurrentRecipe => RecipeEditor.Recipe;
 
     [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
@@ -105,7 +109,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
     private bool CanTeachCurrentPosition() =>
         SelectedPoint is not null && CanUseCurrentHandler();
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSaveBufferSetup))]
     private async Task SaveBufferSetupAsync()
     {
         foreach (var point in Points.Where(IsBuffer))
@@ -117,14 +121,22 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         NotifyManualTeachingCommands();
     }
 
-    private Task SaveMachinePositionsAsync() => Task.WhenAll(
-        _supplySettings.SaveAsync(),
-        _placementSettings.SaveAsync(),
-        _bufferSettings.SaveAsync());
+    private bool CanSaveBufferSetup() => _state.ManualControlsEnabled;
+
+    private async Task SaveMachinePositionsAsync()
+    {
+        using var operation = LinkMotion(CancellationToken.None);
+        await Task.WhenAll(
+            _supplySettings.SaveAsync(),
+            _placementSettings.SaveAsync(),
+            _bufferSettings.SaveAsync());
+    }
 
     public void Activate()
     {
         RecipeEditor.Refresh();
+        OnPropertyChanged(nameof(SupplyEnabled));
+        OnPropertyChanged(nameof(PlacementEnabled));
         BuildPoints();
         ActivatePositionUpdates();
         RefreshActuators();
@@ -133,6 +145,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
     public void Deactivate()
     {
         DeactivatePositionUpdates();
+        StepCommand.Cancel();
         MoveToHorizontalZCommand.Cancel();
         MoveToPointCommand.Cancel();
         ToggleActuatorCommand.Cancel();
@@ -142,6 +155,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
     public Task ShutdownAsync() =>
         CommandShutdown.StopAsync(
             Deactivate,
+            StepCommand,
             MoveToHorizontalZCommand,
             MoveToPointCommand,
             ToggleActuatorCommand,
@@ -153,8 +167,8 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         Points = _teachingPoints.Build(CurrentRecipe.PcbSupply)
             .Where(point => point.MotionGroup switch
             {
-                MotionGroup.PcbSupply => _supplyEnabled,
-                MotionGroup.PcbPlacementHandler => _placementEnabled,
+                MotionGroup.PcbSupply => SupplyEnabled,
+                MotionGroup.PcbPlacementHandler => PlacementEnabled,
                 _ => false,
             })
             .ToArray();

@@ -58,6 +58,7 @@ public sealed class InspectionTests
                         carrierReference))),
             motion.GetPosition,
             gantrySettings.GetBoltPosition(bolts[1], carrierReference));
+        var segmenter = new CountingSegmenter();
         var inspector = new BoltInspector(
             gantry,
             camera,
@@ -65,7 +66,7 @@ public sealed class InspectionTests
             new VirtualLightController(),
             new BoltPresenceDetector(
                 new BoltInspectionSettings(),
-                new VirtualBoltRecessSegmenter()),
+                segmenter),
             gantrySettings,
             carrierReference,
             new LightingSettings());
@@ -83,8 +84,7 @@ public sealed class InspectionTests
             gantry,
             transferSettings,
             shuttle,
-            inspectionEnabled: true,
-            transferEnabled: false);
+            isTransferEnabled: () => false);
 
         io.Initialize();
         motion.Initialize();
@@ -164,8 +164,10 @@ public sealed class InspectionTests
         Assert.True(work.HasNg);
         Assert.Empty(work.Assemblies);
 
+        var segmentCallsAtStop = 0;
         camera.AfterCapture = () =>
         {
+            segmentCallsAtStop = segmenter.Calls;
             io.SetInput(InputIo.InspectionCarrierPresent, false);
             io.SetInput(InputIo.InspectionCarrierPresent, true);
             cancellation.Cancel();
@@ -175,6 +177,7 @@ public sealed class InspectionTests
         io.SetInput(InputIo.InspectionCarrierPresent, true);
         await run.WaitAsync(TimeSpan.FromSeconds(2));
 
+        Assert.Equal(segmentCallsAtStop, segmenter.Calls);
         Assert.Empty(work.Assemblies);
         Assert.False(work.Completed);
 
@@ -185,14 +188,16 @@ public sealed class InspectionTests
             Y = position.Y,
         };
         var transferStation = new InspectionStation(
-            new InspectionWork(ConveyorStation.Inspection(io), transferFeedback, enabled: false),
+            new InspectionWork(
+                ConveyorStation.Inspection(io),
+                transferFeedback,
+                isEnabled: () => false),
             inspector,
             transfer,
             gantry,
             transferSettings,
             shuttle,
-            inspectionEnabled: false,
-            transferEnabled: true);
+            isTransferEnabled: () => true);
         io.SetInput(InputIo.NgShuttleUp, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, false);
         io.SetInput(InputIo.InspectionBackupPlateDown, true);
@@ -237,6 +242,19 @@ public sealed class InspectionTests
             X = position.X,
             Y = position.Y,
         };
+    }
+
+    private sealed class CountingSegmenter : IBoltRecessSegmenter
+    {
+        private readonly VirtualBoltRecessSegmenter _inner = new();
+        public int Calls { get; private set; }
+        public void CheckReady() => _inner.CheckReady();
+        public void Reload() => _inner.Reload();
+        public float[] Segment(ImageFrame image)
+        {
+            Calls++;
+            return _inner.Segment(image);
+        }
     }
 
     private sealed class MissingBoltCamera(

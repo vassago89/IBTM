@@ -5,6 +5,10 @@ namespace IBTM.Virtual;
 
 public sealed class VirtualBoltRecessSegmenter : IBoltRecessSegmenter
 {
+    public void CheckReady()
+    {
+    }
+
     public void Reload()
     {
     }
