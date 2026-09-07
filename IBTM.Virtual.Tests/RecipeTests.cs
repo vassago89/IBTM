@@ -19,6 +19,46 @@ namespace IBTM.Virtual.Tests;
 public sealed class RecipeTests
 {
     [Fact]
+    public void TeachingMapsDoNotRequireAnUnrelatedUnitAndKeepToolCentersOnTargets()
+    {
+        var settings = new MachineSettings();
+        var reference = settings.CarrierReference;
+        reference.UpperLeftLocatingPin = new() { X = 10, Y = 20 };
+        reference.LowerRightLocatingPin = new() { X = 110, Y = 70 };
+        var map = new MachineMap(new Recipe(), settings.PcbSupply, settings.PcbPlacementHandler,
+            settings.BoltFastening, reference, settings.InspectionGantry, settings.NgCarrierTransfer);
+        Assert.True(map.InspectionDefined);
+        var origin = map.Inspection(new(10, 20, 0));
+        Assert.Equal(MachinePlan.InspectionUpperLeft.X, origin.X + MachinePlan.CameraCenter.X, 6);
+        Assert.Equal(MachinePlan.InspectionUpperLeft.Y, origin.Y + MachinePlan.CameraCenter.Y, 6);
+        var bolt = new BoltPoint { X = 30, Y = 20, Z = 5, Head = FasteningHead.Shooting };
+        var camera = map.Inspection(new(40, 40, 0));
+        var mark = map.InspectionTarget(bolt);
+        Assert.Equal(camera.X + MachinePlan.CameraCenter.X, mark.X + MachinePlan.InspectionContentOrigin.X, 6);
+        Assert.Equal(camera.Y + MachinePlan.CameraCenter.Y, mark.Y + MachinePlan.InspectionContentOrigin.Y, 6);
+
+        settings.BoltFastening.ShootingHead.UpperLeftLocatingPin = new() { X = 30, Y = 40 };
+        settings.BoltFastening.ShootingHead.LowerRightLocatingPin = new() { X = 130, Y = 90 };
+        Assert.True(map.FasteningDefined); // Pickup head is not taught.
+        var head = map.Fastening(new(60, 60, 5));
+        mark = map.FasteningTarget(bolt);
+        Assert.Equal(head.X + MachinePlan.ShootingToolCenter.X, mark.X + MachinePlan.FasteningContentOrigin.X, 6);
+        Assert.Equal(head.Y + MachinePlan.ShootingToolCenter.Y, mark.Y + MachinePlan.FasteningContentOrigin.Y, 6);
+
+        settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 60, Y = 110 };
+        settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 60, Y = -10 };
+        var pickup = map.Inspection(new(60, 110, 0));
+        var shuttle = map.Inspection(new(60, -10, 0));
+        Assert.Equal(MachinePlan.InspectionCarrierCenter.X, pickup.X + MachinePlan.NgPickerCenter.X, 6);
+        Assert.Equal(MachinePlan.InspectionCarrierCenter.Y, pickup.Y + MachinePlan.NgPickerCenter.Y, 6);
+        Assert.Equal(MachinePlan.NgShuttleCenter.X, shuttle.X + MachinePlan.NgPickerCenter.X, 6);
+        Assert.Equal(MachinePlan.NgShuttleCenter.Y, shuttle.Y + MachinePlan.NgPickerCenter.Y, 6);
+        reference.LowerRightLocatingPin = reference.UpperLeftLocatingPin;
+        Assert.False(map.InspectionDefined);
+        Assert.Equal((0d, 0d), map.Inspection(new(10, 20, 0)));
+    }
+
+    [Fact]
     public void TeachingDefinitionsKeepBufferEditsStagedAndUpdateTheOwningSettings()
     {
         var supply = new PcbSupplySettings { CarrierY = 7 };
@@ -196,7 +236,7 @@ public sealed class RecipeTests
 
         var saved = await store.LoadRecipeAsync(recipe.Name);
         var reopened = new RecipeEditor(store, new RecipeSelectionSettings(), saved, new());
-        Assert.Equal(2, reopened.LoadCarrierImages().Count);
+        Assert.Equal(2, (await reopened.LoadCarrierImagesAsync()).Length);
         Assert.Equal([10d, 30d], saved.CarrierImages.Select(tile => tile.Center.X));
         Assert.Equal([10d, 30d], recipe.CarrierImages.Select(tile => tile.Center.X));
 
@@ -215,13 +255,13 @@ public sealed class RecipeTests
 
         saved = await store.LoadRecipeAsync(recipe.Name);
         reopened = new RecipeEditor(store, new RecipeSelectionSettings(), saved, new());
-        Assert.Equal(2, reopened.LoadCarrierImages().Count);
+        Assert.Equal(2, (await reopened.LoadCarrierImagesAsync()).Length);
         Assert.Equal([10d, 30d], saved.CarrierImages.Select(tile => tile.Center.X));
         await editor.SaveAsync();
         saved = await store.LoadRecipeAsync(recipe.Name);
         Assert.Equal([11d, 31d], saved.CarrierImages.Select(tile => tile.Center.X));
         Assert.Equal(2, Directory.GetFiles(Path.GetDirectoryName(blockedFile)!, "*.png").Length);
-        Assert.All(editor.LoadCarrierImages(), tile =>
+        Assert.All((await editor.LoadCarrierImagesAsync()), tile =>
         {
             Assert.Equal(320, tile.Image.PixelWidth);
             Assert.Equal(240, tile.Image.PixelHeight);
@@ -273,6 +313,6 @@ public sealed class RecipeTests
         Assert.Equal([1d, 2d], saved.CarrierImages.Select(tile => tile.Center.X));
         Assert.Equal(2, Directory.GetFiles(targetDirectory, "*.png").Length);
         Assert.Equal(2, (await store.LoadRecipeAsync(sourceName)).CarrierImages.Count);
-        Assert.Equal(2, sourceEditor.LoadCarrierImages().Count);
+        Assert.Equal(2, (await sourceEditor.LoadCarrierImagesAsync()).Length);
     }
 }

@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,6 +28,7 @@ public partial class StationTeachingViewModel
         }
         else
         {
+            _recipeImageCancellation.Cancel();
             CameraError = null;
             IsCameraLive = true;
             try
@@ -54,6 +54,8 @@ public partial class StationTeachingViewModel
         try
         {
             using var motionCancellation = LinkMotion(cancellationToken);
+            _recipeImageCancellation.Cancel();
+            await _recipeImageUpdate;
             CameraError = null;
             if (IsCameraLive)
             {
@@ -85,16 +87,18 @@ public partial class StationTeachingViewModel
         catch (OperationCanceledException)
         {
         }
-        catch (Exception exception) when (
-            exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception)
         {
             CameraError = exception.Message;
+            if (exception is MotionException)
+                _state.SetError(MachineAlarm.MotionUnavailable, exception);
         }
         finally
         {
             if (!completed)
             {
                 ShowRecipeImages();
+                await _recipeImageUpdate;
             }
         }
     }

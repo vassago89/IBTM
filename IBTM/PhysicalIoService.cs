@@ -34,7 +34,7 @@ public sealed class PhysicalIoService(
 
     public event Action<InputIo, bool>? InputChanged;
     public event Action<OutputIo, bool>? OutputChanged;
-    public event Action? Faulted;
+    public event Action<Exception>? Faulted;
     public bool IsReady => _ready;
     public int TimeoutMilliseconds => options.TimeoutMilliseconds;
 
@@ -207,10 +207,10 @@ public sealed class PhysicalIoService(
             cancellationToken.IsCancellationRequested)
         {
         }
-        catch
+        catch (Exception exception)
         {
             _ready = false;
-            Faulted?.Invoke();
+            Faulted?.Invoke(exception);
             throw;
         }
     }

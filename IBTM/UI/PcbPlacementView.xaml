@@ -65,13 +65,13 @@
                        Text="PCB In"
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
 
-            <Border Canvas.Left="54" Canvas.Top="164"
-                    Width="220" Height="108"
+            <Border Canvas.Left="{x:Static ui:MachinePlan.SupplyRailLeft}" Canvas.Top="{x:Static ui:MachinePlan.SupplyRailTop}"
+                    Width="{x:Static ui:MachinePlan.SupplyRailWidth}" Height="{x:Static ui:MachinePlan.SupplyRailHeight}"
                     Style="{StaticResource DeviceBodyStyle}">
-                <Grid Width="208" Height="66"
+                <Grid Width="{x:Static ui:MachinePlan.SupplyCarrierFrameWidth}" Height="{x:Static ui:MachinePlan.SupplyCarrierHeight}"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Center">
-                    <Border Width="192"
+                    <Border Width="{x:Static ui:MachinePlan.SupplyCarrierWidth}"
                             HorizontalAlignment="Left"
                             Tag="{Binding Supply.UpstreamCarrierAvailable}">
                         <Border.Style>
@@ -80,7 +80,7 @@
                                         Value="{StaticResource EquipBgBrush}"/>
                                 <Setter Property="BorderBrush"
                                         Value="{StaticResource DividerBrush}"/>
-                                <Setter Property="BorderThickness" Value="2"/>
+                                <Setter Property="BorderThickness" Value="{x:Static ui:MachinePlan.CarrierBorderThickness}"/>
                                 <Setter Property="CornerRadius" Value="2"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Tag,
@@ -94,10 +94,10 @@
                                 </Style.Triggers>
                             </Style>
                         </Border.Style>
-                        <Grid Margin="5">
+                        <Grid Margin="{x:Static ui:MachinePlan.SupplyCarrierMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="6"/>
+                                <ColumnDefinition Width="{x:Static ui:MachinePlan.SupplySlotGapWidth}"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Border Style="{StaticResource UnknownPcbFootprintStyle}"/>
@@ -111,7 +111,7 @@
                              Style="{StaticResource PresenceLedStyle}"/>
                 </Grid>
             </Border>
-            <Grid Width="100" Height="112"
+            <Grid Width="{x:Static ui:MachinePlan.SupplyWidth}" Height="{x:Static ui:MachinePlan.SupplyHeight}"
                   Visibility="{Binding SupplyPositionKnown, Converter={StaticResource BoolToVis}}"
                   Panel.ZIndex="20">
                 <Grid.RenderTransform>
@@ -179,8 +179,8 @@
                 </Grid>
             </Grid>
 
-            <Border Canvas.Left="276" Canvas.Top="236"
-                    Width="116" Height="84"
+            <Border Canvas.Left="{x:Static ui:MachinePlan.BufferLeft}" Canvas.Top="{x:Static ui:MachinePlan.BufferTop}"
+                    Width="{x:Static ui:MachinePlan.BufferWidth}" Height="{x:Static ui:MachinePlan.BufferHeight}"
                     Style="{StaticResource BufferStyle}">
                 <Grid Width="104" Height="66"
                       HorizontalAlignment="Center"
@@ -210,7 +210,7 @@
                 </Grid>
             </Border>
 
-            <Grid Width="104" Height="106"
+            <Grid Width="{x:Static ui:MachinePlan.PlacementWidth}" Height="{x:Static ui:MachinePlan.PlacementHeight}"
                   Visibility="{Binding PlacementPositionKnown, Converter={StaticResource BoolToVis}}"
                   Panel.ZIndex="21">
                 <Grid.RenderTransform>
@@ -220,7 +220,7 @@
                 <Grid Width="92" Height="72"
                       HorizontalAlignment="Center"
                       VerticalAlignment="Bottom"
-                      Margin="0,0,0,13">
+                      Margin="{x:Static ui:MachinePlan.PlacementToolMargin}">
                     <Border Tag="{Binding Placement.Motion.IsMoving}"
                             Style="{StaticResource PlacementBodyStyle}"/>
                     <Grid Width="24" Height="18"

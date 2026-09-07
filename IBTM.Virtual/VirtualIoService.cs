@@ -26,7 +26,7 @@ public sealed class VirtualIoService(
     public event Action<InputIo, bool>? InputChanged;
     public event Action<OutputIo, bool>? OutputChanged;
     public event Action? AutoResponseChanged;
-    public event Action? Faulted;
+    public event Action<Exception>? Faulted;
     public bool IsReady => _connected;
     public int TimeoutMilliseconds => options.TimeoutMilliseconds;
     internal event Action<OutputIo, bool>? OutputApplied;
@@ -121,7 +121,7 @@ public sealed class VirtualIoService(
         _connected = connected;
         if (!connected)
         {
-            Faulted?.Invoke();
+            Faulted?.Invoke(new InvalidOperationException("Virtual control I/O is disconnected."));
         }
     }
 

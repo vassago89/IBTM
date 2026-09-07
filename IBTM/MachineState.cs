@@ -262,6 +262,7 @@ public sealed class MachineState
     public bool BoltTestRunning { get; private set; }
     public bool IsHoming { get; private set; }
     public MachineAlarm Alarm { get; private set; }
+    public string? AlarmDetail { get; private set; }
 
     public bool ConveyorRunning => _conveyor.RunCommandOn;
     public MainConveyorState MainConveyorState => _conveyor.State;
@@ -333,20 +334,22 @@ public sealed class MachineState
         Changed?.Invoke();
     }
 
-    internal void SetError(MachineAlarm alarm)
+    internal void SetError(MachineAlarm alarm, Exception? exception = null)
     {
-        if (Alarm == alarm)
+        if (Alarm == alarm && (exception is null || AlarmDetail is not null))
         {
             return;
         }
 
         Alarm = alarm;
+        AlarmDetail = exception?.ToString();
         Changed?.Invoke();
     }
 
     internal void ClearError()
     {
         Alarm = MachineAlarm.None;
+        AlarmDetail = null;
         Changed?.Invoke();
     }
 

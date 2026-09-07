@@ -9,6 +9,44 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class AjinHomeTests
 {
+    [Fact]
+    public async Task MoveWaitsForSettledInPositionAndRemainsCancellable()
+    {
+        var motion = new TestCompletion(new());
+        using var cancellation = new CancellationTokenSource();
+        var moving = motion.Wait(cancellation.Token);
+        Assert.False(moving.IsCompleted);
+        motion.Feedback = (false, false, false);
+        await Task.Delay(30);
+        Assert.False(moving.IsCompleted);
+        motion.Feedback = (false, true, false);
+        await moving.WaitAsync(TimeSpan.FromSeconds(1));
+
+        motion.Feedback = (false, false, false);
+        moving = motion.Wait(cancellation.Token);
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => moving);
+    }
+
+    [Fact]
+    public async Task InPositionTimeoutAndAxisFaultAreNotSuccessfulCompletion()
+    {
+        var motion = new TestCompletion(new() { TimeoutMilliseconds = 25 });
+        motion.Feedback = (false, false, false);
+        await Assert.ThrowsAsync<TimeoutException>(() => motion.Wait(CancellationToken.None));
+        motion.Feedback = (false, true, true);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => motion.Wait(CancellationToken.None));
+    }
+
+    private sealed class TestCompletion(MachineOptions options) : AjinMotionService(
+        new AjinController(new AjinSettings()), new AxisHardware(), null, null,
+        0.01, new MotionSettings(), options, new OperationCancellation(), null)
+    {
+        public (bool Moving, bool InPosition, bool Faulted) Feedback = (true, false, false);
+        public Task Wait(CancellationToken token) => WaitForMoveAsync([0], token);
+        protected override (bool Moving, bool InPosition, bool Faulted) ReadMoveState(int[] axes) => Feedback;
+    }
+
     [Theory]
     [InlineData(MotionAxis.X)]
     [InlineData(MotionAxis.Y)]
@@ -85,6 +123,7 @@ public sealed class AjinHomeTests
         axisZ: null,
         millimetersPerPulse: 0.01,
         new MotionSettings(),
+        new MachineOptions(),
         new OperationCancellation(),
         horizontalZ: null)
     {

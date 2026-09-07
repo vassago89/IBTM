@@ -37,6 +37,7 @@ public partial class OperationViewModel : ObservableObject
         bool AirPressureOk,
         bool AutoMode,
         MachineAlarm Alarm,
+        string? AlarmDetail,
         bool ServoPowerOn,
         bool Homed,
         bool CanStart,
@@ -83,6 +84,7 @@ public partial class OperationViewModel : ObservableObject
         nameof(AutoMode),
         nameof(HasAlarm),
         nameof(Alarm),
+        nameof(AlarmDetail),
         nameof(ServoPowerOn),
         nameof(Homed),
         nameof(SupplyPositionKnown),
@@ -489,6 +491,7 @@ public partial class OperationViewModel : ObservableObject
     public bool AutoMode => _machineDisplay.AutoMode;
     public bool HasAlarm => _machineDisplay.Alarm != MachineAlarm.None;
     public MachineAlarm Alarm => _machineDisplay.Alarm;
+    public string? AlarmDetail => _machineDisplay.AlarmDetail;
     public bool ServoPowerOn => _machineDisplay.ServoPowerOn;
     public bool Homed => _machineDisplay.Homed;
     public bool SafetyBypass =>
@@ -1031,36 +1034,15 @@ public partial class OperationViewModel : ObservableObject
         var isRunning = _state.IsRunning;
         var conveyorRunning = _state.ConveyorRunning;
         var conveyorState = _state.MainConveyorState;
-        var safetyReady =
-            (!_options.UseEmergencyStop || emergencyStopReleased)
-            && (!_options.UseAirPressureInterlock || airPressureOk);
-        var startBlock = StartBlockFor(
-            alarm,
-            readiness,
-            emergencyStopReleased,
-            doorClosed,
-            airPressureOk,
-            servoMainContactorOn,
-            autoMode,
-            bufferConflict);
-        var canStart = !isRunning && startBlock == StartBlockReason.None;
-        var canHome = safetyReady
-            && (!_options.UseDoorInterlock || doorClosed)
-            && readiness.ServosOn
-            && !readiness.Homed
-            && alarm == MachineAlarm.None
-            && !isRunning
-            && _machine.CanHome;
-
         return new(
             DisplayStateFor(
-                safetyReady,
+                _state.SafetyReady,
                 alarm,
                 readiness,
                 isHoming,
                 servoMainContactorOn,
                 isRunning),
-            startBlock,
+            _machine.StartBlock,
             _machine.HomeBlock,
             isHoming,
             automaticRunning,
@@ -1072,91 +1054,12 @@ public partial class OperationViewModel : ObservableObject
             airPressureOk,
             autoMode,
             alarm,
+            _state.AlarmDetail,
             servoMainContactorOn && readiness.ServosOn,
             readiness.Homed,
-            canStart,
-            canHome,
+            _machine.CanStart,
+            _machine.CanHome,
             _machine.CanRaiseCylinders);
-    }
-
-    private StartBlockReason StartBlockFor(
-        MachineAlarm alarm,
-        MotionReadiness readiness,
-        bool emergencyStopReleased,
-        bool doorClosed,
-        bool airPressureOk,
-        bool servoMainContactorOn,
-        bool autoMode,
-        bool bufferConflict)
-    {
-        if (alarm == MachineAlarm.EmergencyStop)
-        {
-            return StartBlockReason.EmergencyStop;
-        }
-
-        if (alarm == MachineAlarm.DoorOpen)
-        {
-            return StartBlockReason.DoorOpen;
-        }
-
-        if (alarm == MachineAlarm.AirPressureLow)
-        {
-            return StartBlockReason.AirPressure;
-        }
-
-        if (alarm == MachineAlarm.BufferConflict || bufferConflict)
-        {
-            return StartBlockReason.BufferConflict;
-        }
-
-        if (alarm != MachineAlarm.None)
-        {
-            return StartBlockReason.Alarm;
-        }
-
-        if (_options.UseEmergencyStop && !emergencyStopReleased)
-        {
-            return StartBlockReason.EmergencyStop;
-        }
-
-        if (_options.UseAirPressureInterlock && !airPressureOk)
-        {
-            return StartBlockReason.AirPressure;
-        }
-
-        if (readiness.Faulted)
-        {
-            return StartBlockReason.MotionFault;
-        }
-
-        if (!servoMainContactorOn || !readiness.ServosOn)
-        {
-            return StartBlockReason.ServoOff;
-        }
-
-        if (_options.UseDoorInterlock && !doorClosed)
-        {
-            return StartBlockReason.DoorOpen;
-        }
-
-        if (!readiness.Homed)
-        {
-            return StartBlockReason.HomeRequired;
-        }
-
-        if (!autoMode)
-        {
-            return StartBlockReason.AutoMode;
-        }
-
-        if (!_machine.TeachingReady)
-        {
-            return StartBlockReason.TeachingIncomplete;
-        }
-
-        return _units.HasEnabledUnit()
-            ? StartBlockReason.None
-            : StartBlockReason.NoUnitEnabled;
     }
 
     private static MachineDisplayState DisplayStateFor(

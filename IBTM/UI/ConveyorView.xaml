@@ -31,8 +31,6 @@
             </Border>
         </DataTemplate>
         <Style x:Key="BoltTargetItemsStyle" TargetType="ItemsControl">
-            <Setter Property="Width" Value="250"/>
-            <Setter Property="Height" Value="66"/>
             <Setter Property="Panel.ZIndex" Value="2"/>
             <Setter Property="ItemTemplate" Value="{StaticResource BoltTargetTemplate}"/>
             <Setter Property="ItemsPanel">
@@ -105,12 +103,12 @@
                     Tag="{Binding ConveyorRunning}"
                     Style="{StaticResource ConveyorBedStyle}"/>
 
-            <TextBlock Canvas.Left="194" Canvas.Top="{x:Static ui:MachinePlan.StationLabelTop}"
+            <TextBlock Canvas.Left="{x:Static ui:MachinePlan.FirstPlateLeft}" Canvas.Top="{x:Static ui:MachinePlan.StationLabelTop}"
                         Width="{StaticResource BackupPlateWidth}"
                        Margin="6,0,0,0" TextAlignment="Left"
                        Text="Station 1"
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
-            <TextBlock Canvas.Left="604" Canvas.Top="{x:Static ui:MachinePlan.StationLabelTop}"
+            <TextBlock Canvas.Left="{x:Static ui:MachinePlan.FasteningPlateLeft}" Canvas.Top="{x:Static ui:MachinePlan.StationLabelTop}"
                         Width="{StaticResource BackupPlateWidth}"
                        Margin="6,0,0,0" TextAlignment="Left"
                        Text="Station 2"
@@ -130,11 +128,11 @@
                        Text="In"
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
 
-            <Border Canvas.Left="194" Canvas.Top="70"
+            <Border Canvas.Left="{x:Static ui:MachinePlan.FirstPlateLeft}" Canvas.Top="{x:Static ui:MachinePlan.PlateTop}"
                     Tag="{Binding PcbPlacementBackupPlateUp}"
                     ToolTip="Placement backup plate"
                     Style="{StaticResource BackupPlateVisualStyle}"/>
-            <ui:CarrierView Canvas.Left="202" Canvas.Top="78" Panel.ZIndex="2"
+            <ui:CarrierView Canvas.Left="{x:Static ui:MachinePlan.PlacementCarrierLeft}" Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}" Panel.ZIndex="2"
                             HeatSink1Present="{Binding PcbPlacementHeatSink1Present}"
                             HeatSink2Present="{Binding PcbPlacementHeatSink2Present}"
                             Pcb1Placed="{Binding PcbPlacementHeatSink1Completed}"
@@ -142,15 +140,15 @@
                             ShowPcbSlots="True"
                             ActiveHeatSink="{Binding PcbPlacementTargetHeatSink}"
                             Visibility="{Binding PcbPlacementCarrierPresent, Converter={StaticResource BoolToVis}}"/>
-            <Border Canvas.Left="463" Canvas.Top="105"
+            <Border Canvas.Left="{x:Static ui:MachinePlan.PlacementStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
                      Tag="{Binding PcbPlacementStopperUp}"
                      ToolTip="Placement stopper"
                      Style="{StaticResource StopperVisualStyle}"/>
-            <Border Canvas.Left="604" Canvas.Top="70"
+            <Border Canvas.Left="{x:Static ui:MachinePlan.FasteningPlateLeft}" Canvas.Top="{x:Static ui:MachinePlan.PlateTop}"
                     Tag="{Binding BoltFasteningBackupPlateUp}"
                     ToolTip="Bolt fastening backup plate"
                     Style="{StaticResource BackupPlateVisualStyle}"/>
-            <ui:CarrierView Canvas.Left="612" Canvas.Top="78" Panel.ZIndex="2"
+            <ui:CarrierView Canvas.Left="{x:Static ui:MachinePlan.FasteningCarrierLeft}" Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}" Panel.ZIndex="2"
                             HeatSink1Present="{Binding BoltFasteningHeatSink1Present}"
                             HeatSink2Present="{Binding BoltFasteningHeatSink2Present}"
                             HeatSink1Result="{Binding BoltFasteningHeatSink1Result}"
@@ -158,7 +156,7 @@
                             Visibility="{Binding BoltFasteningCarrierPresent, Converter={StaticResource BoolToVis}}">
                 <ItemsControl ItemsSource="{Binding BoltTargets}" Style="{StaticResource BoltTargetItemsStyle}"/>
             </ui:CarrierView>
-            <Border Canvas.Left="873" Canvas.Top="105"
+            <Border Canvas.Left="{x:Static ui:MachinePlan.FasteningStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
                      Tag="{Binding BoltFasteningStopperUp}"
                      ToolTip="Bolt fastening stopper"
                      Style="{StaticResource StopperVisualStyle}"/>
@@ -176,7 +174,7 @@
                             Visibility="{Binding InspectionCarrierPresent, Converter={StaticResource BoolToVis}}">
                 <ItemsControl ItemsSource="{Binding InspectionTargets}" Style="{StaticResource BoltTargetItemsStyle}"/>
             </ui:CarrierView>
-            <Border Canvas.Left="1283" Canvas.Top="105"
+            <Border Canvas.Left="{x:Static ui:MachinePlan.InspectionStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
                      Tag="{Binding InspectionStopperUp}"
                      ToolTip="Inspection stopper"
                      Style="{StaticResource StopperVisualStyle}"/>
@@ -188,10 +186,10 @@
                        Width="40"
                        Text="Out"
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
-            <ui:CarrierView Canvas.Left="407" Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}"
+            <ui:CarrierView Canvas.Left="{x:Static ui:MachinePlan.FirstTransferLeft}" Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}"
                             Panel.ZIndex="2"
                             Visibility="{Binding CarrierBetweenPlacementAndBolt, Converter={StaticResource BoolToVis}}"/>
-            <ui:CarrierView Canvas.Left="817" Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}"
+            <ui:CarrierView Canvas.Left="{x:Static ui:MachinePlan.SecondTransferLeft}" Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}"
                             Panel.ZIndex="2"
                             Visibility="{Binding CarrierBetweenBoltAndInspection, Converter={StaticResource BoolToVis}}"/>
 

@@ -259,9 +259,9 @@
                                        Panel.ZIndex="-10"/>
                     <ui:ConveyorView Canvas.Left="{x:Static ui:MachinePlan.MainLeft}" Canvas.Top="{x:Static ui:MachinePlan.MainTop}"
                                      Panel.ZIndex="0"/>
-                    <ui:PcbPlacementView Canvas.Left="24" Canvas.Top="0"
+                    <ui:PcbPlacementView Canvas.Left="{x:Static ui:MachinePlan.MainLeft}" Canvas.Top="0"
                                          Panel.ZIndex="10"/>
-                    <ui:BoltFasteningView Canvas.Left="610" Canvas.Top="0"
+                    <ui:BoltFasteningView Canvas.Left="{x:Static ui:MachinePlan.FasteningLeft}" Canvas.Top="0"
                                           Panel.ZIndex="10"/>
                     <ui:InspectionView Canvas.Left="{x:Static ui:MachinePlan.InspectionLeft}" Canvas.Top="0"
                                        Panel.ZIndex="10"/>

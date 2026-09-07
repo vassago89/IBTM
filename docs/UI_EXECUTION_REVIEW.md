@@ -522,3 +522,35 @@ physical-hardware validation is claimed for this cycle.
 Independent teaching-review work and changed-path checks are complete. Supply
 buffer Z fine adjustment and manual exit remain pending the user's mechanical
 answer; existing restrictions and automatic exit were not changed.
+
+### Full-review implementation — 2026-09-07
+
+All seven approved findings were implemented, then followed through callers,
+reverse/error paths, cancellation, persistence and WPF binding/layout:
+
+- MachineController is the single source for StartBlock/CanStart/Home permissions.
+  The operation view retains only display mapping and its existing coalesced updates.
+- Alarms retain original exception details (including native codes/stack) and expose
+  them through the shell alarm tooltip. IO monitor faults carry their exception.
+  Teaching capture handles camera, motion and file errors at its command boundary;
+  motion faults also set the machine alarm. Cancellation is not reported as a fault.
+- Carrier PNG decoding and rename-copy run off the UI thread. Only the current read
+  publishes; reads are cancelled and drained on replacement/live/capture/navigation/
+  shutdown. Original full-resolution images and mutable operating recipe are retained;
+  no cropped-image replacement or recipe snapshot was introduced.
+- Inspection-only display requires its reference pins, not NG positions. When valid
+  NG teaching exists it still aligns the shared picker at carrier and shuttle. A
+  single taught fastening head also suffices for display. Zero-length references
+  remain undefined and never generate NaN transforms for hidden WPF elements.
+- Shared MachinePlan anchors now drive station plates/carriers/stoppers, supply,
+  buffer, placement and bolt heads. Carrier border/padding and bolt marker centers
+  come from the same layout values; an actual marker-center offset was corrected.
+- Ajin completion now permits feedback settling up to the existing common timeout.
+  InMotion OFF alone is not success; InPosition and fault/cancellation checks remain.
+
+Final Release build passed with zero warnings/errors, and the full Virtual suite
+passed 131/131 after the last refinements. Diff check is clean. Off-screen WPF
+verified teaching permissions, navigation, operation bindings and actual carrier
+content/bolt center alignment with no binding warnings. The existing recursive
+review heartbeat was paused on completion. No real app Home/axis/IO commands or
+actual device settling/optical accuracy verification were performed.

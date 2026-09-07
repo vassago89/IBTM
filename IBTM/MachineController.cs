@@ -191,10 +191,30 @@ public sealed class MachineController
 
     public bool CanStart =>
         !_operations.IsShuttingDown
-        && _state.CanAutomaticOperate
         && !_state.IsRunning
-        && _units.HasEnabledUnit()
-        && TeachingReady;
+        && StartBlock == StartBlockReason.None;
+
+    public StartBlockReason StartBlock
+    {
+        get
+        {
+            if (_state.Alarm == MachineAlarm.EmergencyStop) return StartBlockReason.EmergencyStop;
+            if (_state.Alarm == MachineAlarm.DoorOpen) return StartBlockReason.DoorOpen;
+            if (_state.Alarm == MachineAlarm.AirPressureLow) return StartBlockReason.AirPressure;
+            if (_state.Alarm == MachineAlarm.BufferConflict || _state.BufferConflict) return StartBlockReason.BufferConflict;
+            if (_state.IsError) return StartBlockReason.Alarm;
+            if (_options.UseEmergencyStop && !_state.EmergencyStopReleased) return StartBlockReason.EmergencyStop;
+            if (_options.UseAirPressureInterlock && !_state.AirPressureOk) return StartBlockReason.AirPressure;
+            var motion = _state.MotionReadiness;
+            if (motion.Faulted) return StartBlockReason.MotionFault;
+            if (!motion.ServosOn || !_state.ServoMainContactorOn) return StartBlockReason.ServoOff;
+            if (!_state.DoorInterlockReady) return StartBlockReason.DoorOpen;
+            if (!motion.Homed) return StartBlockReason.HomeRequired;
+            if (!_state.AutoMode) return StartBlockReason.AutoMode;
+            if (!TeachingReady) return StartBlockReason.TeachingIncomplete;
+            return _units.HasEnabledUnit() ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
+        }
+    }
     public bool CanTestBoltHead =>
         !_operations.IsShuttingDown && _state.ManualControlsEnabled;
     public bool CanUseAdcProtocol =>
@@ -218,7 +238,7 @@ public sealed class MachineController
     public async Task InitializeAsync()
     {
         using var operation = _operations.Link();
-        var alarm = await CheckHardwareAsync(operation.Token);
+        var (alarm, error) = await CheckHardwareAsync(operation.Token);
         operation.Token.ThrowIfCancellationRequested();
         if (alarm == MachineAlarm.None)
         {
@@ -231,7 +251,7 @@ public sealed class MachineController
         }
         else
         {
-            _state.SetError(alarm);
+            _state.SetError(alarm, error);
         }
     }
 
@@ -282,9 +302,9 @@ public sealed class MachineController
                     return;
                 }
             }
-            catch
+            catch (Exception exception)
             {
-                _state.SetError(MachineAlarm.MotionUnavailable);
+                _state.SetError(MachineAlarm.MotionUnavailable, exception);
             }
 
             operation.Cancel();
@@ -323,7 +343,7 @@ public sealed class MachineController
         catch (Exception exception)
             when (exception is not OperationCanceledException)
         {
-            _state.SetError(MachineAlarm.BoltFastening);
+            _state.SetError(MachineAlarm.BoltFastening, exception);
             throw;
         }
         finally
@@ -340,11 +360,11 @@ public sealed class MachineController
         }
 
         using var operation = _operations.Link();
-        var alarm = await CheckHardwareAsync(operation.Token);
+        var (alarm, error) = await CheckHardwareAsync(operation.Token);
         operation.Token.ThrowIfCancellationRequested();
         if (alarm != MachineAlarm.None)
         {
-            _state.SetError(alarm);
+            _state.SetError(alarm, error);
             return;
         }
 
@@ -372,9 +392,9 @@ public sealed class MachineController
                 _inspectionGantry.ResetMotion();
             }
         }
-        catch
+        catch (Exception exception)
         {
-            _state.SetError(MachineAlarm.MotionUnavailable);
+            _state.SetError(MachineAlarm.MotionUnavailable, exception);
             return;
         }
 
@@ -403,7 +423,7 @@ public sealed class MachineController
             catch (Exception exception)
             {
                 if (exception is not OperationCanceledException && !operation.IsCancellationRequested)
-                    _state.SetError(alarm);
+                    _state.SetError(alarm, exception);
                 operation.Cancel();
             }
         }
@@ -451,9 +471,11 @@ public sealed class MachineController
                     && motion.ServosOn
                     && _state.ServoMainContactorOn;
             }
-            catch
+            catch (Exception exception)
             {
-                hardwareAvailable = false;
+                operation.Cancel();
+                _state.SetError(MachineAlarm.MotionUnavailable, exception);
+                return;
             }
 
             if (!hardwareAvailable)
@@ -473,11 +495,11 @@ public sealed class MachineController
             {
                 await step;
             }
-            catch
+            catch (Exception exception)
             {
-                if (!cancellationToken.IsCancellationRequested)
+                if (exception is not OperationCanceledException && !cancellationToken.IsCancellationRequested)
                 {
-                    _state.SetError(MachineAlarm.HomeFailed);
+                    _state.SetError(MachineAlarm.HomeFailed, exception);
                 }
 
                 throw;
@@ -575,9 +597,9 @@ public sealed class MachineController
         catch (OperationCanceledException)
         {
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            _state.SetError(MachineAlarm.HomeFailed);
+            _state.SetError(MachineAlarm.HomeFailed, exception);
         }
         finally
         {
@@ -714,9 +736,9 @@ public sealed class MachineController
                     _state.SetError(MachineAlarm.MotionUnavailable);
                 }
             }
-            catch
+            catch (Exception exception)
             {
-                _state.SetError(MachineAlarm.MotionUnavailable);
+                _state.SetError(MachineAlarm.MotionUnavailable, exception);
             }
 
             operation.Cancel();
@@ -724,7 +746,7 @@ public sealed class MachineController
 
         try
         {
-            var startAlarm = await CheckHardwareAsync(operation.Token);
+            var (startAlarm, startError) = await CheckHardwareAsync(operation.Token);
             if (startAlarm == MachineAlarm.None && _units.Inspection)
             {
                 try
@@ -734,13 +756,14 @@ public sealed class MachineController
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
                     startAlarm = MachineAlarm.Inspection;
+                    startError = exception;
                 }
             }
 
             operation.Token.ThrowIfCancellationRequested();
             if (startAlarm != MachineAlarm.None)
             {
-                _state.SetError(startAlarm);
+                _state.SetError(startAlarm, startError);
                 return;
             }
 
@@ -828,7 +851,7 @@ public sealed class MachineController
                 {
                     _state.SetError(exception is MotionException
                         ? MachineAlarm.MotionUnavailable
-                        : completedUnit.Alarm);
+                        : completedUnit.Alarm, exception);
                 }
             }
             finally
@@ -850,7 +873,7 @@ public sealed class MachineController
         }
     }
 
-    private async Task<MachineAlarm> CheckHardwareAsync(
+    private async Task<(MachineAlarm Alarm, Exception? Error)> CheckHardwareAsync(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -872,9 +895,9 @@ public sealed class MachineController
         {
             throw;
         }
-        catch
+        catch (Exception exception)
         {
-            return MachineAlarm.IoCommunication;
+            return (MachineAlarm.IoCommunication, exception);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -896,9 +919,9 @@ public sealed class MachineController
                 _inspectionGantry.InitializeMotion();
             }
         }
-        catch
+        catch (Exception exception)
         {
-            return MachineAlarm.MotionUnavailable;
+            return (MachineAlarm.MotionUnavailable, exception);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -908,9 +931,9 @@ public sealed class MachineController
             {
                 _boltInspector.InitializeVision();
             }
-            catch
+            catch (Exception exception)
             {
-                return MachineAlarm.Inspection;
+                return (MachineAlarm.Inspection, exception);
             }
         }
 
@@ -926,13 +949,13 @@ public sealed class MachineController
             {
                 throw;
             }
-            catch
+            catch (Exception exception)
             {
-                return MachineAlarm.BoltFastening;
+                return (MachineAlarm.BoltFastening, exception);
             }
         }
 
-        return MachineAlarm.None;
+        return (MachineAlarm.None, null);
     }
 
     private bool BufferHandlersEnabled =>
@@ -953,15 +976,15 @@ public sealed class MachineController
         }
     }
 
-    private void OnIoFaulted()
+    private void OnIoFaulted(Exception exception)
     {
-        _state.SetError(MachineAlarm.IoCommunication);
+        _state.SetError(MachineAlarm.IoCommunication, exception);
         _operations.Cancel();
     }
 
-    private void OnMotionFaulted(Exception _)
+    private void OnMotionFaulted(Exception exception)
     {
-        _state.SetError(MachineAlarm.MotionUnavailable);
+        _state.SetError(MachineAlarm.MotionUnavailable, exception);
         Stop();
     }
 }

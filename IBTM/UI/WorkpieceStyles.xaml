@@ -90,11 +90,11 @@
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type ui:CarrierView}">
                     <Border Background="{StaticResource CarrierBodyBrush}" BorderBrush="{StaticResource CarrierBrush}"
-                            BorderThickness="2" CornerRadius="4">
-                        <Grid Margin="9">
+                            BorderThickness="{x:Static ui:MachinePlan.CarrierBorderThickness}" CornerRadius="4">
+                        <Grid Margin="{x:Static ui:MachinePlan.CarrierContentMargin}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="9"/>
+                                <ColumnDefinition Width="{x:Static ui:MachinePlan.HeatSinkGapWidth}"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Border Tag="{TemplateBinding HeatSink1Present}" Style="{StaticResource HeatSinkPocketStyle}">

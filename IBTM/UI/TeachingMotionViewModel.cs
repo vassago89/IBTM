@@ -131,7 +131,7 @@ public abstract partial class TeachingMotionViewModel(
         {
             await RunMotionAsync(token => output.SetAsync(value, token), cancellationToken);
         }
-        catch (IoTimeoutException)
+        catch (IoTimeoutException exception)
         {
             state.SetError(group switch
             {
@@ -140,7 +140,7 @@ public abstract partial class TeachingMotionViewModel(
                 MotionGroup.BoltFastening => MachineAlarm.BoltFastening,
                 MotionGroup.InspectionGantry => MachineAlarm.NgCarrierTransfer,
                 _ => throw new ArgumentOutOfRangeException(nameof(group)),
-            });
+            }, exception);
         }
         finally
         {
@@ -243,9 +243,9 @@ public abstract partial class TeachingMotionViewModel(
         catch (OperationCanceledException)
         {
         }
-        catch (MotionException)
+        catch (MotionException exception)
         {
-            state.SetError(MachineAlarm.MotionUnavailable);
+            state.SetError(MachineAlarm.MotionUnavailable, exception);
             operations.Cancel();
         }
     }

@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Device;
@@ -12,6 +13,7 @@ public class AjinMotionService(
     AxisHardware? axisZ,
     double millimetersPerPulse,
     MotionSettings settings,
+    MachineOptions options,
     OperationCancellation operationCancellation,
     Func<double>? horizontalZ) : MotionService(
         settings,
@@ -426,51 +428,7 @@ public class AjinMotionService(
                 BeginMotion(horizontal);
                 cancellationToken.ThrowIfCancellationRequested();
                 AjinController.Check(move(), operation);
-                while (true)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    var moving = false;
-                    var inPosition = true;
-                    var faulted = false;
-                    foreach (var axis in axes)
-                    {
-                        var inMotion = 0U;
-                        var mechanical = 0U;
-                        AjinController.Check(
-                            AjinNative.AxmStatusReadInMotion(axis, ref inMotion),
-                            nameof(AjinNative.AxmStatusReadInMotion));
-                        AjinController.Check(
-                            AjinNative.AxmStatusReadMechanical(
-                                axis,
-                                ref mechanical),
-                            nameof(AjinNative.AxmStatusReadMechanical));
-                        moving |= inMotion != 0;
-                        inPosition &= Bit(mechanical, InPositionBit);
-                        faulted |= Bit(mechanical, AlarmBit)
-                                   || Bit(mechanical, EmergencyBit);
-                    }
-
-                    PublishPosition();
-                    if (faulted)
-                    {
-                        throw new InvalidOperationException(
-                            "Motion stopped by an axis fault.");
-                    }
-
-                    if (!moving)
-                    {
-                        if (inPosition)
-                        {
-                            return;
-                        }
-
-                        throw new InvalidOperationException(
-                            "Motion stopped before reaching its target.");
-                    }
-
-                    await Task.Delay(StatusPollInterval, cancellationToken)
-                        .ConfigureAwait(false);
-                }
+                await WaitForMoveAsync(axes, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -488,6 +446,54 @@ public class AjinMotionService(
             EndMotion(horizontal);
             PublishPosition();
         }
+    }
+
+    protected async Task WaitForMoveAsync(int[] axes, CancellationToken cancellationToken)
+    {
+        long? stoppedAt = null;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var (moving, inPosition, faulted) = ReadMoveState(axes);
+            if (faulted)
+                throw new InvalidOperationException("Motion stopped by an axis fault.");
+            if (!moving && inPosition) return;
+
+            if (moving)
+                stoppedAt = null;
+            else
+            {
+                stoppedAt ??= Stopwatch.GetTimestamp();
+                if (Stopwatch.GetElapsedTime(stoppedAt.Value).TotalMilliseconds >= options.TimeoutMilliseconds)
+                    throw new TimeoutException($"In-position feedback was not received within {options.TimeoutMilliseconds} ms.");
+            }
+
+            await Task.Delay(StatusPollInterval, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    protected virtual (bool Moving, bool InPosition, bool Faulted) ReadMoveState(int[] axes)
+    {
+        var moving = false;
+        var inPosition = true;
+        var faulted = false;
+        foreach (var axis in axes)
+        {
+            var inMotion = 0U;
+            var mechanical = 0U;
+            AjinController.Check(
+                AjinNative.AxmStatusReadInMotion(axis, ref inMotion),
+                nameof(AjinNative.AxmStatusReadInMotion));
+            AjinController.Check(
+                AjinNative.AxmStatusReadMechanical(axis, ref mechanical),
+                nameof(AjinNative.AxmStatusReadMechanical));
+            moving |= inMotion != 0;
+            inPosition &= Bit(mechanical, InPositionBit);
+            faulted |= Bit(mechanical, AlarmBit) || Bit(mechanical, EmergencyBit);
+        }
+
+        PublishPosition();
+        return (moving, inPosition, faulted);
     }
 
     private void Jog(

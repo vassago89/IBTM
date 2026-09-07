@@ -258,6 +258,27 @@ public sealed class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task CarrierScanDeviceFailureStaysAtTheTeachingCommandBoundary()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        using var services = new ServiceCollection().AddSingleton<RecipeStore>()
+            .AddIbtmApplication(settings)
+            .AddSingleton<ICamera>(new VirtualCamera(
+                () => throw new InvalidOperationException("Camera SDK capture failed."), () => []))
+            .BuildServiceProvider();
+        var machine = services.GetRequiredService<MachineController>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        teaching.RecipeEditor.Name = $"CaptureFailure-{Guid.NewGuid():N}";
+        Assert.True(teaching.CaptureCarrierImagesCommand.CanExecute(null));
+        await teaching.CaptureCarrierImagesCommand.ExecuteAsync(null);
+        Assert.Equal("Camera SDK capture failed.", teaching.CameraError);
+        Assert.False(services.GetRequiredService<MachineState>().IsRunning);
+    }
+
+    [Fact]
     public async Task FirstBoltHeightTeachingCanMoveXYWithoutAnUnknownZ()
     {
         var settings = FlowSettings();
@@ -993,11 +1014,13 @@ public sealed class MachineLifecycleTests
 
         Assert.Same(fault, await reported.Task.WaitAsync(TimeSpan.FromSeconds(2)));
         Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+        Assert.Contains(fault.Message, state.AlarmDetail);
         Assert.False(gantry.Feedback.IsMoving);
         Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
 
         await machine.ResetAsync();
         Assert.Equal(MachineAlarm.None, state.Alarm);
+        Assert.Null(state.AlarmDetail);
         using var stopped = new CancellationTokenSource();
         gantry.Jog(MotionAxis.X, 10, stopped.Token);
         Assert.True(gantry.Feedback.IsMoving);
@@ -1824,6 +1847,8 @@ public sealed class MachineLifecycleTests
 
         Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
         Assert.False(state.IsRunning);
+
+        Assert.Contains("disconnected", state.AlarmDetail);
 
         io.SetConnected(true);
         Assert.True(machine.CanReset);

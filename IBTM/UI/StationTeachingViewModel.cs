@@ -31,6 +31,8 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     private readonly BoltFasteningSettings _fasteningSettings;
     private readonly NgCarrierTransferSettings _ngTransferSettings;
     private readonly UnitSettings _units;
+    private CancellationTokenSource _recipeImageCancellation = new();
+    private Task _recipeImageUpdate = Task.CompletedTask;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInspectionSelected))]
     [NotifyPropertyChangedFor(nameof(IoGroups))]
@@ -303,17 +305,20 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     public void Activate()
     {
+        CameraError = null;
         RecipeEditor.Refresh();
         RefreshMotionGroups();
         RefreshTeachingPoints();
-        ShowRecipeImages();
         ActivatePositionUpdates();
+        ShowRecipeImages();
         NotifyManualTeachingCommands();
     }
 
     public void Deactivate()
     {
         DeactivatePositionUpdates();
+        _recipeImageCancellation.Cancel();
+        CarrierImages = [];
         JogCommand.Cancel();
         StepCommand.Cancel();
         MoveToHorizontalZCommand.Cancel();
@@ -356,6 +361,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 imageUpdate = _liveImageUpdate;
             }
             await imageUpdate;
+            await _recipeImageUpdate;
         }
     }
 
@@ -429,6 +435,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     private void OnRecipeChanged()
     {
+        CameraError = null;
         SelectedPoint = null;
         RefreshTeachingPoints();
         OnPropertyChanged(nameof(BoltRecipe));
@@ -438,16 +445,37 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     private void ShowRecipeImages()
     {
+        _recipeImageCancellation.Cancel();
+        _recipeImageCancellation.Dispose();
+        _recipeImageCancellation = new();
         if (!IsCameraLive)
         {
             LiveImage = null;
         }
 
-        CarrierImages = IsInspectionSelected
-            ? RecipeEditor.LoadCarrierImages()
-            : [];
-
+        CarrierImages = [];
         RefreshImageMarkers();
+        _recipeImageUpdate = LoadRecipeImagesAsync(_recipeImageUpdate, _recipeImageCancellation.Token);
+    }
+
+    private async Task LoadRecipeImagesAsync(Task previous, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await previous;
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!PositionUpdatesActive || !IsInspectionSelected || IsCameraLive) return;
+            var images = await RecipeEditor.LoadCarrierImagesAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            CarrierImages = images;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (!cancellationToken.IsCancellationRequested) CameraError ??= exception.Message;
+        }
     }
 
     private void RefreshImageMarkers()

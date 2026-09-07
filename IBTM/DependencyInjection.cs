@@ -473,6 +473,7 @@ public static class DependencyInjection
                 z,
                 hardware.MillimetersPerPulse,
                 settings,
+                provider.GetRequiredService<MachineOptions>(),
                 cancellation,
                 horizontalZ);
         }

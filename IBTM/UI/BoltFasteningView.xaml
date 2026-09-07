@@ -68,7 +68,7 @@
                     <TranslateTransform X="{Binding BoltPickupFeederMapLeft}"
                                         Y="{Binding BoltPickupFeederMapTop}"/>
                 </Grid.RenderTransform>
-                <Border Width="100" Height="68"
+                <Border Width="{x:Static ui:MachinePlan.PickupFeederWidth}" Height="{x:Static ui:MachinePlan.PickupFeederHeight}"
                         VerticalAlignment="Top"
                         Style="{StaticResource DeviceBodyStyle}">
                     <Grid Margin="10">
@@ -103,12 +103,12 @@
                             Panel.ZIndex="1"
                             Tag="{Binding Fastening.Motion.IsMoving}"
                             Style="{StaticResource OverheadBodyStyle}"/>
-                    <Border Canvas.Left="37.5" Canvas.Top="98"
-                            Width="51" Height="6"
+                    <Border Canvas.Left="{x:Static ui:MachinePlan.PickupHeadCenterX}" Canvas.Top="98"
+                            Width="{x:Static ui:MachinePlan.HeadPitch}" Height="6"
                             Panel.ZIndex="3"
                             Background="{StaticResource DividerBrush}"
                             CornerRadius="2"/>
-                    <TextBlock Canvas.Left="20.5" Canvas.Top="65"
+                    <TextBlock Canvas.Left="{x:Static ui:MachinePlan.PickupHeadLeft}" Canvas.Top="65"
                                Width="28" Height="14"
                                Panel.ZIndex="4"
                                Text="Pick"
@@ -129,7 +129,7 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <TextBlock Canvas.Left="71.5" Canvas.Top="65"
+                    <TextBlock Canvas.Left="{x:Static ui:MachinePlan.ShootingHeadLeft}" Canvas.Top="65"
                                Width="34" Height="14"
                                Panel.ZIndex="4"
                                Text="Shoot"
@@ -152,8 +152,8 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <Grid Canvas.Left="20.5" Canvas.Top="84"
-                          Width="34" Height="34"
+                    <Grid Canvas.Left="{x:Static ui:MachinePlan.PickupHeadLeft}" Canvas.Top="{x:Static ui:MachinePlan.HeadTop}"
+                          Width="{x:Static ui:MachinePlan.HeadSize}" Height="{x:Static ui:MachinePlan.HeadSize}"
                           Panel.ZIndex="5">
                         <Border Tag="{Binding PickupHeadDown}"
                                 Style="{StaticResource ToolHeadFootprintStyle}"/>
@@ -164,8 +164,8 @@
                                  Visibility="{Binding Fastening.PickupBoltLoaded,
                                                       Converter={StaticResource BoolToVis}}"/>
                     </Grid>
-                    <Grid Canvas.Left="71.5" Canvas.Top="84"
-                          Width="34" Height="34"
+                    <Grid Canvas.Left="{x:Static ui:MachinePlan.ShootingHeadLeft}" Canvas.Top="{x:Static ui:MachinePlan.HeadTop}"
+                          Width="{x:Static ui:MachinePlan.HeadSize}" Height="{x:Static ui:MachinePlan.HeadSize}"
                           Panel.ZIndex="5">
                         <Border Tag="{Binding ShootingHeadDown}"
                                 Style="{StaticResource ToolHeadFootprintStyle}"/>

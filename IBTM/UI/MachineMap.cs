@@ -17,20 +17,19 @@ public sealed class MachineMap(
     InspectionGantrySettings inspection,
     NgCarrierTransferSettings transfer)
 {
-    private static readonly (double X, double Y) SupplyPcb1 = (60, 131);
-    private static readonly (double X, double Y) SupplyPcb2 = (152, 131);
-    private static readonly (double X, double Y) SupplyBuffer = (284, 191);
-    private static readonly (double X, double Y) PlacementBuffer = (282, 209);
-    private static readonly (double X, double Y) PlacementHeatSink1 = (220.25, 411);
-    private static readonly (double X, double Y) PlacementHeatSink2 = (347.75, 411);
-    private static readonly (double X, double Y) FasteningFallback = (18, 390);
-    private static readonly (double X, double Y) ShootingUpperLeft = (-44.5, 355);
-    private static readonly (double X, double Y) ShootingLowerRight = (187.5, 403);
-    private static readonly (double X, double Y) PickupUpperLeft = (6.5, 355);
-    private static readonly (double X, double Y) PickupToolOffset = (37.5, 101);
-    private static readonly (double X, double Y) ShootingToolOffset = (88.5, 101);
-    private static readonly (double X, double Y) BoltTargetOrigin = (44, 456);
-    private static readonly (double X, double Y) PickupFeederOffset = (-50, -34);
+    private static readonly (double X, double Y) SupplyPcb1 = MachinePlan.Offset(MachinePlan.SupplyPcb1Center, MachinePlan.SupplyToolCenter);
+    private static readonly (double X, double Y) SupplyPcb2 = MachinePlan.Offset(MachinePlan.SupplyPcb2Center, MachinePlan.SupplyToolCenter);
+    private static readonly (double X, double Y) SupplyBuffer = MachinePlan.Offset(MachinePlan.BufferCenter, MachinePlan.SupplyToolCenter);
+    private static readonly (double X, double Y) PlacementBuffer = MachinePlan.Offset(MachinePlan.BufferCenter, MachinePlan.PlacementToolCenter);
+    private static readonly (double X, double Y) PlacementHeatSink1 = MachinePlan.Offset(MachinePlan.PlacementHeatSink1, MachinePlan.PlacementToolCenter);
+    private static readonly (double X, double Y) PlacementHeatSink2 = MachinePlan.Offset(MachinePlan.PlacementHeatSink2, MachinePlan.PlacementToolCenter);
+    private static readonly (double X, double Y) ShootingUpperLeft = MachinePlan.Offset(MachinePlan.FasteningUpperLeft, MachinePlan.ShootingToolCenter);
+    private static readonly (double X, double Y) ShootingLowerRight = MachinePlan.Offset(MachinePlan.FasteningLowerRight, MachinePlan.ShootingToolCenter);
+    private static readonly (double X, double Y) PickupUpperLeft = MachinePlan.Offset(MachinePlan.FasteningUpperLeft, MachinePlan.PickupToolCenter);
+    private static readonly (double X, double Y) PickupToolOffset = MachinePlan.PickupToolCenter;
+    private static readonly (double X, double Y) ShootingToolOffset = MachinePlan.ShootingToolCenter;
+    private static readonly (double X, double Y) BoltTargetOrigin = MachinePlan.FasteningContentOrigin;
+    private static readonly (double X, double Y) PickupFeederOffset = (-MachinePlan.PickupFeederWidth / 2, -MachinePlan.PickupFeederHeight / 2);
 
     public bool SupplyDefined => MachinePlan.Side(
         (supply.BufferHandoffPosition.X, supply.BufferHandoffPosition.Y),
@@ -45,6 +44,12 @@ public sealed class MachineMap(
             recipe.PcbPlacement.HeatSink2PcbPlacementPosition.Y)) != 0;
 
     public bool FasteningDefined =>
+        carrier.IsDefined && (HasPins(fastening.ShootingHead) || HasPins(fastening.PickupHead));
+
+    private static bool HasPins(BoltHeadSettings head) =>
+        CarrierCoordinates.IsDefined(head.UpperLeftLocatingPin, head.LowerRightLocatingPin);
+
+    private bool BothHeadsMapped =>
         fastening.ShootingHead.UpperLeftLocatingPin is { } first
         && fastening.ShootingHead.LowerRightLocatingPin is { } second
         && fastening.PickupHead.UpperLeftLocatingPin is { } pickup
@@ -56,7 +61,9 @@ public sealed class MachineMap(
             (first.X, first.Y),
             (second.X, second.Y)) != 0;
 
-    public bool InspectionDefined
+    public bool InspectionDefined => carrier.IsDefined;
+
+    private bool NgMapDefined
     {
         get
         {
@@ -132,19 +139,28 @@ public sealed class MachineMap(
     {
         var target = inspection.GetBoltPosition(bolt, carrier);
         var mapped = MapInspection(target.X, target.Y);
-        return (mapped.X + MachinePlan.CameraCenter.X - MachinePlan.InspectionUpperLeft.X,
-            mapped.Y + MachinePlan.CameraCenter.Y - MachinePlan.InspectionUpperLeft.Y);
+        return (mapped.X + MachinePlan.CameraCenter.X - MachinePlan.InspectionContentOrigin.X,
+            mapped.Y + MachinePlan.CameraCenter.Y - MachinePlan.InspectionContentOrigin.Y);
     }
 
     private (double X, double Y) MapFastening(double x, double y)
     {
-        if (fastening.ShootingHead.UpperLeftLocatingPin is not { } shootingUpperLeft
-            || fastening.ShootingHead.LowerRightLocatingPin is not { } shootingLowerRight
-            || fastening.PickupHead.UpperLeftLocatingPin is not { } pickupUpperLeft)
+        if (!FasteningDefined) return default;
+        if (!BothHeadsMapped)
         {
-            return FasteningFallback;
+            var shooting = HasPins(fastening.ShootingHead);
+            var head = shooting ? fastening.ShootingHead : fastening.PickupHead;
+            var tool = shooting ? ShootingToolOffset : PickupToolOffset;
+            return FromTwoPoints(x, y,
+                (head.UpperLeftLocatingPin!.X, head.UpperLeftLocatingPin.Y),
+                (head.LowerRightLocatingPin!.X, head.LowerRightLocatingPin.Y),
+                MachinePlan.Offset(MachinePlan.FasteningUpperLeft, tool),
+                MachinePlan.Offset(MachinePlan.FasteningLowerRight, tool));
         }
 
+        var shootingUpperLeft = fastening.ShootingHead.UpperLeftLocatingPin!;
+        var shootingLowerRight = fastening.ShootingHead.LowerRightLocatingPin!;
+        var pickupUpperLeft = fastening.PickupHead.UpperLeftLocatingPin!;
         return FromThreePoints(
             x,
             y,
@@ -158,11 +174,15 @@ public sealed class MachineMap(
 
     private (double X, double Y) MapInspection(double x, double y)
     {
-        if (carrier.UpperLeftLocatingPin is not { } upperLeft
-            || carrier.LowerRightLocatingPin is not { } lowerRight)
-        {
-            return default;
-        }
+        if (!InspectionDefined) return default;
+        var upperLeft = carrier.UpperLeftLocatingPin!;
+        var lowerRight = carrier.LowerRightLocatingPin!;
+
+        if (!NgMapDefined)
+            return FromTwoPoints(x, y,
+                (upperLeft.X, upperLeft.Y), (lowerRight.X, lowerRight.Y),
+                MachinePlan.Offset(MachinePlan.InspectionUpperLeft, MachinePlan.CameraCenter),
+                MachinePlan.Offset(MachinePlan.InspectionLowerRight, MachinePlan.CameraCenter));
 
         var pickup = transfer.CarrierPickupPosition;
         var shuttle = transfer.ShuttlePlacePosition;
@@ -181,6 +201,27 @@ public sealed class MachineMap(
             MachinePlan.Offset(
                 pickupSide ? MachinePlan.InspectionCarrierCenter : MachinePlan.NgShuttleCenter,
                 MachinePlan.NgPickerCenter));
+    }
+
+    private static (double X, double Y) FromTwoPoints(
+        double x, double y,
+        (double X, double Y) first, (double X, double Y) second,
+        (double X, double Y) targetFirst, (double X, double Y) targetSecond)
+    {
+        var dx = second.X - first.X;
+        var dy = second.Y - first.Y;
+        var tx = targetSecond.X - targetFirst.X;
+        var ty = targetSecond.Y - targetFirst.Y;
+        // Diagonal pins define separate X/Y scales. An axis-aligned pair uses a similarity transform.
+        if (dx != 0 && dy != 0)
+            return (targetFirst.X + (x - first.X) * tx / dx,
+                targetFirst.Y + (y - first.Y) * ty / dy);
+
+        var lengthSquared = dx * dx + dy * dy;
+        var a = (tx * dx + ty * dy) / lengthSquared;
+        var b = (ty * dx - tx * dy) / lengthSquared;
+        return (targetFirst.X + a * (x - first.X) - b * (y - first.Y),
+            targetFirst.Y + b * (x - first.X) + a * (y - first.Y));
     }
 
     private static (double X, double Y) FromThreePoints(

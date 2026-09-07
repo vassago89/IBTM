@@ -225,6 +225,7 @@
                         </Border>
                         <TextBlock Text="{Binding Operation.Alarm,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
+                                   ToolTip="{Binding Operation.AlarmDetail}"
                                    Margin="10,0,0,0"
                                    VerticalAlignment="Center"
                                    Foreground="{StaticResource AccentRedBrush}"

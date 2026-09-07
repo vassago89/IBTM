@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -47,17 +48,17 @@ public partial class RecipeEditor(
                 name,
                 StringComparison.OrdinalIgnoreCase))
         {
-            recipe.CarrierImages = store.CopyRecipeImages(
+            recipe.CarrierImages = await Task.Run(() => store.CopyRecipeImages(
                 _imageRecipeName,
                 name,
-                recipe.CarrierImages);
+                recipe.CarrierImages));
         }
 
         recipe.Name = name;
         _imageRecipeName = name;
         Name = recipe.Name;
         OnPropertyChanged(nameof(ActiveName));
-        await store.SaveRecipeAsync(recipe);
+        await Task.Run(() => store.SaveRecipeAsync(recipe));
         await SelectAsync(recipe.Name);
         RefreshRecipes();
     }
@@ -105,11 +106,16 @@ public partial class RecipeEditor(
         await SaveAsync();
     }
 
-    public IReadOnlyList<CarrierImageTileView> LoadCarrierImages() =>
-        recipe.CarrierImages
-            .Select(tile => new CarrierImageTileView(
-                tile.Number,
-                tile.Center,
-                store.LoadRecipeImage(recipe.Name, tile.Number)))
-            .ToArray();
+    public Task<CarrierImageTileView[]> LoadCarrierImagesAsync(CancellationToken cancellationToken = default)
+    {
+        var name = recipe.Name;
+        var tiles = recipe.CarrierImages;
+        if (tiles.Count == 0) return Task.FromResult<CarrierImageTileView[]>([]);
+        return Task.Run(() => tiles.Select(tile =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return new CarrierImageTileView(tile.Number, tile.Center,
+                store.LoadRecipeImage(name, tile.Number));
+        }).ToArray(), cancellationToken);
+    }
 }
