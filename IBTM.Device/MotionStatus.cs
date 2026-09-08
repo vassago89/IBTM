@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
+using System.Linq;
 
 namespace IBTM.Device;
 
@@ -13,8 +15,8 @@ public sealed class MotionStatus : INotifyPropertyChanged
     public MotionStatus(IMotionFeedback motion)
     {
         Feedback = motion;
-        var position = motion.GetPosition();
-        _position = new(position.X, position.Y, position.Z);
+        Axes = motion.Axes.ToDictionary(axis => axis, _ => new AxisStatus());
+        _position = new(0, 0, 0);
         _isMoving = motion.IsMoving;
 
         var zRange = motion.GetRange(MotionAxis.Z);
@@ -27,6 +29,9 @@ public sealed class MotionStatus : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public IMotionFeedback Feedback { get; }
+    public IReadOnlyDictionary<MotionAxis, AxisStatus> Axes { get; }
+    public bool XyHomed => Axes[MotionAxis.X].State is { Homed: true }
+        && (!Feedback.HasY || Axes[MotionAxis.Y].State is { Homed: true });
 
     public MotionPosition Position
     {
@@ -47,6 +52,26 @@ public sealed class MotionStatus : INotifyPropertyChanged
         Position = new(x, y, z);
 
     private void OnMovingChanged(bool moving) => IsMoving = moving;
+
+    public void RefreshAxes()
+    {
+        var wasHomed = XyHomed;
+        try
+        {
+            foreach (var (axis, status) in Axes)
+                status.Update(Feedback.IsReady ? Feedback.GetAxisState(axis) : null);
+        }
+        catch (IOException)
+        {
+            foreach (var status in Axes.Values) status.Update(null);
+            throw;
+        }
+        finally
+        {
+            if (wasHomed != XyHomed)
+                PropertyChanged?.Invoke(this, new(nameof(XyHomed)));
+        }
+    }
 
     private void Set<T>(ref T field, T value, string propertyName)
     {

@@ -26,6 +26,157 @@ namespace IBTM.Virtual.Tests;
 public sealed class MachineLifecycleTests
 {
     [Fact]
+    public void RecipeAccessUsesTheLiveObjectNotTheServiceProvider()
+    {
+        var services = CreateServices(FlowSettings());
+        var recipe = services.GetRequiredService<Recipe>();
+        var getPcb = services.GetRequiredService<Func<PcbLayout>>();
+        services.Dispose();
+
+        var replacement = new Recipe();
+        recipe.ReplaceWith(replacement);
+        Assert.Same(replacement.Pcb, getPcb());
+    }
+
+    [Fact]
+    public async Task IndividualHomeReportsReadFailureBeforeMotionStarts()
+    {
+        using var services = CreateDisplayServices(out var feedback);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        var axis = manual.Axes.Single(row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
+        feedback.BeforeRead = () => throw new IOException("Home feedback read failed.");
+
+        await manual.HomeAxisCommand.ExecuteAsync(axis);
+
+        Assert.Equal(MachineAlarm.HomeFailed, state.Alarm);
+        Assert.Contains("Home feedback read failed.", state.AlarmDetail);
+        Assert.False(state.IsHoming);
+        Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        Assert.False(services.GetRequiredService<InspectionGantry>().Feedback.IsMoving);
+    }
+
+    [Fact]
+    public async Task DisplayReadsCoalesceWithoutBlockingViewsAndSurviveMachineStop()
+    {
+        using var services = CreateDisplayServices(out var feedback);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        using var entered = new ManualResetEventSlim();
+        using var released = new ManualResetEventSlim();
+        var blocked = 0;
+        var updates = 0;
+        feedback.BeforeRead = () =>
+        {
+            if (Interlocked.Exchange(ref blocked, 1) != 0) return;
+            entered.Set();
+            released.Wait();
+        };
+        state.DisplayChanged += () => Interlocked.Increment(ref updates);
+        try
+        {
+            state.RequestDisplayRefresh();
+            Assert.True(await Task.Run(() => entered.Wait(TimeSpan.FromSeconds(2))));
+            await Task.Run(() =>
+            {
+                var manual = services.GetRequiredService<ManualHardwareViewModel>();
+                foreach (var row in manual.Axes)
+                {
+                    _ = row.Feedback.Condition;
+                    _ = manual.HomeAxisCommand.CanExecute(row);
+                }
+                for (var index = 0; index < 1000; index++) state.RequestDisplayRefresh();
+            }).WaitAsync(TimeSpan.FromSeconds(2));
+
+            released.Set();
+            await WaitUntilAsync(() => Volatile.Read(ref updates) >= 2);
+            await Task.Delay(30);
+            Assert.Equal(2, Volatile.Read(ref updates));
+
+            var previous = state.Display;
+            machine.Stop();
+            state.RequestDisplayRefresh();
+            await WaitUntilAsync(() => !ReferenceEquals(previous, state.Display));
+            await machine.ShutdownAsync();
+            previous = state.Display;
+            state.RequestDisplayRefresh();
+            await Task.Delay(30);
+            Assert.Same(previous, state.Display);
+        }
+        finally
+        {
+            released.Set();
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task DisplayReadFailureIsVisibleAndDoesNotReplaceLiveAdmissionChecks()
+    {
+        using var services = CreateDisplayServices(out var feedback);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        Assert.True(state.Display.Available);
+        var error = new IOException("Display feedback unavailable.");
+        feedback.BeforeRead = () => throw error;
+
+        // A ready display is not permission to operate when the actual read fails.
+        Assert.Throws<IOException>(() => machine.CanHome);
+        state.RequestDisplayRefresh();
+        await WaitUntilAsync(() => !state.Display.Available);
+        Assert.Same(error, state.Display.ReadError);
+        Assert.False(state.Display.CanHome);
+        Assert.False(state.Display.CanStart);
+        Assert.Equal(MachineAlarm.None, state.Alarm);
+        Assert.All(services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
+            axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
+
+        feedback.BeforeRead = null;
+        state.RequestDisplayRefresh();
+        await WaitUntilAsync(() => state.Display.Available);
+        Assert.Null(state.Display.ReadError);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task DisplayProgrammingErrorsAreReportedAndNotRetried(bool duringInitialization)
+    {
+        var services = CreateDisplayServices(out var feedback);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var error = new InvalidOperationException("Display calculation failed.");
+        try
+        {
+            if (!duringInitialization) await machine.InitializeAsync();
+            feedback.BeforeRead = () => throw error;
+            if (duringInitialization)
+            {
+                Assert.Same(error, await Assert.ThrowsAsync<InvalidOperationException>(
+                    () => machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(2))));
+            }
+            else
+            {
+                state.RequestDisplayRefresh();
+                await WaitUntilAsync(() => ReferenceEquals(error, state.Display.ReadError));
+            }
+
+            feedback.BeforeRead = null;
+            state.RequestDisplayRefresh();
+            Assert.Same(error, await Assert.ThrowsAsync<InvalidOperationException>(machine.ShutdownAsync));
+            Assert.Same(error, state.Display.ReadError);
+        }
+        finally
+        {
+            Assert.Same(error, Record.Exception(services.Dispose));
+        }
+    }
+
+    [Fact]
     public async Task ManualConveyorStopsOnModeChangeWithoutAView()
     {
         using var services = CreateServices(FlowSettings());
@@ -70,7 +221,22 @@ public sealed class MachineLifecycleTests
         manual.ToggleServoCommand.Execute(row);
         Assert.Equal(MachineAlarm.MotionUnavailable, services.GetRequiredService<MachineState>().Alarm);
         Assert.Contains("Servo feedback failed", services.GetRequiredService<MachineState>().AlarmDetail);
-        Assert.False(row.ServoOn);
+        await WaitUntilAsync(() => !row.Feedback.ServoOn);
+        Assert.False(row.Feedback.ServoOn);
+    }
+
+    [Fact]
+    public async Task ManualCommandAfterShutdownDoesNotEscapeTheBoundary()
+    {
+        using var services = CreateServices(FlowSettings());
+        var teaching = services.GetRequiredService<SupplyTeachingViewModel>();
+        var operations = services.GetRequiredService<OperationCancellation>();
+        await operations.ShutdownAsync();
+        await teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);
+
+        Assert.False(services.GetRequiredService<PcbSupplyHandler>().Feedback.IsMoving);
+        Assert.False(operations.HasActiveOperations);
+        Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
     }
 
     [Theory]
@@ -1516,6 +1682,7 @@ public sealed class MachineLifecycleTests
             io.SetInput(input, true);
             Assert.Equal(HomeBlockReason.CarrierDetected, machine.HomeBlock);
             Assert.False(machine.CanHome);
+            await WaitUntilAsync(() => manual.Axes.All(axis => !manual.HomeAxisCommand.CanExecute(axis)));
             Assert.All(manual.Axes, axis => Assert.False(manual.HomeAxisCommand.CanExecute(axis)));
             await machine.HomeAsync(CancellationToken.None);
             await manual.HomeAxisCommand.ExecuteAsync(manual.Axes[3]);
@@ -1548,6 +1715,8 @@ public sealed class MachineLifecycleTests
         io.SetInput(InputIo.NgShuttleUp, false);
         io.SetInput(InputIo.NgShuttleDown, true);
         Assert.True(machine.CanHome);
+        services.GetRequiredService<MachineState>().RequestDisplayRefresh();
+        await WaitUntilAsync(() => manual.HomeAxisCommand.CanExecute(manual.Axes[9]));
         Assert.False(manual.HomeAxisCommand.CanExecute(manual.Axes[3]));
         Assert.True(manual.HomeAxisCommand.CanExecute(manual.Axes[9]));
         io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
@@ -2616,6 +2785,7 @@ public sealed class MachineLifecycleTests
 
             Assert.Equal(MachineAlarm.HomeFailed, state.Alarm);
             if (exception) Assert.Contains("Home command failed.", state.AlarmDetail);
+            await WaitUntilAsync(() => state.Display.Alarm == MachineAlarm.HomeFailed);
             Assert.False(manual.HomeAxisCommand.CanExecute(
                 manual.Axes.Single(row => row.Signal == MachineAxis.BoltFasteningZ)));
             Assert.False(state.IsHoming);
@@ -2728,6 +2898,36 @@ public sealed class MachineLifecycleTests
 
         public void DiscardPendingResult()
         {
+        }
+    }
+
+    private static ServiceProvider CreateDisplayServices(out DisplayReadMotion feedback)
+    {
+        var motion = DispatchProxy.Create<IXyMotion, DisplayReadMotion>();
+        var probe = (DisplayReadMotion)motion;
+        feedback = probe;
+        return new ServiceCollection()
+            .AddSingleton<RecipeStore>()
+            .AddIbtmApplication(FlowSettings(), new Recipe { Pcb = VirtualTest.TaughtPcbLayout() })
+            .AddSingleton(provider =>
+            {
+                probe.Motion = provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
+                return new InspectionGantry(motion,
+                    provider.GetRequiredService<NgCarrierTransfer>(),
+                    provider.GetRequiredService<OperationCancellation>());
+            })
+            .BuildServiceProvider();
+    }
+
+    public class DisplayReadMotion : DispatchProxy
+    {
+        public IXyMotion Motion { get; set; } = null!;
+        public Action? BeforeRead;
+
+        protected override object? Invoke(MethodInfo? method, object?[]? arguments)
+        {
+            if (method!.Name == nameof(IMotionFeedback.GetAxisState)) BeforeRead?.Invoke();
+            return method.Invoke(Motion, arguments);
         }
     }
 

@@ -77,7 +77,8 @@ public static class DependencyInjection
         services.AddSingleton(settings.InspectionCamera);
         services.AddSingleton(settings.Hantas);
         services.AddSingleton<OperationCancellation>();
-        services.AddSingleton(recipe ?? new Recipe());
+        var currentRecipe = recipe ?? new Recipe();
+        services.AddSingleton(currentRecipe);
 
         AddControlHardware(services, settings);
         services.AddSingleton<IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>>>(provider =>
@@ -155,10 +156,14 @@ public static class DependencyInjection
                 provider.GetRequiredService<INgCarrierTransferFeedback>(),
                 () => units.Inspection);
         });
-        services.AddSingleton(provider => new BoltPresenceDetector(
-            () => provider.GetRequiredService<Recipe>().BoltInspection,
-            provider.GetRequiredService<IBoltRecessSegmenter>(),
-            () => provider.GetRequiredService<BoltTrainingSettings>().MaskThreshold));
+        services.AddSingleton(provider =>
+        {
+            var training = provider.GetRequiredService<BoltTrainingSettings>();
+            return new BoltPresenceDetector(
+                () => currentRecipe.BoltInspection,
+                provider.GetRequiredService<IBoltRecessSegmenter>(),
+                () => training.MaskThreshold);
+        });
         services.AddSingleton<BoltTrainingSession>();
         services.AddSingleton(provider =>
         {
@@ -231,9 +236,9 @@ public static class DependencyInjection
                 settings.PcbPlacementHandler.BufferHandoffPosition,
                 () => settings.PcbPlacementHandler.BufferEntryZ);
         });
-        services.AddSingleton<Func<PcbLayout>>(provider => () => provider.GetRequiredService<Recipe>().Pcb);
+        services.AddSingleton<Func<PcbLayout>>(_ => () => currentRecipe.Pcb);
         AddBoltHardware(services, settings);
-        AddCameraHardware(services, settings);
+        AddCameraHardware(services, settings, currentRecipe);
         AddLightHardware(services, settings);
         services.AddSingleton(provider =>
         {
@@ -245,9 +250,9 @@ public static class DependencyInjection
                 settings.InspectionGantry,
                 settings.CarrierReference,
                 settings.Lighting,
-                () => provider.GetRequiredService<Recipe>().BoltInspection,
-                () => provider.GetRequiredService<Recipe>().Pcb,
-                () => provider.GetRequiredService<Recipe>().CarrierImageMillimetersPerPixel);
+                () => currentRecipe.BoltInspection,
+                () => currentRecipe.Pcb,
+                () => currentRecipe.CarrierImageMillimetersPerPixel);
             inspector.Inspected += provider.GetRequiredService<BoltImageCollector>().Collect;
             return inspector;
         });
@@ -256,9 +261,9 @@ public static class DependencyInjection
         services.AddSingleton(provider => new BoltImageCollector(
             provider.GetRequiredService<BoltTrainingStore>(),
             provider.GetRequiredService<BoltTrainingSettings>(),
-            () => provider.GetRequiredService<Recipe>().Name));
+            () => currentRecipe.Name));
         services.AddSingleton(provider => new BoltTrainingViewModel(
-            () => provider.GetRequiredService<Recipe>().BoltInspection,
+            () => currentRecipe.BoltInspection,
             provider.GetRequiredService<BoltTrainingStore>(),
             provider.GetRequiredService<BoltTrainingSettings>(),
             provider.GetRequiredService<BoltImageCollector>(),
@@ -390,21 +395,21 @@ public static class DependencyInjection
 
     private static void AddCameraHardware(
         IServiceCollection services,
-        MachineSettings settings)
+        MachineSettings settings,
+        Recipe recipe)
     {
         if (settings.Drivers.Camera == CameraDriver.Virtual)
         {
             services.AddSingleton<VirtualCamera>(provider => new VirtualCamera(
                 provider.GetRequiredService<InspectionGantry>()
                     .Feedback.GetPosition,
-                () => provider.GetRequiredService<Recipe>()
-                    .Pcb.GetBolts()
+                () => recipe.Pcb.GetBolts()
                     .Where(bolt => bolt.X is not null && bolt.Y is not null)
                     .Select(bolt => settings.InspectionGantry.GetBoltPosition(
                         bolt,
                         settings.CarrierReference)),
                 () => Enum.GetValues<HeatSinkSlot>()
-                    .Select(pcb => (Pcb: pcb, Region: provider.GetRequiredService<Recipe>().Pcb.GetDataMatrix(pcb)))
+                    .Select(pcb => (Pcb: pcb, Region: recipe.Pcb.GetDataMatrix(pcb)))
                     .Where(item => item.Region is not null)
                     .Select(item => new VirtualDataMatrix(CarrierCoordinates.ToMachine(item.Region!.Center,
                             settings.CarrierReference.UpperLeftLocatingPin!), item.Region.Width, item.Region.Height,
@@ -511,6 +516,7 @@ public static class DependencyInjection
                 horizontalZ);
         }
 
+        var io = provider.GetRequiredService<VirtualIoService>();
         return new VirtualMotionService(
             settings,
             cancellation,
@@ -521,8 +527,6 @@ public static class DependencyInjection
             zRange: z is null ? null : (z.Minimum, z.Maximum),
             resolutionMillimeters: hardware.MillimetersPerPulse,
             horizontalZ: horizontalZ,
-            servoPowerOn: () => provider
-                .GetRequiredService<VirtualIoService>()
-                .GetInput(InputIo.ServoMainContactorOn));
+            servoPowerOn: () => io.GetInput(InputIo.ServoMainContactorOn));
     }
 }

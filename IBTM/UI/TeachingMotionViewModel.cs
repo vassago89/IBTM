@@ -53,6 +53,7 @@ public abstract partial class TeachingMotionViewModel(
 {
     private CancellationTokenSource _motionCancellation = new();
     private bool _positionUpdatesActive;
+    private int _manualCommandRefreshQueued;
 
     [ObservableProperty]
     private double _jogSpeed = 10.0;
@@ -164,16 +165,19 @@ public abstract partial class TeachingMotionViewModel(
     [RelayCommand(CanExecute = nameof(CanStep))]
     private Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken)
     {
-        var (axis, target) = StepTarget(direction);
         return RunMotionAsync(
-            token => MoveCurrentAxisAsync(axis, target, token),
+            token =>
+            {
+                var (axis, target) = StepTarget(direction, CurrentPosition());
+                return MoveCurrentAxisAsync(axis, target, token);
+            },
             cancellationToken);
     }
 
-    private (MotionAxis Axis, double Position) StepTarget(TeachingDirection direction)
+    private (MotionAxis Axis, double Position) StepTarget(
+        TeachingDirection direction, (double X, double Y, double Z) current)
     {
         var (axis, sign) = Resolve(direction);
-        var current = CurrentPosition();
         var position = axis switch
         {
             MotionAxis.X => current.X,
@@ -187,7 +191,8 @@ public abstract partial class TeachingMotionViewModel(
     private bool CanStep(TeachingDirection direction)
     {
         if (!CanMoveDirection(direction)) return false;
-        var (axis, target) = StepTarget(direction);
+        var position = Motion.Position;
+        var (axis, target) = StepTarget(direction, (position.X, position.Y, position.Z));
         return CurrentFeedback.GetRange(axis) is not { } range
                || target >= range.Minimum && target <= range.Maximum;
     }
@@ -273,13 +278,14 @@ public abstract partial class TeachingMotionViewModel(
 
     protected void QueueManualCommandRefresh()
     {
-        if (!PositionUpdatesActive)
+        if (!PositionUpdatesActive || Interlocked.Exchange(ref _manualCommandRefreshQueued, 1) != 0)
         {
             return;
         }
 
         Application.Current.Dispatcher.BeginInvoke(() =>
         {
+            Interlocked.Exchange(ref _manualCommandRefreshQueued, 0);
             if (PositionUpdatesActive)
             {
                 NotifyManualTeachingCommands();

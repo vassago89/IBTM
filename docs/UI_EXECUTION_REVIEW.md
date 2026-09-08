@@ -1407,3 +1407,168 @@ command boundary. Inspection coverage directly captures a barcode and bolt witho
 a ViewModel and verifies their taught positions and image results. All 166 tests
 pass, including the additionally strengthened inspection test; no test cases were
 added. This supersedes the MovingChanged workaround described above.
+
+### Broader responsibility review
+
+Reviewed the project-reference graph (19 projects, including tests), automatic
+unit entry points, UI movement dispatch, synchronous manual commands and delayed
+Virtual responses. There are no project-reference cycles or references from
+lower production projects back to the WPF application. Automatic units continue
+to use AutoUnit; unit-specific state decisions and stopping remain independent.
+Virtual DO-to-DI delays are simulated hardware responses, not operation completion
+tasks, so they were not removed as if they were the former detached Jog commands.
+
+Supply, Placement and Fastening now own MoveToTeachingPositionAsync. The two
+teaching screens no longer duplicate Placement movement dispatch, and Supply's
+horizontal-then-Z sequence no longer lives in the ViewModel. Existing teaching
+metadata and axis coordinates are passed directly; no UI type or new service is
+introduced in a lower project. TeachingPoint.Read supplies the editable values,
+including staged buffer coordinates, without applying them to stored settings.
+
+Synchronous raw DO writes, manual Conveyor Run and Servo toggling share one
+admission/error boundary in MachineController. Manual Conveyor Run rechecks
+permission when invoked, and the Servo toggle's hardware read/write calls report
+failures as motion alarms. The separate UI status refresh remains the read-side
+observation below. The underlying unit still
+performs the hardware action. Tests exercise a stale Conveyor command in Auto,
+an injected servo feedback failure, and direct handler teaching with a staged Z
+value while preserving the stored handoff Z and Supply Y-before-X order.
+
+Remaining read-side observation: ManualAxisRow.RefreshState still reads
+IMotionFeedback.GetAxisState during a UI refresh. A follow-up should move status
+acquisition into the shared unit status path, with explicit hardware-read failure
+handling. This pass does not add per-row exception swallowing or fabricate a
+healthy fallback state, and does not claim measured RTEX/UI read performance.
+
+Verification: all 167 tests pass. A Release build attempted alongside the test
+runner hit locked output DLLs; sequential Release and Virtual builds after the
+tests completed both report zero warnings/errors. Diff whitespace checks pass.
+No physical equipment or on-screen UI session was operated for this review.
+
+### Recursive responsibility follow-through — 2026-09-08
+
+- Moved per-axis display feedback and its condition enum into Device.AxisStatus,
+  owned by each unit's existing MotionStatus. ManualAxisRow now holds references
+  only; both the row-state cache and RefreshRows were removed. XAML binds directly
+  to the shared axis object. Operation position-known indicators use the same
+  display feedback. Hardware read failure invalidates the displayed group and is
+  rethrown to the caller, rather than leaving a healthy-looking row.
+- Ajin and Virtual publish initial axis state. The controller also refreshes
+  display feedback on safety/servo-power input changes, after stopping when
+  required, and when the manual or operation screen is activated. No background
+  motion polling or simulated UI motion was introduced.
+- Display state is not motion authority. Existing GetAxisState-based home,
+  movement and automatic-operation checks remain live device reads. The operation
+  screen uses ReadAvailability to reuse one readiness read for its home display,
+  start-block reason and Start/Home buttons; actual commands read again. This
+  reduces repeated reads, but does not claim that all SDK reads have moved off
+  the UI thread or that every read-side failure path has been redesigned.
+- Each handler now owns CanJog. Supply owns teaching-position rotation and
+  buffer conditions as well. Teaching screens select the unit and forward its
+  result instead of duplicating mechanical rules. Fine adjustment on the bolt
+  gantry remains distinct from cylinder-up automatic horizontal travel.
+- OperationCancellation.Link now releases a newly registered scope if its
+  activity notification throws. Otherwise shutdown could wait forever for a
+  scope the caller never received. Manual execution now includes scope creation
+  and disposal in its cancellation/error boundary; an already cancelled or
+  shutdown request does not escape to an async UI command.
+
+Follow-through checks cover shared display identity, no SDK reads from row
+properties, unknown feedback on read failure, refresh/recovery, home and servo
+updates, failed scope creation followed by restart/shutdown, and a stale manual
+command after shutdown. Existing Jog, door/reset, teaching and equipment-flow
+tests are retained; no physical hardware was actuated.
+
+Final verification: 170 tests pass. Release solution and Virtual application
+builds both complete with zero warnings/errors. The 19-project reference graph
+has no cycle or lower-production-project reference to the WPF application.
+Diff whitespace checks pass. This is code/Virtual validation, not a new visual
+inspection or a real-equipment commissioning result.
+
+### Display acquisition boundary — 2026-09-08
+
+This follow-through supersedes the synchronous display-refresh and
+ReadAvailability notes above. MachineState now owns one event-driven display
+worker. Hardware/process notifications leave one pending refresh request; the
+worker refreshes the shared MotionStatus axes and publishes a completed
+MachineDisplay. There is no new timer, per-event Task.Run, device wrapper, or
+control-state cache.
+
+OperationViewModel no longer queries the placement/fastening/inspection state
+machines or hardware availability to display them. Those reads run in the
+controller's background display capture. Manual axis rows still bind the shared
+AxisStatus objects; their construction, state getters and Home CanExecute do not
+read the SDK. Opening either display requests an update rather than performing
+hardware reads on the UI thread. The main status header remains subscribed when
+the operation page is inactive. Small visual projections (bolt markers, layout,
+property notifications) remain UI work and are coalesced before rendering.
+
+MachineDisplay is observation only. Start, Home, individual-axis Home, Servo and
+Conveyor commands retain their actual admission checks. Existing unit motion
+interlocks and teaching-command/position checks are not replaced by displayed
+values. This is not a claim that every teaching CanExecute or command-time native
+read has been moved off the UI thread.
+
+A failed display read invalidates the affected axis display and publishes Status
+Unavailable with the error. It does not fabricate healthy feedback or create a
+physical machine alarm solely because a display read failed. Control-side
+hardware/safety failures retain their existing stop and alarm owners. A later
+successful notification-driven read restores the display.
+
+The display worker starts after hardware initialization releases its operation
+scope, continues after machine Stop, and is cancelled/joined on application
+shutdown or service disposal. Tests cover a blocked read with 1,000 coalesced
+requests, non-blocking manual-view reads, Stop versus shutdown, failed-read
+recovery, and live Home admission despite an earlier available display. Existing
+home-display tests now await the published display instead of assuming hardware
+events synchronously repaint the UI.
+
+Verification: 172 tests pass; Release solution and Virtual application builds
+have zero warnings/errors. No physical hardware or visual UI session was used.
+
+### Twenty follow-through passes — 2026-09-08
+
+The requested twenty passes were a bounded inspect/change/recheck cycle, not
+twenty scheduled tasks or twenty forced code changes. The scope started at the
+display exception boundary and followed its actual callers and dependencies.
+
+| Pass | Follow-through | Result |
+| --- | --- | --- |
+| 1 | Recoverable display failures | Only IOException is recovered within the refresh loop. |
+| 2 | SDK error sources | Ajin/AlphaMotion return-code failures use IOException; programming errors remain distinct. |
+| 3 | Error information | Keep the original exception; UI message and diagnostic details use Message and ToString respectively. |
+| 4 | Initial refresh failure | Fail/cancel the initial completion rather than marking a failed worker ready in finally. |
+| 5 | Later refresh failure | Show a terminal worker error and rethrow; no automatic retry of programming errors. |
+| 6 | Shared axis notifications | Notify XyHomed only when it actually changes; failed hardware reads still invalidate the group. |
+| 7 | Axis inventory | Remove the duplicate motion array; control checks still use live Feedback. |
+| 8 | Individual-home display | Reuse sampled axis states for display; actual Home admission reads hardware. |
+| 9 | NG conveyor display | Read motor output/state during display capture instead of in operation-screen getters. |
+| 10 | Synchronous manual admission | Evaluate permission inside the existing command/error boundary. |
+| 11 | Async manual/individual Home | Share live admission before registering the operation; preserve unit-specific cancellation checks. |
+| 12 | Teaching Step | Read the actual step origin inside the command boundary; preview range calculations use display position. |
+| 13 | Runtime recipe access | Resolve the recipe once, then read its current properties; eliminate repeated DI service lookups. |
+| 14 | Virtual/lifetime follow-through | Capture VirtualIoService once. Removed disposal-time service lookups rather than catching ObjectDisposedException. |
+| 15 | Teaching command notifications | Coalesce pending dispatcher refreshes without a timer or per-event task. |
+| 16 | Camera cancellation | Remove duplicate outer cancellation swallowing; normal motion cancellation remains owned by the common command boundary. |
+| 17 | Required cleanup | Retain AutoUnit cancellation filters, operation draining, serial-bus release and shooting cleanup; these perform real cleanup, not recovery guesses. |
+| 18 | Unused state and dependencies | Remove two unused buffer display fields and their reads. All 19 projects remain acyclic with no production reference back to WPF. |
+| 19 | Regression checks | Add only startup/runtime programming-error, pre-home read-error and live-recipe lifetime regressions; run the full suite. |
+| 20 | Final cross-check | Re-read modified call paths, combine identical manual hardware-error handling, preserve CTS cleanup on worker failure, rebuild both configurations and rerun the suite. |
+
+Narrowing the exception boundary exposed four disposal-time failures in the
+Virtual integration run: recipe delegates still resolved services from a disposed
+provider. Capturing the live recipe/settings/IO objects fixes the ownership
+issue without retries, shutdown-specific exception suppression, or cloned
+recipes. Recipe.ReplaceWith continues to replace child objects, so delegates
+read current properties rather than retaining an old PcbLayout.
+
+The broad catch at the worker's outer lifetime boundary is intentionally
+terminal: it publishes the exception and rethrows it. It does not turn arbitrary
+code errors into successful refreshes. Actual equipment control, hardware
+fault-stop boundaries, and cleanup finally blocks remain separate from this
+display-only policy. This review does not claim to remove every UI-thread native
+read, and it does not alter the mechanical sequence or replace live safety checks
+with display data.
+
+Verification: 176 tests pass; Release and Virtual builds have zero warnings and
+errors. No physical hardware was commanded and no new UI visual session was run.

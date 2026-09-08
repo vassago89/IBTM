@@ -174,6 +174,14 @@ public sealed class BoltFasteningGantry
             _ => throw new ArgumentOutOfRangeException(nameof(point)),
         };
 
+    public bool CanJog(MotionAxis axis) => axis switch
+    {
+        MotionAxis.X => true,
+        MotionAxis.Y => _motion.HasY,
+        MotionAxis.Z => _motion.HasZ,
+        _ => false,
+    };
+
     public Task JogAsync(
         MotionAxis axis,
         double velocity,

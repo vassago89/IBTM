@@ -182,35 +182,35 @@
                                            FontFamily="Cascadia Mono, Consolas"
                                            FontSize="14"/>
                                 <TextBlock Grid.Column="3"
-                                           Text="{Binding Status, Converter={StaticResource EnumDescriptionConverter}}"
+                                           Text="{Binding Feedback.Condition, Converter={StaticResource EnumDescriptionConverter}}"
                                            VerticalAlignment="Center"
                                            FontWeight="SemiBold">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Status}" Value="{x:Static ui:ManualAxisStatus.Ready}">
+                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.Ready}">
                                                     <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding Status}" Value="{x:Static ui:ManualAxisStatus.Moving}">
+                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.Moving}">
                                                     <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding Status}" Value="{x:Static ui:ManualAxisStatus.HomeRequired}">
+                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.HomeRequired}">
                                                     <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding Status}" Value="{x:Static ui:ManualAxisStatus.ServoOff}">
+                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.ServoOff}">
                                                     <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding Status}" Value="{x:Static ui:ManualAxisStatus.NegativeLimit}">
+                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.NegativeLimit}">
                                                     <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding Status}" Value="{x:Static ui:ManualAxisStatus.PositiveLimit}">
+                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.PositiveLimit}">
                                                     <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding Status}" Value="{x:Static ui:ManualAxisStatus.Alarm}">
+                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.Alarm}">
                                                     <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                                                 </DataTrigger>
-                                                <DataTrigger Binding="{Binding Status}" Value="{x:Static ui:ManualAxisStatus.Emergency}">
+                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.Emergency}">
                                                     <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -228,7 +228,7 @@
                                             <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                                 <Setter Property="Content" Value="Servo On"/>
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ServoOn}" Value="True">
+                                                    <DataTrigger Binding="{Binding Feedback.ServoOn}" Value="True">
                                                         <Setter Property="Content" Value="Servo Off"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>

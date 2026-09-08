@@ -49,6 +49,7 @@ public sealed class VirtualMotionService(
         {
             _servoOn[(int)axis] = servoPowerOn?.Invoke() ?? true;
         }
+        PublishStateChanged();
     }
 
     protected override Task MoveXYCoreAsync(

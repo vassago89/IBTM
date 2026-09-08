@@ -78,27 +78,11 @@ public partial class SupplyTeachingViewModel
         OnPropertyChanged(nameof(Motion));
     }
 
-    protected override bool CanJog(MotionAxis axis)
-    {
-        if (!CanUseCurrentHandler())
-        {
-            return false;
-        }
-
-        return axis switch
-        {
-            MotionAxis.Y when !HasY
-                || ActiveMotionGroup == MotionGroup.PcbSupply && _buffer.SupplyInside => false,
-            MotionAxis.X or MotionAxis.Y => ActiveMotionGroup == MotionGroup.PcbSupply
-                ? _supplyHandler.IsAtRotationZ
-                : _placementHandler.CanMoveHorizontal
-                  && _placementHandler.AtHorizontalZ,
-            MotionAxis.Z =>
-                ActiveMotionGroup != MotionGroup.PcbSupply
-                || !_buffer.SupplyInside,
-            _ => false,
-        };
-    }
+    protected override bool CanJog(MotionAxis axis) =>
+        CanUseCurrentHandler()
+        && (ActiveMotionGroup == MotionGroup.PcbSupply
+            ? _supplyHandler.CanJog(axis)
+            : _placementHandler.CanJog(axis));
 
     [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
     private Task MoveToPointAsync(CancellationToken cancellationToken)
@@ -118,21 +102,7 @@ public partial class SupplyTeachingViewModel
         && (point.MotionGroup != MotionGroup.PcbSupply
             ? point.TeachMode == TeachMode.ZOnly
               || _placementHandler.CanMoveHorizontal
-            : CanMoveSupplyPoint(point));
-
-    private bool CanMoveSupplyPoint(TeachingPoint point) =>
-        (!_buffer.SupplyInside
-         || point.TeachMode == TeachMode.XOnly
-         && _supplyHandler.IsAtRotationZ)
-        && point.Target switch
-        {
-            TeachingTarget.SupplyBufferHandoff =>
-                _supplyHandler.Rotation == PcbSupplyRotationState.Rotated,
-            TeachingTarget.SupplyPcb1Pick
-                or TeachingTarget.SupplyPcb2Pick =>
-                _supplyHandler.Rotation == PcbSupplyRotationState.Unrotated,
-            _ => true,
-        };
+            : _supplyHandler.CanMoveToTeachingPosition(point.Position));
 
     protected override bool CanUseCurrentHandler() =>
         CanUseHandler(ActiveMotionGroup);

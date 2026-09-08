@@ -67,6 +67,8 @@ public sealed class InspectionGantry
             cancellationToken);
     }
 
+    public bool CanJog(MotionAxis axis) => axis is MotionAxis.X or MotionAxis.Y && CanMove;
+
     public Task JogAsync(
         MotionAxis axis,
         double velocity,

@@ -47,12 +47,16 @@ public sealed class OperationCancellation
             operation = new Operation(this, source);
         }
 
-        if (becameActive)
+        try
         {
-            ActivityChanged?.Invoke();
+            if (becameActive) ActivityChanged?.Invoke();
+            return operation;
         }
-
-        return operation;
+        catch
+        {
+            operation.Dispose();
+            throw;
+        }
     }
 
     public void Cancel()

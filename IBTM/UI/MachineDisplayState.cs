@@ -4,6 +4,9 @@ namespace IBTM.UI;
 
 public enum MachineDisplayState
 {
+    [Description("Status Unavailable")]
+    Unavailable,
+
     [Description("Home Required")]
     HomeRequired,
 

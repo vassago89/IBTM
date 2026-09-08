@@ -10,14 +10,11 @@ namespace IBTM.UI;
 
 public partial class OperationViewModel
 {
-    public bool SupplyPositionKnown => XyHomed(Supply.Feedback) && _map.SupplyDefined;
-    public bool PlacementPositionKnown => XyHomed(Placement.Feedback) && _map.PlacementDefined;
-    public bool FasteningPositionKnown => XyHomed(Fastening.Feedback) && _map.FasteningDefined;
-    public bool InspectionPositionKnown => XyHomed(InspectionGantry.Feedback) && _map.InspectionDefined;
+    public bool SupplyPositionKnown => Supply.Motion.XyHomed && _map.SupplyDefined;
+    public bool PlacementPositionKnown => Placement.Motion.XyHomed && _map.PlacementDefined;
+    public bool FasteningPositionKnown => Fastening.Motion.XyHomed && _map.FasteningDefined;
+    public bool InspectionPositionKnown => InspectionGantry.Motion.XyHomed && _map.InspectionDefined;
     public bool BoltFeederPositionKnown => _map.FasteningDefined;
-
-    private static bool XyHomed(IMotionFeedback motion) =>
-        motion.GetAxisState(MotionAxis.X).Homed && motion.GetAxisState(MotionAxis.Y).Homed;
 
     public Enum PlacementStatus => PlacementDisplayState is HandlerDisplayState.Working or HandlerDisplayState.Moving
         ? PlacementState : PlacementDisplayState;
@@ -25,8 +22,18 @@ public partial class OperationViewModel
         : !_machineDisplay.AutomaticRunning && !ConveyorRunning ? HandlerDisplayState.Stopped
         : MainConveyorState;
 
-    public MachineDisplayState MachineDisplayState =>
-        _machineDisplay.DisplayState;
+    public MachineDisplayState MachineDisplayState => _machineDisplay switch
+    {
+        { Available: false } => MachineDisplayState.Unavailable,
+        { SafetyReady: false } => MachineDisplayState.SafetyStop,
+        { Alarm: not MachineAlarm.None } => MachineDisplayState.Alarm,
+        { MotionFaulted: true } => MachineDisplayState.MotionFault,
+        { IsHoming: true } => MachineDisplayState.Homing,
+        { ServoPowerOn: false } => MachineDisplayState.ServoOff,
+        { Homed: false } => MachineDisplayState.HomeRequired,
+        { IsRunning: true } => MachineDisplayState.Running,
+        _ => MachineDisplayState.Ready,
+    };
 
     public bool StartBlocked =>
         !_machineDisplay.CanStart
@@ -56,7 +63,7 @@ public partial class OperationViewModel
                 return HandlerDisplayState.Disabled;
             }
 
-            if (Alarm == MachineAlarm.PcbSupply)
+            if (Alarm is MachineAlarm.PcbSupply)
             {
                 return HandlerDisplayState.IoAlarm;
             }
@@ -69,13 +76,13 @@ public partial class OperationViewModel
 
             if (!_machineDisplay.AutomaticRunning) return HandlerDisplayState.Stopped;
 
-            if (_buffer.SupplyAtHandoff)
+            if (_machineDisplay.SupplyAtHandoff)
             {
                 return _buffer.PcbPresent ? HandlerDisplayState.WaitingForPlacement
                     : HandlerDisplayState.WaitingForBufferPcb;
             }
 
-            if (PcbSupplyPcbSecured && !_buffer.CanSupplyEnter)
+            if (PcbSupplyPcbSecured && !_machineDisplay.CanSupplyEnter)
                 return HandlerDisplayState.WaitingForBuffer;
             if (PcbSupplyPcbDetected) return HandlerDisplayState.Working;
 
@@ -94,7 +101,7 @@ public partial class OperationViewModel
                 return HandlerDisplayState.Disabled;
             }
 
-            if (Alarm == MachineAlarm.PcbPlacement)
+            if (Alarm is MachineAlarm.PcbPlacement)
             {
                 return HandlerDisplayState.IoAlarm;
             }

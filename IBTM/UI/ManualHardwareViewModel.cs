@@ -12,36 +12,6 @@ using IBTM.Device;
 
 namespace IBTM.UI;
 
-public enum ManualAxisStatus
-{
-    [Description("Ready")]
-    Ready,
-
-    [Description("Moving")]
-    Moving,
-
-    [Description("Servo Off")]
-    ServoOff,
-
-    [Description("Home Required")]
-    HomeRequired,
-
-    [Description("Negative Limit")]
-    NegativeLimit,
-
-    [Description("Positive Limit")]
-    PositiveLimit,
-
-    [Description("Alarm")]
-    Alarm,
-
-    [Description("Emergency")]
-    Emergency,
-
-    [Description("Unavailable")]
-    Unavailable,
-}
-
 public enum ManualConveyorStatus
 {
     [Description("Stopped")]
@@ -55,39 +25,15 @@ public sealed class ManualAxisRow(
     MotionGroup group,
     MachineAxis signal,
     MotionAxis axis,
-    MotionStatus motion) : ObservableObject
+    MotionStatus motion)
 {
-    private AxisState _axisState = motion.Feedback.GetAxisState(axis);
-
     public MotionGroup Group { get; } = group;
     public MachineAxis Signal { get; } = signal;
     public MotionAxis Axis { get; } = axis;
     public MotionStatus Motion { get; } = motion;
-    internal IMotionFeedback Feedback => Motion.Feedback;
-    public bool ServoOn => _axisState.ServoOn;
+    public AxisStatus Feedback { get; } = motion.Axes[axis];
     public bool IndividualHomeAvailable =>
         Group != MotionGroup.PcbSupply;
-    public ManualAxisStatus Status => !Feedback.IsReady
-        ? ManualAxisStatus.Unavailable
-        : _axisState switch
-        {
-            { Emergency: true } => ManualAxisStatus.Emergency,
-            { Alarm: true } => ManualAxisStatus.Alarm,
-            { NegativeLimit: true } => ManualAxisStatus.NegativeLimit,
-            { PositiveLimit: true } => ManualAxisStatus.PositiveLimit,
-            { ServoOn: false } => ManualAxisStatus.ServoOff,
-            { Homed: false } => ManualAxisStatus.HomeRequired,
-            { InPosition: false } => ManualAxisStatus.Moving,
-            _ => ManualAxisStatus.Ready,
-        };
-
-    internal void RefreshState()
-    {
-        _axisState = Feedback.GetAxisState(Axis);
-        OnPropertyChanged(nameof(ServoOn));
-        OnPropertyChanged(nameof(Status));
-    }
-
 }
 
 public partial class ManualHardwareViewModel : ObservableObject
@@ -98,7 +44,7 @@ public partial class ManualHardwareViewModel : ObservableObject
     private volatile bool _active;
     private int _stateRefreshQueued;
 
-    public bool IsHoming => _state.IsHoming;
+    public bool IsHoming => _state.Display.IsHoming;
 
     public ManualHardwareViewModel(
         MainConveyor conveyor,
@@ -112,30 +58,27 @@ public partial class ManualHardwareViewModel : ObservableObject
         Axes = hardware.SelectMany(section => section.AxisSignals.Select(axis =>
             new ManualAxisRow(section.Group, axis.Value, axis.Key, machine.GetMotionStatus(section.Group)))).ToArray();
 
-        state.Changed += OnMachineStateChanged;
+        state.DisplayChanged += OnMachineStateChanged;
     }
 
     public ManualAxisRow[] Axes { get; }
-    public HomeBlockReason HomeBlock => _machine.HomeBlock;
+    public HomeBlockReason HomeBlock => _state.Display.HomeBlock;
     public ManualConveyorStatus ConveyorStatus =>
-        _state.ConveyorRunning
+        _state.Display.ConveyorRunning
             ? ManualConveyorStatus.Running
             : ManualConveyorStatus.Stopped;
 
     [RelayCommand(CanExecute = nameof(CanRunConveyor))]
     private void RunConveyor() => _machine.RunManualConveyor();
 
-    private bool CanRunConveyor() => _state.ManualControlsEnabled;
+    private bool CanRunConveyor() => _state.Display.ManualControlsEnabled;
 
     [RelayCommand]
     private void StopConveyor() => _conveyor.Stop();
 
     [RelayCommand(CanExecute = nameof(CanToggleServo))]
-    private void ToggleServo(ManualAxisRow row)
-    {
+    private void ToggleServo(ManualAxisRow row) =>
         _machine.ToggleServo(row.Group, row.Axis);
-        row.RefreshState();
-    }
 
     private bool CanToggleServo(ManualAxisRow? row) =>
         row is not null
@@ -148,7 +91,7 @@ public partial class ManualHardwareViewModel : ObservableObject
         _machine.HomeAxisAsync(row.Group, row.Axis, cancellationToken);
 
     private bool CanHomeAxis(ManualAxisRow? row) =>
-        row is not null && _machine.CanHomeAxis(row.Group, row.Axis);
+        row is not null && _state.Display.HomeableAxes.Contains((row.Group, row.Axis));
 
     [RelayCommand(CanExecute = nameof(CanStopHome))]
     private void StopHome() => HomeAxisCommand.Cancel();
@@ -158,8 +101,8 @@ public partial class ManualHardwareViewModel : ObservableObject
     public void Activate()
     {
         _active = true;
-        _state.Refresh();
-        RefreshRows();
+        _state.RequestDisplayRefresh();
+        OnMachineStateChanged();
     }
 
     public void Deactivate()
@@ -195,20 +138,11 @@ public partial class ManualHardwareViewModel : ObservableObject
             OnPropertyChanged(nameof(IsHoming));
             OnPropertyChanged(nameof(ConveyorStatus));
             OnPropertyChanged(nameof(HomeBlock));
-            RefreshRows();
             RunConveyorCommand.NotifyCanExecuteChanged();
             ToggleServoCommand.NotifyCanExecuteChanged();
             HomeAxisCommand.NotifyCanExecuteChanged();
             StopHomeCommand.NotifyCanExecuteChanged();
         });
-    }
-
-    private void RefreshRows()
-    {
-        foreach (var row in Axes)
-        {
-            row.RefreshState();
-        }
     }
 
 }

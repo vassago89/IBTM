@@ -66,6 +66,7 @@ public class AjinMotionService(
 
         _initialized = true;
         PublishPosition();
+        PublishStateChanged();
     }
 
     protected override Task MoveXYCoreAsync(

@@ -27,10 +27,13 @@ public partial class StationTeachingViewModel
 
     protected override bool CanJog(MotionAxis axis) =>
         CanUseCurrentHandler()
-        && (axis == MotionAxis.Z
-            ? CurrentFeedback.HasZ
-            : SelectedMotionGroup == MotionGroup.BoltFastening
-              || CanMoveHorizontal() && CurrentFeedback.IsAtHorizontalZ);
+        && SelectedMotionGroup switch
+        {
+            MotionGroup.PcbPlacementHandler => _placementHandler.CanJog(axis),
+            MotionGroup.BoltFastening => _fasteningGantry.CanJog(axis),
+            MotionGroup.InspectionGantry => _inspectionGantry.CanJog(axis),
+            _ => false,
+        };
 
     protected override Task JogCurrentAsync(
         MotionAxis axis,

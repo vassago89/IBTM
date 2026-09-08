@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 
 namespace IBTM.AlphaMotion;
 
@@ -120,7 +121,7 @@ public sealed class AlphaMotionController(
     {
         if (result < 0)
         {
-            throw new InvalidOperationException(
+            throw new IOException(
                 $"{operation} failed with AlphaMotion result {result}.");
         }
     }

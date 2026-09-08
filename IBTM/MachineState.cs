@@ -1,5 +1,9 @@
 using System;
 using System.ComponentModel;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using IBTM.Core;
 using IBTM.BoltFastening;
 using IBTM.Conveyor;
 using IBTM.Device;
@@ -92,8 +96,14 @@ internal readonly record struct MotionReadiness(
     bool ServosOn,
     bool Faulted);
 
-public sealed class MachineState
+public sealed class MachineState : IDisposable
 {
+    private readonly AsyncAutoResetEvent _displayRequested = new();
+    private readonly CancellationTokenSource _displayLifetime = new();
+    private readonly TaskCompletionSource _firstDisplay = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private Task? _displayUpdates;
+    private MachineDisplay _display = new();
+    private readonly MotionStatus[] _motionDisplays;
     private readonly MachineOptions _options;
     private readonly UnitSettings _units;
     private readonly OperationCancellation _operations;
@@ -102,11 +112,10 @@ public sealed class MachineState
     private readonly NgCarrierConveyor _ngConveyor;
     private readonly BufferStage _buffer;
     private readonly BoltTrainingSession _training;
-    private readonly IMotionFeedback[] _allMotions;
-    private readonly IMotionFeedback _supplyMotion;
-    private readonly IMotionFeedback _placementMotion;
-    private readonly IMotionFeedback _fasteningMotion;
-    private readonly IMotionFeedback _inspectionMotion;
+    private readonly MotionStatus _supplyMotion;
+    private readonly MotionStatus _placementMotion;
+    private readonly MotionStatus _fasteningMotion;
+    private readonly MotionStatus _inspectionMotion;
 
     public MachineState(
         MachineOptions options,
@@ -130,17 +139,11 @@ public sealed class MachineState
         _ngConveyor = ngConveyor;
         _buffer = buffer;
         _training = training;
-        _supplyMotion = pcbSupply.Feedback;
-        _placementMotion = pcbPlacement.Feedback;
-        _fasteningMotion = boltFastening.Feedback;
-        _inspectionMotion = inspectionGantry.Feedback;
-        _allMotions =
-        [
-            _supplyMotion,
-            _placementMotion,
-            _fasteningMotion,
-            _inspectionMotion,
-        ];
+        _motionDisplays = [pcbSupply.Motion, pcbPlacement.Motion, boltFastening.Motion, inspectionGantry.Motion];
+        _supplyMotion = pcbSupply.Motion;
+        _placementMotion = pcbPlacement.Motion;
+        _fasteningMotion = boltFastening.Motion;
+        _inspectionMotion = inspectionGantry.Motion;
 
         io.InputChanged += (input, _) =>
         {
@@ -169,67 +172,125 @@ public sealed class MachineState
     }
 
     public event Action? Changed;
-
-    internal MotionReadiness MotionReadiness
+    public event Action? DisplayChanged;
+    public MachineDisplay Display
     {
-        get
+        get => Volatile.Read(ref _display);
+        private set => Volatile.Write(ref _display, value);
+    }
+
+    public void RequestDisplayRefresh() => _displayRequested.Set();
+
+    internal Task StartDisplayUpdatesAsync(Func<MachineDisplay> read)
+    {
+        if (_displayUpdates is null)
         {
-            var homed = true;
-            var servosOn = true;
-            var faulted = false;
-            void Read(IMotionFeedback motion)
+            Changed += RequestDisplayRefresh;
+            RequestDisplayRefresh();
+            _displayUpdates = Task.Run(async () =>
             {
-                if (!motion.IsReady)
+                var cancellationToken = _displayLifetime.Token;
+                try
                 {
-                    homed = false;
-                    servosOn = false;
-                    faulted = true;
-                    return;
+                    while (true)
+                    {
+                        await _displayRequested.WaitAsync(cancellationToken).ConfigureAwait(false);
+                        cancellationToken.ThrowIfCancellationRequested();
+                        try
+                        {
+                            foreach (var motion in _motionDisplays) motion.RefreshAxes();
+                            Display = read();
+                        }
+                        catch (IOException exception)
+                        {
+                            Display = new() { ReadError = exception };
+                        }
+                        DisplayChanged?.Invoke();
+                        _firstDisplay.TrySetResult();
+                    }
                 }
-
-                foreach (var axis in motion.Axes)
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
-                    var state = motion.GetAxisState(axis);
-                    homed &= state.Homed;
-                    servosOn &= state.ServoOn;
-                    faulted |= IsFaulted(state);
+                    _firstDisplay.TrySetCanceled(cancellationToken);
                 }
-            }
-
-            if (_units.PcbSupply || _units.PcbPlacement)
-            {
-                Read(_supplyMotion);
-                Read(_placementMotion);
-            }
-
-            if (_units.BoltFastening)
-            {
-                Read(_fasteningMotion);
-            }
-
-            if (_units.Inspection || _units.NgCarrierTransfer)
-            {
-                Read(_inspectionMotion);
-            }
-
-            return new(homed, servosOn, faulted);
+                catch (Exception exception)
+                {
+                    Display = new() { ReadError = exception };
+                    _firstDisplay.TrySetException(exception);
+                    DisplayChanged?.Invoke();
+                    throw;
+                }
+                finally
+                {
+                    Changed -= RequestDisplayRefresh;
+                }
+            });
         }
+        return _firstDisplay.Task;
+    }
+
+    internal Task StopDisplayUpdatesAsync()
+    {
+        _displayLifetime.Cancel();
+        return _displayUpdates ?? Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        using (_displayLifetime)
+            StopDisplayUpdatesAsync().GetAwaiter().GetResult();
+    }
+
+    internal MotionReadiness MotionReadiness => ReadMotionReadiness(live: true);
+    internal MotionReadiness DisplayMotionReadiness => ReadMotionReadiness(live: false);
+
+    private MotionReadiness ReadMotionReadiness(bool live)
+    {
+        var homed = true;
+        var servosOn = true;
+        var faulted = false;
+        void Read(MotionStatus motion)
+        {
+            if (!motion.Feedback.IsReady)
+            {
+                homed = servosOn = false;
+                faulted = true;
+                return;
+            }
+
+            foreach (var axis in motion.Feedback.Axes)
+            {
+                var feedback = live ? motion.Feedback.GetAxisState(axis) : motion.Axes[axis].State;
+                if (feedback is not { } state)
+                {
+                    homed = servosOn = false;
+                    faulted = true;
+                    continue;
+                }
+                homed &= state.Homed;
+                servosOn &= state.ServoOn;
+                faulted |= IsFaulted(state);
+            }
+        }
+
+        if (_units.PcbSupply || _units.PcbPlacement)
+        {
+            Read(_supplyMotion);
+            Read(_placementMotion);
+        }
+
+        if (_units.BoltFastening) Read(_fasteningMotion);
+        if (_units.Inspection || _units.NgCarrierTransfer) Read(_inspectionMotion);
+
+        return new(homed, servosOn, faulted);
     }
 
     public bool Homed => MotionReadiness.Homed;
     public bool ServosOn => MotionReadiness.ServosOn;
     public bool Faulted => MotionReadiness.Faulted;
-    public bool Ready
-    {
-        get
-        {
-            var motion = MotionReadiness;
-            return ServoMainContactorOn
-                   && motion.Homed
-                   && motion.ServosOn
-                   && !motion.Faulted;
-        }
-    }
+    public bool Ready => IsMotionReady(MotionReadiness);
+    private bool IsMotionReady(MotionReadiness motion) =>
+        ServoMainContactorOn && motion.Homed && motion.ServosOn && !motion.Faulted;
 
     public bool EmergencyStopReleased =>
         _io.IsReady
@@ -268,6 +329,8 @@ public sealed class MachineState
     public bool ConveyorRunning => _conveyor.RunCommandOn;
     public MainConveyorState MainConveyorState => _conveyor.State;
     public bool SupplyInBufferArea => _buffer.SupplyInside;
+    internal bool SupplyAtHandoff => _buffer.SupplyAtHandoff;
+    internal bool CanSupplyEnter => _buffer.CanSupplyEnter;
     public bool BufferConflict => _buffer.Conflict;
 
     public bool IsRunning =>
@@ -277,7 +340,7 @@ public sealed class MachineState
         || BoltTestRunning
         || IsHoming
         || ConveyorRunning
-        || Array.Exists(_allMotions, static motion => motion.IsMoving)
+        || Array.Exists(_motionDisplays, static motion => motion.Feedback.IsMoving)
         || _ngConveyor.RunCommandOn;
 
     public bool CanOperate =>
@@ -289,10 +352,11 @@ public sealed class MachineState
         CanOperate
         && AutoMode
         && DoorInterlockReady;
-    public ManualControlBlock ManualBlock => this switch
+    public ManualControlBlock ManualBlock => GetManualBlock(MotionReadiness);
+    internal ManualControlBlock GetManualBlock(MotionReadiness motion) => this switch
     {
         { IsError: true } => ManualControlBlock.Alarm,
-        { Ready: false } => ManualControlBlock.MotionNotReady,
+        _ when !IsMotionReady(motion) => ManualControlBlock.MotionNotReady,
         { SafetyReady: false } => ManualControlBlock.SafetyNotReady,
         { BufferConflict: true } => ManualControlBlock.BufferConflict,
         { AutoMode: true } => ManualControlBlock.AutoMode,

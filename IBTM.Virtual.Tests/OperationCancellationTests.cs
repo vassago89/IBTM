@@ -9,6 +9,24 @@ namespace IBTM.Virtual.Tests;
 public sealed class OperationCancellationTests
 {
     [Fact]
+    public async Task FailedActivityNotificationDoesNotRetainAnOperation()
+    {
+        var operations = new OperationCancellation();
+        var failure = new InvalidOperationException("Activity notification failed.");
+        void FailOnce()
+        {
+            operations.ActivityChanged -= FailOnce;
+            throw failure;
+        }
+        operations.ActivityChanged += FailOnce;
+
+        Assert.Same(failure, Assert.Throws<InvalidOperationException>(() => operations.Link()));
+        Assert.False(operations.HasActiveOperations);
+        using (operations.Link()) Assert.True(operations.HasActiveOperations);
+        await operations.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
     public async Task RepeatedStopCanRaceWithOperationCompletion()
     {
         var operations = new OperationCancellation();

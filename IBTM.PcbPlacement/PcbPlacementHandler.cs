@@ -221,6 +221,14 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             _ => throw new ArgumentOutOfRangeException(nameof(point)),
         };
 
+    public bool CanJog(MotionAxis axis) => axis switch
+    {
+        MotionAxis.X => CanMoveHorizontal && AtHorizontalZ,
+        MotionAxis.Y => _motion.HasY && CanMoveHorizontal && AtHorizontalZ,
+        MotionAxis.Z => _motion.HasZ,
+        _ => false,
+    };
+
     public Task JogAsync(
         MotionAxis axis,
         double velocity,

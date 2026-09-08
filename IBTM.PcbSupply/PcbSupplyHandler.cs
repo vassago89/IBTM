@@ -164,6 +164,16 @@ public sealed class PcbSupplyHandler
         await _motion.MoveToHorizontalZAsync(cancellationToken);
     }
 
+    public bool CanMoveToTeachingPosition(TeachingPosition point) =>
+        (!InsideBuffer || point.Mode == TeachMode.XOnly && IsAtRotationZ)
+        && point.Target switch
+        {
+            TeachingTarget.SupplyBufferHandoff => Rotation == PcbSupplyRotationState.Rotated,
+            TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick =>
+                Rotation == PcbSupplyRotationState.Unrotated,
+            _ => true,
+        };
+
     public async Task MoveToTeachingPositionAsync(
         TeachingPosition point,
         AxisPosition position,
@@ -330,6 +340,14 @@ public sealed class PcbSupplyHandler
                 z,
                 _settings.Motion.ZSpeed,
                 cancellationToken);
+
+    public bool CanJog(MotionAxis axis) => axis switch
+    {
+        MotionAxis.X => IsAtRotationZ,
+        MotionAxis.Y => _motion.HasY && !InsideBuffer && IsAtRotationZ,
+        MotionAxis.Z => _motion.HasZ && !InsideBuffer,
+        _ => false,
+    };
 
     public Task JogAsync(
         MotionAxis axis,

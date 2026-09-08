@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -108,6 +109,12 @@ public sealed class MachineController
         placementHandler.Feedback.MovingChanged += _ => CheckMotionInterlocks();
         fasteningGantry.Feedback.StateChanged += CheckMotionInterlocks;
         inspectionGantry.Feedback.MovingChanged += _ => CheckMotionInterlocks();
+        pcbSupply.Changed += state.RequestDisplayRefresh;
+        pcbPlacement.Changed += state.RequestDisplayRefresh;
+        fasteningStation.Changed += state.RequestDisplayRefresh;
+        inspectionStation.Changed += state.RequestDisplayRefresh;
+        pickupBoltFeeder.Changed += state.RequestDisplayRefresh;
+        shootingBoltFeeder.Changed += state.RequestDisplayRefresh;
     }
 
     public bool CanReset
@@ -138,26 +145,20 @@ public sealed class MachineController
         }
     }
 
-    public bool CanHome
-    {
-        get
-        {
-            if (_operations.IsShuttingDown || !_state.SafetyReady || !_state.DoorInterlockReady)
-            {
-                return false;
-            }
+    public bool CanHome => IsHomeAllowed(_state.MotionReadiness);
 
-            var motion = _state.MotionReadiness;
-            return motion.ServosOn
-                && !motion.Faulted
-                && _state.ServoMainContactorOn
-                && !motion.Homed
-                && !_state.IsError
-                && !_state.IsRunning
-                && HomeBlock == HomeBlockReason.None
-                && (!BufferHandlersEnabled || _pcbSupply.CanHome);
-        }
-    }
+    private bool IsHomeAllowed(MotionReadiness motion) =>
+        !_operations.IsShuttingDown
+        && _state.SafetyReady
+        && _state.DoorInterlockReady
+        && motion.ServosOn
+        && !motion.Faulted
+        && _state.ServoMainContactorOn
+        && !motion.Homed
+        && !_state.IsError
+        && !_state.IsRunning
+        && HomeBlock == HomeBlockReason.None
+        && (!BufferHandlersEnabled || _pcbSupply.CanHome);
     public HomeBlockReason HomeBlock => GetHomeBlock();
     public bool CanRaiseCylinders =>
         _state.ManualOutputsEnabled
@@ -185,31 +186,86 @@ public sealed class MachineController
         return HomeBlockReason.None;
     }
 
-    public bool CanStart =>
+    public bool CanStart => IsStartAllowed(StartBlock);
+
+    private bool IsStartAllowed(StartBlockReason block) =>
         !_operations.IsShuttingDown
         && !_state.IsRunning
-        && StartBlock == StartBlockReason.None;
+        && block == StartBlockReason.None;
 
-    public StartBlockReason StartBlock
+    public StartBlockReason StartBlock => GetStartBlock(_state.MotionReadiness);
+
+    private MachineDisplay ReadDisplay()
     {
-        get
+        var motion = _state.DisplayMotionReadiness;
+        var block = GetStartBlock(motion);
+        var servoPower = _state.ServoMainContactorOn && motion.ServosOn;
+        var conflict = _state.BufferConflict;
+        var running = _state.IsRunning;
+        var safetyReady = _state.SafetyReady;
+        var teachingReady = TeachingReady;
+        var bolts = _recipe.Pcb.GetBolts().ToArray();
+        var automatic = _state.AutomaticRunning;
+
+        return new()
         {
-            if (_state.Alarm == MachineAlarm.EmergencyStop) return StartBlockReason.EmergencyStop;
-            if (_state.Alarm == MachineAlarm.DoorOpen) return StartBlockReason.DoorOpen;
-            if (_state.Alarm == MachineAlarm.AirPressureLow) return StartBlockReason.AirPressure;
-            if (_state.Alarm == MachineAlarm.BufferConflict || _state.BufferConflict) return StartBlockReason.BufferConflict;
-            if (_state.IsError) return StartBlockReason.Alarm;
-            if (_options.UseEmergencyStop && !_state.EmergencyStopReleased) return StartBlockReason.EmergencyStop;
-            if (_options.UseAirPressureInterlock && !_state.AirPressureOk) return StartBlockReason.AirPressure;
-            var motion = _state.MotionReadiness;
-            if (motion.Faulted) return StartBlockReason.MotionFault;
-            if (!motion.ServosOn || !_state.ServoMainContactorOn) return StartBlockReason.ServoOff;
-            if (!_state.DoorInterlockReady) return StartBlockReason.DoorOpen;
-            if (!motion.Homed) return StartBlockReason.HomeRequired;
-            if (!_state.AutoMode) return StartBlockReason.AutoMode;
-            if (!TeachingReady) return StartBlockReason.TeachingIncomplete;
-            return _units.HasEnabledUnit() ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
-        }
+            Available = true,
+            SafetyReady = safetyReady,
+            MotionFaulted = motion.Faulted,
+            IsRunning = running,
+            StartBlock = block,
+            HomeBlock = HomeBlock,
+            IsHoming = _state.IsHoming,
+            AutomaticRunning = automatic,
+            ConveyorRunning = _state.ConveyorRunning,
+            ConveyorState = _state.MainConveyorState,
+            NgConveyorRunning = _ngConveyor.RunCommandOn,
+            NgConveyorState = _ngConveyor.State,
+            BufferConflict = conflict,
+            SupplyAtHandoff = _state.SupplyAtHandoff,
+            CanSupplyEnter = _state.CanSupplyEnter,
+            EmergencyStopReleased = _state.EmergencyStopReleased,
+            DoorClosed = _state.DoorClosed,
+            AirPressureOk = _state.AirPressureOk,
+            AutoMode = _state.AutoMode,
+            Alarm = _state.Alarm,
+            AlarmDetail = _state.AlarmDetail,
+            AlarmMessage = _state.AlarmMessage,
+            ServoPowerOn = servoPower,
+            Homed = motion.Homed,
+            CanStart = IsStartAllowed(block),
+            CanHome = IsHomeAllowed(motion),
+            CanRaiseCylinders = CanRaiseCylinders,
+            HomeableAxes = Enum.GetValues<MotionGroup>()
+                .SelectMany(group => GetMotionFeedback(group).Axes.Select(axis => (group, axis)))
+                .Where(item => CanHomeAxis(item.group, item.axis, live: false)).ToHashSet(),
+            ManualBlock = _state.GetManualBlock(motion),
+            PlacementState = _pcbPlacement.State(_recipe.PcbPlacement),
+            PlacementTarget = _pcbPlacement.TargetHeatSink,
+            FasteningState = teachingReady && _units.BoltFastening ? _fasteningStation.State() : BoltFasteningState.Waiting,
+            FasteningBolt = teachingReady && _units.BoltFastening && automatic ? _fasteningStation.ActiveBolt() : null,
+            InspectionState = teachingReady ? _inspectionStation.State(bolts) : InspectionStationState.Waiting,
+            InspectionBolt = teachingReady && automatic ? _inspectionStation.ActiveBolt(bolts) : null,
+            InspectionPcb = teachingReady && automatic ? _inspectionStation.ActivePcb(bolts) : null,
+        };
+    }
+
+    private StartBlockReason GetStartBlock(MotionReadiness motion)
+    {
+        if (_state.Alarm == MachineAlarm.EmergencyStop) return StartBlockReason.EmergencyStop;
+        if (_state.Alarm == MachineAlarm.DoorOpen) return StartBlockReason.DoorOpen;
+        if (_state.Alarm == MachineAlarm.AirPressureLow) return StartBlockReason.AirPressure;
+        if (_state.Alarm == MachineAlarm.BufferConflict || _state.BufferConflict) return StartBlockReason.BufferConflict;
+        if (_state.IsError) return StartBlockReason.Alarm;
+        if (_options.UseEmergencyStop && !_state.EmergencyStopReleased) return StartBlockReason.EmergencyStop;
+        if (_options.UseAirPressureInterlock && !_state.AirPressureOk) return StartBlockReason.AirPressure;
+        if (motion.Faulted) return StartBlockReason.MotionFault;
+        if (!motion.ServosOn || !_state.ServoMainContactorOn) return StartBlockReason.ServoOff;
+        if (!_state.DoorInterlockReady) return StartBlockReason.DoorOpen;
+        if (!motion.Homed) return StartBlockReason.HomeRequired;
+        if (!_state.AutoMode) return StartBlockReason.AutoMode;
+        if (!TeachingReady) return StartBlockReason.TeachingIncomplete;
+        return _units.HasEnabledUnit() ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
     }
     public bool CanTestBoltHead =>
         !_operations.IsShuttingDown && _state.ManualControlsEnabled;
@@ -233,22 +289,16 @@ public sealed class MachineController
 
     public async Task InitializeAsync()
     {
-        using var operation = _operations.Link();
-        var (alarm, error) = await CheckHardwareAsync(operation.Token);
-        operation.Token.ThrowIfCancellationRequested();
-        if (alarm == MachineAlarm.None)
+        using (var operation = _operations.Link())
         {
-            alarm = SafetyAlarm();
-        }
+            var (alarm, error) = await CheckHardwareAsync(operation.Token);
+            operation.Token.ThrowIfCancellationRequested();
+            if (alarm == MachineAlarm.None) alarm = SafetyAlarm();
 
-        if (alarm == MachineAlarm.None)
-        {
-            _state.Refresh();
+            if (alarm == MachineAlarm.None) _state.Refresh();
+            else _state.SetError(alarm, error);
         }
-        else
-        {
-            _state.SetError(alarm, error);
-        }
+        await _state.StartDisplayUpdatesAsync(ReadDisplay);
     }
 
     public void Stop()
@@ -266,6 +316,7 @@ public sealed class MachineController
 
     public async Task ShutdownAsync()
     {
+        var displayStopped = _state.StopDisplayUpdatesAsync();
         var shutdown = _operations.ShutdownAsync();
         try
         {
@@ -273,7 +324,7 @@ public sealed class MachineController
         }
         finally
         {
-            await shutdown;
+            await Task.WhenAll(shutdown, displayStopped);
         }
     }
 
@@ -300,21 +351,21 @@ public sealed class MachineController
             MotionGroup.BoltFastening => MachineAlarm.BoltFastening,
             MotionGroup.InspectionGantry => MachineAlarm.NgCarrierTransfer,
             _ => throw new ArgumentOutOfRangeException(nameof(group)),
-        }, cancellationToken, viewCancellation);
+        }, () => _state.ManualControlsEnabled, cancellationToken, viewCancellation);
 
     internal bool TrySetManualOutput(OutputIo signal, bool value) =>
         TryRunManual(() => _io.SetOutput(signal, value),
-            _state.ManualOutputsEnabled, MachineAlarm.IoCommunication);
+            () => _state.ManualOutputsEnabled, MachineAlarm.IoCommunication);
 
     internal void RunManualConveyor() =>
         TryRunManual(() => _conveyor.RunMotor(),
-            _state.ManualControlsEnabled, MachineAlarm.IoCommunication);
+            () => _state.ManualControlsEnabled, MachineAlarm.IoCommunication);
 
-    private bool TryRunManual(Action execute, bool allowed, MachineAlarm alarm)
+    private bool TryRunManual(Action execute, Func<bool> allowed, MachineAlarm alarm)
     {
-        if (!allowed) return false;
         try
         {
+            if (!allowed()) return false;
             execute();
             return true;
         }
@@ -339,78 +390,88 @@ public sealed class MachineController
             HardwareArea.BoltFastening => MachineAlarm.BoltFastening,
             HardwareArea.NgCarrierTransfer => MachineAlarm.NgCarrierTransfer,
             _ => throw new ArgumentOutOfRangeException(nameof(output)),
-        }, cancellationToken, viewCancellation);
+        }, () => _state.ManualOutputsEnabled, cancellationToken, viewCancellation);
 
     private async Task RunManualAsync(
         Func<CancellationToken, Task> execute,
         MachineAlarm alarm,
+        Func<bool> canStart,
         CancellationToken cancellationToken,
         CancellationToken viewCancellation = default,
         Func<bool>? canContinue = null)
     {
-        using var operation = _operations.Link(cancellationToken, viewCancellation);
-        void StopWhenUnavailable()
-        {
-            if (!_state.ManualMode || !_state.SafetyReady || _state.IsError
-                || canContinue?.Invoke() == false)
-                operation.Cancel();
-        }
-
-        _state.Changed += StopWhenUnavailable;
+        var activeCancellation = cancellationToken;
         try
         {
-            StopWhenUnavailable();
-            operation.Token.ThrowIfCancellationRequested();
-            await execute(operation.Token);
+            if (!canStart()) return;
+            using var operation = _operations.Link(cancellationToken, viewCancellation);
+            activeCancellation = operation.Token;
+            void StopWhenUnavailable()
+            {
+                if (!_state.ManualMode || !_state.SafetyReady || _state.IsError
+                    || canContinue?.Invoke() == false)
+                    operation.Cancel();
+            }
+
+            _state.Changed += StopWhenUnavailable;
+            try
+            {
+                StopWhenUnavailable();
+                operation.Token.ThrowIfCancellationRequested();
+                await execute(operation.Token);
+            }
+            finally
+            {
+                _state.Changed -= StopWhenUnavailable;
+            }
         }
-        catch (OperationCanceledException) when (operation.IsCancellationRequested)
+        catch (OperationCanceledException) when (
+            activeCancellation.IsCancellationRequested
+            || viewCancellation.IsCancellationRequested
+            || _operations.IsShuttingDown)
         {
         }
         catch (IoTimeoutException exception)
         {
             if (!_state.IsError) _state.SetError(alarm, exception);
         }
-        catch (MotionException exception)
+        catch (Exception exception) when (exception is IOException or MotionException)
         {
             if (!_state.IsError)
-                _state.SetError(alarm == MachineAlarm.HomeFailed ? alarm : MachineAlarm.MotionUnavailable, exception);
+                _state.SetError(exception is MotionException && alarm != MachineAlarm.HomeFailed
+                    ? MachineAlarm.MotionUnavailable : alarm, exception);
             Stop();
-        }
-        finally
-        {
-            _state.Changed -= StopWhenUnavailable;
         }
     }
 
-    internal bool CanHomeAxis(MotionGroup group, MotionAxis axis) =>
+    internal bool CanHomeAxis(MotionGroup group, MotionAxis axis, bool live = true) =>
         group != MotionGroup.PcbSupply
         && !_state.IsRunning
         && (group != MotionGroup.PcbPlacementHandler || !_state.SupplyInBufferArea)
-        && HomeAxisConditionsReady(group, axis);
+        && HomeAxisConditionsReady(group, axis, live);
 
-    private bool HomeAxisConditionsReady(MotionGroup group, MotionAxis axis)
+    private bool HomeAxisConditionsReady(MotionGroup group, MotionAxis axis, bool live = true)
     {
         if (!_state.ManualMode || !_state.SafetyReady || !_state.DoorInterlockReady
             || _state.IsError || !_state.ServoMainContactorOn
             || GetHomeBlock(group) != HomeBlockReason.None)
             return false;
 
-        var motion = GetMotionFeedback(group);
-        return motion.IsReady && motion.Axes
+        var motion = GetMotionStatus(group);
+        return motion.Feedback.IsReady && motion.Feedback.Axes
             .Where(candidate => candidate == axis || candidate == MotionAxis.Z)
-            .All(candidate => motion.GetAxisState(candidate) is { ServoOn: true, Alarm: false, Emergency: false });
+            .All(candidate => (live ? motion.Feedback.GetAxisState(candidate) : motion.Axes[candidate].State)
+                is { ServoOn: true, Alarm: false, Emergency: false });
     }
 
-    internal async Task HomeAxisAsync(
+    internal Task HomeAxisAsync(
         MotionGroup group,
         MotionAxis axis,
-        CancellationToken cancellationToken)
-    {
-        if (!CanHomeAxis(group, axis)) return;
-        try
+        CancellationToken cancellationToken) =>
+        RunManualAsync(async token =>
         {
             _state.SetHoming(true);
-            await RunManualAsync(async token =>
+            try
             {
                 var velocity = axis == MotionAxis.Z ? _home.ZSpeed : _home.HorizontalSpeed;
                 var homed = await (group switch
@@ -421,15 +482,14 @@ public sealed class MachineController
                     _ => throw new ArgumentOutOfRangeException(nameof(group)),
                 });
                 if (!homed && !token.IsCancellationRequested) _state.SetError(MachineAlarm.HomeFailed);
-            }, MachineAlarm.HomeFailed, cancellationToken,
-                canContinue: () => HomeAxisConditionsReady(group, axis));
-        }
-        finally
-        {
-            _state.SetHoming(false);
-            _state.Refresh();
-        }
-    }
+            }
+            finally
+            {
+                _state.SetHoming(false);
+                _state.Refresh();
+            }
+        }, MachineAlarm.HomeFailed, () => CanHomeAxis(group, axis), cancellationToken,
+            canContinue: () => HomeAxisConditionsReady(group, axis));
 
     internal bool CanSetServo(MotionGroup group) =>
         _state.ManualMode && _state.SafetyReady && !_state.IsRunning
@@ -445,7 +505,7 @@ public sealed class MachineController
             case MotionGroup.BoltFastening: _fasteningGantry.SetServo(axis, on); break;
             case MotionGroup.InspectionGantry: _inspectionGantry.SetServo(axis, on); break;
         }
-    }, CanSetServo(group), MachineAlarm.MotionUnavailable);
+    }, () => CanSetServo(group), MachineAlarm.MotionUnavailable);
 
     public async Task RunAdcProtocolAsync(
         Func<CancellationToken, Task> command,
@@ -808,9 +868,11 @@ public sealed class MachineController
             {
                 _state.SetError(alarm);
                 Stop();
-                return;
             }
         }
+
+        if (input == InputIo.ServoMainContactorOn || MachineState.IsSafetyInput(input))
+            _state.RequestDisplayRefresh();
 
         if (input == InputIo.ResetButton
             && value

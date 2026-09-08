@@ -217,7 +217,6 @@ public partial class StationTeachingViewModel
                 await action(ct);
             }, token);
         }
-        catch (OperationCanceledException) { }
         catch (Exception exception)
         {
             CameraError = exception.Message;

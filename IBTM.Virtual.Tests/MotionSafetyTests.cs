@@ -24,6 +24,7 @@ public sealed class MotionSafetyTests
             new OperationCancellation(),
             hasZ: false);
         motion.Initialize();
+        var display = new MotionStatus(motion);
         var homed = false;
         motion.StateChanged += () => homed =
             motion.GetAxisState(MotionAxis.X).Homed
@@ -35,6 +36,16 @@ public sealed class MotionSafetyTests
 
         Assert.True(completed);
         Assert.True(homed);
+        display.RefreshAxes();
+        Assert.True(display.Axes[MotionAxis.X].State!.Value.Homed);
+        Assert.Equal(horizontal, display.Axes[MotionAxis.Y].State!.Value.Homed);
+        Assert.Equal(horizontal, display.XyHomed);
+
+        motion.SetServo(MotionAxis.X, false);
+        display.RefreshAxes();
+        Assert.False(display.Axes[MotionAxis.X].ServoOn);
+        Assert.Equal(AxisCondition.ServoOff, display.Axes[MotionAxis.X].Condition);
+        Assert.True(display.Axes[MotionAxis.X].State!.Value.Homed);
     }
 
     [Fact]

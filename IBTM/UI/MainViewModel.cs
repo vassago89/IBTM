@@ -128,7 +128,7 @@ public partial class MainViewModel : ObservableObject
         {
             command.PropertyChanged += OnRecipeEditingChanged;
         }
-        state.Changed += OnMachineStateChanged;
+        state.DisplayChanged += OnMachineStateChanged;
         ActivateCurrentPage();
     }
 
@@ -155,7 +155,7 @@ public partial class MainViewModel : ObservableObject
         AppPage.ManualHardware => _manualHardwareViewModel,
         _ => throw new ArgumentOutOfRangeException(nameof(SelectedPage)),
     };
-    public bool ManualControlsEnabled => _state.ManualControlsEnabled;
+    public bool ManualControlsEnabled => _state.Display.ManualControlsEnabled;
     public bool ManualOutputsEnabled => _state.ManualOutputsEnabled;
     public bool AdcProtocolEnabled =>
         _virtualBolt || _machine.AdcProtocolAvailable;
@@ -169,7 +169,7 @@ public partial class MainViewModel : ObservableObject
     public Task ShutdownAsync()
     {
         _shuttingDown = true;
-        _state.Changed -= OnMachineStateChanged;
+        _state.DisplayChanged -= OnMachineStateChanged;
         foreach (var command in _recipeEditingCommands)
         {
             command.PropertyChanged -= OnRecipeEditingChanged;

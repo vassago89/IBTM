@@ -114,7 +114,7 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
     {
         if (result != 0)
         {
-            throw new InvalidOperationException(
+            throw new IOException(
                 $"{operation} failed with Ajin result 0x{result:X8}.");
         }
     }
