@@ -74,7 +74,6 @@ public static class DependencyInjection
         services.AddSingleton(settings.InspectionGantry);
         services.AddSingleton(settings.NgCarrierTransfer);
         services.AddSingleton(settings.NgConveyor);
-        services.AddSingleton(settings.InspectionCamera);
         services.AddSingleton(settings.Hantas);
         services.AddSingleton<OperationCancellation>();
         var currentRecipe = recipe ?? new Recipe();

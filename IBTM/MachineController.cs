@@ -786,7 +786,8 @@ public sealed class MachineController
             var zHomeTasks = new List<Task>(3);
             if (BufferHandlersEnabled)
             {
-                zHomeTasks.Add(CheckHomeAsync(_placementHandler.HomeZAsync(
+                zHomeTasks.Add(CheckHomeAsync(_placementHandler.HomeAxisAsync(
+                    MotionAxis.Z,
                     _home.ZSpeed,
                     cancellationToken)));
                 zHomeTasks.Add(CheckHomeAsync(_supplyHandler.PrepareHomeAsync(
@@ -796,7 +797,8 @@ public sealed class MachineController
 
             if (_units.BoltFastening)
             {
-                zHomeTasks.Add(CheckHomeAsync(_fasteningGantry.HomeZAsync(
+                zHomeTasks.Add(CheckHomeAsync(_fasteningGantry.HomeAxisAsync(
+                    MotionAxis.Z,
                     _home.ZSpeed,
                     cancellationToken)));
             }

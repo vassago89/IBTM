@@ -287,31 +287,14 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         NotifyMotionCommands();
     }
 
-    [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
-    private Task TeachCurrentPositionAsync(CancellationToken cancellationToken) =>
-        RunMotionAsync(async token =>
+    protected override void OnPointTaught(TeachingPoint point)
+    {
+        if (point.Target == TeachingTarget.CarrierUpperLeftLocatingPin)
         {
-            var point = SelectedPoint!;
-            var current = CurrentPosition();
-            point.Teach(current.X, current.Y, current.Z);
-            point.Apply();
-            RefreshPointPositions();
-            if (point.Storage == TeachingStorage.Machine
-                && !await SaveSettingsAsync(token, point.Position.Setting!)) return;
-
-            token.ThrowIfCancellationRequested();
-            if (point.Target == TeachingTarget.CarrierUpperLeftLocatingPin)
-            {
-                SelectedPoint = FilteredPoints.First(candidate =>
-                    candidate.Target == TeachingTarget.CarrierLowerRightLocatingPin);
-            }
-
-            NotifyManualTeachingCommands();
-        }, cancellationToken);
-
-    private bool CanTeachCurrentPosition() =>
-        SelectedPoint is { TeachMode: not TeachMode.Image, Position.CanTeach: true }
-        && CanUseCurrentHandler();
+            SelectedPoint = FilteredPoints.First(candidate =>
+                candidate.Target == TeachingTarget.CarrierLowerRightLocatingPin);
+        }
+    }
 
     [RelayCommand(CanExecute = nameof(CanAddBoltPoint))]
     private void AddBoltPoint()
@@ -578,7 +561,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             .ToArray();
     }
 
-    private void RefreshPointPositions()
+    protected override void RefreshPointPositions()
     {
         Preview.Clear(SelectedBarcode);
         foreach (var point in FilteredPoints) point.Refresh();

@@ -107,11 +107,6 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         return _motion.HomeAsync(axis, velocity, cancellationToken);
     }
 
-    public Task<bool> HomeZAsync(
-        double velocity,
-        CancellationToken cancellationToken = default) =>
-        _motion.HomeAsync(MotionAxis.Z, velocity, cancellationToken);
-
     public Task<bool> HomeHorizontalAsync(
         double velocity,
         CancellationToken cancellationToken = default)

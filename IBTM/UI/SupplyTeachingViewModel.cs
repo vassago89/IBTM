@@ -78,28 +78,11 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
             : TeachingSaveBehavior.Recipe;
     private Recipe CurrentRecipe => RecipeEditor.Recipe;
 
-    [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
-    private Task TeachCurrentPositionAsync(CancellationToken cancellationToken) =>
-        RunMotionAsync(async token =>
-        {
-            var point = SelectedPoint!;
-            var current = CurrentPosition();
-            point.Teach(current.X, current.Y, current.Z);
-
-            if (IsBuffer(point)) return;
-
-            point.Apply();
-            foreach (var currentPoint in Points.Where(candidate => !IsBuffer(candidate)))
-                currentPoint.Refresh();
-            if (point.Storage == TeachingStorage.Machine)
-                await SaveSettingsAsync(token, point.Position.Setting!);
-
-            OnPropertyChanged(nameof(HorizontalZ));
-            NotifyManualTeachingCommands();
-        }, cancellationToken);
-
-    private bool CanTeachCurrentPosition() =>
-        SelectedPoint is not null && CanUseCurrentHandler();
+    protected override void RefreshPointPositions()
+    {
+        foreach (var point in Points.Where(point => !IsBuffer(point))) point.Refresh();
+        OnPropertyChanged(nameof(HorizontalZ));
+    }
 
     [RelayCommand(CanExecute = nameof(CanSaveBufferSetup))]
     private Task SaveBufferSetupAsync(CancellationToken cancellationToken) =>

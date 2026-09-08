@@ -63,7 +63,7 @@ public partial class StationTeachingViewModel
     protected override Task MoveCurrentAxisAsync(
         MotionAxis axis, double position, CancellationToken cancellationToken)
     {
-        var current = CurrentPosition();
+        var current = CurrentFeedback.GetPosition();
         var x = axis == MotionAxis.X ? position : current.X;
         var y = axis == MotionAxis.Y ? position : current.Y;
         return (SelectedMotionGroup, axis) switch
@@ -78,15 +78,6 @@ public partial class StationTeachingViewModel
         };
     }
 
-    [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
-    private Task MoveToPointAsync(CancellationToken cancellationToken)
-    {
-        var point = SelectedPoint!;
-        return RunMotionAsync(
-            moveCancellation => MovePointAsync(point, moveCancellation),
-            cancellationToken);
-    }
-
     [RelayCommand(CanExecute = nameof(CanReturnFromPickup))]
     private Task ReturnFromPickupAsync(CancellationToken cancellationToken) =>
         RunMotionAsync(_fasteningGantry.ReturnFromPickupAsync, cancellationToken);
@@ -94,7 +85,7 @@ public partial class StationTeachingViewModel
     private bool CanReturnFromPickup() =>
         SelectedMotionGroup == MotionGroup.BoltFastening && CanUseCurrentHandler();
 
-    private Task MovePointAsync(
+    protected override Task MovePointAsync(
         TeachingPoint point,
         CancellationToken cancellationToken) =>
         point.MotionGroup switch
@@ -111,7 +102,7 @@ public partial class StationTeachingViewModel
             _ => throw new ArgumentOutOfRangeException(),
         };
 
-    private bool CanMoveToPoint() =>
+    protected override bool CanMoveToPoint() =>
         SelectedPoint is not null
         && CanUseCurrentHandler()
         && (SelectedPoint.TeachMode == TeachMode.ZOnly || CanMoveHorizontal())
@@ -133,8 +124,6 @@ public partial class StationTeachingViewModel
             StopCamera();
         }
         NotifyMotionCommands();
-        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
-        MoveToPointCommand.NotifyCanExecuteChanged();
         ReturnFromPickupCommand.NotifyCanExecuteChanged();
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
         CaptureCarrierImagesCommand.NotifyCanExecuteChanged();

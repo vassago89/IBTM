@@ -1,10 +1,8 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.PcbSupply;
 
 namespace IBTM.UI;
 
@@ -84,19 +82,12 @@ public partial class SupplyTeachingViewModel
             ? _supplyHandler.CanJog(axis, live: false)
             : _placementHandler.CanJog(axis, live: false));
 
-    [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
-    private Task MoveToPointAsync(CancellationToken cancellationToken)
-    {
-        var point = SelectedPoint!;
-        return RunMotionAsync(
-            moveCancellation =>
-                point.MotionGroup == MotionGroup.PcbSupply
-                    ? _supplyHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), moveCancellation)
-                    : _placementHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), moveCancellation),
-            cancellationToken);
-    }
+    protected override Task MovePointAsync(TeachingPoint point, CancellationToken cancellationToken) =>
+        point.MotionGroup == MotionGroup.PcbSupply
+            ? _supplyHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), cancellationToken)
+            : _placementHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), cancellationToken);
 
-    private bool CanMoveToPoint() =>
+    protected override bool CanMoveToPoint() =>
         CanUseCurrentHandler()
         && SelectedPoint is { } point
         && (point.MotionGroup != MotionGroup.PcbSupply
@@ -118,9 +109,7 @@ public partial class SupplyTeachingViewModel
     protected override void NotifyManualTeachingCommands()
     {
         NotifyMotionCommands();
-        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
         SaveBufferSetupCommand.NotifyCanExecuteChanged();
-        MoveToPointCommand.NotifyCanExecuteChanged();
     }
 
 }

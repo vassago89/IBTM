@@ -1688,3 +1688,19 @@ Verification: 16 targeted Release tests pass. The new regressions first reproduc
 both failures; they also cover a late successful camera return, preserved saved
 images, unchanged recipe/settings on selection, and jog cancellation on selection.
 No full-suite run or physical hardware operation was performed.
+
+## Shared teaching commands — 2026-09-08
+
+TeachingMotionViewModel now owns the shared Teach Current Position and Move To
+commands, including live-coordinate reads, cancellation, persistence, and command
+notifications. The derived views retain unit movement rules, display refresh,
+buffer batch saving, and inspection's next-pin selection. No new project or
+service was introduced.
+
+Removed the duplicate CurrentPosition and HomeZAsync forwarding methods and the
+unused InspectionCameraSettings DI registration. Homing still completes Z before
+horizontal movement, through each unit's existing HomeAxisAsync implementation.
+Project-reference review found no dependency cycle or justified reference removal.
+
+Verification: all 185 existing tests pass in Release; the Virtual application
+build has zero warnings and errors. No tests or hardware operations were added.

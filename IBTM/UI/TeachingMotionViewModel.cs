@@ -84,6 +84,42 @@ public abstract partial class TeachingMotionViewModel(
     protected abstract IReadOnlyList<TeachingPoint> CurrentPoints { get; }
     protected abstract TeachingPoint? CurrentPoint { get; set; }
 
+    [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
+    private Task TeachCurrentPositionAsync(CancellationToken cancellationToken) =>
+        RunMotionAsync(async token =>
+        {
+            var point = CurrentPoint!;
+            var current = CurrentFeedback.GetPosition();
+            point.Teach(current.X, current.Y, current.Z);
+            if (point.Storage == TeachingStorage.Buffer) return;
+
+            point.Apply();
+            RefreshPointPositions();
+            if (point.Storage == TeachingStorage.Machine
+                && !await SaveSettingsAsync(token, point.Position.Setting!)) return;
+
+            token.ThrowIfCancellationRequested();
+            OnPointTaught(point);
+            NotifyManualTeachingCommands();
+        }, cancellationToken);
+
+    private bool CanTeachCurrentPosition() =>
+        CurrentPoint is { TeachMode: not TeachMode.Image, Position.CanTeach: true }
+        && CanUseCurrentHandler();
+
+    protected abstract void RefreshPointPositions();
+    protected virtual void OnPointTaught(TeachingPoint point) { }
+
+    [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
+    private Task MoveToPointAsync(CancellationToken cancellationToken)
+    {
+        var point = CurrentPoint!;
+        return RunMotionAsync(token => MovePointAsync(point, token), cancellationToken);
+    }
+
+    protected abstract bool CanMoveToPoint();
+    protected abstract Task MovePointAsync(TeachingPoint point, CancellationToken cancellationToken);
+
     protected async Task<bool> SaveSettingsAsync(CancellationToken cancellationToken, params Setting[] settings)
     {
         SaveError = null;
@@ -172,7 +208,7 @@ public abstract partial class TeachingMotionViewModel(
         return RunMotionAsync(
             token =>
             {
-                var (axis, target) = StepTarget(direction, CurrentPosition());
+                var (axis, target) = StepTarget(direction, CurrentFeedback.GetPosition());
                 return MoveCurrentAxisAsync(axis, target, token);
             },
             cancellationToken);
@@ -238,8 +274,6 @@ public abstract partial class TeachingMotionViewModel(
     protected abstract Task MoveCurrentAxisAsync(
         MotionAxis axis, double position, CancellationToken cancellationToken);
 
-    protected (double X, double Y, double Z) CurrentPosition() => CurrentFeedback.GetPosition();
-
     protected Task RunMotionAsync(
         Func<CancellationToken, Task> move,
         CancellationToken cancellationToken) =>
@@ -265,6 +299,8 @@ public abstract partial class TeachingMotionViewModel(
         MoveToHorizontalZCommand.NotifyCanExecuteChanged();
         SetOutputOnCommand.NotifyCanExecuteChanged();
         SetOutputOffCommand.NotifyCanExecuteChanged();
+        TeachCurrentPositionCommand.NotifyCanExecuteChanged();
+        MoveToPointCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(ManualBlock));
         OnPropertyChanged(nameof(CanEditTeaching));
         OnPropertyChanged(nameof(MotionHint));
