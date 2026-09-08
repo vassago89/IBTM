@@ -38,6 +38,7 @@ public partial class OperationViewModel : ObservableObject
         bool AutoMode,
         MachineAlarm Alarm,
         string? AlarmDetail,
+        string? AlarmMessage,
         bool ServoPowerOn,
         bool Homed,
         bool CanStart,
@@ -85,6 +86,7 @@ public partial class OperationViewModel : ObservableObject
         nameof(HasAlarm),
         nameof(Alarm),
         nameof(AlarmDetail),
+        nameof(AlarmMessage),
         nameof(ServoPowerOn),
         nameof(Homed),
         nameof(SupplyPositionKnown),
@@ -100,6 +102,7 @@ public partial class OperationViewModel : ObservableObject
         nameof(PlacementDisplayState),
         nameof(BoltDisplayState),
         nameof(InspectionDisplayState),
+        nameof(InspectionStatus),
         nameof(FasteningStateVisible),
         nameof(InspectionStateVisible),
     ];
@@ -141,6 +144,7 @@ public partial class OperationViewModel : ObservableObject
     private static readonly string[] ConveyorPropertyNames =
     [
         nameof(ConveyorStatus),
+        nameof(InspectionStatus),
         nameof(MainConveyorEntryCarrierDetected),
         nameof(MainConveyorExitCarrierDetected),
         nameof(CarrierBetweenPlacementAndBolt),
@@ -178,11 +182,15 @@ public partial class OperationViewModel : ObservableObject
         nameof(InspectionBackupPlateUp),
         nameof(InspectionState),
         nameof(InspectionActiveBolt),
+        nameof(InspectionActivePcb),
+        nameof(InspectionPcb1Barcode),
+        nameof(InspectionPcb2Barcode),
         nameof(InspectionTargets),
         nameof(InspectionStateVisible),
         nameof(InspectionHeatSink1Result),
         nameof(InspectionHeatSink2Result),
         nameof(InspectionDisplayState),
+        nameof(InspectionStatus),
     ];
 
     private static readonly string[] NgConveyorPropertyNames =
@@ -202,6 +210,7 @@ public partial class OperationViewModel : ObservableObject
 
     private static readonly string[] ActivationPropertyNames =
     [
+        nameof(InspectionEnabled),
         nameof(ConveyorStatus),
         nameof(SupplyPositionKnown),
         nameof(PlacementPositionKnown),
@@ -245,9 +254,10 @@ public partial class OperationViewModel : ObservableObject
     private PcbPlacementState _placementState;
     private HeatSinkSlot? _pcbPlacementTargetHeatSink;
     private BoltFasteningState _fasteningState;
-    private BoltPoint? _boltFasteningActiveBolt;
+    private BoltTarget? _boltFasteningActiveBolt;
     private InspectionStationState _inspectionStationState;
-    private BoltPoint? _inspectionActiveBolt;
+    private BoltTarget? _inspectionActiveBolt;
+    private HeatSinkSlot? _inspectionActivePcb;
     private IReadOnlyList<BoltTargetView> _boltTargets = [];
     private IReadOnlyList<BoltTargetView> _inspectionTargets = [];
     private volatile bool _active;
@@ -451,6 +461,7 @@ public partial class OperationViewModel : ObservableObject
     public bool PcbPlacementEnabled => _units.PcbPlacement;
     public bool PickupFeederEnabled => _units.PickupBoltFeeder;
     public bool BoltFasteningEnabled => _units.BoltFastening;
+    public bool InspectionEnabled => _units.Inspection;
     public bool PcbPlacementHeatSink1Completed =>
         PcbPlacementEnabled
         && PcbPlacementCarrierPresent
@@ -467,13 +478,21 @@ public partial class OperationViewModel : ObservableObject
     public BoltFasteningState FasteningState => _fasteningState;
     public InspectionStationState InspectionState =>
         _inspectionStationState;
-    public BoltPoint? BoltFasteningActiveBolt =>
+    public BoltTarget? BoltFasteningActiveBolt =>
         FasteningStateVisible
             ? _boltFasteningActiveBolt
             : null;
-    public BoltPoint? InspectionActiveBolt =>
+    public BoltTarget? InspectionActiveBolt =>
         InspectionStateVisible
             ? _inspectionActiveBolt
+            : null;
+    public HeatSinkSlot? InspectionActivePcb => InspectionStateVisible ? _inspectionActivePcb : null;
+    public string? InspectionPcb1Barcode => InspectionBarcode(HeatSinkSlot.HeatSink1);
+    public string? InspectionPcb2Barcode => InspectionBarcode(HeatSinkSlot.HeatSink2);
+
+    private string? InspectionBarcode(HeatSinkSlot pcb) =>
+        _inspectionWork.CarrierPresent && _inspectionWork.HeatSinkPresent(pcb)
+            ? _inspectionWork.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb)?.PcbBarcode
             : null;
     public IReadOnlyList<BoltTargetView> BoltTargets => _boltTargets;
     public IReadOnlyList<BoltTargetView> InspectionTargets => _inspectionTargets;
@@ -492,6 +511,7 @@ public partial class OperationViewModel : ObservableObject
     public bool HasAlarm => _machineDisplay.Alarm != MachineAlarm.None;
     public MachineAlarm Alarm => _machineDisplay.Alarm;
     public string? AlarmDetail => _machineDisplay.AlarmDetail;
+    public string? AlarmMessage => _machineDisplay.AlarmMessage;
     public bool ServoPowerOn => _machineDisplay.ServoPowerOn;
     public bool Homed => _machineDisplay.Homed;
     public bool SafetyBypass =>
@@ -631,12 +651,12 @@ public partial class OperationViewModel : ObservableObject
 
         var active = BoltFasteningActiveBolt;
         return CreateTargets(
-            _recipe.BoltFastening.BoltPoints.Where(bolt =>
-                bolt.Z is not null && Fastening.HasReference(bolt.Head)),
+            _recipe.Pcb.GetBolts().Where(bolt =>
+                Fastening.HasReference(bolt.Head)),
             BoltFasteningHeatSink1Present,
             BoltFasteningHeatSink2Present,
             _map.FasteningTarget,
-            bolt => ReferenceEquals(bolt, active)
+            bolt => bolt == active
                 ? BoltTargetState.Active
                 : FasteningTargetState(bolt));
     }
@@ -650,21 +670,21 @@ public partial class OperationViewModel : ObservableObject
 
         var active = InspectionActiveBolt;
         return CreateTargets(
-            _recipe.BoltFastening.BoltPoints,
+            _recipe.Pcb.GetBolts().ToArray(),
             InspectionHeatSink1Present,
             InspectionHeatSink2Present,
             _map.InspectionTarget,
-            bolt => ReferenceEquals(bolt, active)
+            bolt => bolt == active
                 ? BoltTargetState.Active
                 : InspectionTargetState(bolt));
     }
 
     private IReadOnlyList<BoltTargetView> CreateTargets(
-        IEnumerable<BoltPoint> bolts,
+        IEnumerable<BoltTarget> bolts,
         bool heatSink1Present,
         bool heatSink2Present,
-        Func<BoltPoint, (double X, double Y)> position,
-        Func<BoltPoint, BoltTargetState> state)
+        Func<BoltTarget, (double X, double Y)> position,
+        Func<BoltTarget, BoltTargetState> state)
     {
         return bolts
             .Where(bolt => bolt.X is not null
@@ -686,7 +706,7 @@ public partial class OperationViewModel : ObservableObject
             .ToArray();
     }
 
-    private BoltTargetState FasteningTargetState(BoltPoint bolt)
+    private BoltTargetState FasteningTargetState(BoltTarget bolt)
     {
         var assembly = _boltFasteningWork.Assemblies.FirstOrDefault(
             item => item.HeatSink == bolt.HeatSink);
@@ -709,7 +729,7 @@ public partial class OperationViewModel : ObservableObject
             : final;
     }
 
-    private BoltTargetState InspectionTargetState(BoltPoint bolt)
+    private BoltTargetState InspectionTargetState(BoltTarget bolt)
     {
         var assembly = _inspectionWork.Assemblies.FirstOrDefault(
             item => item.HeatSink == bolt.HeatSink);
@@ -924,23 +944,26 @@ public partial class OperationViewModel : ObservableObject
     {
         var ready = _units.BoltFastening && _machine.TeachingReady;
         _fasteningState = ready
-            ? _boltFastening.State(_recipe.BoltFastening)
+            ? _boltFastening.State()
             : BoltFasteningState.Waiting;
         _boltFasteningActiveBolt = ready && _state.AutomaticRunning
-            ? _boltFastening.ActiveBolt(_recipe.BoltFastening)
+            ? _boltFastening.ActiveBolt()
             : null;
         _boltTargets = CreateFasteningTargets();
     }
 
     private void RefreshInspectionDisplay()
     {
-        var bolts = _recipe.BoltFastening.BoltPoints;
+        var bolts = _recipe.Pcb.GetBolts().ToArray();
         var ready = _machine.TeachingReady;
         _inspectionStationState = ready
             ? _inspectionStation.State(bolts)
             : InspectionStationState.Waiting;
         _inspectionActiveBolt = ready && _state.AutomaticRunning
             ? _inspectionStation.ActiveBolt(bolts)
+            : null;
+        _inspectionActivePcb = ready && _state.AutomaticRunning
+            ? _inspectionStation.ActivePcb(bolts)
             : null;
         _inspectionTargets = CreateInspectionTargets();
     }
@@ -1046,6 +1069,7 @@ public partial class OperationViewModel : ObservableObject
             _state.AutoMode,
             alarm,
             _state.AlarmDetail,
+            _state.AlarmMessage,
             servoMainContactorOn && readiness.ServosOn,
             readiness.Homed,
             _machine.CanStart,

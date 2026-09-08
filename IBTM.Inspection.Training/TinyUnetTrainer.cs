@@ -10,29 +10,30 @@ using static TorchSharp.torch.nn.functional;
 
 namespace IBTM.Inspection.Training;
 
-internal sealed class TinyUnetTrainer(int batchSize = 8)
+internal sealed class TinyUnetTrainer
 {
-    private const double LearningRate = 0.001;
-
-    public void Train(
+    public BoltTrainedModel Train(
         BoltSegmentationDataset dataset,
-        string modelFile,
-        int epochs,
+        BoltTrainingSettings settings,
         IProgress<BoltTrainingProgress> progress,
         CancellationToken cancellationToken)
     {
         using var model = new TinyUnet();
-        using var optimizer = optim.Adam(model.parameters(), LearningRate);
+        using var optimizer = optim.Adam(model.parameters(), settings.LearningRate);
         using var positiveWeight = tensor(dataset.PositiveWeight);
         var bestLoss = double.PositiveInfinity;
+        var bestEpoch = 0;
+        var completedEpochs = 0;
+        byte[] bestWeights = [];
 
-        for (var epoch = 1; epoch <= epochs; epoch++)
+        for (var epoch = 1; epoch <= settings.MaxEpochs; epoch++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             model.train();
             var trainingLoss = Run(
                 model,
                 dataset.Training,
+                settings.BatchSize,
                 positiveWeight,
                 cancellationToken,
                 optimizer);
@@ -43,6 +44,7 @@ internal sealed class TinyUnetTrainer(int batchSize = 8)
                 validationLoss = Run(
                     model,
                     dataset.Validation,
+                    settings.BatchSize,
                     positiveWeight,
                     cancellationToken);
             }
@@ -50,22 +52,28 @@ internal sealed class TinyUnetTrainer(int batchSize = 8)
             if (validationLoss < bestLoss)
             {
                 bestLoss = validationLoss;
-                Directory.CreateDirectory(
-                    Path.GetDirectoryName(modelFile)
-                    ?? Directory.GetCurrentDirectory());
-                model.save(modelFile);
+                bestEpoch = epoch;
+                using var stream = new MemoryStream();
+                model.save(stream);
+                bestWeights = stream.ToArray();
             }
 
+            completedEpochs = epoch;
             progress.Report(new BoltTrainingProgress(
                 epoch,
+                bestEpoch,
                 trainingLoss,
                 validationLoss));
+            if (epoch - bestEpoch >= settings.Patience) break;
         }
+        cancellationToken.ThrowIfCancellationRequested();
+        return new BoltTrainedModel(bestWeights, completedEpochs, bestLoss);
     }
 
     private double Run(
         TinyUnet model,
-        IReadOnlyList<BoltSample> samples,
+        IReadOnlyList<BoltTrainingInput> samples,
+        int batchSize,
         Tensor positiveWeight,
         CancellationToken cancellationToken,
         optim.Optimizer? optimizer = null)
@@ -91,7 +99,8 @@ internal sealed class TinyUnetTrainer(int batchSize = 8)
                 samples,
                 indices,
                 offset,
-                count);
+                count,
+                cancellationToken);
             var input = tensor(images, dtype: ScalarType.Float32)
                 .reshape(
                     count,
@@ -124,10 +133,11 @@ internal sealed class TinyUnetTrainer(int batchSize = 8)
     }
 
     private static (float[] Images, float[] Masks) CreateBatch(
-        IReadOnlyList<BoltSample> samples,
+        IReadOnlyList<BoltTrainingInput> samples,
         IReadOnlyList<int> indices,
         int offset,
-        int count)
+        int count,
+        CancellationToken cancellationToken)
     {
         var pixels =
             IBoltRecessSegmenter.InputSize * IBoltRecessSegmenter.InputSize;
@@ -137,19 +147,18 @@ internal sealed class TinyUnetTrainer(int batchSize = 8)
 
         for (var index = 0; index < count; index++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var sample = samples[indices[offset + index]];
+            var image = TorchBoltRecessSegmenter.CreateInput(sample.Image);
+            var mask = sample.Mask;
             Array.Copy(
-                sample.Image,
+                image,
                 0,
                 images,
                 index * ImageFrame.ColorChannelCount * pixels,
-                sample.Image.Length);
-            Array.Copy(
-                sample.Mask,
-                0,
-                masks,
-                index * pixels,
-                sample.Mask.Length);
+                image.Length);
+            for (var pixel = 0; pixel < pixels; pixel++)
+                masks[index * pixels + pixel] = mask[pixel] / (float)byte.MaxValue;
         }
 
         return (images, masks);
@@ -158,5 +167,6 @@ internal sealed class TinyUnetTrainer(int batchSize = 8)
 
 internal readonly record struct BoltTrainingProgress(
     int Epoch,
+    int BestEpoch,
     double TrainingLoss,
     double ValidationLoss);

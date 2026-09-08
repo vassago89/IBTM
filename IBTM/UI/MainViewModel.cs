@@ -71,6 +71,7 @@ public partial class MainViewModel : ObservableObject
         SupplyTeachingViewModel supplyTeachingViewModel,
         StationTeachingViewModel stationTeachingViewModel,
         BoltTrainingViewModel boltTrainingViewModel,
+        BoltImageCollector imageCollector,
         SettingsViewModel settingsViewModel,
         ManualHardwareViewModel manualHardwareViewModel,
         RecipeEditor recipeEditor,
@@ -83,6 +84,7 @@ public partial class MainViewModel : ObservableObject
         _supplyTeachingViewModel = supplyTeachingViewModel;
         _stationTeachingViewModel = stationTeachingViewModel;
         _boltTrainingViewModel = boltTrainingViewModel;
+        ImageCollector = imageCollector;
         _settingsViewModel = settingsViewModel;
         _manualHardwareViewModel = manualHardwareViewModel;
         RecipeEditor = recipeEditor;
@@ -113,14 +115,18 @@ public partial class MainViewModel : ObservableObject
             stationTeachingViewModel.TeachCurrentPositionCommand,
             stationTeachingViewModel.TeachImagePointCommand,
             stationTeachingViewModel.MoveToPointCommand,
-            stationTeachingViewModel.MoveToXYCommand,
+            stationTeachingViewModel.ReturnFromPickupCommand,
             stationTeachingViewModel.SetOutputOnCommand,
             stationTeachingViewModel.SetOutputOffCommand,
             stationTeachingViewModel.CaptureCarrierImagesCommand,
+            stationTeachingViewModel.CaptureInspectionCommand,
+            stationTeachingViewModel.ReinspectImageCommand,
+            stationTeachingViewModel.CollectBoltImagesCommand,
+            stationTeachingViewModel.TeachImageRegionCommand,
         ];
         foreach (var command in _recipeEditingCommands)
         {
-            command.PropertyChanged += OnRecipeCommandChanged;
+            command.PropertyChanged += OnRecipeEditingChanged;
         }
         state.Changed += OnMachineStateChanged;
         ActivateCurrentPage();
@@ -128,6 +134,7 @@ public partial class MainViewModel : ObservableObject
 
     public OperationViewModel Operation => _operationViewModel;
     public RecipeEditor RecipeEditor { get; }
+    public BoltImageCollector ImageCollector { get; }
     public MachineEnvironmentDisplay Environment { get; }
     public bool RecipeToolsVisible =>
         SelectedPage is AppPage.SupplyTeaching
@@ -156,7 +163,6 @@ public partial class MainViewModel : ObservableObject
         SelectedPage is AppPage.Operation
             or AppPage.Settings
             or AppPage.ManualHardware
-            or AppPage.BoltTraining
         || (!RecipeEditor.SaveCommand.IsRunning
             && !RecipeEditor.LoadCommand.IsRunning);
 
@@ -166,7 +172,7 @@ public partial class MainViewModel : ObservableObject
         _state.Changed -= OnMachineStateChanged;
         foreach (var command in _recipeEditingCommands)
         {
-            command.PropertyChanged -= OnRecipeCommandChanged;
+            command.PropertyChanged -= OnRecipeEditingChanged;
         }
         return Task.WhenAll(
             _operationViewModel.ShutdownAsync(),
@@ -248,7 +254,7 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private void OnRecipeCommandChanged(object? sender, PropertyChangedEventArgs e)
+    private void OnRecipeEditingChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(IAsyncRelayCommand.IsRunning))
         {
@@ -279,7 +285,6 @@ public partial class MainViewModel : ObservableObject
             OnPropertyChanged(nameof(CurrentPageEnabled));
             OnPropertyChanged(nameof(RecipeEditingEnabled));
             NavigateCommand.NotifyCanExecuteChanged();
-            _boltTrainingViewModel.CaptureBoltPointsCommand.NotifyCanExecuteChanged();
             if (_state.AutomaticRunning
                 && SelectedPage != AppPage.Operation)
             {

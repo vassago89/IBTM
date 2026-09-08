@@ -97,7 +97,7 @@
                                 <ColumnDefinition Width="{x:Static ui:MachinePlan.HeatSinkGapWidth}"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Border Tag="{TemplateBinding HeatSink1Present}" Style="{StaticResource HeatSinkPocketStyle}">
+                            <Border x:Name="HeatSink1" Tag="{TemplateBinding HeatSink1Present}" Style="{StaticResource HeatSinkPocketStyle}">
                                 <Grid>
                                     <TextBlock Text="HS1" Style="{StaticResource HeatSinkPocketLabelStyle}"
                                                Visibility="{Binding HeatSink1Present, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}"/>
@@ -108,7 +108,7 @@
                                                Style="{StaticResource ResultTextStyle}"/>
                                 </Grid>
                             </Border>
-                            <Border Grid.Column="2" Tag="{TemplateBinding HeatSink2Present}" Style="{StaticResource HeatSinkPocketStyle}">
+                            <Border x:Name="HeatSink2" Grid.Column="2" Tag="{TemplateBinding HeatSink2Present}" Style="{StaticResource HeatSinkPocketStyle}">
                                 <Grid>
                                     <TextBlock Text="HS2" Style="{StaticResource HeatSinkPocketLabelStyle}"
                                                Visibility="{Binding HeatSink2Present, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}"/>
@@ -140,10 +140,14 @@
                             <Setter TargetName="Pcb2" Property="Visibility" Value="Visible"/>
                         </MultiTrigger>
                         <Trigger Property="ActiveHeatSink" Value="{x:Static core:HeatSinkSlot.HeatSink1}">
+                            <Setter TargetName="HeatSink1" Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                            <Setter TargetName="HeatSink1" Property="BorderThickness" Value="2"/>
                             <Setter TargetName="Pcb1" Property="Background" Value="{StaticResource MapActiveBackgroundBrush}"/>
                             <Setter TargetName="Pcb1" Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                         </Trigger>
                         <Trigger Property="ActiveHeatSink" Value="{x:Static core:HeatSinkSlot.HeatSink2}">
+                            <Setter TargetName="HeatSink2" Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
+                            <Setter TargetName="HeatSink2" Property="BorderThickness" Value="2"/>
                             <Setter TargetName="Pcb2" Property="Background" Value="{StaticResource MapActiveBackgroundBrush}"/>
                             <Setter TargetName="Pcb2" Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                         </Trigger>

@@ -16,9 +16,7 @@ public enum FasteningHead
 public sealed class BoltPoint
 {
     public int Number { get; set; }
-    public HeatSinkSlot HeatSink { get; set; } = HeatSinkSlot.HeatSink1;
     public FasteningHead Head { get; set; } = FasteningHead.Shooting;
     public double? X { get; set; }
     public double? Y { get; set; }
-    public double? Z { get; set; }
 }

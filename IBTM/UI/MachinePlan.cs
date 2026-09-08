@@ -119,6 +119,7 @@ public static class MachinePlan
     public static double NgConveyorLeft => InspectionCarrierCenter.X - NgConveyorWidth / 2;
     public static double NgStatusLeft => NgConveyorLeft + NgConveyorWidth + PositionLabelGap;
     public static double StationLabelTop => PlateTop + PlateHeight + 12;
+    public static double InspectionResultsTop => MainTop + StationLabelTop + 40;
 
     public static (double X, double Y) InspectionCarrierCenter =>
         (HeaderInset + PlateWidth / 2, MainTop + PlateTop + PlateHeight / 2);

@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Ajin;
@@ -14,6 +13,7 @@ using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
+using IBTM.Storage;
 
 namespace IBTM;
 
@@ -29,7 +29,6 @@ public sealed class MachineSettings
     public AlphaMotionSettings AlphaMotion { get; set; } = new();
     public HantasSettings Hantas { get; set; } = new();
     public InspectionCameraSettings InspectionCamera { get; set; } = new();
-    public BoltInspectionSettings BoltInspection { get; set; } = new();
     public LightingSettings Lighting { get; set; } = new();
     public NgCarrierTransferSettings NgCarrierTransfer { get; set; } = new();
     public NgConveyorSettings NgConveyor { get; set; } = new();
@@ -82,55 +81,57 @@ public sealed class MachineSettings
         NgConveyorHardware,
     ];
 
-    public Task SaveAsync(CancellationToken cancellationToken = default) =>
-        Task.WhenAll(Sections.Select(section => section.SaveAsync(cancellationToken)));
+    public Task SaveAsync(MachineStore store, CancellationToken cancellationToken = default) =>
+        Task.Run(() => store.SaveSettings(Sections, cancellationToken), cancellationToken);
 
-    private Setting[] Sections =>
+    internal Setting[] Sections =>
     [
         .. HardwareSections,
         Drivers, Units, Options, Home, RecipeSelection, CarrierReference,
-        Ajin, AlphaMotion, InspectionCamera, BoltInspection, Lighting, Hantas,
+        Ajin, AlphaMotion, InspectionCamera, Lighting, Hantas,
         NgCarrierTransfer, NgConveyor, PcbBuffer, PcbSupply,
         PcbPlacementHandler, BoltFeeder, BoltFastening, InspectionGantry,
     ];
 
-    public static async Task<MachineSettings> LoadAsync(
-        CancellationToken cancellationToken = default) => new()
+    public static Task<MachineSettings> LoadAsync(MachineStore store,
+        CancellationToken cancellationToken = default) =>
+        Task.Run(() => From(store.LoadSettings()), cancellationToken);
+
+    internal static MachineSettings From(SavedSettings values) => new()
     {
-        Drivers = await Setting.LoadAsync<DriverSettings>(cancellationToken),
-        Units = await Setting.LoadAsync<UnitSettings>(cancellationToken),
-        Options = await Setting.LoadAsync<MachineOptions>(cancellationToken),
-        Home = await Setting.LoadAsync<HomeSettings>(cancellationToken),
-        RecipeSelection = await Setting.LoadAsync<RecipeSelectionSettings>(cancellationToken),
-        CarrierReference = await Setting.LoadAsync<CarrierReferenceSettings>(cancellationToken),
-        MachineHardware = await Setting.LoadAsync<MachineHardwareSettings>(cancellationToken),
-        ConveyorHardware = await Setting.LoadAsync<ConveyorHardwareSettings>(cancellationToken),
-        Ajin = await Setting.LoadAsync<AjinSettings>(cancellationToken),
-        AlphaMotion = await Setting.LoadAsync<AlphaMotionSettings>(cancellationToken),
-        InspectionCamera = await Setting.LoadAsync<InspectionCameraSettings>(cancellationToken),
-        BoltInspection = await Setting.LoadAsync<BoltInspectionSettings>(cancellationToken),
-        Lighting = await Setting.LoadAsync<LightingSettings>(cancellationToken),
-        Hantas = await Setting.LoadAsync<HantasSettings>(cancellationToken),
-        NgCarrierTransfer = await Setting.LoadAsync<NgCarrierTransferSettings>(cancellationToken),
-        NgConveyor = await Setting.LoadAsync<NgConveyorSettings>(cancellationToken),
-        PcbBuffer = await Setting.LoadAsync<PcbBufferSettings>(cancellationToken),
-        PcbBufferHardware = await Setting.LoadAsync<PcbBufferHardwareSettings>(cancellationToken),
-        PcbSupply = await Setting.LoadAsync<PcbSupplySettings>(cancellationToken),
-        PcbSupplyHardware = await Setting.LoadAsync<PcbSupplyHardwareSettings>(cancellationToken),
-        PcbPlacementHandler = await Setting.LoadAsync<PcbPlacementHandlerSettings>(cancellationToken),
-        PcbPlacementHandlerHardware = await Setting.LoadAsync<PcbPlacementHandlerHardwareSettings>(cancellationToken),
-        PcbPlacementStationHardware = await Setting.LoadAsync<PcbPlacementStationHardwareSettings>(cancellationToken),
-        BoltFeeder = await Setting.LoadAsync<BoltFeederSettings>(cancellationToken),
-        BoltFeederHardware = await Setting.LoadAsync<BoltFeederHardwareSettings>(cancellationToken),
-        BoltFastening = await Setting.LoadAsync<BoltFasteningSettings>(cancellationToken),
-        BoltFasteningHardware = await Setting.LoadAsync<BoltFasteningHardwareSettings>(cancellationToken),
-        BoltFasteningStationHardware = await Setting.LoadAsync<BoltFasteningStationHardwareSettings>(cancellationToken),
-        InspectionGantry = await Setting.LoadAsync<InspectionGantrySettings>(cancellationToken),
-        InspectionStationHardware = await Setting.LoadAsync<InspectionStationHardwareSettings>(cancellationToken),
-        InspectionGantryHardware = await Setting.LoadAsync<InspectionGantryHardwareSettings>(cancellationToken),
-        NgCarrierTransferHardware = await Setting.LoadAsync<NgCarrierTransferHardwareSettings>(cancellationToken),
-        NgShuttleHardware = await Setting.LoadAsync<NgShuttleHardwareSettings>(cancellationToken),
-        NgConveyorHardware = await Setting.LoadAsync<NgConveyorHardwareSettings>(cancellationToken),
+        Drivers = values.Get<DriverSettings>(),
+        Units = values.Get<UnitSettings>(),
+        Options = values.Get<MachineOptions>(),
+        Home = values.Get<HomeSettings>(),
+        RecipeSelection = values.Get<RecipeSelectionSettings>(),
+        CarrierReference = values.Get<CarrierReferenceSettings>(),
+        MachineHardware = values.Get<MachineHardwareSettings>(),
+        ConveyorHardware = values.Get<ConveyorHardwareSettings>(),
+        Ajin = values.Get<AjinSettings>(),
+        AlphaMotion = values.Get<AlphaMotionSettings>(),
+        InspectionCamera = values.Get<InspectionCameraSettings>(),
+        Lighting = values.Get<LightingSettings>(),
+        Hantas = values.Get<HantasSettings>(),
+        NgCarrierTransfer = values.Get<NgCarrierTransferSettings>(),
+        NgConveyor = values.Get<NgConveyorSettings>(),
+        PcbBuffer = values.Get<PcbBufferSettings>(),
+        PcbBufferHardware = values.Get<PcbBufferHardwareSettings>(),
+        PcbSupply = values.Get<PcbSupplySettings>(),
+        PcbSupplyHardware = values.Get<PcbSupplyHardwareSettings>(),
+        PcbPlacementHandler = values.Get<PcbPlacementHandlerSettings>(),
+        PcbPlacementHandlerHardware = values.Get<PcbPlacementHandlerHardwareSettings>(),
+        PcbPlacementStationHardware = values.Get<PcbPlacementStationHardwareSettings>(),
+        BoltFeeder = values.Get<BoltFeederSettings>(),
+        BoltFeederHardware = values.Get<BoltFeederHardwareSettings>(),
+        BoltFastening = values.Get<BoltFasteningSettings>(),
+        BoltFasteningHardware = values.Get<BoltFasteningHardwareSettings>(),
+        BoltFasteningStationHardware = values.Get<BoltFasteningStationHardwareSettings>(),
+        InspectionGantry = values.Get<InspectionGantrySettings>(),
+        InspectionStationHardware = values.Get<InspectionStationHardwareSettings>(),
+        InspectionGantryHardware = values.Get<InspectionGantryHardwareSettings>(),
+        NgCarrierTransferHardware = values.Get<NgCarrierTransferHardwareSettings>(),
+        NgShuttleHardware = values.Get<NgShuttleHardwareSettings>(),
+        NgConveyorHardware = values.Get<NgConveyorHardwareSettings>(),
     };
 }
 

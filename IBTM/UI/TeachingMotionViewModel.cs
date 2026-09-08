@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Storage;
 
 namespace IBTM.UI;
 
@@ -46,6 +47,7 @@ public enum TeachingMotionHint
 public abstract partial class TeachingMotionViewModel(
     OperationCancellation operations,
     MachineState state,
+    MachineStore store,
     IReadOnlyDictionary<MotionGroup, IoStatus[]> ioGroups,
     IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : ObservableObject
 {
@@ -64,6 +66,9 @@ public abstract partial class TeachingMotionViewModel(
     [ObservableProperty]
     private TeachingMoveMode _moveMode;
 
+    [ObservableProperty]
+    private string? _saveError;
+
     public TeachingMoveMode[] MoveModes { get; } = Enum.GetValues<TeachingMoveMode>();
     public ManualControlBlock ManualBlock => state.ManualBlock;
     public bool CanEditTeaching => state.ManualControlsEnabled;
@@ -78,6 +83,21 @@ public abstract partial class TeachingMotionViewModel(
     protected bool PositionUpdatesActive => _positionUpdatesActive;
     protected abstract IReadOnlyList<TeachingPoint> CurrentPoints { get; }
     protected abstract TeachingPoint? CurrentPoint { get; set; }
+
+    protected async Task<bool> SaveSettingsAsync(params Setting[] settings)
+    {
+        SaveError = null;
+        try
+        {
+            await Task.Run(() => store.SaveSettings(settings));
+            return true;
+        }
+        catch (Exception exception)
+        {
+            SaveError = $"Teaching values were not saved: {exception.GetBaseException().Message}";
+            return false;
+        }
+    }
 
     private int CurrentPointIndex
     {
@@ -104,7 +124,7 @@ public abstract partial class TeachingMotionViewModel(
         SelectNextPointCommand.NotifyCanExecuteChanged();
     }
 
-    [RelayCommand(CanExecute = nameof(CanSetOutput))]
+    [RelayCommand(CanExecute = nameof(CanSetOutput), IncludeCancelCommand = true)]
     private Task SetOutputOnAsync(TeachingOutput output, CancellationToken cancellationToken) =>
         SetOutputAsync(output, true, cancellationToken);
 
@@ -115,30 +135,19 @@ public abstract partial class TeachingMotionViewModel(
     private bool CanSetOutput(TeachingOutput? output) =>
         output is not null
         && TeachingOutputs.ContainsKey(output.Signal)
-        && CanUseCurrentHandler()
-        && CanUseTeachingOutputs
+        && (output.RequiresHandler ? CanUseCurrentHandler() : state.ManualOutputsEnabled)
         && (output.CanSet?.Invoke() ?? true);
 
     protected abstract bool CanUseCurrentHandler();
-    protected virtual bool CanUseTeachingOutputs => true;
 
     private async Task SetOutputAsync(TeachingOutput output, bool value, CancellationToken cancellationToken)
     {
-        var group = CurrentMotionGroup;
+        MachineAlarm? ioAlarm = output.Signal is OutputIo.PcbPlacementBackupPlateUp
+            or OutputIo.BoltFasteningBackupPlateUp or OutputIo.InspectionBackupPlateUp
+            ? MachineAlarm.MainConveyor : null;
         try
         {
-            await RunMotionAsync(token => output.SetAsync(value, token), cancellationToken);
-        }
-        catch (IoTimeoutException exception)
-        {
-            state.SetError(group switch
-            {
-                MotionGroup.PcbSupply => MachineAlarm.PcbSupply,
-                MotionGroup.PcbPlacementHandler => MachineAlarm.PcbPlacement,
-                MotionGroup.BoltFastening => MachineAlarm.BoltFastening,
-                MotionGroup.InspectionGantry => MachineAlarm.NgCarrierTransfer,
-                _ => throw new ArgumentOutOfRangeException(nameof(group)),
-            }, exception);
+            await RunMotionAsync(token => output.SetAsync(value, token), cancellationToken, ioAlarm);
         }
         finally
         {
@@ -231,15 +240,40 @@ public abstract partial class TeachingMotionViewModel(
 
     protected async Task RunMotionAsync(
         Func<CancellationToken, Task> move,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        MachineAlarm? ioAlarm = null)
     {
+        var group = CurrentMotionGroup;
         try
         {
             using var motionCancellation = LinkMotion(cancellationToken);
-            await move(motionCancellation.Token);
+            void StopWhenManualModeEnds()
+            {
+                if (!state.ManualMode) motionCancellation.Cancel();
+            }
+            state.Changed += StopWhenManualModeEnds;
+            try
+            {
+                await move(motionCancellation.Token);
+            }
+            finally
+            {
+                state.Changed -= StopWhenManualModeEnds;
+            }
         }
         catch (OperationCanceledException)
         {
+        }
+        catch (IoTimeoutException exception)
+        {
+            state.SetError(ioAlarm ?? group switch
+            {
+                MotionGroup.PcbSupply => MachineAlarm.PcbSupply,
+                MotionGroup.PcbPlacementHandler => MachineAlarm.PcbPlacement,
+                MotionGroup.BoltFastening => MachineAlarm.BoltFastening,
+                MotionGroup.InspectionGantry => MachineAlarm.NgCarrierTransfer,
+                _ => throw new ArgumentOutOfRangeException(nameof(group)),
+            }, exception);
         }
         catch (MotionException exception)
         {

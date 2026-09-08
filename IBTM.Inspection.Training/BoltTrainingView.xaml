@@ -16,6 +16,14 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="ValidationReviewContentStyle" TargetType="{x:Type FrameworkElement}"
+               BasedOn="{StaticResource ReviewContentStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Review.Scope}" Value="{x:Static training:BoltReviewScope.SelectedImage}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
 
     <Grid Margin="24,20">
@@ -24,13 +32,34 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Text="Bolt Training"
-                   Style="{StaticResource TitleStyle}"
-                   Margin="0,0,0,10"/>
+        <Grid Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Bolt Training" Style="{StaticResource TitleStyle}" VerticalAlignment="Center"/>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" IsEnabled="{Binding ControlsEnabled}">
+                <TextBlock Text="Inspection Images" VerticalAlignment="Center" Margin="0,0,10,0"
+                           Foreground="{StaticResource TextMutedBrush}"/>
+                <ComboBox x:Name="ImageCollectionInput" ItemsSource="{Binding ImageCollectionModes}"
+                          SelectedItem="{Binding Training.ImageCollection}" Width="170" Margin="0,0,8,0"
+                          ToolTip="Collect full-resolution inspection images as unlabeled samples. NG Only uses each bolt's inspection result, not the carrier result."/>
+                <Button Content="Save Settings" Command="{Binding SaveSettingsCommand}"
+                        ToolTip="Save model threshold, training settings and collection mode. Also resume collection after a storage error has been resolved."
+                        Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,14,0"/>
+                <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"
+                           ToolTip="Collected inspection samples and allocated database size. Refreshed when samples are loaded; WAL/journal space is additional.">
+                    <Run Text="{Binding CollectedImageCount, Mode=OneWay}"/>
+                    <Run Text=" collected · DB "/>
+                    <Run Text="{Binding DatabaseMegabytes, Mode=OneWay, StringFormat={}{0:F1}}"/>
+                    <Run Text=" MB"/>
+                </TextBlock>
+            </StackPanel>
+        </Grid>
 
         <Grid Grid.Row="1"
               MaxWidth="1600"
-              HorizontalAlignment="Center">
+              HorizontalAlignment="Stretch">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="3*"/>
                 <ColumnDefinition Width="12"/>
@@ -41,90 +70,209 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <Grid Margin="0,0,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
                         <StackPanel>
-                            <TextBlock Text="Label Bolt Recess"
+                            <TextBlock Text="ROI &amp; Bolt Label"
                                        FontSize="17"
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}"/>
-                            <TextBlock Text="Left drag to mark · Right drag to erase"
+                            <TextBlock Text="Drag ROI corners · Click polygon vertices · Wheel to zoom · Middle-drag to pan"
                                        Foreground="{StaticResource TextMutedBrush}"
-                                       Margin="0,4,0,0"/>
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,12,0"/>
                         </StackPanel>
-                        <StackPanel HorizontalAlignment="Right">
-                            <TextBlock Text="{Binding LabelImageName}"
+                        <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                            <TextBlock Text="{Binding CurrentSample.Name}"
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        MaxWidth="260"
                                        TextTrimming="CharacterEllipsis"
                                        HorizontalAlignment="Right"/>
                             <TextBlock HorizontalAlignment="Right"
                                        Foreground="{StaticResource TextMutedBrush}">
-                                <Run Text="{Binding LabelImageNumber}"/>
-                                <Run Text=" / "/>
-                                <Run Text="{Binding SelectedImageCount}"/>
+                                <Run Text="{Binding Samples.Count, Mode=OneWay}"/>
+                                <Run Text=" saved samples"/>
+                            </TextBlock>
+                            <TextBlock HorizontalAlignment="Right" Foreground="{StaticResource TextMutedBrush}"
+                                       ToolTip="Original inspection result and ROI. This is not a training label.">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentSample.Inspection}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                                <Run Text="Recorded: "/>
+                                <Run Text="{Binding CurrentSample.Inspection.Result, Mode=OneWay, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                <Run Text=" · ROI "/>
+                                <Run Text="{Binding CurrentSample.Inspection.RegionSize, Mode=OneWay}"/>
+                                <Run Text=" px"/>
                             </TextBlock>
                         </StackPanel>
                     </Grid>
 
-                    <Border Grid.Row="1"
+                    <ComboBox Grid.Row="1" ItemsSource="{Binding Samples}"
+                              SelectedItem="{Binding CurrentSample, Mode=OneWay}"
+                              SelectionChanged="SelectSample" IsEnabled="{Binding ControlsEnabled}"
+                              Margin="0,0,0,12">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type training:BoltSampleInfo}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Id}" Margin="0,0,12,0"/>
+                                    <TextBlock Text="{Binding Name}" Margin="0,0,12,0"/>
+                                    <TextBlock Text="{Binding Label, Converter={StaticResource EnumDescriptionConverter}}"
+                                               Foreground="{StaticResource TextMutedBrush}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <Grid Grid.Row="2" Margin="0,0,0,12">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="IsEnabled" Value="{Binding ControlsEnabled}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding OriginalImage}" Value="{x:Null}">
+                                        <Setter Property="IsEnabled" Value="False"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="80"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="ROI (px)" VerticalAlignment="Center" Margin="0,0,10,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBox x:Name="RegionSizeInput" Grid.Column="1"
+                                 Text="{Binding RegionSize, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="Central square in original-image pixels. Saved with the label for this sample; the inspection recipe is unchanged."
+                                 Style="{StaticResource FieldTextBoxStyle}"/>
+                        <Slider Grid.Column="2" Minimum="1" Maximum="{Binding MaximumRegionSize}"
+                                Value="{Binding RegionSize}" TickFrequency="1" IsSnapToTickEnabled="True"
+                                IsMoveToPointEnabled="True" VerticalAlignment="Center" Margin="12,0"/>
+                        <StackPanel Grid.Column="3" Orientation="Horizontal">
+                            <Button Content="Fit Image" Click="FitImage" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
+                            <Button Content="Fit ROI" Click="FitRegion" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,12,0"/>
+                            <CheckBox x:Name="ShowPrediction" Content="Prediction" IsChecked="True" VerticalAlignment="Center"
+                                      ToolTip="Show the selected image's predicted mask in the same ROI. This does not change the polygon label.">
+                                <CheckBox.Style>
+                                    <Style TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Prediction, ElementName=MaskEditor}" Value="{x:Null}">
+                                                <Setter Property="IsEnabled" Value="False"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </CheckBox.Style>
+                            </CheckBox>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Grid.Row="3"
                             Background="{StaticResource ImageBackgroundBrush}"
                             BorderBrush="{StaticResource CardBorderBrush}"
                             BorderThickness="1"
                             CornerRadius="2"
-                             Padding="4">
-                        <training:BoltMaskEditor x:Name="MaskEditor"
-                                                 Source="{Binding LabelImage}"
-                                                 BrushSize="6"
-                                                 MinHeight="420"/>
+                            Padding="4">
+                        <Grid>
+                            <training:BoltMaskEditor x:Name="MaskEditor"
+                                                     Source="{Binding OriginalImage}"
+                                                     RegionSize="{Binding RegionSize}"
+                                                     Polygon="{Binding LabelPolygon}"
+                                                     ShowPrediction="{Binding IsChecked, ElementName=ShowPrediction}"
+                                                     IsEnabled="{Binding ControlsEnabled}"
+                                                     Foreground="{StaticResource AccentBlueBrush}"
+                                                     MinHeight="300">
+                                <training:BoltMaskEditor.Style>
+                                    <Style TargetType="training:BoltMaskEditor">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Review.Scope}" Value="{x:Static training:BoltReviewScope.SelectedImage}">
+                                                <Setter Property="Prediction" Value="{Binding Review.Image}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </training:BoltMaskEditor.Style>
+                            </training:BoltMaskEditor>
+                            <TextBlock Text="Capture taught points or select a saved sample."
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextMutedBrush}"
+                                       IsHitTestVisible="False">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding OriginalImage}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                     </Border>
 
-                    <Grid Grid.Row="2" Margin="0,18,0,0">
+                    <Grid Grid.Row="4" Margin="0,18,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="140"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-                        <StackPanel Orientation="Horizontal">
-                            <Button Content="Capture Taught Points"
-                                    Command="{Binding CaptureBoltPointsCommand}"
+                        <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal">
+                            <Button Content="Refresh Images"
+                                    Command="{Binding LoadSamplesCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     MinWidth="156"
                                     Margin="0,0,8,0"/>
-                            <Button Content="Add Images"
-                                    Command="{Binding AddImagesCommand}"
+                            <Button Content="Previous" Command="{Binding PreviousSampleCommand}"
+                                    Margin="0,0,8,0"
+                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                            <Button Content="Next" Command="{Binding NextSampleCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}"/>
                         </StackPanel>
 
-                        <StackPanel Grid.Column="1" Margin="18,0,18,0">
-                            <TextBlock Text="BRUSH SIZE"
-                                       Style="{StaticResource SectionHeaderStyle}"/>
-                            <Slider Minimum="1"
-                                    Maximum="20"
-                                    Value="{Binding BrushSize, ElementName=MaskEditor}"
-                                    VerticalAlignment="Center"/>
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" IsEnabled="{Binding ControlsEnabled}">
+                            <Button Content="Close Polygon" Click="ClosePolygon"
+                                    ToolTip="At least three vertices. Enter or double-click also closes the polygon."
+                                    Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
+                            <Button Content="Undo Point" Click="UndoPoint"
+                                    ToolTip="Remove the last vertex. Right-click or Backspace also works."
+                                    Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
+                            <Button Content="Clear" Click="ClearMask"
+                                    ToolTip="Clear this ROI's polygon. Escape also works."
+                                    Style="{StaticResource SecondaryButtonStyle}"/>
                         </StackPanel>
 
-                        <Button Grid.Column="2"
-                                Content="Clear Mask"
-                                Click="ClearMask"
-                                Style="{StaticResource SecondaryButtonStyle}"
-                                HorizontalAlignment="Left"/>
-
-                        <StackPanel Grid.Column="3" Orientation="Horizontal">
+                        <StackPanel Grid.Row="2" Grid.Column="2" Orientation="Horizontal">
                             <Button Content="No Bolt &amp; Next"
                                     Command="{Binding EmptyLabelCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}"
                                     MinWidth="116"
                                     Margin="0,0,8,0"/>
                             <Button Content="Save Mask &amp; Next"
+                                    ToolTip="Save this ROI size and polygon together, then open the next sample."
                                     Command="{Binding CompleteLabelCommand}"
-                                    CommandParameter="{Binding Mask, ElementName=MaskEditor}"
+                                    CommandParameter="{Binding CompletedPolygon, ElementName=MaskEditor}"
                                     Style="{StaticResource PrimaryButtonStyle}"
                                     MinWidth="132"/>
                         </StackPanel>
@@ -132,7 +280,9 @@
                 </Grid>
             </Border>
 
-            <Grid Grid.Column="2">
+            <ScrollViewer x:Name="TrainingDetails" Grid.Column="2" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+            <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="14"/>
@@ -152,22 +302,30 @@
                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                         </Grid>
 
-                        <TextBlock Text="Dataset Folder"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   Margin="0,0,0,5"/>
-                        <Grid IsEnabled="{Binding DatasetEditingEnabled}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBox Text="{Binding DatasetDirectory, UpdateSourceTrigger=PropertyChanged}"
-                                     Style="{StaticResource FieldTextBoxStyle}"/>
-                            <Button Grid.Column="1"
-                                    Content="Browse"
-                                    Command="{Binding SelectDatasetCommand}"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    Margin="8,0,0,0"/>
-                        </Grid>
+                        <TextBlock Text="Original images, polygons and model are saved in the database."
+                                   TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Command="{Binding ToggleIncludedCommand}" Margin="0,0,8,0">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Setter Property="Content" Value="Include Sample"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentSample.Included}" Value="True">
+                                                <Setter Property="Content" Value="Exclude Sample"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <Button Command="{Binding ToggleSampleUseCommand}"
+                                    ToolTip="Change the selected sample's training / validation group."
+                                    Style="{StaticResource SecondaryButtonStyle}">
+                                <TextBlock>
+                                    <Run Text="Use: "/>
+                                    <Run Text="{Binding CurrentSample.Use, Mode=OneWay, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                </TextBlock>
+                            </Button>
+                        </StackPanel>
 
                         <Grid Margin="0,16,0,0">
                             <Grid.ColumnDefinitions>
@@ -175,12 +333,21 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <StackPanel IsEnabled="{Binding ConfigurationEnabled}">
-                                <TextBlock Text="Epochs"
+                            <StackPanel IsEnabled="{Binding ControlsEnabled}">
+                                <TextBlock Text="Max Epochs"
                                            Foreground="{StaticResource TextMutedBrush}"
                                            Margin="0,0,0,5"/>
-                                <TextBox Text="{Binding Epochs, UpdateSourceTrigger=PropertyChanged}"
+                                <TextBox Text="{Binding Training.MaxEpochs, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Maximum passes through the training samples. Training can finish earlier when validation loss stops improving."
                                          Style="{StaticResource FieldTextBoxStyle}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Width="100" HorizontalAlignment="Left" Margin="12,0,0,0"
+                                        IsEnabled="{Binding ControlsEnabled}">
+                                <TextBlock Text="Mask Threshold" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,5"/>
+                                <TextBox x:Name="ModelMaskThresholdInput"
+                                         Text="{Binding Training.MaskThreshold, StringFormat={}{0:G6}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
+                                         Style="{StaticResource FieldTextBoxStyle}"
+                                         ToolTip="U-Net pixel probability threshold, from 0 to 1. Shared by all recipes. Updates the review without retraining; use Save Settings to keep it. Final area judgment remains in Station Teaching."/>
                             </StackPanel>
                             <StackPanel Grid.Column="2"
                                         Orientation="Horizontal"
@@ -190,41 +357,78 @@
                                         Style="{StaticResource PrimaryButtonStyle}"
                                         MinWidth="88"
                                         Margin="0,0,8,0"/>
-                                <Button Content="Cancel"
-                                        Command="{Binding CancelCommand}"
-                                        Style="{StaticResource DangerButtonStyle}"
-                                        MinWidth="88"/>
+                                <Button Command="{Binding CancelCommand}" MinWidth="88">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource DangerButtonStyle}">
+                                            <Setter Property="Content" Value="Close Sample"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                                    <Setter Property="Content" Value="Cancel"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                             </StackPanel>
                         </Grid>
 
+                        <Expander Header="Advanced" Margin="0,12,0,0"
+                                  ToolTip="Use Save Settings to keep changes, or start training to save them automatically.">
+                            <UniformGrid Columns="3" Margin="0,10,0,0" IsEnabled="{Binding ControlsEnabled}">
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Text="Batch Size" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding Training.BatchSize, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Images used per model update. Start with 8; reduce if training memory is insufficient."
+                                             Style="{StaticResource FieldTextBoxStyle}"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Text="Learning Rate" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding Training.LearningRate, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Adam learning rate. Default: 0.001."
+                                             Style="{StaticResource FieldTextBoxStyle}"/>
+                                </StackPanel>
+                                <StackPanel>
+                                    <TextBlock Text="Early Stop Patience" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding Training.Patience, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Consecutive epochs without a lower validation loss before saving the best model and finishing. Default: 10."
+                                             Style="{StaticResource FieldTextBoxStyle}"/>
+                                </StackPanel>
+                            </UniformGrid>
+                        </Expander>
+
                         <ProgressBar Minimum="0"
-                                     Maximum="{Binding Epochs}"
+                                     Maximum="{Binding Training.MaxEpochs}"
                                      Value="{Binding Epoch}"
                                      Height="8"
-                                     Margin="0,22,0,16"/>
+                                     Margin="0,16,0,12"/>
 
-                        <UniformGrid Columns="3">
+                        <UniformGrid Columns="4">
                             <StackPanel>
                                 <TextBlock Text="EPOCH"
                                            Style="{StaticResource SectionHeaderStyle}"/>
                                 <TextBlock FontSize="17"
                                            Foreground="{StaticResource TextPrimaryBrush}">
-                                    <Run Text="{Binding Epoch}"/>
+                                    <Run Text="{Binding Epoch, Mode=OneWay}"/>
                                     <Run Text=" / "/>
-                                    <Run Text="{Binding Epochs}"/>
+                                    <Run Text="{Binding Training.MaxEpochs, Mode=OneWay}"/>
                                 </TextBlock>
+                            </StackPanel>
+                            <StackPanel ToolTip="Epoch with the lowest validation loss. Its weights are saved when training finishes successfully.">
+                                <TextBlock Text="BEST EPOCH" Style="{StaticResource SectionHeaderStyle}"/>
+                                <TextBlock Text="{Binding BestEpoch}" FontSize="17"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
                             </StackPanel>
                             <StackPanel>
                                 <TextBlock Text="TRAIN LOSS"
                                            Style="{StaticResource SectionHeaderStyle}"/>
-                                <TextBlock Text="{Binding TrainingLoss, StringFormat={}{0:F4}}"
+                                <TextBlock Text="{Binding TrainingLoss, StringFormat={}{0:G3}}"
                                            FontSize="17"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
                             </StackPanel>
                             <StackPanel>
                                 <TextBlock Text="VALID LOSS"
                                            Style="{StaticResource SectionHeaderStyle}"/>
-                                <TextBlock Text="{Binding ValidationLoss, StringFormat={}{0:F4}}"
+                                <TextBlock Text="{Binding ValidationLoss, StringFormat={}{0:G3}}"
                                            FontSize="17"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
                             </StackPanel>
@@ -246,48 +450,60 @@
                                 <DataTrigger Binding="{Binding Review}" Value="{x:Null}">
                                     <Setter Property="VerticalAlignment" Value="Top"/>
                                 </DataTrigger>
+                                <DataTrigger Binding="{Binding Review.Scope}" Value="{x:Static training:BoltReviewScope.SelectedImage}">
+                                    <Setter Property="VerticalAlignment" Value="Top"/>
+                                </DataTrigger>
                             </Style.Triggers>
                         </Style>
                     </Border.Style>
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <Grid>
-                            <TextBlock Text="Model Review"
+                            <TextBlock Text="{Binding Review.Scope, Converter={StaticResource EnumDescriptionConverter}, TargetNullValue=Model Review, FallbackValue=Model Review}"
                                        FontSize="17"
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}"/>
                             <StackPanel HorizontalAlignment="Right"
-                                        Style="{StaticResource ReviewContentStyle}">
+                                        Style="{StaticResource ValidationReviewContentStyle}">
                                 <TextBlock FontSize="16"
                                            Foreground="{StaticResource TextPrimaryBrush}"
                                            HorizontalAlignment="Right">
-                                    <Run Text="{Binding Review.ImageNumber}"/>
+                                    <Run Text="{Binding Review.ImageNumber, Mode=OneWay}"/>
                                     <Run Text=" / "/>
-                                    <Run Text="{Binding Review.ImageCount}"/>
+                                    <Run Text="{Binding Review.ImageCount, Mode=OneWay}"/>
                                 </TextBlock>
                                 <TextBlock Foreground="{StaticResource TextMutedBrush}"
                                            HorizontalAlignment="Right">
-                                    <Run Text="{Binding Review.CorrectCount}"/>
+                                    <Run Text="{Binding Review.CorrectCount, Mode=OneWay}"/>
                                     <Run Text=" matched"/>
                                 </TextBlock>
                             </StackPanel>
                         </Grid>
 
-                        <Grid Grid.Row="1"
+                        <WrapPanel Grid.Row="1" Margin="0,12,0,0">
+                            <Button Content="Inspect Selected Image" Command="{Binding InspectSampleCommand}"
+                                    ToolTip="Run the saved model on the displayed central ROI. Works with unlabeled or excluded samples. Does not save edits, retrain or move hardware."
+                                    Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
+                            <Button Content="Review Validation Set" Command="{Binding ReviewSavedModelCommand}"
+                                    ToolTip="Run the saved model on labeled validation images. Does not retrain or change the detection threshold."
+                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                        </WrapPanel>
+
+                        <Grid Grid.Row="2"
                               Margin="0,18,0,16"
                               Style="{StaticResource ReviewContentStyle}">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="200"/>
-                                <ColumnDefinition Width="18"/>
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <Border Width="200"
-                                    Height="200"
+                            <Border Width="200" Height="200" Margin="0,0,18,0"
+                                    Style="{StaticResource ValidationReviewContentStyle}"
                                     Background="{StaticResource ImageBackgroundBrush}"
                                     BorderBrush="{StaticResource CardBorderBrush}"
                                     BorderThickness="1"
@@ -297,20 +513,14 @@
                                        RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                             </Border>
 
-                            <StackPanel Grid.Column="2"
+                            <StackPanel Grid.Column="1"
                                         VerticalAlignment="Center">
-                                <UniformGrid Columns="3"
-                                             Margin="0,0,0,18">
+                                <TextBlock Margin="0,0,0,12" TextWrapping="Wrap"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           Text="Adjust the final area limit in Station Teaching."/>
+                                <UniformGrid Columns="2" Margin="0,0,0,12">
                                     <StackPanel>
-                                        <TextBlock Text="EXPECTED"
-                                                   Style="{StaticResource SectionHeaderStyle}"/>
-                                        <TextBlock Text="{Binding Review.Expected, Converter={StaticResource EnumDescriptionConverter}}"
-                                                   FontSize="18"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    </StackPanel>
-                                    <StackPanel>
-                                        <TextBlock Text="DETECTED"
+                                        <TextBlock Text="CURRENT"
                                                    Style="{StaticResource SectionHeaderStyle}"/>
                                         <TextBlock Text="{Binding Review.Result, Converter={StaticResource EnumDescriptionConverter}}"
                                                    FontSize="18"
@@ -326,29 +536,69 @@
                                     </StackPanel>
                                 </UniformGrid>
 
-                                <TextBlock Text="{Binding Review.Outcome, Converter={StaticResource EnumDescriptionConverter}}"
-                                           FontSize="20"
-                                           FontWeight="SemiBold">
+                                <TextBlock Margin="0,0,0,8" Foreground="{StaticResource TextMutedBrush}">
+                                    <Run Text="ROI "/>
+                                    <Run Text="{Binding Review.RegionSize, Mode=OneWay}"/>
+                                    <Run Text=" px · Min area "/>
+                                    <Run Text="{Binding Review.MinimumMaskPercent, Mode=OneWay, StringFormat={}{0:G6}}"/>
+                                    <Run Text="%"/>
+                                </TextBlock>
+
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                                           ToolTip="Saved inspection evidence, not a ground-truth label. The model or thresholds may have changed since capture.">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground"
-                                                    Value="{StaticResource AccentGreenBrush}"/>
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Review.Outcome}"
-                                                             Value="{x:Static training:BoltValidationOutcome.Mismatch}">
-                                                    <Setter Property="Foreground"
-                                                            Value="{StaticResource AccentRedBrush}"/>
+                                                <DataTrigger Binding="{Binding Review.Sample.Inspection}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </TextBlock.Style>
+                                    <Run Text="Recorded: "/>
+                                    <Run Text="{Binding Review.Sample.Inspection.Result, Mode=OneWay, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                    <Run Text=" · ROI "/>
+                                    <Run Text="{Binding Review.Sample.Inspection.RegionSize, Mode=OneWay}"/>
+                                    <Run Text=" px"/>
                                 </TextBlock>
+
+                                <StackPanel Margin="0,8,0,0">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Review.Expected}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <TextBlock Foreground="{StaticResource TextMutedBrush}">
+                                        <Run Text="Label: "/>
+                                        <Run Text="{Binding Review.Sample.Label, Mode=OneWay, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Review.Outcome, Converter={StaticResource EnumDescriptionConverter}}"
+                                               FontSize="20" FontWeight="SemiBold">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Review.Outcome}"
+                                                                 Value="{x:Static training:BoltValidationOutcome.Mismatch}">
+                                                        <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
                             </StackPanel>
                         </Grid>
 
-                        <Grid Grid.Row="2"
+                        <Grid Grid.Row="3"
                               Style="{StaticResource ReviewContentStyle}">
-                            <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Review.Sample.Name}" Foreground="{StaticResource TextMutedBrush}"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="240" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            <StackPanel Orientation="Horizontal" Style="{StaticResource ValidationReviewContentStyle}">
                                 <Button Content="Previous"
                                         Command="{Binding Review.PreviousCommand}"
                                         Style="{StaticResource SecondaryButtonStyle}"
@@ -363,6 +613,7 @@
                     </Grid>
                 </Border>
             </Grid>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </UserControl>

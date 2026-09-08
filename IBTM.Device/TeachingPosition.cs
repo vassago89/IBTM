@@ -81,8 +81,8 @@ public enum TeachingTarget
     [Description("Heat Sink 2 PCB Placement")]
     HeatSink2PcbPlacement,
 
-    [Description("Bolt Point Z")]
-    BoltPointZ,
+    [Description("Bolt Position")]
+    BoltPosition,
 
     [Description("NG Carrier Pickup")]
     NgCarrierPickup,
@@ -113,6 +113,12 @@ public enum TeachingTarget
 
     [Description("Bolt Reference")]
     BoltReference,
+
+    [Description("PCB Region")]
+    PcbRegion,
+
+    [Description("Data Matrix")]
+    DataMatrix,
 }
 
 public sealed class TeachingPosition(
@@ -120,7 +126,7 @@ public sealed class TeachingPosition(
     MotionGroup motionGroup,
     TeachMode mode,
     Func<AxisPosition> read,
-    Action<AxisPosition> apply,
+    Action<AxisPosition>? apply,
     Setting? setting = null,
     Func<bool>? isDefined = null)
 {
@@ -128,12 +134,14 @@ public sealed class TeachingPosition(
     public MotionGroup MotionGroup { get; } = motionGroup;
     public TeachMode Mode { get; } = mode;
     public Setting? Setting { get; } = setting;
-    public BoltPoint? Bolt { get; init; }
+    public BoltTarget? Bolt { get; init; }
+    public Func<AxisPosition>? CoordinateOrigin { get; init; }
     public bool Staged { get; init; }
     public TeachingStorage Storage => Staged ? TeachingStorage.Buffer
         : Setting is null ? TeachingStorage.Recipe : TeachingStorage.Machine;
     public bool HasPosition => isDefined?.Invoke() ?? true;
+    public bool CanTeach => apply is not null;
 
     public AxisPosition Read() => read();
-    public void Apply(AxisPosition position) => apply(position);
+    public void Apply(AxisPosition position) => apply!(position);
 }

@@ -83,7 +83,7 @@ public sealed class MachineMap(
             mapped.Y + MachinePlan.PickupToolCenter.Y + PickupFeederOffset.Y);
     }
 
-    public (double X, double Y) FasteningTarget(BoltPoint bolt)
+    public (double X, double Y) FasteningTarget(BoltTarget bolt)
     {
         var target = fastening.GetBoltPosition(bolt, carrier);
         var mapped = MapFastening(target.X, target.Y);
@@ -97,7 +97,7 @@ public sealed class MachineMap(
     public (double X, double Y) Inspection(MotionPosition current) =>
         MapInspection(current.X, current.Y);
 
-    public (double X, double Y) InspectionTarget(BoltPoint bolt)
+    public (double X, double Y) InspectionTarget(BoltTarget bolt)
     {
         var target = inspection.GetBoltPosition(bolt, carrier);
         var mapped = MapInspection(target.X, target.Y);

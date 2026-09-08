@@ -171,6 +171,7 @@
                             HeatSink2Present="{Binding InspectionHeatSink2Present}"
                             HeatSink1Result="{Binding InspectionHeatSink1Result}"
                             HeatSink2Result="{Binding InspectionHeatSink2Result}"
+                            ActiveHeatSink="{Binding InspectionActivePcb}"
                             Visibility="{Binding InspectionCarrierPresent, Converter={StaticResource BoolToVis}}">
                 <ItemsControl ItemsSource="{Binding InspectionTargets}" Style="{StaticResource BoltTargetItemsStyle}"/>
             </ui:CarrierView>

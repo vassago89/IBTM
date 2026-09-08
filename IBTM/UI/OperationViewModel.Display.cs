@@ -1,5 +1,6 @@
 using System;
 using IBTM.BoltFastening;
+using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.NgConveyor;
@@ -143,15 +144,15 @@ public partial class OperationViewModel
                 return StationDisplayState.WaitingForCarrier;
             }
 
+            if (_boltFasteningWork.Completed)
+            {
+                return StationDisplayState.WaitingForTransfer;
+            }
+
             if (!BoltFasteningHeatSink1Present
                 && !BoltFasteningHeatSink2Present)
             {
                 return StationDisplayState.EmptyCarrier;
-            }
-
-            if (_boltFasteningWork.Completed)
-            {
-                return StationDisplayState.WaitingForTransfer;
             }
 
             return FasteningStateVisible
@@ -159,6 +160,16 @@ public partial class OperationViewModel
                 : StationDisplayState.HeatSinkDetected;
         }
     }
+
+    public Enum InspectionStatus => InspectionDisplayState switch
+    {
+        StationDisplayState.Working when InspectionStateVisible => InspectionState,
+        StationDisplayState.WaitingForTransfer when _units.NgCarrierTransfer && _inspectionWork.RouteToNg
+            => InspectionStationState.WaitingForShuttleReady,
+        StationDisplayState.WaitingForTransfer when _units.MainConveyor
+            && MainConveyorState == MainConveyorState.WaitingForRearEquipment => MainConveyorState,
+        _ => InspectionDisplayState,
+    };
 
     public StationDisplayState InspectionDisplayState
     {
@@ -191,15 +202,15 @@ public partial class OperationViewModel
                 return StationDisplayState.WaitingForCarrier;
             }
 
+            if (_inspectionWork.Completed)
+            {
+                return StationDisplayState.WaitingForTransfer;
+            }
+
             if (!InspectionHeatSink1Present
                 && !InspectionHeatSink2Present)
             {
                 return StationDisplayState.EmptyCarrier;
-            }
-
-            if (_inspectionWork.Completed)
-            {
-                return StationDisplayState.WaitingForTransfer;
             }
 
             return InspectionStateVisible

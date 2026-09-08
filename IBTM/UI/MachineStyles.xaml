@@ -15,7 +15,6 @@
     <SolidColorBrush x:Key="MachineStructureBorderBrush" Color="#5B6B78"/>
     <SolidColorBrush x:Key="MachineOverlayBrush" Color="#70212A31"/>
     <SolidColorBrush x:Key="MachineGhostBrush" Color="#30212A31"/>
-    <SolidColorBrush x:Key="OpticGlassBrush" Color="#243644"/>
     <SolidColorBrush x:Key="AlarmStateBackgroundBrush" Color="#341D20"/>
     <SolidColorBrush x:Key="ConfirmedStateBackgroundBrush" Color="#1D2E25"/>
     <SolidColorBrush x:Key="ActiveStateBackgroundBrush" Color="#1B2B38"/>

@@ -3,11 +3,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Inspection;
 
 namespace IBTM.UI;
 
@@ -24,12 +23,11 @@ public partial class StationTeachingViewModel
         if (IsCameraLive)
         {
             StopCamera();
-            ShowRecipeImages();
         }
         else
         {
-            _recipeImageCancellation.Cancel();
             CameraError = null;
+            Preview.Clear(SelectedBarcode);
             IsCameraLive = true;
             try
             {
@@ -44,7 +42,7 @@ public partial class StationTeachingViewModel
 
     private bool CanToggleLiveView() =>
         IsInspectionSelected
-        && (IsCameraLive || CanUseCurrentHandler());
+        && (IsCameraLive || _state.ManualOutputsEnabled);
 
     [RelayCommand(CanExecute = nameof(CanCaptureCarrierImages))]
     private async Task CaptureCarrierImagesAsync(
@@ -57,15 +55,13 @@ public partial class StationTeachingViewModel
             _recipeImageCancellation.Cancel();
             await _recipeImageUpdate;
             CameraError = null;
+            Preview.Clear(SelectedBarcode);
             if (IsCameraLive)
             {
                 StopCamera();
                 if (CameraError is not null) return;
             }
-            await _inspectionGantrySettings.SaveAsync(
-                motionCancellation.Token);
             CarrierImages = [];
-            LiveImage = null;
             var captured = await _boltInspector
                 .CaptureCarrierImagesAsync(motionCancellation.Token);
             var images = await Task.Run(
@@ -73,15 +69,15 @@ public partial class StationTeachingViewModel
                     .Select((image, index) => new CarrierImageTileView(
                         index + 1,
                         image.Center,
-                        ToBitmapSource(image.Frame)))
+                        InspectionPreview.CreateBitmap(image.Frame)))
                     .ToArray(),
                 motionCancellation.Token);
 
             motionCancellation.Token.ThrowIfCancellationRequested();
             CarrierImages = images;
-            await RecipeEditor.SaveCarrierImagesAsync(images);
-            completed = true;
-            SelectedPoint = FilteredPoints.FirstOrDefault(point =>
+            completed = await RecipeEditor.SaveCarrierImagesAsync(images, motionCancellation.Token);
+            if (!completed) return;
+            SelectedPoint = NextTeachingPoint() ?? FilteredPoints.FirstOrDefault(point =>
                 point.Target == TeachingTarget.BoltReference);
         }
         catch (OperationCanceledException)
@@ -109,16 +105,16 @@ public partial class StationTeachingViewModel
         && _carrierReference.IsDefined
         && MillimetersPerPixel > 0
         && ScanOverlap >= 0
-        && ScanOverlap
-            < _inspectionCameraSettings.FieldOfViewWidthMillimeters
-        && ScanOverlap
-            < _inspectionCameraSettings.FieldOfViewHeightMillimeters
-        && !string.IsNullOrWhiteSpace(RecipeEditor.Name)
+        && ScanOverlap < _boltInspector.FieldOfView.Width
+        && ScanOverlap < _boltInspector.FieldOfView.Height
+        && RecipeEditor.CanSave
         && CanUseCurrentHandler();
 
     [RelayCommand(CanExecute = nameof(CanTeachImagePoint))]
     private async Task TeachImagePointAsync(Point imagePoint)
     {
+        if (SelectedPoint!.Target == TeachingTarget.BoltReference)
+            SelectedPcb = FindPcb(new Rect(imagePoint, new Size()))!.Value;
         var point = SelectedPoint!;
         point.Teach(imagePoint.X, imagePoint.Y, 0);
         point.Apply();
@@ -127,16 +123,124 @@ public partial class StationTeachingViewModel
         NotifyManualTeachingCommands();
     }
 
-    private bool CanTeachImagePoint(Point _) =>
-        CanUseCurrentHandler()
+    private bool CanTeachImagePoint(Point point) =>
+        CanEditInspectionRecipe
+        && RecipeEditor.CanSave
         && HasCarrierImages
         && !IsCameraLive
-        && SelectedPoint?.TeachMode == TeachMode.Image
-        && _carrierReference.IsDefined;
+        && _carrierReference.IsDefined
+        && (SelectedPoint?.Target == TeachingTarget.BoltReference
+                && FindPcb(new Rect(point, new Size())) is not null
+            || SelectedPoint?.Target == TeachingTarget.PcbRegion && SelectedPcb == HeatSinkSlot.HeatSink2
+                && CurrentRecipe.Pcb.GetRegion(HeatSinkSlot.HeatSink1) is not null);
+
+    [RelayCommand(CanExecute = nameof(CanTeachImageRegion))]
+    private async Task TeachImageRegionAsync(Rect bounds)
+    {
+        CameraError = null;
+        var pin = _carrierReference.UpperLeftLocatingPin!;
+        var layout = CurrentRecipe.Pcb;
+        if (SelectedPoint!.Target == TeachingTarget.PcbRegion)
+        {
+            layout.Width = bounds.Width;
+            layout.Height = bounds.Height;
+            layout.Origins[SelectedPcb] = new() { X = bounds.X - pin.X, Y = bounds.Y - pin.Y };
+        }
+        else
+        {
+            var (width, height) = ImageFieldOfView;
+            if (bounds.Width > width || bounds.Height > height)
+            {
+                CameraError = "Data Matrix region must fit inside one camera FOV.";
+                return;
+            }
+            SelectedPcb = FindPcb(bounds)!.Value;
+            var origin = layout.Origins[SelectedPcb];
+            layout.DataMatrix = new(bounds.X - pin.X - origin.X, bounds.Y - pin.Y - origin.Y,
+                bounds.Width, bounds.Height);
+        }
+        RefreshPointPositions();
+        await RecipeEditor.SaveAsync();
+        NotifyManualTeachingCommands();
+    }
+
+    private bool CanTeachImageRegion(Rect bounds) =>
+        CanEditInspectionRecipe && RecipeEditor.CanSave && HasCarrierImages && !IsCameraLive && _carrierReference.IsDefined
+        && (SelectedPoint?.Target == TeachingTarget.PcbRegion && SelectedPcb == HeatSinkSlot.HeatSink1
+            || SelectedBarcode is not null && (bounds.IsEmpty
+                ? Enum.GetValues<HeatSinkSlot>().Any(pcb => CurrentRecipe.Pcb.GetRegion(pcb) is not null)
+                : FindPcb(bounds) is not null));
+
+    private HeatSinkSlot? FindPcb(Rect bounds)
+    {
+        var pin = _carrierReference.UpperLeftLocatingPin!;
+        foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
+            if (CurrentRecipe.Pcb.GetRegion(pcb) is { } region
+                && new Rect(region.X + pin.X, region.Y + pin.Y, region.Width, region.Height).Contains(bounds))
+                return pcb;
+        return null;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCaptureInspection))]
+    private Task CaptureInspectionAsync(CancellationToken token) => RunInspectionAsync(async ct =>
+    {
+        Preview.Clear(SelectedBarcode);
+        if (SelectedBarcode is { } pcb) await _boltInspector.MoveToBarcodeAsync(pcb, ct);
+        else await _boltInspector.MoveToAsync(SelectedPoint!.Position.Bolt!, ct);
+        var frame = await _boltInspector.CaptureCurrentAsync(ct);
+        await Preview.SetImageAsync(frame, ct);
+        await Preview.InspectAsync(ct);
+    }, token);
+
+    private bool CanCaptureInspection() => IsInspectionSelected && CanMoveToPoint()
+        && (SelectedBarcode is { } pcb ? _boltInspector.HasBarcodeRegion(pcb)
+            : SelectedPoint?.Target == TeachingTarget.BoltReference);
+
+    [RelayCommand(CanExecute = nameof(CanReinspectImage))]
+    private Task ReinspectImageAsync(CancellationToken token) => RunInspectionAsync(Preview.InspectAsync, token);
+
+    private bool CanReinspectImage() => CanEditInspectionRecipe && Preview.HasImage;
+
+    [RelayCommand(CanExecute = nameof(CanCollectBoltImages))]
+    private Task CollectBoltImagesAsync(CancellationToken token) => RunInspectionAsync(async ct =>
+    {
+        foreach (var point in CurrentRecipe.Pcb.GetBolts()
+            .Where(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
+            .OrderBy(point => point.HeatSink).ThenBy(point => point.Number))
+        {
+            var frame = await _boltInspector.CaptureAsync(point, ct);
+            await Task.Run(() => _trainingStore.AddImage(
+                $"{point.HeatSink.GetDescription()} · Bolt {point.Number}", frame, InspectionRecipe.RegionSizePixels), ct);
+        }
+    }, token);
+
+    private bool CanCollectBoltImages() => IsInspectionSelected && CanUseCurrentHandler() && _inspectionGantry.CanMove
+        && CurrentRecipe.Pcb.GetBolts().Any(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
+        && CurrentRecipe.Pcb.GetBolts().Where(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
+            .All(_boltInspector.HasPosition);
+
+    private async Task RunInspectionAsync(Func<CancellationToken, Task> action, CancellationToken token)
+    {
+        try
+        {
+            using var operation = LinkMotion(token);
+            CameraError = null;
+            if (IsCameraLive) StopCamera();
+            if (CameraError is not null) return;
+            await action(operation.Token);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            CameraError = exception.Message;
+            if (exception is MotionException) _state.SetError(MachineAlarm.MotionUnavailable, exception);
+        }
+    }
 
     private void StopCamera()
     {
         IsCameraLive = false;
+        LiveImage = null;
         try
         {
             _boltInspector.StopLiveView();
@@ -164,7 +268,6 @@ public partial class StationTeachingViewModel
 
         StopCamera();
         CameraError = exception.Message;
-        LiveImage = null;
     }
 
     private void UpdateLiveImage(ImageFrame frame)
@@ -206,7 +309,7 @@ public partial class StationTeachingViewModel
                     _pendingLiveFrame = null;
                 }
 
-                var image = ToBitmapSource(frame);
+                var image = InspectionPreview.CreateBitmap(frame);
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
                     if (IsCameraLive && IsInspectionSelected)
@@ -230,18 +333,4 @@ public partial class StationTeachingViewModel
         }
     }
 
-    private static BitmapSource ToBitmapSource(ImageFrame frame)
-    {
-        var image = BitmapSource.Create(
-            frame.Width,
-            frame.Height,
-            96,
-            96,
-            PixelFormats.Bgr24,
-            palette: null,
-            frame.Pixels,
-            frame.Stride);
-        image.Freeze();
-        return image;
-    }
 }

@@ -43,17 +43,23 @@ public sealed class InspectionStation
     public event Action? Changed;
 
     public InspectionStationState State(
-        IReadOnlyList<BoltPoint> bolts) =>
+        IReadOnlyList<BoltTarget> bolts) =>
         TransferState() ?? NextInspectionState(NextBolt(bolts));
 
-    public BoltPoint? ActiveBolt(IReadOnlyList<BoltPoint> bolts) =>
+    public BoltTarget? ActiveBolt(IReadOnlyList<BoltTarget> bolts) =>
         _work.Enabled
         && _work.State == InspectionWorkState.ReadyToInspect
+        && NextBarcode() is null
             ? NextBolt(bolts)
             : null;
 
+    public HeatSinkSlot? ActivePcb(IReadOnlyList<BoltTarget> bolts) =>
+        _work.Enabled && _work.State == InspectionWorkState.ReadyToInspect
+            ? NextBarcode() ?? NextBolt(bolts)?.HeatSink
+            : null;
+
     public async Task RunAsync(
-        IReadOnlyList<BoltPoint> bolts,
+        IReadOnlyList<BoltTarget> bolts,
         CancellationToken cancellationToken = default)
     {
         if (_work.Enabled && _work.CarrierPresent && !_work.Completed)
@@ -71,6 +77,8 @@ public sealed class InspectionStation
             {
                 switch (State(bolts))
                 {
+                    case InspectionStationState.MovingToBarcode:
+                    case InspectionStationState.ReadingBarcode:
                     case InspectionStationState.MovingToBolt:
                     case InspectionStationState.InspectingBolt:
                     case InspectionStationState.CompletingInspection:
@@ -247,7 +255,7 @@ public sealed class InspectionStation
     }
 
     private async Task ExecuteInspectionAsync(
-        IReadOnlyList<BoltPoint> bolts,
+        IReadOnlyList<BoltTarget> bolts,
         CancellationToken cancellationToken)
     {
         using var operation =
@@ -276,17 +284,29 @@ public sealed class InspectionStation
                 var bolt = NextBolt(bolts);
                 switch (NextInspectionState(bolt))
                 {
+                    case InspectionStationState.MovingToBarcode:
+                        await _inspector.MoveToBarcodeAsync(NextBarcode()!.Value, operation.Token);
+                        break;
+                    case InspectionStationState.ReadingBarcode:
+                        var pcb = NextBarcode()!.Value;
+                        var barcode = await _inspector.ReadBarcodeAsync(pcb, operation.Token);
+                        operation.Token.ThrowIfCancellationRequested();
+                        _work.Assembly(pcb).RecordBarcode(barcode);
+                        NotifyChanged();
+                        break;
                     case InspectionStationState.MovingToBolt:
                         await _inspector.MoveToAsync(bolt!, operation.Token);
                         break;
                     case InspectionStationState.InspectingBolt:
                         var assembly = _work.Assembly(bolt!.HeatSink);
                         var present = await _inspector.InspectAsync(
+                            bolt,
                             operation.Token);
                         operation.Token.ThrowIfCancellationRequested();
                         assembly.RecordBoltPresence(
                             bolt.Number,
                             present);
+                        NotifyChanged();
                         break;
                     case InspectionStationState.CompletingInspection:
                         operation.Token.ThrowIfCancellationRequested();
@@ -313,12 +333,20 @@ public sealed class InspectionStation
         }
     }
 
-    private InspectionStationState NextInspectionState(BoltPoint? bolt)
+    private InspectionStationState NextInspectionState(BoltTarget? bolt)
     {
         if (!_work.Enabled
             || _work.State != InspectionWorkState.ReadyToInspect)
         {
             return InspectionStationState.Waiting;
+        }
+
+        if (NextBarcode() is { } pcb)
+        {
+            if (!_inspector.HasBarcodeRegion(pcb)) return InspectionStationState.BarcodeTeachingRequired;
+            return _inspector.IsAtBarcode(pcb)
+                ? InspectionStationState.ReadingBarcode
+                : InspectionStationState.MovingToBarcode;
         }
 
         if (bolt is null)
@@ -331,13 +359,18 @@ public sealed class InspectionStation
             : InspectionStationState.MovingToBolt;
     }
 
-    private BoltPoint? NextBolt(IReadOnlyList<BoltPoint> bolts)
+    private HeatSinkSlot? NextBarcode() => Enum.GetValues<HeatSinkSlot>()
+        .Where(pcb => _runTargets?.Contains(pcb) ?? _work.HeatSinkPresent(pcb))
+        .Where(pcb => _work.Assembly(pcb).PcbBarcode is null)
+        .Select(pcb => (HeatSinkSlot?)pcb).FirstOrDefault();
+
+    private BoltTarget? NextBolt(IReadOnlyList<BoltTarget> bolts)
     {
         var targets = _runTargets;
         return bolts
             .Where(bolt => targets?.Contains(bolt.HeatSink)
                 ?? _work.HeatSinkPresent(bolt.HeatSink))
-            .OrderBy(bolt => bolt.Number)
+            .OrderBy(bolt => bolt.HeatSink).ThenBy(bolt => bolt.Number)
             .FirstOrDefault(bolt => !_work.Assemblies.Any(assembly =>
                 assembly.HeatSink == bolt.HeatSink
                 && assembly.BoltPresenceResults.ContainsKey(bolt.Number)));

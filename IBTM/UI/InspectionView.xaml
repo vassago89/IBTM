@@ -8,6 +8,29 @@
              d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
              Width="{x:Static ui:MachinePlan.InspectionWidth}"
              Height="{x:Static ui:MachinePlan.PlanHeight}">
+    <UserControl.Resources>
+        <Style x:Key="PcbBarcodeStyle" TargetType="HeaderedContentControl">
+            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="HeaderedContentControl">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="64"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{TemplateBinding Header}" FontSize="14"
+                                       Foreground="{StaticResource TextMutedBrush}"/>
+                            <TextBlock Grid.Column="1" FontSize="14" TextTrimming="CharacterEllipsis"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}, TargetNullValue='Not Read'}"
+                                       ToolTip="{TemplateBinding Content}"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
     <Grid>
         <Canvas>
             <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
@@ -17,20 +40,68 @@
             <Border Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.StatusTop}"
                     Tag="{Binding InspectionDisplayState}"
                     Style="{StaticResource StationStateBadgeStyle}">
-                <TextBlock Text="{Binding InspectionDisplayState,
+                <TextBlock Text="{Binding InspectionStatus,
                                           Converter={StaticResource EnumDescriptionConverter}}"
                            Style="{StaticResource PrimaryStateTextStyle}"/>
             </Border>
 
-            <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.DetailTop}"
-                       Width="390"
-                       Text="{Binding InspectionState,
-                                      Converter={StaticResource EnumDescriptionConverter}}"
-                       TextAlignment="Left"
-                       Style="{StaticResource MapLabelStyle}"
-                       FontSize="14"
-                       Visibility="{Binding InspectionStateVisible,
-                                            Converter={StaticResource BoolToVis}}"/>
+            <StackPanel Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.DetailTop}"
+                        Orientation="Horizontal">
+                <TextBlock x:Name="ActivePcb" FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"
+                           Text="{Binding InspectionActivePcb, Converter={StaticResource EnumDescriptionConverter}}"/>
+                <TextBlock FontSize="14" Foreground="{StaticResource TextPrimaryBrush}"
+                           Text="{Binding InspectionActiveBolt.Number, StringFormat=' · Bolt {0}'}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding InspectionActiveBolt}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+
+            <StackPanel Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}"
+                        Canvas.Top="{x:Static ui:MachinePlan.InspectionResultsTop}"
+                        Width="{x:Static ui:MachinePlan.PlateWidth}">
+                <StackPanel>
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding InspectionEnabled}" Value="True"/>
+                                        <Condition Binding="{Binding InspectionCarrierPresent}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <HeaderedContentControl x:Name="Pcb1Barcode" Header="PCB 1" Content="{Binding InspectionPcb1Barcode}"
+                                            Visibility="{Binding InspectionHeatSink1Present, Converter={StaticResource BoolToVis}}"
+                                            Style="{StaticResource PcbBarcodeStyle}"/>
+                    <HeaderedContentControl x:Name="Pcb2Barcode" Header="PCB 2" Content="{Binding InspectionPcb2Barcode}"
+                                            Visibility="{Binding InspectionHeatSink2Present, Converter={StaticResource BoolToVis}}"
+                                            Style="{StaticResource PcbBarcodeStyle}"/>
+                </StackPanel>
+                <TextBlock x:Name="InspectionAlarmDetail" Text="{Binding AlarmMessage}" ToolTip="{Binding AlarmDetail}" TextWrapping="Wrap"
+                           FontSize="14" Foreground="{StaticResource AccentRedBrush}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding InspectionDisplayState}" Value="{x:Static ui:StationDisplayState.IoAlarm}">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
 
             <StackPanel Width="{StaticResource CarrierWidth}"
                         Visibility="{Binding InspectionPositionKnown, Converter={StaticResource BoolToVis}}"
@@ -66,11 +137,11 @@
                       Width="{x:Static ui:MachinePlan.CameraSize}"
                       Height="{x:Static ui:MachinePlan.CameraSize}">
                     <Ellipse Width="42" Height="42"
-                             Fill="{StaticResource EquipBgBrush}"
+                             Fill="{StaticResource MachineGhostBrush}"
                              Stroke="{StaticResource AccentBlueBrush}"
                              StrokeThickness="2"/>
                     <Ellipse Width="16" Height="16"
-                             Fill="{StaticResource OpticGlassBrush}"
+                             Fill="Transparent"
                              Stroke="{StaticResource TextMutedBrush}"
                              StrokeThickness="1"/>
                 </Grid>
@@ -80,9 +151,6 @@
                             Orientation="Horizontal">
                     <TextBlock Text="Camera"
                                Style="{StaticResource EquipmentRoleLabelStyle}"/>
-                    <TextBlock Margin="5,0,0,0"
-                               Text="{Binding InspectionActiveBolt.Number}"
-                               Style="{StaticResource ActiveToolNumberStyle}"/>
                 </StackPanel>
             </StackPanel>
 

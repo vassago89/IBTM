@@ -12,8 +12,8 @@ using CommunityToolkit.Mvvm.Input;
 using IBTM.AlphaMotion;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.Inspection;
 using IBTM.Inspection.Training;
+using IBTM.Storage;
 using IBTM.Virtual;
 using Microsoft.Win32;
 
@@ -22,6 +22,11 @@ namespace IBTM.UI;
 public partial class SettingsViewModel : ObservableObject
 {
     private readonly MachineState _state;
+    private readonly MachineStore _store;
+    private readonly OperationCancellation _operations;
+
+    [ObservableProperty]
+    private string? _databaseMessage;
     private readonly VirtualCamera? _virtualCamera;
     private readonly Dictionary<MotionGroup, (MotionSettings Settings, MotionHardwareSettings Hardware)> _motions;
 
@@ -41,14 +46,22 @@ public partial class SettingsViewModel : ObservableObject
     public SettingsViewModel(
         MachineSettings settings,
         MachineState state,
-        ICamera camera)
+        ICamera camera,
+        MachineStore store,
+        OperationCancellation operations)
     {
         _state = state;
+        _store = store;
+        _operations = operations;
         _virtualCamera = camera as VirtualCamera;
         state.Changed += () => Application.Current.Dispatcher.BeginInvoke(() =>
         {
             LoadVirtualImageCommand.NotifyCanExecuteChanged();
             ClearVirtualImageCommand.NotifyCanExecuteChanged();
+            SaveSettingsCommand.NotifyCanExecuteChanged();
+            BackupDatabaseCommand.NotifyCanExecuteChanged();
+            RestoreDatabaseCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(CanEditSettings));
         });
         Settings = settings;
         _motions = settings.MotionSections.ToDictionary(section => section.Hardware.Group);
@@ -109,12 +122,49 @@ public partial class SettingsViewModel : ObservableObject
     public bool CurrentMotionHasZ =>
         CurrentMotionHardwareSettings.AxisSignals.ContainsKey(MotionAxis.Z);
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanEditSettings))]
     private async Task SaveSettingsAsync()
     {
+        using var operation = _operations.Link();
         ApplyHardwareMappings();
-        await Settings.SaveAsync();
+        await Settings.SaveAsync(_store, operation.Token);
         _state.Refresh();
+    }
+
+    public bool CanEditSettings => _state.ManualMode && !_state.IsRunning;
+
+    [RelayCommand(CanExecute = nameof(CanEditSettings))]
+    private async Task BackupDatabaseAsync()
+    {
+        using var operation = _operations.Link();
+        var dialog = new SaveFileDialog { Title = "Back Up Machine Settings and Recipes",
+            Filter = "SQLite database|*.db", FileName = $"IBTM-Machine-{DateTime.Now:yyyyMMdd-HHmmss}.db" };
+        if (dialog.ShowDialog() != true) return;
+        try
+        {
+            await Task.Run(() => _store.Backup(dialog.FileName), operation.Token);
+            DatabaseMessage = "Saved settings, recipes and carrier images backed up. Unsaved edits, AJIN .mot files and training data are not included.";
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception) { DatabaseMessage = exception.Message; }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEditSettings))]
+    private async Task RestoreDatabaseAsync()
+    {
+        using var operation = _operations.Link();
+        var dialog = new OpenFileDialog { Title = "Restore Machine Settings and Recipes", Filter = "SQLite database|*.db" };
+        if (dialog.ShowDialog() != true || MessageBox.Show(
+            "Restore the selected machine database and close IBTM? Unsaved edits will be discarded. Training data is unchanged. The previous machine database is retained.",
+            "Restore Machine Database", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+        try
+        {
+            await Task.Run(() => _store.PrepareRestore(dialog.FileName), operation.Token);
+            DatabaseMessage = "Restore prepared. The selected database will be applied on the next start.";
+            _ = Application.Current.Dispatcher.BeginInvoke(() => Application.Current.MainWindow.Close());
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception) { DatabaseMessage = exception.Message; }
     }
 
     [RelayCommand(CanExecute = nameof(CanChangeVirtualImage))]
@@ -137,18 +187,12 @@ public partial class SettingsViewModel : ObservableObject
         try
         {
             VirtualImageError = null;
-            var image = await Task.Run(() => BitmapFiles.LoadFrame(path), cancellationToken);
+            var image = await Task.Run(() => BoltTrainingImages.Decode(File.ReadAllBytes(path)), cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (!CanChangeVirtualImage())
             {
                 VirtualImageError = "Stop the machine before changing the camera image.";
                 return;
-            }
-            if (image.Width < IBoltRecessSegmenter.InputSize
-                || image.Height < IBoltRecessSegmenter.InputSize)
-            {
-                throw new InvalidDataException(
-                    $"Image must be at least {IBoltRecessSegmenter.InputSize} x {IBoltRecessSegmenter.InputSize} pixels.");
             }
             _virtualCamera!.SourceImage = image;
             VirtualImageName = Path.GetFileName(path);
@@ -174,7 +218,8 @@ public partial class SettingsViewModel : ObservableObject
     private bool CanClearVirtualImage() => CanChangeVirtualImage() && VirtualImageName is not null;
 
     public Task ShutdownAsync() => CommandShutdown.StopAsync(
-        LoadVirtualImageCommand.Cancel, SaveSettingsCommand, LoadVirtualImageCommand);
+        LoadVirtualImageCommand.Cancel, SaveSettingsCommand, LoadVirtualImageCommand,
+        BackupDatabaseCommand, RestoreDatabaseCommand);
 
     private void ApplyHardwareMappings()
     {

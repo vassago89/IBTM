@@ -54,14 +54,6 @@ public abstract class BoltFeeder
         }
     }
 
-    public Task WaitUntilReadyAsync(
-        CancellationToken cancellationToken = default) =>
-        Io.WaitForInputAsync(
-            _boltDetected,
-            true,
-            Timeout.Infinite,
-            cancellationToken);
-
     protected virtual void SetFeeding(bool value)
     {
     }

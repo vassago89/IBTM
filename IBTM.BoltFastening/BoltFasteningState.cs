@@ -28,8 +28,14 @@ public enum BoltFasteningState
     [Description("Lowering for PCB Fastening")]
     LoweringForPcb,
 
-    [Description("Loading Shooting Bolt")]
-    LoadingShootingBolt,
+    [Description("Shooting Bolt")]
+    ShootingBolt,
+
+    [Description("Advancing Shooting Escape")]
+    AdvancingShootingEscape,
+
+    [Description("Waiting for Shooting Feeder")]
+    WaitingForShootingFeeder,
 
     [Description("Waiting for Shooting Tube")]
     WaitingForShootingTubeClear,
@@ -43,14 +49,26 @@ public enum BoltFasteningState
     [Description("Clearing Shooting Head")]
     ClearingShootingHead,
 
-    [Description("Moving to Pickup Position")]
-    MovingToPickupPosition,
+    [Description("Moving to Pickup XY")]
+    MovingToPickupXY,
+
+    [Description("Lowering Head for Bolt Pickup")]
+    LoweringForBoltPickup,
+
+    [Description("Moving to Pickup Z")]
+    MovingToPickupZ,
+
+    [Description("Waiting for Pickup Feeder")]
+    WaitingForPickupFeeder,
 
     [Description("Picking Up Bolt")]
     PickingUpBolt,
 
     [Description("Raising Picked Bolt")]
     RaisingPickedBolt,
+
+    [Description("Raising Pickup Head")]
+    RaisingPickupHead,
 
     [Description("Moving to IPM Seating Bolt")]
     MovingToIpmSeatingBolt,

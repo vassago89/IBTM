@@ -7,7 +7,8 @@ One executable hosts independently enabled machine units and the teaching UI.
 
 | Project | Responsibility |
 | --- | --- |
-| `IBTM` | WPF host, DI, machine-wide start/stop/home/reset, settings and recipe storage |
+| `IBTM` | WPF host, DI, machine-wide start/stop/home/reset, recipe editing and WPF image conversion |
+| `IBTM.Storage` | SQLite/EF storage for unit settings, recipes and carrier images; backup/restore |
 | `IBTM.Core` | Shared coordinates, images, enums and work results |
 | `IBTM.Device` | IO/motion contracts, feedback, cancellation and station primitives |
 | `IBTM.PcbSupply` | Supply handler and `PcbSupplier`; upstream PCB-carrier SMEMA |
@@ -49,7 +50,7 @@ installation prerequisites even when some automatic units are disabled.
 
 ## Automatic operation and Stop
 
-`UnitSettings.json` enables Main Conveyor, PCB Supply, PCB Placement, Pickup Bolt
+The machine DB's `UnitSettings` section enables Main Conveyor, PCB Supply, PCB Placement, Pickup Bolt
 Feeder, Shooting Bolt Feeder, Bolt Fastening, Inspection, NG Carrier Transfer,
 NG Shuttle and NG Conveyor separately. Unit changes apply to the next run.
 
@@ -237,25 +238,27 @@ creating a stitched bitmap. The operator adjusts millimetres-per-pixel and teach
 pins/bolt points on that map. Scan motion does not depend on the image scale.
 
 ```text
-Settings/<Setting type>.json
-Recipes/<Recipe name>/Recipe.json
-Recipes/<Recipe name>/Carrier/0001.png
+Data/Machine.db
+TrainingData/BoltTraining.db
 ```
 
-Recapture and Save As write new numbered PNGs before replacing the recipe's image list.
-Previous images remain intact if an image or the recipe file cannot be saved.
-After `Recipe.json` is replaced, unreferenced PNGs are removed. Image numbers
-therefore do not necessarily restart at 1 for each scan.
-The recipe toolbar stays disabled throughout teaching, capture and recipe-file
+Settings and recipes are JSON records in SQLite; original carrier PNGs are BLOBs.
+Recapture and Save As commit images and recipe metadata in one transaction.
+Previous data remains intact on a failed save. Image numbering restarts at 1 for
+each replacement scan. No loose recipe images or settings JSON files are written.
+See [settings ownership, migration and backup](docs/SETTINGS_STORAGE.md).
+The recipe toolbar stays disabled throughout teaching, capture and recipe
 commands, including their stationary imaging/saving intervals.
-Recipe Save/Load also hold an operation scope until file work finishes, keeping
+Recipe Save/Load also hold an operation scope until DB work finishes, keeping
 Auto Start unavailable. Their commands disable teaching-page edits for the same
 interval; the operation page and Stop remain accessible.
 
-The inspection pipeline uses a centred 128×128 ROI from each camera frame for
-bolt-recess segmentation.
-Training and inference use the same RGB preprocessing. The count of pixels above
-MaskThreshold, divided by ROI pixels, is compared with MinimumMaskRatio.
+The inspection recipe selects a centred square ROI, resized to the model's fixed
+128×128 input. Exposure, gain, lighting and scan overlap are also product-owned.
+Training and inference use the same preprocessing. The count of pixels at or above
+the training setting's MaskThreshold, divided by ROI pixels, is compared with the
+inspection recipe's MinimumMaskRatio. The model threshold stays with Bolt Training;
+operators can tune the product's area limit without changing U-Net settings.
 Training runs in the application, outside automatic operation, using CPU TorchSharp.
 It saves the model and reviews validation masks; no separate training executable
 is required. Original recipe camera frames remain available.
@@ -340,7 +343,7 @@ dotnet run --project IBTM/IBTM.csproj -c Virtual --launch-profile Virtual
 
 In Visual Studio, select the **Virtual** configuration and launch profile with
 `IBTM` as the startup project. This build uses `bin/Virtual/net10.0-windows`, its
-own Settings/Recipes and a separate application mutex. It always selects Virtual
+own databases and a separate application mutex. It always selects Virtual
 control, camera and bolt hardware, even if those saved driver fields are changed.
 Debug/Release do not accept the `--virtual-development` argument.
 

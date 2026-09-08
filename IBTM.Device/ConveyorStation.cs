@@ -102,6 +102,11 @@ public sealed class ConveyorStation
         [_carrier, _backupPlateUp, _backupPlateDown, _stopperUp, _stopperDown, _heatSink1, _heatSink2],
         [_backupPlate, _stopper]);
 
+    public TeachingOutput[] GetTeachingOutputs() =>
+    [
+        new(_backupPlate, (up, token) => _io.SetOutputAndWaitAsync(_backupPlate, up, token), RequiresHandler: false),
+    ];
+
     public StationCylinderState BackupPlate => CylinderState(
         _backupPlateUp,
         _backupPlateDown);

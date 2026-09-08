@@ -133,10 +133,13 @@ cancellation path still stop the owned motion. This desktop test process cannot
 acquire real mouse capture, so actual held-mouse travel/release remains a manual
 acceptance item. The capture-failure case was verified before and after the fix.
 
-Outside the UI-only audit, the two unanswered mechanical questions remain open:
-whether a Station 2 head change needs common-Z retraction before cylinder movement,
-and whether a stopped shooting cycle with tube detection ON/head vacuum OFF may
-resume air without feeding another bolt. Neither behavior was guessed or changed.
+The Station 2 Z-order question was subsequently resolved: both heads fasten at the
+shared Safe Z using cylinder strokes only. The common Z axis moves for IPM bolt
+pickup, returns to Safe Z before raising Head 1, and stays there during fastening.
+The shooting
+recovery question was subsequently answered: tube detection ON/head vacuum OFF
+requires operator clearing, using manual shooting air rather than automatic
+refeeding. See the Station 2 shooting follow-up below.
 Native AlphaMotion IO and HIK exposure/gain effects still need equipment checks;
 the managed SDK probes only verified which commands and settings are sent.
 
@@ -242,6 +245,9 @@ changing the representation; do not add a separate IsTaught cache. Then finish
 the remaining teaching save/load and UI explanation audit and close the heartbeat.
 
 ### Recursive teaching pass 3 — independent references and first bolt Z
+
+Historical note: per-bolt Z teaching and its special XY-only command were later
+removed when both heads were confirmed to fasten at the shared Safe Z.
 
 - The user confirmed that re-teaching an upper-left locating pin must preserve
   the existing lower-right pin. Removed automatic lower-right clearing from the
@@ -435,8 +441,9 @@ Supply, Placement, the fastening gantry and NG Transfer now declare their teachi
 outputs through `GetTeachingOutputs`. Each declaration binds the existing unit
 method, not a raw UI `SetOutput`. Supply has Nest/IPM/rotation; Placement has
 handler/IPM lift, gripper, vacuum and rotation; fastening has both head lifts and
-vacuums; NG Transfer has pickup lift and gripper. Conveyor, shuttle, feeder and
-shooting sequence outputs remain read-only in these teaching panels.
+vacuums; NG Transfer has pickup lift and gripper. Subsequent changes added the
+station backup-plate controls and momentary shooting air. Conveyor drive, shuttle,
+feeder and automatic escape sequencing remain read-only in these teaching panels.
 
 The shared related-IO template shows ON/OFF beside supported outputs and retains
 both actual feedback inputs. It reuses IoSignals objects; no duplicate cylinder
@@ -496,7 +503,7 @@ Both teaching pages use the same Previous/Next commands and TeachingPointList.
 Selection alone never saves coordinates or moves an axis; existing selection
 cancellation stops a pending teaching command. Navigation stops at list ends and
 scrolls the selected row into view. Supply navigation follows its displayed motion
-groups. Fastening teaching groups each head's pins and bolt heights together,
+groups. Fastening teaching groups each head's pins and calculated bolt XY together,
 without changing recipe bolt order or automatic execution. Inspection lists its
 two pins, image bolt points, then NG positions.
 
@@ -554,3 +561,666 @@ verified teaching permissions, navigation, operation bindings and actual carrier
 content/bolt center alignment with no binding warnings. The existing recursive
 review heartbeat was paused on completion. No real app Home/axis/IO commands or
 actual device settling/optical accuracy verification were performed.
+
+### Station 3 teaching-to-training workflow — 2026-09-07
+
+Followed reference-pin teaching, full-resolution carrier scanning, image-point
+teaching, recipe save/reload, labeling, CPU training and saved-model review.
+The existing pin/scan test now verifies the saved relative bolt coordinates,
+mm/pixel and nine image tiles, then reloads and returns the Virtual camera to
+the same taught XY.
+
+Rendering an actual populated training review exposed a WPF exception: Run.Text
+defaulted to TwoWay for the read-only Review.ImageCount. Display runs now bind
+OneWay. The training toolbar separates source acquisition from mask editing;
+the empty image area and dataset/model-save guidance describe the next action.
+Review Validation Set reruns validation without retraining, changing the operating
+threshold or moving hardware. Cancellation and shutdown drain that command too.
+
+An isolated hidden-WPF run labeled five synthetic samples, trained one CPU epoch,
+reloaded identical validation results from disk, checked that model bytes and
+threshold were unchanged, and exercised cancel and a missing dataset. The
+populated 1724x852 training view had no binding errors or off-screen buttons.
+This verifies software flow, not model accuracy. The focused inspection/recipe
+suite passed 11/11. No original carrier frames were replaced by cropped storage,
+and no real hardware or actual-app motion/IO commands were executed.
+
+### Central inspection ROI — 2026-09-07
+
+Separated the centered source ROI from the fixed model input size. The inspection
+settings expose `Central ROI Size (px)`; `BoltImageInput` extracts only that square
+and bilinearly resizes it to 128x128. Label preparation and automatic inspection
+use the same function. Segmenters, saved training pairs and validation operate on
+normalized inputs, with no second crop. Original camera frames remain unchanged.
+The initial ROI is still 128px until adjusted to the real optics; changing the ROI
+continues to use the existing model and leaves saved samples unchanged. Retraining
+is not required merely because the ROI changed; mask quality and area thresholds
+are evaluated separately.
+
+Focused inspection/recipe tests passed 13/13, including central-only sampling,
+upscaling/downscaling and padded source strides. The isolated CPU/WPF workflow
+also passed with a 144px ROI resized to 128px, verifying pixel-identical label and
+inspection preprocessing, model save/reload and cancellation. No hardware was run.
+
+### Training owns model weights, not operating thresholds — 2026-09-07
+
+Removed automatic area-threshold calibration and its scoring helper. Training
+still selects the weights with the lowest pixel-level validation loss, but
+publishing a model no longer edits or saves operating inspection thresholds.
+Corrected the ROI tooltip and documentation: resizing a changed ROI can use the
+existing model, and retraining is not a mandatory consequence of that setting.
+
+The isolated CPU/WPF workflow verified that both mask and area thresholds survive
+successful training unchanged. Cancelling after an actual completed epoch kept
+the previously published model bytes and thresholds and removed temporary weights.
+Image/mask alignment, saved-model review and bindings also passed. This remains
+a synthetic software-path check, not evidence of real bolt-detection accuracy.
+
+### Database-only bolt training and polygon labels — 2026-09-07
+
+This replaces the earlier file-pair dataset and checkpoint workflow above.
+The training project now owns SQLite storage for full-resolution source-image
+BLOBs, each source ROI, one polygon per sample, explicit Unlabeled/Empty/Bolt
+labels, included/excluded status, stable training/validation membership and the
+active model weights with training metadata. No training image/mask/model files
+or folder/import/export UI are used. Captures are saved one by one before labeling;
+cancelled capture batches retain completed database inserts.
+
+The page lists metadata and loads only the selected original for its Original
+and ROI/Polygon tabs. Saved polygons reopen for editing. First-vertex click or
+Enter closes the polygon; right-click/Backspace undoes a point; Escape clears
+the current unsaved polygon without ending the session or modifying DB data.
+Masks are generated, not separately persisted. Training reads samples by batch.
+TorchSharp saves/loads weights through memory streams. Publication replaces a
+single DB model row; cancellation before publication preserves the prior model.
+
+The isolated hidden-WPF workflow passed source-pixel roundtrip, identical ROI
+preprocessing, concave polygon rasterization/persistence/reopen, next-sample
+isolation, cancel-without-overwrite, exclusion/split editing, actual CPU training,
+fresh operational segmenter loading from DB, model review and epoch cancellation.
+It also confirmed that the dataset directory contains only SQLite, without
+standalone training images/masks/weights/checkpoints. No hardware was initialized.
+The focused inspection and missing-model startup tests passed 7/7. Existing
+off-screen teaching/navigation/IO bindings also passed without machine commands.
+Synthetic model results verify software flow, not real inspection accuracy.
+
+### Training defaults, advanced settings and early stopping — 2026-09-07
+
+The training project owns observable DB-backed settings: Max Epochs 50, Batch
+Size 8, Learning Rate 0.001 and Early Stop Patience 10. Train saves these settings;
+reopening restores them. Batch size and Adam's learning rate now use the selected
+values. Advanced exposes these fields and patience without duplicating settings
+in the view model. Nonpositive counts or nonfinite/nonpositive learning rates
+disable Train.
+
+The trainer records the best epoch and stops when that epoch has not improved for
+Patience consecutive epochs. Equality does not reset patience. The normal review
+and DB publication use the best weights, and the model row stores actual completed
+epochs. Early stop is separate from cancellation; cancellation still preserves the
+previous model. The UI shows BEST EPOCH and Completed / Completed · Early Stop.
+The right panel scrolls when Advanced or review content requires more height.
+
+An isolated CPU/WPF check exercised nondefault batch size and learning rate,
+settings roundtrip, invalid setting availability, a one-epoch limit, and a frozen
+parameter run (test-only tiny learning rate) with patience 2: it completed at epoch
+3, selecting epoch 1. Epoch cancellation still kept existing model bytes. This is
+control-flow verification on synthetic images, not production accuracy validation.
+
+### Product-owned inspection conditions — 2026-09-07
+
+Moved central ROI size, mask probability threshold and minimum mask ratio from
+machine settings into `BoltInspectionRecipe`. The existing product recipe Save,
+New and Load operations own these values. Settings now holds only camera hardware
+parameters; Station Teaching / Inspection Gantry exposes the three recipe fields.
+Editing numerical inspection conditions is allowed in idle Manual before Home,
+without relaxing motion or output controls.
+
+The detector and model review resolve the active recipe's conditions instead of
+holding an obsolete nested object after recipe replacement. Training retains its
+own DB hyperparameters and each sample's ROI and polygon. Revisiting model review
+applies current recipe thresholds to its predictions without retraining.
+
+Focused recipe, inspection, training DB and missing-model startup tests passed
+15/15. Hidden WPF checks verified editable field bindings, New-recipe replacement,
+and the same DI detector reading updated ROI and both thresholds. An isolated CPU
+training run verified review updates after recipe replacement while model bytes
+remain unchanged. No hardware was initialized or commanded.
+
+### Machine DB and ownership follow-up — 2026-09-07
+
+Reviewed ownership, then persistence call paths, then UI/restore/capture behavior.
+Machine settings, product recipes and carrier PNGs now use `IBTM.Storage` and
+`Data/Machine.db`; the training DB remains independent. Section DTOs stay with
+their units and no longer save themselves. Buffer teaching saves one settings
+batch. Recipe metadata/image replacement and Save As are transactional, with
+live name/image-list changes only after successful storage.
+
+Exposure, gain, light level and carrier scan overlap moved into the inspection
+recipe; camera identity/FOV, light channel and fixed mechanical teaching stayed
+machine-owned. Hidden WPF checks traced active and replacement recipe values into
+single capture, preview and segmentation, and loaded all Settings tabs without
+binding warnings. Database backup/restore uses SQLite's backup API. Restore queues
+normal window close after its own command completes and applies on next startup,
+preserving the previous DB. AJIN .mot and training data are explicitly excluded.
+
+Tests covered settings-batch rollback, failed recapture/Save As, legacy migration
+rollback on a missing image, preservation of migrated optical parameters, import
+idempotence, backup/restore and previous-DB recovery. The legacy importer streams
+images one at a time; original JSON/PNG files are untouched. Full Virtual regression
+passed 139 tests. CPU training/labeling/ROI regression still passed independently.
+No physical controller, camera, IO output or axis was initialized during these checks.
+
+### Recursive storage / training follow-up — 2026-09-07
+
+Revisited storage internals, then their callers, then screen lifecycle and binding
+behavior. Carrier recapture now encodes/inserts one lossless PNG at a time and
+clears EF tracking between inserts. Save As copies BLOBs within SQLite. Neither
+path crops originals or reduces resolution. A single transaction still covers
+metadata and all images; partial writes and cancellation retain the prior recipe.
+The capture cancellation token now reaches the image-save operation.
+
+Loading a recipe refreshes dependent views before saving its last-selection
+preference. A preference-save failure can no longer leave the active recipe and
+display referring to different objects. Removed the redundant Home requirement
+from New/Save/name editing; the toolbar still requires idle Manual, and physical
+teaching/output interlocks remain unchanged.
+
+The training session distinguishes an active label editor from a hidden sample.
+Leaving the page cancels its command and retains Busy until that command ends;
+after completion, a hidden sample no longer blocks machine work. Returning to
+the sample restores the session. Full originals remain in the training DB; both
+training and inspection feed only the resized ROI to Tiny U-Net.
+
+Existing tests were extended rather than adding another test suite: image-save
+cancellation and transaction rollback, selection-save failure with UI notification,
+and off-screen WPF checks for pre-Home recipe buttons and training navigation.
+The isolated training check still exercises actual CPU training, polygon/ROI
+edits, cancellation, saved-model reload and early stopping on synthetic data.
+
+Final verification: 139/139 Virtual tests, both off-screen WPF checks and CPU
+training passed. Release solution and Virtual application builds completed with
+zero warnings/errors after the test process exited. No production DB was migrated,
+restored or edited, and no physical hardware was initialized.
+
+### Optional inspection image collection — 2026-09-07
+
+Added the Off / All / NgOnly enum and selector in the Bolt Training header. Apply
+saves it without starting training; the header also shows automatic collection
+count and allocated DB size. The completed bolt inspection supplies its original
+frame through an event connected by host DI to the training-owned collector.
+PNG encoding and SQLite writes execute on the inspection worker one image at a
+time, without a second capture or an accumulating frame queue.
+
+Collected samples are Unlabeled. Their immutable inspection evidence records
+recipe, bolt/heat-sink identity, time, original ROI and judgment separately from
+editable annotation ROI/polygon. Existing samples survive an additive migration.
+Forced insert failure verified the requested policy: preserve the judgment,
+continue inspection, pause only collection, and show the underlying error in the
+shared shell banner. Apply acknowledges the error after storage is repaired.
+
+Hidden WPF checks caught the first placement pushing validation navigation below
+the initial viewport; moving collection controls into the header restored access.
+Mode persistence, DI capture/result wiring, failure isolation, full-image PNG
+roundtrip and existing CPU training/annotation workflows passed. Full Virtual
+regression passed 140 tests; no real SDK or production database was operated.
+
+### Selected-image reinspection — 2026-09-07
+
+`Inspect Selected Image` runs the saved Tiny U-Net on the displayed central ROI,
+using the same crop/resize and threshold calculation as validation review. It
+bypasses training-dataset eligibility: unlabeled/excluded samples can be inspected
+even when no usable training or validation split exists. Inference and image
+conversion stay on the worker; no camera/motion/IO command or DB write is involved.
+
+Both review modes reuse `BoltModelReview` and one result panel. Current OK/NG,
+mask ratio and overlay are separate from recorded judgment/ROI. Explicit labels
+alone enable Match/Mismatch; recorded NG never becomes a ground-truth Empty label.
+ROI changes, sample changes and Close Sample clear selected-image results.
+Cancellation includes this command and suppresses late publication.
+
+Extended the existing isolated CPU/WPF workflow rather than introducing another
+test suite. It checked missing models, an excluded unlabeled image with all training
+samples disabled, exact mask/ratio agreement with independent inference, unchanged
+weights/labels/ROI/recipe, historical NG versus current OK, result invalidation,
+command cancellation and both review layouts. Synthetic images verify the workflow,
+not real bolt-detection accuracy. No physical device or production DB was used.
+Final checks: 140/140 Virtual tests, CPU training/reinspection and both off-screen
+WPF checks passed. Release solution and Virtual app builds had zero warnings/errors.
+
+### Prepared training inputs and one ROI editor — 2026-09-07
+
+Training now prepares each included, labeled sample once: read its original PNG,
+apply the saved central ROI and 128×128 resize, then rasterize its polygon. Epochs
+reuse BGR bytes and byte masks (64 KiB per sample) rather than repeating those
+operations. Full originals and all-sample float tensors are not retained. Active
+batch tensors keep their normal Torch disposal; session arrays need no Dispose
+wrapper or forced GC and are not written to disk. Preparation remains cancellable
+and does not replace the existing model. The screen distinguishes preparation
+from the epoch loop.
+
+Removed the separate ROI preview control. One editor now displays the full image,
+central ROI outline/corner handles, and polygon in original-image alignment.
+Wheel zoom, middle-drag pan and Fit Image/Fit ROI change only the view transform.
+ROI resizing preserves polygon locations, including odd-sized crops. The saved
+128×128 polygon convention and DB format are unchanged. Selected-image predictions
+overlay that same ROI and can be toggled independently of the label; validation
+review keeps its separate image because it may refer to another sample.
+
+The existing hidden WPF/CPU workflow checks ROI drag binding, zoom anchoring, hit
+coordinates, polygon restoration after resize, predicted-overlay toggling, exact
+prepared bytes/masks, preparation cancellation and model persistence. In an
+isolated test DB it temporarily renames Samples after preparation: training,
+validation and final review still complete without reading original images again.
+The test restores the table afterward. Synthetic images verify implementation,
+not real bolt accuracy or a production training-time estimate.
+Final verification passed 140 Virtual tests, both off-screen WPF checks, actual
+CPU training and reinspection. Release solution and Virtual builds completed
+without warnings/errors. The final render also retains the shared checkbox theme.
+
+### Live judgment parameter refresh — 2026-09-07
+
+The result panel now edits Mask Threshold and Min. Area (%) against the active
+inspection recipe. Setters recalculate the current overlay/ratio/judgment directly;
+area-only changes retain the overlay. There is no second recipe/settings copy,
+model reload, training run, DB write or timer. Normal recipe Save remains the
+persistence boundary. Percent display is converted to the existing ratio field.
+Numeric range/nonfinite validation stays at these two UI inputs.
+
+To keep validation-set tuning light, each review sample sorts its predicted
+probabilities once on the inference worker. Subsequent area queries use an exact
+lower-bound search, including duplicate values at the threshold. Only the visible
+mask is redrawn when its probability threshold changes. Original spatial masks,
+recorded inspection results and annotation polygons are unchanged.
+
+The existing isolated CPU/WPF workflow exercised textbox and slider bindings,
+immediate result/overlay changes, area-only overlay reuse, percent conversion,
+invalid input correction, recipe replacement and single-image overlays. Temporarily
+renaming the model table proved parameter changes do not read weights. Inclusive
+threshold/duplicate-value checks matched direct counting. ROI invalidation and
+training cancellation continued to pass. Production data/hardware were not used.
+Final verification passed all 140 Virtual tests and both isolated WPF workflows,
+including actual CPU training/reinspection. Release solution and Virtual app builds
+completed with zero warnings/errors. The final render confirms readable numeric
+formatting and that the result controls fit without adding another image panel.
+
+### Recipe saving from Bolt Training — 2026-09-07
+
+Bolt Training now uses the application's existing recipe toolbar: a read-only
+save-target name and Save Recipe. New/Load stay on the teaching pages. The same
+RecipeEditor.SaveCommand writes Machine.db; the training project has no new host
+or storage dependency and no additional save implementation. Tooltips distinguish
+recipe persistence from image collection, labels and model weights.
+
+An idle open training sample still blocks equipment operation, but does not block
+recipe saving. EquipmentBusy is the existing non-training portion of IsRunning;
+the latter retains all of its previous conditions. Training work disables Save,
+and Save/Load disable the training page until the existing command completes.
+No new busy flag, lock, snapshot or exception handler was introduced.
+
+The isolated WPF harness verifies the shared command, read-only name, hidden
+New/Load, open-sample behavior, active-operation and training-busy gating, and
+threshold persistence after reopening Machine.db without changing training
+samples. It also renders both toolbars at 1920x1080. No production DB or physical
+device was used.
+Final checks passed: 140 Virtual tests, both off-screen WPF workflows and actual
+synthetic CPU training/reinspection. Release solution and Virtual app builds had
+zero warnings/errors.
+
+### Inspection teaching and Data Matrix — 2026-09-08
+
+This supersedes the preceding Training recipe-toolbar/tuning design. Operating
+capture, bolt ROI/threshold tuning and recipe saving now belong to Station Teaching;
+Training has no motion commands or editable operating thresholds. Its own labeling
+ROI, database operations, validation and training remain in the training project.
+
+The carrier mosaic and camera pane remain visible together. FOV is read-only and
+follows XY feedback: Move & Inspect moves to the selected bolt or barcode center,
+not to a separately taught FOV position. PCB 1/2 each have one Data Matrix rectangle,
+saved in the recipe, with Esc cancelling an unfinished drag. Original-resolution
+barcode crops use the carrier image's mm/px scale; they bypass U-Net resizing.
+
+Automatic read failure stops with an Inspection alarm for operator confirmation.
+Virtual images contain real decodable Data Matrix symbols; missing bolts and
+unreadable barcodes are separate scenarios. Tests cover central crops, inverted
+symbols, row padding, manual center movement, failed-read stop/reset/restart,
+recipe persistence and existing full-equipment flows. All 144 Virtual tests pass.
+Off-screen WPF checks pass with no binding errors, including barcode teaching and
+reading. Actual synthetic CPU training/reinspection also passes. Release and Virtual
+builds have zero warnings/errors. Real-camera readability remains a commissioning
+check. See [Inspection Teaching](INSPECTION_TEACHING.md) for the current workflow.
+
+### Shared PCB pattern — 2026-09-08
+
+PCB 1/2 now share one PCB-local bolt list and Data Matrix region in `Recipe.Pcb`.
+Teach PCB 1 bounds once; place PCB 2 by its corresponding upper-left corner.
+Changing dimensions does not scale the pattern. Both camera and fastening targets
+read the same definition and the selected PCB origin; results remain per PCB.
+The existing backup-plate and head reference-pin transforms remain unchanged.
+
+Verified shared edits, two-location motion, head transforms, DB save/reload,
+per-PCB process results, and full equipment flows: all 145 Virtual tests pass.
+Release and Virtual builds have zero warnings/errors. Off-screen WPF rendering
+and barcode preview pass without binding warnings or physical machine commands.
+Old duplicated coordinate recipes require PCB-pattern teaching, not guessed conversion.
+
+### PCB teaching coordinate and FOV review — 2026-09-08
+
+Removed the separate physical camera FOV settings. Camera frame dimensions and
+recipe mm/px now determine scan pitch, barcode bounds and the displayed FOV.
+Hik reads Width/Height once during initialization; UI feedback never polls the SDK.
+Changing mm/px refreshes the barcode preview crop and clears its old decode result.
+
+Image clicks/drawn regions select their containing PCB before applying the shared
+pattern. Bolt and barcode rows display PCB-local centers while motion still reads
+machine coordinates. Static recipe/image editing works before Home in idle Manual;
+motion, capture and IO retain their original interlocks.
+
+Extended the existing regression tests rather than adding another test project.
+All 145 Virtual tests pass, including finer-scale scan coverage, PCB 2 clicks while
+PCB 1 is selected, local coordinate labels and unchanged hardware command gates.
+Release/Virtual builds: zero warnings/errors. Off-screen 1920 x 1080 WPF rendering,
+barcode preview and binding checks pass; no physical machine commands were issued.
+
+### Recipe save and teaching transitions — 2026-09-08
+
+Reproduced and fixed four normal UI paths in an isolated Virtual setup:
+
+- Rescanning with the same selected bolt clears its old captured image and OK/NG.
+- Point/region autosave and Save use one name condition; empty names create no rows.
+- Injected SQLite save errors stay at RecipeEditor and appear in the shared shell
+  notification. The edited values remain in memory, the existing DB transaction
+  keeps stored data intact, and retry saves the edit without reconstructing it.
+- New/Load resets the PCB selection, so a new recipe can begin with PCB 1's region.
+
+Existing recipe tests also cover image-save rollback, cancellation and failed
+last-selection persistence. The WPF check verifies that the shared error is visible
+when set and takes no layout space when cleared. No per-point exception handlers,
+recipe snapshots or physical hardware calls were added.
+
+### Follow-through review of teaching and preview — 2026-09-08
+
+Followed the previous fixes through position edits, reinspection, machine-position
+saving and recipe loading. An isolated Virtual/WPF probe reproduced four more paths:
+
+- Reteaching the same selected bolt retained the old image and judgment. Position
+  refresh now clears the capture centrally, including shared PCB region edits.
+- Cancelling reinspection, then changing thresholds, resurrected the old prediction.
+  Preview prediction reset is shared by capture, clear, ROI edits and reinspection.
+- Machine-position storage exceptions escaped the teaching command. The common
+  teaching base now reports storage failure in the shared motion panel, retains edits
+  and allows retry; a failed pin save no longer advances selection.
+- A completed recipe read could still replace the recipe after cancellation while
+  waiting for the UI continuation. Load checks cancellation immediately before apply.
+
+The last case was reproduced by holding the UI continuation until after cancellation,
+not by slowing or postponing cancellation in production. Existing regression coverage
+was extended without adding a test project. No rollback snapshots or new hardware
+interlocks were introduced.
+
+Rechecked the connected paths after these fixes: all 145 Virtual tests pass,
+including the existing teaching regression extended for reteaching and cancelled
+reinspection. The off-screen WPF check verifies the shared save-error display for
+both Supply and Station Teaching, with no binding warnings. Release and Virtual
+builds pass with zero warnings/errors. The first concurrent solution build hit
+testhost DLL locks; the sequential rebuild passed after the tests finished.
+
+### Model threshold ownership — 2026-09-08
+
+Mask Threshold now belongs to BoltTrainingSettings and Training.db. Epoch/batch/
+optimizer settings stay there as before. Minimum Mask (%) remains in the inspection
+recipe and Station Teaching, along with ROI and acquisition conditions. Recipe
+New/Load never changes the shared model threshold.
+
+Bolt Training exposes the mask threshold beside Max Epochs and saves it through
+Save Settings without retraining. Existing review probabilities refresh immediately.
+Automatic inspection receives a threshold getter at composition time, so Inspection
+does not acquire a reverse project reference to Training. Preview, model review and
+automatic judgment use the same setting; no per-recipe threshold copy remains.
+
+Verified with all 145 Virtual tests, off-screen WPF binding/layout checks and actual
+synthetic CPU training plus saved-model review. Model-threshold edits update existing
+review masks without modifying weights; recipe area edits do not change the model
+threshold. Both DB roundtrips and recipe replacement preserve this separation.
+Release and Virtual builds pass with zero warnings/errors.
+
+### Follow-through review of model validation — 2026-09-08
+
+Reproduced two connected issues using the existing isolated CPU/WPF harness:
+
+- Reviewing a saved model unnecessarily required a complete training dataset and
+  loaded training images. Review now prepares only included, labeled validation
+  images; one is sufficient. Train keeps its existing dataset requirements and
+  reuses prepared validation inputs for its final review.
+- A failed operational model reload retained the previous weights, allowing
+  CheckReady to succeed against stale state. Reload now releases the old model
+  first. Failure leaves it unloaded, so the existing automatic-start readiness
+  check reports the model error instead of using the old weights.
+
+Verified a single validation image with all training images excluded, an empty
+validation set, failed reload followed by CheckReady, and recovery after restoring
+valid weights. No model files, rollback snapshots or new exception layers were
+introduced. Empty validation clears the previous result through the existing UI
+error boundary without modifying the stored model.
+
+All 145 Virtual tests, actual synthetic CPU training/review, off-screen WPF binding
+checks and the isolated recipe/teaching cancellation-and-save probe pass. Release
+and Virtual builds have zero warnings/errors. These checks verify software flow,
+not real-image inspection accuracy; no physical hardware was called.
+
+### Station 3 operating display
+
+The operating badge now names the actual inspection/transfer step rather than
+only Working. The current heat sink and bolt appear together; the same heat-sink
+pocket is highlighted on the shared carrier view. Transparent camera geometry
+keeps the active bolt marker visible beneath its center.
+
+PCB barcode rows below Station 3 read the current production assemblies, disappear
+with their carrier/heat-sink inputs, and are hidden when inspection is disabled.
+Inspection publishes changes when each barcode or bolt result is recorded, rather
+than waiting for another motion event. Completed work distinguishes rear-SMEMA
+waiting from NG-shuttle waiting. Operator-facing alarm text shows only the error
+message; the full diagnostic exception remains available in the tooltip.
+
+Verified with an off-screen operating view driven by the actual Virtual automatic
+loop and the recipe/model from the first-use teaching workflow. The rendered camera
+center matches the active bolt center; barcode/result bindings, NG waiting and
+barcode-failure text pass without binding warnings. Synthetic model judgments are
+only flow checks, not a production-accuracy assessment.
+
+The follow-up probe retains one operating view for the entire run, so rebuilding
+the view cannot hide missing change notifications. It checks the rendered status,
+barcode contents/visibility and alarm detail through Stop, restart, carrier
+replacement, alarm Reset, NG storage and rear-SMEMA discharge.
+
+This exposed an empty-carrier display precedence error: Station 2 and Station 3
+must check completed work before showing Empty Carrier. A completed empty carrier
+now reports its transfer wait; Station 3 identifies Waiting for Shuttle when routed
+to NG. No controller states, extra interlocks or exception paths were added.
+
+The isolated probe holds upstream availability OFF to prevent Virtual's automatic
+carrier replenishment from overlapping the manually placed Station 3 scenarios.
+A known OK result also exercises rear-SMEMA waiting and exit-sensor discharge
+independently of the synthetic one-epoch model's classification. Both paths update
+the existing WPF controls without binding warnings.
+
+Follow-up validation: all 146 Virtual tests pass; Release and Virtual builds have
+zero warnings/errors. Physical hardware and production databases were not used.
+
+### Station 2 shooting and manual tube clearing
+
+Stop/restart was exercised at bolt arrival, escape retraction and head lowering,
+with both ordinary and short tube-sensor pulses. The loaded bolt is not shot again,
+and the head lowers only after loading, tube clearance and escape retraction.
+Feeder waiting is a separate state; when the feeder becomes ready the station
+rechecks the current head/tube inputs before issuing a loading cycle.
+
+The owner exposes Shoot Bolt as a momentary teaching output. The common IO template
+renders HOLD instead of ON/OFF and uses the existing cancellable output command.
+The gantry owns air-OFF cleanup; no feeder/escape/vacuum command is issued by manual
+shooting. Teaching operations cancel when Manual mode ends, as well as through
+their existing release, navigation and Stop paths. No homing prerequisite was
+added to manual air control. Alarm Reset and ordinary manual-output readiness
+still apply.
+
+Validation: all 147 Virtual tests pass, Release/Virtual builds have zero warnings
+or errors, and the off-screen WPF teaching probe verifies the HOLD button's
+visibility, scroll access and press/cancel bindings without binding warnings.
+The command tests cover release, group change, screen exit, Stop and Manual-to-Auto
+cancellation. No physical shooting or equipment commands were issued.
+
+### IPM bolt pickup order
+
+Head 1 pickup now moves Safe Z -> pickup XY -> cylinder Down confirmation ->
+pickup Z -> feeder-ready wait -> vacuum ON confirmation. The agreed retreat is
+vacuum held ON -> Safe Z -> cylinder Up -> fastening XY. The former combined XYZ
+pickup move and its raise-before-vacuum helper were removed. New state entries
+distinguish cylinder lowering, Z approach, feeder waiting and loaded-head raising.
+The pickup Z value must be taught with the head cylinder lowered.
+
+The existing two-heat-sink fastening test checks the cylinder/Z/vacuum order and
+stops immediately after pickup. Restart retains that bolt, and both IPM seating
+bolts are independently picked while both final passes reuse installed bolts.
+
+All 9 fastening tests pass. Release and Virtual builds have zero warnings/errors;
+no physical hardware was operated.
+
+### Both fastening heads use the shared Safe Z
+
+Both heads now move between fastening points in XY at the machine-taught Safe Z.
+Their cylinders provide the working stroke; only IPM feeder pickup and its return
+need common-Z travel during the cycle. The shared bolt pattern no longer stores Z,
+and automatic readiness no longer requires a per-bolt height.
+
+Station 2 keeps the calculated bolt XY list for Move To verification. These are
+read-only targets from the inspection PCB pattern and head locating pins, not
+duplicate teaching points. Removed the special first-Z/Move-XY command and button;
+bolt definitions are edited in Inspection. Safe Z and pickup XYZ remain machine
+teaching positions. Manual head-down Jog/Step behavior is unchanged.
+
+Existing tests now use a nonzero Safe Z and verify that the gantry only leaves it
+at pickup XY, across both PCB bolts, IPM seating/final passes, and Stop/restart.
+All 147 Virtual tests pass; Release and Virtual builds have zero warnings/errors.
+The isolated off-screen WPF probe passed without binding warnings, and the rendered
+Station 2 page shows calculated targets without the obsolete Z-teaching button.
+No physical machine was connected or operated.
+
+### Manual pickup Move To matches the automatic approach
+
+Bolt Pickup no longer uses a generic XYZ move with the head raised. Its teaching
+command calls the gantry's pickup approach: raise cylinders, Safe Z, pickup XY,
+Head 1 Down feedback, then pickup Z. The automatic state's individual actions use
+the same gantry methods; its feedback-based state selection remains intact.
+Neither vacuum output nor feeder readiness is part of manual positioning.
+Removed the unused generic fastening XYZ entry point and the station's duplicate
+pickup-XY helper. The point's teaching hint now states that Move To lowers Head 1.
+
+The new focused Virtual test with manually driven DI confirms that Z waits at
+Safe Z until Down feedback arrives. Stop during that wait prevents the Z move,
+retains pneumatic outputs, and a retry completes the taught pose without changing
+vacuum. The existing automatic pickup/restart, head-down adjustment and horizontal
+interlock tests also pass: 12 focused tests total. Release and Virtual builds have
+zero warnings/errors. No physical equipment was operated.
+
+### Recursive pickup follow-up — return, feedback timeout and UI
+
+Added a gantry-owned Return from Pickup action to Station Teaching. It uses the
+existing Safe-Z and Head-1-Up operations in that order, without XY movement or
+vacuum changes. The command stays available after selecting another fastening
+point, but remains subject to ordinary homed/manual readiness. It shares Stop,
+mode/group/page change cancellation and shutdown draining with the other manual
+teaching commands. No new automatic recovery state was added.
+
+Following the new action into its failure path exposed an existing omission:
+teaching IO buttons handled IoTimeoutException, but the pickup Move To sequence
+did not. Both entry and return timeout tests first reproduced the escaping
+exception. Moved the existing owner-alarm handling into the common teaching
+execution boundary instead of adding catches to individual commands. The
+backup-plate buttons retain their explicit Main Conveyor alarm ownership.
+
+The manual pickup test now also cancels return exactly when Z reaches Safe Z:
+Head 1 must not rise after that cancellation. Retry waits for real Up feedback
+and leaves XY/vacuum unchanged. The off-screen WPF check verifies the return
+button is visible only for fastening, disabled before Home, and fully accessible
+inside the motion panel. No binding warnings or additional actionable issues
+were found in the subsequent pickup-path review. No physical equipment was run.
+
+Final verification: all 150 Virtual tests pass; Release and Virtual builds report
+zero warnings/errors, and diff whitespace checks pass.
+
+### Shooting preparation — resume from escape feedback
+
+The existing shooting-loading action retracted and advanced the escape on every
+entry. A stop after advance exposed the wrong next state: it waited for another
+feeder bolt although the escape was already forward. The Virtual regression
+first failed with WaitingForShootingFeeder instead of the shooting state.
+
+Split escape advance from shooting. Backward feedback requires feeder readiness;
+an intermediate escape position completes the forward stroke. Forward feedback
+selects ShootingBolt without refeeding or retracting first. No saved step or
+completion flag was added. Vacuum ON, passage monitoring, shooting air and arrival
+confirmation stay together so a short tube-sensor pulse is not lost between states.
+Existing tube-clear/operator-clearing behavior and air-OFF cleanup are unchanged.
+
+Extended the existing fastening test rather than adding another scenario suite:
+Stop during advance, delayed forward feedback while stopped, restart with feeder
+detection OFF, and no escape reversal before the first shot. Existing arrival,
+escape-retraction and head-lowering stops still cover both normal and short tube
+pulses, the two pickup passes, results and cylinder/XY ordering.
+
+Verification: all 150 Virtual tests pass, Release and Virtual builds report zero
+warnings/errors, and diff whitespace checks pass. No physical equipment was run.
+
+### Recursive fastening follow-up — movement and passive waits
+
+Following the shooting states into their callers found a second escape-retraction
+path inside MoveToBoltAsync. It could undo the prepared escape after a stopped
+operator repositioned X/Y. Removed that hidden IO action and reused the gantry's
+existing X/Y move, including its raised-cylinder check and Safe-Z behavior. Tube
+clearance now takes priority over moving back to the PCB bolt. The existing flow
+test reproduced both wrong movement priority and escape reversal before the fix.
+
+Following the wait states found that they awaited only feeder-ready DI. Delayed
+pickup-vacuum or escape-forward feedback could change the correct state without
+waking that wait. The station now subscribes to its work, gantry and feeder
+notifications and re-evaluates passive feeder waits through the existing
+AsyncAutoResetEvent. Subscriptions end with each run; repeated events coalesce.
+Active commands remain sequential and keep their own feedback/timeout waits.
+Deleted the unused feeder WaitUntilReadyAsync wrapper. Supply timeouts still
+belong to the independent feeder loops.
+
+One focused two-case regression keeps both feeder DIs OFF and manually applies
+late vacuum/escape feedback. Both cases stalled before the fix and now continue
+to the appropriate head action. The existing full fastening scenario also checks
+manual repositioning between Stop and Start without refeeding. Subsequent review
+covered pickup retreat, cylinder/XY order, pass transitions, ADC stop cleanup,
+result recording, carrier completion and event unsubscription.
+
+Verification: all 152 Virtual tests pass, including 11 fastening/feeder tests.
+Release and Virtual builds have zero warnings/errors; diff whitespace checks pass.
+No physical equipment was connected or operated.
+
+### ADC completion at the Stop boundary
+
+The full fastening regression now cancels result reception after the Virtual ADC
+has physically completed its first PCB bolt. Before the fix, the result collection
+was empty when the station stopped, leaving that completed bolt eligible for a
+repeat. AdcBoltHead now sends Stop first and, only when cancellation left a pending
+event without a received result, reads the latest result once. A new completed
+event returns through the original FastenAsync call and its captured assembly,
+bolt number and pass. Otherwise cancellation propagates normally.
+
+No cancellation delay, restart command, polling loop, pending-job cache or extra
+state was added. The one post-Stop read uses the bus response timeout rather than
+the already-cancelled operation token; Stop completion can wait for that response.
+The next station action still checks the cancelled token before doing any work.
+
+The existing flow test verifies Stop precedes this single read, only one fastening
+Start occurred before the stop, the first torque-NG result is retained, and restart
+still executes exactly the original six fastenings across both heat sinks and
+three passes. The incomplete-cancellation test now begins with a previous success
+to prove that result is not reused. Existing carrier-replacement coverage confirms
+the result stays on the original assembly rather than the replacement carrier.
+
+Verification: all 152 Virtual tests pass without adding a new test case. Release
+and Virtual builds report zero warnings/errors, and diff whitespace checks pass.
+No physical equipment was run; ADC timing remains to be checked on the machine.

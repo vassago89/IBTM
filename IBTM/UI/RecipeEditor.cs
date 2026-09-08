@@ -18,13 +18,18 @@ public partial class RecipeEditor(
     private string _imageRecipeName = recipe.Name;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanSave))]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     private string _name = recipe.Name;
+
+    [ObservableProperty]
+    private string? _error;
 
     [ObservableProperty]
     private IReadOnlyList<string> _recipes = store.GetRecipeNames();
     public Recipe Recipe => recipe;
     public string ActiveName => recipe.Name;
+    public bool CanSave => !string.IsNullOrWhiteSpace(Name);
 
     public event Action? Changed;
 
@@ -38,48 +43,26 @@ public partial class RecipeEditor(
         CommandShutdown.WaitAsync(CommandShutdown.Capture(SaveCommand, LoadCommand));
 
     [RelayCommand(CanExecute = nameof(CanSave))]
-    public async Task SaveAsync()
-    {
-        using var operation = operations.Link();
-        var name = Name.Trim();
-        if (recipe.CarrierImages.Count > 0
-            && !string.Equals(
-                _imageRecipeName,
-                name,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            recipe.CarrierImages = await Task.Run(() => store.CopyRecipeImages(
-                _imageRecipeName,
-                name,
-                recipe.CarrierImages));
-        }
-
-        recipe.Name = name;
-        _imageRecipeName = name;
-        Name = recipe.Name;
-        OnPropertyChanged(nameof(ActiveName));
-        await Task.Run(() => store.SaveRecipeAsync(recipe));
-        await SelectAsync(recipe.Name);
-        RefreshRecipes();
-    }
-
-    private bool CanSave() => !string.IsNullOrWhiteSpace(Name);
+    public Task SaveAsync() => SaveAsync((name, token) =>
+        store.SaveRecipeAsync(recipe, name, _imageRecipeName, token));
 
     [RelayCommand]
-    private async Task LoadAsync(string recipeName)
+    private Task LoadAsync(string recipeName) => RunAsync(async token =>
     {
-        using var operation = operations.Link();
-        recipe.ReplaceWith(await store.LoadRecipeAsync(recipeName));
+        var loaded = await store.LoadRecipeAsync(recipeName, token);
+        token.ThrowIfCancellationRequested();
+        recipe.ReplaceWith(loaded);
         _imageRecipeName = recipe.Name;
         Name = recipe.Name;
         OnPropertyChanged(nameof(ActiveName));
-        await SelectAsync(recipe.Name);
         Changed?.Invoke();
-    }
+        await SelectAsync(recipe.Name);
+    });
 
     [RelayCommand]
     private void New()
     {
+        Error = null;
         recipe.ReplaceWith(new Recipe { Name = "New" });
         _imageRecipeName = recipe.Name;
         Name = recipe.Name;
@@ -92,18 +75,56 @@ public partial class RecipeEditor(
     private Task SelectAsync(string recipeName)
     {
         selection.LastRecipeName = recipeName;
-        return selection.SaveAsync();
+        return Task.Run(() => store.Database.SaveSettings([selection]));
     }
 
-    public async Task SaveCarrierImagesAsync(
-        IReadOnlyList<CarrierImageTileView> images)
+    private async Task SavedAsync(string name)
     {
-        var name = Name.Trim();
-        recipe.CarrierImages = await Task.Run(() => store.SaveRecipeImages(
-            name,
-            images.Select(image => (image.Center, image.Image))));
+        recipe.Name = name;
         _imageRecipeName = name;
-        await SaveAsync();
+        Name = name;
+        OnPropertyChanged(nameof(ActiveName));
+        await SelectAsync(name);
+        RefreshRecipes();
+    }
+
+    public Task<bool> SaveCarrierImagesAsync(
+        IReadOnlyList<CarrierImageTileView> images, CancellationToken cancellationToken = default) =>
+        SaveAsync(async (name, token) =>
+            recipe.CarrierImages = await store.SaveRecipeImagesAsync(recipe, name, images, token), cancellationToken);
+
+    private Task<bool> SaveAsync(
+        Func<string, CancellationToken, Task> save, CancellationToken cancellationToken = default)
+    {
+        if (!CanSave)
+        {
+            Error = "Enter a recipe name before saving.";
+            return Task.FromResult(false);
+        }
+        var name = Name.Trim();
+        return RunAsync(async token =>
+        {
+            await save(name, token);
+            await SavedAsync(name);
+        }, cancellationToken);
+    }
+
+    private async Task<bool> RunAsync(
+        Func<CancellationToken, Task> action, CancellationToken cancellationToken = default)
+    {
+        Error = null;
+        try
+        {
+            using var operation = operations.Link(cancellationToken);
+            await action(operation.Token);
+            return true;
+        }
+        catch (OperationCanceledException) { return false; }
+        catch (Exception exception)
+        {
+            Error = $"Recipe operation failed: {exception.GetBaseException().Message}";
+            return false;
+        }
     }
 
     public Task<CarrierImageTileView[]> LoadCarrierImagesAsync(CancellationToken cancellationToken = default)

@@ -8,23 +8,22 @@ namespace IBTM.Inspection.Training;
 
 public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
 {
-    private readonly Func<string> _modelFile;
-    private string? _loadedModelFile;
+    private readonly Func<byte[]> _loadWeights;
     private TinyUnet? _model;
 
-    public TorchBoltRecessSegmenter(BoltInspectionSettings settings)
+    public TorchBoltRecessSegmenter(BoltTrainingStore store)
     {
-        _modelFile = () => Path.Combine(AppContext.BaseDirectory, settings.ModelFile);
+        _loadWeights = () => store.LoadModel().Weights;
     }
 
-    public TorchBoltRecessSegmenter(string modelFile)
+    internal TorchBoltRecessSegmenter(byte[] weights)
     {
-        _modelFile = () => modelFile;
+        _loadWeights = () => weights;
     }
 
     public void CheckReady()
     {
-        if (_loadedModelFile != _modelFile())
+        if (_model is null)
         {
             Reload();
         }
@@ -32,11 +31,13 @@ public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
 
     public void Reload()
     {
-        var modelFile = _modelFile();
+        _model?.Dispose();
+        _model = null;
+        using var stream = new MemoryStream(_loadWeights(), writable: false);
         var model = new TinyUnet();
         try
         {
-            model.load(modelFile);
+            model.load(stream);
             model.eval();
         }
         catch
@@ -45,9 +46,7 @@ public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
             throw;
         }
 
-        _model?.Dispose();
         _model = model;
-        _loadedModelFile = modelFile;
     }
 
     public float[] Segment(ImageFrame image)
@@ -73,15 +72,12 @@ public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
         var size = IBoltRecessSegmenter.InputSize;
         var input = new float[ImageFrame.ColorChannelCount * size * size];
         var plane = size * size;
-        var left = (image.Width - size) / 2;
-        var top = (image.Height - size) / 2;
 
         for (var y = 0; y < size; y++)
         {
             for (var x = 0; x < size; x++)
             {
-                var source = ((top + y) * image.Stride)
-                             + ((left + x) * ImageFrame.ColorChannelCount);
+                var source = y * image.Stride + x * ImageFrame.ColorChannelCount;
                 var target = (y * size) + x;
                 input[target] = image.Pixels[source + ImageFrame.RedChannel]
                                 / (float)byte.MaxValue;

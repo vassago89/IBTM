@@ -20,6 +20,8 @@ public sealed record ImageMarker(
     string Label,
     bool Selected = false);
 
+public sealed record ImageRegion(Rect Bounds, bool Selected = false, string Label = "");
+
 public sealed class ImageTeachingView : FrameworkElement
 {
     private const double MinimumZoom = 1;
@@ -52,6 +54,8 @@ public sealed class ImageTeachingView : FrameworkElement
     private double _zoom = MinimumZoom;
     private Vector _pan;
     private Point? _panStart;
+    private Point? _regionStart;
+    private Rect? _draftRegion;
     private (CarrierImageTileView Tile, Rect World)[] _tileLayout = [];
     private Rect? _world;
     private MapView? _layout;
@@ -93,9 +97,18 @@ public sealed class ImageTeachingView : FrameworkElement
             nameof(ClickCommand),
             typeof(ICommand),
             typeof(ImageTeachingView));
+    public static readonly DependencyProperty RegionCommandProperty =
+        DependencyProperty.Register(nameof(RegionCommand), typeof(ICommand), typeof(ImageTeachingView));
+    public static readonly DependencyProperty RegionsProperty = Register(
+        nameof(Regions), typeof(IReadOnlyList<ImageRegion>), OnMarkersChanged);
+    public static readonly DependencyProperty SourceRegionProperty = Register(
+        nameof(SourceRegion), typeof(Rect?), OnMapChanged);
+    public static readonly DependencyProperty SourceOverlayProperty = Register(
+        nameof(SourceOverlay), typeof(BitmapSource), OnMapChanged);
 
     public ImageTeachingView()
     {
+        Focusable = true;
         _visuals = new VisualCollection(this)
         {
             _mapVisual,
@@ -152,6 +165,27 @@ public sealed class ImageTeachingView : FrameworkElement
         set => SetValue(ClickCommandProperty, value);
     }
 
+    public ICommand? RegionCommand
+    {
+        get => (ICommand?)GetValue(RegionCommandProperty);
+        set => SetValue(RegionCommandProperty, value);
+    }
+    public IReadOnlyList<ImageRegion>? Regions
+    {
+        get => (IReadOnlyList<ImageRegion>?)GetValue(RegionsProperty);
+        set => SetValue(RegionsProperty, value);
+    }
+    public Rect? SourceRegion
+    {
+        get => (Rect?)GetValue(SourceRegionProperty);
+        set => SetValue(SourceRegionProperty, value);
+    }
+    public BitmapSource? SourceOverlay
+    {
+        get => (BitmapSource?)GetValue(SourceOverlayProperty);
+        set => SetValue(SourceOverlayProperty, value);
+    }
+
     protected override int VisualChildrenCount => _visuals.Count;
 
     protected override Visual GetVisualChild(int index) => _visuals[index];
@@ -167,9 +201,18 @@ public sealed class ImageTeachingView : FrameworkElement
         using var drawingContext = _mapVisual.RenderOpen();
         if (Source is not null)
         {
+            var fitted = Fit(Source.PixelWidth, Source.PixelHeight);
             drawingContext.DrawImage(
                 Source,
-                Fit(Source.PixelWidth, Source.PixelHeight));
+                fitted);
+            if (SourceRegion is { } region)
+            {
+                var scale = fitted.Width / Source.PixelWidth;
+                var bounds = new Rect(fitted.X + region.X * scale, fitted.Y + region.Y * scale,
+                    region.Width * scale, region.Height * scale);
+                if (SourceOverlay is not null) drawingContext.DrawImage(SourceOverlay, bounds);
+                drawingContext.DrawRectangle(null, SelectedMarkerPen, bounds);
+            }
             return;
         }
 
@@ -209,8 +252,23 @@ public sealed class ImageTeachingView : FrameworkElement
                 WorldPoint(marker.X, marker.Y, layout),
                 marker);
         }
+        foreach (var region in Regions ?? [])
+        {
+            DrawRegion(drawingContext, region.Bounds, layout, region.Selected);
+            if (region.Label.Length == 0) continue;
+            var corner = WorldPoint(region.Bounds.X, region.Bounds.Y, layout);
+            var label = new FormattedText(region.Label, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
+                MarkerTypeface, 13, region.Selected ? SelectedMarkerStroke : MarkerStroke,
+                VisualTreeHelper.GetDpi(this).PixelsPerDip);
+            drawingContext.DrawText(label, new Point(corner.X + 5, corner.Y + 4));
+        }
+        if (_draftRegion is { } draft) DrawRegion(drawingContext, draft, layout, true);
         drawingContext.Pop();
     }
+
+    private static void DrawRegion(DrawingContext drawing, Rect region, MapView layout, bool selected) =>
+        drawing.DrawRectangle(null, selected ? SelectedMarkerPen : MarkerPen,
+            WorldRect(region.X, region.Y, region.Width, region.Height, layout));
 
     private void DrawCamera()
     {
@@ -229,7 +287,7 @@ public sealed class ImageTeachingView : FrameworkElement
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
-        if (_layout is not { } layout || ClickCommand is null)
+        if (_layout is not { } layout)
         {
             return;
         }
@@ -258,7 +316,15 @@ public sealed class ImageTeachingView : FrameworkElement
             return;
         }
 
-        if (ClickCommand.CanExecute(position))
+        if (RegionCommand?.CanExecute(Rect.Empty) == true)
+        {
+            Focus();
+            _regionStart = position;
+            _draftRegion = new Rect(position, position);
+            CaptureMouse();
+            e.Handled = true;
+        }
+        else if (ClickCommand?.CanExecute(position) == true)
         {
             ClickCommand.Execute(position);
         }
@@ -267,7 +333,7 @@ public sealed class ImageTeachingView : FrameworkElement
     protected override void OnMouseWheel(MouseWheelEventArgs e)
     {
         base.OnMouseWheel(e);
-        if (_layout is not { } before)
+        if (_regionStart is not null || _layout is not { } before)
         {
             return;
         }
@@ -314,6 +380,11 @@ public sealed class ImageTeachingView : FrameworkElement
     {
         base.OnMouseMove(e);
         var current = e.GetPosition(this);
+        if (_regionStart is { } start && _layout is { } regionLayout)
+        {
+            _draftRegion = new Rect(start, ScreenToWorld(current, regionLayout));
+            DrawMarkers();
+        }
         if (_panStart is { } previous)
         {
             _pan += current - previous;
@@ -344,8 +415,42 @@ public sealed class ImageTeachingView : FrameworkElement
         ReleaseMouseCapture();
     }
 
+    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        base.OnMouseLeftButtonUp(e);
+        var region = _draftRegion;
+        CancelRegion();
+        if (region is { Width: > 0, Height: > 0 } && RegionCommand?.CanExecute(region.Value) == true)
+            RegionCommand.Execute(region.Value);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Key != Key.Escape || _regionStart is null) return;
+        CancelRegion();
+        e.Handled = true;
+    }
+
+    protected override void OnLostMouseCapture(MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        _regionStart = null;
+        _draftRegion = null;
+        DrawMarkers();
+    }
+
+    private void CancelRegion()
+    {
+        _regionStart = null;
+        _draftRegion = null;
+        if (_panStart is null) ReleaseMouseCapture();
+        DrawMarkers();
+    }
+
     private void RebuildMap()
     {
+        CancelRegion();
         if (!HasMap)
         {
             _tileLayout = [];

@@ -1,7 +1,9 @@
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using IBTM.UI;
+using IBTM.Storage;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM;
@@ -46,21 +48,44 @@ public partial class App : System.Windows.Application
 
         base.OnStartup(e);
 
-        var store = new RecipeStore();
-        if (DevelopmentProfile.IsEnabled)
+        MachineStore database;
+        RecipeStore store;
+        MachineSettings settings;
+        Recipe recipe;
+        try
         {
-            await DevelopmentProfile.PrepareAsync(store);
+            database = await Task.Run(() =>
+            {
+                MachineStore.RestorePending();
+                var value = new MachineStore();
+                LegacyMachineImport.Run(value, System.AppContext.BaseDirectory);
+                return value;
+            });
+            store = new RecipeStore(database);
+            if (DevelopmentProfile.IsEnabled)
+            {
+                await DevelopmentProfile.PrepareAsync(store, database);
+            }
+            settings = await MachineSettings.LoadAsync(database);
+            if (DevelopmentProfile.IsEnabled)
+            {
+                DevelopmentProfile.UseVirtualHardware(settings);
+            }
+            recipe = settings.RecipeSelection.LastRecipeName is { } recipeName
+                ? await store.LoadRecipeAsync(recipeName)
+                : new Recipe();
         }
-        var settings = await MachineSettings.LoadAsync();
-        if (DevelopmentProfile.IsEnabled)
+        catch (System.Exception exception)
         {
-            DevelopmentProfile.UseVirtualHardware(settings);
+            MessageBox.Show(
+                $"Machine settings or recipes could not be loaded. Hardware was not initialized.\n\n{exception.GetBaseException().Message}",
+                "Database Startup Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown();
+            return;
         }
-        var recipe = settings.RecipeSelection.LastRecipeName is { } recipeName
-            ? await store.LoadRecipeAsync(recipeName)
-            : new Recipe();
 
         var services = new ServiceCollection()
+            .AddSingleton(database)
             .AddSingleton(store)
             .AddIbtmApplication(settings, recipe);
         var serviceProvider = services.BuildServiceProvider(

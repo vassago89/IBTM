@@ -72,7 +72,7 @@ public sealed class BoltFasteningGantry
         && _motion.GetAxisState(MotionAxis.Z).InPosition
         && _motion.IsAtHorizontalZ;
 
-    internal bool IsAt(BoltPoint bolt) =>
+    internal bool IsAt(BoltTarget bolt) =>
         IsAt(_settings.GetBoltPosition(bolt, _carrierReference));
 
     public bool HasReference(FasteningHead head)
@@ -96,6 +96,7 @@ public sealed class BoltFasteningGantry
             (on, token) => SetVacuumAsync(FasteningHead.Pickup, on, token)),
         new(OutputIo.ShootingHeadVacuumPump,
             (on, token) => SetVacuumAsync(FasteningHead.Shooting, on, token)),
+        new(OutputIo.ShootBolt, SetManualShootingAsync, RequiresHandler: false, HoldToRun: true),
     ];
 
     public void InitializeMotion() => _motion.Initialize();
@@ -148,14 +149,17 @@ public sealed class BoltFasteningGantry
             _settings.Motion.ZSpeed,
             cancellationToken);
 
-    public Task MoveToAsync(
-        double x,
-        double y,
-        double z,
-        CancellationToken cancellationToken = default)
+    public async Task MoveToPickupPositionAsync(CancellationToken cancellationToken = default)
     {
-        EnsureCanMoveHorizontal(cancellationToken);
-        return _motion.MoveToAsync(x, y, z, cancellationToken);
+        await MoveToPickupXYAsync(cancellationToken);
+        await SetPickupHeadDownAsync(true, cancellationToken);
+        await MoveToPickupZAsync(cancellationToken);
+    }
+
+    public async Task ReturnFromPickupAsync(CancellationToken cancellationToken = default)
+    {
+        await MoveToSafeZAsync(cancellationToken);
+        await SetPickupHeadDownAsync(false, cancellationToken);
     }
 
     public Task JogAsync(
@@ -186,26 +190,16 @@ public sealed class BoltFasteningGantry
         await _pickupHead.CheckReadyAsync(cancellationToken);
     }
 
-    internal async Task MoveToBoltAsync(
-        BoltPoint bolt,
+    internal Task MoveToBoltAsync(
+        BoltTarget bolt,
         CancellationToken cancellationToken = default)
     {
         var position = _settings.GetBoltPosition(
             bolt,
             _carrierReference);
-        if (bolt.Head == FasteningHead.Shooting)
-        {
-            await _io.SetOutputAndWaitAsync(
-                OutputIo.ShootingEscapeForward,
-                false,
-                cancellationToken);
-        }
-
-        EnsureCanMoveHorizontal(cancellationToken);
-        await _motion.MoveToAsync(
+        return MoveToXYAsync(
             position.X,
             position.Y,
-            position.Z,
             cancellationToken);
     }
 
@@ -257,16 +251,24 @@ public sealed class BoltFasteningGantry
             SetPickupHeadDownAsync(false, cancellationToken),
             RaiseShootingHeadAsync(cancellationToken));
 
-    internal Task MoveToPickupPositionAsync(
+    internal async Task MoveToPickupXYAsync(
         CancellationToken cancellationToken = default)
     {
+        await RaiseCylindersAsync(cancellationToken);
         EnsureCanMoveHorizontal(cancellationToken);
-        return _motion.MoveToAsync(
+        await _motion.MoveToXYAsync(
             _settings.PickupPosition.X,
             _settings.PickupPosition.Y,
-            _settings.PickupPosition.Z,
+            _settings.Motion.HorizontalSpeed,
             cancellationToken);
     }
+
+    internal Task MoveToPickupZAsync(
+        CancellationToken cancellationToken = default) =>
+        _motion.MoveZAsync(
+            _settings.PickupPosition.Z,
+            _settings.Motion.ZSpeed,
+            cancellationToken);
 
     internal Task PickUpBoltAsync(
         CancellationToken cancellationToken = default) =>
@@ -283,24 +285,18 @@ public sealed class BoltFasteningGantry
             down,
             cancellationToken);
 
-    internal async Task LoadShootingBoltAsync(
-        CancellationToken cancellationToken = default)
-    {
-        await _io.SetOutputAndWaitAsync(
-            OutputIo.ShootingEscapeForward,
-            false,
-            cancellationToken);
-        await _io.WaitForInputAsync(
-            InputIo.ShootingTubeBoltDetected,
-            false,
-            cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        _io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
-        await _io.SetOutputAndWaitAsync(
+    internal Task AdvanceShootingEscapeAsync(
+        CancellationToken cancellationToken = default) =>
+        _io.SetOutputAndWaitAsync(
             OutputIo.ShootingEscapeForward,
             true,
             cancellationToken);
+
+    internal async Task ShootBoltAsync(
+        CancellationToken cancellationToken = default)
+    {
         cancellationToken.ThrowIfCancellationRequested();
+        _io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
         using var passage = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken);
         var boltPassed = _io.WaitForInputAsync(
@@ -352,6 +348,20 @@ public sealed class BoltFasteningGantry
 
     public void StopShooting() =>
         _io.SetOutput(OutputIo.ShootBolt, false);
+
+    private async Task SetManualShootingAsync(bool on, CancellationToken cancellationToken)
+    {
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            _io.SetOutput(OutputIo.ShootBolt, on);
+            if (on) await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            StopShooting();
+        }
+    }
 
     internal void DiscardPendingResults()
     {

@@ -97,20 +97,12 @@ public partial class StationTeachingViewModel
             cancellationToken);
     }
 
-    [RelayCommand(CanExecute = nameof(CanMoveToXY))]
-    private Task MoveToXYAsync(CancellationToken cancellationToken)
-    {
-        var point = SelectedPoint!;
-        return RunMotionAsync(
-            token => _fasteningGantry.MoveToXYAsync(point.X, point.Y, token),
-            cancellationToken);
-    }
+    [RelayCommand(CanExecute = nameof(CanReturnFromPickup))]
+    private Task ReturnFromPickupAsync(CancellationToken cancellationToken) =>
+        RunMotionAsync(_fasteningGantry.ReturnFromPickupAsync, cancellationToken);
 
-    private bool CanMoveToXY() =>
-        SelectedPoint is { Target: TeachingTarget.BoltPointZ } point
-        && CanUseCurrentHandler()
-        && _fasteningGantry.CanMoveHorizontal
-        && _fasteningSettings.HasBoltXY(point.Position.Bolt!, _carrierReference);
+    private bool CanReturnFromPickup() =>
+        SelectedMotionGroup == MotionGroup.BoltFastening && CanUseCurrentHandler();
 
     private Task MovePointAsync(
         TeachingPoint point,
@@ -152,30 +144,25 @@ public partial class StationTeachingViewModel
     private Task MoveFasteningPointAsync(
         TeachingPoint point,
         CancellationToken cancellationToken) =>
-        point.TeachMode switch
+        point switch
         {
-            TeachMode.XYOnly => _fasteningGantry.MoveToXYAsync(
+            { Target: TeachingTarget.BoltPickup } =>
+                _fasteningGantry.MoveToPickupPositionAsync(cancellationToken),
+            { TeachMode: TeachMode.XYOnly } => _fasteningGantry.MoveToXYAsync(
                 point.X,
                 point.Y,
                 cancellationToken),
-            TeachMode.ZOnly
-                when point.Target != TeachingTarget.BoltPointZ =>
+            { TeachMode: TeachMode.ZOnly } =>
                 _fasteningGantry.MoveZAsync(
                     point.Z!.Value,
                     cancellationToken),
-            _ => _fasteningGantry.MoveToAsync(
-                point.X,
-                point.Y,
-                point.Z!.Value,
-                cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(point)),
         };
 
     private bool CanMoveToPoint() =>
         SelectedPoint is not null
         && CanUseCurrentHandler()
-        && (SelectedPoint.TeachMode == TeachMode.ZOnly
-            && SelectedPoint.Target != TeachingTarget.BoltPointZ
-            || CanMoveHorizontal())
+        && (SelectedPoint.TeachMode == TeachMode.ZOnly || CanMoveHorizontal())
         && SelectedPoint.Position.HasPosition;
 
     private bool CanMoveHorizontal() => SelectedMotionGroup switch
@@ -186,9 +173,6 @@ public partial class StationTeachingViewModel
         _ => false,
     };
 
-    protected override bool CanUseTeachingOutputs =>
-        SelectedMotionGroup != MotionGroup.InspectionGantry || _units.NgCarrierTransfer;
-
     protected override bool CanUseCurrentHandler() =>
         _state.ManualControlsEnabled
         && (SelectedMotionGroup != MotionGroup.PcbPlacementHandler
@@ -196,17 +180,21 @@ public partial class StationTeachingViewModel
 
     protected override void NotifyManualTeachingCommands()
     {
-        if (IsCameraLive && !_state.CanOperate)
+        OnPropertyChanged(nameof(CanEditInspectionRecipe));
+        if (IsCameraLive && (!_state.ManualMode || !_state.SafetyReady || _state.IsError))
         {
             StopCamera();
-            LiveImage = null;
         }
         NotifyMotionCommands();
         TeachCurrentPositionCommand.NotifyCanExecuteChanged();
         MoveToPointCommand.NotifyCanExecuteChanged();
-        MoveToXYCommand.NotifyCanExecuteChanged();
+        ReturnFromPickupCommand.NotifyCanExecuteChanged();
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
         CaptureCarrierImagesCommand.NotifyCanExecuteChanged();
+        CaptureInspectionCommand.NotifyCanExecuteChanged();
+        ReinspectImageCommand.NotifyCanExecuteChanged();
+        CollectBoltImagesCommand.NotifyCanExecuteChanged();
+        TeachImageRegionCommand.NotifyCanExecuteChanged();
         TeachImagePointCommand.NotifyCanExecuteChanged();
         AddBoltPointCommand.NotifyCanExecuteChanged();
         RemoveBoltPointCommand.NotifyCanExecuteChanged();

@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -12,12 +14,71 @@ using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.UI;
+using IBTM.Storage;
+using Microsoft.Data.Sqlite;
 using Xunit;
 
 namespace IBTM.Virtual.Tests;
 
 public sealed class RecipeTests
 {
+    [Fact]
+    public async Task PcbPatternIsSharedAndStoredOnceWhileTargetsUseEachPcbOrigin()
+    {
+        var recipe = new Recipe { Name = "Shared PCB" };
+        var layout = recipe.Pcb;
+        layout.Width = layout.Height = 40;
+        layout.Origins[HeatSinkSlot.HeatSink1] = new() { X = 10, Y = 20 };
+        layout.Origins[HeatSinkSlot.HeatSink2] = new() { X = 70, Y = 25 };
+        layout.BoltPoints.Add(new() { Number = 1, X = 3, Y = 4 });
+        layout.DataMatrix = new(7, 8, 4, 4);
+        var targets = layout.GetBolts().ToArray();
+        Assert.Same(targets[0].Point, targets[1].Point);
+        Assert.Equal((13d, 24d), (targets[0].X, targets[0].Y));
+        Assert.Equal((73d, 29d), (targets[1].X, targets[1].Y));
+
+        var pins = new CarrierReferenceSettings
+        {
+            UpperLeftLocatingPin = new() { X = 100, Y = 200 },
+            LowerRightLocatingPin = new() { X = 200, Y = 300 },
+        };
+        var inspection = new InspectionGantrySettings();
+        var fastening = new BoltFasteningSettings
+        {
+            ShootingHead = new()
+            {
+                UpperLeftLocatingPin = new() { X = 300, Y = 400 },
+                LowerRightLocatingPin = new() { X = 200, Y = 500 },
+            },
+        };
+        var second = inspection.GetBoltTeachingPositions([targets[1]], pins).Single();
+        second.Apply(new() { X = 175, Y = 230 }); // PCB 2 local (5, 5), also updates PCB 1.
+        Assert.Equal((5d, 5d), (layout.BoltPoints[0].X, layout.BoltPoints[0].Y));
+        var firstCamera = inspection.GetBoltPosition(targets[0], pins);
+        var secondHead = fastening.GetBoltPosition(targets[1], pins);
+        Assert.Equal((115, 225), (firstCamera.X, firstCamera.Y));
+        Assert.Equal(270, secondHead.X, 6);
+        Assert.Equal(475, secondHead.Y, 6);
+
+        layout.Origins[HeatSinkSlot.HeatSink2] = new() { X = 80, Y = 30 };
+        layout.Width = 50; // Extents never scale the shared pattern.
+        Assert.Equal((85d, 35d), (targets[1].X, targets[1].Y));
+        Assert.Equal(new PcbRegion(87, 38, 4, 4), layout.GetDataMatrix(HeatSinkSlot.HeatSink2));
+        Assert.Equal((5d, 5d), (layout.BoltPoints[0].X, layout.BoltPoints[0].Y));
+
+        var (_, store) = CreateStore();
+        var editor = new RecipeEditor(store, new(), recipe, new());
+        await editor.SaveAsync();
+        var loaded = await store.LoadRecipeAsync(recipe.Name);
+        Assert.Single(loaded.Pcb.BoltPoints);
+        Assert.Equal(2, loaded.Pcb.GetBolts().Count());
+        Assert.Equal(layout.DataMatrix, loaded.Pcb.DataMatrix);
+        Assert.Equal(layout.GetRegion(HeatSinkSlot.HeatSink2), loaded.Pcb.GetRegion(HeatSinkSlot.HeatSink2));
+        layout.Origins.Remove(HeatSinkSlot.HeatSink2);
+        Assert.False(layout.IsDefined);
+        Assert.Null(targets[1].X); // No guessed zero-origin target for an untaught PCB.
+    }
+
     [Fact]
     public void TeachingMapsDoNotRequireAnUnrelatedUnitAndKeepToolCentersOnTargets()
     {
@@ -31,7 +92,8 @@ public sealed class RecipeTests
         var origin = map.Inspection(new(10, 20, 0));
         Assert.Equal(MachinePlan.InspectionUpperLeft.X, origin.X + MachinePlan.CameraCenter.X, 6);
         Assert.Equal(MachinePlan.InspectionUpperLeft.Y, origin.Y + MachinePlan.CameraCenter.Y, 6);
-        var bolt = new BoltPoint { X = 30, Y = 20, Z = 5, Head = FasteningHead.Shooting };
+        var bolt = new BoltTarget(new() { X = 30, Y = 20, Head = FasteningHead.Shooting },
+            HeatSinkSlot.HeatSink1, VirtualTest.TaughtPcbLayout());
         var camera = map.Inspection(new(40, 40, 0));
         var mark = map.InspectionTarget(bolt);
         Assert.Equal(camera.X + MachinePlan.CameraCenter.X, mark.X + MachinePlan.InspectionContentOrigin.X, 6);
@@ -129,6 +191,7 @@ public sealed class RecipeTests
         Assert.All(pins, pin => Assert.Equal(TeachMode.XYOnly, pin.Mode));
         var fastening = new BoltFasteningSettings
         {
+            SafeZ = 5,
             ShootingHead = new()
             {
                 UpperLeftLocatingPin = new() { X = 300, Y = 400 },
@@ -136,32 +199,32 @@ public sealed class RecipeTests
             },
         };
         var bolt = new BoltPoint { Number = 1 };
-        var recipe = new BoltFasteningRecipe { BoltPoints = [bolt] };
-        var image = new TeachingPoint(inspection.GetBoltTeachingPositions([bolt], reference).Single());
-        var height = new TeachingPoint(fastening.GetTeachingPositions(recipe, reference)
-            .Single(p => p.Target == TeachingTarget.BoltPointZ));
+        var recipe = VirtualTest.TaughtPcbLayout();
+        recipe.BoltPoints = [bolt];
+        var target = recipe.GetBolts(HeatSinkSlot.HeatSink1).Single();
+        var image = new TeachingPoint(inspection.GetBoltTeachingPositions([target], reference).Single());
+        var position = new TeachingPoint(fastening.GetTeachingPositions(recipe, HeatSinkSlot.HeatSink1, reference)
+            .Single(p => p.Target == TeachingTarget.BoltPosition));
         Assert.False(image.Position.HasPosition);
         Assert.Equal("—", image.PositionLabel);
-        Assert.False(height.Position.HasPosition);
-        Assert.Null(height.Z);
+        Assert.False(position.Position.HasPosition);
+        Assert.False(position.Position.CanTeach);
+        Assert.Equal(TeachMode.XYOnly, position.TeachMode);
         image.Teach(110, 220, 0);
         image.Apply();
         image.Refresh();
         Assert.Equal($"{10d:F3}, {20d:F3}", image.PositionLabel);
         Assert.Equal((10d, 20d), (bolt.X, bolt.Y));
         Assert.True(image.Position.HasPosition);
-        Assert.False(height.Position.HasPosition);
-        height.Refresh();
-        Assert.Equal(280, height.X, 6);
-        Assert.Equal(410, height.Y, 6);
-        Assert.Null(height.Z);
-        height.Teach(999, 999, 5);
-        height.Apply();
-        height.Refresh();
-        Assert.True(height.Position.HasPosition);
-        Assert.Equal(280, height.X, 6);
-        Assert.Equal(410, height.Y, 6);
-        Assert.Equal(5, height.Z);
+        position.Refresh();
+        Assert.True(position.Position.HasPosition);
+        Assert.Equal(280, position.X, 6);
+        Assert.Equal(410, position.Y, 6);
+        Assert.Equal(fastening.SafeZ, position.Z);
+        fastening.SafeZ = 7;
+        position.Refresh();
+        Assert.Equal(7, position.Z);
+        Assert.All(recipe.GetBolts(), bolt => Assert.Equal(7, fastening.GetBoltPosition(bolt, reference).Z));
 
         var lowerRight = reference.LowerRightLocatingPin;
         var upperLeft = new TeachingPoint(pins
@@ -182,7 +245,7 @@ public sealed class RecipeTests
             bolt,
             new() { Number = 3, Head = FasteningHead.Pickup },
         ];
-        var ordered = fastening.GetTeachingPositions(recipe, reference);
+        var ordered = fastening.GetTeachingPositions(recipe, HeatSinkSlot.HeatSink1, reference);
         Assert.Equal(TeachingTarget.SafeZ, ordered[0].Target);
         Assert.Equal(new[] { 1, 2, 3 }, ordered.Where(point => point.Bolt is not null).Select(point => point.Bolt!.Number));
         Assert.Equal(new[] { 2, 1, 3 }, recipe.BoltPoints.Select(point => point.Number));
@@ -191,9 +254,15 @@ public sealed class RecipeTests
     [Fact]
     public async Task RecipeSaveAndLoadKeepTheirOperationActive()
     {
-        var recipe = new Recipe { Name = $"RecipeActivity-{Guid.NewGuid():N}" };
+        var recipe = new Recipe
+        {
+            Name = $"RecipeActivity-{Guid.NewGuid():N}",
+            BoltInspection = new() { RegionSizePixels = 192, MinimumMaskRatio = 0.02 },
+        };
+        var savedName = recipe.Name;
         var operations = new OperationCancellation();
-        var editor = new RecipeEditor(new RecipeStore(),
+        var (database, store) = CreateStore();
+        var editor = new RecipeEditor(store,
             new RecipeSelectionSettings(), recipe, operations);
         bool? activeAtChange = null;
         editor.PropertyChanged += (_, args) =>
@@ -202,126 +271,124 @@ public sealed class RecipeTests
                 activeAtChange = operations.HasActiveOperations;
         };
 
+        editor.Name = " ";
+        Assert.False(editor.CanSave);
+        Assert.False(editor.SaveCommand.CanExecute(null));
+        await editor.SaveAsync(); // Direct autosave calls use the same name check.
+        Assert.NotNull(editor.Error);
+        Assert.False(await editor.SaveCarrierImagesAsync([]));
+        Assert.Empty(database.GetRecipeNames());
+        Assert.Equal(savedName, recipe.Name);
+        editor.Name = savedName;
+
         await editor.SaveAsync();
+        Assert.Null(editor.Error);
         Assert.True(activeAtChange);
         Assert.False(operations.HasActiveOperations);
+
+        editor.NewCommand.Execute(null);
+        var defaults = new BoltInspectionRecipe();
+        Assert.Equal(defaults.RegionSizePixels, recipe.BoltInspection.RegionSizePixels);
+        Assert.Equal(defaults.MinimumMaskRatio, recipe.BoltInspection.MinimumMaskRatio);
 
         activeAtChange = null;
-        await editor.LoadCommand.ExecuteAsync(recipe.Name);
+        await editor.LoadCommand.ExecuteAsync(savedName);
         Assert.True(activeAtChange);
+        Assert.False(operations.HasActiveOperations);
+        Assert.Equal(192, recipe.BoltInspection.RegionSizePixels);
+        Assert.Equal(0.02, recipe.BoltInspection.MinimumMaskRatio);
+
+        editor.Name = "Other";
+        await editor.SaveAsync();
+        editor.NewCommand.Execute(null);
+        var changed = false;
+        editor.Changed += () => changed = true;
+        using var connection = new SqliteConnection($"Data Source={database.DatabaseFile}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TRIGGER FailSelection BEFORE UPDATE ON Settings WHEN NEW.Key = 'RecipeSelectionSettings' BEGIN SELECT RAISE(ABORT, 'test failure'); END";
+        command.ExecuteNonQuery();
+        await editor.LoadCommand.ExecuteAsync(savedName);
+        Assert.Contains("test failure", editor.Error);
+        Assert.True(changed); // The loaded recipe and its views agree even if last-selection persistence fails.
+        Assert.Equal(192, recipe.BoltInspection.RegionSizePixels);
         Assert.False(operations.HasActiveOperations);
     }
 
     [Fact]
-    public async Task FailedCarrierRecapturePreservesSavedImages()
+    public async Task RecipeImagesAndSaveAsAreAtomic()
     {
-        var recipe = new Recipe { Name = $"ImageSave-{Guid.NewGuid():N}" };
-        var store = new RecipeStore();
-        var editor = new RecipeEditor(store, new RecipeSelectionSettings(), recipe, new());
-        var image = BitmapSource.Create(320, 240, 96, 96, PixelFormats.Bgr24,
-            null, new byte[320 * 240 * 3], 320 * 3);
-        image.Freeze();
-        await editor.SaveCarrierImagesAsync([
-            new(1, new AxisPosition { X = 10, Y = 20 }, image),
-            new(2, new AxisPosition { X = 30, Y = 20 }, image),
-        ]);
-        CarrierImageTileView[] captured = [
-            new(1, new AxisPosition { X = 11, Y = 21 }, image),
-            new(2, new AxisPosition { X = 31, Y = 21 }, image),
+        var (database, store) = CreateStore();
+        var source = new Recipe { Name = "Source" };
+        var target = new Recipe { Name = "Target" };
+        var sourceEditor = new RecipeEditor(store, new(), source, new());
+        var targetEditor = new RecipeEditor(store, new(), target, new());
+        CarrierImageTileView[] Images(double x, byte value) =>
+        [
+            new(1, new() { X = x }, Image(value)),
+            new(2, new() { X = x + 1 }, Image(value)),
         ];
-
-        var blockedFile = Path.Combine(AppContext.BaseDirectory,
-            "Recipes", recipe.Name, "Carrier", "0004.png");
-        Directory.CreateDirectory(blockedFile);
-        try
-        {
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-                editor.SaveCarrierImagesAsync(captured));
-        }
-        finally
-        {
-            Directory.Delete(blockedFile);
-        }
-
-        var saved = await store.LoadRecipeAsync(recipe.Name);
-        var reopened = new RecipeEditor(store, new RecipeSelectionSettings(), saved, new());
-        Assert.Equal(2, (await reopened.LoadCarrierImagesAsync()).Length);
-        Assert.Equal([10d, 30d], saved.CarrierImages.Select(tile => tile.Center.X));
-        Assert.Equal([10d, 30d], recipe.CarrierImages.Select(tile => tile.Center.X));
-
-        var blockedRecipe = Path.Combine(AppContext.BaseDirectory,
-            "Recipes", recipe.Name, "Recipe.json.tmp");
-        Directory.CreateDirectory(blockedRecipe);
-        try
-        {
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-                editor.SaveCarrierImagesAsync(captured));
-        }
-        finally
-        {
-            Directory.Delete(blockedRecipe);
-        }
-
-        saved = await store.LoadRecipeAsync(recipe.Name);
-        reopened = new RecipeEditor(store, new RecipeSelectionSettings(), saved, new());
-        Assert.Equal(2, (await reopened.LoadCarrierImagesAsync()).Length);
-        Assert.Equal([10d, 30d], saved.CarrierImages.Select(tile => tile.Center.X));
-        await editor.SaveAsync();
-        saved = await store.LoadRecipeAsync(recipe.Name);
-        Assert.Equal([11d, 31d], saved.CarrierImages.Select(tile => tile.Center.X));
-        Assert.Equal(2, Directory.GetFiles(Path.GetDirectoryName(blockedFile)!, "*.png").Length);
-        Assert.All((await editor.LoadCarrierImagesAsync()), tile =>
-        {
-            Assert.Equal(320, tile.Image.PixelWidth);
-            Assert.Equal(240, tile.Image.PixelHeight);
-        });
-    }
-
-    [Fact]
-    public async Task FailedRecipeCopyPreservesTargetImages()
-    {
-        var store = new RecipeStore();
-        var source = new Recipe { Name = $"CopySource-{Guid.NewGuid():N}" };
-        var target = new Recipe { Name = $"CopyTarget-{Guid.NewGuid():N}" };
-        var sourceEditor = new RecipeEditor(store, new RecipeSelectionSettings(), source, new());
-        var targetEditor = new RecipeEditor(store, new RecipeSelectionSettings(), target, new());
-        BitmapSource Image(byte value)
+        static BitmapSource Image(byte value)
         {
             var image = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Bgr24,
                 null, new byte[] { value, value, value }, 3);
             image.Freeze();
             return image;
         }
+        await sourceEditor.SaveCarrierImagesAsync(Images(1, 10));
+        await targetEditor.SaveCarrierImagesAsync(Images(10, 100));
+        var original = database.LoadRecipeImage(target.Name, 1);
+        using var connection = new SqliteConnection($"Data Source={database.DatabaseFile}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TRIGGER FailImage BEFORE INSERT ON RecipeImages WHEN NEW.Number = 2 BEGIN SELECT RAISE(ABORT, 'test failure'); END";
+        command.ExecuteNonQuery();
+        Assert.False(await targetEditor.SaveCarrierImagesAsync(Images(30, 200)));
+        Assert.Contains("test failure", targetEditor.Error);
+        Assert.Equal([10d, 11d], target.CarrierImages.Select(tile => tile.Center.X));
+        Assert.Equal([10d, 11d], (await store.LoadRecipeAsync("Target")).CarrierImages.Select(tile => tile.Center.X));
+        Assert.Equal(original, database.LoadRecipeImage("Target", 1));
 
-        await sourceEditor.SaveCarrierImagesAsync([
-            new(1, new AxisPosition { X = 1 }, Image(10)),
-            new(2, new AxisPosition { X = 2 }, Image(20)),
-        ]);
-        await targetEditor.SaveCarrierImagesAsync([
-            new(1, new AxisPosition { X = 10 }, Image(100)),
-            new(2, new AxisPosition { X = 20 }, Image(200)),
-        ]);
-        var sourceName = source.Name;
-        var targetDirectory = Path.Combine(AppContext.BaseDirectory, "Recipes", target.Name, "Carrier");
-        var targetFirst = Path.Combine(targetDirectory, "0001.png");
-        var original = await File.ReadAllBytesAsync(targetFirst);
         sourceEditor.Name = target.Name;
-        using (File.Open(Path.Combine(AppContext.BaseDirectory,
-                   "Recipes", sourceName, "Carrier", "0002.png"),
-                   FileMode.Open, FileAccess.Read, FileShare.None))
-        {
-            await Assert.ThrowsAsync<IOException>(() => sourceEditor.SaveAsync());
-        }
-
-        Assert.Equal(original, await File.ReadAllBytesAsync(targetFirst));
-        var saved = await store.LoadRecipeAsync(target.Name);
-        Assert.Equal([10d, 20d], saved.CarrierImages.Select(tile => tile.Center.X));
-        Assert.Equal(sourceName, sourceEditor.ActiveName);
         await sourceEditor.SaveAsync();
-        saved = await store.LoadRecipeAsync(target.Name);
-        Assert.Equal([1d, 2d], saved.CarrierImages.Select(tile => tile.Center.X));
-        Assert.Equal(2, Directory.GetFiles(targetDirectory, "*.png").Length);
-        Assert.Equal(2, (await store.LoadRecipeAsync(sourceName)).CarrierImages.Count);
+        Assert.Contains("test failure", sourceEditor.Error);
+        Assert.Equal("Source", sourceEditor.ActiveName);
+        Assert.Equal(original, database.LoadRecipeImage("Target", 1));
+        command.CommandText = "DROP TRIGGER FailImage";
+        command.ExecuteNonQuery();
+        await sourceEditor.SaveAsync();
+        Assert.Null(sourceEditor.Error);
+        Assert.Equal("Target", sourceEditor.ActiveName);
+        Assert.Equal([1d, 2d], (await store.LoadRecipeAsync("Target")).CarrierImages.Select(tile => tile.Center.X));
+        Assert.Equal(database.LoadRecipeImage("Source", 1), database.LoadRecipeImage("Target", 1));
         Assert.Equal(2, (await sourceEditor.LoadCarrierImagesAsync()).Length);
+
+        using var cancellation = new CancellationTokenSource();
+        IEnumerable<RecipeImage> CancelAfterFirstImage()
+        {
+            yield return new(1, [200]);
+            cancellation.Cancel();
+            yield return new(2, [200]);
+        }
+        var beforeCancel = database.LoadRecipeImage("Target", 1);
+        Assert.Throws<OperationCanceledException>(() => database.SaveRecipe("Target",
+            new Recipe { Name = "Cancelled" }, [1, 2], images: CancelAfterFirstImage(),
+            cancellationToken: cancellation.Token));
+        Assert.Equal("Target", (await store.LoadRecipeAsync("Target")).Name);
+        Assert.Equal(beforeCancel, database.LoadRecipeImage("Target", 1));
+        Assert.False(await sourceEditor.SaveCarrierImagesAsync(Images(30, 200), cancellation.Token));
+        Assert.Null(sourceEditor.Error);
+        Assert.Equal([1d, 2d], source.CarrierImages.Select(tile => tile.Center.X));
+
+        await sourceEditor.SaveCarrierImagesAsync(Images(50, 200).Take(1).ToArray());
+        Assert.Single((await store.LoadRecipeAsync("Target")).CarrierImages);
+        Assert.Throws<InvalidOperationException>(() => database.LoadRecipeImage("Target", 2));
+        Assert.Equal(2, (await store.LoadRecipeAsync("Source")).CarrierImages.Count);
+    }
+
+    private static (MachineStore Database, RecipeStore Store) CreateStore()
+    {
+        var database = new MachineStore(Path.Combine(Path.GetTempPath(), $"IBTM-Recipe-{Guid.NewGuid():N}", "Machine.db"));
+        return (database, new RecipeStore(database));
     }
 }

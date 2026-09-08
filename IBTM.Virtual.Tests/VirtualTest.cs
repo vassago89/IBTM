@@ -6,11 +6,22 @@ using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Virtual;
+using IBTM.Inspection;
 
 namespace IBTM.Virtual.Tests;
 
 internal static class VirtualTest
 {
+    public static PcbLayout TaughtPcbLayout() => new()
+    {
+        Width = 18, Height = 26,
+        Origins = new()
+        {
+            [HeatSinkSlot.HeatSink1] = new(),
+            [HeatSinkSlot.HeatSink2] = new() { X = 18 },
+        },
+        DataMatrix = new(9, 11, 4, 4),
+    };
     public static VirtualMotionService Motion(
         MotionSettings settings,
         OperationCancellation operations) => new(

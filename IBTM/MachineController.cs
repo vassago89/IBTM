@@ -225,15 +225,15 @@ public sealed class MachineController
         && _state.SafetyReady;
     public bool TeachingReady =>
         !_units.BoltFastening && !_units.Inspection
-        || _recipe.BoltFastening.BoltPoints.Count > 0
+        || _recipe.Pcb.IsDefined && _recipe.Pcb.BoltPoints.Count > 0
         && CarrierCoordinates.IsDefined(
             _carrierReference.UpperLeftLocatingPin,
             _carrierReference.LowerRightLocatingPin)
-        && _recipe.BoltFastening.BoltPoints.All(bolt =>
+        && _recipe.Pcb.GetBolts().All(bolt =>
             bolt is { X: not null, Y: not null }
             && (!_units.BoltFastening
-                || (bolt.Z is not null
-                    && _fasteningGantry.HasReference(bolt.Head))));
+                || _fasteningGantry.HasReference(bolt.Head)))
+        && (!_units.Inspection || Enum.GetValues<HeatSinkSlot>().All(_boltInspector.HasBarcodeRegion));
 
     public async Task InitializeAsync()
     {
@@ -822,7 +822,7 @@ public sealed class MachineController
                     ? MachineAlarm.Inspection
                     : MachineAlarm.NgCarrierTransfer,
                 () => _inspectionStation.RunAsync(
-                    _recipe.BoltFastening.BoltPoints,
+                    _recipe.Pcb.GetBolts().ToArray(),
                     operation.Token));
             StartUnit(
                 _units.NgShuttle,

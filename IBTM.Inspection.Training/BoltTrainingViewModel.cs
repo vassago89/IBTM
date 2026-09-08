@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,501 +10,351 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
-using Microsoft.Win32;
 
 namespace IBTM.Inspection.Training;
 
 public enum BoltTrainingState
 {
-    [Description("Ready")]
-    Ready,
-
-    [Description("Capturing Bolt Points")]
-    Capturing,
-
-    [Description("Loading Images")]
-    LoadingImages,
-
-    [Description("Loading Data")]
-    LoadingData,
-
-    [Description("Training")]
-    Training,
-
-    [Description("Applying Model")]
-    Applying,
-
-    [Description("Review Model")]
-    Reviewing,
-
-    [Description("Cancelled")]
-    Cancelled,
-
-    [Description("Failed")]
-    Failed,
+    [Description("Ready")] Ready,
+    [Description("Loading Samples")] LoadingSamples,
+    [Description("Saving")] Saving,
+    [Description("Loading Model")] LoadingModel,
+    [Description("Preparing Training Data")] Preparing,
+    [Description("Training")] Training,
+    [Description("Applying Model")] Applying,
+    [Description("Completed")] Completed,
+    [Description("Completed · Early Stop")] EarlyStopped,
+    [Description("Review Model")] Reviewing,
+    [Description("Cancelled")] Cancelled,
+    [Description("Failed")] Failed,
 }
 
 public partial class BoltTrainingViewModel : ObservableObject
 {
-    private static readonly string DefaultDatasetDirectory = Path.Combine(
-        AppContext.BaseDirectory,
-        "TrainingData",
-        "BoltRecess");
-
-    private readonly BoltInspectionSettings _settings;
+    private readonly Func<BoltInspectionRecipe> _inspectionRecipe;
+    private readonly BoltTrainingStore _store;
     private readonly TinyUnetTrainer _trainer = new();
     private readonly IBoltRecessSegmenter _segmenter;
     private readonly BoltTrainingSession _session;
-    private readonly OperationCancellation _operations;
-    private readonly BoltInspector _inspector;
-    private readonly InspectionWork _inspectionWork;
-    private readonly Func<bool> _captureEnabled;
-    private readonly Func<IReadOnlyList<BoltPoint>> _boltPoints;
-    private IReadOnlyList<LabelCapture> _labelImages = [];
-    private int _labelIndex;
+    private bool _isActive;
 
     public BoltTrainingViewModel(
-        BoltInspectionSettings settings,
+        Func<BoltInspectionRecipe> inspectionRecipe,
+        BoltTrainingStore store,
+        BoltTrainingSettings training,
+        BoltImageCollector imageCollector,
         IBoltRecessSegmenter segmenter,
-        BoltTrainingSession session,
-        OperationCancellation operations,
-        BoltInspector inspector,
-        InspectionWork inspectionWork,
-        Func<bool> captureEnabled,
-        Func<IReadOnlyList<BoltPoint>> boltPoints)
+        BoltTrainingSession session)
     {
-        _settings = settings;
+        _inspectionRecipe = inspectionRecipe;
+        _store = store;
         _segmenter = segmenter;
         _session = session;
-        _operations = operations;
-        _inspector = inspector;
-        _inspectionWork = inspectionWork;
-        _captureEnabled = captureEnabled;
-        _boltPoints = boltPoints;
-        inspectionWork.Changed += OnInspectionWorkChanged;
+        Training = training;
+        ImageCollector = imageCollector;
+        Training.PropertyChanged += (_, e) =>
+        {
+            TrainCommand.NotifyCanExecuteChanged();
+            SaveSettingsCommand.NotifyCanExecuteChanged();
+            if (e.PropertyName == nameof(BoltTrainingSettings.MaskThreshold)) Review?.Refresh();
+        };
     }
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(TrainCommand))]
-    [NotifyCanExecuteChangedFor(nameof(CaptureBoltPointsCommand))]
-    private string _datasetDirectory = DefaultDatasetDirectory;
+    public BoltTrainingSettings Training { get; }
+    public BoltImageCollector ImageCollector { get; }
+    public InspectionImageCollection[] ImageCollectionModes { get; } = Enum.GetValues<InspectionImageCollection>();
+    public int CollectedImageCount => Samples.Count(sample => sample.Inspection is not null);
+    [ObservableProperty] private double _databaseMegabytes;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CollectedImageCount))]
     [NotifyCanExecuteChangedFor(nameof(TrainCommand))]
-    private int _epochs = 50;
+    private IReadOnlyList<BoltSampleInfo> _samples = [];
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(TrainCommand))]
-    [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
-    [NotifyCanExecuteChangedFor(nameof(SelectDatasetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(CaptureBoltPointsCommand))]
-    [NotifyCanExecuteChangedFor(nameof(AddImagesCommand))]
     [NotifyCanExecuteChangedFor(nameof(CompleteLabelCommand))]
     [NotifyCanExecuteChangedFor(nameof(EmptyLabelCommand))]
-    [NotifyPropertyChangedFor(nameof(ConfigurationEnabled))]
-    [NotifyPropertyChangedFor(nameof(DatasetEditingEnabled))]
+    [NotifyCanExecuteChangedFor(nameof(ToggleIncludedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ToggleSampleUseCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PreviousSampleCommand))]
+    [NotifyCanExecuteChangedFor(nameof(NextSampleCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
+    [NotifyCanExecuteChangedFor(nameof(InspectSampleCommand))]
+    private BoltSampleInfo? _currentSample;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(LoadSamplesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenSampleCommand))]
+    [NotifyCanExecuteChangedFor(nameof(TrainCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CompleteLabelCommand))]
+    [NotifyCanExecuteChangedFor(nameof(EmptyLabelCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ToggleIncludedCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ToggleSampleUseCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PreviousSampleCommand))]
+    [NotifyCanExecuteChangedFor(nameof(NextSampleCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ReviewSavedModelCommand))]
+    [NotifyCanExecuteChangedFor(nameof(InspectSampleCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveSettingsCommand))]
+    [NotifyPropertyChangedFor(nameof(ControlsEnabled))]
     private bool _isBusy;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CompleteLabelCommand))]
-    [NotifyCanExecuteChangedFor(nameof(EmptyLabelCommand))]
-    [NotifyCanExecuteChangedFor(nameof(CaptureBoltPointsCommand))]
-    [NotifyCanExecuteChangedFor(nameof(AddImagesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(TrainCommand))]
-    [NotifyCanExecuteChangedFor(nameof(SelectDatasetCommand))]
-    [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
-    [NotifyPropertyChangedFor(nameof(ConfigurationEnabled))]
-    private BitmapSource? _labelImage;
-
-    [ObservableProperty]
-    private string? _labelImageName;
-
-    [ObservableProperty]
-    private int _labelImageNumber;
-
-    [ObservableProperty]
-    private int _selectedImageCount;
-
-    [ObservableProperty]
-    private BoltModelReview? _review;
-
+    [NotifyPropertyChangedFor(nameof(MaximumRegionSize))]
+    private BitmapSource? _originalImage;
+    private int _regionSize = IBoltRecessSegmenter.InputSize;
+    [ObservableProperty] private Point[] _labelPolygon = [];
+    [ObservableProperty] private BoltModelReview? _review;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     private BoltTrainingState _state;
+    [ObservableProperty] private int _epoch;
+    [ObservableProperty] private int _bestEpoch;
+    [ObservableProperty] private double _trainingLoss;
+    [ObservableProperty] private double _validationLoss;
 
-    [ObservableProperty]
-    private int _epoch;
+    [ObservableProperty] private string? _error;
 
-    [ObservableProperty]
-    private double _trainingLoss;
-
-    [ObservableProperty]
-    private double _validationLoss;
-
-    [ObservableProperty]
-    private string? _error;
-
-    private bool HasLabelImage => LabelImage is not null;
-    public bool ConfigurationEnabled => !IsBusy && !HasLabelImage;
-    public bool DatasetEditingEnabled => !IsBusy;
+    public bool ControlsEnabled => !IsBusy;
+    public int MaximumRegionSize => OriginalImage is { } image ? Math.Min(image.PixelWidth, image.PixelHeight) : 1;
+    public int RegionSize
+    {
+        get => _regionSize;
+        set
+        {
+            if (SetProperty(ref _regionSize, Math.Clamp(value, 1, MaximumRegionSize)))
+                ClearSampleReview();
+        }
+    }
 
     public void Activate()
     {
-        CaptureBoltPointsCommand.NotifyCanExecuteChanged();
-        _session.SetRunning(IsBusy || HasLabelImage);
+        _isActive = true;
+        Review?.Refresh();
+        _session.SetRunning(IsBusy || CurrentSample is not null);
+        if (!IsBusy) LoadSamplesCommand.Execute(null);
     }
 
     public void Deactivate()
     {
-        CaptureBoltPointsCommand.Cancel();
-        AddImagesCommand.Cancel();
-        TrainCommand.Cancel();
-        if (!IsBusy)
-        {
-            _session.SetRunning(false);
-        }
+        _isActive = false;
+        foreach (var command in Commands()) command.Cancel();
+        _session.SetRunning(IsBusy);
     }
 
     public async Task ShutdownAsync()
     {
-        var pending = new[]
-            {
-                CaptureBoltPointsCommand.ExecutionTask,
-                AddImagesCommand.ExecutionTask,
-                TrainCommand.ExecutionTask,
-            }
-            .OfType<Task>()
-            .Where(task => !task.IsCompleted)
-            .ToArray();
-        try
-        {
-            Deactivate();
-        }
-        finally
-        {
-            await Task.WhenAll(pending);
-        }
+        var pending = Commands().Select(command => command.ExecutionTask).OfType<Task>().ToArray();
+        Deactivate();
+        await Task.WhenAll(pending);
     }
 
-    [RelayCommand(CanExecute = nameof(DatasetEditingEnabled))]
-    private void SelectDataset()
-    {
-        var dialog = new OpenFolderDialog
-        {
-            Title = "Select Bolt Inspection Dataset",
-            InitialDirectory = DatasetDirectory,
-        };
-        if (dialog.ShowDialog() == true)
-        {
-            DatasetDirectory = dialog.FolderName;
-        }
-    }
+    private IAsyncRelayCommand[] Commands() => [
+        LoadSamplesCommand, OpenSampleCommand, CompleteLabelCommand,
+        EmptyLabelCommand, ToggleIncludedCommand, ToggleSampleUseCommand, PreviousSampleCommand,
+        NextSampleCommand, TrainCommand, ReviewSavedModelCommand, InspectSampleCommand, SaveSettingsCommand];
 
-    [RelayCommand(CanExecute = nameof(ConfigurationEnabled))]
-    private async Task AddImagesAsync(string[]? files, CancellationToken cancellationToken)
-    {
-        if (files is null)
+    [RelayCommand(CanExecute = nameof(CanSaveSettings))]
+    private Task SaveSettingsAsync(CancellationToken token) =>
+        RunAsync(BoltTrainingState.Saving, async ct =>
         {
-            var dialog = new OpenFileDialog
-            {
-                Title = "Add Bolt Images",
-                Filter = "Images|*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff",
-                Multiselect = true,
-            };
-            if (dialog.ShowDialog() != true)
-            {
-                return;
-            }
-            files = dialog.FileNames;
-        }
+            await Task.Run(() => _store.SaveSettings(Training), ct);
+            ImageCollector.ClearError();
+        }, token);
 
-        Begin(BoltTrainingState.LoadingImages);
-        try
-        {
-            var images = await Task.Run(() =>
-            {
-                var captures = new List<LabelCapture>(files.Length);
-                foreach (var path in files)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    var image = BitmapFiles.LoadFrame(path);
-                    var size = IBoltRecessSegmenter.InputSize;
-                    if (image.Width < size || image.Height < size)
-                    {
-                        throw new InvalidOperationException(
-                            $"{Path.GetFileName(path)} must be at least {size} x {size} pixels.");
-                    }
+    private bool CanSaveSettings() => ControlsEnabled && Training.IsValid;
 
-                    captures.Add(new LabelCapture(Path.GetFileName(path), image));
-                }
+    [RelayCommand(CanExecute = nameof(ControlsEnabled))]
+    private Task LoadSamplesAsync(CancellationToken token) =>
+        RunAsync(BoltTrainingState.LoadingSamples, ct => ReloadSamplesAsync(
+            CurrentSample?.Id, ct, clearSelection: CurrentSample is null), token);
 
-                cancellationToken.ThrowIfCancellationRequested();
-                return captures;
-            }, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            BeginLabeling(images);
-        }
-        catch (OperationCanceledException)
-        {
-            State = BoltTrainingState.Cancelled;
-        }
-        catch (Exception exception)
-        {
-            Fail(exception);
-        }
-        finally
-        {
-            End();
-        }
-    }
+    [RelayCommand(CanExecute = nameof(ControlsEnabled))]
+    private Task OpenSampleAsync(BoltSampleInfo sample, CancellationToken token) =>
+        RunAsync(BoltTrainingState.LoadingSamples, ct => ShowSampleAsync(sample, ct), token);
 
-    [RelayCommand(CanExecute = nameof(CanCapture))]
-    private async Task CaptureBoltPointsAsync(
-        CancellationToken cancellationToken)
-    {
-        Begin(BoltTrainingState.Capturing);
-        try
-        {
-            using var operation = _operations.Link(cancellationToken);
-            cancellationToken = operation.Token;
-            var points = _boltPoints()
-                .Where(point =>
-                    _inspectionWork.HeatSinkPresent(point.HeatSink))
-                .ToArray();
-            var images = new List<LabelCapture>();
-            foreach (var point in points.OrderBy(point => point.Number))
-            {
-                images.Add(new LabelCapture(
-                    $"{point.HeatSink.GetDescription()} · Bolt {point.Number}",
-                    await _inspector.CaptureAsync(
-                        point,
-                        cancellationToken)));
-            }
+    [RelayCommand(CanExecute = nameof(CanPrevious))]
+    private Task PreviousSampleAsync(CancellationToken token) => OpenSampleAsync(
+        Samples.Last(sample => sample.Id < CurrentSample!.Id), token);
 
-            cancellationToken.ThrowIfCancellationRequested();
-            BeginLabeling(images);
-        }
-        catch (OperationCanceledException)
-        {
-            State = BoltTrainingState.Cancelled;
-        }
-        catch (Exception exception)
-        {
-            Fail(exception);
-        }
-        finally
-        {
-            End();
-        }
-    }
+    [RelayCommand(CanExecute = nameof(CanNext))]
+    private Task NextSampleAsync(CancellationToken token) => OpenSampleAsync(
+        Samples.First(sample => sample.Id > CurrentSample!.Id), token);
+
+    [RelayCommand(CanExecute = nameof(CanCompleteLabel))]
+    private Task CompleteLabelAsync(Point[] polygon, CancellationToken token) =>
+        SaveLabelAsync(BoltLabel.Bolt, polygon, token);
 
     [RelayCommand(CanExecute = nameof(CanLabel))]
-    private void CompleteLabel(byte[] mask) => SaveLabel(mask);
+    private Task EmptyLabelAsync(CancellationToken token) => SaveLabelAsync(BoltLabel.Empty, [], token);
+
+    private Task SaveLabelAsync(BoltLabel label, Point[] polygon, CancellationToken token) =>
+        RunAsync(BoltTrainingState.Saving, async ct =>
+        {
+            var id = CurrentSample!.Id;
+            await Task.Run(() => _store.SaveLabel(id, label, polygon, RegionSize), ct);
+            Review = null;
+            var next = Samples.FirstOrDefault(sample => sample.Id > id)?.Id;
+            await ReloadSamplesAsync(next, ct, clearSelection: next is null);
+        }, token);
 
     [RelayCommand(CanExecute = nameof(CanLabel))]
-    private void EmptyLabel() => SaveLabel(
-        new byte[IBoltRecessSegmenter.InputSize
-                 * IBoltRecessSegmenter.InputSize]);
+    private Task ToggleIncludedAsync(CancellationToken token) =>
+        RunAsync(BoltTrainingState.Saving, async ct =>
+        {
+            var sample = CurrentSample!;
+            await Task.Run(() => _store.SetIncluded(sample.Id, !sample.Included), ct);
+            Review = null;
+            await ReloadSamplesAsync(sample.Id, ct);
+        }, token);
+
+    [RelayCommand(CanExecute = nameof(CanChangeUse))]
+    private Task ToggleSampleUseAsync(CancellationToken token) =>
+        RunAsync(BoltTrainingState.Saving, async ct =>
+        {
+            var sample = CurrentSample!;
+            await Task.Run(() => _store.SetUse(sample.Id, sample.Use == BoltSampleUse.Training
+                ? BoltSampleUse.Validation : BoltSampleUse.Training), ct);
+            Review = null;
+            await ReloadSamplesAsync(sample.Id, ct);
+        }, token);
 
     [RelayCommand(CanExecute = nameof(CanTrain))]
-    private async Task TrainAsync(CancellationToken cancellationToken)
+    private Task TrainAsync(CancellationToken token)
     {
         Review = null;
-        Begin(BoltTrainingState.LoadingData);
         Epoch = 0;
+        BestEpoch = 0;
         TrainingLoss = 0;
         ValidationLoss = 0;
-
-        try
+        return RunAsync(BoltTrainingState.Preparing, async ct =>
         {
-            Review = await TrainModelAsync(cancellationToken);
-            State = BoltTrainingState.Reviewing;
-        }
-        catch (OperationCanceledException)
-        {
-            State = BoltTrainingState.Cancelled;
-        }
-        catch (Exception exception)
-        {
-            Fail(exception);
-        }
-        finally
-        {
-            End();
-        }
-    }
-
-    private async Task<BoltModelReview> TrainModelAsync(CancellationToken cancellationToken)
-    {
-        var modelFile = Path.Combine(AppContext.BaseDirectory, _settings.ModelFile);
-        var trainingFile = modelFile + ".training";
-        try
-        {
-            var dataset = await Task.Run(
-                () => new BoltSegmentationDataset(
-                    DatasetDirectory,
-                    cancellationToken),
-                cancellationToken);
+            await Task.Run(() => _store.SaveSettings(Training), ct);
+            var dataset = await Task.Run(() => new BoltSegmentationDataset(_store, ct), ct);
+            ct.ThrowIfCancellationRequested();
             State = BoltTrainingState.Training;
-
             var progress = new Progress<BoltTrainingProgress>(value =>
             {
                 Epoch = value.Epoch;
+                BestEpoch = value.BestEpoch;
                 TrainingLoss = value.TrainingLoss;
                 ValidationLoss = value.ValidationLoss;
             });
-            await Task.Run(
-                () => _trainer.Train(
-                    dataset,
-                    trainingFile,
-                    Epochs,
-                    progress,
-                    cancellationToken),
-                cancellationToken);
-
-            var review = await Task.Run(
-                () => BoltModelReview.Load(
-                        trainingFile,
-                        dataset.Validation,
-                        _settings,
-                        cancellationToken),
-                cancellationToken);
-
-            cancellationToken.ThrowIfCancellationRequested();
+            var trained = await Task.Run(() => _trainer.Train(dataset, Training, progress, ct), ct);
+            var review = await Task.Run(() => BoltModelReview.Load(trained.Weights, dataset.Validation, _inspectionRecipe, Training, ct), ct);
+            ct.ThrowIfCancellationRequested();
             State = BoltTrainingState.Applying;
-            await Task.Run(async () =>
+            await Task.Run(() =>
             {
-                File.Move(trainingFile, modelFile, overwrite: true);
+                _store.SaveModel(trained);
                 _segmenter.Reload();
-                review.CalibrateMinimumMaskRatio();
-                await _settings.SaveAsync();
             });
-            return review;
-        }
-        finally
-        {
-            File.Delete(trainingFile);
-        }
+            Review = review;
+            State = trained.Epochs < Training.MaxEpochs ? BoltTrainingState.EarlyStopped : BoltTrainingState.Completed;
+        }, token);
     }
+
+    [RelayCommand(CanExecute = nameof(ControlsEnabled))]
+    private Task ReviewSavedModelAsync(CancellationToken token) =>
+        RunAsync(BoltTrainingState.LoadingModel, async ct =>
+        {
+            Review = null;
+            var review = await Task.Run(() => BoltModelReview.Load(_store.LoadModel().Weights,
+                BoltSegmentationDataset.LoadValidation(_store, ct), _inspectionRecipe, Training, ct), ct);
+            ct.ThrowIfCancellationRequested();
+            Review = review;
+            State = BoltTrainingState.Reviewing;
+        }, token);
+
+    [RelayCommand(CanExecute = nameof(CanLabel))]
+    private Task InspectSampleAsync(CancellationToken token) =>
+        RunAsync(BoltTrainingState.LoadingModel, async ct =>
+        {
+            Review = null;
+            var sample = CurrentSample!;
+            var original = OriginalImage!;
+            var regionSize = RegionSize;
+            var review = await Task.Run(() => BoltModelReview.LoadImage(_store.LoadModel().Weights,
+                sample, BoltTrainingImages.ToFrame(original), regionSize, _inspectionRecipe, Training, ct), ct);
+            ct.ThrowIfCancellationRequested();
+            Review = review;
+            State = BoltTrainingState.Reviewing;
+        }, token);
 
     [RelayCommand(CanExecute = nameof(CanCancel))]
     private void Cancel()
     {
-        CaptureBoltPointsCommand.Cancel();
-        AddImagesCommand.Cancel();
-        TrainCommand.Cancel();
+        foreach (var command in Commands()) command.Cancel();
         if (!IsBusy)
         {
-            BeginLabeling([]);
+            ClearSample();
             Error = null;
             State = BoltTrainingState.Cancelled;
             _session.SetRunning(false);
         }
     }
 
-    private bool CanCapture()
+    private async Task ReloadSamplesAsync(long? id, CancellationToken token, bool clearSelection = false)
     {
-        if (!_captureEnabled()
-            || !ConfigurationEnabled
-            || !_inspectionWork.CarrierSeated)
-        {
-            return false;
-        }
-
-        var points = _boltPoints()
-            .Where(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
-            .ToArray();
-        return points.Length > 0
-            && points.All(_inspector.HasPosition);
+        var (samples, bytes) = await Task.Run(() => (_store.GetSamples(), _store.GetDatabaseSizeBytes()), token);
+        token.ThrowIfCancellationRequested();
+        Samples = samples;
+        DatabaseMegabytes = bytes / (1024d * 1024);
+        var sample = clearSelection ? null : samples.FirstOrDefault(sample => sample.Id == id) ?? samples.FirstOrDefault();
+        if (sample is null) ClearSample();
+        else await ShowSampleAsync(sample, token);
     }
 
-    private bool CanTrain() =>
-        ConfigurationEnabled
-        && Epochs > 0
-        && !string.IsNullOrWhiteSpace(DatasetDirectory);
-
-    private bool CanLabel() => !IsBusy && HasLabelImage;
-    private bool CanCancel() => !IsBusy && HasLabelImage
-                               || IsBusy && State is BoltTrainingState.Capturing
-                                   or BoltTrainingState.LoadingImages
-                                   or BoltTrainingState.LoadingData
-                                   or BoltTrainingState.Training;
-    private void SaveLabel(byte[] mask)
+    private async Task ShowSampleAsync(BoltSampleInfo sample, CancellationToken token)
     {
-        try
-        {
-            BoltTrainingFiles.SaveSample(
-                DatasetDirectory,
-                LabelImage!,
-                mask);
-        }
-        catch (Exception exception)
-        {
-            Fail(exception);
-            return;
-        }
-
-        Review = null;
-        Error = null;
-        State = BoltTrainingState.Ready;
-        _labelIndex++;
-        ShowLabelImage();
-        _session.SetRunning(HasLabelImage);
+        ClearSampleReview();
+        var original = await Task.Run(() => BoltTrainingImages.Create(_store.LoadImage(sample.Id)), token);
+        token.ThrowIfCancellationRequested();
+        OriginalImage = original;
+        RegionSize = sample.RegionSize;
+        LabelPolygon = [.. sample.Polygon];
+        CurrentSample = sample;
     }
 
-    private void BeginLabeling(IReadOnlyList<LabelCapture> images)
+    private void ClearSample()
     {
-        _labelImages = images;
-        _labelIndex = 0;
-        SelectedImageCount = images.Count;
-        ShowLabelImage();
-        State = BoltTrainingState.Ready;
+        ClearSampleReview();
+        CurrentSample = null;
+        OriginalImage = null;
+        LabelPolygon = [];
     }
 
-    private void ShowLabelImage()
+    private void ClearSampleReview()
     {
-        if (_labelIndex >= _labelImages.Count)
-        {
-            _labelImages = [];
-            _labelIndex = 0;
-            LabelImage = null;
-            LabelImageName = null;
-            LabelImageNumber = 0;
-            SelectedImageCount = 0;
-            return;
-        }
-
-        var capture = _labelImages[_labelIndex];
-        LabelImage = BoltTrainingFiles.CreateInput(capture.Image);
-        LabelImageName = capture.Name;
-        LabelImageNumber = _labelIndex + 1;
+        if (Review?.Scope == BoltReviewScope.SelectedImage) Review = null;
     }
 
-    private void Begin(BoltTrainingState state)
+    private async Task RunAsync(BoltTrainingState state, Func<CancellationToken, Task> action, CancellationToken token)
     {
         IsBusy = true;
         State = state;
         Error = null;
         _session.SetRunning(true);
+        try
+        {
+            await action(token);
+            if (State == state) State = BoltTrainingState.Ready;
+        }
+        catch (OperationCanceledException) { State = BoltTrainingState.Cancelled; }
+        catch (Exception exception) { Error = exception.Message; State = BoltTrainingState.Failed; }
+        finally
+        {
+            IsBusy = false;
+            _session.SetRunning(_isActive && CurrentSample is not null);
+        }
     }
 
-    private void End()
-    {
-        IsBusy = false;
-        _session.SetRunning(HasLabelImage);
-    }
+    private bool CanLabel() => ControlsEnabled && CurrentSample is not null;
+    private bool CanChangeUse() => CanLabel() && CurrentSample!.Label != BoltLabel.Unlabeled;
+    private bool CanCompleteLabel(Point[]? points) => CanLabel() && points is { Length: >= 3 };
+    private bool CanTrain() => ControlsEnabled && Training.IsValid && Samples.Any(sample => sample.Included && sample.Label != BoltLabel.Unlabeled);
+    private bool CanPrevious() => CanLabel() && Samples.Any(sample => sample.Id < CurrentSample!.Id);
+    private bool CanNext() => CanLabel() && Samples.Any(sample => sample.Id > CurrentSample!.Id);
+    private bool CanCancel() => IsBusy ? State != BoltTrainingState.Applying : CurrentSample is not null;
 
-    private void Fail(Exception exception)
-    {
-        Error = exception.Message;
-        State = BoltTrainingState.Failed;
-    }
-
-    private void OnInspectionWorkChanged() =>
-        Application.Current.Dispatcher.BeginInvoke(
-            CaptureBoltPointsCommand.NotifyCanExecuteChanged);
-
-    partial void OnDatasetDirectoryChanged(string value) => Review = null;
-
-    private sealed record LabelCapture(string Name, ImageFrame Image);
 }

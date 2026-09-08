@@ -31,7 +31,7 @@ public sealed class BoltFasteningRecoveryPreparation
     protected override bool Show(Window owner)
     {
         var items = new List<BoltFasteningRecoveryItem>();
-        foreach (var bolt in _recipe.BoltFastening.BoltPoints
+        foreach (var bolt in _recipe.Pcb.GetBolts()
                      .Where(bolt => _work.HeatSinkPresent(bolt.HeatSink)))
         {
             if (bolt.Head == FasteningHead.Shooting)
@@ -72,7 +72,7 @@ public sealed class BoltFasteningRecoveryPreparation
     }
 
     private BoltFasteningRecoveryItem CreateItem(
-        BoltPoint bolt,
+        BoltTarget bolt,
         FasteningPass pass) => new()
         {
             HeatSink = bolt.HeatSink,
@@ -82,7 +82,7 @@ public sealed class BoltFasteningRecoveryPreparation
         };
 
     private bool IsCompleted(
-        BoltPoint bolt,
+        BoltTarget bolt,
         FasteningPass pass)
     {
         var assembly = _work.Assemblies.FirstOrDefault(

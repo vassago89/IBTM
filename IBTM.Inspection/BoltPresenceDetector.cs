@@ -4,30 +4,18 @@ using IBTM.Core;
 namespace IBTM.Inspection;
 
 public sealed class BoltPresenceDetector(
-    BoltInspectionSettings settings,
-    IBoltRecessSegmenter segmenter)
+    Func<BoltInspectionRecipe> getRecipe,
+    IBoltRecessSegmenter segmenter,
+    Func<float> getMaskThreshold)
 {
     internal void CheckReady() => segmenter.CheckReady();
 
-    internal bool IsPresent(ImageFrame image)
+    public BoltPrediction Predict(ImageFrame image)
     {
-        var mask = segmenter.Segment(image);
-        var required = (int)Math.Ceiling(
-            mask.Length * settings.MinimumMaskRatio);
-        if (required <= 0)
-        {
-            return true;
-        }
-
-        var count = 0;
-        foreach (var value in mask)
-        {
-            if (value >= settings.MaskThreshold && ++count >= required)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        var recipe = getRecipe();
+        var input = BoltImageInput.Create(image, recipe.RegionSizePixels);
+        return new(input, segmenter.Segment(input));
     }
+
+    internal bool IsPresent(ImageFrame image) => Predict(image).IsPresent(getMaskThreshold(), getRecipe().MinimumMaskRatio);
 }

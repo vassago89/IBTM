@@ -222,24 +222,88 @@ from the two locating pins as a rotation.
 
 Automatic start is blocked until the recipe contains at least one bolt point, the
 shared carrier pins and every bolt X/Y are taught, and, when Bolt Fastening is
-enabled, every bolt Z and the locating pins for each used fastening head are taught.
+enabled, the locating pins for each used fastening head are taught. Both heads
+fasten at the shared, machine-taught Safe Z; there is no per-bolt Z teaching.
 
-The Station 2 automatic process is armed by the `Bolt Fastening Backup Plate Up` input.
-It reads the heat sink-present input for each recipe point and fastens the points whose
-`HeatSinkSlot` is present, in bolt-number order. With neither heat sink present it
-performs no bolt work. The backup plate must go down before another carrier cycle is
-accepted. A tightening NG or pneumatic feedback timeout raises the Bolt Fastening
-alarm. Bolt feeding runs independently, while bolt pickup, shooting, and fastening
-belong to the fastening process.
+Station 2 starts incomplete work with the carrier present, backup plate raised and
+stopper lowered. It selects the currently detected heat sinks at the start of each
+run, then performs all Head 2 PCB bolts, all Head 1 IPM seating bolts, and all Head 1
+IPM final passes, ordered by heat sink and bolt number. With neither heat sink
+present it performs no bolt work. Torque NG is recorded without skipping remaining
+bolts; communication failures and pneumatic timeouts stop operation. Carrier
+arrival resets the work, while restart reselects the currently detected heat sinks.
+Bolt feeding runs independently; pickup, shooting and tightening belong to the
+fastening process.
+
+If Stop interrupts ADC result reception, the head first sends Stop and then reads
+the latest result once. Only a completion with a new event count is returned to
+the original bolt/pass call; an unfinished operation remains cancelled. No new
+Start is issued during this read, and the station checks cancellation before its
+next action. Stop cleanup can therefore wait for one extra ADC response, bounded
+by the communication response timeout; cancellation itself is not postponed.
+Completed results stay on the original assembly even if the carrier changes.
 
 Both fastening-head Up inputs must be ON, and their Down inputs OFF,
 before automatic or saved-position shared-gantry X/Y moves and horizontal Home.
 The selected head lowers only at the target.
+All PCB, IPM seating and IPM final fastening positions use that same Safe Z.
+Travel between bolts is X/Y only with both head cylinders raised; the selected
+head cylinder provides the fastening stroke. Common-Z travel is needed for IPM
+bolt pickup and return to Safe Z, not for approaching each fastening point.
+For the shooting head, loading happens while the head remains raised: wait for
+head-vacuum bolt detection, tube passage to clear and escape retraction, then lower
+the head and tighten. After Stop, these same inputs determine the next action;
+a lowered head without a detected bolt is raised before loading again.
+Escape advance and shooting are separate states. With the escape backward, wait
+for feeder-ready before advancing; an intermediate position finishes advancing.
+Forward feedback selects shooting directly, without waiting for the next feeder
+bolt or retracting and advancing again. The vacuum is turned ON before shooting
+air. Tube-passage monitoring is armed before air ON to capture short pulses.
+Stop retains the escape output, so forward feedback may arrive while stopped;
+restart uses that feedback rather than replaying the loading sequence.
+Moving to a bolt position does not change the escape output. Tube detection
+blocks that X/Y move until the tube clears, including after manual repositioning.
 This applies between individual bolts, including the shooting head's PCB pass;
 the shooting head no longer stays lowered while moving to the next bolt. On restart,
 the same live-DI states retract a lowered head before the next X/Y move.
+
+The pickup head approaches pickup XY at Safe Z with both heads raised. Head 1
+then lowers and confirms its Down input before the common Z axis moves to the
+taught pickup height. After feeder-ready detection, vacuum turns ON and its input
+confirms the picked bolt. Retreat keeps vacuum ON: common Z to Safe Z, Head 1 Up,
+then X/Y to the fastening point. Pickup Z is therefore taught with Head 1 lowered.
+Pickup approach, cylinder lowering, Z approach, feeder wait, vacuum pickup and
+retreat are separate live-feedback states. Clearing a completed fastening turns
+vacuum OFF; carrying a newly picked bolt does not. Every IPM seating bolt is picked
+anew, while the IPM final pass reuses the installed bolts.
+
+Feeder-wait states wake on relevant work, gantry and feeder feedback changes and
+reselect the next state. A delayed vacuum or escape input must not leave the
+station waiting for another feeder bolt. These notifications coalesce into one
+wake-up; they do not start parallel actions. Feeders retain their own supply
+timeouts. Active motion and pneumatic actions still await their own completion.
+
+The Bolt Pickup teaching point's Move To uses the same gantry-owned pickup XY,
+Head 1 Down confirmation and pickup-Z actions as automatic operation. It finishes
+with Head 1 down at the pickup position without changing either vacuum output or
+waiting for a feeder bolt. Stop cancels any remaining action and keeps pneumatic
+outputs; ordinary saved-position admission still requires both heads raised.
+Return from Pickup is available throughout Bolt Fastening teaching, independently
+of the selected point: move Z to Safe Z, then raise Head 1 and confirm its Up input.
+It does not move X/Y or change vacuum. Stop, screen/group changes and Manual-mode
+exit cancel the remaining steps. Manual cylinder timeouts, whether from a movement
+sequence or an IO button, report the owning unit's alarm through the common
+teaching execution boundary; backup-plate timeouts remain Main Conveyor alarms.
+
+Tube detection ON with no head-vacuum detection requires operator clearing;
+automatic operation waits for the tube to clear without feeding another bolt.
+Station 2 teaching exposes a momentary HOLD button beside Shoot Bolt. It controls
+only shooting air, not the feeder, escape, head cylinder or vacuum. Release,
+navigation, Stop, shutdown or leaving Manual mode cancels the hold and turns the
+air OFF. Existing manual-output readiness applies; Home is not required.
+
 Bolt teaching Jog/Step are manual single-axis adjustments at the current Z, with
-head-down adjustment allowed. They do not run the Travel-Z positioning sequence;
+head-down adjustment allowed. They do not run the Safe-Z positioning sequence;
 saved-position commands still require raised heads. Axis limits, cancellation and
 manual motion/safety readiness remain in force. A software axis range is not a
 verified mechanical clearance envelope; commissioning must establish suitable

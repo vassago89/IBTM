@@ -6,16 +6,14 @@ using System.Threading;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using IBTM.Core;
 
 namespace IBTM.Inspection.Training;
 
-public enum BoltValidationResult
+public enum BoltReviewScope
 {
-    [Description("Empty")]
-    Empty,
-
-    [Description("Bolt")]
-    Bolt,
+    [Description("Validation Images")] Validation,
+    [Description("Selected Image")] SelectedImage,
 }
 
 public enum BoltValidationOutcome
@@ -29,16 +27,21 @@ public enum BoltValidationOutcome
 
 public partial class BoltModelReview : ObservableObject
 {
-    private readonly IReadOnlyList<BoltValidationSample> _samples;
-    private readonly BoltInspectionSettings _settings;
+    private readonly IReadOnlyList<BoltReviewSample> _samples;
+    private readonly Func<BoltInspectionRecipe> _getRecipe;
+    private readonly BoltTrainingSettings _training;
     private int _index;
 
     private BoltModelReview(
-        IReadOnlyList<BoltValidationSample> samples,
-        BoltInspectionSettings settings)
+        IReadOnlyList<BoltReviewSample> samples,
+        BoltReviewScope scope,
+        Func<BoltInspectionRecipe> getRecipe,
+        BoltTrainingSettings training)
     {
         _samples = samples;
-        _settings = settings;
+        Scope = scope;
+        _getRecipe = getRecipe;
+        _training = training;
         Show();
     }
 
@@ -46,46 +49,75 @@ public partial class BoltModelReview : ObservableObject
     private BitmapSource _image = null!;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Sample))]
+    [NotifyPropertyChangedFor(nameof(RegionSize))]
     private int _imageNumber;
 
+    public BoltReviewScope Scope { get; }
+    public BoltSampleInfo Sample => _samples[_index].Info;
+    public int RegionSize => _samples[_index].RegionSize;
     public int ImageCount => _samples.Count;
+
+    public float MaskThreshold => _training.MaskThreshold;
+    public double MinimumMaskPercent => _getRecipe().MinimumMaskRatio * 100;
 
     [ObservableProperty]
     private double _maskRatioPercent;
 
     [ObservableProperty]
-    private BoltValidationResult _result;
+    private AssemblyResult _result;
 
     [ObservableProperty]
-    private BoltValidationResult _expected;
+    private AssemblyResult? _expected;
 
     [ObservableProperty]
-    private BoltValidationOutcome _outcome;
+    private BoltValidationOutcome? _outcome;
 
     [ObservableProperty]
     private int _correctCount;
 
     internal static BoltModelReview Load(
-        string modelFile,
-        IReadOnlyList<BoltSample> validationSamples,
-        BoltInspectionSettings settings,
+        byte[] weights,
+        IReadOnlyList<BoltTrainingInput> validation,
+        Func<BoltInspectionRecipe> getRecipe,
+        BoltTrainingSettings training,
         CancellationToken cancellationToken)
     {
-        var samples = new List<BoltValidationSample>();
-        using var segmenter = new TorchBoltRecessSegmenter(modelFile);
-        foreach (var sample in validationSamples)
+        var samples = new List<BoltReviewSample>();
+        using var segmenter = new TorchBoltRecessSegmenter(weights);
+        foreach (var input in validation)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var image = BitmapFiles.Load(sample.ImagePath);
-            samples.Add(new BoltValidationSample(
-                image,
-                segmenter.Segment(BitmapFiles.ToFrame(image)),
-                sample.BoltPresent
-                    ? BoltValidationResult.Bolt
-                    : BoltValidationResult.Empty));
+            samples.Add(Predict(input.Sample, input.Sample.RegionSize, input.Image, segmenter, cancellationToken));
         }
 
-        return new BoltModelReview(samples, settings);
+        return new BoltModelReview(samples, BoltReviewScope.Validation, getRecipe, training);
+    }
+
+    internal static BoltModelReview LoadImage(
+        byte[] weights,
+        BoltSampleInfo sample,
+        ImageFrame original,
+        int regionSize,
+        Func<BoltInspectionRecipe> getRecipe,
+        BoltTrainingSettings training,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var input = BoltImageInput.Create(original, regionSize);
+        using var segmenter = new TorchBoltRecessSegmenter(weights);
+        return new BoltModelReview(
+            [Predict(sample, regionSize, input, segmenter, cancellationToken)],
+            BoltReviewScope.SelectedImage, getRecipe, training);
+    }
+
+    private static BoltReviewSample Predict(BoltSampleInfo sample, int regionSize,
+        ImageFrame input, IBoltRecessSegmenter segmenter, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        var mask = segmenter.Segment(input);
+        token.ThrowIfCancellationRequested();
+        return new(sample, regionSize, BoltTrainingImages.Create(input), new BoltPrediction(input, mask));
     }
 
     [RelayCommand(CanExecute = nameof(CanPrevious))]
@@ -113,82 +145,40 @@ public partial class BoltModelReview : ObservableObject
         NextCommand.NotifyCanExecuteChanged();
     }
 
-    private void Refresh()
+    public void Refresh()
     {
+        OnPropertyChanged(nameof(MaskThreshold));
+        OnPropertyChanged(nameof(MinimumMaskPercent));
+        RefreshJudgments();
         var sample = _samples[_index];
-        var ratio = MaskRatio(sample.PredictedMask);
+        Image = BoltTrainingImages.CreateOverlay(sample.Image, sample.Prediction.Probabilities, MaskThreshold);
+    }
+
+    private void RefreshJudgments()
+    {
+        var recipe = _getRecipe();
+        var ratio = _samples[_index].Prediction.MaskRatio(MaskThreshold);
         MaskRatioPercent = ratio * 100;
-        Result = ratio >= _settings.MinimumMaskRatio
-            ? BoltValidationResult.Bolt
-            : BoltValidationResult.Empty;
-        Expected = sample.Expected;
-        Outcome = Result == Expected
+        Result = ratio >= recipe.MinimumMaskRatio
+            ? AssemblyResult.Ok
+            : AssemblyResult.Ng;
+        Expected = Sample.Label switch
+        {
+            BoltLabel.Bolt => AssemblyResult.Ok,
+            BoltLabel.Empty => AssemblyResult.Ng,
+            _ => null,
+        };
+        Outcome = Expected is null ? null : Result == Expected
             ? BoltValidationOutcome.Match
             : BoltValidationOutcome.Mismatch;
-        CorrectCount = _samples.Count(IsCorrect);
-        Image = BoltTrainingFiles.CreateOverlay(
-            sample.Image,
-            sample.PredictedMask,
-            _settings.MaskThreshold);
-    }
-
-    internal void CalibrateMinimumMaskRatio()
-    {
-        var scores = _samples
-            .Select(sample => new BoltValidationScore(
-                MaskRatio(sample.PredictedMask),
-                sample.Expected))
-            .OrderBy(score => score.Ratio)
-            .ToArray();
-        var candidates = new[] { 0d }
-            .Concat(scores.Zip(scores.Skip(1),
-                (left, right) => (left.Ratio + right.Ratio) / 2))
-            .Append(Math.BitIncrement(scores[^1].Ratio));
-
-        _settings.MinimumMaskRatio = candidates
-            .Select(threshold => new
-            {
-                Threshold = threshold,
-                Accuracy = BalancedAccuracy(scores, threshold),
-                Margin = scores.Min(score =>
-                    Math.Abs(score.Ratio - threshold)),
-            })
-            .OrderByDescending(candidate => candidate.Accuracy)
-            .ThenByDescending(candidate => candidate.Margin)
-            .First()
-            .Threshold;
-        Refresh();
-    }
-
-    private double MaskRatio(IReadOnlyList<float> mask) =>
-        (double)mask.Count(value => value >= _settings.MaskThreshold)
-        / mask.Count;
-
-    private bool IsCorrect(BoltValidationSample sample) =>
-        (MaskRatio(sample.PredictedMask) >= _settings.MinimumMaskRatio)
-        == (sample.Expected == BoltValidationResult.Bolt);
-
-    private static double BalancedAccuracy(
-        IReadOnlyList<BoltValidationScore> scores,
-        double threshold)
-    {
-        var bolts = scores.Where(score =>
-            score.Expected == BoltValidationResult.Bolt).ToArray();
-        var empty = scores.Where(score =>
-            score.Expected == BoltValidationResult.Empty).ToArray();
-        var detectedBolts = bolts.Count(score => score.Ratio >= threshold);
-        var detectedEmpty = empty.Count(score => score.Ratio < threshold);
-        return ((double)detectedBolts / bolts.Length
-                + (double)detectedEmpty / empty.Length)
-               / 2;
+        CorrectCount = _samples.Count(value => value.Info.Label != BoltLabel.Unlabeled &&
+            (value.Prediction.MaskRatio(MaskThreshold) >= recipe.MinimumMaskRatio)
+            == (value.Info.Label == BoltLabel.Bolt));
     }
 }
 
-internal sealed record BoltValidationSample(
+internal sealed record BoltReviewSample(
+    BoltSampleInfo Info,
+    int RegionSize,
     BitmapSource Image,
-    float[] PredictedMask,
-    BoltValidationResult Expected);
-
-internal readonly record struct BoltValidationScore(
-    double Ratio,
-    BoltValidationResult Expected);
+    BoltPrediction Prediction);

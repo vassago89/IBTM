@@ -58,6 +58,15 @@
             <Setter Property="Margin" Value="8,6,8,0"/>
             <Setter Property="HorizontalContentAlignment" Value="Left"/>
         </Style>
+        <Style x:Key="NotificationTextStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="24,8"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -323,24 +332,34 @@
                                                          Converter={StaticResource BoolToVis}}">
                             <TextBox Text="{Binding RecipeEditor.Name,
                                                    UpdateSourceTrigger=PropertyChanged}"
-                                     IsEnabled="{Binding ManualControlsEnabled}"
                                      Width="200"
-                                     Margin="0,0,6,0"/>
-                            <Button Content="New"
-                                    IsEnabled="{Binding ManualControlsEnabled}"
-                                    Command="{Binding RecipeEditor.NewCommand}"
-                                    Style="{StaticResource SecondaryButtonStyle}"
+                                     Margin="0,0,6,0">
+                            </TextBox>
+                            <Button Command="{Binding RecipeEditor.SaveCommand}"
+                                    ToolTip="Save this recipe, including inspection thresholds. Training images, labels and model are saved separately."
                                     Padding="10,5"
-                                    Margin="0,0,4,0"/>
-                            <Button Content="Save"
-                                    IsEnabled="{Binding ManualControlsEnabled}"
-                                    Command="{Binding RecipeEditor.SaveCommand}"
-                                    Style="{StaticResource PrimaryButtonStyle}"
-                                    Padding="10,5"
-                                    Margin="0,0,6,0"/>
-                            <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}"
-                                      Width="156"
-                                      SelectionChanged="RecipeFile_Selected"/>
+                                    Margin="0,0,6,0">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                        <Setter Property="Content" Value="Save Recipe"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding RecipeEditor.SaveCommand.IsRunning}" Value="True">
+                                                <Setter Property="Content" Value="Saving..."/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="New"
+                                        Command="{Binding RecipeEditor.NewCommand}"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Padding="10,5"
+                                        Margin="0,0,4,0"/>
+                                <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}"
+                                          Width="156"
+                                          SelectionChanged="RecipeFile_Selected"/>
+                            </StackPanel>
                         </StackPanel>
                     </StackPanel>
 
@@ -441,11 +460,25 @@
                 </Grid>
             </Border>
 
-            <ContentControl Grid.Row="1"
+            <Grid Grid.Row="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <StackPanel>
+                    <TextBlock x:Name="RecipeError" Text="{Binding RecipeEditor.Error}"
+                               Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"
+                               ToolTip="Your edits remain in memory. Resolve the storage problem, then retry the recipe operation."/>
+                    <TextBlock x:Name="ImageCollectionError" Text="{Binding ImageCollector.Error}"
+                               Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentAmberBrush}"
+                               ToolTip="Inspection continues. Resolve the storage problem, then Apply the collection mode in Bolt Training to resume."/>
+                </StackPanel>
+                <ContentControl Grid.Row="1"
                             IsEnabled="{Binding CurrentPageEnabled}"
                             HorizontalContentAlignment="Stretch"
                             VerticalContentAlignment="Stretch"
                             Content="{Binding CurrentPage}"/>
+            </Grid>
 
             <Border Grid.Row="2"
                     Background="{StaticResource PanelBgBrush}"

@@ -220,8 +220,8 @@
                            Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,5,0,0"/>
             </StackPanel>
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <ItemsControl ItemsSource="{Binding IoGroups}">
-                    <ItemsControl.ItemTemplate>
+                <ui:IoGroupList ItemsSource="{Binding IoGroups}">
+                    <ui:IoGroupList.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Margin="0,0,10,18">
                                 <TextBlock Text="{Binding Area, Converter={StaticResource EnumDescriptionConverter}}"
@@ -264,14 +264,28 @@
                                                     </ContentControl.Style>
                                                     <ContentControl.ContentTemplate>
                                                         <DataTemplate>
-                                                            <StackPanel Orientation="Horizontal">
-                                                                <Button Content="ON" CommandParameter="{Binding}"
-                                                                        Command="{Binding DataContext.SetOutputOnCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                        Style="{StaticResource SecondaryButtonStyle}" Padding="12,4" MinWidth="48" Margin="0,0,6,0"/>
-                                                                <Button Content="OFF" CommandParameter="{Binding}"
-                                                                        Command="{Binding DataContext.SetOutputOffCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                                        Style="{StaticResource SecondaryButtonStyle}" Padding="12,4" MinWidth="48"/>
-                                                            </StackPanel>
+                                                            <Grid>
+                                                                <StackPanel x:Name="SwitchButtons" Orientation="Horizontal">
+                                                                    <Button Content="ON" CommandParameter="{Binding}"
+                                                                            Command="{Binding DataContext.SetOutputOnCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                            Style="{StaticResource SecondaryButtonStyle}" Padding="12,4" MinWidth="48" Margin="0,0,6,0"/>
+                                                                    <Button Content="OFF" CommandParameter="{Binding}"
+                                                                            Command="{Binding DataContext.SetOutputOffCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                            Style="{StaticResource SecondaryButtonStyle}" Padding="12,4" MinWidth="48"/>
+                                                                </StackPanel>
+                                                                <ui:HoldButton x:Name="HoldOutput" Content="HOLD" Visibility="Collapsed"
+                                                                               ToolTip="Hold to run; release to stop."
+                                                                               CommandParameter="{Binding}"
+                                                                               PressCommand="{Binding DataContext.SetOutputOnCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                               ReleaseCommand="{Binding DataContext.SetOutputOnCancelCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                               Style="{StaticResource SecondaryButtonStyle}" Padding="12,4" MinWidth="102"/>
+                                                            </Grid>
+                                                            <DataTemplate.Triggers>
+                                                                <DataTrigger Binding="{Binding HoldToRun}" Value="True">
+                                                                    <Setter TargetName="SwitchButtons" Property="Visibility" Value="Collapsed"/>
+                                                                    <Setter TargetName="HoldOutput" Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </DataTemplate.Triggers>
                                                         </DataTemplate>
                                                     </ContentControl.ContentTemplate>
                                                 </ContentControl>
@@ -281,8 +295,8 @@
                                 </ItemsControl>
                             </StackPanel>
                         </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                    </ui:IoGroupList.ItemTemplate>
+                </ui:IoGroupList>
             </ScrollViewer>
         </DockPanel>
     </DataTemplate>

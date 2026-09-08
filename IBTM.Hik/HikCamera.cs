@@ -27,6 +27,7 @@ public sealed class HikCamera(InspectionCameraSettings settings)
 
     public event Action<ImageFrame>? FrameReady;
     public event Action<Exception>? LiveViewFailed;
+    public (int Width, int Height) FrameSize { get; private set; }
 
     public void Initialize()
     {
@@ -49,6 +50,9 @@ public sealed class HikCamera(InspectionCameraSettings settings)
         {
             Check(_device.Open(), "Open Hik camera");
             ConfigureAreaCamera(_device);
+            Check(_device.Parameters.GetIntValue("Width", out var width), "Read Hik frame width");
+            Check(_device.Parameters.GetIntValue("Height", out var height), "Read Hik frame height");
+            FrameSize = (checked((int)width.CurValue), checked((int)height.CurValue));
             _streamGrabber = _device.StreamGrabber;
             Check(
                 _streamGrabber.SetImageNodeNum(ImageNodeCount),
@@ -66,7 +70,7 @@ public sealed class HikCamera(InspectionCameraSettings settings)
         }
     }
 
-    public ImageFrame Capture()
+    public ImageFrame Capture(double exposureMicroseconds, double gain)
     {
         lock (_grabGate)
         {
@@ -79,7 +83,7 @@ public sealed class HikCamera(InspectionCameraSettings settings)
             var device = _device
                 ?? throw new InvalidOperationException("Hik camera is not initialized.");
             var stream = _streamGrabber!;
-            ApplyExposureAndGain(device);
+            ApplyExposureAndGain(device, exposureMicroseconds, gain);
             Check(stream.ClearImageBuffer(), "Clear Hik image buffer");
             Check(
                 device.Parameters.SetCommandValue("TriggerSoftware"),
@@ -100,7 +104,7 @@ public sealed class HikCamera(InspectionCameraSettings settings)
         }
     }
 
-    public void StartLiveView()
+    public void StartLiveView(double exposureMicroseconds, double gain)
     {
         lock (_grabGate)
         {
@@ -114,7 +118,7 @@ public sealed class HikCamera(InspectionCameraSettings settings)
             var stream = _streamGrabber!;
             Check(stream.StopGrabbing(), "Stop software-trigger grabbing");
             _grabbing = false;
-            ApplyExposureAndGain(device);
+            ApplyExposureAndGain(device, exposureMicroseconds, gain);
             Check(
                 device.Parameters.SetEnumValueByString("TriggerMode", "Off"),
                 "Disable trigger for live view");
@@ -224,19 +228,18 @@ public sealed class HikCamera(InspectionCameraSettings settings)
         Check(
             parameters.SetEnumValueByString("GainAuto", "Off"),
             "Disable GainAuto");
-        ApplyExposureAndGain(device);
     }
 
-    private void ApplyExposureAndGain(IDevice device)
+    private static void ApplyExposureAndGain(IDevice device, double exposureMicroseconds, double gain)
     {
         var parameters = device.Parameters;
         Check(
             parameters.SetFloatValue(
                 "ExposureTime",
-                checked((float)settings.ExposureMicroseconds)),
+                checked((float)exposureMicroseconds)),
             "Set ExposureTime");
         Check(
-            parameters.SetFloatValue("Gain", checked((float)settings.Gain)),
+            parameters.SetFloatValue("Gain", checked((float)gain)),
             "Set Gain");
     }
 
@@ -347,6 +350,7 @@ public sealed class HikCamera(InspectionCameraSettings settings)
                     _liveFrameHandler = null;
                     _streamGrabber = null;
                     _device = null;
+                    FrameSize = default;
                 }
             }
         }

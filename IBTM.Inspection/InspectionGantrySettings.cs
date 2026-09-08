@@ -8,7 +8,6 @@ namespace IBTM.Inspection;
 public sealed class InspectionGantrySettings : Setting
 {
     public MotionSettings Motion { get; set; } = new();
-    public double CarrierScanOverlapMillimeters { get; set; } = 1.0;
 
     public TeachingPosition[] GetTeachingPositions(CarrierReferenceSettings reference) =>
     [
@@ -21,23 +20,59 @@ public sealed class InspectionGantrySettings : Setting
     ];
 
     public IEnumerable<TeachingPosition> GetBoltTeachingPositions(
-        IEnumerable<BoltPoint> bolts, CarrierReferenceSettings reference) =>
+        IEnumerable<BoltTarget> bolts, CarrierReferenceSettings reference) =>
         bolts.Select(bolt => new TeachingPosition(
             TeachingTarget.BoltReference, MotionGroup.InspectionGantry, TeachMode.Image,
             () => HasTeachingPosition(bolt, reference) ? GetBoltPosition(bolt, reference) : new(),
             p =>
             {
                 var position = CarrierCoordinates.FromMachine(p, reference.UpperLeftLocatingPin!);
-                bolt.X = position.X;
-                bolt.Y = position.Y;
+                var origin = bolt.Layout.Origins[bolt.HeatSink];
+                bolt.Point.X = position.X - origin.X;
+                bolt.Point.Y = position.Y - origin.Y;
             },
-            isDefined: () => HasTeachingPosition(bolt, reference)) { Bolt = bolt });
+            isDefined: () => HasTeachingPosition(bolt, reference))
+        {
+            Bolt = bolt,
+            CoordinateOrigin = () => CarrierCoordinates.ToMachine(
+                bolt.Layout.Origins[bolt.HeatSink], reference.UpperLeftLocatingPin!),
+        });
 
-    private static bool HasTeachingPosition(BoltPoint bolt, CarrierReferenceSettings reference) =>
+    public TeachingPosition[] GetPcbTeachingPositions(
+        PcbLayout layout, HeatSinkSlot pcb, CarrierReferenceSettings reference) =>
+    [
+        new(TeachingTarget.PcbRegion, MotionGroup.InspectionGantry, TeachMode.Image,
+            () => reference.IsDefined && layout.Origins.TryGetValue(pcb, out var origin)
+                ? CarrierCoordinates.ToMachine(origin, reference.UpperLeftLocatingPin!) : new(),
+            p => layout.Origins[pcb] = CarrierCoordinates.FromMachine(p, reference.UpperLeftLocatingPin!),
+            isDefined: () => reference.IsDefined && layout.GetRegion(pcb) is not null)
+        {
+            CoordinateOrigin = () => reference.UpperLeftLocatingPin!,
+        },
+        new(TeachingTarget.DataMatrix, MotionGroup.InspectionGantry, TeachMode.Image,
+            () => reference.IsDefined && layout.GetDataMatrix(pcb) is { } region
+                ? CarrierCoordinates.ToMachine(region.Center, reference.UpperLeftLocatingPin!) : new(),
+            p =>
+            {
+                var center = CarrierCoordinates.FromMachine(p, reference.UpperLeftLocatingPin!);
+                var origin = layout.Origins[pcb];
+                var region = layout.DataMatrix!;
+                layout.DataMatrix = region with
+                {
+                    X = center.X - origin.X - region.Width / 2,
+                    Y = center.Y - origin.Y - region.Height / 2,
+                };
+            }, isDefined: () => reference.IsDefined && layout.GetDataMatrix(pcb) is not null)
+        {
+            CoordinateOrigin = () => CarrierCoordinates.ToMachine(layout.Origins[pcb], reference.UpperLeftLocatingPin!),
+        },
+    ];
+
+    private static bool HasTeachingPosition(BoltTarget bolt, CarrierReferenceSettings reference) =>
         reference.IsDefined && bolt is { X: not null, Y: not null };
 
     public AxisPosition GetBoltPosition(
-        BoltPoint bolt,
+        BoltTarget bolt,
         CarrierReferenceSettings reference) =>
         CarrierCoordinates.ToMachine(
             new AxisPosition

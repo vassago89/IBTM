@@ -1,9 +1,7 @@
-using System;
-using System.IO;
-using System.Linq;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Storage;
 
 namespace IBTM;
 
@@ -25,12 +23,9 @@ internal static class DevelopmentProfile
         settings.Drivers.Bolt = BoltDriver.Virtual;
     }
 
-    public static async Task PrepareAsync(RecipeStore store)
+    public static async Task PrepareAsync(RecipeStore store, MachineStore database)
     {
-        var settingsDirectory = Path.Combine(AppContext.BaseDirectory, "Settings");
-        if (Directory.Exists(settingsDirectory)
-            && Directory.EnumerateFileSystemEntries(settingsDirectory).Any()
-            || store.GetRecipeNames().Count > 0)
+        if (database.HasData)
         {
             return;
         }
@@ -39,7 +34,7 @@ internal static class DevelopmentProfile
         var recipe = CreateRecipe();
         settings.RecipeSelection.LastRecipeName = recipe.Name;
         await store.SaveRecipeAsync(recipe);
-        await settings.SaveAsync();
+        await settings.SaveAsync(database);
     }
 
     // Same synthetic teaching positions as the full-equipment WPF verification.
@@ -93,6 +88,16 @@ internal static class DevelopmentProfile
     private static Recipe CreateRecipe()
     {
         var recipe = new Recipe { Name = "Virtual Development" };
+        recipe.Pcb = new()
+        {
+            Width = 14, Height = 22,
+            Origins = new()
+            {
+                [HeatSinkSlot.HeatSink1] = new() { X = 3, Y = 2 },
+                [HeatSinkSlot.HeatSink2] = new() { X = 21, Y = 2 },
+            },
+            DataMatrix = new(6, 9, 4, 4),
+        };
         recipe.PcbSupply.Pcb1PickPosition = new() { X = 10, Z = 10 };
         recipe.PcbSupply.Pcb2PickPosition = new() { X = 20, Z = 10 };
         recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
@@ -100,12 +105,10 @@ internal static class DevelopmentProfile
         recipe.BoltFastening.PcbPreset = 4;
         recipe.BoltFastening.IpmSeatingPreset = 3;
         recipe.BoltFastening.IpmFinalPreset = 5;
-        recipe.BoltFastening.BoltPoints =
+        recipe.Pcb.BoltPoints =
         [
-            new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, Head = FasteningHead.Shooting, X = 7, Y = 7, Z = 10 },
-            new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink1, Head = FasteningHead.Pickup, X = 7, Y = 19, Z = 10 },
-            new() { Number = 3, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 29, Y = 7, Z = 10 },
-            new() { Number = 4, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Pickup, X = 29, Y = 19, Z = 10 },
+            new() { Number = 1, Head = FasteningHead.Shooting, X = 4, Y = 5 },
+            new() { Number = 2, Head = FasteningHead.Pickup, X = 4, Y = 17 },
         ];
         return recipe;
     }

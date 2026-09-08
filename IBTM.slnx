@@ -19,6 +19,7 @@
   <Project Path="IBTM.PcbBuffer/IBTM.PcbBuffer.csproj" />
   <Project Path="IBTM.PcbPlacement/IBTM.PcbPlacement.csproj" />
   <Project Path="IBTM.PcbSupply/IBTM.PcbSupply.csproj" />
+  <Project Path="IBTM.Storage/IBTM.Storage.csproj" />
   <Project Path="IBTM.Virtual/IBTM.Virtual.csproj" />
   <Project Path="IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj" />
   <Project Path="IBTM/IBTM.csproj" />

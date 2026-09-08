@@ -1,51 +1,65 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
 
 namespace IBTM.Inspection.Training;
 
-public sealed class BoltMaskEditor : FrameworkElement
+public sealed class BoltMaskEditor : Control
 {
+    private const double VertexRadius = 4;
+    private const double CloseDistance = 8;
+    private const double ZoomStep = 1.2;
+    private const double MaximumZoom = 64;
     private static readonly DependencyPropertyKey MaskPropertyKey =
-        DependencyProperty.RegisterReadOnly(
-            nameof(Mask),
-            typeof(byte[]),
-            typeof(BoltMaskEditor),
-            new PropertyMetadata(Array.Empty<byte>()));
+        DependencyProperty.RegisterReadOnly(nameof(Mask), typeof(byte[]),
+            typeof(BoltMaskEditor), new PropertyMetadata(Array.Empty<byte>()));
+    private static readonly DependencyPropertyKey CompletedPolygonPropertyKey =
+        DependencyProperty.RegisterReadOnly(nameof(CompletedPolygon), typeof(Point[]),
+            typeof(BoltMaskEditor), new PropertyMetadata(Array.Empty<Point>()));
 
-    public static readonly DependencyProperty MaskProperty =
-        MaskPropertyKey.DependencyProperty;
+    public static readonly DependencyProperty MaskProperty = MaskPropertyKey.DependencyProperty;
+    public static readonly DependencyProperty CompletedPolygonProperty = CompletedPolygonPropertyKey.DependencyProperty;
+    public static readonly DependencyProperty SourceProperty = DependencyProperty.Register(
+        nameof(Source), typeof(BitmapSource), typeof(BoltMaskEditor),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender,
+            (owner, _) => ((BoltMaskEditor)owner).ResetImage()));
+    public static readonly DependencyProperty PredictionProperty = DependencyProperty.Register(
+        nameof(Prediction), typeof(BitmapSource), typeof(BoltMaskEditor),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty ShowPredictionProperty = DependencyProperty.Register(
+        nameof(ShowPrediction), typeof(bool), typeof(BoltMaskEditor),
+        new FrameworkPropertyMetadata(true, FrameworkPropertyMetadataOptions.AffectsRender));
+    public static readonly DependencyProperty PolygonProperty = DependencyProperty.Register(
+        nameof(Polygon), typeof(Point[]), typeof(BoltMaskEditor),
+        new PropertyMetadata(Array.Empty<Point>(), (owner, args) =>
+            ((BoltMaskEditor)owner).LoadPolygon((Point[])args.NewValue)));
+    public static readonly DependencyProperty RegionSizeProperty = DependencyProperty.Register(
+        nameof(RegionSize), typeof(int), typeof(BoltMaskEditor),
+        new FrameworkPropertyMetadata(IBoltRecessSegmenter.InputSize,
+            FrameworkPropertyMetadataOptions.AffectsRender | FrameworkPropertyMetadataOptions.BindsTwoWayByDefault,
+            (owner, args) => ((BoltMaskEditor)owner).ResizeRegion((int)args.OldValue, (int)args.NewValue)));
 
-    public static readonly DependencyProperty SourceProperty =
-        DependencyProperty.Register(
-            nameof(Source),
-            typeof(BitmapSource),
-            typeof(BoltMaskEditor),
-            new FrameworkPropertyMetadata(
-                null,
-                FrameworkPropertyMetadataOptions.AffectsRender,
-                SourceChanged));
+    private readonly List<Point> _points = [];
+    private StreamGeometry? _polygon;
+    private Point? _preview;
+    private bool _closed;
+    private double _zoom = 1;
+    private Vector _pan;
+    private Point _lastMouse;
+    private DragAction _drag;
 
-    public static readonly DependencyProperty BrushSizeProperty =
-        DependencyProperty.Register(
-            nameof(BrushSize),
-            typeof(double),
-            typeof(BoltMaskEditor),
-            new PropertyMetadata(6d));
-
-    private BitmapSource? _overlay;
-    private Point? _lastPoint;
-    private byte _paintValue;
-    private bool _overlayRefreshQueued;
+    private enum DragAction { None, Pan, ResizeRegion }
 
     public BoltMaskEditor()
     {
         Cursor = Cursors.Cross;
         Focusable = true;
-        RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.NearestNeighbor);
+        RenderOptions.SetBitmapScalingMode(this, BitmapScalingMode.HighQuality);
     }
 
     public BitmapSource? Source
@@ -54,225 +68,318 @@ public sealed class BoltMaskEditor : FrameworkElement
         set => SetValue(SourceProperty, value);
     }
 
-    public double BrushSize
+    public byte[] Mask => (byte[])GetValue(MaskProperty);
+    public BitmapSource? Prediction
     {
-        get => (double)GetValue(BrushSizeProperty);
-        set => SetValue(BrushSizeProperty, value);
+        get => (BitmapSource?)GetValue(PredictionProperty);
+        set => SetValue(PredictionProperty, value);
+    }
+    public bool ShowPrediction
+    {
+        get => (bool)GetValue(ShowPredictionProperty);
+        set => SetValue(ShowPredictionProperty, value);
+    }
+    public int RegionSize
+    {
+        get => (int)GetValue(RegionSizeProperty);
+        set => SetValue(RegionSizeProperty, value);
+    }
+    public Point[] Polygon
+    {
+        get => (Point[])GetValue(PolygonProperty);
+        set => SetValue(PolygonProperty, value);
     }
 
-    public byte[] Mask => (byte[])GetValue(MaskProperty);
+    private void LoadPolygon(Point[] points)
+    {
+        _points.Clear();
+        _points.AddRange(points);
+        _closed = points.Length >= 3;
+        _preview = null;
+        UpdatePolygon();
+    }
+
+    private void ResetImage()
+    {
+        Clear();
+        FitImage();
+    }
+
+    public void FitImage()
+    {
+        _zoom = 1;
+        _pan = default;
+        InvalidateVisual();
+    }
+
+    public void FitRegion()
+    {
+        if (Source is null) return;
+        _pan = default;
+        _zoom = Math.Clamp(Math.Min(ActualWidth, ActualHeight) * 0.85 / (RegionSize * FitScale()), 1, MaximumZoom);
+        InvalidateVisual();
+    }
+
+    private void ResizeRegion(int oldSize, int newSize)
+    {
+        if (Source is null || _points.Count == 0) return;
+        var previous = BoltTrainingImages.Region(Source, oldSize);
+        var current = BoltTrainingImages.Region(Source, newSize);
+        var inputSize = IBoltRecessSegmenter.InputSize;
+        for (var index = 0; index < _points.Count; index++)
+            _points[index] = new Point(
+                (previous.X + _points[index].X * oldSize / inputSize - current.X) * inputSize / newSize,
+                (previous.Y + _points[index].Y * oldSize / inputSize - current.Y) * inputSize / newSize);
+        _preview = null;
+        UpdatePolygon();
+    }
 
     public void Clear()
     {
-        SetValue(
-            MaskPropertyKey,
-            Source is null
-                ? Array.Empty<byte>()
-                : new byte[IBoltRecessSegmenter.InputSize
-                           * IBoltRecessSegmenter.InputSize]);
-        RefreshOverlay();
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        _points.Clear();
+        _closed = false;
+        _preview = null;
+        UpdatePolygon();
+    }
+
+    public void UndoPoint()
+    {
+        if (_points.Count == 0) return;
+        _points.RemoveAt(_points.Count - 1);
+        _closed = false;
+        UpdatePolygon();
+    }
+
+    public void ClosePolygon()
+    {
+        if (_closed || _points.Count < 3) return;
+        _closed = true;
+        _preview = null;
+        UpdatePolygon();
     }
 
     protected override void OnRender(DrawingContext drawingContext)
     {
         base.OnRender(drawingContext);
-        drawingContext.DrawRectangle(
-            Brushes.Black,
-            null,
-            new Rect(RenderSize));
+        drawingContext.DrawRectangle(Brushes.Black, null, new Rect(RenderSize));
+        if (Source is null) return;
 
-        if (Source is null)
-        {
-            return;
-        }
+        var image = ImageRect();
+        var region = RegionRect();
+        drawingContext.PushClip(new RectangleGeometry(new Rect(RenderSize)));
+        drawingContext.DrawImage(Source, image);
+        drawingContext.PushOpacity(0.45);
+        drawingContext.DrawGeometry(Brushes.Black, null, new CombinedGeometry(GeometryCombineMode.Exclude,
+            new RectangleGeometry(image), new RectangleGeometry(region)));
+        drawingContext.Pop();
+        drawingContext.PushClip(new RectangleGeometry(region));
+        if (ShowPrediction && Prediction is not null) drawingContext.DrawImage(Prediction, region);
+        DrawPolygon(drawingContext, region);
+        drawingContext.Pop();
+        drawingContext.DrawRectangle(null, new Pen(Brushes.Black, 4), region);
+        drawingContext.DrawRectangle(null, new Pen(Foreground, 2), region);
+        foreach (var corner in Corners(region))
+            drawingContext.DrawRectangle(Foreground, new Pen(Brushes.Black, 1),
+                new Rect(corner.X - VertexRadius, corner.Y - VertexRadius, VertexRadius * 2, VertexRadius * 2));
+        drawingContext.Pop();
+    }
 
-        var imageRect = ImageRect();
-        drawingContext.DrawImage(Source, imageRect);
-        if (_overlay is not null)
+    private void DrawPolygon(DrawingContext drawingContext, Rect rect)
+    {
+        if (_points.Count == 0) return;
+
+        var scale = rect.Width / IBoltRecessSegmenter.InputSize;
+        drawingContext.PushTransform(new MatrixTransform(scale, 0, 0, scale, rect.Left, rect.Top));
+        var pen = new Pen(Foreground, 1.5 / scale);
+        if (_closed)
         {
-            drawingContext.DrawImage(_overlay, imageRect);
+            drawingContext.PushOpacity(0.3);
+            drawingContext.DrawGeometry(Foreground, null, _polygon);
+            drawingContext.Pop();
         }
+        drawingContext.DrawGeometry(null, pen, _polygon);
+        if (!_closed && _preview is { } preview)
+            drawingContext.DrawLine(pen, _points[^1], preview);
+        foreach (var point in _points)
+            drawingContext.DrawEllipse(Foreground, null, point, VertexRadius / scale, VertexRadius / scale);
+        drawingContext.DrawEllipse(null, pen, _points[0], CloseDistance / scale, CloseDistance / scale);
+        drawingContext.Pop();
     }
 
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
-        BeginPaint(e.GetPosition(this), byte.MaxValue);
+        if (Source is not null && IsRegionHandle(e.GetPosition(this)))
+        {
+            Focus();
+            _drag = DragAction.ResizeRegion;
+            CaptureMouse();
+            e.Handled = true;
+            return;
+        }
+        if (Source is null || ToImagePoint(e.GetPosition(this)) is not { } point) return;
+        Focus();
+        if (e.ClickCount == 2) ClosePolygon();
+        else AddPoint(point);
+        e.Handled = true;
     }
 
     protected override void OnMouseRightButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseRightButtonDown(e);
-        BeginPaint(e.GetPosition(this), 0);
+        Focus();
+        UndoPoint();
         e.Handled = true;
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        if (IsMouseCaptured)
+        var point = e.GetPosition(this);
+        if (_drag == DragAction.Pan)
         {
-            Paint(e.GetPosition(this));
+            _pan += point - _lastMouse;
+            _lastMouse = point;
+            InvalidateVisual();
         }
+        else if (_drag == DragAction.ResizeRegion) ResizeRegionAt(point);
+        else Cursor = Source is not null && IsRegionHandle(point)
+            ? Cursors.SizeNWSE : _closed ? Cursors.Arrow : Cursors.Cross;
+        if (_drag != DragAction.None) return;
+        if (_closed || _points.Count == 0) return;
+        _preview = ToImagePoint(point);
+        InvalidateVisual();
     }
 
-    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
+    protected override void OnMouseDown(MouseButtonEventArgs e)
     {
-        base.OnMouseLeftButtonUp(e);
-        EndPaint();
-    }
-
-    protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
-    {
-        base.OnMouseRightButtonUp(e);
-        EndPaint();
+        base.OnMouseDown(e);
+        if (Source is null || e.ChangedButton != MouseButton.Middle) return;
+        Focus();
+        _drag = DragAction.Pan;
+        _lastMouse = e.GetPosition(this);
+        Cursor = Cursors.Hand;
+        CaptureMouse();
         e.Handled = true;
     }
 
-    private static void SourceChanged(
-        DependencyObject dependencyObject,
-        DependencyPropertyChangedEventArgs _) =>
-        ((BoltMaskEditor)dependencyObject).Clear();
-
-    private void BeginPaint(Point point, byte value)
+    protected override void OnMouseUp(MouseButtonEventArgs e)
     {
-        if (Source is null)
-        {
-            return;
-        }
-
-        _paintValue = value;
-        _lastPoint = null;
-        CaptureMouse();
-        Paint(point);
-    }
-
-    private void EndPaint()
-    {
-        _lastPoint = null;
+        base.OnMouseUp(e);
+        if (_drag == DragAction.None) return;
         ReleaseMouseCapture();
+        e.Handled = true;
     }
 
-    private void Paint(Point screenPoint)
+    protected override void OnLostMouseCapture(MouseEventArgs e)
     {
-        var imagePoint = ToImagePoint(screenPoint);
-        if (imagePoint is null)
+        base.OnLostMouseCapture(e);
+        _drag = DragAction.None;
+        Cursor = _closed ? Cursors.Arrow : Cursors.Cross;
+    }
+
+    protected override void OnMouseWheel(MouseWheelEventArgs e)
+    {
+        base.OnMouseWheel(e);
+        if (Source is null) return;
+        ZoomAt(e.GetPosition(this), e.Delta > 0 ? ZoomStep : 1 / ZoomStep);
+        e.Handled = true;
+    }
+
+    private void ZoomAt(Point point, double factor)
+    {
+        var zoom = Math.Clamp(_zoom * factor, 1, MaximumZoom);
+        var relative = point - new Point(ActualWidth / 2, ActualHeight / 2);
+        _pan = relative - (relative - _pan) * (zoom / _zoom);
+        _zoom = zoom;
+        _preview = null;
+        InvalidateVisual();
+    }
+
+    private void ResizeRegionAt(Point point)
+    {
+        var image = ImageRect();
+        var scale = image.Width / Source!.PixelWidth;
+        var side = 2 * Math.Max(Math.Abs(point.X - image.X - image.Width / 2),
+            Math.Abs(point.Y - image.Y - image.Height / 2)) / scale;
+        SetCurrentValue(RegionSizeProperty, Math.Clamp((int)Math.Round(side), 1,
+            Math.Min(Source.PixelWidth, Source.PixelHeight)));
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        _preview = null;
+        InvalidateVisual();
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        switch (e.Key)
         {
+            case Key.Escape: Clear(); break;
+            case Key.Enter: ClosePolygon(); break;
+            case Key.Back: UndoPoint(); break;
+            default: return;
+        }
+        e.Handled = true;
+    }
+
+    private void AddPoint(Point point)
+    {
+        if (_closed) return;
+        var scale = RegionRect().Width / IBoltRecessSegmenter.InputSize;
+        if (_points.Count >= 3 && (point - _points[0]).Length * scale <= CloseDistance)
+        {
+            ClosePolygon();
             return;
         }
-
-        var start = _lastPoint ?? imagePoint.Value;
-        var distance = imagePoint.Value - start;
-        var steps = Math.Max(
-            1,
-            (int)Math.Ceiling(Math.Max(
-                Math.Abs(distance.X),
-                Math.Abs(distance.Y))));
-        for (var step = 0; step <= steps; step++)
-        {
-            var amount = (double)step / steps;
-            Stamp(new Point(
-                start.X + (distance.X * amount),
-                start.Y + (distance.Y * amount)));
-        }
-
-        _lastPoint = imagePoint;
-        QueueOverlayRefresh();
+        _points.Add(point);
+        _preview = null;
+        UpdatePolygon();
     }
 
-    private void Stamp(Point point)
+    private void UpdatePolygon()
     {
-        var size = IBoltRecessSegmenter.InputSize;
-        var radius = BrushSize / 2;
-        var left = Math.Max(0, (int)Math.Floor(point.X - radius));
-        var top = Math.Max(0, (int)Math.Floor(point.Y - radius));
-        var right = Math.Min(size - 1, (int)Math.Ceiling(point.X + radius));
-        var bottom = Math.Min(size - 1, (int)Math.Ceiling(point.Y + radius));
-        var radiusSquared = radius * radius;
-
-        for (var y = top; y <= bottom; y++)
-        {
-            for (var x = left; x <= right; x++)
-            {
-                var dx = x - point.X;
-                var dy = y - point.Y;
-                if ((dx * dx) + (dy * dy) <= radiusSquared)
-                {
-                    Mask[(y * size) + x] = _paintValue;
-                }
-            }
-        }
+        _polygon = _points.Count > 0 ? BoltPolygon.Geometry(_points, _closed) : null;
+        var mask = _closed ? BoltPolygon.Mask(_points) : Array.Empty<byte>();
+        SetValue(MaskPropertyKey, mask.Any(value => value > 0) ? mask : Array.Empty<byte>());
+        SetValue(CompletedPolygonPropertyKey, Mask.Length > 0 ? _points.ToArray() : Array.Empty<Point>());
+        Cursor = _closed ? Cursors.Arrow : Cursors.Cross;
+        InvalidateVisual();
     }
+
+    public Point[] CompletedPolygon => (Point[])GetValue(CompletedPolygonProperty);
 
     private Point? ToImagePoint(Point point)
     {
-        var rect = ImageRect();
-        if (!rect.Contains(point))
-        {
-            return null;
-        }
-
-        return new Point(
-            (point.X - rect.Left) * IBoltRecessSegmenter.InputSize / rect.Width,
-            (point.Y - rect.Top) * IBoltRecessSegmenter.InputSize / rect.Height);
+        var rect = RegionRect();
+        if (!rect.Contains(point)) return null;
+        var scale = IBoltRecessSegmenter.InputSize / rect.Width;
+        return new Point((point.X - rect.Left) * scale, (point.Y - rect.Top) * scale);
     }
 
     private Rect ImageRect()
     {
-        var side = Math.Min(ActualWidth, ActualHeight);
-        return new Rect(
-            (ActualWidth - side) / 2,
-            (ActualHeight - side) / 2,
-            side,
-            side);
+        var scale = FitScale() * _zoom;
+        var width = Source!.PixelWidth * scale;
+        var height = Source.PixelHeight * scale;
+        return new Rect((ActualWidth - width) / 2 + _pan.X, (ActualHeight - height) / 2 + _pan.Y, width, height);
     }
 
-    private void RefreshOverlay()
+    private double FitScale() => Math.Min(ActualWidth / Source!.PixelWidth, ActualHeight / Source.PixelHeight);
+
+    private Rect RegionRect()
     {
-        var pixels = new byte[Mask.Length * 4];
-        for (var index = 0; index < Mask.Length; index++)
-        {
-            if (Mask[index] == 0)
-            {
-                continue;
-            }
-
-            var target = index * 4;
-            pixels[target] = 40;
-            pixels[target + 1] = 90;
-            pixels[target + 2] = 255;
-            pixels[target + 3] = 150;
-        }
-
-        _overlay = Mask.Length == 0
-            ? null
-            : BitmapSource.Create(
-                IBoltRecessSegmenter.InputSize,
-                IBoltRecessSegmenter.InputSize,
-                96,
-                96,
-                PixelFormats.Bgra32,
-                null,
-                pixels,
-                IBoltRecessSegmenter.InputSize * 4);
-        _overlay?.Freeze();
-        InvalidateVisual();
+        var image = ImageRect();
+        var region = BoltTrainingImages.Region(Source!, RegionSize);
+        var scale = image.Width / Source!.PixelWidth;
+        return new Rect(image.X + region.X * scale, image.Y + region.Y * scale,
+            region.Width * scale, region.Height * scale);
     }
 
-    private void QueueOverlayRefresh()
-    {
-        if (_overlayRefreshQueued)
-        {
-            return;
-        }
-
-        _overlayRefreshQueued = true;
-        Dispatcher.InvokeAsync(
-            () =>
-            {
-                _overlayRefreshQueued = false;
-                RefreshOverlay();
-            },
-            DispatcherPriority.Background);
-    }
+    private bool IsRegionHandle(Point point) => Corners(RegionRect()).Any(corner => (point - corner).Length <= CloseDistance);
+    private static Point[] Corners(Rect rect) => [rect.TopLeft, rect.TopRight, rect.BottomLeft, rect.BottomRight];
 }

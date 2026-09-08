@@ -51,7 +51,7 @@ public sealed class AdcBoltHead(
     public async Task<BoltResult> TightenAsync(
         CancellationToken cancellationToken = default)
     {
-        AdcFasteningResult completed;
+        AdcFasteningResult? completed = null;
         try
         {
             var current = await bus.ReadFasteningResultAsync(
@@ -103,11 +103,32 @@ public sealed class AdcBoltHead(
                 }
             }
         }
+        catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
+        {
+        }
         finally
         {
             await bus.StopAsync(
                 slaveAddress,
                 CancellationToken.None);
+        }
+
+        if (completed is null)
+        {
+            // Stop is already sent. Read a finished result once, without restarting the head.
+            if (_fasteningEvent is { } previousEvent)
+            {
+                var result = await bus.ReadFasteningResultAsync(
+                    slaveAddress,
+                    CancellationToken.None);
+                if (IsCompleted(result, previousEvent))
+                {
+                    return Complete(result);
+                }
+            }
+
+            throw new OperationCanceledException(cancellationToken);
         }
 
         return Complete(completed);

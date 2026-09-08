@@ -6,5 +6,4 @@ public sealed class LightingSettings : Setting
 {
     public string Connection { get; set; } = string.Empty;
     public int InspectionChannel { get; set; } = 2;
-    public int InspectionLevel { get; set; } = 255;
 }

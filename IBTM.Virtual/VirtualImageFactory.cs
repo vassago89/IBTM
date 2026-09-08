@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using IBTM.Core;
+using ZXing;
+using ZXing.Datamatrix;
 
 namespace IBTM.Virtual;
 
@@ -15,7 +17,8 @@ internal static class VirtualImageFactory
 
     public static ImageFrame CreateInspection(
         (double X, double Y, double Z) center,
-        IEnumerable<AxisPosition> boltCentres)
+        IEnumerable<AxisPosition> boltCentres,
+        IEnumerable<VirtualDataMatrix> dataMatrices)
     {
         var halfWidth = (Width / 2) * InspectionMillimetersPerPixel;
         var halfHeight = (Height / 2) * InspectionMillimetersPerPixel;
@@ -43,6 +46,25 @@ internal static class VirtualImageFactory
                     color.Blue,
                     color.Green,
                     color.Red);
+            }
+        }
+
+        foreach (var code in dataMatrices)
+        {
+            var size = (int)(Math.Min(code.Width, code.Height) / InspectionMillimetersPerPixel);
+            const int border = 8;
+            var matrix = new DataMatrixWriter().encode(code.Text, BarcodeFormat.DATA_MATRIX,
+                0, 0);
+            var left = (int)Math.Round((code.Center.X - center.X) / InspectionMillimetersPerPixel) + Width / 2 - size / 2;
+            var top = (int)Math.Round((code.Center.Y - center.Y) / InspectionMillimetersPerPixel) + Height / 2 - size / 2;
+            for (var y = Math.Max(0, -top); y < Math.Min(size, Height - top); y++)
+            for (var x = Math.Max(0, -left); x < Math.Min(size, Width - left); x++)
+            {
+                var black = x >= border && y >= border && x < size - border && y < size - border
+                    && matrix[(x - border) * matrix.Width / (size - border * 2),
+                        (y - border) * matrix.Height / (size - border * 2)];
+                var intensity = black ? (byte)0 : (byte)255;
+                SetPixel(pixels, left + x, top + y, intensity, intensity, intensity);
             }
         }
 

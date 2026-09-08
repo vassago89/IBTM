@@ -7,6 +7,15 @@ public enum InspectionStationState
     [Description("Waiting")]
     Waiting,
 
+    [Description("Teach Data Matrix Regions")]
+    BarcodeTeachingRequired,
+
+    [Description("Moving to Data Matrix")]
+    MovingToBarcode,
+
+    [Description("Reading Data Matrix")]
+    ReadingBarcode,
+
     [Description("Moving to Bolt")]
     MovingToBolt,
 

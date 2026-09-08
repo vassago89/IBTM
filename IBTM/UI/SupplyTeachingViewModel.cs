@@ -9,6 +9,7 @@ using IBTM.Device;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
+using IBTM.Storage;
 
 namespace IBTM.UI;
 
@@ -43,9 +44,10 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         RecipeEditor recipeEditor,
         UnitSettings units,
         OperationCancellation operations,
+        MachineStore store,
         IReadOnlyDictionary<MotionGroup, IoStatus[]> ioGroups,
         IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs)
-        : base(operations, state, ioGroups, teachingOutputs)
+        : base(operations, state, store, ioGroups, teachingOutputs)
     {
         _supplyHandler = supplyHandler;
         _placementHandler = placementHandler;
@@ -110,7 +112,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         if (point.Storage == TeachingStorage.Machine)
         {
             using var operation = LinkMotion(CancellationToken.None);
-            await point.Position.Setting!.SaveAsync();
+            await SaveSettingsAsync(point.Position.Setting!);
         }
 
         OnPropertyChanged(nameof(HorizontalZ));
@@ -130,8 +132,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         }
 
         using var operation = LinkMotion(CancellationToken.None);
-        await Task.WhenAll(points.Select(point => point.Position.Setting!)
-            .Distinct().Select(setting => setting.SaveAsync()));
+        await SaveSettingsAsync(points.Select(point => point.Position.Setting!).Distinct().ToArray());
         NotifyManualTeachingCommands();
     }
 

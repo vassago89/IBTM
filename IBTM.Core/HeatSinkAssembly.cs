@@ -33,6 +33,9 @@ public sealed class HeatSinkAssembly(HeatSinkSlot heatSink)
     public IReadOnlyDictionary<int, bool> BoltPresenceResults => _boltPresenceResults;
     public AssemblyResult FasteningResult { get; private set; }
     public AssemblyResult InspectionResult { get; private set; }
+    public string? PcbBarcode { get; private set; }
+
+    public void RecordBarcode(string barcode) => PcbBarcode = barcode;
 
     public AssemblyResult Result =>
         FasteningResult == AssemblyResult.Ng
@@ -112,6 +115,7 @@ public sealed class HeatSinkAssembly(HeatSinkSlot heatSink)
 
     public void ResetInspection()
     {
+        PcbBarcode = null;
         _boltPresenceResults.Clear();
         InspectionResult = AssemblyResult.Pending;
     }

@@ -1,177 +1,65 @@
-using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
-using IBTM.Core;
+using IBTM.Storage;
+using IBTM.UI;
 
 namespace IBTM;
 
-public sealed class RecipeStore
+// WPF image conversion stays here; IBTM.Storage handles database records only.
+public sealed class RecipeStore(MachineStore database)
 {
-    private const string RecipeFileName = "Recipe.json";
+    internal MachineStore Database => database;
+    public IReadOnlyList<string> GetRecipeNames() => database.GetRecipeNames();
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    public Task<Recipe> LoadRecipeAsync(string name, CancellationToken cancellationToken = default) =>
+        Task.Run(() => database.LoadRecipe<Recipe>(name), cancellationToken);
+
+    public Task SaveRecipeAsync(Recipe recipe, CancellationToken cancellationToken = default) =>
+        SaveRecipeAsync(recipe, recipe.Name, null, cancellationToken);
+
+    internal Task SaveRecipeAsync(Recipe recipe, string name, string? sourceRecipe,
+        CancellationToken cancellationToken = default) => Task.Run(() =>
     {
-        WriteIndented = true,
-    };
+        var document = JsonSerializer.SerializeToNode(recipe)!;
+        document[nameof(Recipe.Name)] = name;
+        database.SaveRecipe(name, document, recipe.CarrierImages.Select(tile => tile.Number).ToArray(),
+            sourceRecipe, cancellationToken: cancellationToken);
+    }, cancellationToken);
 
-    private readonly string _recipeDirectory =
-        Path.Combine(AppContext.BaseDirectory, "Recipes");
-
-    public RecipeStore() => Directory.CreateDirectory(_recipeDirectory);
-
-    public async Task SaveRecipeAsync(
-        Recipe recipe,
-        CancellationToken cancellationToken = default)
-    {
-        var recipeDirectory = GetRecipeDirectory(recipe.Name);
-        Directory.CreateDirectory(recipeDirectory);
-        var filePath = Path.Combine(recipeDirectory, RecipeFileName);
-        var temporaryPath = $"{filePath}.tmp";
-        await using (var stream = File.Create(temporaryPath))
+    internal Task<List<CarrierImageTile>> SaveRecipeImagesAsync(Recipe recipe, string name,
+        IReadOnlyList<CarrierImageTileView> images, CancellationToken cancellationToken = default) =>
+        Task.Run(() =>
         {
-            await JsonSerializer.SerializeAsync(
-                stream,
-                recipe,
-                JsonOptions,
-                cancellationToken);
-        }
-
-        File.Move(temporaryPath, filePath, overwrite: true);
-        DeleteUnusedRecipeImages(recipe);
-    }
-
-    public async Task<Recipe> LoadRecipeAsync(
-        string recipeName,
-        CancellationToken cancellationToken = default)
-    {
-        var filePath = Path.Combine(
-            GetRecipeDirectory(recipeName),
-            RecipeFileName);
-        await using var stream = File.OpenRead(filePath);
-        var recipe = await JsonSerializer.DeserializeAsync<Recipe>(
-            stream,
-            JsonOptions,
-            cancellationToken);
-        return recipe
-            ?? throw new InvalidDataException(
-                $"Recipe '{recipeName}' is empty or invalid.");
-    }
-
-    public IReadOnlyList<string> GetRecipeNames() =>
-        Directory.GetDirectories(_recipeDirectory)
-            .Where(path => File.Exists(Path.Combine(path, RecipeFileName)))
-            .Select(path => new DirectoryInfo(path).Name)
-            .Order(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-    private void DeleteUnusedRecipeImages(Recipe recipe)
-    {
-        var directory = GetRecipeImageDirectory(recipe.Name);
-        if (!Directory.Exists(directory))
-        {
-            return;
-        }
-
-        var retained = recipe.CarrierImages
-            .Select(tile => GetRecipeImagePath(recipe.Name, tile.Number))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var path in Directory.GetFiles(directory, "*.png"))
-        {
-            if (!retained.Contains(path))
+            var tiles = images.Select((image, index) => new CarrierImageTile
+                { Number = index + 1, Center = image.Center }).ToList();
+            var encoded = images.Select((image, index) =>
             {
-                File.Delete(path);
-            }
-        }
-    }
+                cancellationToken.ThrowIfCancellationRequested();
+                using var stream = new MemoryStream();
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(image.Image));
+                encoder.Save(stream);
+                return new RecipeImage(index + 1, stream.ToArray());
+            });
+            var document = JsonSerializer.SerializeToNode(recipe)!;
+            document[nameof(Recipe.Name)] = name;
+            document[nameof(Recipe.CarrierImages)] = JsonSerializer.SerializeToNode(tiles);
+            database.SaveRecipe(name, document, tiles.Select(tile => tile.Number).ToArray(),
+                images: encoded, cancellationToken: cancellationToken);
+            return tiles;
+        }, cancellationToken);
 
-    public List<CarrierImageTile> SaveRecipeImages(
-        string recipeName,
-        IEnumerable<(AxisPosition Center, BitmapSource Image)> images)
+    public BitmapSource LoadRecipeImage(string name, int number)
     {
-        var number = GetNextRecipeImageNumber(recipeName);
-        List<CarrierImageTile> tiles = [];
-        foreach (var (center, image) in images)
-        {
-            var tile = new CarrierImageTile { Number = number++, Center = center };
-            using var stream = File.Create(GetRecipeImagePath(recipeName, tile.Number));
-            var encoder = new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(image));
-            encoder.Save(stream);
-            tiles.Add(tile);
-        }
-
-        return tiles;
-    }
-
-    public BitmapSource LoadRecipeImage(string recipeName, int number)
-    {
-        using var stream = File.OpenRead(GetRecipeImagePath(recipeName, number));
-        var decoder = new PngBitmapDecoder(
-            stream,
-            BitmapCreateOptions.PreservePixelFormat,
-            BitmapCacheOption.OnLoad);
-        var image = decoder.Frames[0];
+        using var stream = new MemoryStream(database.LoadRecipeImage(name, number), writable: false);
+        var image = new PngBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat,
+            BitmapCacheOption.OnLoad).Frames[0];
         image.Freeze();
         return image;
     }
-
-    public List<CarrierImageTile> CopyRecipeImages(
-        string sourceRecipe,
-        string targetRecipe,
-        IEnumerable<CarrierImageTile> sourceTiles)
-    {
-        var number = GetNextRecipeImageNumber(targetRecipe);
-        List<CarrierImageTile> tiles = [];
-        foreach (var source in sourceTiles)
-        {
-            var tile = new CarrierImageTile { Number = number++, Center = source.Center };
-            File.Copy(
-                GetRecipeImagePath(sourceRecipe, source.Number),
-                GetRecipeImagePath(targetRecipe, tile.Number));
-            tiles.Add(tile);
-        }
-
-        return tiles;
-    }
-
-    private int GetNextRecipeImageNumber(string recipeName)
-    {
-        var directory = GetRecipeImageDirectory(recipeName);
-        Directory.CreateDirectory(directory);
-        return Directory.GetFiles(directory, "*.png")
-            .Select(path => int.Parse(
-                Path.GetFileNameWithoutExtension(path), CultureInfo.InvariantCulture))
-            .DefaultIfEmpty()
-            .Max() + 1;
-    }
-
-    private string GetRecipeImageDirectory(string recipeName) =>
-        Path.Combine(
-            GetRecipeDirectory(recipeName),
-            "Carrier");
-
-    private string GetRecipeImagePath(string recipeName, int number) =>
-        Path.Combine(
-            GetRecipeImageDirectory(recipeName),
-            $"{number:D4}.png");
-
-    private string GetRecipeDirectory(string recipeName)
-    {
-        var directoryName = recipeName.Trim();
-        if (directoryName.Length == 0
-            || directoryName.EndsWith('.')
-            || directoryName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-        {
-            throw new ArgumentException("Invalid recipe name.", nameof(recipeName));
-        }
-
-        return Path.Combine(_recipeDirectory, directoryName);
-    }
-
 }
