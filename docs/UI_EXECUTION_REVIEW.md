@@ -1704,3 +1704,34 @@ Project-reference review found no dependency cycle or justified reference remova
 
 Verification: all 185 existing tests pass in Release; the Virtual application
 build has zero warnings and errors. No tests or hardware operations were added.
+
+## Manual axis movement ownership — 2026-09-08
+
+Inspection teaching Step now calls InspectionGantry.MoveAxisAsync. The view no
+longer rereads XY or constructs a two-axis target for a single-axis command.
+The unit checks pickup clearance and moves only X or Y; bounds and cancellation
+remain in the motion implementation. ManualAxisRow no longer carries an unused
+hardware signal identifier, retaining only group, axis, and shared display state.
+
+Verification: 19 targeted tests pass, including X/Y command selection, raised-
+pickup requirements, teaching cancellation, axis display/mapping, and homing.
+The Virtual build has zero warnings and errors. No hardware was operated.
+
+## Settings display refresh — 2026-09-08
+
+Removed SettingsViewModel's independent subscription to raw machine changes.
+The main window now refreshes Settings commands on page entry and through its
+existing coalesced UI update, only while Settings is the current page. Command
+conditions and operation cancellation are unchanged; no active flag, timer,
+cache or additional dispatcher helper was introduced.
+
+Off-screen WPF checks confirm that a hidden Settings page performs no command
+refresh, entry refreshes once, and 20 pending display notifications coalesce into
+one refresh. Teaching/operation/IO/settings binding checks also pass without
+warnings. The verification fixture now supplies the current OutputWindow
+dependencies and an initial display sample without initializing hardware.
+
+The full Virtual suite passed 187/187 immediately before this UI-only change.
+The final Virtual application build and isolated verification build both have
+zero warnings/errors. Only the off-screen teaching-bindings verification mode
+was run; the fixture's interactive modes were not exercised.

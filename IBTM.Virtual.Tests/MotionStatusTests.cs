@@ -15,8 +15,8 @@ public sealed class MotionStatusTests
     {
         var motion = new StatusMotion();
         var status = new MotionStatus(motion);
-        var first = new ManualAxisRow(MotionGroup.PcbSupply, default, MotionAxis.X, status);
-        var second = new ManualAxisRow(MotionGroup.PcbSupply, default, MotionAxis.X, status);
+        var first = new ManualAxisRow(MotionGroup.PcbSupply, MotionAxis.X, status);
+        var second = new ManualAxisRow(MotionGroup.PcbSupply, MotionAxis.X, status);
 
         Assert.Same(first.Feedback, second.Feedback);
         Assert.Equal(AxisCondition.Unavailable, first.Feedback.Condition);

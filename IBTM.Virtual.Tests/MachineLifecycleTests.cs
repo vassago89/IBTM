@@ -176,6 +176,33 @@ public sealed class MachineLifecycleTests
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
     }
 
+    [Theory]
+    [InlineData(TeachingDirection.XPlus, nameof(IAxisMotion.MoveXAsync), 10.1, 20)]
+    [InlineData(TeachingDirection.YPlus, nameof(IAxisMotion.MoveYAsync), 10, 20.1)]
+    public async Task InspectionTeachingStepMovesOnlyTheSelectedAxis(
+        TeachingDirection direction, string expectedMove, double x, double y)
+    {
+        using var services = CreateDisplayServices(out var feedback);
+        var machine = services.GetRequiredService<MachineController>();
+        var gantry = services.GetRequiredService<InspectionGantry>();
+        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        await gantry.MoveToAsync(new() { X = 10, Y = 20 }, 10_000);
+        teaching.StepDistance = 0.1;
+        await WaitUntilAsync(() => teaching.StepCommand.CanExecute(direction));
+
+        await teaching.StepCommand.ExecuteAsync(direction);
+
+        Assert.Equal(expectedMove, feedback.LastMove);
+        Assert.Equal((x, y, 0), gantry.Feedback.GetPosition());
+
+        await services.GetRequiredService<IIoService>().SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, true);
+        await WaitUntilAsync(() => !teaching.StepCommand.CanExecute(direction));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.MoveAxisAsync(MotionAxis.X, 30, 1_000));
+        Assert.Equal((x, y, 0), gantry.Feedback.GetPosition());
+    }
+
     [Fact]
     public async Task DisplayReadFailureIsVisibleAndDoesNotReplaceLiveAdmissionChecks()
     {
@@ -534,11 +561,9 @@ public sealed class MachineLifecycleTests
             Assert.Same(section.Settings, view.CurrentMotionSettings);
             Assert.Same(section.Hardware, view.CurrentMotionHardwareSettings);
             Assert.Equal(section.Hardware.GetAxis(MotionAxis.Z) is not null, view.CurrentMotionHasZ);
-            foreach (var (axis, signal) in section.Hardware.AxisSignals)
+            foreach (var axis in section.Hardware.AxisSignals.Keys)
             {
-                var row = Assert.Single(manual.Axes, row => row.Signal == signal);
-                Assert.Equal(axis, row.Axis);
-                Assert.Equal(section.Hardware.Group, row.Group);
+                Assert.Single(manual.Axes, row => row.Group == section.Hardware.Group && row.Axis == axis);
             }
         }
         Assert.Equal(315, services.GetRequiredService<PcbSupplyHandler>().Feedback.GetRange(MotionAxis.Y)!.Value.Maximum);
@@ -2986,8 +3011,9 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         await placement.MoveZAsync(50, 10_000);
 
+        var axisRow = manual.Axes.Single(row => row.Group == MotionGroup.BoltFastening && row.Axis == MotionAxis.Z);
         var homing = individual
-            ? manual.HomeAxisCommand.ExecuteAsync(manual.Axes.Single(row => row.Signal == MachineAxis.BoltFasteningZ))
+            ? manual.HomeAxisCommand.ExecuteAsync(axisRow)
             : machine.HomeAsync(CancellationToken.None);
         try
         {
@@ -3006,8 +3032,7 @@ public sealed class MachineLifecycleTests
             Assert.Equal(MachineAlarm.HomeFailed, state.Alarm);
             if (exception) Assert.Contains("Home command failed.", state.AlarmDetail);
             await WaitUntilAsync(() => state.Display.Alarm == MachineAlarm.HomeFailed);
-            Assert.False(manual.HomeAxisCommand.CanExecute(
-                manual.Axes.Single(row => row.Signal == MachineAxis.BoltFasteningZ)));
+            Assert.False(manual.HomeAxisCommand.CanExecute(axisRow));
             Assert.False(state.IsHoming);
             Assert.False(placement.IsMoving);
             Assert.False(supply.IsMoving);
@@ -3143,10 +3168,13 @@ public sealed class MachineLifecycleTests
     {
         public IXyMotion Motion { get; set; } = null!;
         public Action? BeforeRead;
+        public string? LastMove { get; private set; }
 
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
         {
             if (method!.Name == nameof(IMotionFeedback.GetAxisState)) BeforeRead?.Invoke();
+            if (method.Name is nameof(IAxisMotion.MoveXAsync) or nameof(IAxisMotion.MoveYAsync)
+                or nameof(IXyMotion.MoveToXYAsync)) LastMove = method.Name;
             return method.Invoke(Motion, arguments);
         }
     }

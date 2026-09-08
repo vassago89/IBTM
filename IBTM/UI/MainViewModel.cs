@@ -229,6 +229,9 @@ public partial class MainViewModel : ObservableObject
             case BoltTrainingViewModel training:
                 training.Activate();
                 break;
+            case SettingsViewModel settings:
+                settings.RefreshCommands();
+                break;
         }
     }
 
@@ -302,6 +305,9 @@ public partial class MainViewModel : ObservableObject
             {
                 Navigate(AppPage.Operation);
             }
+
+            if (CurrentPage is SettingsViewModel settings)
+                settings.RefreshCommands();
         });
     }
 

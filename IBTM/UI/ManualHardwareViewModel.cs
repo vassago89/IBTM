@@ -23,12 +23,10 @@ public enum ManualConveyorStatus
 
 public sealed class ManualAxisRow(
     MotionGroup group,
-    MachineAxis signal,
     MotionAxis axis,
     MotionStatus motion)
 {
     public MotionGroup Group { get; } = group;
-    public MachineAxis Signal { get; } = signal;
     public MotionAxis Axis { get; } = axis;
     public MotionStatus Motion { get; } = motion;
     public AxisStatus Feedback { get; } = motion.Axes[axis];
@@ -55,8 +53,8 @@ public partial class ManualHardwareViewModel : ObservableObject
         _conveyor = conveyor;
         _state = state;
         _machine = machine;
-        Axes = hardware.SelectMany(section => section.AxisSignals.Select(axis =>
-            new ManualAxisRow(section.Group, axis.Value, axis.Key, machine.GetMotionStatus(section.Group)))).ToArray();
+        Axes = hardware.SelectMany(section => section.AxisSignals.Keys.Select(axis =>
+            new ManualAxisRow(section.Group, axis, machine.GetMotionStatus(section.Group)))).ToArray();
 
         state.DisplayChanged += OnMachineStateChanged;
     }

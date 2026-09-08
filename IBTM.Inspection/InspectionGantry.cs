@@ -69,6 +69,21 @@ public sealed class InspectionGantry
 
     public bool CanJog(MotionAxis axis) => axis is MotionAxis.X or MotionAxis.Y && CanMove;
 
+    public Task MoveAxisAsync(
+        MotionAxis axis,
+        double position,
+        double velocity,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureCanMove(cancellationToken);
+        return axis switch
+        {
+            MotionAxis.X => _motion.MoveXAsync(position, velocity, cancellationToken),
+            MotionAxis.Y => _motion.MoveYAsync(position, velocity, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
+        };
+    }
+
     public Task JogAsync(
         MotionAxis axis,
         double velocity,

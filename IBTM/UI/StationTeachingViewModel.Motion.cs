@@ -61,22 +61,17 @@ public partial class StationTeachingViewModel
         };
 
     protected override Task MoveCurrentAxisAsync(
-        MotionAxis axis, double position, CancellationToken cancellationToken)
-    {
-        var current = CurrentFeedback.GetPosition();
-        var x = axis == MotionAxis.X ? position : current.X;
-        var y = axis == MotionAxis.Y ? position : current.Y;
-        return (SelectedMotionGroup, axis) switch
+        MotionAxis axis, double position, CancellationToken cancellationToken) =>
+        (SelectedMotionGroup, axis) switch
         {
             (MotionGroup.PcbPlacementHandler, MotionAxis.X) => _placementHandler.MoveXAsync(position, cancellationToken),
             (MotionGroup.PcbPlacementHandler, MotionAxis.Y) => _placementHandler.MoveYAsync(position, cancellationToken),
             (MotionGroup.PcbPlacementHandler, MotionAxis.Z) => _placementHandler.MoveZAsync(position, cancellationToken),
             (MotionGroup.BoltFastening, _) => _fasteningGantry.AdjustAxisAsync(axis, position, JogSpeed, cancellationToken),
-            (MotionGroup.InspectionGantry, _) => _inspectionGantry.MoveToAsync(
-                new AxisPosition { X = x, Y = y }, _inspectionGantrySettings.Motion.HorizontalSpeed, cancellationToken),
+            (MotionGroup.InspectionGantry, _) => _inspectionGantry.MoveAxisAsync(
+                axis, position, _inspectionGantrySettings.Motion.HorizontalSpeed, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(axis)),
         };
-    }
 
     [RelayCommand(CanExecute = nameof(CanReturnFromPickup))]
     private Task ReturnFromPickupAsync(CancellationToken cancellationToken) =>

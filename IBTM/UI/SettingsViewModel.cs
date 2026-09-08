@@ -54,15 +54,6 @@ public partial class SettingsViewModel : ObservableObject
         _store = store;
         _operations = operations;
         _virtualCamera = camera as VirtualCamera;
-        state.Changed += () => Application.Current.Dispatcher.BeginInvoke(() =>
-        {
-            LoadVirtualImageCommand.NotifyCanExecuteChanged();
-            ClearVirtualImageCommand.NotifyCanExecuteChanged();
-            SaveSettingsCommand.NotifyCanExecuteChanged();
-            BackupDatabaseCommand.NotifyCanExecuteChanged();
-            RestoreDatabaseCommand.NotifyCanExecuteChanged();
-            OnPropertyChanged(nameof(CanEditSettings));
-        });
         Settings = settings;
         _motions = settings.MotionSections.ToDictionary(section => section.Hardware.Group);
         MotionGroups = _motions.Keys.ToArray();
@@ -132,6 +123,16 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     public bool CanEditSettings => _state.ManualMode && !_state.IsRunning;
+
+    public void RefreshCommands()
+    {
+        LoadVirtualImageCommand.NotifyCanExecuteChanged();
+        ClearVirtualImageCommand.NotifyCanExecuteChanged();
+        SaveSettingsCommand.NotifyCanExecuteChanged();
+        BackupDatabaseCommand.NotifyCanExecuteChanged();
+        RestoreDatabaseCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanEditSettings));
+    }
 
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
     private async Task BackupDatabaseAsync()
