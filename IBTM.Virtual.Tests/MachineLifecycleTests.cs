@@ -26,6 +26,154 @@ namespace IBTM.Virtual.Tests;
 public sealed class MachineLifecycleTests
 {
     [Fact]
+    public async Task ManualConveyorStopsOnModeChangeWithoutAView()
+    {
+        using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        var conveyor = services.GetRequiredService<MainConveyor>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            conveyor.RunMotor();
+            Assert.True(conveyor.RunCommandOn);
+            io.SetInput(InputIo.AutoMode, true);
+            Assert.False(conveyor.RunCommandOn);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            conveyor.Stop();
+        }
+    }
+
+    [Theory]
+    [InlineData(MotionGroup.PcbSupply)]
+    [InlineData(MotionGroup.PcbPlacementHandler)]
+    [InlineData(MotionGroup.InspectionGantry)]
+    public async Task TeachingJogRemainsActiveUntilReleaseOrModeChange(MotionGroup group)
+    {
+        using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        TeachingMotionViewModel teaching;
+        IMotionFeedback feedback;
+        if (group == MotionGroup.PcbSupply)
+        {
+            teaching = services.GetRequiredService<SupplyTeachingViewModel>();
+            feedback = services.GetRequiredService<PcbSupplyHandler>().Feedback;
+        }
+        else
+        {
+            var station = services.GetRequiredService<StationTeachingViewModel>();
+            station.SelectedMotionGroup = group;
+            teaching = station;
+            feedback = group == MotionGroup.PcbPlacementHandler
+                ? services.GetRequiredService<PcbPlacementHandler>().Feedback
+                : services.GetRequiredService<InspectionGantry>().Feedback;
+        }
+
+        teaching.JogSpeed = 1;
+        foreach (var changeMode in new[] { false, true })
+        {
+            Assert.True(teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+            var jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);
+            try
+            {
+                Assert.True(feedback.IsMoving);
+                Assert.False(jog.IsCompleted);
+                if (changeMode) io.SetInput(InputIo.AutoMode, true);
+                else teaching.JogStopCommand.Execute(null);
+                await jog.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.False(feedback.IsMoving);
+                await WaitUntilAsync(() => !services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+                Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
+            }
+            finally
+            {
+                machine.Stop();
+                await jog.WaitAsync(TimeSpan.FromSeconds(2));
+            }
+        }
+    }
+
+    [Fact]
+    public async Task RawOutputRechecksManualAdmissionWithoutWaitingForWindowRefresh()
+    {
+        using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        var row = new OutputControlRow(io,
+            services.GetRequiredService<IoSignals>().Outputs[OutputIo.MachineLight], machine);
+        await row.ToggleCommand.ExecuteAsync(null);
+        Assert.True(io.GetOutput(OutputIo.MachineLight));
+
+        io.SetInput(InputIo.AutoMode, true);
+        await row.ToggleCommand.ExecuteAsync(null);
+        Assert.True(io.GetOutput(OutputIo.MachineLight));
+
+        io.SetInput(InputIo.AutoMode, false);
+        using (services.GetRequiredService<OperationCancellation>().Link())
+        {
+            await row.ToggleCommand.ExecuteAsync(null);
+            Assert.True(io.GetOutput(OutputIo.MachineLight));
+        }
+        await row.ToggleCommand.ExecuteAsync(null);
+        Assert.False(io.GetOutput(OutputIo.MachineLight));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TeachingCaptureStopsOnModeChange(bool scanCarrier)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.InspectionGantry.Motion.HorizontalSpeed = 1;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var gantry = services.GetRequiredService<InspectionGantry>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        await gantry.MoveToAsync(new() { X = 50, Y = 50 }, 10_000);
+        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        teaching.RecipeEditor.Name = $"CancelledScan-{Guid.NewGuid():N}";
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Target == TeachingTarget.DataMatrix);
+        var selected = teaching.SelectedPoint;
+        var command = scanCarrier ? teaching.CaptureCarrierImagesCommand : teaching.CaptureInspectionCommand;
+        Assert.True(command.CanExecute(null));
+        var capture = command.ExecuteAsync(null);
+        try
+        {
+            await WaitUntilAsync(() => gantry.Feedback.IsMoving);
+            io.SetInput(InputIo.AutoMode, true);
+            await capture.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(gantry.Feedback.IsMoving);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+            Assert.Same(selected, teaching.SelectedPoint);
+            Assert.False(teaching.Preview.HasImage);
+            Assert.Null(teaching.CameraError);
+            Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
+
+            io.SetInput(InputIo.AutoMode, false);
+            settings.InspectionGantry.Motion.HorizontalSpeed = 10_000;
+            Assert.True(command.CanExecute(null));
+            await command.ExecuteAsync(null);
+            Assert.Null(teaching.CameraError);
+            Assert.True(scanCarrier ? teaching.HasCarrierImages : teaching.Preview.HasImage);
+        }
+        finally
+        {
+            machine.Stop();
+            await capture.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
     public async Task DataMatrixFailureStopsInspectionAndResetAllowsARealRead()
     {
         var settings = FlowSettings();

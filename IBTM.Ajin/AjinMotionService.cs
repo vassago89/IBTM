@@ -315,6 +315,7 @@ public class AjinMotionService(
 
                 if (result != HomeSearching)
                 {
+                    AjinNative.AxmMoveSStop(axisNumber);
                     return false;
                 }
 
@@ -330,8 +331,7 @@ public class AjinMotionService(
         }
         finally
         {
-            EndMotion(axis != MotionAxis.Z);
-            PublishPosition();
+            await EndMotionAsync([axisNumber], axis != MotionAxis.Z).ConfigureAwait(false);
         }
     }
 
@@ -442,8 +442,36 @@ public class AjinMotionService(
         }
         finally
         {
+            await EndMotionAsync(axes, horizontal).ConfigureAwait(false);
+        }
+    }
+
+    private async Task EndMotionAsync(int[] axes, bool horizontal)
+    {
+        try
+        {
+            await WaitForStopAsync(axes).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            throw new MotionException("Wait for motion stop", exception);
+        }
+        finally
+        {
             EndMotion(horizontal);
             PublishPosition();
+        }
+    }
+
+    protected async Task WaitForStopAsync(int[] axes)
+    {
+        var started = Stopwatch.GetTimestamp();
+        // Stop is already requested. Cancellation must not skip its hardware acknowledgement.
+        while (ReadMoveState(axes).Moving)
+        {
+            if (Stopwatch.GetElapsedTime(started).TotalMilliseconds >= options.TimeoutMilliseconds)
+                throw new TimeoutException($"Motion did not stop within {options.TimeoutMilliseconds} ms.");
+            await Task.Delay(StatusPollInterval).ConfigureAwait(false);
         }
     }
 
@@ -498,53 +526,30 @@ public class AjinMotionService(
     private void Jog(
         int axis,
         double velocity,
-        CancellationToken cancellationToken)
-    {
-        var monitor = LinkOperation(cancellationToken);
-        try
-        {
-            try
-            {
-                BeginMotion(axis != _axisZ);
-                monitor.Token.ThrowIfCancellationRequested();
-                var velocityInUnits = ToUnits(velocity);
-                var acceleration = Math.Abs(velocityInUnits)
-                                   * controller.Settings.AccelerationMultiplier;
-                AjinController.Check(
-                    AjinNative.AxmMoveVel(
-                        axis,
-                        velocityInUnits,
-                        acceleration,
-                        acceleration),
-                    nameof(AjinNative.AxmMoveVel));
-            }
-            catch
-            {
-                StopAxes();
-                EndMotion(axis != _axisZ);
-                throw;
-            }
-        }
-        catch
-        {
-            monitor.Dispose();
-            throw;
-        }
-        _ = MonitorJogPositionAsync(axis, monitor);
-    }
+        CancellationToken cancellationToken) =>
+        _ = MonitorJogPositionAsync(axis, velocity, LinkOperation(cancellationToken));
 
     private async Task MonitorJogPositionAsync(
         int axis,
+        double velocity,
         OperationCancellation.Operation monitor)
     {
         using (monitor)
         {
             try
             {
+                BeginMotion(axis != _axisZ);
                 using var cancellationRegistration =
                     monitor.Token.Register(StopAxes);
                 try
                 {
+                    monitor.Token.ThrowIfCancellationRequested();
+                    var velocityInUnits = ToUnits(velocity);
+                    var acceleration = Math.Abs(velocityInUnits)
+                                       * controller.Settings.AccelerationMultiplier;
+                    AjinController.Check(
+                        AjinNative.AxmMoveVel(axis, velocityInUnits, acceleration, acceleration),
+                        nameof(AjinNative.AxmMoveVel));
                     while (true)
                     {
                         var inMotion = 0U;
@@ -564,8 +569,7 @@ public class AjinMotionService(
                 finally
                 {
                     StopAxes();
-                    EndMotion(axis != _axisZ);
-                    PublishPosition();
+                    await EndMotionAsync([axis], axis != _axisZ).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) when (monitor.IsCancellationRequested)

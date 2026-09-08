@@ -38,12 +38,26 @@ public sealed class AjinHomeTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => motion.Wait(CancellationToken.None));
     }
 
+    [Fact]
+    public async Task StopWaitsForHardwareMotionOffWithoutRequiringInPosition()
+    {
+        var motion = new TestCompletion(new());
+        var stopping = motion.WaitForStop();
+        Assert.False(stopping.IsCompleted);
+        motion.Feedback = (false, false, true);
+        await stopping.WaitAsync(TimeSpan.FromSeconds(1));
+
+        motion = new TestCompletion(new() { TimeoutMilliseconds = 25 });
+        await Assert.ThrowsAsync<TimeoutException>(motion.WaitForStop);
+    }
+
     private sealed class TestCompletion(MachineOptions options) : AjinMotionService(
         new AjinController(new AjinSettings()), new AxisHardware(), null, null,
         0.01, new MotionSettings(), options, new OperationCancellation(), null)
     {
         public (bool Moving, bool InPosition, bool Faulted) Feedback = (true, false, false);
         public Task Wait(CancellationToken token) => WaitForMoveAsync([0], token);
+        public Task WaitForStop() => WaitForStopAsync([0]);
         protected override (bool Moving, bool InPosition, bool Faulted) ReadMoveState(int[] axes) => Feedback;
     }
 

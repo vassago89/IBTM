@@ -240,11 +240,11 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
 
     public TeachingOutput[] GetTeachingOutputs() =>
     [
-        new(OutputIo.PcbPlacementHandlerDown, SetLiftDownAsync),
-        new(OutputIo.PcbPlacementIpmDown, SetIpmLiftDownAsync),
-        new(OutputIo.PcbPlacementIpmGripperClose, SetIpmGripperAsync),
-        new(OutputIo.PcbPlacementVacuumEjector, SetVacuumAsync),
-        new(OutputIo.PcbPlacementHandlerRotate, SetRotatedAsync,
+        new(OutputIo.PcbPlacementHandlerDown, HardwareArea.PcbPlacementHandler, SetLiftDownAsync),
+        new(OutputIo.PcbPlacementIpmDown, HardwareArea.PcbPlacementHandler, SetIpmLiftDownAsync),
+        new(OutputIo.PcbPlacementIpmGripperClose, HardwareArea.PcbPlacementHandler, SetIpmGripperAsync),
+        new(OutputIo.PcbPlacementVacuumEjector, HardwareArea.PcbPlacementHandler, SetVacuumAsync),
+        new(OutputIo.PcbPlacementHandlerRotate, HardwareArea.PcbPlacementHandler, SetRotatedAsync,
             () => AtHorizontalZ && CanMoveHorizontal),
     ];
 

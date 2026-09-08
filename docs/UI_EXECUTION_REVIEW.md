@@ -1318,3 +1318,67 @@ hardware fault/reset paths. Hardware safety-alarm priorities were not changed.
 
 Verification: all 158 Virtual tests pass. Release and Virtual builds report zero
 warnings/errors, and diff whitespace checks pass. No physical equipment was run.
+
+### Manual execution and shared motion display
+
+Manual Conveyor mode-change Stop now runs in MachineController's input handler,
+not a queued UI refresh. A regression verifies it without constructing a view.
+Individual-axis Home admission, execution and servo dispatch also moved out of
+ManualHardwareViewModel. Manual Home and teaching share cancellation monitoring
+and IO/motion error handling in the existing controller. Physical movement and
+Stop remain owned by each unit/device; no new controller framework was added.
+
+The review reproduced a Jog lifetime problem in Supply, Placement and Inspection:
+their synchronous start returned before motion ended, disposing the teaching
+cancellation scope too early. The shared manual-motion boundary now retains the
+scope until moving feedback turns OFF. Cancellation still reaches the device
+immediately; only command completion waits for the device to stop. Regressions
+cover release and Manual-to-Auto mode changes for all three handlers.
+
+TeachingOutput carries an explicit HardwareArea owner supplied by its unit.
+The controller maps that owner to a machine alarm; teaching UI no longer identifies
+backup-plate output names. Existing backup-plate timeout coverage still confirms
+Main Conveyor attribution, and individual Home failures retain Home Failed.
+
+Manual and teaching coordinate text now binds to each unit's shared MotionStatus.
+The separate coordinate copies and manual-axis dispatcher queue were removed.
+Only the inspection FOV overlay keeps a coalesced UI update. The three side-view
+Z scales share a XAML template with centered rails and carriages.
+
+Verification: all 162 Virtual tests pass. Release and Virtual builds have zero
+warnings/errors; diff whitespace checks pass. Production code is approximately
+190 lines shorter, excluding tests and documentation. No physical equipment was
+operated, and this pass did not perform an on-screen visual inspection.
+
+### Follow-through: teaching capture, device stop and raw DO
+
+Carrier scans and bolt/barcode capture still used their own linked-token scope.
+They now use the same manual-motion boundary as Move/Jog, so changing Manual to
+Auto cancels movement without waiting for a UI refresh. Carrier capture, bitmap
+conversion, saving and point selection stay inside that boundary; cancellation
+does not fall through into saving or advancing. Camera errors remain local to
+the teaching screen; motion faults use the controller's existing alarm handling.
+Two regressions cover carrier scan and single-point capture cancellation, then
+successful recapture after returning to Manual.
+
+Ajin's SDK declaration in AnyWave/AnyWave.Device/Motions/Ajin/AXM.cs identifies
+AxmMoveSStop as deceleration stop. Jog, positioning and Home now retain their
+motion lifetime until AxmStatusReadInMotion reports OFF. Cancellation sends Stop
+immediately; only cleanup waits. This wait uses MachineOptions.TimeoutMilliseconds
+and does not require InPosition, since a fault-stopped axis can lack that signal.
+Status-read failures or stop timeouts become motion errors rather than successful
+completion. Jog startup and monitoring share one cleanup path. A focused driver
+test covers delayed OFF, stopped-with-fault/no-InPosition and stop timeout using
+injected status responses; actual RTEX deceleration remains a commissioning check.
+
+Raw DO controls no longer rely only on MainWindow closing after a queued state
+notification. MachineController checks manual-output admission at the write
+boundary, and write failures enter the existing IO communication alarm path.
+The diagnostic window still observes mapped feedback without becoming a unit
+sequence. A regression verifies that an existing row cannot write in Auto or
+during another operation, and can write again when manual controls are available.
+
+Verification: all 166 Virtual tests pass; the two capture tests additionally pass
+with restart assertions. Virtual build and diff whitespace checks pass. No new
+project, wrapper class or physical-state flag was introduced. No equipment was
+operated and no on-screen visual validation was performed in this follow-through.

@@ -12,6 +12,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
 
     public MotionStatus(IMotionFeedback motion)
     {
+        Feedback = motion;
         var position = motion.GetPosition();
         _position = new(position.X, position.Y, position.Z);
         _isMoving = motion.IsMoving;
@@ -25,6 +26,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
+    public IMotionFeedback Feedback { get; }
 
     public MotionPosition Position
     {

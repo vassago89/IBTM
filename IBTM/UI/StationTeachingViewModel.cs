@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.BoltFastening;
@@ -35,6 +36,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     private readonly InspectionWork _inspectionWork;
     private readonly BoltTrainingStore _trainingStore;
     private CancellationTokenSource _recipeImageCancellation = new();
+    private int _fieldOfViewRefreshQueued;
     private Task _recipeImageUpdate = Task.CompletedTask;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInspectionSelected))]
@@ -97,6 +99,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         BoltInspector boltInspector,
         BufferStage buffer,
         MachineState state,
+        MachineController machine,
         InspectionGantrySettings inspectionGantrySettings,
         CarrierReferenceSettings carrierReference,
         UnitSettings units,
@@ -111,7 +114,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         MachineStore store,
         IReadOnlyDictionary<MotionGroup, IoStatus[]> ioGroups,
         IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs)
-        : base(operations, state, store, ioGroups, teachingOutputs)
+        : base(operations, state, machine, store, ioGroups, teachingOutputs)
     {
         _placementHandler = placementHandler;
         _fasteningGantry = fasteningGantry;
@@ -143,16 +146,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         ScanOverlap =
             CurrentRecipe.BoltInspection.CarrierScanOverlapMillimeters;
 
-        placementHandler.Feedback.PositionChanged += (x, y, z) =>
-            QueuePositionRefresh(
-                MotionGroup.PcbPlacementHandler,
-                x,
-                y,
-                z);
-        fasteningGantry.Feedback.PositionChanged += (x, y, z) =>
-            QueuePositionRefresh(MotionGroup.BoltFastening, x, y, z);
-        inspectionGantry.Feedback.PositionChanged += (x, y, z) =>
-            QueuePositionRefresh(MotionGroup.InspectionGantry, x, y, z);
+        inspectionGantry.Feedback.PositionChanged += OnInspectionPositionChanged;
         placementHandler.Feedback.MovingChanged += QueueManualCommandRefresh;
         fasteningGantry.Feedback.MovingChanged += QueueManualCommandRefresh;
         inspectionGantry.Feedback.MovingChanged += QueueManualCommandRefresh;
@@ -254,13 +248,28 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
             var (width, height) = ImageFieldOfView;
             if (width <= 0 || height <= 0) return null;
+            var position = Motion.Position;
             return new Rect(
-                CurrentX - (width / 2),
-                CurrentY - (height / 2),
+                position.X - (width / 2),
+                position.Y - (height / 2),
                 width,
                 height);
         }
     }
+    private void OnInspectionPositionChanged(double x, double y, double z)
+    {
+        if (!PositionUpdatesActive || !IsInspectionSelected
+            || Interlocked.Exchange(ref _fieldOfViewRefreshQueued, 1) != 0)
+            return;
+
+        Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            Interlocked.Exchange(ref _fieldOfViewRefreshQueued, 0);
+            if (PositionUpdatesActive && IsInspectionSelected)
+                OnPropertyChanged(nameof(CameraFieldOfView));
+        }, DispatcherPriority.Background);
+    }
+
     private (double Width, double Height) ImageFieldOfView =>
         (Preview.Image ?? LiveImage ?? CarrierImages.FirstOrDefault()?.Image) is { } image
             ? _boltInspector.GetFieldOfView((image.PixelWidth, image.PixelHeight)) : _boltInspector.FieldOfView;
@@ -280,7 +289,8 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
         RefreshTeachingPoints();
         ShowRecipeImages();
-        RefreshPosition();
+        OnPropertyChanged(nameof(Motion));
+        OnPropertyChanged(nameof(CameraFieldOfView));
         OnPropertyChanged(nameof(HasY));
         OnPropertyChanged(nameof(HasZ));
         OnPropertyChanged(nameof(BoltPointEditorVisible));
@@ -359,6 +369,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         RefreshMotionGroups();
         RefreshTeachingPoints();
         ActivatePositionUpdates();
+        OnPropertyChanged(nameof(CameraFieldOfView));
         ShowRecipeImages();
         NotifyManualTeachingCommands();
     }

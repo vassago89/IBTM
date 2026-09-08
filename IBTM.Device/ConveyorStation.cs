@@ -104,7 +104,8 @@ public sealed class ConveyorStation
 
     public TeachingOutput[] GetTeachingOutputs() =>
     [
-        new(_backupPlate, (up, token) => _io.SetOutputAndWaitAsync(_backupPlate, up, token), RequiresHandler: false),
+        new(_backupPlate, HardwareArea.MainConveyor,
+            (up, token) => _io.SetOutputAndWaitAsync(_backupPlate, up, token), RequiresHandler: false),
     ];
 
     public StationCylinderState BackupPlate => CylinderState(

@@ -6,6 +6,7 @@ namespace IBTM.Device;
 
 public sealed record TeachingOutput(
     OutputIo Signal,
+    HardwareArea Owner,
     Func<bool, CancellationToken, Task> SetAsync,
     Func<bool>? CanSet = null,
     bool RequiresHandler = true,

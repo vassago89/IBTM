@@ -38,6 +38,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         PcbPlacementHandler placementHandler,
         BufferStage buffer,
         MachineState state,
+        MachineController machine,
         PcbBufferSettings bufferSettings,
         PcbSupplySettings supplySettings,
         PcbPlacementHandlerSettings placementSettings,
@@ -47,7 +48,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         MachineStore store,
         IReadOnlyDictionary<MotionGroup, IoStatus[]> ioGroups,
         IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs)
-        : base(operations, state, store, ioGroups, teachingOutputs)
+        : base(operations, state, machine, store, ioGroups, teachingOutputs)
     {
         _supplyHandler = supplyHandler;
         _placementHandler = placementHandler;
@@ -59,14 +60,6 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         _units = units;
         RecipeEditor = recipeEditor;
 
-        supplyHandler.Feedback.PositionChanged += (x, y, z) =>
-            QueuePositionRefresh(MotionGroup.PcbSupply, x, y, z);
-        placementHandler.Feedback.PositionChanged += (x, y, z) =>
-            QueuePositionRefresh(
-                MotionGroup.PcbPlacementHandler,
-                x,
-                y,
-                z);
         supplyHandler.Feedback.MovingChanged += QueueManualCommandRefresh;
         placementHandler.Feedback.MovingChanged += QueueManualCommandRefresh;
         supplyHandler.Changed += QueueManualCommandRefresh;

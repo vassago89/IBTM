@@ -51,43 +51,29 @@ public partial class StationTeachingViewModel
         var completed = false;
         try
         {
-            using var motionCancellation = LinkMotion(cancellationToken);
-            _recipeImageCancellation.Cancel();
-            await _recipeImageUpdate;
-            CameraError = null;
-            Preview.Clear(SelectedBarcode);
-            if (IsCameraLive)
+            await RunInspectionAsync(async token =>
             {
-                StopCamera();
-                if (CameraError is not null) return;
-            }
-            CarrierImages = [];
-            var captured = await _boltInspector
-                .CaptureCarrierImagesAsync(motionCancellation.Token);
-            var images = await Task.Run(
-                () => captured
-                    .Select((image, index) => new CarrierImageTileView(
-                        index + 1,
-                        image.Center,
-                        InspectionPreview.CreateBitmap(image.Frame)))
-                    .ToArray(),
-                motionCancellation.Token);
+                _recipeImageCancellation.Cancel();
+                await _recipeImageUpdate;
+                Preview.Clear(SelectedBarcode);
+                CarrierImages = [];
+                var captured = await _boltInspector.CaptureCarrierImagesAsync(token);
+                var images = await Task.Run(
+                    () => captured
+                        .Select((image, index) => new CarrierImageTileView(
+                            index + 1,
+                            image.Center,
+                            InspectionPreview.CreateBitmap(image.Frame)))
+                        .ToArray(),
+                    token);
 
-            motionCancellation.Token.ThrowIfCancellationRequested();
-            CarrierImages = images;
-            completed = await RecipeEditor.SaveCarrierImagesAsync(images, motionCancellation.Token);
-            if (!completed) return;
-            SelectedPoint = NextTeachingPoint() ?? FilteredPoints.FirstOrDefault(point =>
-                point.Target == TeachingTarget.BoltReference);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception)
-        {
-            CameraError = exception.Message;
-            if (exception is MotionException)
-                _state.SetError(MachineAlarm.MotionUnavailable, exception);
+                token.ThrowIfCancellationRequested();
+                CarrierImages = images;
+                completed = await RecipeEditor.SaveCarrierImagesAsync(images, token);
+                if (!completed) return;
+                SelectedPoint = NextTeachingPoint() ?? FilteredPoints.FirstOrDefault(point =>
+                    point.Target == TeachingTarget.BoltReference);
+            }, cancellationToken);
         }
         finally
         {
@@ -223,17 +209,18 @@ public partial class StationTeachingViewModel
     {
         try
         {
-            using var operation = LinkMotion(token);
-            CameraError = null;
-            if (IsCameraLive) StopCamera();
-            if (CameraError is not null) return;
-            await action(operation.Token);
+            await RunMotionAsync(async ct =>
+            {
+                CameraError = null;
+                if (IsCameraLive) StopCamera();
+                if (CameraError is not null) return;
+                await action(ct);
+            }, token);
         }
         catch (OperationCanceledException) { }
         catch (Exception exception)
         {
             CameraError = exception.Message;
-            if (exception is MotionException) _state.SetError(MachineAlarm.MotionUnavailable, exception);
         }
     }
 

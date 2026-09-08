@@ -47,6 +47,23 @@
             <Setter Property="HorizontalAlignment" Value="Left"/>
             <Setter Property="TextAlignment" Value="Left"/>
         </Style>
+        <DataTemplate x:Key="ZAxisScaleTemplate">
+            <Grid Height="62">
+                <Border Height="3" Margin="18,5,18,0" VerticalAlignment="Top"
+                        Background="{StaticResource CardBorderBrush}"/>
+                <Border Width="2" Height="51" Margin="0,5,0,0"
+                        HorizontalAlignment="Center" VerticalAlignment="Top"
+                        Background="{StaticResource DividerBrush}"/>
+                <TextBlock Margin="2,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                           Text="{Binding ZMinimum, StringFormat=F0}"
+                           Style="{StaticResource SideScaleTextStyle}"/>
+                <TextBlock Margin="2,46,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                           Text="{Binding ZMaximum, StringFormat=F0}"
+                           Style="{StaticResource SideScaleTextStyle}"/>
+                <Border Height="3" Margin="12,56,12,0" VerticalAlignment="Top"
+                        Background="{StaticResource CardBorderBrush}"/>
+            </Grid>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid Margin="18,2">
@@ -93,23 +110,10 @@
                                                               StringFormat='Z {0:F2} mm'}"
                                                Style="{StaticResource PrimaryStateTextStyle}"/>
                                 </StackPanel>
-                                <Canvas Grid.Column="1" Width="155" Height="62">
-                                    <Border Canvas.Left="18" Canvas.Top="5"
-                                            Width="124" Height="3"
-                                            Background="{StaticResource CardBorderBrush}"/>
-                                    <Border Canvas.Left="79" Canvas.Top="5"
-                                            Width="2" Height="51"
-                                            Background="{StaticResource DividerBrush}"/>
-                                    <TextBlock Canvas.Left="2" Canvas.Top="0"
-                                               Text="{Binding Supply.Motion.ZMinimum, StringFormat=F0}"
-                                               Style="{StaticResource SideScaleTextStyle}"/>
-                                    <TextBlock Canvas.Left="2" Canvas.Top="46"
-                                               Text="{Binding Supply.Motion.ZMaximum, StringFormat=F0}"
-                                               Style="{StaticResource SideScaleTextStyle}"/>
-                                    <Border Canvas.Left="12" Canvas.Top="56"
-                                            Width="136" Height="3"
-                                            Background="{StaticResource CardBorderBrush}"/>
-                                    <Grid Canvas.Left="59"
+                                <Grid Grid.Column="1" Width="155" Height="62">
+                                    <ContentPresenter Content="{Binding Supply.Motion}"
+                                                      ContentTemplate="{StaticResource ZAxisScaleTemplate}"/>
+                                    <Grid HorizontalAlignment="Center" VerticalAlignment="Top"
                                           Visibility="{Binding SupplyPositionKnown, Converter={StaticResource BoolToVis}}"
                                           Width="42" Height="18">
                                         <Grid.RenderTransform>
@@ -129,7 +133,7 @@
                                                 Visibility="{Binding PcbSupplyPcbSecured,
                                                                      Converter={StaticResource BoolToVis}}"/>
                                     </Grid>
-                                </Canvas>
+                                </Grid>
                             </Grid>
                         </Border>
 
@@ -150,23 +154,10 @@
                                                               StringFormat='Z {0:F2} mm'}"
                                                Style="{StaticResource PrimaryStateTextStyle}"/>
                                 </StackPanel>
-                                <Canvas Grid.Column="1" Width="155" Height="62">
-                                    <Border Canvas.Left="18" Canvas.Top="5"
-                                            Width="124" Height="3"
-                                            Background="{StaticResource CardBorderBrush}"/>
-                                    <Border Canvas.Left="79" Canvas.Top="5"
-                                            Width="2" Height="51"
-                                            Background="{StaticResource DividerBrush}"/>
-                                    <TextBlock Canvas.Left="2" Canvas.Top="0"
-                                               Text="{Binding Placement.Motion.ZMinimum, StringFormat=F0}"
-                                               Style="{StaticResource SideScaleTextStyle}"/>
-                                    <TextBlock Canvas.Left="2" Canvas.Top="46"
-                                               Text="{Binding Placement.Motion.ZMaximum, StringFormat=F0}"
-                                               Style="{StaticResource SideScaleTextStyle}"/>
-                                    <Border Canvas.Left="12" Canvas.Top="56"
-                                            Width="136" Height="3"
-                                            Background="{StaticResource CardBorderBrush}"/>
-                                    <Grid Canvas.Left="59"
+                                <Grid Grid.Column="1" Width="155" Height="62">
+                                    <ContentPresenter Content="{Binding Placement.Motion}"
+                                                      ContentTemplate="{StaticResource ZAxisScaleTemplate}"/>
+                                    <Grid HorizontalAlignment="Center" VerticalAlignment="Top"
                                           Visibility="{Binding PlacementPositionKnown, Converter={StaticResource BoolToVis}}"
                                           Width="42" Height="18">
                                         <Grid.RenderTransform>
@@ -187,7 +178,7 @@
                                                 Visibility="{Binding PcbPlacementPcbSecured,
                                                                      Converter={StaticResource BoolToVis}}"/>
                                     </Grid>
-                                </Canvas>
+                                </Grid>
                             </Grid>
                         </Border>
 
@@ -208,23 +199,10 @@
                                                               StringFormat='Z {0:F2} mm'}"
                                                Style="{StaticResource PrimaryStateTextStyle}"/>
                                 </StackPanel>
-                                <Canvas Grid.Column="1" Width="240" Height="62">
-                                    <Border Canvas.Left="24" Canvas.Top="5"
-                                            Width="190" Height="3"
-                                            Background="{StaticResource CardBorderBrush}"/>
-                                    <Border Canvas.Left="119" Canvas.Top="5"
-                                            Width="2" Height="51"
-                                            Background="{StaticResource DividerBrush}"/>
-                                    <TextBlock Canvas.Left="3" Canvas.Top="0"
-                                               Text="{Binding Fastening.Motion.ZMinimum, StringFormat=F0}"
-                                               Style="{StaticResource SideScaleTextStyle}"/>
-                                    <TextBlock Canvas.Left="3" Canvas.Top="46"
-                                               Text="{Binding Fastening.Motion.ZMaximum, StringFormat=F0}"
-                                               Style="{StaticResource SideScaleTextStyle}"/>
-                                    <Border Canvas.Left="18" Canvas.Top="56"
-                                            Width="204" Height="3"
-                                            Background="{StaticResource CardBorderBrush}"/>
-                                    <Grid Canvas.Left="86"
+                                <Grid Grid.Column="1" Width="240" Height="62">
+                                    <ContentPresenter Content="{Binding Fastening.Motion}"
+                                                      ContentTemplate="{StaticResource ZAxisScaleTemplate}"/>
+                                    <Grid HorizontalAlignment="Center" VerticalAlignment="Top"
                                           Visibility="{Binding FasteningPositionKnown, Converter={StaticResource BoolToVis}}"
                                           Width="68" Height="18">
                                         <Grid.RenderTransform>
@@ -244,7 +222,7 @@
                                                 Margin="0,8,18,0"
                                                 Background="{StaticResource TextMutedBrush}"/>
                                     </Grid>
-                                </Canvas>
+                                </Grid>
                             </Grid>
                         </Border>
                     </Grid>

@@ -204,9 +204,9 @@ public sealed class PcbSupplyHandler
 
     public TeachingOutput[] GetTeachingOutputs() =>
     [
-        new(OutputIo.PcbSupplyNestForward, SetNestAsync),
-        new(OutputIo.PcbSupplyIpmFixerForward, SetIpmFixerAsync),
-        new(OutputIo.PcbSupplyRotate, SetRotatedAsync, () => !InsideBuffer),
+        new(OutputIo.PcbSupplyNestForward, HardwareArea.PcbSupply, SetNestAsync),
+        new(OutputIo.PcbSupplyIpmFixerForward, HardwareArea.PcbSupply, SetIpmFixerAsync),
+        new(OutputIo.PcbSupplyRotate, HardwareArea.PcbSupply, SetRotatedAsync, () => !InsideBuffer),
     ];
 
     public Task SetIpmFixerAsync(

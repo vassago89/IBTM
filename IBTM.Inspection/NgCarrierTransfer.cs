@@ -65,8 +65,8 @@ public sealed class NgCarrierTransfer : INgCarrierTransferFeedback
 
     public TeachingOutput[] GetTeachingOutputs(Func<bool> canSet) =>
     [
-        new(OutputIo.NgCarrierPickupDown, SetLiftDownAsync, canSet),
-        new(OutputIo.NgCarrierGripperClose, SetGripperClosedAsync, canSet),
+        new(OutputIo.NgCarrierPickupDown, HardwareArea.NgCarrierTransfer, SetLiftDownAsync, canSet),
+        new(OutputIo.NgCarrierGripperClose, HardwareArea.NgCarrierTransfer, SetGripperClosedAsync, canSet),
     ];
 
     public Task RaiseAsync(CancellationToken cancellationToken = default) =>

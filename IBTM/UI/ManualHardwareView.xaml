@@ -4,9 +4,21 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="clr-namespace:IBTM.UI"
+             xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:ManualHardwareViewModel, IsDesignTimeCreatable=False}">
     <UserControl.Resources>
+        <Style x:Key="AxisPositionText" TargetType="TextBlock">
+            <Setter Property="Text" Value="{Binding Motion.Position.X, StringFormat=F3}"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Axis}" Value="{x:Static device:MotionAxis.Y}">
+                    <Setter Property="Text" Value="{Binding Motion.Position.Y, StringFormat=F3}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Axis}" Value="{x:Static device:MotionAxis.Z}">
+                    <Setter Property="Text" Value="{Binding Motion.Position.Z, StringFormat=F3}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="ManualAxisListItem"
                TargetType="ListBoxItem"
                BasedOn="{StaticResource FlatListItemStyle}">
@@ -165,7 +177,7 @@
                                            VerticalAlignment="Center"
                                            Foreground="{StaticResource TextSecondaryBrush}"/>
                                 <TextBlock Grid.Column="2"
-                                           Text="{Binding Position, StringFormat=F3}"
+                                           Style="{StaticResource AxisPositionText}"
                                            VerticalAlignment="Center"
                                            FontFamily="Cascadia Mono, Consolas"
                                            FontSize="14"/>

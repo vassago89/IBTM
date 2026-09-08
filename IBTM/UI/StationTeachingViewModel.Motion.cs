@@ -24,13 +24,6 @@ public partial class StationTeachingViewModel
 
     protected override MotionGroup CurrentMotionGroup =>
         SelectedMotionGroup;
-    protected override IMotionFeedback CurrentFeedback => SelectedMotionGroup switch
-    {
-        MotionGroup.PcbPlacementHandler => _placementHandler.Feedback,
-        MotionGroup.BoltFastening => _fasteningGantry.Feedback,
-        MotionGroup.InspectionGantry => _inspectionGantry.Feedback,
-        _ => throw new ArgumentOutOfRangeException(nameof(SelectedMotionGroup)),
-    };
 
     protected override bool CanJog(MotionAxis axis) =>
         CanUseCurrentHandler()
@@ -200,9 +193,4 @@ public partial class StationTeachingViewModel
         RemoveBoltPointCommand.NotifyCanExecuteChanged();
     }
 
-    protected override void RefreshPositionBindings()
-    {
-        base.RefreshPositionBindings();
-        OnPropertyChanged(nameof(CameraFieldOfView));
-    }
 }

@@ -35,11 +35,6 @@ public partial class SupplyTeachingViewModel
     protected override MotionGroup CurrentMotionGroup =>
         ActiveMotionGroup;
 
-    protected override IMotionFeedback CurrentFeedback =>
-        ActiveMotionGroup == MotionGroup.PcbSupply
-            ? _supplyHandler.Feedback
-            : _placementHandler.Feedback;
-
     protected override Task JogCurrentAsync(
         MotionAxis axis,
         double velocity,
@@ -88,7 +83,7 @@ public partial class SupplyTeachingViewModel
         OnPropertyChanged(nameof(HorizontalZ));
         OnPropertyChanged(nameof(SaveBehavior));
         NotifyManualTeachingCommands();
-        RefreshPosition();
+        OnPropertyChanged(nameof(Motion));
     }
 
     protected override bool CanJog(MotionAxis axis)

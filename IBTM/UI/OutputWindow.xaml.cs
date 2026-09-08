@@ -24,10 +24,10 @@ public partial class OutputWindow : Window
     private bool _closing;
     private bool _shutdownCompleted;
 
-    public OutputWindow(IIoService io, IoSignals signals)
+    public OutputWindow(IIoService io, IoSignals signals, MachineController machine)
     {
         Rows = signals.Outputs.Values.OrderBy(row => row.Signal)
-            .Select(row => new OutputControlRow(io, row)).ToArray();
+            .Select(row => new OutputControlRow(io, row, machine)).ToArray();
         Filter = new(Rows, row => row.Io, nameof(OutputControlRow.Io));
 
         InitializeComponent();
@@ -82,12 +82,14 @@ public partial class OutputWindow : Window
 public sealed partial class OutputControlRow : ObservableObject
 {
     private readonly IIoService _io;
+    private readonly MachineController _machine;
     private bool _timedOut;
     private bool _waitingForFeedback;
 
-    public OutputControlRow(IIoService io, IoOutputStatus status)
+    public OutputControlRow(IIoService io, IoOutputStatus status, MachineController machine)
     {
         _io = io;
+        _machine = machine;
         Io = status;
         PropertyChangedEventManager.AddHandler(
             status, OnFeedbackChanged, nameof(IoOutputStatus.IsMatched));
@@ -109,7 +111,7 @@ public sealed partial class OutputControlRow : ObservableObject
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            _io.SetOutput(Io.Signal, value);
+            if (!_machine.TrySetManualOutput(Io.Signal, value)) return;
             if (Io.HasFeedback)
             {
                 SetWaiting(true);

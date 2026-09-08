@@ -281,6 +281,188 @@ public sealed class MachineController
         }
     }
 
+    internal MotionStatus GetMotionStatus(MotionGroup group) => group switch
+    {
+        MotionGroup.PcbSupply => _supplyHandler.Motion,
+        MotionGroup.PcbPlacementHandler => _placementHandler.Motion,
+        MotionGroup.BoltFastening => _fasteningGantry.Motion,
+        MotionGroup.InspectionGantry => _inspectionGantry.Motion,
+        _ => throw new ArgumentOutOfRangeException(nameof(group)),
+    };
+
+    private IMotionFeedback GetMotionFeedback(MotionGroup group) => GetMotionStatus(group).Feedback;
+
+    internal Task RunManualMotionAsync(
+        MotionGroup group,
+        Func<CancellationToken, Task> move,
+        CancellationToken cancellationToken,
+        CancellationToken viewCancellation) =>
+        RunManualAsync(async token =>
+        {
+            var motion = GetMotionFeedback(group);
+            var stopped = new AsyncAutoResetEvent();
+            void OnMovingChanged(bool moving)
+            {
+                if (!moving) stopped.Set();
+            }
+
+            motion.MovingChanged += OnMovingChanged;
+            try
+            {
+                await move(token);
+                // Jog returns after starting. Cancellation reaches the device immediately;
+                // keep its scope until the device reports that Stop has finished.
+                while (motion.IsMoving) await stopped.WaitAsync(CancellationToken.None);
+            }
+            finally
+            {
+                motion.MovingChanged -= OnMovingChanged;
+            }
+        }, group switch
+        {
+            MotionGroup.PcbSupply => MachineAlarm.PcbSupply,
+            MotionGroup.PcbPlacementHandler => MachineAlarm.PcbPlacement,
+            MotionGroup.BoltFastening => MachineAlarm.BoltFastening,
+            MotionGroup.InspectionGantry => MachineAlarm.NgCarrierTransfer,
+            _ => throw new ArgumentOutOfRangeException(nameof(group)),
+        }, cancellationToken, viewCancellation);
+
+    internal bool TrySetManualOutput(OutputIo signal, bool value)
+    {
+        if (!_state.ManualOutputsEnabled) return false;
+        try
+        {
+            _io.SetOutput(signal, value);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            OnIoFaulted(exception);
+            return false;
+        }
+    }
+
+    internal Task RunManualOutputAsync(
+        TeachingOutput output,
+        bool value,
+        CancellationToken cancellationToken,
+        CancellationToken viewCancellation) =>
+        RunManualAsync(token => output.SetAsync(value, token), output.Owner switch
+        {
+            HardwareArea.MainConveyor => MachineAlarm.MainConveyor,
+            HardwareArea.PcbSupply => MachineAlarm.PcbSupply,
+            HardwareArea.PcbPlacementHandler => MachineAlarm.PcbPlacement,
+            HardwareArea.BoltFastening => MachineAlarm.BoltFastening,
+            HardwareArea.NgCarrierTransfer => MachineAlarm.NgCarrierTransfer,
+            _ => throw new ArgumentOutOfRangeException(nameof(output)),
+        }, cancellationToken, viewCancellation);
+
+    private async Task RunManualAsync(
+        Func<CancellationToken, Task> execute,
+        MachineAlarm alarm,
+        CancellationToken cancellationToken,
+        CancellationToken viewCancellation = default,
+        Func<bool>? canContinue = null)
+    {
+        using var operation = _operations.Link(cancellationToken, viewCancellation);
+        void StopWhenUnavailable()
+        {
+            if (!_state.ManualMode || !_state.SafetyReady || _state.IsError
+                || canContinue?.Invoke() == false)
+                operation.Cancel();
+        }
+
+        _state.Changed += StopWhenUnavailable;
+        try
+        {
+            StopWhenUnavailable();
+            operation.Token.ThrowIfCancellationRequested();
+            await execute(operation.Token);
+        }
+        catch (OperationCanceledException) when (operation.IsCancellationRequested)
+        {
+        }
+        catch (IoTimeoutException exception)
+        {
+            if (!_state.IsError) _state.SetError(alarm, exception);
+        }
+        catch (MotionException exception)
+        {
+            if (!_state.IsError)
+                _state.SetError(alarm == MachineAlarm.HomeFailed ? alarm : MachineAlarm.MotionUnavailable, exception);
+            _operations.Cancel();
+        }
+        finally
+        {
+            _state.Changed -= StopWhenUnavailable;
+        }
+    }
+
+    internal bool CanHomeAxis(MotionGroup group, MotionAxis axis) =>
+        group != MotionGroup.PcbSupply
+        && !_state.IsRunning
+        && (group != MotionGroup.PcbPlacementHandler || !_state.SupplyInBufferArea)
+        && HomeAxisConditionsReady(group, axis);
+
+    private bool HomeAxisConditionsReady(MotionGroup group, MotionAxis axis)
+    {
+        if (!_state.ManualMode || !_state.SafetyReady || !_state.DoorInterlockReady
+            || _state.IsError || !_state.ServoMainContactorOn
+            || GetHomeBlock(group) != HomeBlockReason.None)
+            return false;
+
+        var motion = GetMotionFeedback(group);
+        return motion.IsReady && motion.Axes
+            .Where(candidate => candidate == axis || candidate == MotionAxis.Z)
+            .All(candidate => motion.GetAxisState(candidate) is { ServoOn: true, Alarm: false, Emergency: false });
+    }
+
+    internal async Task HomeAxisAsync(
+        MotionGroup group,
+        MotionAxis axis,
+        CancellationToken cancellationToken)
+    {
+        if (!CanHomeAxis(group, axis)) return;
+        try
+        {
+            _state.SetHoming(true);
+            await RunManualAsync(async token =>
+            {
+                var velocity = axis == MotionAxis.Z ? _home.ZSpeed : _home.HorizontalSpeed;
+                var homed = await (group switch
+                {
+                    MotionGroup.PcbPlacementHandler => _placementHandler.HomeAxisAsync(axis, velocity, token),
+                    MotionGroup.BoltFastening => _fasteningGantry.HomeAxisAsync(axis, velocity, token),
+                    MotionGroup.InspectionGantry => _inspectionGantry.HomeAxisAsync(axis, velocity, token),
+                    _ => throw new ArgumentOutOfRangeException(nameof(group)),
+                });
+                if (!homed && !token.IsCancellationRequested) _state.SetError(MachineAlarm.HomeFailed);
+            }, MachineAlarm.HomeFailed, cancellationToken,
+                canContinue: () => HomeAxisConditionsReady(group, axis));
+        }
+        finally
+        {
+            _state.SetHoming(false);
+            _state.Refresh();
+        }
+    }
+
+    internal bool CanSetServo(MotionGroup group) =>
+        _state.ManualMode && _state.SafetyReady && !_state.IsRunning
+        && GetMotionFeedback(group).IsReady;
+
+    internal void SetServo(MotionGroup group, MotionAxis axis, bool on)
+    {
+        if (!CanSetServo(group)) return;
+        switch (group)
+        {
+            case MotionGroup.PcbSupply: _supplyHandler.SetServo(axis, on); break;
+            case MotionGroup.PcbPlacementHandler: _placementHandler.SetServo(axis, on); break;
+            case MotionGroup.BoltFastening: _fasteningGantry.SetServo(axis, on); break;
+            case MotionGroup.InspectionGantry: _inspectionGantry.SetServo(axis, on); break;
+        }
+    }
+
     public async Task RunAdcProtocolAsync(
         Func<CancellationToken, Task> command,
         CancellationToken cancellationToken)
@@ -611,6 +793,9 @@ public sealed class MachineController
 
     private void OnInputChanged(InputIo input, bool value)
     {
+        if (input == InputIo.AutoMode && value && !_state.AutomaticRunning)
+            _conveyor.Stop();
+
         if (input is InputIo.AutoMode
             or InputIo.PcbPlacementHandlerUp
             or InputIo.PcbPlacementHandlerDown

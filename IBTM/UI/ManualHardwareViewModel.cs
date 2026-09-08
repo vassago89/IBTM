@@ -1,20 +1,14 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using IBTM.BoltFastening;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.Inspection;
-using IBTM.PcbPlacement;
-using IBTM.PcbSupply;
 
 namespace IBTM.UI;
 
@@ -61,16 +55,15 @@ public sealed class ManualAxisRow(
     MotionGroup group,
     MachineAxis signal,
     MotionAxis axis,
-    IMotionFeedback feedback) : ObservableObject
+    MotionStatus motion) : ObservableObject
 {
-    private double _position = Coordinate(feedback.GetPosition(), axis);
-    private AxisState _axisState = feedback.GetAxisState(axis);
+    private AxisState _axisState = motion.Feedback.GetAxisState(axis);
 
     public MotionGroup Group { get; } = group;
     public MachineAxis Signal { get; } = signal;
     public MotionAxis Axis { get; } = axis;
-    internal IMotionFeedback Feedback { get; } = feedback;
-    public double Position => Volatile.Read(ref _position);
+    public MotionStatus Motion { get; } = motion;
+    internal IMotionFeedback Feedback => Motion.Feedback;
     public bool ServoOn => _axisState.ServoOn;
     public bool IndividualHomeAvailable =>
         Group != MotionGroup.PcbSupply;
@@ -88,14 +81,6 @@ public sealed class ManualAxisRow(
             _ => ManualAxisStatus.Ready,
         };
 
-    internal void SetPosition(double x, double y, double z) =>
-        Volatile.Write(
-            ref _position,
-            Coordinate((x, y, z), Axis));
-
-    internal void RefreshPosition() =>
-        OnPropertyChanged(nameof(Position));
-
     internal void RefreshState()
     {
         _axisState = Feedback.GetAxisState(Axis);
@@ -103,74 +88,31 @@ public sealed class ManualAxisRow(
         OnPropertyChanged(nameof(Status));
     }
 
-    private static double Coordinate(
-        (double X, double Y, double Z) position,
-        MotionAxis axis) => axis switch
-        {
-            MotionAxis.X => position.X,
-            MotionAxis.Y => position.Y,
-            MotionAxis.Z => position.Z,
-            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
-        };
 }
 
 public partial class ManualHardwareViewModel : ObservableObject
 {
-    private readonly PcbSupplyHandler _supply;
-    private readonly PcbPlacementHandler _placement;
-    private readonly BoltFasteningGantry _fastening;
-    private readonly InspectionGantry _inspection;
     private readonly MainConveyor _conveyor;
     private readonly MachineState _state;
     private readonly MachineController _machine;
-    private readonly HomeSettings _home;
     private volatile bool _active;
-    private int _pendingPositionGroups;
-    private int _positionRefreshQueued;
     private int _stateRefreshQueued;
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(RunConveyorCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ToggleServoCommand))]
-    [NotifyCanExecuteChangedFor(nameof(HomeAxisCommand))]
-    [NotifyCanExecuteChangedFor(nameof(StopHomeCommand))]
-    private bool _isHoming;
+    public bool IsHoming => _state.IsHoming;
 
     public ManualHardwareViewModel(
-        PcbSupplyHandler supply,
-        PcbPlacementHandler placement,
-        BoltFasteningGantry fastening,
-        InspectionGantry inspection,
         MainConveyor conveyor,
         MachineState state,
         MachineController machine,
-        HomeSettings home,
         IReadOnlyList<MotionHardwareSettings> hardware)
     {
-        _supply = supply;
-        _placement = placement;
-        _fastening = fastening;
-        _inspection = inspection;
         _conveyor = conveyor;
         _state = state;
         _machine = machine;
-        _home = home;
-        var feedbacks = new Dictionary<MotionGroup, IMotionFeedback>
-        {
-            [MotionGroup.PcbSupply] = supply.Feedback,
-            [MotionGroup.PcbPlacementHandler] = placement.Feedback,
-            [MotionGroup.BoltFastening] = fastening.Feedback,
-            [MotionGroup.InspectionGantry] = inspection.Feedback,
-        };
         Axes = hardware.SelectMany(section => section.AxisSignals.Select(axis =>
-            new ManualAxisRow(section.Group, axis.Value, axis.Key, feedbacks[section.Group]))).ToArray();
+            new ManualAxisRow(section.Group, axis.Value, axis.Key, machine.GetMotionStatus(section.Group)))).ToArray();
 
         state.Changed += OnMachineStateChanged;
-        foreach (var (group, feedback) in feedbacks)
-        {
-            feedback.PositionChanged += (x, y, z) =>
-                OnPositionChanged(group, x, y, z);
-        }
     }
 
     public ManualAxisRow[] Axes { get; }
@@ -183,8 +125,7 @@ public partial class ManualHardwareViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanRunConveyor))]
     private void RunConveyor() => _conveyor.RunMotor();
 
-    private bool CanRunConveyor() =>
-        _state.ManualControlsEnabled && !IsHoming;
+    private bool CanRunConveyor() => _state.ManualControlsEnabled;
 
     [RelayCommand]
     private void StopConveyor() => _conveyor.Stop();
@@ -193,95 +134,22 @@ public partial class ManualHardwareViewModel : ObservableObject
     private void ToggleServo(ManualAxisRow row)
     {
         var servoOn = row.Feedback.GetAxisState(row.Axis).ServoOn;
-        SetServo(row.Group, row.Axis, !servoOn);
+        _machine.SetServo(row.Group, row.Axis, !servoOn);
         row.RefreshState();
     }
 
     private bool CanToggleServo(ManualAxisRow? row) =>
         row is not null
-        && _state.ManualMode
-        && _state.SafetyReady
-        && !IsHoming
-        && !_state.IsRunning
-        && row.Feedback.IsReady;
+        && _machine.CanSetServo(row.Group);
 
     [RelayCommand(CanExecute = nameof(CanHomeAxis))]
-    private async Task HomeAxisAsync(
+    private Task HomeAxisAsync(
         ManualAxisRow row,
-        CancellationToken cancellationToken)
-    {
-        if (!CanHomeAxis(row)) return;
-        IsHoming = true;
-        void StopWhenHomeUnavailable()
-        {
-            if (!HomeConditionsReady(row))
-            {
-                HomeAxisCommand.Cancel();
-            }
-        }
-
-        _state.Changed += StopWhenHomeUnavailable;
-        try
-        {
-            _state.SetHoming(true);
-            if (!await HomeOwnerAxisAsync(row, cancellationToken)
-                && !cancellationToken.IsCancellationRequested)
-            {
-                _state.SetError(MachineAlarm.HomeFailed);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception)
-            when (exception is IoTimeoutException or MotionException)
-        {
-            if (!cancellationToken.IsCancellationRequested)
-            {
-                _state.SetError(MachineAlarm.HomeFailed, exception);
-            }
-        }
-        finally
-        {
-            _state.Changed -= StopWhenHomeUnavailable;
-            IsHoming = false;
-            _state.SetHoming(false);
-            RefreshRows();
-            _state.Refresh();
-        }
-    }
+        CancellationToken cancellationToken) =>
+        _machine.HomeAxisAsync(row.Group, row.Axis, cancellationToken);
 
     private bool CanHomeAxis(ManualAxisRow? row) =>
-        row is { IndividualHomeAvailable: true }
-        && !IsHoming
-        && !_state.IsRunning
-        && (row.Group != MotionGroup.PcbPlacementHandler || !_state.SupplyInBufferArea)
-        && HomeConditionsReady(row);
-
-    private bool HomeConditionsReady(ManualAxisRow row) =>
-        _state.ManualMode
-        && _state.SafetyReady
-        && _state.DoorInterlockReady
-        && !_state.IsError
-        && _machine.GetHomeBlock(row.Group) == HomeBlockReason.None
-        && HomeHardwareReady(row);
-
-    private bool HomeHardwareReady(ManualAxisRow row)
-    {
-        if (!row.Feedback.IsReady || !_state.ServoMainContactorOn)
-        {
-            return false;
-        }
-
-        foreach (var axis in row.Feedback.Axes)
-        {
-            if (axis != row.Axis && axis != MotionAxis.Z) continue;
-            var state = row.Feedback.GetAxisState(axis);
-            if (!state.ServoOn || state.Alarm || state.Emergency) return false;
-        }
-
-        return true;
-    }
+        row is not null && _machine.CanHomeAxis(row.Group, row.Axis);
 
     [RelayCommand(CanExecute = nameof(CanStopHome))]
     private void StopHome() => HomeAxisCommand.Cancel();
@@ -305,56 +173,6 @@ public partial class ManualHardwareViewModel : ObservableObject
     public Task ShutdownAsync() =>
         CommandShutdown.StopAsync(Deactivate, HomeAxisCommand);
 
-    private void OnPositionChanged(
-        MotionGroup group,
-        double x,
-        double y,
-        double z)
-    {
-        if (!_active)
-        {
-            return;
-        }
-
-        foreach (var row in Axes)
-        {
-            if (row.Group != group)
-            {
-                continue;
-            }
-
-            row.SetPosition(x, y, z);
-        }
-
-        Interlocked.Or(ref _pendingPositionGroups, 1 << (int)group);
-        if (Interlocked.Exchange(ref _positionRefreshQueued, 1) != 0)
-        {
-            return;
-        }
-
-        Application.Current.Dispatcher.InvokeAsync(
-            () =>
-            {
-                Interlocked.Exchange(ref _positionRefreshQueued, 0);
-                if (!_active)
-                {
-                    return;
-                }
-
-                var pending = Interlocked.Exchange(
-                    ref _pendingPositionGroups,
-                    0);
-                foreach (var row in Axes)
-                {
-                    if ((pending & (1 << (int)row.Group)) != 0)
-                    {
-                        row.RefreshPosition();
-                    }
-                }
-            },
-            DispatcherPriority.Background);
-    }
-
     private void OnMachineStateChanged()
     {
         if (!_active)
@@ -375,92 +193,23 @@ public partial class ManualHardwareViewModel : ObservableObject
                 return;
             }
 
-            if (!_state.AutomaticRunning
-                && _state.ConveyorRunning
-                && (!_state.ManualMode || !_state.SafetyReady))
-            {
-                _conveyor.Stop();
-            }
-
-            if (!_state.ManualMode || !_state.SafetyReady)
-            {
-                HomeAxisCommand.Cancel();
-            }
-
+            OnPropertyChanged(nameof(IsHoming));
             OnPropertyChanged(nameof(ConveyorStatus));
             OnPropertyChanged(nameof(HomeBlock));
             RefreshRows();
             RunConveyorCommand.NotifyCanExecuteChanged();
             ToggleServoCommand.NotifyCanExecuteChanged();
             HomeAxisCommand.NotifyCanExecuteChanged();
+            StopHomeCommand.NotifyCanExecuteChanged();
         });
     }
 
     private void RefreshRows()
     {
-        IMotionFeedback? feedback = null;
-        (double X, double Y, double Z) position = default;
         foreach (var row in Axes)
         {
-            if (!ReferenceEquals(feedback, row.Feedback))
-            {
-                feedback = row.Feedback;
-                position = feedback.GetPosition();
-            }
-
-            row.SetPosition(position.X, position.Y, position.Z);
-            row.RefreshPosition();
             row.RefreshState();
         }
     }
 
-    private void SetServo(
-        MotionGroup group,
-        MotionAxis axis,
-        bool on)
-    {
-        switch (group)
-        {
-            case MotionGroup.PcbSupply:
-                _supply.SetServo(axis, on);
-                break;
-            case MotionGroup.PcbPlacementHandler:
-                _placement.SetServo(axis, on);
-                break;
-            case MotionGroup.BoltFastening:
-                _fastening.SetServo(axis, on);
-                break;
-            case MotionGroup.InspectionGantry:
-                _inspection.SetServo(axis, on);
-                break;
-        }
-    }
-
-    private Task<bool> HomeOwnerAxisAsync(
-        ManualAxisRow row,
-        CancellationToken cancellationToken)
-    {
-        var velocity = row.Axis == MotionAxis.Z
-            ? _home.ZSpeed
-            : _home.HorizontalSpeed;
-        return row.Group switch
-        {
-            MotionGroup.PcbPlacementHandler =>
-                _placement.HomeAxisAsync(
-                    row.Axis,
-                    velocity,
-                    cancellationToken),
-            MotionGroup.BoltFastening =>
-                _fastening.HomeAxisAsync(
-                    row.Axis,
-                    velocity,
-                    cancellationToken),
-            MotionGroup.InspectionGantry =>
-                _inspection.HomeAxisAsync(
-                    row.Axis,
-                    velocity,
-                    cancellationToken),
-            _ => Task.FromResult(false),
-        };
-    }
 }

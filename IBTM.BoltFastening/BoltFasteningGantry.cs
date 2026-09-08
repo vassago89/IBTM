@@ -89,14 +89,14 @@ public sealed class BoltFasteningGantry
 
     public TeachingOutput[] GetTeachingOutputs() =>
     [
-        new(OutputIo.PickupHeadDown, SetPickupHeadDownAsync),
-        new(OutputIo.ShootingHeadDown,
+        new(OutputIo.PickupHeadDown, HardwareArea.BoltFastening, SetPickupHeadDownAsync),
+        new(OutputIo.ShootingHeadDown, HardwareArea.BoltFastening,
             (down, token) => SetHeadDownAsync(FasteningHead.Shooting, down, token)),
-        new(OutputIo.PickupHeadVacuumPump,
+        new(OutputIo.PickupHeadVacuumPump, HardwareArea.BoltFastening,
             (on, token) => SetVacuumAsync(FasteningHead.Pickup, on, token)),
-        new(OutputIo.ShootingHeadVacuumPump,
+        new(OutputIo.ShootingHeadVacuumPump, HardwareArea.BoltFastening,
             (on, token) => SetVacuumAsync(FasteningHead.Shooting, on, token)),
-        new(OutputIo.ShootBolt, SetManualShootingAsync, RequiresHandler: false, HoldToRun: true),
+        new(OutputIo.ShootBolt, HardwareArea.BoltFastening, SetManualShootingAsync, RequiresHandler: false, HoldToRun: true),
     ];
 
     public void InitializeMotion() => _motion.Initialize();

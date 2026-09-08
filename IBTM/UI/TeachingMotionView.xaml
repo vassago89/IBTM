@@ -58,7 +58,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
-            <TextBlock Text="{Binding CurrentX, StringFormat=F3}" VerticalAlignment="Center"
+            <TextBlock Text="{Binding Motion.Position.X, StringFormat=F3}" VerticalAlignment="Center"
                        FontFamily="Cascadia Mono, Consolas" FontSize="16"/>
             <ContentControl Grid.Column="1" Content="{x:Static ui:TeachingDirection.XMinus}" ContentTemplate="{StaticResource DirectionButton}"/>
             <ContentControl Grid.Column="2" Content="{x:Static ui:TeachingDirection.XPlus}" ContentTemplate="{StaticResource DirectionButton}"/>
@@ -66,7 +66,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/><ColumnDefinition Width="68"/><ColumnDefinition Width="68"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding CurrentY, StringFormat=F3}" VerticalAlignment="Center"
+                <TextBlock Text="{Binding Motion.Position.Y, StringFormat=F3}" VerticalAlignment="Center"
                            FontFamily="Cascadia Mono, Consolas" FontSize="16"/>
                 <ContentControl Grid.Column="1" Content="{x:Static ui:TeachingDirection.YMinus}" ContentTemplate="{StaticResource DirectionButton}"/>
                 <ContentControl Grid.Column="2" Content="{x:Static ui:TeachingDirection.YPlus}" ContentTemplate="{StaticResource DirectionButton}"/>
@@ -75,7 +75,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/><ColumnDefinition Width="68"/><ColumnDefinition Width="68"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding CurrentZ, StringFormat=F3}" VerticalAlignment="Center"
+                <TextBlock Text="{Binding Motion.Position.Z, StringFormat=F3}" VerticalAlignment="Center"
                            FontFamily="Cascadia Mono, Consolas" FontSize="16"/>
                 <ContentControl Grid.Column="1" Content="{x:Static ui:TeachingDirection.ZMinus}" ContentTemplate="{StaticResource DirectionButton}"/>
                 <ContentControl Grid.Column="2" Content="{x:Static ui:TeachingDirection.ZPlus}" ContentTemplate="{StaticResource DirectionButton}"/>

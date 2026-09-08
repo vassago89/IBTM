@@ -4,7 +4,6 @@ using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -47,14 +46,13 @@ public enum TeachingMotionHint
 public abstract partial class TeachingMotionViewModel(
     OperationCancellation operations,
     MachineState state,
+    MachineController machine,
     MachineStore store,
     IReadOnlyDictionary<MotionGroup, IoStatus[]> ioGroups,
     IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : ObservableObject
 {
     private CancellationTokenSource _motionCancellation = new();
-    private MotionPosition _position = new(0, 0, 0);
     private bool _positionUpdatesActive;
-    private int _positionRefreshQueued;
 
     [ObservableProperty]
     private double _jogSpeed = 10.0;
@@ -77,7 +75,8 @@ public abstract partial class TeachingMotionViewModel(
     public IReadOnlyDictionary<OutputIo, TeachingOutput> TeachingOutputs => teachingOutputs[CurrentMotionGroup];
     public bool HasY => CurrentFeedback.HasY;
     public bool HasZ => CurrentFeedback.HasZ;
-    protected abstract IMotionFeedback CurrentFeedback { get; }
+    public MotionStatus Motion => machine.GetMotionStatus(CurrentMotionGroup);
+    protected IMotionFeedback CurrentFeedback => Motion.Feedback;
 
     protected abstract MotionGroup CurrentMotionGroup { get; }
     protected bool PositionUpdatesActive => _positionUpdatesActive;
@@ -142,12 +141,9 @@ public abstract partial class TeachingMotionViewModel(
 
     private async Task SetOutputAsync(TeachingOutput output, bool value, CancellationToken cancellationToken)
     {
-        MachineAlarm? ioAlarm = output.Signal is OutputIo.PcbPlacementBackupPlateUp
-            or OutputIo.BoltFasteningBackupPlateUp or OutputIo.InspectionBackupPlateUp
-            ? MachineAlarm.MainConveyor : null;
         try
         {
-            await RunMotionAsync(token => output.SetAsync(value, token), cancellationToken, ioAlarm);
+            await machine.RunManualOutputAsync(output, value, cancellationToken, _motionCancellation.Token);
         }
         finally
         {
@@ -155,9 +151,6 @@ public abstract partial class TeachingMotionViewModel(
         }
     }
 
-    public double CurrentX => _position.X;
-    public double CurrentY => _position.Y;
-    public double CurrentZ => _position.Z;
 
     [RelayCommand(CanExecute = nameof(CanMoveDirection))]
     private Task JogAsync(TeachingDirection direction, CancellationToken cancellationToken)
@@ -238,49 +231,10 @@ public abstract partial class TeachingMotionViewModel(
 
     protected (double X, double Y, double Z) CurrentPosition() => CurrentFeedback.GetPosition();
 
-    protected async Task RunMotionAsync(
+    protected Task RunMotionAsync(
         Func<CancellationToken, Task> move,
-        CancellationToken cancellationToken,
-        MachineAlarm? ioAlarm = null)
-    {
-        var group = CurrentMotionGroup;
-        try
-        {
-            using var motionCancellation = LinkMotion(cancellationToken);
-            void StopWhenManualModeEnds()
-            {
-                if (!state.ManualMode) motionCancellation.Cancel();
-            }
-            state.Changed += StopWhenManualModeEnds;
-            try
-            {
-                await move(motionCancellation.Token);
-            }
-            finally
-            {
-                state.Changed -= StopWhenManualModeEnds;
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (IoTimeoutException exception)
-        {
-            state.SetError(ioAlarm ?? group switch
-            {
-                MotionGroup.PcbSupply => MachineAlarm.PcbSupply,
-                MotionGroup.PcbPlacementHandler => MachineAlarm.PcbPlacement,
-                MotionGroup.BoltFastening => MachineAlarm.BoltFastening,
-                MotionGroup.InspectionGantry => MachineAlarm.NgCarrierTransfer,
-                _ => throw new ArgumentOutOfRangeException(nameof(group)),
-            }, exception);
-        }
-        catch (MotionException exception)
-        {
-            state.SetError(MachineAlarm.MotionUnavailable, exception);
-            operations.Cancel();
-        }
-    }
+        CancellationToken cancellationToken) =>
+        machine.RunManualMotionAsync(CurrentMotionGroup, move, cancellationToken, _motionCancellation.Token);
 
     protected OperationCancellation.Operation LinkMotion(
         CancellationToken cancellationToken) =>
@@ -308,58 +262,14 @@ public abstract partial class TeachingMotionViewModel(
         OnPropertyChanged(nameof(MotionHint));
     }
 
-    protected virtual void RefreshPosition()
-    {
-        var position = CurrentPosition();
-        _position = new(position.X, position.Y, position.Z);
-        RefreshPositionBindings();
-    }
-
-    protected virtual void RefreshPositionBindings()
-    {
-        OnPropertyChanged(nameof(CurrentX));
-        OnPropertyChanged(nameof(CurrentY));
-        OnPropertyChanged(nameof(CurrentZ));
-    }
-
     protected void ActivatePositionUpdates()
     {
         _positionUpdatesActive = true;
-        RefreshPosition();
+        OnPropertyChanged(nameof(Motion));
     }
 
     protected void DeactivatePositionUpdates() =>
         _positionUpdatesActive = false;
-
-    protected void QueuePositionRefresh(
-        MotionGroup motionGroup,
-        double x,
-        double y,
-        double z)
-    {
-        if (!_positionUpdatesActive
-            || motionGroup != CurrentMotionGroup)
-        {
-            return;
-        }
-
-        _position = new(x, y, z);
-        if (Interlocked.Exchange(ref _positionRefreshQueued, 1) != 0)
-        {
-            return;
-        }
-
-        Application.Current.Dispatcher.InvokeAsync(
-            () =>
-            {
-                Interlocked.Exchange(ref _positionRefreshQueued, 0);
-                if (_positionUpdatesActive)
-                {
-                    RefreshPositionBindings();
-                }
-            },
-            DispatcherPriority.Background);
-    }
 
     protected void QueueManualCommandRefresh()
     {
