@@ -12,6 +12,7 @@ namespace IBTM.UI;
 
 public enum OutputFeedbackState
 {
+    [Description("Unknown")] Unknown,
     [Description("Not matched")] NotMatched,
     [Description("Matched")] Matched,
     [Description("Waiting")] Waiting,
@@ -23,9 +24,11 @@ public partial class OutputWindow : Window
 {
     private bool _closing;
     private bool _shutdownCompleted;
+    private readonly MachineState _state;
 
-    public OutputWindow(IIoService io, IoSignals signals, MachineController machine)
+    public OutputWindow(IIoService io, IoSignals signals, MachineController machine, MachineState state)
     {
+        _state = state;
         Rows = signals.Outputs.Values.OrderBy(row => row.Signal)
             .Select(row => new OutputControlRow(io, row, machine)).ToArray();
         Filter = new(Rows, row => row.Io, nameof(OutputControlRow.Io));
@@ -74,6 +77,7 @@ public partial class OutputWindow : Window
 
     private void OnRefresh(object sender, RoutedEventArgs e)
     {
+        _state.RequestDisplayRefresh();
         foreach (var row in Rows) row.Refresh();
     }
 
@@ -99,19 +103,19 @@ public sealed partial class OutputControlRow : ObservableObject
     public OutputFeedbackState FeedbackState =>
         _timedOut ? OutputFeedbackState.Timeout
         : Io.HasConflict ? OutputFeedbackState.Conflict
-        : Io.IsMatched ? OutputFeedbackState.Matched
         : _waitingForFeedback ? OutputFeedbackState.Waiting
+        : Io.IsOn is null ? OutputFeedbackState.Unknown
+        : Io.IsMatched ? OutputFeedbackState.Matched
         : OutputFeedbackState.NotMatched;
 
     [RelayCommand]
     private async Task ToggleAsync(CancellationToken cancellationToken)
     {
-        var value = !Io.IsOn;
         Refresh();
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!_machine.TrySetManualOutput(Io.Signal, value)) return;
+            if (_machine.ToggleManualOutput(Io.Signal) is not { } value) return;
             if (Io.HasFeedback)
             {
                 SetWaiting(true);

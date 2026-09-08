@@ -222,6 +222,8 @@ public sealed class MachineController
             NgConveyorRunning = _ngConveyor.RunCommandOn,
             NgConveyorState = _ngConveyor.State,
             BufferConflict = conflict,
+            SupplyInBufferArea = _state.SupplyInBufferArea,
+            PlacementInBufferArea = _state.PlacementInBufferArea,
             SupplyAtHandoff = _state.SupplyAtHandoff,
             CanSupplyEnter = _state.CanSupplyEnter,
             EmergencyStopReleased = _state.EmergencyStopReleased,
@@ -240,6 +242,7 @@ public sealed class MachineController
                 .SelectMany(group => GetMotionFeedback(group).Axes.Select(axis => (group, axis)))
                 .Where(item => CanHomeAxis(item.group, item.axis, live: false)).ToHashSet(),
             ManualBlock = _state.GetManualBlock(motion),
+            ManualOutputsEnabled = _state.ManualOutputsEnabled,
             PlacementState = _pcbPlacement.State(_recipe.PcbPlacement),
             PlacementTarget = _pcbPlacement.TargetHeatSink,
             FasteningState = teachingReady && _units.BoltFastening ? _fasteningStation.State() : BoltFasteningState.Waiting,
@@ -339,6 +342,19 @@ public sealed class MachineController
 
     private IMotionFeedback GetMotionFeedback(MotionGroup group) => GetMotionStatus(group).Feedback;
 
+    internal bool CanUseManualMotion(MotionGroup group, bool live = true) =>
+        (live ? _state.ManualControlsEnabled : _state.Display.ManualControlsEnabled)
+        && group switch
+        {
+            MotionGroup.PcbSupply => _units.PcbSupply
+                && !(live ? _state.PlacementInBufferArea : _state.Display.PlacementInBufferArea),
+            MotionGroup.PcbPlacementHandler => _units.PcbPlacement
+                && !(live ? _state.SupplyInBufferArea : _state.Display.SupplyInBufferArea),
+            MotionGroup.BoltFastening => _units.BoltFastening,
+            MotionGroup.InspectionGantry => _units.Inspection || _units.NgCarrierTransfer,
+            _ => throw new ArgumentOutOfRangeException(nameof(group)),
+        };
+
     internal Task RunManualMotionAsync(
         MotionGroup group,
         Func<CancellationToken, Task> move,
@@ -351,11 +367,24 @@ public sealed class MachineController
             MotionGroup.BoltFastening => MachineAlarm.BoltFastening,
             MotionGroup.InspectionGantry => MachineAlarm.NgCarrierTransfer,
             _ => throw new ArgumentOutOfRangeException(nameof(group)),
-        }, () => _state.ManualControlsEnabled, cancellationToken, viewCancellation);
+        }, () => CanUseManualMotion(group), cancellationToken, viewCancellation);
 
-    internal bool TrySetManualOutput(OutputIo signal, bool value) =>
-        TryRunManual(() => _io.SetOutput(signal, value),
-            () => _state.ManualOutputsEnabled, MachineAlarm.IoCommunication);
+    internal Task RunTeachingEditAsync(
+        Func<CancellationToken, Task> edit,
+        CancellationToken cancellationToken,
+        CancellationToken viewCancellation) =>
+        RunManualAsync(edit, MachineAlarm.IoCommunication,
+            () => _state.ManualControlsEnabled, cancellationToken, viewCancellation);
+
+    internal bool? ToggleManualOutput(OutputIo signal)
+    {
+        var value = false;
+        return TryRunManual(() =>
+        {
+            value = !_io.GetOutput(signal);
+            _io.SetOutput(signal, value);
+        }, () => _state.ManualOutputsEnabled, MachineAlarm.IoCommunication) ? value : null;
+    }
 
     internal void RunManualConveyor() =>
         TryRunManual(() => _conveyor.RunMotor(),
@@ -390,7 +419,16 @@ public sealed class MachineController
             HardwareArea.BoltFastening => MachineAlarm.BoltFastening,
             HardwareArea.NgCarrierTransfer => MachineAlarm.NgCarrierTransfer,
             _ => throw new ArgumentOutOfRangeException(nameof(output)),
-        }, () => _state.ManualOutputsEnabled, cancellationToken, viewCancellation);
+        }, () => _state.ManualOutputsEnabled
+            && (output.CanSet?.Invoke(true) ?? true)
+            && (!output.RequiresHandler || CanUseManualMotion(output.Owner switch
+            {
+                HardwareArea.PcbSupply => MotionGroup.PcbSupply,
+                HardwareArea.PcbPlacementHandler => MotionGroup.PcbPlacementHandler,
+                HardwareArea.BoltFastening => MotionGroup.BoltFastening,
+                HardwareArea.NgCarrierTransfer => MotionGroup.InspectionGantry,
+                _ => throw new ArgumentOutOfRangeException(nameof(output)),
+            })), cancellationToken, viewCancellation);
 
     private async Task RunManualAsync(
         Func<CancellationToken, Task> execute,

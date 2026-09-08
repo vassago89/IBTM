@@ -43,8 +43,8 @@ public partial class RecipeEditor(
         CommandShutdown.WaitAsync(CommandShutdown.Capture(SaveCommand, LoadCommand));
 
     [RelayCommand(CanExecute = nameof(CanSave))]
-    public Task SaveAsync() => SaveAsync((name, token) =>
-        store.SaveRecipeAsync(recipe, name, _imageRecipeName, token));
+    public Task SaveAsync(CancellationToken cancellationToken = default) => SaveAsync((name, token) =>
+        store.SaveRecipeAsync(recipe, name, _imageRecipeName, token), cancellationToken);
 
     [RelayCommand]
     private Task LoadAsync(string recipeName) => RunAsync(async token =>

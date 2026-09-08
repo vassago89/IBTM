@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -32,6 +33,11 @@ public sealed class MotionStatus : INotifyPropertyChanged
     public IReadOnlyDictionary<MotionAxis, AxisStatus> Axes { get; }
     public bool XyHomed => Axes[MotionAxis.X].State is { Homed: true }
         && (!Feedback.HasY || Axes[MotionAxis.Y].State is { Homed: true });
+
+    // Display only; motion commands read Feedback again when they execute.
+    public bool IsAtZ(double z) => !Feedback.HasZ
+        || Axes[MotionAxis.Z].State is { Homed: true }
+        && Math.Abs(Position.Z - z) <= MotionService.PositionToleranceMillimeters;
 
     public MotionPosition Position
     {

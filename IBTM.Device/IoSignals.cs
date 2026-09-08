@@ -1,12 +1,16 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace IBTM.Device;
 
 public sealed class IoSignals
 {
+    private readonly IIoService _io;
+
     public IoSignals(IEnumerable<HardwareSettings> hardware, IIoService io)
     {
+        _io = io;
         var sections = hardware.ToArray();
         Inputs = sections.OfType<InputHardwareSettings>()
             .SelectMany(section => section.Inputs.Keys.Select(input => new IoSignal<InputIo>(
@@ -21,14 +25,28 @@ public sealed class IoSignals
         {
             if (Inputs.TryGetValue(input, out var row)) row.Refresh();
         };
-        io.OutputChanged += (output, _) =>
-        {
-            if (Outputs.TryGetValue(output, out var row)) row.Refresh();
-        };
     }
 
     public IReadOnlyDictionary<InputIo, IoSignal<InputIo>> Inputs { get; }
     public IReadOnlyDictionary<OutputIo, IoOutputStatus> Outputs { get; }
+
+    // Called by the shared display worker, never by a binding getter.
+    public void RefreshOutputs()
+    {
+        try
+        {
+            foreach (var output in Outputs.Values)
+            {
+                if (_io.IsReady) output.Refresh();
+                else output.Update(null);
+            }
+        }
+        catch (IOException)
+        {
+            foreach (var output in Outputs.Values) output.Update(null);
+            throw;
+        }
+    }
 
     public IoStatus Select(
         HardwareArea area,

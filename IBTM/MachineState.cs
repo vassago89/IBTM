@@ -108,6 +108,7 @@ public sealed class MachineState : IDisposable
     private readonly UnitSettings _units;
     private readonly OperationCancellation _operations;
     private readonly IIoService _io;
+    private readonly IoSignals _ioSignals;
     private readonly MainConveyor _conveyor;
     private readonly NgCarrierConveyor _ngConveyor;
     private readonly BufferStage _buffer;
@@ -122,6 +123,7 @@ public sealed class MachineState : IDisposable
         UnitSettings units,
         OperationCancellation operations,
         IIoService io,
+        IoSignals ioSignals,
         MainConveyor conveyor,
         NgCarrierConveyor ngConveyor,
         BufferStage buffer,
@@ -135,6 +137,7 @@ public sealed class MachineState : IDisposable
         _units = units;
         _operations = operations;
         _io = io;
+        _ioSignals = ioSignals;
         _conveyor = conveyor;
         _ngConveyor = ngConveyor;
         _buffer = buffer;
@@ -154,6 +157,7 @@ public sealed class MachineState : IDisposable
         };
         io.OutputChanged += (output, _) =>
         {
+            RequestDisplayRefresh();
             if (output is OutputIo.MainConveyorRun
                 or OutputIo.NgConveyorRun)
             {
@@ -198,6 +202,7 @@ public sealed class MachineState : IDisposable
                         cancellationToken.ThrowIfCancellationRequested();
                         try
                         {
+                            _ioSignals.RefreshOutputs();
                             foreach (var motion in _motionDisplays) motion.RefreshAxes();
                             Display = read();
                         }
@@ -329,6 +334,7 @@ public sealed class MachineState : IDisposable
     public bool ConveyorRunning => _conveyor.RunCommandOn;
     public MainConveyorState MainConveyorState => _conveyor.State;
     public bool SupplyInBufferArea => _buffer.SupplyInside;
+    internal bool PlacementInBufferArea => _buffer.PlacementInside;
     internal bool SupplyAtHandoff => _buffer.SupplyAtHandoff;
     internal bool CanSupplyEnter => _buffer.CanSupplyEnter;
     public bool BufferConflict => _buffer.Conflict;

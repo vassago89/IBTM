@@ -16,7 +16,7 @@ public class IoSignal<T>(
     public T Signal { get; } = signal;
     public HardwareArea Area { get; } = area;
     public IoSection? Section { get; } = section;
-    public bool IsOn => read(Signal);
+    public virtual bool? IsOn => read(Signal);
 
     protected void Notify(string propertyName) =>
         PropertyChanged?.Invoke(this, new(propertyName));
@@ -26,6 +26,8 @@ public class IoSignal<T>(
 
 public sealed class IoOutputStatus : IoSignal<OutputIo>
 {
+    private bool? _isOn;
+
     public IoOutputStatus(
         OutputIo signal,
         HardwareArea area,
@@ -42,12 +44,18 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
     }
 
     public IoSignal<InputIo>[] Feedback { get; }
+    public override bool? IsOn => _isOn;
     public bool HasFeedback => Feedback.Length > 0;
-    public bool HasConflict => HasFeedback && Feedback[0].IsOn && Feedback[1].IsOn;
-    public bool IsMatched => HasFeedback && !HasConflict && Feedback[IsOn ? 0 : 1].IsOn;
+    public bool HasConflict => HasFeedback && Feedback[0].IsOn == true && Feedback[1].IsOn == true;
+    public bool IsMatched => IsOn is { } on && HasFeedback && !HasConflict
+        && Feedback[on ? 0 : 1].IsOn == true;
 
-    internal override void Refresh()
+    internal override void Refresh() => Update(base.IsOn);
+
+    internal void Update(bool? value)
     {
+        if (_isOn == value) return;
+        _isOn = value;
         base.Refresh();
         RefreshFeedback();
     }

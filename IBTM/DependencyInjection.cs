@@ -97,7 +97,7 @@ public static class DependencyInjection
                 ],
                 [MotionGroup.InspectionGantry] =
                 [
-                    .. provider.GetRequiredService<NgCarrierTransfer>().GetTeachingOutputs(() => settings.Units.NgCarrierTransfer),
+                    .. provider.GetRequiredService<NgCarrierTransfer>().GetTeachingOutputs(_ => settings.Units.NgCarrierTransfer),
                     .. provider.GetRequiredService<InspectionWork>().Station.GetTeachingOutputs(),
                 ],
             }.ToDictionary(pair => pair.Key,

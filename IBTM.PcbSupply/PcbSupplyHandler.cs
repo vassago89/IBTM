@@ -164,8 +164,8 @@ public sealed class PcbSupplyHandler
         await _motion.MoveToHorizontalZAsync(cancellationToken);
     }
 
-    public bool CanMoveToTeachingPosition(TeachingPosition point) =>
-        (!InsideBuffer || point.Mode == TeachMode.XOnly && IsAtRotationZ)
+    public bool CanMoveToTeachingPosition(TeachingPosition point, bool live = true) =>
+        (!IsInsideBuffer(live) || point.Mode == TeachMode.XOnly && AtRotationZ(live))
         && point.Target switch
         {
             TeachingTarget.SupplyBufferHandoff => Rotation == PcbSupplyRotationState.Rotated,
@@ -245,7 +245,7 @@ public sealed class PcbSupplyHandler
     [
         new(OutputIo.PcbSupplyNestForward, HardwareArea.PcbSupply, SetNestAsync),
         new(OutputIo.PcbSupplyIpmFixerForward, HardwareArea.PcbSupply, SetIpmFixerAsync),
-        new(OutputIo.PcbSupplyRotate, HardwareArea.PcbSupply, SetRotatedAsync, () => !InsideBuffer),
+        new(OutputIo.PcbSupplyRotate, HardwareArea.PcbSupply, SetRotatedAsync, live => !IsInsideBuffer(live)),
     ];
 
     public Task SetIpmFixerAsync(
@@ -341,11 +341,11 @@ public sealed class PcbSupplyHandler
                 _settings.Motion.ZSpeed,
                 cancellationToken);
 
-    public bool CanJog(MotionAxis axis) => axis switch
+    public bool CanJog(MotionAxis axis, bool live = true) => axis switch
     {
-        MotionAxis.X => IsAtRotationZ,
-        MotionAxis.Y => _motion.HasY && !InsideBuffer && IsAtRotationZ,
-        MotionAxis.Z => _motion.HasZ && !InsideBuffer,
+        MotionAxis.X => AtRotationZ(live),
+        MotionAxis.Y => _motion.HasY && !IsInsideBuffer(live) && AtRotationZ(live),
+        MotionAxis.Z => _motion.HasZ && !IsInsideBuffer(live),
         _ => false,
     };
 
@@ -377,8 +377,13 @@ public sealed class PcbSupplyHandler
         }
     }
 
-    private bool InsideBuffer =>
-        _bufferSettings.ContainsSupplyX(_motion.GetPosition().X);
+    private bool InsideBuffer => IsInsideBuffer(live: true);
+
+    private bool IsInsideBuffer(bool live) =>
+        _bufferSettings.ContainsSupplyX(live ? _motion.GetPosition().X : Motion.Position.X);
+
+    private bool AtRotationZ(bool live) =>
+        live ? IsAtRotationZ : Motion.IsAtZ(_settings.RotationZ);
 
     public Task MoveToRotationZAsync(
         CancellationToken cancellationToken = default) =>

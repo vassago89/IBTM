@@ -26,6 +26,7 @@ public partial class StationTeachingViewModel
         }
         else
         {
+            if (!_state.ManualOutputsEnabled) return;
             CameraError = null;
             Preview.Clear(SelectedBarcode);
             IsCameraLive = true;
@@ -42,7 +43,7 @@ public partial class StationTeachingViewModel
 
     private bool CanToggleLiveView() =>
         IsInspectionSelected
-        && (IsCameraLive || _state.ManualOutputsEnabled);
+        && (IsCameraLive || _state.Display.ManualOutputsEnabled);
 
     [RelayCommand(CanExecute = nameof(CanCaptureCarrierImages))]
     private async Task CaptureCarrierImagesAsync(
@@ -55,6 +56,7 @@ public partial class StationTeachingViewModel
             {
                 _recipeImageCancellation.Cancel();
                 await _recipeImageUpdate;
+                token.ThrowIfCancellationRequested();
                 Preview.Clear(SelectedBarcode);
                 CarrierImages = [];
                 var captured = await _boltInspector.CaptureCarrierImagesAsync(token);
@@ -71,6 +73,7 @@ public partial class StationTeachingViewModel
                 CarrierImages = images;
                 completed = await RecipeEditor.SaveCarrierImagesAsync(images, token);
                 if (!completed) return;
+                token.ThrowIfCancellationRequested();
                 SelectedPoint = NextTeachingPoint() ?? FilteredPoints.FirstOrDefault(point =>
                     point.Target == TeachingTarget.BoltReference);
             }, cancellationToken);
@@ -99,13 +102,14 @@ public partial class StationTeachingViewModel
     [RelayCommand(CanExecute = nameof(CanTeachImagePoint))]
     private async Task TeachImagePointAsync(Point imagePoint)
     {
+        if (!CanEditRecipe()) return;
         if (SelectedPoint!.Target == TeachingTarget.BoltReference)
             SelectedPcb = FindPcb(new Rect(imagePoint, new Size()))!.Value;
         var point = SelectedPoint!;
         point.Teach(imagePoint.X, imagePoint.Y, 0);
         point.Apply();
         RefreshPointPositions();
-        await RecipeEditor.SaveAsync();
+        await RecipeEditor.SaveAsync(ViewCancellation);
         NotifyManualTeachingCommands();
     }
 
@@ -123,6 +127,7 @@ public partial class StationTeachingViewModel
     [RelayCommand(CanExecute = nameof(CanTeachImageRegion))]
     private async Task TeachImageRegionAsync(Rect bounds)
     {
+        if (!CanEditRecipe()) return;
         CameraError = null;
         var pin = _carrierReference.UpperLeftLocatingPin!;
         var layout = CurrentRecipe.Pcb;
@@ -146,7 +151,7 @@ public partial class StationTeachingViewModel
                 bounds.Width, bounds.Height);
         }
         RefreshPointPositions();
-        await RecipeEditor.SaveAsync();
+        await RecipeEditor.SaveAsync(ViewCancellation);
         NotifyManualTeachingCommands();
     }
 
@@ -207,10 +212,12 @@ public partial class StationTeachingViewModel
 
     private async Task RunInspectionAsync(Func<CancellationToken, Task> action, CancellationToken token)
     {
+        var activeCancellation = token;
         try
         {
             await RunMotionAsync(async ct =>
             {
+                activeCancellation = ct;
                 CameraError = null;
                 if (IsCameraLive) StopCamera();
                 if (CameraError is not null) return;
@@ -219,7 +226,7 @@ public partial class StationTeachingViewModel
         }
         catch (Exception exception)
         {
-            CameraError = exception.Message;
+            if (!activeCancellation.IsCancellationRequested) CameraError = exception.Message;
         }
     }
 

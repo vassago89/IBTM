@@ -151,13 +151,13 @@
     </Style>
 
     <Style x:Key="IoOutputStateStyle" TargetType="ContentControl">
-        <Setter Property="Content" Value="OFF"/>
+        <Setter Property="Content" Value="—"/>
         <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContentControl">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border Width="10"
+                        <Border x:Name="Indicator" Width="10"
                                 Height="10"
                                 Background="{TemplateBinding Foreground}"
                                 CornerRadius="1"/>
@@ -166,6 +166,13 @@
                                    Foreground="{TemplateBinding Foreground}"
                                    FontWeight="SemiBold"/>
                     </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Tag" Value="{x:Null}">
+                            <Setter TargetName="Indicator" Property="Background" Value="Transparent"/>
+                            <Setter TargetName="Indicator" Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
+                            <Setter TargetName="Indicator" Property="BorderThickness" Value="1"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -174,6 +181,10 @@
                          Value="True">
                 <Setter Property="Content" Value="ON"/>
                 <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="False">
+                <Setter Property="Content" Value="OFF"/>
             </DataTrigger>
         </Style.Triggers>
     </Style>

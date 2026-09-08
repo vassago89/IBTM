@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.BoltFastening;
@@ -18,7 +20,7 @@ namespace IBTM.Virtual.Tests;
 public sealed class IoTests
 {
     [Fact]
-    public void IoStatusUsesHardwareMappingsAndLiveSignals()
+    public void IoStatusSharesInputsAndRefreshesOutputDisplayOnlyWhenRequested()
     {
         var hardware = new NgShuttleHardwareSettings();
         hardware.Inputs.Add(InputIo.PcbSupplyPcbDetected, 999);
@@ -26,11 +28,19 @@ public sealed class IoTests
         {
             AutoResponseEnabled = false,
         };
-        var signals = new IoSignals([hardware], io);
+        var observedIo = DispatchProxy.Create<IIoService, OutputReadProbe>();
+        var probe = (OutputReadProbe)observedIo;
+        probe.Io = io;
+        var signals = new IoSignals([hardware], observedIo);
         var status = hardware.CreateIoStatus(signals);
         Assert.Equal(hardware.Area, status.Area);
         Assert.Equal(hardware.Inputs.Keys.Order(), status.Inputs.Select(row => row.Signal));
         var output = Assert.Single(status.Outputs);
+        Assert.Null(output.IsOn);
+        Assert.Equal(0, probe.Reads);
+        signals.RefreshOutputs();
+        Assert.False(output.IsOn);
+        Assert.Equal(1, probe.Reads);
         Assert.Equal(OutputIo.NgShuttleDown, output.Signal);
         Assert.Equal(new[] { InputIo.NgShuttleDown, InputIo.NgShuttleUp },
             output.Feedback.Select(row => row.Signal));
@@ -58,12 +68,49 @@ public sealed class IoTests
             if (args.PropertyName == nameof(output.IsOn)) outputChanges++;
         };
         io.SetOutput(output.Signal, true);
+        Assert.False(output.IsOn);
+        signals.RefreshOutputs();
         Assert.True(output.IsOn);
+        Assert.Equal(1, outputChanges);
+        signals.RefreshOutputs();
         Assert.Equal(1, outputChanges);
         Assert.All(output.Feedback, row => Assert.False(row.IsOn));
         io.SetInput(InputIo.NgShuttleUp, true);
         io.SetInput(InputIo.NgShuttleDown, true);
         Assert.All(output.Feedback, row => Assert.True(row.IsOn));
+        Assert.True(output.HasConflict);
+        Assert.False(output.IsMatched);
+        Assert.Equal(3, probe.Reads);
+
+        var error = new IOException("Output read failed.");
+        probe.Error = error;
+        Assert.Same(error, Assert.Throws<IOException>(signals.RefreshOutputs));
+        Assert.Null(output.IsOn);
+        Assert.False(output.IsMatched);
+
+        probe.Error = null;
+        signals.RefreshOutputs();
+        Assert.True(output.IsOn);
+        io.SetConnected(false);
+        signals.RefreshOutputs();
+        Assert.Null(output.IsOn);
+    }
+
+    public class OutputReadProbe : DispatchProxy
+    {
+        public IIoService Io = null!;
+        public int Reads;
+        public Exception? Error;
+
+        protected override object? Invoke(MethodInfo? method, object?[]? args)
+        {
+            if (method!.Name == nameof(IIoService.GetOutput))
+            {
+                Reads++;
+                if (Error is { } error) throw error;
+            }
+            return method.Invoke(Io, args);
+        }
     }
 
     [Fact]

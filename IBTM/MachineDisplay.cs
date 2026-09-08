@@ -27,6 +27,8 @@ public sealed record MachineDisplay
     public bool NgConveyorRunning { get; init; }
     public NgConveyorState NgConveyorState { get; init; }
     public bool BufferConflict { get; init; }
+    public bool SupplyInBufferArea { get; init; }
+    public bool PlacementInBufferArea { get; init; }
     public bool SupplyAtHandoff { get; init; }
     public bool CanSupplyEnter { get; init; }
     public bool EmergencyStopReleased { get; init; }
@@ -44,6 +46,7 @@ public sealed record MachineDisplay
     public IReadOnlySet<(MotionGroup Group, MotionAxis Axis)> HomeableAxes { get; init; } = new HashSet<(MotionGroup, MotionAxis)>();
     public ManualControlBlock ManualBlock { get; init; } = ManualControlBlock.MotionNotReady;
     public bool ManualControlsEnabled => Available && ManualBlock == ManualControlBlock.None;
+    public bool ManualOutputsEnabled { get; init; }
     public PcbPlacementState PlacementState { get; init; }
     public HeatSinkSlot? PlacementTarget { get; init; }
     public BoltFasteningState FasteningState { get; init; }

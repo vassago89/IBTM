@@ -44,7 +44,7 @@ public partial class InputWindow : Window, INotifyPropertyChanged
     private void OnToggleInput(object sender, RoutedEventArgs e)
     {
         var row = (IoSignal<InputIo>)((Button)sender).DataContext;
-        _virtualIo!.SetInput(row.Signal, !row.IsOn);
+        _virtualIo!.SetInput(row.Signal, row.IsOn != true);
     }
 
     private void OnAutoResponseChanged() =>

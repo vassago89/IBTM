@@ -1572,3 +1572,119 @@ with display data.
 
 Verification: 176 tests pass; Release and Virtual builds have zero warnings and
 errors. No physical hardware was commanded and no new UI visual session was run.
+
+### Teaching display and execution reads — 2026-09-08
+
+Teaching button availability and hints now use the existing MachineDisplay and
+unit-owned MotionStatus. Supply/Placement retain their own jog, height and buffer
+rules; their explicit display-read option uses sampled axes/coordinates. The
+default remains live feedback. Input-only cylinder checks still read the IO
+service's scanned inputs, not the native SDK from WPF getters.
+
+Both teaching view models refresh from completed DisplayChanged notifications.
+Removed their direct BufferStage dependency and redundant per-handler/motion
+subscriptions. The two buffer display fields now have teaching-screen consumers;
+they are observations, not stored buffer ownership. No timer, service, motion
+wrapper or persistent safety flag was introduced.
+
+Manual motion admission is shared with the controller: execution checks current
+unit enablement, buffer conditions and equipment readiness. Current-coordinate
+teaching runs inside the same command boundary as Jog/Step. Teaching outputs use
+the same owner predicate with display reads for buttons and live reads before
+execution. Image editing still works without homing, while the actual edit
+rechecks idle/manual state.
+
+Existing UI-availability assertions now wait for display publication instead of
+assuming sensor changes synchronously update WPF availability. The blocked-reader
+regression also queries teaching controls, and two focused cases verify that a
+fresh feedback failure prevents both Jog and saving a taught coordinate. No
+control cancellation was delayed to make these tests pass.
+
+Scope: teaching motion availability/hints and command admission. Raw DO indicator
+getters still call IoOutputStatus/IIoService.GetOutput; this is not a claim that
+all UI native reads have been removed.
+
+Verification: 178 tests pass; Release and Virtual builds have zero warnings and
+errors. No physical hardware was commanded and no UI visual session was run.
+
+### Raw DO display and live toggle — 2026-09-08
+
+The remaining raw DO getter above is now display-only. IoOutputStatus retains
+one nullable observation read by the existing MachineState display worker;
+ON/OFF and feedback-match bindings do not call the SDK. Output changes request
+that worker, and the DO window's Refresh button now requests a hardware refresh
+as well as clearing its timeout indications. No second worker or timer was added.
+
+Before the first read, while IO is unavailable, or after an output-read
+IOException, the observation is null. The shared output style renders an outline
+and dash, and the feedback column shows Unknown instead of reporting OFF or
+Matched. Unchanged observations do not emit repeated output notifications.
+Input indications still use the IO service's scanned inputs.
+
+The raw-output toggle now reads and reverses the actual output inside the
+controller's existing manual-command/error boundary. It does not use the
+display observation. Physical control predicates and IIoService.GetOutput remain
+live. Active feedback waiting takes precedence over a potentially older Matched
+display until that command finishes.
+
+Extended existing tests cover read counts, unavailable/failed output reads,
+unchanged notifications, and toggling a real ON while the display is held at OFF.
+The home-sensor UI test now waits for both the clear and blocked display states
+for each sensor, avoiding acceptance of the preceding sensor's blocked frame.
+No homing or cancellation behavior was changed.
+
+Verification: all 178 tests pass. Release and Virtual builds have zero warnings
+and errors. No physical hardware or interactive UI session was used.
+
+## Buffer teaching save boundary — 2026-09-08
+
+Buffer setup saves now use the controller's existing manual execution boundary
+for live admission, cancellation, and hardware-read errors. Saving both handlers'
+settings still requires idle manual control, not permission to move the selected
+handler. Teaching view models no longer inject OperationCancellation or create
+their own operation scopes through LinkMotion.
+
+Teaching settings saves pass the execution token to MachineStore. Cancellation
+is handled by the execution boundary; database failures remain SaveError in the
+teaching screen. Applied in-memory settings are not rolled back.
+
+Verification: 12 targeted tests pass, including actual buffer persistence,
+blocked saves, Stop/view-close cancellation, and existing teaching execution
+checks. The Release test build passed. No full-suite run or hardware operation
+was performed for this scoped change.
+
+## Teaching deactivation and shutdown — 2026-09-08
+
+The common teaching view now cancels its view token on deactivation. Supply and
+station teaching no longer cancel each motion, IO, and capture command a second
+time. CancelTeaching names that shared scope; camera preview shutdown and image
+loading cleanup remain with station teaching. Shutdown still waits for pending
+commands and image updates before resources can be released.
+
+Image-point and image-region autosaves now pass the view token to RecipeEditor.
+Stop and application shutdown retain their shared OperationCancellation path.
+Successful database commits are not rolled back after cancellation.
+
+Verification: 20 targeted tests pass in Release, covering jog release/view close/
+Stop/mode change, capture view/application shutdown, IO wait cancellation without
+reversing outputs, buffer saves, recipe cancellation, and final motion feedback.
+No full-suite run or physical hardware operation was performed.
+
+## Teaching point selection — 2026-09-08
+
+Selection already cancels the view operation, and InspectionPreview checks its
+token before publishing a captured image or inspection result. Selecting a point
+reads teaching values; it does not apply them to the recipe or machine settings.
+
+Two reproduced gaps were corrected: a completed carrier-image save could replace
+the user's newer selection, and a late camera exception could appear against the
+new point. Follow-up selection now checks the existing execution token, including
+after teaching a locating pin. Camera errors from a cancelled operation no longer
+replace the current point's display. Completed database saves remain intact.
+Carrier capture also checks cancellation after awaiting prior image loading,
+before clearing the current preview. No version counter or selection cache was added.
+
+Verification: 16 targeted Release tests pass. The new regressions first reproduced
+both failures; they also cover a late successful camera return, preserved saved
+images, unchanged recipe/settings on selection, and jog cancellation on selection.
+No full-suite run or physical hardware operation was performed.

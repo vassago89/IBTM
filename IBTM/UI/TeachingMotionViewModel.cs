@@ -44,14 +44,13 @@ public enum TeachingMotionHint
 }
 
 public abstract partial class TeachingMotionViewModel(
-    OperationCancellation operations,
     MachineState state,
     MachineController machine,
     MachineStore store,
     IReadOnlyDictionary<MotionGroup, IoStatus[]> ioGroups,
     IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : ObservableObject
 {
-    private CancellationTokenSource _motionCancellation = new();
+    private CancellationTokenSource _viewCancellation = new();
     private bool _positionUpdatesActive;
     private int _manualCommandRefreshQueued;
 
@@ -69,8 +68,8 @@ public abstract partial class TeachingMotionViewModel(
     private string? _saveError;
 
     public TeachingMoveMode[] MoveModes { get; } = Enum.GetValues<TeachingMoveMode>();
-    public ManualControlBlock ManualBlock => state.ManualBlock;
-    public bool CanEditTeaching => state.ManualControlsEnabled;
+    public ManualControlBlock ManualBlock => state.Display.ManualBlock;
+    public bool CanEditTeaching => state.Display.ManualControlsEnabled;
     public abstract TeachingMotionHint MotionHint { get; }
     public IReadOnlyList<IoStatus> IoGroups => ioGroups[CurrentMotionGroup];
     public IReadOnlyDictionary<OutputIo, TeachingOutput> TeachingOutputs => teachingOutputs[CurrentMotionGroup];
@@ -81,16 +80,21 @@ public abstract partial class TeachingMotionViewModel(
 
     protected abstract MotionGroup CurrentMotionGroup { get; }
     protected bool PositionUpdatesActive => _positionUpdatesActive;
+    protected CancellationToken ViewCancellation => _viewCancellation.Token;
     protected abstract IReadOnlyList<TeachingPoint> CurrentPoints { get; }
     protected abstract TeachingPoint? CurrentPoint { get; set; }
 
-    protected async Task<bool> SaveSettingsAsync(params Setting[] settings)
+    protected async Task<bool> SaveSettingsAsync(CancellationToken cancellationToken, params Setting[] settings)
     {
         SaveError = null;
         try
         {
-            await Task.Run(() => store.SaveSettings(settings));
+            await Task.Run(() => store.SaveSettings(settings, cancellationToken), cancellationToken);
             return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception exception)
         {
@@ -135,16 +139,16 @@ public abstract partial class TeachingMotionViewModel(
     private bool CanSetOutput(TeachingOutput? output) =>
         output is not null
         && TeachingOutputs.ContainsKey(output.Signal)
-        && (output.RequiresHandler ? CanUseCurrentHandler() : state.ManualOutputsEnabled)
-        && (output.CanSet?.Invoke() ?? true);
+        && (output.RequiresHandler ? CanUseCurrentHandler() : state.Display.ManualOutputsEnabled)
+        && (output.CanSet?.Invoke(false) ?? true);
 
-    protected abstract bool CanUseCurrentHandler();
+    protected bool CanUseCurrentHandler() => machine.CanUseManualMotion(CurrentMotionGroup, live: false);
 
     private async Task SetOutputAsync(TeachingOutput output, bool value, CancellationToken cancellationToken)
     {
         try
         {
-            await machine.RunManualOutputAsync(output, value, cancellationToken, _motionCancellation.Token);
+            await machine.RunManualOutputAsync(output, value, cancellationToken, ViewCancellation);
         }
         finally
         {
@@ -211,7 +215,7 @@ public abstract partial class TeachingMotionViewModel(
     private bool CanMoveDirection(TeachingDirection direction) => CanJog(Resolve(direction).Axis);
 
     [RelayCommand]
-    private void JogStop() => CancelMotion();
+    private void JogStop() => CancelTeaching();
 
     private bool CanJogZ() => CanJog(MotionAxis.Z);
     protected abstract bool CanJog(MotionAxis axis);
@@ -239,18 +243,17 @@ public abstract partial class TeachingMotionViewModel(
     protected Task RunMotionAsync(
         Func<CancellationToken, Task> move,
         CancellationToken cancellationToken) =>
-        machine.RunManualMotionAsync(CurrentMotionGroup, move, cancellationToken, _motionCancellation.Token);
+        machine.RunManualMotionAsync(CurrentMotionGroup, move, cancellationToken, ViewCancellation);
 
-    protected OperationCancellation.Operation LinkMotion(
+    protected Task RunTeachingEditAsync(
+        Func<CancellationToken, Task> edit,
         CancellationToken cancellationToken) =>
-        operations.Link(
-            cancellationToken,
-            _motionCancellation.Token);
+        machine.RunTeachingEditAsync(edit, cancellationToken, ViewCancellation);
 
-    protected void CancelMotion()
+    protected void CancelTeaching()
     {
-        var cancellation = _motionCancellation;
-        _motionCancellation = new CancellationTokenSource();
+        var cancellation = _viewCancellation;
+        _viewCancellation = new CancellationTokenSource();
         cancellation.Cancel();
         cancellation.Dispose();
     }
@@ -273,8 +276,11 @@ public abstract partial class TeachingMotionViewModel(
         OnPropertyChanged(nameof(Motion));
     }
 
-    protected void DeactivatePositionUpdates() =>
+    public virtual void Deactivate()
+    {
         _positionUpdatesActive = false;
+        CancelTeaching();
+    }
 
     protected void QueueManualCommandRefresh()
     {
@@ -293,6 +299,4 @@ public abstract partial class TeachingMotionViewModel(
         });
     }
 
-    protected void QueueManualCommandRefresh(bool _) =>
-        QueueManualCommandRefresh();
 }

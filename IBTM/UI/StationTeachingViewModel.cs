@@ -13,7 +13,6 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.Inspection.Training;
-using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.Storage;
 
@@ -25,7 +24,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     private readonly BoltFasteningGantry _fasteningGantry;
     private readonly InspectionGantry _inspectionGantry;
     private readonly BoltInspector _boltInspector;
-    private readonly BufferStage _buffer;
     private readonly MachineState _state;
     private readonly InspectionGantrySettings _inspectionGantrySettings;
     private readonly CarrierReferenceSettings _carrierReference;
@@ -95,9 +93,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         PcbPlacementHandler placementHandler,
         BoltFasteningGantry fasteningGantry,
         InspectionGantry inspectionGantry,
-        NgCarrierTransfer ngCarrierTransfer,
         BoltInspector boltInspector,
-        BufferStage buffer,
         MachineState state,
         MachineController machine,
         InspectionGantrySettings inspectionGantrySettings,
@@ -110,17 +106,15 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         InspectionWork inspectionWork,
         BoltTrainingStore trainingStore,
         BoltTrainingSettings trainingSettings,
-        OperationCancellation operations,
         MachineStore store,
         IReadOnlyDictionary<MotionGroup, IoStatus[]> ioGroups,
         IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs)
-        : base(operations, state, machine, store, ioGroups, teachingOutputs)
+        : base(state, machine, store, ioGroups, teachingOutputs)
     {
         _placementHandler = placementHandler;
         _fasteningGantry = fasteningGantry;
         _inspectionGantry = inspectionGantry;
         _boltInspector = boltInspector;
-        _buffer = buffer;
         _state = state;
         _inspectionGantrySettings = inspectionGantrySettings;
         _carrierReference = carrierReference;
@@ -147,16 +141,9 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             CurrentRecipe.BoltInspection.CarrierScanOverlapMillimeters;
 
         inspectionGantry.Feedback.PositionChanged += OnInspectionPositionChanged;
-        placementHandler.Feedback.MovingChanged += QueueManualCommandRefresh;
-        fasteningGantry.Feedback.MovingChanged += QueueManualCommandRefresh;
-        inspectionGantry.Feedback.MovingChanged += QueueManualCommandRefresh;
-        placementHandler.Changed += QueueManualCommandRefresh;
-        fasteningGantry.Changed += QueueManualCommandRefresh;
-        ngCarrierTransfer.Changed += QueueManualCommandRefresh;
         boltInspector.FrameReady += UpdateLiveImage;
         boltInspector.LiveViewFailed += OnLiveViewFailed;
-        buffer.StateChanged += QueueManualCommandRefresh;
-        state.Changed += QueueManualCommandRefresh;
+        state.DisplayChanged += QueueManualCommandRefresh;
         recipeEditor.Changed += OnRecipeChanged;
         recipeEditor.PropertyChanged += (_, e) =>
         {
@@ -199,7 +186,9 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         Enum.GetValues<HeatSinkSlot>();
     public BoltFasteningRecipe BoltRecipe => CurrentRecipe.BoltFastening;
     public BoltInspectionRecipe InspectionRecipe => CurrentRecipe.BoltInspection;
-    public bool CanEditInspectionRecipe => _state.ManualMode && !_state.IsRunning;
+    public bool CanEditInspectionRecipe => CanEditRecipe(live: false);
+    private bool CanEditRecipe(bool live = true) =>
+        _state.ManualMode && !(live ? _state.IsRunning : _state.Display.IsRunning);
     public TeachingSaveBehavior SaveBehavior => SelectedPoint switch
     {
         { Target: TeachingTarget.BoltPickup } => TeachingSaveBehavior.BoltPickup,
@@ -283,7 +272,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     partial void OnSelectedMotionGroupChanged(MotionGroup value)
     {
-        CancelMotion();
+        CancelTeaching();
 
         if (IsCameraLive) StopCamera();
 
@@ -299,27 +288,26 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     }
 
     [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
-    private async Task TeachCurrentPositionAsync()
-    {
-        var point = SelectedPoint!;
-        var current = CurrentPosition();
-        point.Teach(current.X, current.Y, current.Z);
-        point.Apply();
-        RefreshPointPositions();
-        if (point.Storage == TeachingStorage.Machine)
+    private Task TeachCurrentPositionAsync(CancellationToken cancellationToken) =>
+        RunMotionAsync(async token =>
         {
-            using var operation = LinkMotion(CancellationToken.None);
-            if (!await SaveSettingsAsync(point.Position.Setting!)) return;
-        }
+            var point = SelectedPoint!;
+            var current = CurrentPosition();
+            point.Teach(current.X, current.Y, current.Z);
+            point.Apply();
+            RefreshPointPositions();
+            if (point.Storage == TeachingStorage.Machine
+                && !await SaveSettingsAsync(token, point.Position.Setting!)) return;
 
-        if (point.Target == TeachingTarget.CarrierUpperLeftLocatingPin)
-        {
-            SelectedPoint = FilteredPoints.First(candidate =>
-                candidate.Target == TeachingTarget.CarrierLowerRightLocatingPin);
-        }
+            token.ThrowIfCancellationRequested();
+            if (point.Target == TeachingTarget.CarrierUpperLeftLocatingPin)
+            {
+                SelectedPoint = FilteredPoints.First(candidate =>
+                    candidate.Target == TeachingTarget.CarrierLowerRightLocatingPin);
+            }
 
-        NotifyManualTeachingCommands();
-    }
+            NotifyManualTeachingCommands();
+        }, cancellationToken);
 
     private bool CanTeachCurrentPosition() =>
         SelectedPoint is { TeachMode: not TeachMode.Image, Position.CanTeach: true }
@@ -328,6 +316,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     [RelayCommand(CanExecute = nameof(CanAddBoltPoint))]
     private void AddBoltPoint()
     {
+        if (!CanEditRecipe()) return;
         var number = CurrentRecipe.Pcb.BoltPoints
             .Select(bolt => bolt.Number)
             .DefaultIfEmpty()
@@ -351,6 +340,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     [RelayCommand(CanExecute = nameof(CanRemoveBoltPoint))]
     private void RemoveBoltPoint()
     {
+        if (!CanEditRecipe()) return;
         var number = SelectedPoint!.BoltNumber;
         CurrentRecipe.Pcb.BoltPoints.RemoveAll(
             bolt => bolt.Number == number);
@@ -374,23 +364,11 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         NotifyManualTeachingCommands();
     }
 
-    public void Deactivate()
+    public override void Deactivate()
     {
-        DeactivatePositionUpdates();
+        base.Deactivate();
         _recipeImageCancellation.Cancel();
         CarrierImages = [];
-        JogCommand.Cancel();
-        StepCommand.Cancel();
-        MoveToHorizontalZCommand.Cancel();
-        MoveToPointCommand.Cancel();
-        ReturnFromPickupCommand.Cancel();
-        SetOutputOnCommand.Cancel();
-        SetOutputOffCommand.Cancel();
-        CaptureCarrierImagesCommand.Cancel();
-        CaptureInspectionCommand.Cancel();
-        ReinspectImageCommand.Cancel();
-        CollectBoltImagesCommand.Cancel();
-        CancelMotion();
         Preview.Clear();
 
         if (IsCameraLive) StopCamera();
@@ -494,7 +472,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     partial void OnSelectedPointChanged(TeachingPoint? value)
     {
-        CancelMotion();
+        CancelTeaching();
         Preview.Clear(SelectedBarcode);
         OnPropertyChanged(nameof(SelectedBarcode));
         OnPropertyChanged(nameof(ImageOrigin));

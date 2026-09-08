@@ -18,12 +18,12 @@ public partial class SupplyTeachingViewModel
         {
             var block = HandlerBlock(ActiveMotionGroup);
             if (block != TeachingMotionHint.None) return block;
-            if (ActiveMotionGroup == MotionGroup.PcbSupply && _buffer.SupplyInside)
+            if (ActiveMotionGroup == MotionGroup.PcbSupply && _state.Display.SupplyInBufferArea)
                 return TeachingMotionHint.SupplyInBufferRestricted;
             if (ActiveMotionGroup == MotionGroup.PcbPlacementHandler
                 && !_placementHandler.CanMoveHorizontal)
                 return TeachingMotionHint.RaisePlacementCylinders;
-            return _state.ManualControlsEnabled && !CanJog(MotionAxis.X)
+            return CanEditTeaching && !CanJog(MotionAxis.X)
                 ? TeachingMotionHint.SafeZRequired
                 : TeachingMotionHint.None;
         }
@@ -66,7 +66,7 @@ public partial class SupplyTeachingViewModel
         TeachingPoint? oldValue,
         TeachingPoint? newValue)
     {
-        CancelMotion();
+        CancelTeaching();
         NotifyPointSelectionCommands();
 
         OnPropertyChanged(nameof(ActiveMotionGroup));
@@ -81,8 +81,8 @@ public partial class SupplyTeachingViewModel
     protected override bool CanJog(MotionAxis axis) =>
         CanUseCurrentHandler()
         && (ActiveMotionGroup == MotionGroup.PcbSupply
-            ? _supplyHandler.CanJog(axis)
-            : _placementHandler.CanJog(axis));
+            ? _supplyHandler.CanJog(axis, live: false)
+            : _placementHandler.CanJog(axis, live: false));
 
     [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
     private Task MoveToPointAsync(CancellationToken cancellationToken)
@@ -102,22 +102,15 @@ public partial class SupplyTeachingViewModel
         && (point.MotionGroup != MotionGroup.PcbSupply
             ? point.TeachMode == TeachMode.ZOnly
               || _placementHandler.CanMoveHorizontal
-            : _supplyHandler.CanMoveToTeachingPosition(point.Position));
-
-    protected override bool CanUseCurrentHandler() =>
-        CanUseHandler(ActiveMotionGroup);
-
-    private bool CanUseHandler(MotionGroup motionGroup) =>
-        _state.ManualControlsEnabled
-        && HandlerBlock(motionGroup) == TeachingMotionHint.None;
+            : _supplyHandler.CanMoveToTeachingPosition(point.Position, live: false));
 
     private TeachingMotionHint HandlerBlock(MotionGroup motionGroup) =>
         motionGroup switch
         {
             MotionGroup.PcbSupply when !SupplyEnabled => TeachingMotionHint.UnitDisabled,
             MotionGroup.PcbPlacementHandler when !PlacementEnabled => TeachingMotionHint.UnitDisabled,
-            MotionGroup.PcbSupply when _buffer.PlacementInside => TeachingMotionHint.PlacementInBuffer,
-            MotionGroup.PcbPlacementHandler when _buffer.SupplyInside => TeachingMotionHint.SupplyInBuffer,
+            MotionGroup.PcbSupply when _state.Display.PlacementInBufferArea => TeachingMotionHint.PlacementInBuffer,
+            MotionGroup.PcbPlacementHandler when _state.Display.SupplyInBufferArea => TeachingMotionHint.SupplyInBuffer,
             MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler => TeachingMotionHint.None,
             _ => throw new ArgumentOutOfRangeException(nameof(motionGroup)),
         };

@@ -11,14 +11,15 @@ public partial class StationTeachingViewModel
 {
     public override TeachingMotionHint MotionHint => SelectedMotionGroup switch
     {
-        MotionGroup.PcbPlacementHandler when _buffer.SupplyInside =>
+        MotionGroup.PcbPlacementHandler when _state.Display.SupplyInBufferArea =>
             TeachingMotionHint.SupplyInBuffer,
         MotionGroup.PcbPlacementHandler when !_placementHandler.CanMoveHorizontal =>
             TeachingMotionHint.RaisePlacementCylinders,
         MotionGroup.BoltFastening => TeachingMotionHint.BoltAdjustment,
         MotionGroup.InspectionGantry when !_inspectionGantry.CanMove =>
             TeachingMotionHint.RaiseNgPickup,
-        _ when !CurrentFeedback.IsAtHorizontalZ => TeachingMotionHint.SafeZRequired,
+        MotionGroup.PcbPlacementHandler when !Motion.IsAtZ(_placementSettings.BufferEntryZ) =>
+            TeachingMotionHint.SafeZRequired,
         _ => TeachingMotionHint.None,
     };
 
@@ -29,7 +30,7 @@ public partial class StationTeachingViewModel
         CanUseCurrentHandler()
         && SelectedMotionGroup switch
         {
-            MotionGroup.PcbPlacementHandler => _placementHandler.CanJog(axis),
+            MotionGroup.PcbPlacementHandler => _placementHandler.CanJog(axis, live: false),
             MotionGroup.BoltFastening => _fasteningGantry.CanJog(axis),
             MotionGroup.InspectionGantry => _inspectionGantry.CanJog(axis),
             _ => false,
@@ -123,11 +124,6 @@ public partial class StationTeachingViewModel
         MotionGroup.InspectionGantry => _inspectionGantry.CanMove,
         _ => false,
     };
-
-    protected override bool CanUseCurrentHandler() =>
-        _state.ManualControlsEnabled
-        && (SelectedMotionGroup != MotionGroup.PcbPlacementHandler
-            || !_buffer.SupplyInside);
 
     protected override void NotifyManualTeachingCommands()
     {

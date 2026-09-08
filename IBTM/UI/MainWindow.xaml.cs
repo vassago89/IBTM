@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private readonly IAdcBus _adcBus;
     private readonly HantasSettings _hantasSettings;
     private readonly MachineController _machine;
+    private readonly MachineState _state;
     private InputWindow? _inputWindow;
     private OutputWindow? _outputWindow;
     private AdcProtocolWindow? _adcProtocolWindow;
@@ -28,13 +29,15 @@ public partial class MainWindow : Window
         IoSignals signals,
         IAdcBus adcBus,
         HantasSettings hantasSettings,
-        MachineController machine)
+        MachineController machine,
+        MachineState state)
     {
         _io = io;
         _signals = signals;
         _adcBus = adcBus;
         _hantasSettings = hantasSettings;
         _machine = machine;
+        _state = state;
         InitializeComponent();
         DataContext = viewModel;
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -108,7 +111,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _outputWindow = new OutputWindow(_io, _signals, _machine)
+        _outputWindow = new OutputWindow(_io, _signals, _machine, _state)
         {
             Owner = this,
         };

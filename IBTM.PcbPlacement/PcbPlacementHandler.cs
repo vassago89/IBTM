@@ -75,10 +75,15 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
     public bool PcbSecured => Pcb == PlacementPcbState.Secured;
     public bool VacuumDetected =>
         _io.GetInput(InputIo.PcbPlacementVacuumDetected);
-    public bool AtHorizontalZ =>
+    public bool AtHorizontalZ => IsAtHorizontalZ(live: true);
+
+    private bool IsAtHorizontalZ(bool live) => live ?
         !_motion.IsMoving
         && _motion.GetAxisState(MotionAxis.Z).InPosition
-        && _motion.IsAtHorizontalZ;
+        && _motion.IsAtHorizontalZ
+        : !Motion.IsMoving
+        && Motion.Axes[MotionAxis.Z].State is { InPosition: true }
+        && Motion.IsAtZ(_settings.BufferEntryZ);
     public bool CanMoveHorizontal =>
         Lift == PlacementCylinderState.Up;
     internal bool AtBufferXY =>
@@ -221,10 +226,10 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             _ => throw new ArgumentOutOfRangeException(nameof(point)),
         };
 
-    public bool CanJog(MotionAxis axis) => axis switch
+    public bool CanJog(MotionAxis axis, bool live = true) => axis switch
     {
-        MotionAxis.X => CanMoveHorizontal && AtHorizontalZ,
-        MotionAxis.Y => _motion.HasY && CanMoveHorizontal && AtHorizontalZ,
+        MotionAxis.X => CanMoveHorizontal && IsAtHorizontalZ(live),
+        MotionAxis.Y => _motion.HasY && CanMoveHorizontal && IsAtHorizontalZ(live),
         MotionAxis.Z => _motion.HasZ,
         _ => false,
     };
@@ -264,7 +269,7 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         new(OutputIo.PcbPlacementIpmGripperClose, HardwareArea.PcbPlacementHandler, SetIpmGripperAsync),
         new(OutputIo.PcbPlacementVacuumEjector, HardwareArea.PcbPlacementHandler, SetVacuumAsync),
         new(OutputIo.PcbPlacementHandlerRotate, HardwareArea.PcbPlacementHandler, SetRotatedAsync,
-            () => AtHorizontalZ && CanMoveHorizontal),
+            live => IsAtHorizontalZ(live) && CanMoveHorizontal),
     ];
 
     public Task RaiseAsync(CancellationToken cancellationToken = default) =>

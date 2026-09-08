@@ -281,6 +281,18 @@ public sealed class RecipeTests
         Assert.Equal(savedName, recipe.Name);
         editor.Name = savedName;
 
+        using var cancellation = new CancellationTokenSource();
+        void CancelWhenStarted()
+        {
+            if (operations.HasActiveOperations) cancellation.Cancel();
+        }
+        operations.ActivityChanged += CancelWhenStarted;
+        await editor.SaveAsync(cancellation.Token);
+        operations.ActivityChanged -= CancelWhenStarted;
+        Assert.Null(editor.Error);
+        Assert.Empty(database.GetRecipeNames());
+        Assert.False(operations.HasActiveOperations);
+
         await editor.SaveAsync();
         Assert.Null(editor.Error);
         Assert.True(activeAtChange);
