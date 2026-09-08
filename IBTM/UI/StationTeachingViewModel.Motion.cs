@@ -96,53 +96,15 @@ public partial class StationTeachingViewModel
         point.MotionGroup switch
         {
             MotionGroup.PcbPlacementHandler =>
-                MovePlacementPointAsync(point, cancellationToken),
+                _placementHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), cancellationToken),
             MotionGroup.BoltFastening =>
-                MoveFasteningPointAsync(point, cancellationToken),
+                _fasteningGantry.MoveToTeachingPositionAsync(point.Position, point.Read(), cancellationToken),
             MotionGroup.InspectionGantry =>
                 _inspectionGantry.MoveToAsync(
                     new AxisPosition { X = point.X, Y = point.Y },
                     _inspectionGantrySettings.Motion.HorizontalSpeed,
                     cancellationToken),
             _ => throw new ArgumentOutOfRangeException(),
-        };
-
-    private Task MovePlacementPointAsync(
-        TeachingPoint point,
-        CancellationToken cancellationToken) =>
-        point.TeachMode switch
-        {
-            TeachMode.XYOnly => _placementHandler.MoveToXYAsync(
-                point.X,
-                point.Y,
-                cancellationToken),
-            TeachMode.ZOnly =>
-                _placementHandler.MoveZAsync(
-                    point.Z!.Value,
-                    cancellationToken),
-            _ => _placementHandler.MoveToAsync(
-                point.X,
-                point.Y,
-                point.Z!.Value,
-                cancellationToken),
-        };
-
-    private Task MoveFasteningPointAsync(
-        TeachingPoint point,
-        CancellationToken cancellationToken) =>
-        point switch
-        {
-            { Target: TeachingTarget.BoltPickup } =>
-                _fasteningGantry.MoveToPickupPositionAsync(cancellationToken),
-            { TeachMode: TeachMode.XYOnly } => _fasteningGantry.MoveToXYAsync(
-                point.X,
-                point.Y,
-                cancellationToken),
-            { TeachMode: TeachMode.ZOnly } =>
-                _fasteningGantry.MoveZAsync(
-                    point.Z!.Value,
-                    cancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(point)),
         };
 
     private bool CanMoveToPoint() =>

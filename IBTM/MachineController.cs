@@ -302,17 +302,26 @@ public sealed class MachineController
             _ => throw new ArgumentOutOfRangeException(nameof(group)),
         }, cancellationToken, viewCancellation);
 
-    internal bool TrySetManualOutput(OutputIo signal, bool value)
+    internal bool TrySetManualOutput(OutputIo signal, bool value) =>
+        TryRunManual(() => _io.SetOutput(signal, value),
+            _state.ManualOutputsEnabled, MachineAlarm.IoCommunication);
+
+    internal void RunManualConveyor() =>
+        TryRunManual(() => _conveyor.RunMotor(),
+            _state.ManualControlsEnabled, MachineAlarm.IoCommunication);
+
+    private bool TryRunManual(Action execute, bool allowed, MachineAlarm alarm)
     {
-        if (!_state.ManualOutputsEnabled) return false;
+        if (!allowed) return false;
         try
         {
-            _io.SetOutput(signal, value);
+            execute();
             return true;
         }
         catch (Exception exception)
         {
-            OnIoFaulted(exception);
+            _state.SetError(alarm, exception);
+            _operations.Cancel();
             return false;
         }
     }
@@ -426,9 +435,9 @@ public sealed class MachineController
         _state.ManualMode && _state.SafetyReady && !_state.IsRunning
         && GetMotionFeedback(group).IsReady;
 
-    internal void SetServo(MotionGroup group, MotionAxis axis, bool on)
+    internal void ToggleServo(MotionGroup group, MotionAxis axis) => TryRunManual(() =>
     {
-        if (!CanSetServo(group)) return;
+        var on = !GetMotionFeedback(group).GetAxisState(axis).ServoOn;
         switch (group)
         {
             case MotionGroup.PcbSupply: _supplyHandler.SetServo(axis, on); break;
@@ -436,7 +445,7 @@ public sealed class MachineController
             case MotionGroup.BoltFastening: _fasteningGantry.SetServo(axis, on); break;
             case MotionGroup.InspectionGantry: _inspectionGantry.SetServo(axis, on); break;
         }
-    }
+    }, CanSetServo(group), MachineAlarm.MotionUnavailable);
 
     public async Task RunAdcProtocolAsync(
         Func<CancellationToken, Task> command,

@@ -162,6 +162,18 @@ public sealed class BoltFasteningGantry
         await SetPickupHeadDownAsync(false, cancellationToken);
     }
 
+    public Task MoveToTeachingPositionAsync(
+        TeachingPosition point,
+        AxisPosition position,
+        CancellationToken cancellationToken = default) =>
+        point switch
+        {
+            { Target: TeachingTarget.BoltPickup } => MoveToPickupPositionAsync(cancellationToken),
+            { Mode: TeachMode.XYOnly } => MoveToXYAsync(position.X, position.Y, cancellationToken),
+            { Mode: TeachMode.ZOnly } => MoveZAsync(position.Z, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(point)),
+        };
+
     public Task JogAsync(
         MotionAxis axis,
         double velocity,

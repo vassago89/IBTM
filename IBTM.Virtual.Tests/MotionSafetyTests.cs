@@ -290,12 +290,13 @@ public sealed class MotionSafetyTests
             supply.LowerToHandoffAsync(default));
 
         await supply.SetRotatedAsync(true);
-        await supply.MoveHorizontalAsync(20, 15);
+        var handoff = Array.Find(settings.GetTeachingPositions(new()),
+            point => point.Target == TeachingTarget.SupplyBufferHandoff)!;
+        await supply.MoveToTeachingPositionAsync(handoff, new() { X = 20, Y = 15, Z = 7 });
 
         Assert.False(xMovedBeforeY);
-        Assert.Equal((20, 15, 0), motion.GetPosition());
-        await supply.LowerToHandoffAsync(default);
-        Assert.Equal((20, 15, 5), motion.GetPosition());
+        Assert.Equal((20, 15, 7), motion.GetPosition());
+        Assert.Equal(5, settings.BufferHandoffPosition.Z);
     }
 
     private static VirtualIoService CreateIo() => new(

@@ -65,12 +65,14 @@ public partial class TeachingPoint : ObservableObject
         }
     }
 
-    public void Apply() => Position.Apply(new AxisPosition
+    public AxisPosition Read() => new()
     {
         X = X,
         Y = Y,
         Z = TeachMode == TeachMode.Image ? 0 : Z!.Value,
-    });
+    };
+
+    public void Apply() => Position.Apply(Read());
 
     public void Refresh()
     {

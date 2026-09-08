@@ -209,6 +209,18 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         return _motion.MoveToAsync(x, y, z, cancellationToken);
     }
 
+    public Task MoveToTeachingPositionAsync(
+        TeachingPosition point,
+        AxisPosition position,
+        CancellationToken cancellationToken = default) =>
+        point.Mode switch
+        {
+            TeachMode.ZOnly => MoveZAsync(position.Z, cancellationToken),
+            TeachMode.XYOnly => MoveToXYAsync(position.X, position.Y, cancellationToken),
+            TeachMode.Full => MoveToAsync(position.X, position.Y, position.Z, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(point)),
+        };
+
     public Task JogAsync(
         MotionAxis axis,
         double velocity,

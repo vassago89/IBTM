@@ -164,6 +164,35 @@ public sealed class PcbSupplyHandler
         await _motion.MoveToHorizontalZAsync(cancellationToken);
     }
 
+    public async Task MoveToTeachingPositionAsync(
+        TeachingPosition point,
+        AxisPosition position,
+        CancellationToken cancellationToken = default)
+    {
+        switch (point.Mode)
+        {
+            case TeachMode.XOnly:
+                await MoveXAsync(position.X, cancellationToken);
+                break;
+            case TeachMode.YOnly:
+                await MoveYAsync(position.Y, cancellationToken);
+                break;
+            case TeachMode.ZOnly:
+                await MoveTeachingZAsync(position.Z, cancellationToken);
+                break;
+            case TeachMode.XZOnly:
+            case TeachMode.Full:
+                await MoveHorizontalAsync(position.X, position.Y, cancellationToken);
+                if (point.Target == TeachingTarget.SupplyBufferHandoff)
+                    await LowerToHandoffAsync(cancellationToken, position.Z);
+                else
+                    await MoveTeachingZAsync(position.Z, cancellationToken);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(point));
+        }
+    }
+
     public async Task MoveHorizontalAsync(
         double x,
         double y,

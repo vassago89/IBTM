@@ -123,7 +123,7 @@ public partial class ManualHardwareViewModel : ObservableObject
             : ManualConveyorStatus.Stopped;
 
     [RelayCommand(CanExecute = nameof(CanRunConveyor))]
-    private void RunConveyor() => _conveyor.RunMotor();
+    private void RunConveyor() => _machine.RunManualConveyor();
 
     private bool CanRunConveyor() => _state.ManualControlsEnabled;
 
@@ -133,8 +133,7 @@ public partial class ManualHardwareViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanToggleServo))]
     private void ToggleServo(ManualAxisRow row)
     {
-        var servoOn = row.Feedback.GetAxisState(row.Axis).ServoOn;
-        _machine.SetServo(row.Group, row.Axis, !servoOn);
+        _machine.ToggleServo(row.Group, row.Axis);
         row.RefreshState();
     }
 

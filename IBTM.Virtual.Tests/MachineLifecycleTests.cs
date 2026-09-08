@@ -33,11 +33,15 @@ public sealed class MachineLifecycleTests
         var conveyor = services.GetRequiredService<MainConveyor>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
         try
         {
-            conveyor.RunMotor();
+            manual.RunConveyorCommand.Execute(null);
             Assert.True(conveyor.RunCommandOn);
             io.SetInput(InputIo.AutoMode, true);
+            Assert.False(conveyor.RunCommandOn);
+            manual.RunConveyorCommand.Execute(null);
             Assert.False(conveyor.RunCommandOn);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
         }
@@ -45,6 +49,28 @@ public sealed class MachineLifecycleTests
         {
             conveyor.Stop();
         }
+    }
+
+    [Fact]
+    public async Task ManualServoFailureStaysAtTheCommandBoundary()
+    {
+        using var services = CreateServices(FlowSettings());
+        await services.GetRequiredService<MachineController>().InitializeAsync();
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        var row = manual.Axes.Single(axis => axis.Group == MotionGroup.InspectionGantry && axis.Axis == MotionAxis.X);
+        var motion = services.GetRequiredService<InspectionGantry>().Feedback;
+        void FailOnce()
+        {
+            motion.StateChanged -= FailOnce;
+            throw new IOException("Servo feedback failed.");
+        }
+        motion.StateChanged += FailOnce;
+
+        Assert.True(manual.ToggleServoCommand.CanExecute(row));
+        manual.ToggleServoCommand.Execute(row);
+        Assert.Equal(MachineAlarm.MotionUnavailable, services.GetRequiredService<MachineState>().Alarm);
+        Assert.Contains("Servo feedback failed", services.GetRequiredService<MachineState>().AlarmDetail);
+        Assert.False(row.ServoOn);
     }
 
     [Theory]

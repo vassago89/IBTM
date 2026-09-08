@@ -107,49 +107,10 @@ public partial class SupplyTeachingViewModel
         return RunMotionAsync(
             moveCancellation =>
                 point.MotionGroup == MotionGroup.PcbSupply
-                    ? MoveSupplyPointAsync(point, moveCancellation)
-                    : MovePlacementPointAsync(point, moveCancellation),
+                    ? _supplyHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), moveCancellation)
+                    : _placementHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), moveCancellation),
             cancellationToken);
     }
-
-    private async Task MoveSupplyPointAsync(
-        TeachingPoint point,
-        CancellationToken cancellationToken)
-    {
-        switch (point.TeachMode)
-        {
-            case TeachMode.XOnly:
-                await _supplyHandler.MoveXAsync(point.X, cancellationToken);
-                break;
-            case TeachMode.YOnly:
-                await _supplyHandler.MoveYAsync(point.Y, cancellationToken);
-                break;
-            case TeachMode.ZOnly:
-                await _supplyHandler.MoveTeachingZAsync(
-                    point.Z!.Value,
-                    cancellationToken);
-                break;
-            case TeachMode.XZOnly:
-            case TeachMode.Full:
-                await _supplyHandler.MoveHorizontalAsync(
-                    point.X,
-                    point.Y,
-                    cancellationToken);
-                await MoveSupplyZAsync(point, cancellationToken);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException();
-        }
-    }
-
-    private Task MoveSupplyZAsync(
-        TeachingPoint point,
-        CancellationToken cancellationToken) =>
-        point.Target == TeachingTarget.SupplyBufferHandoff
-            ? _supplyHandler.LowerToHandoffAsync(cancellationToken, point.Z!.Value)
-            : _supplyHandler.MoveTeachingZAsync(
-                point.Z!.Value,
-                cancellationToken);
 
     private bool CanMoveToPoint() =>
         CanUseCurrentHandler()
@@ -171,29 +132,6 @@ public partial class SupplyTeachingViewModel
                 or TeachingTarget.SupplyPcb2Pick =>
                 _supplyHandler.Rotation == PcbSupplyRotationState.Unrotated,
             _ => true,
-        };
-
-    private Task MovePlacementPointAsync(
-        TeachingPoint point,
-        CancellationToken cancellationToken) =>
-        point.TeachMode switch
-        {
-            TeachMode.ZOnly =>
-                _placementHandler.MoveZAsync(
-                    point.Z!.Value,
-                    cancellationToken),
-            TeachMode.XYOnly =>
-                _placementHandler.MoveToXYAsync(
-                    point.X,
-                    point.Y,
-                    cancellationToken),
-            TeachMode.Full =>
-                _placementHandler.MoveToAsync(
-                    point.X,
-                    point.Y,
-                    point.Z!.Value,
-                    cancellationToken),
-            _ => throw new ArgumentOutOfRangeException(),
         };
 
     protected override bool CanUseCurrentHandler() =>
