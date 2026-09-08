@@ -67,20 +67,18 @@ public sealed class InspectionGantry
             cancellationToken);
     }
 
-    public void Jog(
+    public Task JogAsync(
         MotionAxis axis,
         double velocity,
         CancellationToken cancellationToken = default)
     {
         EnsureCanMove(cancellationToken);
-        if (axis == MotionAxis.X)
+        return axis switch
         {
-            _motion.JogX(velocity, cancellationToken);
-        }
-        else if (axis == MotionAxis.Y)
-        {
-            _motion.JogY(velocity, cancellationToken);
-        }
+            MotionAxis.X => _motion.JogXAsync(velocity, cancellationToken),
+            MotionAxis.Y => _motion.JogYAsync(velocity, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
+        };
     }
 
     public bool IsAt(AxisPosition position)

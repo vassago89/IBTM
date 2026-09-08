@@ -1382,3 +1382,28 @@ Verification: all 166 Virtual tests pass; the two capture tests additionally pas
 with restart assertions. Virtual build and diff whitespace checks pass. No new
 project, wrapper class or physical-state flag was introduced. No equipment was
 operated and no on-screen visual validation was performed in this follow-through.
+
+### Unit-owned action completion
+
+The manual-motion boundary's MovingChanged wait was a workaround for void Jog
+commands. It is now removed: IAxisMotion exposes JogXAsync/JogYAsync/JogZAsync,
+and Supply, Placement and Inspection return those tasks through JogAsync. The
+device owns completion, including cancellation cleanup and final feedback.
+Fastening keeps its existing bounded adjustment behavior and Task contract.
+
+Ajin Jog reuses the existing positioning execution/stop path instead of a separate
+fire-and-forget monitor. Virtual Jog also returns its running task. The unused
+motion Faulted event and controller subscriptions are removed; command failures
+travel through the awaited task, and the manual boundary reports motion alarms
+and stops run outputs. Hardware axis alarm/readiness checks are unchanged.
+
+BoltInspector owns move-then-capture for both bolt targets and PCB barcodes.
+Teaching selects the target and displays the returned image; it no longer composes
+motion followed by camera capture. No new service, project or wrapper was added.
+
+The existing tests now await Jog cancellation/failure, verify that task completion
+waits for final feedback, and exercise error/reset/restart through the manual
+command boundary. Inspection coverage directly captures a barcode and bolt without
+a ViewModel and verifies their taught positions and image results. All 166 tests
+pass, including the additionally strengthened inspection test; no test cases were
+added. This supersedes the MovingChanged workaround described above.

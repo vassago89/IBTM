@@ -985,7 +985,7 @@ public sealed class MachineLifecycleTests
         };
 
         var actual = jog
-            ? Assert.Throws<InvalidOperationException>(() => motion.JogX(1))
+            ? await Assert.ThrowsAsync<InvalidOperationException>(() => motion.JogXAsync(1))
             : await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 motion.MoveXAsync(100, 1));
 
@@ -1018,15 +1018,7 @@ public sealed class MachineLifecycleTests
             }
         };
 
-        Task? moving = null;
-        if (jog)
-        {
-            motion.JogX(1);
-        }
-        else
-        {
-            moving = motion.MoveXAsync(100, 1);
-        }
+        var moving = jog ? motion.JogXAsync(1) : motion.MoveXAsync(100, 1);
 
         var shutdown = Task.Run(() => operations.ShutdownAsync());
         try
@@ -1034,15 +1026,13 @@ public sealed class MachineLifecycleTests
             await feedbackEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(motion.IsMoving);
             Assert.False(shutdown.IsCompleted);
+            Assert.False(moving.IsCompleted);
         }
         finally
         {
             releaseFeedback.Set();
             await shutdown.WaitAsync(TimeSpan.FromSeconds(2));
-            if (moving is not null)
-            {
-                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => moving);
-            }
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => moving);
         }
     }
 
@@ -1437,20 +1427,18 @@ public sealed class MachineLifecycleTests
 
         var fault = new InvalidOperationException("Jog feedback failed.");
         var failed = 0;
-        var reported = new TaskCompletionSource<Exception>(
-            TaskCreationOptions.RunContinuationsAsynchronously);
-        gantry.Feedback.Faulted += error => reported.TrySetResult(error);
         gantry.Feedback.PositionChanged += (_, _, _) =>
         {
             if (gantry.Feedback.IsMoving && Interlocked.Exchange(ref failed, 1) == 0)
             {
+                io.SetOutput(OutputIo.NgConveyorRun, true);
                 throw fault;
             }
         };
-        io.SetOutput(OutputIo.NgConveyorRun, true);
-        gantry.Jog(MotionAxis.X, 10);
-
-        Assert.Same(fault, await reported.Task.WaitAsync(TimeSpan.FromSeconds(2)));
+        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        teaching.SelectedMotionGroup = MotionGroup.InspectionGantry;
+        Assert.True(teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+        await teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus).WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
         Assert.Contains(fault.Message, state.AlarmDetail);
         Assert.False(gantry.Feedback.IsMoving);
@@ -1460,10 +1448,11 @@ public sealed class MachineLifecycleTests
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.Null(state.AlarmDetail);
         using var stopped = new CancellationTokenSource();
-        gantry.Jog(MotionAxis.X, 10, stopped.Token);
+        var jog = gantry.JogAsync(MotionAxis.X, 10, stopped.Token);
         Assert.True(gantry.Feedback.IsMoving);
         stopped.Cancel();
-        await WaitUntilAsync(() => !gantry.Feedback.IsMoving);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jog.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.False(gantry.Feedback.IsMoving);
         Assert.Equal(MachineAlarm.None, state.Alarm);
     }
 
@@ -1683,8 +1672,8 @@ public sealed class MachineLifecycleTests
 
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
-        Assert.Throws<InvalidOperationException>(() =>
-            gantry.Jog(MotionAxis.X, 10));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            gantry.JogAsync(MotionAxis.X, 10));
         await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await gantry.MoveToAsync(new AxisPosition { X = 20, Y = 10 }, 100));
         io.SetInput(InputIo.NgCarrierPickupDown, false);
@@ -1760,7 +1749,7 @@ public sealed class MachineLifecycleTests
             ? placement.HomeAxisAsync(MotionAxis.X, 100)
             : fastening.HomeAxisAsync(MotionAxis.X, 100));
         if (isPlacement)
-            Assert.Throws<InvalidOperationException>(() => placement.Jog(MotionAxis.Y, 10));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => placement.JogAsync(MotionAxis.Y, 10));
 
         io.SetInput(up, true);
         await Assert.ThrowsAsync<InvalidOperationException>(MoveXY);

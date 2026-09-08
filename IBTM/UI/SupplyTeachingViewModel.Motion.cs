@@ -38,18 +38,10 @@ public partial class SupplyTeachingViewModel
     protected override Task JogCurrentAsync(
         MotionAxis axis,
         double velocity,
-        CancellationToken cancellationToken)
-    {
-        if (ActiveMotionGroup == MotionGroup.PcbSupply)
-        {
-            _supplyHandler.Jog(axis, velocity, cancellationToken);
-        }
-        else
-        {
-            _placementHandler.Jog(axis, velocity, cancellationToken);
-        }
-        return Task.CompletedTask;
-    }
+        CancellationToken cancellationToken) =>
+        ActiveMotionGroup == MotionGroup.PcbSupply
+            ? _supplyHandler.JogAsync(axis, velocity, cancellationToken)
+            : _placementHandler.JogAsync(axis, velocity, cancellationToken);
 
     protected override Task MoveCurrentToHorizontalZAsync(
         CancellationToken cancellationToken) =>

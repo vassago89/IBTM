@@ -225,6 +225,15 @@ public sealed class InspectionTests
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.InspectionStopperDown, true);
         io.SetInput(InputIo.InspectionCarrierPresent, true);
+
+        var barcodeImage = await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink2);
+        Assert.True(inspector.IsAtBarcode(HeatSinkSlot.HeatSink2));
+        Assert.Equal("PCB-2", inspector.ReadBarcode(barcodeImage));
+        var boltImage = await inspector.CaptureAsync(bolts[0]);
+        Assert.True(gantry.IsAt(gantrySettings.GetBoltPosition(bolts[0], carrierReference)));
+        Assert.NotEmpty(boltImage.Pixels);
+        Assert.Empty(inspections);
+
         using var firstStop = new CancellationTokenSource();
         var firstRun = station.RunAsync(bolts, firstStop.Token);
         Assert.True(await WaitUntilAsync(

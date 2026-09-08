@@ -105,10 +105,6 @@ public sealed class MachineController
         _boltInspector = boltInspector;
         io.InputChanged += OnInputChanged;
         io.Faulted += OnIoFaulted;
-        supplyHandler.Feedback.Faulted += OnMotionFaulted;
-        placementHandler.Feedback.Faulted += OnMotionFaulted;
-        fasteningGantry.Feedback.Faulted += OnMotionFaulted;
-        inspectionGantry.Feedback.Faulted += OnMotionFaulted;
         placementHandler.Feedback.MovingChanged += _ => CheckMotionInterlocks();
         fasteningGantry.Feedback.StateChanged += CheckMotionInterlocks;
         inspectionGantry.Feedback.MovingChanged += _ => CheckMotionInterlocks();
@@ -297,28 +293,7 @@ public sealed class MachineController
         Func<CancellationToken, Task> move,
         CancellationToken cancellationToken,
         CancellationToken viewCancellation) =>
-        RunManualAsync(async token =>
-        {
-            var motion = GetMotionFeedback(group);
-            var stopped = new AsyncAutoResetEvent();
-            void OnMovingChanged(bool moving)
-            {
-                if (!moving) stopped.Set();
-            }
-
-            motion.MovingChanged += OnMovingChanged;
-            try
-            {
-                await move(token);
-                // Jog returns after starting. Cancellation reaches the device immediately;
-                // keep its scope until the device reports that Stop has finished.
-                while (motion.IsMoving) await stopped.WaitAsync(CancellationToken.None);
-            }
-            finally
-            {
-                motion.MovingChanged -= OnMovingChanged;
-            }
-        }, group switch
+        RunManualAsync(move, group switch
         {
             MotionGroup.PcbSupply => MachineAlarm.PcbSupply,
             MotionGroup.PcbPlacementHandler => MachineAlarm.PcbPlacement,
@@ -390,7 +365,7 @@ public sealed class MachineController
         {
             if (!_state.IsError)
                 _state.SetError(alarm == MachineAlarm.HomeFailed ? alarm : MachineAlarm.MotionUnavailable, exception);
-            _operations.Cancel();
+            Stop();
         }
         finally
         {
@@ -1165,11 +1140,5 @@ public sealed class MachineController
     {
         _state.SetError(MachineAlarm.IoCommunication, exception);
         _operations.Cancel();
-    }
-
-    private void OnMotionFaulted(Exception exception)
-    {
-        _state.SetError(MachineAlarm.MotionUnavailable, exception);
-        Stop();
     }
 }

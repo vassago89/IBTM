@@ -67,6 +67,14 @@ public sealed class BoltInspector(
     public Task MoveToBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken = default) =>
         MoveToAsync(BarcodePosition(pcb), cancellationToken);
 
+    public async Task<ImageFrame> CaptureBarcodeAsync(
+        HeatSinkSlot pcb,
+        CancellationToken cancellationToken = default)
+    {
+        await MoveToBarcodeAsync(pcb, cancellationToken);
+        return await CaptureCurrentAsync(cancellationToken);
+    }
+
     public string? ReadBarcode(ImageFrame image)
     {
         var (width, height) = BarcodePixelSize();
@@ -125,7 +133,7 @@ public sealed class BoltInspector(
         CancellationToken cancellationToken = default)
     {
         await MoveToAsync(point, cancellationToken);
-        return await Task.Run(Capture, cancellationToken);
+        return await CaptureCurrentAsync(cancellationToken);
     }
 
     internal Task<bool> InspectAsync(

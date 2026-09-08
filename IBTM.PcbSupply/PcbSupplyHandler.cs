@@ -302,7 +302,7 @@ public sealed class PcbSupplyHandler
                 _settings.Motion.ZSpeed,
                 cancellationToken);
 
-    public void Jog(
+    public Task JogAsync(
         MotionAxis axis,
         double velocity,
         CancellationToken cancellationToken = default)
@@ -310,24 +310,23 @@ public sealed class PcbSupplyHandler
         switch (axis)
         {
             case MotionAxis.X:
-                _motion.JogX(velocity, cancellationToken);
-                break;
+                return _motion.JogXAsync(velocity, cancellationToken);
             case MotionAxis.Y:
                 if (InsideBuffer)
                 {
                     throw new InvalidOperationException(
                         "Supply Y cannot jog inside the buffer.");
                 }
-                _motion.JogY(velocity, cancellationToken);
-                break;
+                return _motion.JogYAsync(velocity, cancellationToken);
             case MotionAxis.Z:
                 if (InsideBuffer)
                 {
                     throw new InvalidOperationException(
                         "Supply Z cannot jog inside the buffer.");
                 }
-                _motion.JogZ(velocity, cancellationToken);
-                break;
+                return _motion.JogZAsync(velocity, cancellationToken);
+            default:
+                throw new ArgumentOutOfRangeException(nameof(axis));
         }
     }
 

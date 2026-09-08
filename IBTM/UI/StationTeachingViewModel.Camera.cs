@@ -171,9 +171,9 @@ public partial class StationTeachingViewModel
     private Task CaptureInspectionAsync(CancellationToken token) => RunInspectionAsync(async ct =>
     {
         Preview.Clear(SelectedBarcode);
-        if (SelectedBarcode is { } pcb) await _boltInspector.MoveToBarcodeAsync(pcb, ct);
-        else await _boltInspector.MoveToAsync(SelectedPoint!.Position.Bolt!, ct);
-        var frame = await _boltInspector.CaptureCurrentAsync(ct);
+        var frame = SelectedBarcode is { } pcb
+            ? await _boltInspector.CaptureBarcodeAsync(pcb, ct)
+            : await _boltInspector.CaptureAsync(SelectedPoint!.Position.Bolt!, ct);
         await Preview.SetImageAsync(frame, ct);
         await Preview.InspectAsync(ct);
     }, token);

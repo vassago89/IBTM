@@ -19,7 +19,6 @@ public interface IMotionFeedback
     event Action<double, double, double>? PositionChanged;
     event Action<bool>? MovingChanged;
     event Action? StateChanged;
-    event Action<Exception>? Faulted;
 
     IReadOnlyList<MotionAxis> Axes { get; }
     bool IsReady { get; }
@@ -67,9 +66,9 @@ public interface IAxisMotion : IMotionFeedback
         MotionAxis axis,
         double velocity,
         CancellationToken cancellationToken = default);
-    void JogX(double velocity, CancellationToken cancellationToken = default);
-    void JogY(double velocity, CancellationToken cancellationToken = default);
-    void JogZ(double velocity, CancellationToken cancellationToken = default);
+    Task JogXAsync(double velocity, CancellationToken cancellationToken = default);
+    Task JogYAsync(double velocity, CancellationToken cancellationToken = default);
+    Task JogZAsync(double velocity, CancellationToken cancellationToken = default);
     void Reset();
     void SetServo(MotionAxis axis, bool on);
 }
@@ -124,7 +123,6 @@ public abstract class MotionService(
     public event Action<double, double, double>? PositionChanged;
     public event Action<bool>? MovingChanged;
     public event Action? StateChanged;
-    public event Action<Exception>? Faulted;
 
     public IReadOnlyList<MotionAxis> Axes => _axes;
     public abstract bool IsReady { get; }
@@ -358,32 +356,32 @@ public abstract class MotionService(
             cancellationToken);
     }
 
-    public void JogX(
+    public Task JogXAsync(
         double velocity,
-        CancellationToken cancellationToken = default)
-    {
-        EnsureStopped();
-        EnsureHorizontalZ();
-        JogXCore(velocity, cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        JogAsync(MotionAxis.X, velocity, cancellationToken);
 
-    public void JogY(
+    public Task JogYAsync(
         double velocity,
-        CancellationToken cancellationToken = default)
-    {
-        EnsureHasY();
-        EnsureStopped();
-        EnsureHorizontalZ();
-        JogYCore(velocity, cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        JogAsync(MotionAxis.Y, velocity, cancellationToken);
 
-    public void JogZ(
+    public Task JogZAsync(
         double velocity,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        JogAsync(MotionAxis.Z, velocity, cancellationToken);
+
+    private async Task JogAsync(
+        MotionAxis axis,
+        double velocity,
+        CancellationToken cancellationToken)
     {
-        EnsureHasZ();
+        using var operation = LinkOperation(cancellationToken);
+        if (axis == MotionAxis.Y) EnsureHasY();
+        if (axis == MotionAxis.Z) EnsureHasZ();
         EnsureStopped();
-        JogZCore(velocity, cancellationToken);
+        if (axis != MotionAxis.Z) EnsureHorizontalZ();
+        await JogCoreAsync(axis, velocity, operation.Token);
     }
 
     public abstract void SetServo(MotionAxis axis, bool on);
@@ -470,13 +468,8 @@ public abstract class MotionService(
         double velocity,
         CancellationToken cancellationToken);
 
-    protected abstract void JogXCore(
-        double velocity,
-        CancellationToken cancellationToken);
-    protected abstract void JogYCore(
-        double velocity,
-        CancellationToken cancellationToken);
-    protected abstract void JogZCore(
+    protected abstract Task JogCoreAsync(
+        MotionAxis axis,
         double velocity,
         CancellationToken cancellationToken);
 
@@ -494,7 +487,6 @@ public abstract class MotionService(
 
     protected void PublishStateChanged() => StateChanged?.Invoke();
 
-    protected void PublishFault(Exception exception) => Faulted?.Invoke(exception);
 
     protected OperationCancellation.Operation LinkOperation(
         CancellationToken cancellationToken = default) =>

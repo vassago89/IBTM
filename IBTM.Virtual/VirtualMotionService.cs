@@ -100,21 +100,6 @@ public sealed class VirtualMotionService(
         }
     }
 
-    protected override void JogXCore(
-        double velocity,
-        CancellationToken cancellationToken) =>
-        StartJog(velocity, 0, 0, cancellationToken);
-
-    protected override void JogYCore(
-        double velocity,
-        CancellationToken cancellationToken) =>
-        StartJog(0, velocity, 0, cancellationToken);
-
-    protected override void JogZCore(
-        double velocity,
-        CancellationToken cancellationToken) =>
-        StartJog(0, 0, velocity, cancellationToken);
-
     public override void SetServo(MotionAxis axis, bool on)
     {
         _servoOn[(int)axis] = on;
@@ -248,62 +233,35 @@ public sealed class VirtualMotionService(
         }
     }
 
-    private void StartJog(
-        double velocityX,
-        double velocityY,
-        double velocityZ,
+    protected override async Task JogCoreAsync(
+        MotionAxis axis,
+        double velocity,
         CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        var movement = BeginMovement(velocityX != 0 || velocityY != 0, cancellationToken);
-        _ = JogAsync(velocityX, velocityY, velocityZ, movement);
-    }
-
-    private async Task JogAsync(
-        double velocityX,
-        double velocityY,
-        double velocityZ,
-        OperationCancellation.Operation movement)
-    {
-        using (movement)
+        using var movement = BeginMovement(axis != MotionAxis.Z, cancellationToken);
+        var startX = _x;
+        var startY = _y;
+        var startZ = _z;
+        var stopwatch = Stopwatch.StartNew();
+        try
         {
-            var startX = _x;
-            var startY = _y;
-            var startZ = _z;
-            var stopwatch = Stopwatch.StartNew();
-            try
+            while (true)
             {
-                try
-                {
-                    while (true)
-                    {
-                        await Task.Delay(UpdateInterval, movement.Token)
-                            .ConfigureAwait(false);
-                        var elapsed = stopwatch.Elapsed.TotalSeconds;
-                        SetPosition(
-                            ClampToRange(
-                                MotionAxis.X,
-                                startX + (velocityX * elapsed)),
-                            ClampToRange(
-                                MotionAxis.Y,
-                                startY + (velocityY * elapsed)),
-                            ClampToRange(
-                                MotionAxis.Z,
-                                startZ + (velocityZ * elapsed)));
-                    }
-                }
-                finally
-                {
-                    EndMovement(velocityX != 0 || velocityY != 0);
-                }
+                await Task.Delay(UpdateInterval, movement.Token).ConfigureAwait(false);
+                var distance = velocity * stopwatch.Elapsed.TotalSeconds;
+                SetPosition(
+                    axis == MotionAxis.X ? ClampToRange(axis, startX + distance) : startX,
+                    axis == MotionAxis.Y ? ClampToRange(axis, startY + distance) : startY,
+                    axis == MotionAxis.Z ? ClampToRange(axis, startZ + distance) : startZ);
             }
-            catch (OperationCanceledException) when (movement.IsCancellationRequested)
-            {
-            }
-            catch (Exception exception)
-            {
-                PublishFault(exception);
-            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            throw new MotionException("Jog", exception);
+        }
+        finally
+        {
+            EndMovement(axis != MotionAxis.Z);
         }
     }
 

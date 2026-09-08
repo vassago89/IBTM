@@ -209,7 +209,7 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         return _motion.MoveToAsync(x, y, z, cancellationToken);
     }
 
-    public void Jog(
+    public Task JogAsync(
         MotionAxis axis,
         double velocity,
         CancellationToken cancellationToken = default)
@@ -218,15 +218,14 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         {
             case MotionAxis.X:
                 EnsureCanMoveHorizontal(cancellationToken);
-                _motion.JogX(velocity, cancellationToken);
-                break;
+                return _motion.JogXAsync(velocity, cancellationToken);
             case MotionAxis.Y:
                 EnsureCanMoveHorizontal(cancellationToken);
-                _motion.JogY(velocity, cancellationToken);
-                break;
+                return _motion.JogYAsync(velocity, cancellationToken);
             case MotionAxis.Z:
-                _motion.JogZ(velocity, cancellationToken);
-                break;
+                return _motion.JogZAsync(velocity, cancellationToken);
+            default:
+                throw new ArgumentOutOfRangeException(nameof(axis));
         }
     }
 

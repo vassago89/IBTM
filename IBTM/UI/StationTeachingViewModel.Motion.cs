@@ -35,21 +35,14 @@ public partial class StationTeachingViewModel
     protected override Task JogCurrentAsync(
         MotionAxis axis,
         double velocity,
-        CancellationToken cancellationToken)
-    {
-        switch (SelectedMotionGroup)
+        CancellationToken cancellationToken) =>
+        SelectedMotionGroup switch
         {
-            case MotionGroup.PcbPlacementHandler:
-                _placementHandler.Jog(axis, velocity, cancellationToken);
-                break;
-            case MotionGroup.BoltFastening:
-                return _fasteningGantry.JogAsync(axis, velocity, cancellationToken);
-            case MotionGroup.InspectionGantry:
-                _inspectionGantry.Jog(axis, velocity, cancellationToken);
-                break;
-        }
-        return Task.CompletedTask;
-    }
+            MotionGroup.PcbPlacementHandler => _placementHandler.JogAsync(axis, velocity, cancellationToken),
+            MotionGroup.BoltFastening => _fasteningGantry.JogAsync(axis, velocity, cancellationToken),
+            MotionGroup.InspectionGantry => _inspectionGantry.JogAsync(axis, velocity, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(SelectedMotionGroup)),
+        };
 
     protected override Task MoveCurrentToHorizontalZAsync(
         CancellationToken cancellationToken) =>

@@ -192,20 +192,20 @@ public class AjinMotionService(
         }
     }
 
-    protected override void JogXCore(
+    protected override Task JogCoreAsync(
+        MotionAxis axis,
         double velocity,
-        CancellationToken cancellationToken) =>
-        Jog(_axisX, velocity, cancellationToken);
-
-    protected override void JogYCore(
-        double velocity,
-        CancellationToken cancellationToken) =>
-        Jog(_axisY!.Value, velocity, cancellationToken);
-
-    protected override void JogZCore(
-        double velocity,
-        CancellationToken cancellationToken) =>
-        Jog(_axisZ!.Value, velocity, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var axisNumber = GetAxis(axis);
+        var velocityInUnits = ToUnits(velocity);
+        var acceleration = Math.Abs(velocityInUnits) * controller.Settings.AccelerationMultiplier;
+        return RunMoveAsync(
+            () => AjinNative.AxmMoveVel(axisNumber, velocityInUnits, acceleration, acceleration),
+            nameof(AjinNative.AxmMoveVel),
+            [axisNumber],
+            cancellationToken);
+    }
 
     public override void SetServo(MotionAxis axis, bool on)
     {
@@ -521,65 +521,6 @@ public class AjinMotionService(
 
         PublishPosition();
         return (moving, inPosition, faulted);
-    }
-
-    private void Jog(
-        int axis,
-        double velocity,
-        CancellationToken cancellationToken) =>
-        _ = MonitorJogPositionAsync(axis, velocity, LinkOperation(cancellationToken));
-
-    private async Task MonitorJogPositionAsync(
-        int axis,
-        double velocity,
-        OperationCancellation.Operation monitor)
-    {
-        using (monitor)
-        {
-            try
-            {
-                BeginMotion(axis != _axisZ);
-                using var cancellationRegistration =
-                    monitor.Token.Register(StopAxes);
-                try
-                {
-                    monitor.Token.ThrowIfCancellationRequested();
-                    var velocityInUnits = ToUnits(velocity);
-                    var acceleration = Math.Abs(velocityInUnits)
-                                       * controller.Settings.AccelerationMultiplier;
-                    AjinController.Check(
-                        AjinNative.AxmMoveVel(axis, velocityInUnits, acceleration, acceleration),
-                        nameof(AjinNative.AxmMoveVel));
-                    while (true)
-                    {
-                        var inMotion = 0U;
-                        AjinController.Check(
-                            AjinNative.AxmStatusReadInMotion(axis, ref inMotion),
-                            nameof(AjinNative.AxmStatusReadInMotion));
-                        PublishPosition();
-                        if (inMotion == 0)
-                        {
-                            return;
-                        }
-
-                        await Task.Delay(StatusPollInterval, monitor.Token)
-                            .ConfigureAwait(false);
-                    }
-                }
-                finally
-                {
-                    StopAxes();
-                    await EndMotionAsync([axis], axis != _axisZ).ConfigureAwait(false);
-                }
-            }
-            catch (OperationCanceledException) when (monitor.IsCancellationRequested)
-            {
-            }
-            catch (Exception exception)
-            {
-                PublishFault(exception);
-            }
-        }
     }
 
     private void StopAxes()

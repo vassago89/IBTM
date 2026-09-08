@@ -48,20 +48,20 @@ public sealed class MotionSafetyTests
         motion.Initialize();
         using var stop = new CancellationTokenSource();
 
-        motion.JogX(0.2, stop.Token);
+        var jog = motion.JogXAsync(0.2, stop.Token);
+        Assert.False(jog.IsCompleted);
         Assert.True(await WaitUntilAsync(
             () => motion.GetPosition().X >= 0.01,
             TimeSpan.FromSeconds(1)));
         stop.Cancel();
-        Assert.True(await WaitUntilAsync(
-            () => !motion.IsMoving,
-            TimeSpan.FromSeconds(1)));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jog.WaitAsync(TimeSpan.FromSeconds(1)));
+        Assert.False(motion.IsMoving);
 
         var stoppedPosition = motion.GetPosition();
         await Task.Delay(30);
         Assert.Equal(stoppedPosition, motion.GetPosition());
-        Assert.Throws<OperationCanceledException>(() =>
-            motion.JogX(0.2, stop.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            motion.JogXAsync(0.2, stop.Token));
         Assert.False(motion.IsMoving);
     }
 
