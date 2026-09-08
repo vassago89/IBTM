@@ -932,6 +932,53 @@ public sealed class MachineLifecycleTests
         Assert.True(machine.CanStart);
     }
 
+    [Fact]
+    public async Task AutomaticAlarmWaitsForHeadStopAndKeepsFirstCause()
+    {
+        var settings = new MachineSettings
+        {
+            Home = FastHome(),
+            Units = EnableOnly(MachineUnit.BoltFastening),
+        };
+        var head = new StoppingBoltHead();
+        using var services = new ServiceCollection()
+            .AddSingleton<RecipeStore>()
+            .AddIbtmApplication(settings)
+            .AddKeyedSingleton<IBoltHead>(FasteningHead.Shooting, head)
+            .BuildServiceProvider();
+        PrepareCarrierTeaching(settings, services.GetRequiredService<Recipe>());
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+        io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
+        io.SetInput(InputIo.BoltFasteningBackupPlateDown, false);
+        io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
+        io.SetInput(InputIo.AutoMode, true);
+
+        var run = machine.StartAsync();
+        await head.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        io.SetInput(InputIo.AirPressureLow, true);
+        await head.Stopping.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.False(run.IsCompleted);
+        Assert.True(state.AutomaticRunning);
+        Assert.True(state.IsRunning);
+        Assert.False(machine.CanReset);
+        Assert.Equal(MachineAlarm.AirPressureLow, state.Alarm);
+
+        head.Stopped.SetException(new InvalidOperationException("Head stop failed."));
+        await run.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.False(state.IsRunning);
+        Assert.Equal(MachineAlarm.AirPressureLow, state.Alarm);
+        Assert.Null(state.AlarmMessage);
+    }
+
     [Theory]
     [InlineData(HeatSinkLoad.Both, false)]
     [InlineData(HeatSinkLoad.None, false)]
@@ -2063,8 +2110,10 @@ public sealed class MachineLifecycleTests
         Assert.Equal(MachineAlarm.None, state.Alarm);
     }
 
-    [Fact]
-    public async Task StopDuringFirstUnitOutputCancelsAllStartingUnits()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StopOrFailureDuringFirstUnitOutputPreventsLaterStarts(bool failure)
     {
         var settings = new MachineSettings
         {
@@ -2077,12 +2126,17 @@ public sealed class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         var stopped = false;
+        var feederStarted = false;
+        var error = new InvalidOperationException("Conveyor start failed.");
         io.OutputChanged += (output, value) =>
         {
+            feederStarted |= output == OutputIo.ShootingFeederRunSignal && value;
             if (output == OutputIo.MainConveyorReadyToFront2 && value)
             {
                 stopped = true;
+                if (failure) throw error;
                 machine.Stop();
             }
         };
@@ -2090,8 +2144,11 @@ public sealed class MachineLifecycleTests
         await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.True(stopped);
+        Assert.False(feederStarted);
         Assert.False(state.IsRunning);
-        Assert.Equal(MachineAlarm.None, state.Alarm);
+        Assert.Equal(failure ? MachineAlarm.MainConveyor : MachineAlarm.None, state.Alarm);
+        Assert.Equal(failure ? error.Message : null, state.AlarmMessage);
+        Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
         Assert.False(io.GetOutput(OutputIo.ShootingFeederRunSignal));
     }
 
@@ -2159,6 +2216,7 @@ public sealed class MachineLifecycleTests
         {
             Units = EnableOnly(MachineUnit.ShootingBoltFeeder),
         };
+        settings.Units.MainConveyor = true;
         settings.BoltFeeder.ShootingTimeoutMilliseconds = 50;
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
@@ -2167,10 +2225,13 @@ public sealed class MachineLifecycleTests
 
         await machine.InitializeAsync();
         io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.Equal(MachineAlarm.ShootingBoltFeeder, state.Alarm);
         Assert.False(io.GetOutput(OutputIo.ShootingFeederRunSignal));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+        Assert.False(state.IsRunning);
         Assert.True(machine.CanReset);
 
         await machine.ResetAsync();
@@ -2444,6 +2505,8 @@ public sealed class MachineLifecycleTests
 
     private sealed class StoppingBoltHead : IBoltHead
     {
+        public TaskCompletionSource Started { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Stopping { get; } = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Stopped { get; } = new(
@@ -2455,6 +2518,7 @@ public sealed class MachineLifecycleTests
 
         public async Task<BoltResult> TightenAsync(CancellationToken cancellationToken = default)
         {
+            Started.SetResult();
             try
             {
                 await Task.Delay(Timeout.Infinite, cancellationToken);

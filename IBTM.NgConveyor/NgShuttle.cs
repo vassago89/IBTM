@@ -6,7 +6,7 @@ using IBTM.Device;
 
 namespace IBTM.NgConveyor;
 
-public sealed class NgShuttle
+public sealed class NgShuttle : AutoUnit
 {
     private readonly IIoService _io;
     private readonly NgCarrierConveyor _conveyor;
@@ -27,7 +27,7 @@ public sealed class NgShuttle
         transfer.Changed += NotifyChanged;
     }
 
-    public event Action? Changed;
+    public override event Action? Changed;
 
     public NgShuttleFeedback Feedback { get; }
 
@@ -80,40 +80,20 @@ public sealed class NgShuttle
         }
     }
 
-    public async Task RunAsync(
-        CancellationToken cancellationToken = default)
-    {
-        var stateChanged = new AsyncAutoResetEvent();
-        void OnStateChanged() => stateChanged.Set();
+    public Task RunAsync(CancellationToken cancellationToken = default) =>
+        RunLoopAsync(ExecuteAsync, cancellationToken);
 
-        Changed += OnStateChanged;
-        try
-        {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                switch (State)
-                {
-                    case NgShuttleState.Lowering:
-                        await SetDownAsync(true, cancellationToken);
-                        await _conveyor.WaitForPosition3Async(
-                            cancellationToken);
-                        break;
-                    case NgShuttleState.Raising:
-                        await SetDownAsync(false, cancellationToken);
-                        break;
-                    default:
-                        await stateChanged.WaitAsync(cancellationToken);
-                        break;
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        finally
-        {
-            Changed -= OnStateChanged;
-        }
+    private Task ExecuteAsync(CancellationToken cancellationToken) => State switch
+    {
+        NgShuttleState.Lowering => LowerAsync(cancellationToken),
+        NgShuttleState.Raising => SetDownAsync(false, cancellationToken),
+        _ => WaitForChangeAsync(cancellationToken),
+    };
+
+    private async Task LowerAsync(CancellationToken cancellationToken)
+    {
+        await SetDownAsync(true, cancellationToken);
+        await _conveyor.WaitForPosition3Async(cancellationToken);
     }
 
     private Task SetDownAsync(

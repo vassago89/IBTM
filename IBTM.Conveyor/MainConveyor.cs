@@ -6,7 +6,7 @@ using IBTM.Device;
 
 namespace IBTM.Conveyor;
 
-public sealed class MainConveyor
+public sealed class MainConveyor : AutoUnit
 {
     private readonly IIoService _io;
     private readonly OperationCancellation _operations;
@@ -51,7 +51,7 @@ public sealed class MainConveyor
             OnCarrierChanged(StationPosition.Inspection, value);
     }
 
-    public event Action? Changed;
+    public override event Action? Changed;
     public bool RunCommandOn => _io.GetOutput(OutputIo.MainConveyorRun);
     public bool EntryCarrierDetected =>
         _io.GetInput(InputIo.MainConveyorEntryCarrierDetected);
@@ -171,71 +171,46 @@ public sealed class MainConveyor
         _automaticCancellation = runCancellation;
         cancellationToken = runCancellation.Token;
         using var stopRegistration = cancellationToken.Register(StopMotor);
-        var stateChanged = new AsyncAutoResetEvent();
-        void OnStateChanged() => stateChanged.Set();
-
-        Changed += OnStateChanged;
         try
         {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                switch (State)
-                {
-                    case MainConveyorState.SeatingInspectionCarrier:
-                        await _inspection.SeatAsync(cancellationToken);
-                        break;
-
-                    case MainConveyorState.SeatingBoltFasteningCarrier:
-                        await _boltFastening.SeatAsync(cancellationToken);
-                        break;
-
-                    case MainConveyorState.SeatingPcbPlacementCarrier:
-                        await _placement.SeatAsync(cancellationToken);
-                        break;
-
-                    case MainConveyorState.DischargingInspectionCarrier:
-                        await DischargeInspectionAsync(cancellationToken);
-                        break;
-
-                    case MainConveyorState.MovingBoltFasteningToInspection:
-                        await MoveCarrierAsync(
-                            ConveyorTransfer.BoltFasteningToInspection,
-                            _boltFastening,
-                            _inspection,
-                            cancellationToken);
-                        break;
-
-                    case MainConveyorState.MovingPcbPlacementToBoltFastening:
-                        await MoveCarrierAsync(
-                            ConveyorTransfer.PcbPlacementToBoltFastening,
-                            _placement,
-                            _boltFastening,
-                            cancellationToken);
-                        break;
-
-                    case MainConveyorState.ReceivingFrontCarrier:
-                        await ReceiveAtPlacementAsync(cancellationToken);
-                        break;
-
-                    default:
-                        UpdateSmema();
-                        await stateChanged.WaitAsync(cancellationToken);
-                        break;
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
+            await RunLoopAsync(ExecuteAsync, cancellationToken);
         }
         finally
         {
-            Changed -= OnStateChanged;
             ResetSmema();
             StopMotor();
             if (ReferenceEquals(_automaticCancellation, runCancellation))
             {
                 _automaticCancellation = null;
             }
+        }
+    }
+
+    private Task ExecuteAsync(CancellationToken cancellationToken)
+    {
+        switch (State)
+        {
+            case MainConveyorState.SeatingInspectionCarrier:
+                return _inspection.SeatAsync(cancellationToken);
+            case MainConveyorState.SeatingBoltFasteningCarrier:
+                return _boltFastening.SeatAsync(cancellationToken);
+            case MainConveyorState.SeatingPcbPlacementCarrier:
+                return _placement.SeatAsync(cancellationToken);
+            case MainConveyorState.DischargingInspectionCarrier:
+                return DischargeInspectionAsync(cancellationToken);
+            case MainConveyorState.MovingBoltFasteningToInspection:
+                return MoveCarrierAsync(
+                    ConveyorTransfer.BoltFasteningToInspection,
+                    _boltFastening, _inspection, cancellationToken);
+            case MainConveyorState.MovingPcbPlacementToBoltFastening:
+                return MoveCarrierAsync(
+                    ConveyorTransfer.PcbPlacementToBoltFastening,
+                    _placement, _boltFastening, cancellationToken);
+            case MainConveyorState.ReceivingFrontCarrier:
+                return ReceiveAtPlacementAsync(cancellationToken);
+            default:
+                UpdateSmema();
+                return WaitForChangeAsync(cancellationToken);
         }
     }
 

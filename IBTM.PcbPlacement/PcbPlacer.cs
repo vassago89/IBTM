@@ -10,178 +10,118 @@ namespace IBTM.PcbPlacement;
 public sealed class PcbPlacer(
     BufferStage buffer,
     PcbPlacementHandler handler,
-    PcbPlacementWork work)
+    PcbPlacementWork work) : AutoUnit
 {
     private HeatSinkSlot[]? _runTargets;
+
+    public override event Action? Changed
+    {
+        add
+        {
+            buffer.StateChanged += value;
+            handler.Changed += value;
+            work.Changed += value;
+        }
+        remove
+        {
+            buffer.StateChanged -= value;
+            handler.Changed -= value;
+            work.Changed -= value;
+        }
+    }
 
     public async Task RunAsync(
         PcbPlacementRecipe recipe,
         CancellationToken cancellationToken = default)
     {
         _runTargets = null;
-        var stateChanged = new AsyncAutoResetEvent();
-        void OnStateChanged() => stateChanged.Set();
-
-        buffer.StateChanged += OnStateChanged;
-        handler.Changed += OnStateChanged;
-        work.Changed += OnStateChanged;
         try
         {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                if (!work.CarrierPresent || work.Completed)
-                {
-                    _runTargets = null;
-                }
-                else if (work.CarrierSeated)
-                {
-                    _runTargets ??= Enum.GetValues<HeatSinkSlot>()
-                        .Where(work.HeatSinkPresent)
-                        .ToArray();
-                }
-
-                var heatSink = NextHeatSink();
-                switch (State(recipe, heatSink))
-                {
-                    case PcbPlacementState.RaisingHandler:
-                        await handler.SetLiftDownAsync(
-                            false,
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.RaisingZ:
-                        await handler.MoveToHorizontalZAsync(
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.UnrotatingForBuffer:
-                        await handler.SetRotatedAsync(
-                            false,
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.OpeningGripper:
-                        await handler.SetIpmGripperAsync(
-                            false,
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.LoweringIpm:
-                        await handler.SetIpmLiftDownAsync(
-                            true,
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.PressingPcb:
-                        await handler.SetIpmGripperAsync(
-                            false,
-                            cancellationToken);
-                        await handler.SetIpmGripperAsync(
-                            true,
-                            cancellationToken);
-                        await handler.SetIpmLiftDownAsync(
-                            true,
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.MovingAboveBuffer:
-                        await handler.MoveAboveBufferAsync(
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.LoweringToBuffer:
-                        await handler.LowerToBufferAsync(
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.LoweringHandler:
-                        await handler.SetLiftDownAsync(
-                            true,
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.WaitingForPcbDetection:
-                        await handler.WaitForPcbAsync(
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.ApplyingVacuum:
-                        await handler.SetVacuumAsync(
-                            true,
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.ClosingGripper:
-                        await handler.SetIpmGripperAsync(
-                            true,
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.WaitingForSupplyExit:
-                        await buffer.WaitForSupplyOutsideAsync(
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.RaisingIpm:
-                        await handler.SetIpmLiftDownAsync(
-                            false,
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.MovingToWaitPosition:
-                        await handler.MoveAboveAsync(
-                            recipe.HeatSink1PcbPlacementPosition,
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.RotatingForPlacement:
-                        await handler.SetRotatedAsync(
-                            true,
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.MovingAboveHeatSink:
-                        await handler.MoveAboveAsync(
-                            HeatSinkPosition(recipe, heatSink!.Value),
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.LoweringToHeatSink:
-                        await handler.LowerToAsync(
-                            HeatSinkPosition(recipe, heatSink!.Value),
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.ReleasingVacuum:
-                        await handler.SetVacuumAsync(
-                            false,
-                            cancellationToken);
-                        break;
-
-                    case PcbPlacementState.RecordingPlacement:
-                        work.Assembly(CurrentHeatSink(recipe)!.Value);
-                        break;
-
-                    case PcbPlacementState.CompletingCarrier:
-                        work.Complete();
-                        break;
-
-                    default:
-                        await stateChanged.WaitAsync(cancellationToken);
-                        break;
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
+            await RunLoopAsync(token => ExecuteAsync(recipe, token), cancellationToken);
         }
         finally
         {
             _runTargets = null;
-            buffer.StateChanged -= OnStateChanged;
-            handler.Changed -= OnStateChanged;
-            work.Changed -= OnStateChanged;
         }
+    }
+
+    private Task ExecuteAsync(
+        PcbPlacementRecipe recipe,
+        CancellationToken cancellationToken)
+    {
+        if (!work.CarrierPresent || work.Completed)
+        {
+            _runTargets = null;
+        }
+        else if (work.CarrierSeated)
+        {
+            _runTargets ??= Enum.GetValues<HeatSinkSlot>()
+                .Where(work.HeatSinkPresent)
+                .ToArray();
+        }
+
+        var heatSink = NextHeatSink();
+        switch (State(recipe, heatSink))
+        {
+            case PcbPlacementState.RaisingHandler:
+                return handler.SetLiftDownAsync(false, cancellationToken);
+            case PcbPlacementState.RaisingZ:
+                return handler.MoveToHorizontalZAsync(cancellationToken);
+            case PcbPlacementState.UnrotatingForBuffer:
+                return handler.SetRotatedAsync(false, cancellationToken);
+            case PcbPlacementState.OpeningGripper:
+                return handler.SetIpmGripperAsync(false, cancellationToken);
+            case PcbPlacementState.LoweringIpm:
+                return handler.SetIpmLiftDownAsync(true, cancellationToken);
+            case PcbPlacementState.PressingPcb:
+                return PressPcbAsync(cancellationToken);
+            case PcbPlacementState.MovingAboveBuffer:
+                return handler.MoveAboveBufferAsync(cancellationToken);
+            case PcbPlacementState.LoweringToBuffer:
+                return handler.LowerToBufferAsync(cancellationToken);
+            case PcbPlacementState.LoweringHandler:
+                return handler.SetLiftDownAsync(true, cancellationToken);
+            case PcbPlacementState.WaitingForPcbDetection:
+                return handler.WaitForPcbAsync(cancellationToken);
+            case PcbPlacementState.ApplyingVacuum:
+                return handler.SetVacuumAsync(true, cancellationToken);
+            case PcbPlacementState.ClosingGripper:
+                return handler.SetIpmGripperAsync(true, cancellationToken);
+            case PcbPlacementState.WaitingForSupplyExit:
+                return buffer.WaitForSupplyOutsideAsync(cancellationToken);
+            case PcbPlacementState.RaisingIpm:
+                return handler.SetIpmLiftDownAsync(false, cancellationToken);
+            case PcbPlacementState.MovingToWaitPosition:
+                return handler.MoveAboveAsync(
+                    recipe.HeatSink1PcbPlacementPosition, cancellationToken);
+            case PcbPlacementState.RotatingForPlacement:
+                return handler.SetRotatedAsync(true, cancellationToken);
+            case PcbPlacementState.MovingAboveHeatSink:
+                return handler.MoveAboveAsync(
+                    HeatSinkPosition(recipe, heatSink!.Value), cancellationToken);
+            case PcbPlacementState.LoweringToHeatSink:
+                return handler.LowerToAsync(
+                    HeatSinkPosition(recipe, heatSink!.Value), cancellationToken);
+            case PcbPlacementState.ReleasingVacuum:
+                return handler.SetVacuumAsync(false, cancellationToken);
+            case PcbPlacementState.RecordingPlacement:
+                work.Assembly(CurrentHeatSink(recipe)!.Value);
+                break;
+            case PcbPlacementState.CompletingCarrier:
+                work.Complete();
+                break;
+            default:
+                return WaitForChangeAsync(cancellationToken);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task PressPcbAsync(CancellationToken cancellationToken)
+    {
+        await handler.SetIpmGripperAsync(false, cancellationToken);
+        await handler.SetIpmGripperAsync(true, cancellationToken);
+        await handler.SetIpmLiftDownAsync(true, cancellationToken);
     }
 
     public PcbPlacementState State(PcbPlacementRecipe recipe) =>

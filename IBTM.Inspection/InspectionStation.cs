@@ -8,7 +8,7 @@ using IBTM.NgConveyor;
 
 namespace IBTM.Inspection;
 
-public sealed class InspectionStation
+public sealed class InspectionStation : AutoUnit
 {
     private readonly InspectionWork _work;
     private readonly BoltInspector _inspector;
@@ -40,7 +40,7 @@ public sealed class InspectionStation
         shuttle.Changed += NotifyChanged;
     }
 
-    public event Action? Changed;
+    public override event Action? Changed;
 
     public InspectionStationState State(
         IReadOnlyList<BoltTarget> bolts) =>
@@ -67,81 +67,42 @@ public sealed class InspectionStation
             _work.RestartInspection();
         }
 
-        var stateChanged = new AsyncAutoResetEvent();
-        void OnStateChanged() => stateChanged.Set();
-
-        Changed += OnStateChanged;
-        try
-        {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                switch (State(bolts))
-                {
-                    case InspectionStationState.MovingToBarcode:
-                    case InspectionStationState.ReadingBarcode:
-                    case InspectionStationState.MovingToBolt:
-                    case InspectionStationState.InspectingBolt:
-                    case InspectionStationState.CompletingInspection:
-                        await ExecuteInspectionAsync(
-                            bolts,
-                            cancellationToken);
-                        break;
-                    case InspectionStationState.MovingTransferToCarrier:
-                        await _gantry.MoveToAsync(
-                            _transferSettings.CarrierPickupPosition,
-                            _transferSettings.Speed,
-                            cancellationToken);
-                        break;
-                    case InspectionStationState.LoweringTransferAtCarrier:
-                    case InspectionStationState.LoweringTransferAtShuttle:
-                        await _transfer.SetLiftDownAsync(
-                            true,
-                            cancellationToken);
-                        break;
-                    case InspectionStationState.ClosingTransferGripper:
-                        await _transfer.SetGripperClosedAsync(
-                            true,
-                            cancellationToken);
-                        break;
-                    case InspectionStationState.WaitingForCarrierGrip:
-                        await _transfer.WaitForCarrierGripAsync(
-                            cancellationToken);
-                        break;
-                    case InspectionStationState.RaisingCarrierTransfer:
-                        await _transfer.SetLiftDownAsync(
-                            false,
-                            cancellationToken);
-                        break;
-                    case InspectionStationState.MovingTransferToShuttle:
-                        await _gantry.MoveToAsync(
-                            _transferSettings.ShuttlePlacePosition,
-                            _transferSettings.Speed,
-                            cancellationToken);
-                        break;
-                    case InspectionStationState.OpeningTransferGripper:
-                        await _transfer.SetGripperClosedAsync(
-                            false,
-                            cancellationToken);
-                        break;
-                    case InspectionStationState.WaitingForShuttleCarrier:
-                        await _shuttle.WaitForCarrierAsync(
-                            true,
-                            cancellationToken);
-                        break;
-                    default:
-                        await stateChanged.WaitAsync(cancellationToken);
-                        break;
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        finally
-        {
-            Changed -= OnStateChanged;
-        }
+        await RunLoopAsync(token => ExecuteAsync(bolts, token), cancellationToken);
     }
+
+    private Task ExecuteAsync(
+        IReadOnlyList<BoltTarget> bolts,
+        CancellationToken cancellationToken) => State(bolts) switch
+    {
+        InspectionStationState.MovingToBarcode
+            or InspectionStationState.ReadingBarcode
+            or InspectionStationState.MovingToBolt
+            or InspectionStationState.InspectingBolt
+            or InspectionStationState.CompletingInspection =>
+            ExecuteInspectionAsync(bolts, cancellationToken),
+        InspectionStationState.MovingTransferToCarrier =>
+            _gantry.MoveToAsync(
+                _transferSettings.CarrierPickupPosition,
+                _transferSettings.Speed, cancellationToken),
+        InspectionStationState.LoweringTransferAtCarrier
+            or InspectionStationState.LoweringTransferAtShuttle =>
+            _transfer.SetLiftDownAsync(true, cancellationToken),
+        InspectionStationState.ClosingTransferGripper =>
+            _transfer.SetGripperClosedAsync(true, cancellationToken),
+        InspectionStationState.WaitingForCarrierGrip =>
+            _transfer.WaitForCarrierGripAsync(cancellationToken),
+        InspectionStationState.RaisingCarrierTransfer =>
+            _transfer.SetLiftDownAsync(false, cancellationToken),
+        InspectionStationState.MovingTransferToShuttle =>
+            _gantry.MoveToAsync(
+                _transferSettings.ShuttlePlacePosition,
+                _transferSettings.Speed, cancellationToken),
+        InspectionStationState.OpeningTransferGripper =>
+            _transfer.SetGripperClosedAsync(false, cancellationToken),
+        InspectionStationState.WaitingForShuttleCarrier =>
+            _shuttle.WaitForCarrierAsync(true, cancellationToken),
+        _ => WaitForChangeAsync(cancellationToken),
+    };
 
     private bool CarrierReadyForNg =>
         _work.CarrierSeated
@@ -323,7 +284,8 @@ public sealed class InspectionStation
             }
         }
         catch (OperationCanceledException)
-            when (!cancellationToken.IsCancellationRequested)
+            when (operation.IsCancellationRequested
+                && !cancellationToken.IsCancellationRequested)
         {
         }
         finally

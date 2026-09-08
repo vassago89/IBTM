@@ -1224,3 +1224,97 @@ the result stays on the original assembly rather than the replacement carrier.
 Verification: all 152 Virtual tests pass without adding a new test case. Release
 and Virtual builds report zero warnings/errors, and diff whitespace checks pass.
 No physical equipment was run; ADC timing remains to be checked on the machine.
+
+### Shared automatic-loop execution
+
+NgShuttle and BoltFasteningStation now use the small AutoUnit base in IBTM.Core.
+It owns sequential repetition, the coalescing change signal, run-lifetime event
+subscription and normal run cancellation. Each unit still selects its own enum
+state and executes its own actions. Waiting states await the shared signal;
+completed actions immediately re-evaluate current feedback, even when the enum
+has not changed. Events never start another action while one is running.
+
+The base does not own hardware Stop, alarms, recipes or carrier state. Motion and
+IO calls still receive cancellation tokens and their device owners stop them.
+Fastening retains its carrier-scoped cancellation, target selection and result
+cleanup; shooting air is still stopped in its own finally block. Only cancellation
+of the applicable run/carrier token is treated as normal completion. Other errors
+continue to the existing alarm boundary. Other automatic units are unchanged.
+
+Three focused cases cover event coalescing without overlapping actions, waiting
+cancellation/restart and propagation of unrelated cancellation or other errors.
+
+Verification: all 155 Virtual tests pass. Release and Virtual builds report zero
+warnings/errors, and diff whitespace checks pass. No physical equipment was run.
+
+### Shared execution applied to all automatic units
+
+The remaining Main Conveyor, PCB Supply, PCB Placement, both Bolt Feeders,
+Inspection / NG Carrier Transfer and NG Conveyor now use AutoUnit. Its scope is
+unchanged: sequential repetition, coalesced change waiting and run cancellation.
+No generic state/recipe framework, lifecycle hooks or new physical-state cache was
+introduced. Every unit still exposes its original RunAsync arguments.
+
+Preserved unit-specific behavior:
+
+- Supply's PCB 1/2 selection resets on Start. Its existing upstream-exit event
+  handling stays run-local and runs before notifying the common wait, preserving
+  short SMEMA transitions during an active handoff. Upstream READY is cleared on
+  exit.
+- Placement keeps its current carrier's selected heat sinks until completion or
+  carrier removal and reselects after Stop. All gripper/lift/vacuum action orders
+  are unchanged.
+- Main Conveyor keeps its operation scope, immediate token-owned motor Stop,
+  SMEMA cleanup, downstream priority and interrupted-transfer direction.
+- NG Conveyor keeps token-owned motor Stop, eject-button release handling,
+  compaction and output cleanup. NG Shuttle behavior is unchanged.
+- Each feeder still times out only while waiting for a bolt. Once ready, it stops
+  feeding and uses the common change wait; its event remains filtered to its own
+  bolt DI. Feeder errors propagate and feeding is stopped in finally.
+- Inspection still restarts incomplete inspection on Start. Its per-carrier
+  cancellation remains local, like fastening; unrelated cancellation is no longer
+  swallowed by that inner scope. NG Transfer uses the same gantry loop.
+
+Condition waits inside BufferStage, camera/ADC/device polling and per-carrier
+inspection/fastening loops were not forced into independent automatic units.
+The existing MachineController still owns enablement, shared run cancellation and
+unit-alarm reporting. A focused common-runner regression additionally checks that
+cancellation at action completion and an already-cancelled Start execute no next
+action, even with a pending change notification.
+
+Verification: all 156 Virtual tests pass. Focused conveyor/inspection/fastening
+and supply/placement/lifecycle runs also passed before the final suite. Release
+and Virtual builds have zero warnings/errors; diff whitespace checks pass. The
+automatic state-action lists were compared before and after migration, with no
+missing state branches. Including AutoUnit, production code is 151 lines shorter
+than before the two-unit trial; test/documentation additions are excluded.
+No physical equipment was operated.
+
+### Automatic unit startup supervision
+
+Reproduced an immediate Main Conveyor failure on its first READY output: the old
+startup code still turned on the subsequent shooting feeder before observing the
+failed conveyor task. The regression holds upstream AVAILABLE OFF so this output
+is issued before the conveyor's first asynchronous hardware wait.
+
+MachineController now observes each unit as it starts. Its existing local start
+function skips disabled units and units whose shared run was already cancelled.
+The local observer reports an unexpected exit/failure, preserves an existing run
+alarm and cancels the shared run. The controller then awaits all started units;
+the Task.WhenAny/tuple lookup is removed. No new controller class or per-action
+guard was added, and the units still run independently.
+
+The startup regression covers both operator Stop and an injected failure. It
+checks that the later feeder never turns on, the original error is retained, and
+operation scopes drain. The existing feeder timeout/restart regression now runs
+Main Conveyor alongside the feeder and checks both units clean up while retaining
+the feeder alarm. An automatic fastening regression holds a head's Stop completion
+open: the machine remains running and cannot Reset until cleanup ends, and a late
+head-cleanup failure does not replace the original air-pressure alarm.
+
+Review also covered hardware readiness cancellation, synchronous start-delegate
+failure, inspection/transfer enablement, normal Stop without an alarm, and
+hardware fault/reset paths. Hardware safety-alarm priorities were not changed.
+
+Verification: all 158 Virtual tests pass. Release and Virtual builds report zero
+warnings/errors, and diff whitespace checks pass. No physical equipment was run.

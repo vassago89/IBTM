@@ -6,7 +6,7 @@ using IBTM.Device;
 
 namespace IBTM.NgConveyor;
 
-public sealed class NgCarrierConveyor
+public sealed class NgCarrierConveyor : AutoUnit
 {
     private readonly IIoService _io;
     private readonly NgConveyorSettings _settings;
@@ -27,7 +27,7 @@ public sealed class NgCarrierConveyor
         io.OutputChanged += OnOutputChanged;
     }
 
-    public event Action? Changed;
+    public override event Action? Changed;
 
     public bool RunCommandOn =>
         _io.GetOutput(OutputIo.NgConveyorRun);
@@ -155,68 +155,50 @@ public sealed class NgCarrierConveyor
             Changed?.Invoke();
         }
 
-        var stateChanged = new AsyncAutoResetEvent();
-        void OnStateChanged() => stateChanged.Set();
-
-        Changed += OnStateChanged;
         try
         {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                UpdateOperatorOutputs();
-                switch (State)
-                {
-                    case NgConveyorState.MovingToPosition1:
-                        await MoveCarrierAsync(
-                            NgConveyorPosition.Position1,
-                            Movement.ToPosition1,
-                            cancellationToken);
-                        break;
-                    case NgConveyorState.MovingToPosition2:
-                        await MoveCarrierAsync(
-                            NgConveyorPosition.Position2,
-                            Movement.ToPosition2,
-                            cancellationToken);
-                        break;
-                    case NgConveyorState.WaitingForShuttleUp:
-                        if (_shuttle.Lift == NgShuttleLiftState.Up)
-                        {
-                            _movement = Movement.None;
-                            Changed?.Invoke();
-                        }
-                        else
-                        {
-                            await stateChanged.WaitAsync(cancellationToken);
-                        }
-                        break;
-                    case NgConveyorState.EjectingCarrier:
-                        await EjectCarrierAsync(cancellationToken);
-                        break;
-                    case NgConveyorState.SecuringEjectStopper:
-                        await SetStopperUpAsync(
-                            true,
-                            cancellationToken);
-                        break;
-                    case NgConveyorState.CompactingCarriers:
-                        await CompactCarriersAsync(cancellationToken);
-                        break;
-                    case NgConveyorState.AcknowledgingEject:
-                        AcknowledgeEject();
-                        break;
-                    default:
-                        await stateChanged.WaitAsync(cancellationToken);
-                        break;
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
+            await RunLoopAsync(ExecuteAsync, cancellationToken);
         }
         finally
         {
-            Changed -= OnStateChanged;
             Stop();
         }
+    }
+
+    private Task ExecuteAsync(CancellationToken cancellationToken)
+    {
+        UpdateOperatorOutputs();
+        switch (State)
+        {
+            case NgConveyorState.MovingToPosition1:
+                return MoveCarrierAsync(
+                    NgConveyorPosition.Position1, Movement.ToPosition1, cancellationToken);
+            case NgConveyorState.MovingToPosition2:
+                return MoveCarrierAsync(
+                    NgConveyorPosition.Position2, Movement.ToPosition2, cancellationToken);
+            case NgConveyorState.WaitingForShuttleUp:
+                if (_shuttle.Lift != NgShuttleLiftState.Up)
+                {
+                    return WaitForChangeAsync(cancellationToken);
+                }
+
+                _movement = Movement.None;
+                Changed?.Invoke();
+                break;
+            case NgConveyorState.EjectingCarrier:
+                return EjectCarrierAsync(cancellationToken);
+            case NgConveyorState.SecuringEjectStopper:
+                return SetStopperUpAsync(true, cancellationToken);
+            case NgConveyorState.CompactingCarriers:
+                return CompactCarriersAsync(cancellationToken);
+            case NgConveyorState.AcknowledgingEject:
+                AcknowledgeEject();
+                break;
+            default:
+                return WaitForChangeAsync(cancellationToken);
+        }
+
+        return Task.CompletedTask;
     }
 
     public void Stop()

@@ -49,6 +49,18 @@ Front 2 SMEMA --> [PCB Placement] --> [Bolt Fastening] --> [Inspection] --> Rear
 
 The diagram describes ownership and material flow, not physical scale.
 
+All nine automatic execution units share the `AutoUnit` base: Main Conveyor,
+PCB Supply, PCB Placement, Pickup Bolt Feeder, Shooting Bolt Feeder, Bolt Fastening,
+Inspection / NG Carrier Transfer, NG Shuttle and NG Conveyor. Inspection and
+NG Carrier Transfer use one loop because they share the same gantry.
+
+Actions run sequentially; passive states wait for relevant change notifications.
+State enums, IO/motion commands, device Stop and cleanup remain unit-owned. Supply
+keeps its PCB 1/2 selection local to each run. Feeders retain their own supply
+timeouts, and fastening/inspection retain their per-carrier cancellation scopes.
+The buffer's one-shot condition waits and hardware communication/monitoring loops
+are not automatic units and do not inherit this base.
+
 ## PCB supply and buffer
 
 The PCB Supply Handler model contains a long linear axis, two short linear-axis

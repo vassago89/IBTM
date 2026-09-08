@@ -14,9 +14,27 @@ public sealed class BoltFasteningStation(
     BoltFasteningWork work,
     PickupBoltFeeder pickupFeeder,
     ShootingBoltFeeder shootingFeeder,
-    Func<PcbLayout> getPcb)
+    Func<PcbLayout> getPcb) : AutoUnit
 {
     private HeatSinkSlot[]? _runTargets;
+
+    public override event Action? Changed
+    {
+        add
+        {
+            work.Changed += value;
+            gantry.Changed += value;
+            pickupFeeder.Changed += value;
+            shootingFeeder.Changed += value;
+        }
+        remove
+        {
+            work.Changed -= value;
+            gantry.Changed -= value;
+            pickupFeeder.Changed -= value;
+            shootingFeeder.Changed -= value;
+        }
+    }
 
     public void PrepareRecovery(
         IEnumerable<(HeatSinkSlot HeatSink, int Number, FasteningPass Pass, bool Completed)>
@@ -30,75 +48,57 @@ public sealed class BoltFasteningStation(
         BoltFasteningRecipe recipe,
         CancellationToken cancellationToken = default)
     {
-        var stateChanged = new AsyncAutoResetEvent();
-        void OnStateChanged() => stateChanged.Set();
-
-        work.Changed += OnStateChanged;
-        gantry.Changed += OnStateChanged;
-        pickupFeeder.Changed += OnStateChanged;
-        shootingFeeder.Changed += OnStateChanged;
         try
         {
-            while (!cancellationToken.IsCancellationRequested)
+            await RunLoopAsync(
+                token => RunCarrierAsync(recipe, token), cancellationToken);
+        }
+        finally
+        {
+            gantry.StopShooting();
+        }
+    }
+
+    private async Task RunCarrierAsync(
+        BoltFasteningRecipe recipe,
+        CancellationToken cancellationToken)
+    {
+        if (work.State != BoltFasteningWorkState.ReadyToFasten)
+        {
+            await WaitForChangeAsync(cancellationToken);
+            return;
+        }
+
+        using var carrierOperation =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        void CheckCarrier()
+        {
+            if (!work.CarrierSeated) carrierOperation.Cancel();
+        }
+
+        _runTargets = Enum.GetValues<HeatSinkSlot>()
+            .Where(work.HeatSinkPresent)
+            .ToArray();
+        work.Changed += CheckCarrier;
+        try
+        {
+            CheckCarrier();
+            while (work.State == BoltFasteningWorkState.ReadyToFasten)
             {
-                if (work.State != BoltFasteningWorkState.ReadyToFasten)
-                {
-                    await stateChanged.WaitAsync(cancellationToken);
-                    continue;
-                }
-
-                using var carrierOperation =
-                    CancellationTokenSource.CreateLinkedTokenSource(
-                        cancellationToken);
-                void CheckCarrier()
-                {
-                    if (!work.CarrierSeated) carrierOperation.Cancel();
-                }
-
-                _runTargets = Enum.GetValues<HeatSinkSlot>()
-                    .Where(work.HeatSinkPresent)
-                    .ToArray();
-                work.Changed += CheckCarrier;
-                try
-                {
-                    CheckCarrier();
-                    while (work.State == BoltFasteningWorkState.ReadyToFasten)
-                    {
-                        carrierOperation.Token.ThrowIfCancellationRequested();
-                        var state = State();
-                        if (state is BoltFasteningState.WaitingForPickupFeeder
-                            or BoltFasteningState.WaitingForShootingFeeder)
-                        {
-                            await stateChanged.WaitAsync(carrierOperation.Token);
-                        }
-                        else
-                        {
-                            await ExecuteAsync(recipe, state, carrierOperation.Token);
-                        }
-                    }
-                }
-                catch (OperationCanceledException)
-                    when (!cancellationToken.IsCancellationRequested)
-                {
-                }
-                finally
-                {
-                    work.Changed -= CheckCarrier;
-                    _runTargets = null;
-                    gantry.DiscardPendingResults();
-                }
+                carrierOperation.Token.ThrowIfCancellationRequested();
+                await ExecuteAsync(recipe, State(), carrierOperation.Token);
             }
         }
         catch (OperationCanceledException)
+            when (carrierOperation.IsCancellationRequested
+                && !cancellationToken.IsCancellationRequested)
         {
         }
         finally
         {
-            work.Changed -= OnStateChanged;
-            gantry.Changed -= OnStateChanged;
-            pickupFeeder.Changed -= OnStateChanged;
-            shootingFeeder.Changed -= OnStateChanged;
-            gantry.StopShooting();
+            work.Changed -= CheckCarrier;
+            _runTargets = null;
+            gantry.DiscardPendingResults();
         }
     }
 
@@ -156,7 +156,7 @@ public sealed class BoltFasteningStation(
                 ClearHeadAsync(FasteningHead.Pickup, cancellationToken),
             BoltFasteningState.CompletingCarrier =>
                 CompleteAsync(cancellationToken),
-            _ => Task.CompletedTask,
+            _ => WaitForChangeAsync(cancellationToken),
         };
 
     public BoltFasteningState State()

@@ -1,11 +1,12 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.BoltFeeder;
 
-public abstract class BoltFeeder
+public abstract class BoltFeeder : AutoUnit
 {
     private readonly InputIo _boltDetected;
 
@@ -16,7 +17,7 @@ public abstract class BoltFeeder
         io.InputChanged += OnInputChanged;
     }
 
-    public event Action? Changed;
+    public override event Action? Changed;
 
     protected IIoService Io { get; }
     protected abstract int TimeoutMilliseconds { get; }
@@ -31,27 +32,22 @@ public abstract class BoltFeeder
     {
         try
         {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                var waitingForBolt =
-                    State == BoltFeederState.WaitingForBolt;
-                SetFeeding(waitingForBolt);
-                await Io.WaitForInputAsync(
-                    _boltDetected,
-                    waitingForBolt,
-                    waitingForBolt
-                        ? TimeoutMilliseconds
-                        : Timeout.Infinite,
-                    cancellationToken);
-            }
-        }
-        catch (OperationCanceledException)
-        {
+            await RunLoopAsync(ExecuteAsync, cancellationToken);
         }
         finally
         {
             SetFeeding(false);
         }
+    }
+
+    private Task ExecuteAsync(CancellationToken cancellationToken)
+    {
+        var waitingForBolt = State == BoltFeederState.WaitingForBolt;
+        SetFeeding(waitingForBolt);
+        return waitingForBolt
+            ? Io.WaitForInputAsync(
+                _boltDetected, true, TimeoutMilliseconds, cancellationToken)
+            : WaitForChangeAsync(cancellationToken);
     }
 
     protected virtual void SetFeeding(bool value)

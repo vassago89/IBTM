@@ -774,15 +774,40 @@ public sealed class MachineController
                 return;
             }
 
-            var runningUnits = new List<(Task Task, MachineAlarm Alarm)>();
+            var runningUnits = new List<Task>();
             void StartUnit(
                 bool enabled,
                 MachineAlarm alarm,
                 Func<Task> start)
             {
-                if (enabled)
+                if (enabled && !operation.IsCancellationRequested)
                 {
-                    runningUnits.Add((start(), alarm));
+                    runningUnits.Add(RunUnitAsync(alarm, start));
+                }
+            }
+
+            async Task RunUnitAsync(MachineAlarm alarm, Func<Task> start)
+            {
+                try
+                {
+                    await start();
+                    if (!operation.IsCancellationRequested && !_state.IsError)
+                    {
+                        _state.SetError(alarm);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    if (!operation.IsCancellationRequested && !_state.IsError)
+                    {
+                        _state.SetError(exception is MotionException
+                            ? MachineAlarm.MotionUnavailable
+                            : alarm, exception);
+                    }
+                }
+                finally
+                {
+                    operation.Cancel();
                 }
             }
 
@@ -833,33 +858,8 @@ public sealed class MachineController
                 MachineAlarm.NgConveyor,
                 () => _ngConveyor.RunAsync(operation.Token));
 
-            var completed = await Task.WhenAny(
-                runningUnits.Select(unit => unit.Task));
-            var completedUnit = runningUnits.First(
-                unit => ReferenceEquals(unit.Task, completed));
-            try
-            {
-                await completed;
-                if (!operation.IsCancellationRequested && !_state.IsError)
-                {
-                    _state.SetError(completedUnit.Alarm);
-                }
-            }
-            catch (Exception exception)
-            {
-                if (!operation.IsCancellationRequested && !_state.IsError)
-                {
-                    _state.SetError(exception is MotionException
-                        ? MachineAlarm.MotionUnavailable
-                        : completedUnit.Alarm, exception);
-                }
-            }
-            finally
-            {
-                operation.Cancel();
-                await Task.WhenAll(runningUnits.Select(unit => unit.Task))
-                    .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-            }
+            await Task.WhenAll(runningUnits)
+                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested)
         {
