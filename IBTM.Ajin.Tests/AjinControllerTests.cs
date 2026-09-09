@@ -21,9 +21,13 @@ public sealed class AjinControllerTests
         controller.Initialize();
         controller.Initialize();
 
-        Assert.Equal(new AjinSdk.Call("AxlOpen", Offset: 7), AjinSdk.Calls[0]);
-        Assert.Equal(new AjinSdk.Call("AxmMotLoadParaAll", Path: Path.Combine(AppContext.BaseDirectory, "Settings/Default.mot")), AjinSdk.Calls[1]);
-        Assert.Single(AjinSdk.Calls, call => call.Operation == "AxlOpen");
+        Assert.Equal(new AjinSdk.Call("AxlOpenNoReset", Offset: 7), AjinSdk.Calls[0]);
+        Assert.Equal("AxdInfoIsDIOModule", AjinSdk.Calls[1].Operation);
+        Assert.Single(AjinSdk.Calls, call => call.Operation == "AxlOpenNoReset");
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation is "AxlOpen" or "AxmMotLoadParaAll");
+        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains("AxlOpenNoReset(interrupt=7)")
+            && entry.Message.Contains("AXT_RT_SUCCESS (0x00000000)"));
+        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains(".mot loading is skipped"));
         Assert.Equal(new int?[] { 0, 1, 2, 3, 4 }, AjinSdk.Calls.Where(call => call.Operation == "AxdInfoGetModule").Select(call => call.Module));
         Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains("input modules=[0,1,4], output modules=[2,3,4]"));
         Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains("module=4, board=0, position=4, type=AXT_SIO_RDB32RTEX (0x86), DI=16, DO=16"));
@@ -242,8 +246,8 @@ public sealed class AjinControllerTests
         settings.MotionParameterFile = "changed.mot";
         Assert.Equal(3, controller.RtexInputWordCount);
         controller.Initialize();
-        Assert.Equal(new AjinSdk.Call("AxlOpen", Offset: 7), AjinSdk.Calls[0]);
-        Assert.EndsWith("Default.mot", AjinSdk.Calls[1].Path);
+        Assert.Equal(new AjinSdk.Call("AxlOpenNoReset", Offset: 7), AjinSdk.Calls[0]);
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == "AxmMotLoadParaAll");
         AjinSdk.Calls.Clear();
         controller.ReadRtexInput(0);
         controller.WriteRtexOutput(0, false);
@@ -282,27 +286,34 @@ public sealed class AjinControllerTests
     [Fact]
     public void FailedOpenDoesNotCloseAnUnownedLibraryAndCanBeRetried()
     {
-        using var controller = new AjinController(new());
-        AjinSdk.Results[new("AxlOpen", Offset: 7)] = (uint)AXT_FUNC_RESULT.AXT_RT_OPEN_ERROR;
-        Assert.Throws<IOException>(controller.Initialize);
-        Assert.Equal("AxlOpen", Assert.Single(AjinSdk.Calls).Operation);
+        using var log = new ApplicationLog();
+        using var controller = new AjinController(new(), log);
+        AjinSdk.Results[new("AxlOpenNoReset", Offset: 7)] = (uint)AXT_FUNC_RESULT.AXT_RT_OPEN_ERROR;
+        var error = Assert.Throws<IOException>(controller.Initialize);
+        Assert.Contains("AxlOpenNoReset", error.Message);
+        Assert.Contains("AXT_RT_OPEN_ERROR", error.Message);
+        Assert.Equal("AxlOpenNoReset", Assert.Single(AjinSdk.Calls).Operation);
+        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains("AXT_RT_OPEN_ERROR"));
+        Assert.Throws<IOException>(() => controller.ReadRtexInput(0));
+        Assert.Throws<IOException>(() => controller.WriteRtexOutput(0, true));
+        Assert.Single(AjinSdk.Calls);
         AjinSdk.Results.Clear();
         controller.Initialize();
         Assert.False(controller.ReadRtexInput(0));
     }
 
     [Fact]
-    public void ParameterLoadFailureClosesWithoutStartingDioAndPreservesCleanupErrors()
+    public void ModuleQueryFailureClosesAndPreservesCleanupErrors()
     {
         using var log = new ApplicationLog();
         using var controller = new AjinController(new(), log);
-        AjinSdk.Results[new("AxmMotLoadParaAll", Path: Path.Combine(AppContext.BaseDirectory, "Settings/Default.mot"))] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        AjinSdk.Results[new("AxdInfoIsDIOModule")] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
         AjinSdk.BeforeCall = call => { if (call.Operation == "AxlClose") throw new IOException("Test cleanup failure"); };
         var error = Assert.Throws<IOException>(controller.Initialize);
-        Assert.Contains("AxmMotLoadParaAll", error.Message);
+        Assert.Contains("AxdInfoIsDIOModule", error.Message);
         Assert.Contains("Test cleanup failure", Assert.IsType<string>(error.Data["AjinCloseError"]));
         Assert.Contains(log.ReadAfter(0), entry => entry.Level == "ERROR");
-        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation.StartsWith("AxdInfo", StringComparison.Ordinal));
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation is "AxdInfoGetModule" or "AxlOpen" or "AxmMotLoadParaAll");
     }
 
     [Fact]
@@ -314,7 +325,7 @@ public sealed class AjinControllerTests
         AjinSdk.ModuleCount = 5;
         controller.Initialize();
         Assert.False(controller.ReadRtexInput(79));
-        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == "AxlOpen"));
+        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == "AxlOpenNoReset"));
     }
 
     [Fact]
@@ -330,7 +341,7 @@ public sealed class AjinControllerTests
     {
         using var controller = new AjinController(new());
         Parallel.For(0, 40, _ => controller.Initialize());
-        Assert.Single(AjinSdk.Calls, call => call.Operation == "AxlOpen");
+        Assert.Single(AjinSdk.Calls, call => call.Operation == "AxlOpenNoReset");
         AjinSdk.Calls.Clear();
         Parallel.For(0, 100, index =>
         {
@@ -339,5 +350,31 @@ public sealed class AjinControllerTests
             controller.WriteRtexOutput(index % 16, false);
         });
         Assert.Equal(700, AjinSdk.Calls.Count);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("missing.mot")]
+    public void SavedMotionParameterPathIsNotUsed(string? path)
+    {
+        using var controller = new AjinController(new() { MotionParameterFile = path! });
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation is "AxlOpen" or "AxmMotLoadParaAll")
+                throw new InvalidOperationException("Reset or parameter loading must not be attempted.");
+        };
+        controller.Initialize();
+        Assert.False(controller.ReadRtexInput(0));
+        controller.Dispose();
+        controller.Initialize();
+        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == "AxlOpenNoReset"));
+    }
+
+    [Fact]
+    public void NegativeInterruptCannotWrapIntoTheUnsignedNoResetArgument()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => new AjinController(new() { InterruptNumber = -1 }));
+        Assert.Empty(AjinSdk.Calls);
     }
 }

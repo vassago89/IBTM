@@ -92,7 +92,7 @@ public partial class App : System.Windows.Application
                 ? await store.LoadRecipeAsync(recipeName)
                 : new Recipe();
             _log.Write($"Settings loaded: {database.DatabaseFile}. Control={settings.Drivers.Control}, Camera={settings.Drivers.Camera}, Light={settings.Drivers.Light}, Bolt={settings.Drivers.Bolt}.");
-            _log.Write($"Connections: AlphaMotion card={settings.AlphaMotion.ControllerNumber}, DI/DO counts detected during initialization; AJIN interrupt={settings.Ajin.InterruptNumber}, input modules=[{string.Join(",", settings.Ajin.RtexInputModules ?? [])}], output modules=[{string.Join(",", settings.Ajin.RtexOutputModules ?? [])}], motion file={settings.Ajin.MotionParameterFile}.");
+            _log.Write($"Connections: AlphaMotion card={settings.AlphaMotion.ControllerNumber}, DI/DO counts detected during initialization; AJIN AxlOpenNoReset, interrupt={settings.Ajin.InterruptNumber}, input modules=[{string.Join(",", settings.Ajin.RtexInputModules ?? [])}], output modules=[{string.Join(",", settings.Ajin.RtexOutputModules ?? [])}], .mot loading disabled.");
         }
         catch (System.Exception exception)
         {

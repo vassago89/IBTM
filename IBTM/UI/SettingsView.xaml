@@ -305,7 +305,7 @@
                                 </StackPanel>
                             </Border>
                         </UniformGrid>
-                        <TextBlock Text="Homing direction, sensor and method come from the AJIN .mot file. Speed and acceleration are set here."
+                        <TextBlock Text="Homing direction, sensor and method use the existing AJIN axis settings; no .mot file is loaded. Speed and acceleration are set here."
                                    Foreground="{StaticResource TextMutedBrush}" Margin="12,0,12,8" TextWrapping="Wrap"/>
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
@@ -552,14 +552,16 @@
                                         <TextBox Text="{Binding Settings.Ajin.InterruptNumber, UpdateSourceTrigger=PropertyChanged}"/>
                                     </StackPanel>
                                     <StackPanel Margin="4,0,0,10">
-                                        <TextBlock Text="Motion Parameter File" Style="{StaticResource SettingFieldLabel}"/>
-                                        <DockPanel>
+                                        <TextBlock Text="Motion Parameter File (not used)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <DockPanel IsEnabled="False" ToolTip="AxlOpenNoReset uses existing axis settings. The saved file path is retained but is not loaded.">
                                             <Button DockPanel.Dock="Right" Content="Browse" Command="{Binding SelectMotionParameterFileCommand}" Margin="8,0,0,0"/>
                                             <TextBox Text="{Binding Settings.Ajin.MotionParameterFile, UpdateSourceTrigger=PropertyChanged}"
                                                      ToolTip="Absolute path, or a path relative to the executable folder."/>
                                         </DockPanel>
                                     </StackPanel>
                                 </UniformGrid>
+                                <TextBlock Text="AxlOpenNoReset · existing axis settings · no .mot load or automatic reset fallback."
+                                           Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
 

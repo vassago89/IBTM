@@ -58,7 +58,7 @@ public sealed class PhysicalIoService(
                 log?.Write(stage + " started.");
                 alphaMotion.Initialize();
                 log?.Write(stage + " completed.");
-                stage = "AJIN initialization / motion parameter loading";
+                stage = "AJIN AxlOpenNoReset initialization / DIO module validation";
                 log?.Write(stage + " started.");
                 ajin.Initialize();
                 log?.Write(stage + " completed.");

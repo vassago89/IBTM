@@ -11,8 +11,7 @@ public sealed class AjinController(AjinSettings settings, ApplicationLog? log = 
 {
     // Keep the existing logical address slots; a 16-point module uses only bits 0..15.
     private const int RtexChannelCountPerModule = 32;
-    private readonly int _interruptNumber = settings.InterruptNumber;
-    private readonly string _motionParameterFile = settings.MotionParameterFile;
+    private readonly uint _interruptNumber = GetInterruptNumber(settings.InterruptNumber);
     private readonly int[] _inputModules = CaptureModules(settings.RtexInputModules, nameof(settings.RtexInputModules));
     private readonly int[] _outputModules = CaptureModules(settings.RtexOutputModules, nameof(settings.RtexOutputModules));
     private readonly Lock _gate = new();
@@ -28,14 +27,16 @@ public sealed class AjinController(AjinSettings settings, ApplicationLog? log = 
         {
             if (_initialized) return;
 
-            Check(CAXL.AxlOpen(_interruptNumber), nameof(CAXL.AxlOpen));
+            // Field-test existing hardware settings. Never fall back to a resetting open.
+            log?.Write($"AJIN opening with AxlOpenNoReset(interrupt={_interruptNumber}); .mot loading is skipped. Motion still applies the application's pulse and acceleration units.");
+            var openResult = CAXL.AxlOpenNoReset(_interruptNumber);
+            log?.Write($"AJIN AxlOpenNoReset(interrupt={_interruptNumber}) returned {(AXT_FUNC_RESULT)openResult} (0x{openResult:X8}).");
+            Check(openResult, nameof(CAXL.AxlOpenNoReset));
             try
             {
-                Check(
-                    CAXM.AxmMotLoadParaAll(Path.Combine(AppContext.BaseDirectory, _motionParameterFile)),
-                    nameof(CAXM.AxmMotLoadParaAll));
                 ValidateModules();
                 _initialized = true;
+                log?.Write("AJIN initialized with AxlOpenNoReset; DIO mapping validated and no .mot file loaded.");
             }
             catch (Exception exception)
             {
@@ -185,6 +186,12 @@ public sealed class AjinController(AjinSettings settings, ApplicationLog? log = 
         if (modules.Any(module => module < 0))
             throw new ArgumentException("AJIN DIO module numbers must be nonnegative.", name);
         return (int[])modules.Clone();
+    }
+
+    private static uint GetInterruptNumber(int value)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(value, nameof(AjinSettings.InterruptNumber));
+        return (uint)value;
     }
 
     private static (int Module, int Offset) GetRtexAddress(

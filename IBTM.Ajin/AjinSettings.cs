@@ -5,6 +5,7 @@ namespace IBTM.Ajin;
 public sealed class AjinSettings : Setting
 {
     public int InterruptNumber { get; set; } = 7;
+    // Retained for saved-settings compatibility; the current NoReset startup does not load it.
     public string MotionParameterFile { get; set; } = "Settings/Default.mot";
     public int[] RtexInputModules { get; set; } = [0, 1, 4];
     public int[] RtexOutputModules { get; set; } = [2, 3, 4];

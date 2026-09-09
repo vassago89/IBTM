@@ -46,6 +46,7 @@ internal static class AjinSdk
 internal static class CAXL
 {
     public static uint AxlOpen(int irq) => AjinSdk.Record(new(nameof(AxlOpen), Offset: irq));
+    public static uint AxlOpenNoReset(uint irq) => AjinSdk.Record(new(nameof(AxlOpenNoReset), Offset: checked((int)irq)));
     public static int AxlClose() => (int)AjinSdk.Record(new(nameof(AxlClose)));
 }
 
