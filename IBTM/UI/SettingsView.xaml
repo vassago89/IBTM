@@ -117,29 +117,29 @@
                 <UniformGrid Columns="2">
                     <StackPanel Margin="0,0,8,10">
                         <TextBlock Text="Search (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                        <TextBox Text="{Binding SearchSpeed, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBox Text="{Binding SearchSpeed, UpdateSourceTrigger=LostFocus}"/>
                     </StackPanel>
                     <StackPanel Margin="0,0,0,10">
                         <TextBlock Text="After Detection (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                        <TextBox Text="{Binding DetectionSpeed, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBox Text="{Binding DetectionSpeed, UpdateSourceTrigger=LostFocus}"/>
                     </StackPanel>
                     <StackPanel Margin="0,0,8,0">
                         <TextBlock Text="Approach (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                        <TextBox Text="{Binding ApproachSpeed, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBox Text="{Binding ApproachSpeed, UpdateSourceTrigger=LostFocus}"/>
                     </StackPanel>
                     <StackPanel>
                         <TextBlock Text="Fine / Index (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                        <TextBox Text="{Binding FineSpeed, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBox Text="{Binding FineSpeed, UpdateSourceTrigger=LostFocus}"/>
                     </StackPanel>
                 </UniformGrid>
                 <UniformGrid Columns="2" Margin="0,10,0,0">
                     <StackPanel Margin="0,0,8,0">
                         <TextBlock Text="Search Acceleration (s)" Style="{StaticResource SettingFieldLabel}"/>
-                        <TextBox Text="{Binding SearchAccelerationSeconds, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBox Text="{Binding SearchAccelerationSeconds, UpdateSourceTrigger=LostFocus}"/>
                     </StackPanel>
                     <StackPanel>
                         <TextBlock Text="Detection Acceleration (s)" Style="{StaticResource SettingFieldLabel}"/>
-                        <TextBox Text="{Binding DetectionAccelerationSeconds, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBox Text="{Binding DetectionAccelerationSeconds, UpdateSourceTrigger=LostFocus}"/>
                     </StackPanel>
                 </UniformGrid>
             </StackPanel>
@@ -154,8 +154,8 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Style="{StaticResource HardwareSignalText}"/>
                 <TextBox Grid.Column="1" Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}" Margin="4,0"/>
-                <TextBox Grid.Column="2" Text="{Binding Minimum, UpdateSourceTrigger=PropertyChanged}" Margin="4,0"/>
-                <TextBox Grid.Column="3" Text="{Binding Maximum, UpdateSourceTrigger=PropertyChanged}" Margin="4,0"/>
+                <TextBox Grid.Column="2" Text="{Binding Minimum, UpdateSourceTrigger=LostFocus}" Margin="4,0"/>
+                <TextBox Grid.Column="3" Text="{Binding Maximum, UpdateSourceTrigger=LostFocus}" Margin="4,0"/>
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
@@ -229,7 +229,7 @@
                             <StackPanel Margin="8,0,0,0">
                                 <TextBlock Text="Transfer Speed (mm/s)"
                                            Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox Text="{Binding Settings.NgCarrierTransfer.Speed, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBox Text="{Binding Settings.NgCarrierTransfer.Speed, UpdateSourceTrigger=LostFocus}"/>
                             </StackPanel>
                         </UniformGrid>
                     </StackPanel>
@@ -258,7 +258,7 @@
                                 </StackPanel>
                                 <StackPanel Grid.Column="1">
                                     <TextBlock Text="Pulse Length (mm/pulse)" Style="{StaticResource SettingFieldLabel}"/>
-                                    <TextBox Text="{Binding CurrentMotionHardwareSettings.MillimetersPerPulse, UpdateSourceTrigger=PropertyChanged}"
+                                    <TextBox Text="{Binding CurrentMotionHardwareSettings.MillimetersPerPulse, UpdateSourceTrigger=LostFocus}"
                                              ToolTip="1 µm/pulse = 0.001 mm/pulse. Applies to this group only; save and restart."/>
                                 </StackPanel>
                             </Grid>
@@ -269,19 +269,19 @@
                                 <UniformGrid Columns="4">
                                     <StackPanel Margin="0,0,8,0">
                                         <TextBlock Text="X / Y Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding CurrentMotionSettings.HorizontalSpeed, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBox Text="{Binding CurrentMotionSettings.HorizontalSpeed, UpdateSourceTrigger=LostFocus}"/>
                                     </StackPanel>
                                     <StackPanel Margin="0,0,8,0" Visibility="{Binding CurrentMotionHasZ, Converter={StaticResource BoolToVis}}">
                                         <TextBlock Text="Z Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding CurrentMotionSettings.ZSpeed, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBox Text="{Binding CurrentMotionSettings.ZSpeed, UpdateSourceTrigger=LostFocus}"/>
                                     </StackPanel>
                                     <StackPanel Margin="0,0,8,0">
                                         <TextBlock Text="Acceleration (s)" Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding CurrentMotionSettings.AccelerationSeconds, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBox Text="{Binding CurrentMotionSettings.AccelerationSeconds, UpdateSourceTrigger=LostFocus}"/>
                                     </StackPanel>
                                     <StackPanel>
                                         <TextBlock Text="Deceleration (s)" Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding CurrentMotionSettings.DecelerationSeconds, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBox Text="{Binding CurrentMotionSettings.DecelerationSeconds, UpdateSourceTrigger=LostFocus}"/>
                                     </StackPanel>
                                 </UniformGrid>
                             </StackPanel>
