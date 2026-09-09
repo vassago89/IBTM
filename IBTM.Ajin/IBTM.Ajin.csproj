@@ -1,26 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <Compile Include="C:\Program Files (x86)\EzSoftware UC\AXL(Library)\C#\AXA.cs" Link="AXA.cs" />
-    <Compile Include="C:\Program Files (x86)\EzSoftware UC\AXL(Library)\C#\AXHS.cs" Link="AXHS.cs" />
-    <Compile Include="C:\Program Files (x86)\EzSoftware UC\AXL(Library)\C#\AXL.cs" Link="AXL.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="C:\Program Files (x86)\EzSoftware UC\AXL(Library)\Library\64Bit\AXL.dll" Link="AXL.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="C:\Program Files (x86)\EzSoftware UC\AXL(Library)\Library\64Bit\AXL.lib" Link="AXL.lib">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="C:\Program Files (x86)\EzSoftware UC\AXL(Library)\Library\64Bit\EzBasicAxl.dll" Link="EzBasicAxl.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\IBTM.Core\IBTM.Core.csproj" />
     <ProjectReference Include="..\IBTM.Device\IBTM.Device.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Vendor\AXL.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Vendor\AXL.lib">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Vendor\EzBasicAxl.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
