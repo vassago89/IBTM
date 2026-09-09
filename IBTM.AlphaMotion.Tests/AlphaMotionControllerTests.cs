@@ -134,17 +134,71 @@ public sealed class AlphaMotionControllerTests
         Assert.Empty(TMCAEDLL.Calls);
     }
 
-    [Fact]
-    public void ZeroLoadResultIsFailureAndIncludesTheManufacturerError()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void NonnegativeLoadResultIsABoardCountMinusOneAndAllowsInputScanning(int result)
+    {
+        using var log = new ApplicationLog();
+        using var controller = new AlphaMotionController(new(), log);
+        TMCAEDLL.Results["AIO_LoadDevice"] = result;
+        TMCAEDLL.ErrorCode = tmcDef.ERR_SUCCESS;
+        TMCAEDLL.Inputs = 0x0008;
+
+        controller.Initialize();
+
+        Assert.Equal(0x0008U, controller.ReadInputs());
+        Assert.Equal(new[] { "AIO_LoadDevice", "AIO_GetDiNum", "AIO_GetDoNum", "AIO_GetDIWord" },
+            TMCAEDLL.Calls.Select(call => call.Operation));
+        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains($"loaded boards={result + 1}"));
+    }
+
+    [Theory]
+    [InlineData(-1, tmcDef.ERR_DEVICE_LOAD, "ERR_DEVICE_LOAD")]
+    [InlineData(-100, tmcDef.ERR_INVALID_HANDLE, "ERR_INVALID_HANDLE")]
+    [InlineData(-9999, tmcDef.ERR_UNKNOWN, "ERR_UNKNOWN")]
+    [InlineData(-1, tmcDef.ERR_SUCCESS, "ERR_SUCCESS")]
+    public void NegativeLoadResultFailsWithoutQueryingCardsOrAllowingIo(int result, int errorCode, string errorName)
     {
         using var controller = new AlphaMotionController(new());
-        TMCAEDLL.Results["AIO_LoadDevice"] = 0;
-        TMCAEDLL.ErrorCode = tmcDef.ERR_DEVICE_LOAD;
+        TMCAEDLL.Results["AIO_LoadDevice"] = result;
+        TMCAEDLL.ErrorCode = errorCode;
         var error = Assert.Throws<IOException>(controller.Initialize);
 
         Assert.Contains("AIO_LoadDevice (card=0)", error.Message);
-        Assert.Contains("result 0; ERR_DEVICE_LOAD (-1)", error.Message);
+        Assert.Contains($"result {result}; {errorName} ({errorCode})", error.Message);
+        Assert.Throws<IOException>(() => controller.ReadInputs());
+        Assert.Throws<IOException>(() => controller.WriteOutput(0, true));
+        controller.Dispose();
         Assert.Equal(new[] { "AIO_LoadDevice", "AIO_GetErrorCode" }, TMCAEDLL.Calls.Select(call => call.Operation));
+    }
+
+    [Fact]
+    public void FailedLoadCanBeRetriedWithTheSingleBoardSuccessResult()
+    {
+        using var controller = new AlphaMotionController(new());
+        TMCAEDLL.Results["AIO_LoadDevice"] = -1;
+        Assert.Throws<IOException>(controller.Initialize);
+
+        TMCAEDLL.Results["AIO_LoadDevice"] = 0;
+        controller.Initialize();
+        Assert.Equal(0U, controller.ReadInputs());
+        Assert.Equal(2, TMCAEDLL.Calls.Count(call => call.Operation == "AIO_LoadDevice"));
+    }
+
+    [Fact]
+    public void ZeroInputScanStatusStillFailsEvenWhenTheLastErrorIsSuccess()
+    {
+        using var controller = new AlphaMotionController(new());
+        controller.Initialize();
+        TMCAEDLL.Results["AIO_GetDIWord"] = tmcDef.TMC_ST_FALSE;
+        TMCAEDLL.ErrorCode = tmcDef.ERR_SUCCESS;
+
+        var error = Assert.Throws<IOException>(() => controller.ReadInputs());
+
+        Assert.Contains("AIO_GetDIWord (card=0)", error.Message);
+        Assert.Contains("result 0; ERR_SUCCESS (0)", error.Message);
     }
 
     [Theory]

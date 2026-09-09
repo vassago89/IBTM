@@ -299,6 +299,12 @@ Settings exposes only **Card No.**, matching the Digital IO utility (normally 0)
 The persisted `ControllerNumber` is retained; old Station/CommunicationSpeed fields
 are ignored when loading old settings. Startup checks the selected card's DI/DO
 counts, and input polling reads WORD group 0 (channels 0–15).
+The manufacturer's C# sample (`frmDIGITAL.LoadDevice`) treats `AIO_LoadDevice()`
+as a board-count result: negative means failure, while a nonnegative result plus
+one is the loaded board count (`0` means one board). This is separate from the
+`TMC_ST_OK == 1` check for status-returning I/O functions; `ERR_SUCCESS` alone does
+not turn a failed I/O status into success. The startup log includes the load
+result and board count after the selected card's DI/DO counts pass validation.
 Use the manufacturer's matching `tmcDApiAed_x64.dll` and installed board driver
 with a 64-bit process. Place that DLL in `IBTM.AlphaMotion/` to have builds and
 publishing copy it beside the executable, or deploy it there directly. The DLL is

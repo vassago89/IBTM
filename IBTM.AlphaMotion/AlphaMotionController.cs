@@ -25,7 +25,11 @@ public sealed class AlphaMotionController(
             if (!Environment.Is64BitProcess)
                 throw new PlatformNotSupportedException("TMC-AE16DIOe requires a 64-bit process and tmcDApiAed_x64.dll.");
 
-            Check(TMCAEDLL.AIO_LoadDevice(), nameof(TMCAEDLL.AIO_LoadDevice));
+            // Manufacturer frmDIGITAL.LoadDevice checks < 0 for failure and adds 1
+            // to this result for the board count. It is not a TMC_ST_OK status.
+            var loadResult = TMCAEDLL.AIO_LoadDevice();
+            if (loadResult < 0)
+                throw CreateError(loadResult, nameof(TMCAEDLL.AIO_LoadDevice));
             try
             {
                 ushort inputs = 0, outputs = 0;
@@ -34,7 +38,7 @@ public sealed class AlphaMotionController(
                 if (inputs != ChannelCount || outputs != ChannelCount)
                     throw new IOException($"AlphaMotion card={_cardNumber}: expected TMC-AE16DIOe with 16 DI / 16 DO, but found {inputs} DI / {outputs} DO.");
                 _initialized = true;
-                log?.Write($"AlphaMotion TMC-AE16DIOe ready: card={_cardNumber}, DI={inputs}, DO={outputs}.");
+                log?.Write($"AlphaMotion TMC-AE16DIOe ready: card={_cardNumber}, DI={inputs}, DO={outputs}, loaded boards={(long)loadResult + 1} (AIO_LoadDevice={loadResult}).");
             }
             catch (Exception exception)
             {
@@ -114,17 +118,20 @@ public sealed class AlphaMotionController(
 
     private void Check(int result, string operation, int? bit = null)
     {
-        // A-series APIs return 1 on success and 0 on failure, not a negative error code.
+        // Status-returning APIs use TMC_ST_OK. AIO_LoadDevice is handled separately.
         if (result != tmcDef.TMC_ST_OK)
-        {
-            var error = TMCAEDLL.AIO_GetErrorCode();
-            var name = typeof(tmcDef).GetFields(BindingFlags.Public | BindingFlags.Static)
-                .FirstOrDefault(field => field.Name.StartsWith("ERR_", StringComparison.Ordinal)
-                    && field.IsLiteral && field.FieldType == typeof(int)
-                    && (int)field.GetRawConstantValue()! == error)?.Name ?? "UNKNOWN_ERROR";
-            throw new IOException(
-                $"{Address(operation, bit)} failed with AlphaMotion result {result}; {name} ({error}).");
-        }
+            throw CreateError(result, operation, bit);
+    }
+
+    private IOException CreateError(int result, string operation, int? bit = null)
+    {
+        var error = TMCAEDLL.AIO_GetErrorCode();
+        var name = typeof(tmcDef).GetFields(BindingFlags.Public | BindingFlags.Static)
+            .FirstOrDefault(field => field.Name.StartsWith("ERR_", StringComparison.Ordinal)
+                && field.IsLiteral && field.FieldType == typeof(int)
+                && (int)field.GetRawConstantValue()! == error)?.Name ?? "UNKNOWN_ERROR";
+        return new IOException(
+            $"{Address(operation, bit)} failed with AlphaMotion result {result}; {name} ({error}).");
     }
 
     private string Address(string operation, int? bit) =>

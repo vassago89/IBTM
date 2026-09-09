@@ -23,18 +23,19 @@ internal static class TMCAEDLL
         Results.Clear();
         InputCount = OutputCount = 16;
         Inputs = Outputs = 0;
-        ErrorCode = tmcDef.ERR_DEVICE_LOAD;
+        ErrorCode = tmcDef.ERR_SUCCESS;
         BeforeCall = null;
     }
 
-    private static int Record(Call call)
+    private static int Record(Call call, int successResult = tmcDef.TMC_ST_OK)
     {
         Calls.Add(call);
         BeforeCall?.Invoke(call.Operation);
-        return Results.GetValueOrDefault(call.Operation, tmcDef.TMC_ST_OK);
+        return Results.GetValueOrDefault(call.Operation, successResult);
     }
 
-    public static int AIO_LoadDevice() => Record(new(nameof(AIO_LoadDevice)));
+    // Manufacturer frmDIGITAL.LoadDevice: nonnegative result + 1 is the board count.
+    public static int AIO_LoadDevice() => Record(new(nameof(AIO_LoadDevice)), successResult: 0);
     public static int AIO_UnloadDevice() => Record(new(nameof(AIO_UnloadDevice)));
     public static int AIO_GetErrorCode()
     {
