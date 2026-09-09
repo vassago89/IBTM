@@ -21,6 +21,7 @@ One executable hosts independently enabled machine units and the teaching UI.
 | `IBTM.Conveyor` | Main conveyor, station stoppers/plates, carrier-line SMEMA |
 | `IBTM.Inspection.Training` | Tiny U-Net, TorchSharp inference, training, labeling and review UI |
 | `IBTM.Ajin` | AJIN motion and RTEX IO |
+| `IBTM.Ajin.Tests` | AJIN DIO discovery, 16/32-point scanning and mapping tests; no native calls |
 | `IBTM.AlphaMotion` | AlphaMotion PCIe IO |
 | `IBTM.AlphaMotion.Tests` | TMC-AE16DIOe driver tests against a test-only SDK stand-in; no native calls |
 | `IBTM.Hantas` | Shared ADC serial bus and individually addressed bolt heads |
@@ -312,6 +313,11 @@ not supplied by the C# declarations. Initialization does not issue reset,
 filter-setting or output-write commands.
 AJIN loads its configured `.mot` file; motion coordinates exposed to units are
 millimetres, converted from pulses using the configured millimetres-per-pulse.
+AJIN then validates and logs each configured DIO module's identity and DI/DO
+counts. Input scans use WORD offsets 0/1 for 32 DI and only offset 0 for 16 DI,
+following the manufacturer's DigitalIO sample. The existing 32-bit address slots
+are preserved; bits 16..31 of a 16-point module are invalid. Missing modules,
+wrong input/output directions and unsupported point counts prevent readiness.
 
 If control I/O initialization or the connection fails, the display retains the
 original communication error and leaves output feedback unavailable. Display and
@@ -441,6 +447,7 @@ The MOVS light controller defaults to 19200 baud, 8-N-1 and a 1000 ms write time
 
 ```powershell
 dotnet build IBTM.slnx --configuration Release
+dotnet test IBTM.Ajin.Tests/IBTM.Ajin.Tests.csproj --configuration Release
 dotnet test IBTM.AlphaMotion.Tests/IBTM.AlphaMotion.Tests.csproj --configuration Release
 dotnet test IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj --configuration Release
 dotnet run --project IBTM/IBTM.csproj

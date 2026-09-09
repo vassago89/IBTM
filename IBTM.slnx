@@ -5,6 +5,7 @@
     <BuildType Name="Virtual" />
   </Configurations>
   <Project Path="IBTM.Ajin/IBTM.Ajin.csproj" />
+  <Project Path="IBTM.Ajin.Tests/IBTM.Ajin.Tests.csproj" />
   <Project Path="IBTM.AlphaMotion/IBTM.AlphaMotion.csproj" />
   <Project Path="IBTM.AlphaMotion.Tests/IBTM.AlphaMotion.Tests.csproj" />
   <Project Path="IBTM.BoltFastening/IBTM.BoltFastening.csproj" />
