@@ -22,6 +22,7 @@ One executable hosts independently enabled machine units and the teaching UI.
 | `IBTM.Inspection.Training` | Tiny U-Net, TorchSharp inference, training, labeling and review UI |
 | `IBTM.Ajin` | AJIN motion and RTEX IO |
 | `IBTM.AlphaMotion` | AlphaMotion PCIe IO |
+| `IBTM.AlphaMotion.Tests` | TMC-AE16DIOe driver tests against a test-only SDK stand-in; no native calls |
 | `IBTM.Hantas` | Shared ADC serial bus and individually addressed bolt heads |
 | `IBTM.Hik` | Hik area camera |
 | `IBTM.Virtual` | Virtual devices and optional material-flow scenario |
@@ -292,6 +293,17 @@ Units receive only their relevant settings; `MachineSettings` is the host aggreg
 Mapping numbers 0–15 address AlphaMotion IO. Remaining numbers address RTEX points,
 using separate input/output module arrays in `AjinSettings`. Do not infer an AJIN
 module ID from a logical IO name. Mapping and driver changes apply after restart.
+AlphaMotion is the **TMC-AE16DIOe** (16 DI / 16 DO), using the manufacturer's
+A-series `TMCAEDLL.AIO_*` functions, not Motionnet `nmiMNApi` or B-series `AIO_pmi*`.
+Settings exposes only **Card No.**, matching the Digital IO utility (normally 0).
+The persisted `ControllerNumber` is retained; old Station/CommunicationSpeed fields
+are ignored when loading old settings. Startup checks the selected card's DI/DO
+counts, and input polling reads WORD group 0 (channels 0–15).
+Use the manufacturer's matching `tmcDApiAed_x64.dll` and installed board driver
+with a 64-bit process. Place that DLL in `IBTM.AlphaMotion/` to have builds and
+publishing copy it beside the executable, or deploy it there directly. The DLL is
+not supplied by the C# declarations. Initialization does not issue reset,
+filter-setting or output-write commands.
 AJIN loads its configured `.mot` file; motion coordinates exposed to units are
 millimetres, converted from pulses using the configured millimetres-per-pulse.
 
@@ -423,6 +435,7 @@ The MOVS light controller defaults to 19200 baud, 8-N-1 and a 1000 ms write time
 
 ```powershell
 dotnet build IBTM.slnx --configuration Release
+dotnet test IBTM.AlphaMotion.Tests/IBTM.AlphaMotion.Tests.csproj --configuration Release
 dotnet test IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj --configuration Release
 dotnet run --project IBTM/IBTM.csproj
 ```

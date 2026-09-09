@@ -6,6 +6,7 @@
   </Configurations>
   <Project Path="IBTM.Ajin/IBTM.Ajin.csproj" />
   <Project Path="IBTM.AlphaMotion/IBTM.AlphaMotion.csproj" />
+  <Project Path="IBTM.AlphaMotion.Tests/IBTM.AlphaMotion.Tests.csproj" />
   <Project Path="IBTM.BoltFastening/IBTM.BoltFastening.csproj" />
   <Project Path="IBTM.BoltFeeder/IBTM.BoltFeeder.csproj" />
   <Project Path="IBTM.Conveyor/IBTM.Conveyor.csproj" />

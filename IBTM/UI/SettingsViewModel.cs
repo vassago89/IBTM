@@ -11,7 +11,6 @@ using System.Windows;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using IBTM.AlphaMotion;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection.Training;
@@ -114,8 +113,6 @@ public partial class SettingsViewModel : ObservableObject
     public InspectionAlgorithm[] InspectionAlgorithms { get; } =
         Enum.GetValues<InspectionAlgorithm>();
     public bool IsVirtualCamera => _virtualCamera is not null;
-    public AlphaMotionCommunicationSpeed[] AlphaMotionCommunicationSpeeds { get; } =
-        Enum.GetValues<AlphaMotionCommunicationSpeed>();
     public HardwareMappingRow[] InputMappings { get; }
     public HardwareMappingRow[] OutputMappings { get; }
     public HardwareMappingRow[] AxisMappings { get; }

@@ -137,16 +137,13 @@ public sealed class ApplicationLogTests
     }
 
     [Fact]
-    public void AlphaMotionErrorIncludesControllerStationAndBit()
+    public void AlphaMotionUninitializedErrorIncludesCardAndBitWithoutCallingHardware()
     {
-        using var controller = new AlphaMotionController(new() { ControllerNumber = 2, StationNumber = 3 });
-        var check = typeof(AlphaMotionController).GetMethod("Check", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        var error = Assert.Throws<TargetInvocationException>(() =>
-            check.Invoke(controller, [-1, "nmiReadInputBit", (int?)7]));
+        using var controller = new AlphaMotionController(new() { ControllerNumber = 2 });
+        var error = Assert.Throws<IOException>(() => controller.ReadInput(7));
 
-        var message = Assert.IsType<IOException>(error.InnerException).Message;
-        Assert.Contains("nmiReadInputBit", message);
-        Assert.Contains("controller=2, station=3, bit=7", message);
-        Assert.Contains("-1", message);
+        Assert.Contains("AIO_GetDIBit", error.Message);
+        Assert.Contains("card=2, bit=7", error.Message);
+        Assert.Contains("not initialized", error.Message);
     }
 }

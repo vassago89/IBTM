@@ -618,14 +618,14 @@
                     <StackPanel Grid.Column="2">
                         <Border Style="{StaticResource SettingCard}" Margin="0,0,0,12">
                             <StackPanel>
-                                <TextBlock Text="AlphaMotion Controller" Style="{StaticResource SettingSectionTitle}"/>
-                                <TextBlock Text="Controller Number" Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox Text="{Binding Settings.AlphaMotion.ControllerNumber, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"/>
-                                <TextBlock Text="Station Number" Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox Text="{Binding Settings.AlphaMotion.StationNumber, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"/>
-                                <TextBlock Text="Communication Speed" Style="{StaticResource SettingFieldLabel}"/>
-                                <ComboBox ItemsSource="{Binding AlphaMotionCommunicationSpeeds}"
-                                          SelectedItem="{Binding Settings.AlphaMotion.CommunicationSpeed, Mode=TwoWay}"/>
+                                <TextBlock Text="AlphaMotion · TMC-AE16DIOe" Style="{StaticResource SettingSectionTitle}"/>
+                                <TextBlock Text="Card No." Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBox x:Name="AlphaMotionCardNumberInput"
+                                         Text="{Binding Settings.AlphaMotion.ControllerNumber, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
+                                         ToolTip="Match Card No. in the manufacturer's Digital IO utility (normally 0). Restart to apply."
+                                         Margin="0,0,0,10"/>
+                                <TextBlock Text="16 DI / 16 DO · channels 0–15. Uses the A-series Digital IO API; no station or communication-speed setting."
+                                           Foreground="{StaticResource TextMutedBrush}" FontSize="12" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
 

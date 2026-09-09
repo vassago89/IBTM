@@ -19,7 +19,7 @@ public sealed class PhysicalIoService(
     ApplicationLog? log = null)
     : IIoService, IDisposable
 {
-    private const int AlphaMotionChannelCount = 16;
+    private const int AlphaMotionChannelCount = AlphaMotionController.ChannelCount;
     private static readonly TimeSpan InputPollInterval =
         TimeSpan.FromMilliseconds(10);
     private static readonly InputIo[] Inputs = Enum.GetValues<InputIo>();

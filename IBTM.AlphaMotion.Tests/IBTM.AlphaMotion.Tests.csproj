@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <ProjectReference Include="../IBTM.Core/IBTM.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Exercise the real controller against a test-only SDK stand-in. No P/Invoke is compiled here. -->
+    <Compile Include="../IBTM.AlphaMotion/AlphaMotionController.cs" Link="Driver/AlphaMotionController.cs" />
+    <Compile Include="../IBTM.AlphaMotion/AlphaMotionSettings.cs" Link="Driver/AlphaMotionSettings.cs" />
+    <Compile Include="../IBTM.AlphaMotion/tmcDApiDef.cs" Link="Driver/tmcDApiDef.cs" />
+  </ItemGroup>
+</Project>
