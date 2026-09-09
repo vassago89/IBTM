@@ -91,7 +91,7 @@ public sealed class DiagnosticToolsTests
     }
 
     [Fact]
-    public void MotionMonitorUsesMappedNumbersAndMarksDisabledAxesUnavailable()
+    public void MotionMonitorUsesMappedNumbersAndKeepsDisabledAxesReadOnly()
     {
         using var services = CreateServices(new RecordingLight());
         var settings = services.GetRequiredService<MachineSettings>();
@@ -102,7 +102,7 @@ public sealed class DiagnosticToolsTests
             services.GetRequiredService<MachineState>(), settings);
         var row = Assert.Single(view.Axes, item => item.Group == hardware.Group && item.Axis == axis.Key);
         Assert.Equal("027", row.Address);
-        Assert.Equal("Disabled", row.Condition);
+        Assert.Equal("Unavailable · Disabled", row.Condition);
         Assert.Equal("—", row.Position);
         Assert.Null(row.Alarm);
         Assert.False(view.ToggleServoCommand.CanExecute(row));
@@ -174,6 +174,8 @@ public sealed class DiagnosticToolsTests
             });
             var x = Assert.Single(axes, row => row.Axis == MotionAxis.X);
             var y = Assert.Single(axes, row => row.Axis == MotionAxis.Y);
+            Assert.True(await VirtualTest.WaitUntilAsync(() => x.Alarm == true && y.ServoOn == false,
+                TimeSpan.FromSeconds(2)));
             Assert.Equal("Alarm", x.Condition);
             Assert.True(x.Alarm);
             Assert.Equal("Servo Off", y.Condition);
@@ -181,6 +183,100 @@ public sealed class DiagnosticToolsTests
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
         }
         finally { await machine.ShutdownAsync(); }
+    }
+
+    [Fact]
+    public async Task MotionDiagnosticsKeepPollingDisabledAxesWithoutWindowOrEventsAndDespiteControlReadFailure()
+    {
+        var probe = System.Reflection.DispatchProxy.Create<IXyMotion, DiagnosticMotionProbe>();
+        var diagnostics = (DiagnosticMotionProbe)probe;
+        using var services = CreateServices(new RecordingLight(), collection =>
+            collection.AddSingleton(provider => new IBTM.Inspection.InspectionGantry(probe,
+                provider.GetRequiredService<IBTM.Inspection.NgCarrierTransfer>(),
+                provider.GetRequiredService<OperationCancellation>(),
+                provider.GetRequiredService<IBTM.Inspection.InspectionGantrySettings>())));
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var settings = services.GetRequiredService<MachineSettings>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            var view = new MotionWindowViewModel(machine, state, settings) { EnabledOnly = false };
+            var x = Assert.Single(view.Axes, row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
+            var y = Assert.Single(view.Axes, row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.Y);
+            Assert.False(x.Enabled);
+            Assert.NotNull(x.Feedback);
+            Assert.False(view.ToggleServoCommand.CanExecute(x));
+            Assert.False(view.HomeAxisCommand.CanExecute(x));
+            var reads = diagnostics.Reads;
+
+            // Change raw state silently: no motion, input event, refresh request or monitor window.
+            diagnostics.Position = 42;
+            diagnostics.Alarmed = true;
+            Assert.True(await VirtualTest.WaitUntilAsync(() => diagnostics.Reads > reads && x.Position == "42.000"
+                && x.Alarm == true, TimeSpan.FromSeconds(2)));
+            Assert.Equal(MachineAlarm.None, state.Alarm); // Disabled axes are diagnostic only.
+            Assert.False(state.Display.MotionFaulted);
+
+            diagnostics.FailX = true;
+            diagnostics.Position = 43;
+            Assert.True(await VirtualTest.WaitUntilAsync(() => x.Feedback is null && x.Position == "43.000"
+                && y.Feedback is not null, TimeSpan.FromSeconds(2)));
+            Assert.NotNull(x.ReadError);
+            Assert.True(state.Display.Available);
+
+            // A failed enabled control scan must not hide the independent monitor cache
+            // or throw while WPF evaluates the RESET button.
+            settings.Units.NgCarrierTransfer = true;
+            diagnostics.FailControl = true;
+            Assert.True(await VirtualTest.WaitUntilAsync(() => !state.Display.Available,
+                TimeSpan.FromSeconds(2)));
+            Assert.NotNull(y.Feedback);
+            Assert.NotEqual("—", y.Position);
+            Assert.True(machine.CanReset);
+            Assert.False(view.ToggleServoCommand.CanExecute(y));
+            diagnostics.FailControl = false;
+            settings.Units.NgCarrierTransfer = false;
+
+            // Control-I/O loss does not stop independent motion diagnostics or allow control.
+            io.SetConnected(false);
+            diagnostics.FailX = false;
+            diagnostics.Alarmed = false;
+            diagnostics.Position = 44;
+            Assert.True(await VirtualTest.WaitUntilAsync(() => x.Position == "44.000" && x.Alarm == false,
+                TimeSpan.FromSeconds(2)));
+            Assert.False(view.ToggleServoCommand.CanExecute(x));
+            Assert.False(view.HomeAxisCommand.CanExecute(x));
+
+            await machine.ShutdownAsync();
+            Assert.True(services.GetRequiredService<IBTM.Inspection.InspectionGantry>()
+                .Motion.MonitoringCompletion.IsCompletedSuccessfully);
+        }
+        finally { await machine.ShutdownAsync(); }
+    }
+
+    public class DiagnosticMotionProbe : System.Reflection.DispatchProxy, IMotionDiagnostics
+    {
+        private readonly VirtualMotionService _motion = new(new(), new(), hasZ: false);
+        public volatile bool Alarmed;
+        public volatile bool FailX;
+        public volatile bool FailControl;
+        public int Position;
+        public int Reads;
+        public AxisState ReadDiagnosticState(MotionAxis axis)
+        {
+            Interlocked.Increment(ref Reads);
+            if (FailX && axis == MotionAxis.X) throw new IOException("Diagnostic X read failed.");
+            return new(false, false, Alarmed, true, false, true, false, false);
+        }
+        public double ReadDiagnosticPosition(MotionAxis axis) => Volatile.Read(ref Position);
+        protected override object? Invoke(System.Reflection.MethodInfo? method, object?[]? arguments)
+        {
+            if (FailControl && method!.Name == nameof(IMotionFeedback.GetAxisState))
+                throw new IOException("Control feedback read failed.");
+            return method!.Invoke(_motion, arguments);
+        }
     }
 
     [Fact]
@@ -325,7 +421,10 @@ public sealed class DiagnosticToolsTests
         }
     }
 
-    private static ServiceProvider CreateServices(RecordingLight light) => new ServiceCollection()
+    private static ServiceProvider CreateServices(RecordingLight light, Action<ServiceCollection>? configure = null)
+    {
+        var collection = new ServiceCollection();
+        collection
         .AddSingleton(new MachineStore(Path.Combine(Path.GetTempPath(), $"IBTM-diagnostic-{Guid.NewGuid():N}.db")))
         .AddIbtmApplication(new MachineSettings
         {
@@ -337,8 +436,10 @@ public sealed class DiagnosticToolsTests
                 Inspection = false, NgCarrierTransfer = false, NgShuttle = false, NgConveyor = false,
             },
         })
-        .AddSingleton<ILightController>(light)
-        .BuildServiceProvider();
+        .AddSingleton<ILightController>(light);
+        configure?.Invoke(collection);
+        return collection.BuildServiceProvider();
+    }
 
     private sealed class RecordingLight : ILightController
     {

@@ -14,6 +14,49 @@ public sealed class AjinControllerTests
     public AjinControllerTests() => AjinSdk.Reset();
 
     [Fact]
+    public void DiagnosticsReadUninitializedAxesAndIsolateStatusAndPositionFailuresWithoutWrites()
+    {
+        using var controller = new AjinController(new());
+        controller.Initialize(); // The I/O connection is open, but this motion group is disabled.
+        AjinSdk.MotionAxes[9] = new(Mechanical: (1U << 4) | (1U << 7), Position: 1234);
+        AjinSdk.MotionAxes[10] = new(Mechanical: 1U << 5, HomeResult: 1, Position: -567);
+        var motion = new AjinMotionService(controller, new() { Number = 9 }, new() { Number = 10 }, null,
+            0.01, new(), new(), new(), null);
+        var status = new MotionStatus(motion);
+        AjinSdk.Calls.Clear();
+
+        status.RefreshDiagnostics();
+
+        Assert.False(motion.IsReady); // Monitoring must not initialize motion/parameters/servo.
+        Assert.True(status.Diagnostics[MotionAxis.X].Snapshot.State!.Value.Alarm);
+        Assert.True(status.Diagnostics[MotionAxis.X].Snapshot.State!.Value.HomeSensor);
+        Assert.Equal(12.34, status.Diagnostics[MotionAxis.X].Snapshot.Position);
+        Assert.False(status.Diagnostics[MotionAxis.Y].Snapshot.State!.Value.ServoOn);
+        Assert.Equal(-5.67, status.Diagnostics[MotionAxis.Y].Snapshot.Position);
+
+        var stateRead = new AjinSdk.Call(nameof(CAXM.AxmStatusReadMechanical), Axis: 9);
+        var positionRead = new AjinSdk.Call(nameof(CAXM.AxmStatusGetActPos), Axis: 10);
+        AjinSdk.Results[stateRead] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        AjinSdk.Results[positionRead] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        status.RefreshDiagnostics();
+        Assert.Null(status.Diagnostics[MotionAxis.X].Snapshot.State);
+        Assert.Equal(12.34, status.Diagnostics[MotionAxis.X].Snapshot.Position);
+        Assert.Contains("axis=9", status.Diagnostics[MotionAxis.X].Snapshot.ReadError!.Message);
+        Assert.NotNull(status.Diagnostics[MotionAxis.Y].Snapshot.State);
+        Assert.Null(status.Diagnostics[MotionAxis.Y].Snapshot.Position);
+
+        AjinSdk.Results.Clear();
+        AjinSdk.MotionAxes[10] = AjinSdk.MotionAxes[10] with { Position = -5.67, Unit = 1, Pulse = 100 };
+        status.RefreshDiagnostics();
+        Assert.Equal(-5.67, status.Diagnostics[MotionAxis.Y].Snapshot.Position!.Value, 8);
+        Assert.All(status.Diagnostics.Values, axis => Assert.Null(axis.Snapshot.ReadError));
+        Assert.All(AjinSdk.Calls, call => Assert.Contains(call.Operation, new[] {
+            nameof(CAXM.AxmStatusReadMechanical), nameof(CAXM.AxmHomeGetResult),
+            nameof(CAXM.AxmSignalIsServoOn), nameof(CAXM.AxmStatusGetActPos),
+            nameof(CAXM.AxmMotGetMoveUnitPerPulse) }));
+    }
+
+    [Fact]
     public void MotionInitializationReadsAlarmsAndServoOffWithoutTurningServosOn()
     {
         using var controller = new AjinController(new());

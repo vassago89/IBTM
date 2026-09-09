@@ -134,8 +134,10 @@ During automatic operation the shared background worker samples enabled motion
 feedback at least once per 250 ms wait interval, even with the MOTION window closed.
 An observed axis fault, lost servo/home readiness or failed feedback scan latches
 the corresponding alarm and cancels automatic operation. Recovering feedback does
-not clear that alarm or restart the machine. Manual idle refresh remains event-driven
-unless a monitor window requests polling.
+not clear that alarm or restart the machine. Each physical/virtual motion object's
+monitor starts during machine initialization and refreshes its cached position and
+signals every 250 ms, including while idle. Motion-completion waits remain separate
+and return when their command finishes.
 
 `MachineController` owns the run lifetime. Startup hardware checks and automatic
 units share the same cancellation token. A unit fault cancels the other units.
@@ -199,11 +201,14 @@ home sequence is unchanged.
 The sidebar **MOTION** button opens a separate Motion Monitor that stays open in
 AUTO, during motion and during alarms. It groups axes by mechanism and shows the
 active controller axis number, position, servo, homed/home sensor, limits and alarm
-feedback. While open it requests a shared background refresh every 250 ms, including
-actual position, so changes made outside the application are also reflected. Disabled
-axes are not read, and closing the window stops its refresh timer. Search accepts the
-axis number or name; enabled axes are shown by default.
-Disabled/unavailable feedback is shown as unknown, not OFF or a valid position.
+feedback. It only displays each motion object's background monitor cache; it has no
+polling timer and does not own native reads. All configured axes, including disabled
+axes, are sampled without enabling servos or initializing motion parameters. Closing
+the window does not stop these object-owned loops; machine shutdown cancels and drains
+them. Search accepts the axis number or name; enabled axes are shown by default.
+Disabled axes remain read-only but display their actual feedback. An unreadable state
+or position is shown as unknown independently; one axis/group failure does not hide
+healthy monitor rows. Disabled-axis diagnostics do not enter machine readiness/alarms.
 AJIN startup no longer turns servos ON automatically. Axis alarms and Servo OFF
 are displayed as feedback, not as missing communication; failed Servo ON/RESET
 commands do not hide readable positions or signals. Explicit Servo controls and

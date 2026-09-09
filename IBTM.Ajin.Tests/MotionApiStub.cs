@@ -7,6 +7,12 @@ internal static partial class CAXM
         AjinSdk.Record(new(nameof(AxmMotSetMoveUnitPerPulse), Axis: axis));
     public static uint AxmMotSetAccelUnit(int axis, uint unit) =>
         AjinSdk.Record(new(nameof(AxmMotSetAccelUnit), Value: unit, Axis: axis));
+    public static uint AxmMotGetMoveUnitPerPulse(int axis, ref double unit, ref int pulse)
+    {
+        unit = AjinSdk.MotionAxes[axis].Unit;
+        pulse = AjinSdk.MotionAxes[axis].Pulse;
+        return AjinSdk.Record(new(nameof(AxmMotGetMoveUnitPerPulse), Axis: axis));
+    }
     public static uint AxmStatusReadMechanical(int axis, ref uint value)
     {
         value = AjinSdk.MotionAxes[axis].Mechanical;

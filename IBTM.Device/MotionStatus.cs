@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace IBTM.Device;
 
@@ -12,11 +14,14 @@ public sealed class MotionStatus : INotifyPropertyChanged
 {
     private MotionPosition _position;
     private bool _isMoving;
+    private Task? _monitoring;
+    private readonly TaskCompletionSource _firstMonitorRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public MotionStatus(IMotionFeedback motion)
     {
         Feedback = motion;
         Axes = motion.Axes.ToDictionary(axis => axis, _ => new AxisStatus());
+        Diagnostics = motion.Axes.ToDictionary(axis => axis, _ => new MotionDiagnostics());
         _position = new(0, 0, 0);
         _isMoving = motion.IsMoving;
 
@@ -31,6 +36,63 @@ public sealed class MotionStatus : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     public IMotionFeedback Feedback { get; }
     public IReadOnlyDictionary<MotionAxis, AxisStatus> Axes { get; }
+    public IReadOnlyDictionary<MotionAxis, MotionDiagnostics> Diagnostics { get; }
+    public Task MonitoringCompletion => _monitoring ?? Task.CompletedTask;
+
+    public Task StartMonitoringAsync(CancellationToken lifetime, Action refreshed,
+        Action<MotionAxis, Exception> reportError)
+    {
+        if (Feedback is not IMotionDiagnostics) return Task.CompletedTask;
+        if (_monitoring is not null) return _firstMonitorRead.Task;
+        _monitoring = Task.Run(async () =>
+        {
+            var errors = new Dictionary<MotionAxis, string>();
+            try
+            {
+                while (true)
+                {
+                    lifetime.ThrowIfCancellationRequested();
+                    RefreshDiagnostics();
+                    foreach (var (axis, status) in Diagnostics)
+                    {
+                        var error = status.Snapshot.ReadError;
+                        if (error is null) errors.Remove(axis);
+                        else if (!errors.TryGetValue(axis, out var previous) || previous != error.Message)
+                        {
+                            errors[axis] = error.Message;
+                            reportError(axis, error);
+                        }
+                    }
+                    refreshed();
+                    _firstMonitorRead.TrySetResult();
+                    await Task.Delay(TimeSpan.FromMilliseconds(250), lifetime).ConfigureAwait(false);
+                }
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
+                _firstMonitorRead.TrySetCanceled(lifetime);
+            }
+            catch (Exception error)
+            {
+                foreach (var (axis, status) in Diagnostics)
+                {
+                    status.Invalidate(error);
+                    reportError(axis, error);
+                }
+                refreshed();
+                _firstMonitorRead.TrySetException(error);
+                throw;
+            }
+        });
+        return _firstMonitorRead.Task;
+    }
+
+    public void RefreshDiagnostics()
+    {
+        if (Feedback is not IMotionDiagnostics diagnostics) return;
+        foreach (var (axis, status) in Diagnostics) status.Refresh(diagnostics, axis);
+    }
+
     public bool XyHomed => Axes[MotionAxis.X].State is { Homed: true }
         && (!Feedback.HasY || Axes[MotionAxis.Y].State is { Homed: true });
 

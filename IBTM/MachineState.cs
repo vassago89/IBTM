@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Threading;
@@ -186,10 +187,15 @@ public sealed class MachineState : IDisposable
 
     public void RequestDisplayRefresh() => _displayRequested.Set();
 
-    internal Task StartDisplayUpdatesAsync(Func<MachineDisplay> read)
+    internal async Task StartDisplayUpdatesAsync(Func<MachineDisplay> read)
     {
         if (_displayUpdates is null)
         {
+            var monitors = new List<Task>();
+            foreach (var (group, motion) in _motionDisplays)
+                monitors.Add(motion.StartMonitoringAsync(_displayLifetime.Token, RequestDisplayRefresh,
+                    (axis, error) => _log?.Error($"Motion monitor {group}/{axis}: feedback read failed.", error)));
+            await Task.WhenAll(monitors).ConfigureAwait(false);
             Changed += RequestDisplayRefresh;
             RequestDisplayRefresh();
             _displayUpdates = Task.Run(async () =>
@@ -199,8 +205,8 @@ public sealed class MachineState : IDisposable
                 {
                     while (true)
                     {
-                        // Automatic operation must detect external drive faults even with all
-                        // monitor windows closed and no input/motion events being published.
+                        // Motion objects publish their own always-on monitor cache. Keep the
+                        // automatic watchdog for feedback providers without a monitor loop.
                         await _displayRequested.WaitAsync(AutomaticRunning
                             ? TimeSpan.FromMilliseconds(250) : Timeout.InfiniteTimeSpan,
                             cancellationToken).ConfigureAwait(false);
@@ -252,13 +258,15 @@ public sealed class MachineState : IDisposable
                 }
             });
         }
-        return _firstDisplay.Task;
+        await _firstDisplay.Task.ConfigureAwait(false);
     }
 
     internal Task StopDisplayUpdatesAsync()
     {
         _displayLifetime.Cancel();
-        return _displayUpdates ?? Task.CompletedTask;
+        var stopped = new List<Task> { _displayUpdates ?? Task.CompletedTask };
+        foreach (var (_, motion) in _motionDisplays) stopped.Add(motion.MonitoringCompletion);
+        return Task.WhenAll(stopped);
     }
 
     public void Dispose()

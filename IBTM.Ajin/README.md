@@ -50,6 +50,10 @@ persist across power cycles. Existing home/signal settings must already be valid
 and applies home speeds when homing; the driver's mm conversion is unchanged.
 Initialization does not send Servo ON or reset axis alarms. Once initialized,
 position and signal feedback remain readable with servos OFF or axis alarms active.
+Read-only diagnostic getters also work for motion groups that have not been initialized,
+using the already-open AXL connection without changing parameters or servo state. Each
+motion status object owns a continuous position/signal monitor until machine shutdown;
+individual query failures are reported without hiding another axis's feedback.
 Explicit Servo ON failures do not invalidate communication readiness. The existing
 operator RESET sequence still resets axis alarms before requesting Servo ON.
 

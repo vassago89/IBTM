@@ -28,7 +28,7 @@ public class AjinMotionService(
             : (axisY.Minimum, axisY.Maximum),
         zRange: axisZ is null
             ? null
-            : (axisZ.Minimum, axisZ.Maximum))
+            : (axisZ.Minimum, axisZ.Maximum)), IMotionDiagnostics
 {
     private const uint HomeSuccess = 0x01;
     private const uint HomeSearching = 0x02;
@@ -243,19 +243,26 @@ public class AjinMotionService(
                 NegativeLimit: false);
         }
 
+        return ReadDiagnosticState(axis);
+    }
+
+    // These getters never initialize the motion, change parameters, reset alarms or enable servos.
+    // Disabled groups can therefore be monitored through the already-open AXL connection.
+    public AxisState ReadDiagnosticState(MotionAxis axis)
+    {
         var axisNumber = GetAxis(axis);
         var mechanical = 0U;
         var homeResult = 0U;
         var servoOn = 0U;
         AjinController.Check(
             CAXM.AxmStatusReadMechanical(axisNumber, ref mechanical),
-            nameof(CAXM.AxmStatusReadMechanical));
+            $"{nameof(CAXM.AxmStatusReadMechanical)} (axis={axisNumber})");
         AjinController.Check(
             CAXM.AxmHomeGetResult(axisNumber, ref homeResult),
-            nameof(CAXM.AxmHomeGetResult));
+            $"{nameof(CAXM.AxmHomeGetResult)} (axis={axisNumber})");
         AjinController.Check(
             CAXM.AxmSignalIsServoOn(axisNumber, ref servoOn),
-            nameof(CAXM.AxmSignalIsServoOn));
+            $"{nameof(CAXM.AxmSignalIsServoOn)} (axis={axisNumber})");
 
         return new AxisState(
             Homed: homeResult == HomeSuccess,
@@ -266,6 +273,22 @@ public class AjinMotionService(
             HomeSensor: Bit(mechanical, HomeSensorBit),
             PositiveLimit: Bit(mechanical, PositiveLimitBit),
             NegativeLimit: Bit(mechanical, NegativeLimitBit));
+    }
+
+    public double ReadDiagnosticPosition(MotionAxis axis)
+    {
+        var number = GetAxis(axis);
+        var position = ReadPosition(number);
+        if (_initialized) return position;
+        // Disabled groups have not applied our 1/1 pulse units. Read (never rewrite)
+        // the existing SDK scale before converting their position to millimeters.
+        var unit = 0.0;
+        var pulse = 0;
+        AjinController.Check(CAXM.AxmMotGetMoveUnitPerPulse(number, ref unit, ref pulse),
+            $"{nameof(CAXM.AxmMotGetMoveUnitPerPulse)} (axis={number})");
+        if (!double.IsFinite(unit) || unit <= 0 || pulse <= 0)
+            throw new System.IO.IOException($"Invalid AJIN position scale (axis={number}, unit={unit}, pulse={pulse}).");
+        return position * pulse / unit;
     }
 
     protected override async Task<bool> HomeCoreAsync(
@@ -547,7 +570,7 @@ public class AjinMotionService(
         var position = 0.0;
         AjinController.Check(
             CAXM.AxmStatusGetActPos(axis, ref position),
-            nameof(CAXM.AxmStatusGetActPos));
+            $"{nameof(CAXM.AxmStatusGetActPos)} (axis={axis})");
         return position * _millimetersPerPulse;
     }
 

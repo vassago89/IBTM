@@ -21,7 +21,8 @@ public sealed class AxisStatus : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     public AxisState? State { get; private set; }
     public bool ServoOn => State is { ServoOn: true };
-    public AxisCondition Condition => State switch
+    public AxisCondition Condition => GetCondition(State);
+    public static AxisCondition GetCondition(AxisState? state) => state switch
     {
         null => AxisCondition.Unavailable,
         { Emergency: true } => AxisCondition.Emergency,

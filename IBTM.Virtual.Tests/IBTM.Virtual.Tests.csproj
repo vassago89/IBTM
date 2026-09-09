@@ -29,4 +29,8 @@
     <ProjectReference Include="..\IBTM.Virtual\IBTM.Virtual.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\IBTM\UI\MotionWindow.xaml" Link="MotionWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

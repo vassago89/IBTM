@@ -26,7 +26,7 @@ public sealed class VirtualMotionService(
         horizontalZ,
         xRange,
         yRange,
-        zRange), IDisposable
+        zRange), IDisposable, IMotionDiagnostics
 {
     private static readonly TimeSpan UpdateInterval = TimeSpan.FromMilliseconds(10);
     private static readonly int AxisCount = Enum.GetValues<MotionAxis>().Length;
@@ -114,6 +114,9 @@ public sealed class VirtualMotionService(
     }
 
     public override (double X, double Y, double Z) GetPosition() => (_x, _y, _z);
+
+    public AxisState ReadDiagnosticState(MotionAxis axis) => GetAxisState(axis);
+    public double ReadDiagnosticPosition(MotionAxis axis) => GetCoordinate(axis);
 
     public override AxisState GetAxisState(MotionAxis axis) => new(
         Homed: _homed[(int)axis],

@@ -7,7 +7,8 @@ internal static class AjinSdk
     internal sealed record Call(string Operation, int? Module = null, int? Offset = null,
         uint? Value = null, string? Path = null, int? Axis = null);
     internal sealed record Module(int Inputs, int Outputs, AXT_MODULE Type, int Board = 0, int Position = 0);
-    internal sealed record MotionAxis(uint Mechanical = 0, uint HomeResult = 0, uint ServoOn = 0, double Position = 0);
+    internal sealed record MotionAxis(uint Mechanical = 0, uint HomeResult = 0, uint ServoOn = 0,
+        double Position = 0, double Unit = 1, int Pulse = 1);
     internal static readonly Dictionary<int, MotionAxis> MotionAxes = [];
     internal static readonly List<Call> Calls = [];
     internal static readonly Dictionary<Call, uint> Results = [];

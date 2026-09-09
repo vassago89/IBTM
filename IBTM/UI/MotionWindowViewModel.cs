@@ -14,22 +14,18 @@ namespace IBTM.UI;
 
 public sealed class MotionMonitorAxis(
     MotionGroup group, MotionAxis axis, int number, MotionStatus motion,
-    UnitSettings units, MachineState state) : ObservableObject
+    UnitSettings units) : ObservableObject
 {
     public MotionGroup Group { get; } = group;
     public MotionAxis Axis { get; } = axis;
     public int Number { get; } = number;
     public string Address => Number.ToString("D3", CultureInfo.InvariantCulture);
     public bool Enabled => units.IsMotionEnabled(Group);
-    public AxisState? Feedback => Enabled && state.Display.Available ? motion.Axes[Axis].State : null;
-    public string Condition => !Enabled ? "Disabled"
-        : Feedback is null ? "Unavailable" : motion.Axes[Axis].Condition.GetDescription();
-    public string Position => Feedback is null ? "—" : (Axis switch
-    {
-        MotionAxis.X => motion.Position.X,
-        MotionAxis.Y => motion.Position.Y,
-        _ => motion.Position.Z,
-    }).ToString("F3", CultureInfo.InvariantCulture);
+    public AxisState? Feedback => motion.Diagnostics[Axis].Snapshot.State;
+    public string Condition => AxisStatus.GetCondition(Feedback).GetDescription()
+        + (Enabled ? "" : " · Disabled");
+    public string Position => motion.Diagnostics[Axis].Snapshot.Position?.ToString("F3", CultureInfo.InvariantCulture) ?? "—";
+    public string? ReadError => motion.Diagnostics[Axis].Snapshot.ReadError?.Message;
     public bool? ServoOn => Feedback?.ServoOn;
     public bool? Homed => Feedback?.Homed;
     public bool? HomeSensor => Feedback?.HomeSensor;
@@ -59,7 +55,7 @@ public partial class MotionWindowViewModel : ObservableObject
         Axes = settings.MotionSections.SelectMany(section => section.Hardware.AxisSignals.Select(axis =>
             new MotionMonitorAxis(section.Hardware.Group, axis.Key,
                 section.Hardware.Axes[axis.Value].Number,
-                machine.GetMotionStatus(section.Hardware.Group), settings.Units, state))).ToArray();
+                machine.GetMotionStatus(section.Hardware.Group), settings.Units))).ToArray();
         _enabledStates = Axes.Select(row => row.Enabled).ToArray();
         View = new ListCollectionView(Axes);
         View.GroupDescriptions.Add(new PropertyGroupDescription(nameof(MotionMonitorAxis.Group)));
@@ -80,8 +76,9 @@ public partial class MotionWindowViewModel : ObservableObject
 
     [RelayCommand(CanExecute = nameof(CanToggleServo))]
     private void ToggleServo(MotionMonitorAxis row) => _machine.ToggleServo(row.Group, row.Axis);
-    private bool CanToggleServo(MotionMonitorAxis? row) => row?.Feedback is not null
-        && !_state.Display.AutoMode && _state.Display.SafetyReady && !_state.Display.IsRunning;
+    private bool CanToggleServo(MotionMonitorAxis? row) => row is { Enabled: true, Feedback: not null }
+        && _state.Display.Available && !_state.Display.AutoMode
+        && _state.Display.SafetyReady && !_state.Display.IsRunning;
 
     [RelayCommand(CanExecute = nameof(CanHomeAxis), IncludeCancelCommand = true)]
     private Task HomeAxisAsync(MotionMonitorAxis row, CancellationToken cancellationToken) =>

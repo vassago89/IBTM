@@ -7,37 +7,41 @@
         <Style x:Key="MotionBit" TargetType="ContentControl">
             <Setter Property="Margin" Value="3,0"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Content" Value="—"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContentControl">
-                        <Border x:Name="Badge" CornerRadius="3" Padding="5,6" BorderThickness="1"
-                                BorderBrush="{StaticResource DividerBrush}" Background="{StaticResource EquipBgBrush}">
-                            <TextBlock x:Name="Label" Text="—" HorizontalAlignment="Center"
-                                       Foreground="{StaticResource TextMutedBrush}" FontSize="11" FontWeight="Bold"/>
+                        <Border CornerRadius="3" Padding="5,6" BorderThickness="1"
+                                BorderBrush="{TemplateBinding BorderBrush}" Background="{TemplateBinding Background}">
+                            <TextBlock Text="{TemplateBinding Content}" HorizontalAlignment="Center"
+                                       Foreground="{TemplateBinding Foreground}" FontSize="11" FontWeight="Bold"/>
                         </Border>
-                        <ControlTemplate.Triggers>
-                            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="False">
-                                <Setter TargetName="Label" Property="Text" Value="OFF"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
-                                <Setter TargetName="Label" Property="Text" Value="ON"/>
-                                <Setter TargetName="Label" Property="Foreground" Value="#101C24"/>
-                                <Setter TargetName="Badge" Property="Background" Value="{StaticResource IoInputOnBrush}"/>
-                                <Setter TargetName="Badge" Property="BorderBrush" Value="{StaticResource IoInputOnBrush}"/>
-                            </DataTrigger>
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="True"/>
-                                    <Condition Binding="{Binding Content, RelativeSource={RelativeSource TemplatedParent}}" Value="Fault"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter TargetName="Badge" Property="Background" Value="{StaticResource AccentRedBrush}"/>
-                                <Setter TargetName="Badge" Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
-                                <Setter TargetName="Label" Property="Foreground" Value="White"/>
-                            </MultiDataTrigger>
-                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="False">
+                    <Setter Property="Content" Value="OFF"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                    <Setter Property="Content" Value="ON"/>
+                    <Setter Property="Foreground" Value="#101C24"/>
+                    <Setter Property="Background" Value="{StaticResource IoInputOnBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource IoInputOnBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="MotionFaultBit" TargetType="ContentControl" BasedOn="{StaticResource MotionBit}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="True">
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Background" Value="{StaticResource AccentRedBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
     </Window.Resources>
     <Grid Margin="24,20">
@@ -52,7 +56,7 @@
         </Grid>
         <StackPanel Grid.Row="1" Margin="0,6,0,16">
             <TextBlock Text="{Binding ControlStatus}" Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap"/>
-            <TextBlock Text="Blue = ON · red = limit / alarm · — = unavailable · PCB Supply homing uses Home All"
+            <TextBlock Text="All configured axes are monitored, including disabled axes · blue = ON · red = limit / alarm · — = read unavailable"
                        Style="{StaticResource PageSubtitleStyle}" Margin="0,4,0,0" TextWrapping="Wrap"/>
         </StackPanel>
         <Grid Grid.Row="2" Margin="0,0,0,16">
@@ -106,13 +110,13 @@
                         <TextBlock Text="{Binding Address}" Style="{StaticResource IoAddressStyle}" ToolTip="Active controller axis number."/>
                         <TextBlock Grid.Column="1" Text="{Binding Axis}" VerticalAlignment="Center" FontWeight="SemiBold"/>
                         <TextBlock Grid.Column="2" Text="{Binding Position}" VerticalAlignment="Center" FontFamily="Consolas" FontSize="15"/>
-                        <TextBlock Grid.Column="3" Text="{Binding Condition}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0"/>
+                        <TextBlock Grid.Column="3" Text="{Binding Condition}" ToolTip="{Binding ReadError}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0"/>
                         <ContentControl Grid.Column="4" Tag="{Binding ServoOn}" Style="{StaticResource MotionBit}"/>
                         <ContentControl Grid.Column="5" Tag="{Binding Homed}" Style="{StaticResource MotionBit}"/>
                         <ContentControl Grid.Column="6" Tag="{Binding HomeSensor}" Style="{StaticResource MotionBit}"/>
-                        <ContentControl Grid.Column="7" Tag="{Binding NegativeLimit}" Content="Fault" Style="{StaticResource MotionBit}"/>
-                        <ContentControl Grid.Column="8" Tag="{Binding PositiveLimit}" Content="Fault" Style="{StaticResource MotionBit}"/>
-                        <ContentControl Grid.Column="9" Tag="{Binding Alarm}" Content="Fault" Style="{StaticResource MotionBit}" ToolTip="Axis alarm or emergency."/>
+                        <ContentControl Grid.Column="7" Tag="{Binding NegativeLimit}" Style="{StaticResource MotionFaultBit}"/>
+                        <ContentControl Grid.Column="8" Tag="{Binding PositiveLimit}" Style="{StaticResource MotionFaultBit}"/>
+                        <ContentControl Grid.Column="9" Tag="{Binding Alarm}" Style="{StaticResource MotionFaultBit}" ToolTip="Axis alarm or emergency."/>
                         <StackPanel Grid.Column="10" Orientation="Horizontal" HorizontalAlignment="Right">
                             <Button Content="{Binding ServoAction}" Width="96" Margin="8,0,6,0"
                                     Style="{StaticResource SecondaryButtonStyle}" CommandParameter="{Binding}"

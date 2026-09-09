@@ -169,9 +169,11 @@ public sealed class MachineController
                 return false;
             }
 
-            var motion = _state.MotionReadiness;
-            return _state.IsError
-                || motion.Faulted
+            // RESET availability is also evaluated by the UI. Never issue a native
+            // read here: a failed feedback scan must leave the recovery command usable.
+            if (_state.IsError || _state.Display.ReadError is not null) return true;
+            var motion = _state.DisplayMotionReadiness;
+            return motion.Faulted
                 || !motion.ServosOn
                 || !_state.ServoMainContactorOn;
         }

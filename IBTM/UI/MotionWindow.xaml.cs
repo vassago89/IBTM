@@ -3,7 +3,6 @@ using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Threading;
 
 namespace IBTM.UI;
 
@@ -14,27 +13,17 @@ public partial class MotionWindow : Window
     private bool _closing;
     private bool _shutdownCompleted;
     private int _refreshQueued;
-    private readonly DispatcherTimer _refreshTimer;
 
     public MotionWindow(MotionWindowViewModel viewModel, MachineState state)
     {
         _viewModel = viewModel;
         _state = state;
-        _refreshTimer = new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
-        {
-            Interval = TimeSpan.FromMilliseconds(250),
-        };
-        _refreshTimer.Tick += OnRefreshTick;
         InitializeComponent();
         DataContext = viewModel;
         state.DisplayChanged += OnDisplayChanged;
         viewModel.Refresh();
         state.RequestDisplayRefresh();
-        _refreshTimer.Start();
     }
-
-    // Only request a shared worker scan here; native reads never run on the UI timer.
-    private void OnRefreshTick(object? sender, EventArgs e) => _state.RequestDisplayRefresh();
 
     private void OnDisplayChanged()
     {
@@ -49,7 +38,6 @@ public partial class MotionWindow : Window
     public Task ShutdownAsync()
     {
         IsEnabled = false;
-        _refreshTimer.Stop();
         return _viewModel.ShutdownAsync();
     }
 
@@ -70,7 +58,6 @@ public partial class MotionWindow : Window
         {
             _closing = false;
             IsEnabled = true;
-            _refreshTimer.Start();
             System.Diagnostics.Trace.TraceError("Motion window shutdown failed. {0}", exception);
             MessageBox.Show(this, exception.Message, "Motion Shutdown Failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
@@ -79,8 +66,6 @@ public partial class MotionWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _closing = true;
-        _refreshTimer.Stop();
-        _refreshTimer.Tick -= OnRefreshTick;
         _state.DisplayChanged -= OnDisplayChanged;
         base.OnClosed(e);
     }
