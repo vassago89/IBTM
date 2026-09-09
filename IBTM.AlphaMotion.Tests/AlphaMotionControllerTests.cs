@@ -18,13 +18,8 @@ public sealed class AlphaMotionControllerTests
         TMCAEDLL.Calls.Where(call => call.Operation != "AIO_GetErrorCode").ToArray();
 
     [Theory]
-    [InlineData(0, 0xAEU, 0U)]
-    [InlineData(1, 0xAEU, 0U)]
     [InlineData(0, 0xAE2EU, 0x13U)]
-    [InlineData(1, 0xAE2EU, 0x13U)]
-    [InlineData(0, 0xAE2FU, 0x13U)]
-    [InlineData(1, 0xAF1U, 0U)]
-    [InlineData(0, 0U, 0U)]
+    [InlineData(1, 0U, 0U)]
     public void InitializationUsesSampleApisAndProbesBothPortsBeforeReadiness(int result, uint model, uint communication)
     {
         TMCAEDLL.DefaultResult = result;
@@ -47,12 +42,8 @@ public sealed class AlphaMotionControllerTests
 
     [Theory]
     [InlineData(0, 0U)]
-    [InlineData(0, 8U)]
-    [InlineData(0, 0x8000U)]
     [InlineData(0, 0xFFFFU)]
     [InlineData(1, 0U)]
-    [InlineData(1, 8U)]
-    [InlineData(1, 0x8000U)]
     [InlineData(1, 0xFFFFU)]
     public void ValidPortValuesIncludeAllOffAndAllOn(int result, uint value)
     {

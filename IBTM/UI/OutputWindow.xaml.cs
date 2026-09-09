@@ -20,11 +20,12 @@ public enum OutputFeedbackState
     [Description("Timeout")] Timeout,
 }
 
-public partial class OutputWindow : Window
+public partial class OutputWindow : Window, INotifyPropertyChanged
 {
     private bool _closing;
     private bool _shutdownCompleted;
     private readonly MachineState _state;
+    private int _refreshQueued;
 
     public OutputWindow(IIoService io, IoSignals signals, MachineController machine, MachineState state)
     {
@@ -35,10 +36,33 @@ public partial class OutputWindow : Window
 
         InitializeComponent();
         DataContext = this;
+        state.DisplayChanged += OnDisplayChanged;
+        state.RequestDisplayRefresh();
     }
 
+    public event PropertyChangedEventHandler? PropertyChanged;
     public OutputControlRow[] Rows { get; }
     public IoList<OutputControlRow, OutputIo> Filter { get; }
+    public string ControlStatus => _state.Display.DiagnosticOutputBlock
+        ?? "MANUAL output control · individual output interlocks apply · existing alarms remain latched.";
+
+    private void OnDisplayChanged()
+    {
+        if (_closing || _shutdownCompleted || Interlocked.Exchange(ref _refreshQueued, 1) != 0) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            Interlocked.Exchange(ref _refreshQueued, 0);
+            if (_closing || _shutdownCompleted) return;
+            PropertyChanged?.Invoke(this, new(nameof(ControlStatus)));
+            foreach (var row in Rows) row.RefreshAccess();
+        });
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _state.DisplayChanged -= OnDisplayChanged;
+        base.OnClosed(e);
+    }
 
     public Task ShutdownAsync()
     {
@@ -86,14 +110,13 @@ public partial class OutputWindow : Window
 
 public sealed partial class OutputControlRow : ObservableObject
 {
-    private readonly IIoService _io;
     private readonly MachineController _machine;
     private bool _timedOut;
     private bool _waitingForFeedback;
+    [ObservableProperty] private string? _feedbackError;
 
     public OutputControlRow(IIoService io, IoOutputStatus status, MachineController machine)
     {
-        _io = io;
         _machine = machine;
         Io = status;
         PropertyChangedEventManager.AddHandler(
@@ -109,23 +132,27 @@ public sealed partial class OutputControlRow : ObservableObject
         : Io.IsMatched ? OutputFeedbackState.Matched
         : OutputFeedbackState.NotMatched;
 
-    [RelayCommand]
+    public string ToggleHint => _machine.GetManualOutputBlock(Io.Signal)
+        ?? (MachineController.IsDiagnosticInterfaceOutput(Io.Signal)
+            ? "Confirm connected equipment is stopped. Send ON for up to 1 second, then automatically OFF."
+            : "Toggle this output after rechecking live safety conditions.");
+    public string ToggleLabel => MachineController.IsDiagnosticInterfaceOutput(Io.Signal) ? "Test 1s" : "Toggle";
+    private bool CanToggle() => _machine.GetManualOutputBlock(Io.Signal) is null;
+
+    [RelayCommand(CanExecute = nameof(CanToggle))]
     private async Task ToggleAsync(CancellationToken cancellationToken)
     {
         Refresh();
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (_machine.ToggleManualOutput(Io.Signal) is not { } value) return;
-            if (Io.HasFeedback)
-            {
-                SetWaiting(true);
-                await _io.WaitForOutputFeedbackAsync(Io.Signal, value, cancellationToken);
-            }
+            if (Io.HasFeedback) SetWaiting(true);
+            await _machine.ToggleManualOutputAsync(Io.Signal, cancellationToken);
         }
-        catch (IoTimeoutException)
+        catch (IoTimeoutException exception)
         {
             _timedOut = true;
+            FeedbackError = $"{Io.Signal} [{Io.Address}]: {exception.Message}";
         }
         catch (OperationCanceledException)
         {
@@ -145,7 +172,15 @@ public sealed partial class OutputControlRow : ObservableObject
     public void Refresh()
     {
         _timedOut = false;
+        FeedbackError = null;
         OnPropertyChanged(nameof(FeedbackState));
+        RefreshAccess();
+    }
+
+    public void RefreshAccess()
+    {
+        ToggleCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(ToggleHint));
     }
 
     private void OnFeedbackChanged(object? sender, PropertyChangedEventArgs args) =>

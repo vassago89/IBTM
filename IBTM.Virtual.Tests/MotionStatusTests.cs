@@ -24,6 +24,7 @@ public sealed class MotionStatusTests
         Assert.Equal(0, motion.Reads);
 
         status.RefreshAxes();
+        Assert.Equal(new MotionPosition(12, 0, 0), status.Position);
         Assert.Equal(AxisCondition.Ready, first.Feedback.Condition);
         Assert.True(status.XyHomed);
         Assert.Equal(1, motion.Reads);
@@ -45,7 +46,9 @@ public sealed class MotionStatusTests
 
         // External card state can change while no application move is active.
         motion.State = motion.State with { ServoOn = false };
+        motion.Position = (24, 0, 0); // No PositionChanged event from an external adjustment.
         status.RefreshAxes();
+        Assert.Equal(new MotionPosition(24, 0, 0), status.Position);
         Assert.Equal(AxisCondition.ServoOff, first.Feedback.Condition);
         Assert.Equal(first.Feedback.Condition, second.Feedback.Condition);
     }
@@ -58,11 +61,13 @@ public sealed class MotionStatusTests
         status.RefreshAxes();
         Assert.True(status.XyHomed);
         var reads = motion.Reads;
+        var positionReads = motion.PositionReads;
         motion.Failure = new IOException("AXL connection closed.");
 
         status.RefreshAxes(available: false);
 
         Assert.Equal(reads, motion.Reads);
+        Assert.Equal(positionReads, motion.PositionReads);
         Assert.False(status.XyHomed);
         Assert.All(status.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
@@ -76,7 +81,14 @@ public sealed class MotionStatusTests
         public AxisState State = new(true, true, false, true, false, false, false, false);
         public Exception? Failure;
         public int Reads;
+        public int PositionReads;
+        public (double X, double Y, double Z) Position = (12, 0, 0);
         public override bool IsReady => true;
+        public override (double X, double Y, double Z) GetPosition()
+        {
+            PositionReads++;
+            return Failure is { } failure ? throw failure : Position;
+        }
         public override AxisState GetAxisState(MotionAxis axis)
         {
             Reads++;

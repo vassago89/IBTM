@@ -11,10 +11,14 @@ namespace IBTM.UI;
 public partial class InputWindow : Window, INotifyPropertyChanged
 {
     private readonly VirtualIoService? _virtualIo;
+    private readonly IoSignals _signals;
+    private bool _closed;
 
     public InputWindow(IIoService io, IoSignals signals)
     {
         _virtualIo = io as VirtualIoService;
+        _signals = signals;
+        signals.InputAvailabilityChanged += OnInputAvailabilityChanged;
         Filter = new(signals.Inputs.Values.ToArray(), row => row);
         InitializeComponent();
         if (_virtualIo is not null)
@@ -25,6 +29,7 @@ public partial class InputWindow : Window, INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     public IoList<IoSignal<InputIo>, InputIo> Filter { get; }
     public bool IsVirtual => _virtualIo is not null;
+    public bool InputsAvailable => _signals.InputsAvailable;
     public bool AutoResponseEnabled
     {
         get => _virtualIo?.AutoResponseEnabled ?? false;
@@ -36,10 +41,17 @@ public partial class InputWindow : Window, INotifyPropertyChanged
 
     protected override void OnClosed(EventArgs e)
     {
+        _closed = true;
+        _signals.InputAvailabilityChanged -= OnInputAvailabilityChanged;
         if (_virtualIo is not null)
             _virtualIo.AutoResponseChanged -= OnAutoResponseChanged;
         base.OnClosed(e);
     }
+
+    private void OnInputAvailabilityChanged() => Dispatcher.BeginInvoke(() =>
+    {
+        if (!_closed) PropertyChanged?.Invoke(this, new(nameof(InputsAvailable)));
+    });
 
     private void OnToggleInput(object sender, RoutedEventArgs e)
     {

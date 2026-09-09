@@ -56,19 +56,21 @@ public sealed class VirtualMachine
             io.SetInput(InputIo.PickupFeederBoltDetected, true);
         });
         if (EmergencyStopPressed
-            || _io.GetInput(InputIo.AutoMode) && DoorOpen)
+            || AutoMode && DoorOpen)
         {
             DropServoPower();
         }
     }
 
+    private bool AutoMode => !_io.GetInput(InputIo.AutoMode);
+
     private bool DoorOpen =>
-        _io.GetInput(InputIo.Door1Open)
-        || _io.GetInput(InputIo.Door2Open)
-        || _io.GetInput(InputIo.Door3Open)
-        || _io.GetInput(InputIo.Door4Open)
-        || _io.GetInput(InputIo.Door5Open)
-        || _io.GetInput(InputIo.Door6Open);
+        !_io.GetInput(InputIo.Door1Open)
+        || !_io.GetInput(InputIo.Door2Open)
+        || !_io.GetInput(InputIo.Door3Open)
+        || !_io.GetInput(InputIo.Door4Open)
+        || !_io.GetInput(InputIo.Door5Open)
+        || !_io.GetInput(InputIo.Door6Open);
 
     private bool EmergencyStopPressed =>
         _io.GetInput(InputIo.EmergencyStop1Pressed)
@@ -97,11 +99,8 @@ public sealed class VirtualMachine
             Array.Clear(_placedPcbs);
         if (!value && input is InputIo.BoltFasteningCarrierPresent or InputIo.InspectionCarrierPresent)
             _carrierPcbs.Remove(input);
-        if (value
-            && (IsEmergencyStop(input)
-                || (input == InputIo.AutoMode || IsDoor(input))
-                && _io.GetInput(InputIo.AutoMode)
-                && DoorOpen))
+        if (value && IsEmergencyStop(input)
+            || (input == InputIo.AutoMode || IsDoor(input)) && AutoMode && DoorOpen)
         {
             DropServoPower();
             return;
@@ -110,7 +109,7 @@ public sealed class VirtualMachine
         if (input == InputIo.ResetButton
             && value
             && !EmergencyStopPressed
-            && (!_io.GetInput(InputIo.AutoMode) || !DoorOpen))
+            && (!AutoMode || !DoorOpen))
         {
             RestoreServoPower();
         }

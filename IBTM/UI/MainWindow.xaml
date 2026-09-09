@@ -190,8 +190,15 @@
 
                     <Button Content="OUTPUTS"
                             Style="{StaticResource SidebarToolButtonStyle}"
-                            IsEnabled="{Binding ManualOutputsEnabled}"
+                            IsEnabled="{Binding OutputsWindowEnabled}"
+                            ToolTip="Open in MANUAL only. Individual controls remain safety-interlocked."
+                            ToolTipService.ShowOnDisabled="True"
                             Click="OnOpenOutputs"/>
+
+                    <Button Content="MOTION"
+                            Style="{StaticResource SidebarToolButtonStyle}"
+                            ToolTip="Axis numbers, positions and feedback. Controls remain safety-interlocked."
+                            Click="OnOpenMotion"/>
 
                     <Button Content="ADC TEST"
                             Style="{StaticResource SidebarToolButtonStyle}"
@@ -251,21 +258,36 @@
                     <StackPanel Grid.Column="2"
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center">
-                        <Border Style="{StaticResource StateBadgeStyle}"
-                                Margin="0,0,8,0">
-                            <TextBlock FontWeight="SemiBold">
+                        <Border x:Name="ModeBadge" Width="90" Margin="0,0,8,0">
+                            <Border.Style>
+                                <Style TargetType="Border" BasedOn="{StaticResource StateBadgeStyle}">
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                    <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                                    <Setter Property="ToolTip" Value="Hardware selector · ON = MANUAL / OFF = AUTO. Change the mode with the physical switch."/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Operation.AutoMode}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Operation.ModeKnown}" Value="False">
+                                            <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
+                                            <Setter Property="ToolTip" Value="Mode is unknown: waiting for a valid machine status update."/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="{Binding Operation.ModeText}"
+                                       FontSize="13" FontWeight="Bold"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <TextBlock.Style>
-                                    <Style TargetType="TextBlock"
-                                           BasedOn="{StaticResource MapHintStyle}">
-                                        <Setter Property="Text" Value="MANUAL"/>
-                                        <Setter Property="Foreground"
-                                                Value="{StaticResource AccentAmberBrush}"/>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource AppBgBrush}"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.AutoMode}"
-                                                         Value="True">
-                                                <Setter Property="Text" Value="AUTO"/>
+                                            <DataTrigger Binding="{Binding Operation.ModeKnown}" Value="False">
                                                 <Setter Property="Foreground"
-                                                        Value="{StaticResource AccentGreenBrush}"/>
+                                                        Value="{StaticResource TextMutedBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -424,7 +446,8 @@
                                 </TextBlock.Style>
                             </TextBlock>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,16,0"
+                                    ToolTip="Door contacts: ON = CLOSED / OFF = OPEN. All six door inputs must be ON.">
                             <Ellipse Tag="{Binding Operation.DoorClosed}"
                                      Style="{StaticResource SafetyLedStyle}"/>
                             <TextBlock>
@@ -470,6 +493,8 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 <StackPanel>
+                    <TextBlock Text="{Binding ResetError}"
+                               Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
                     <TextBlock x:Name="RecipeError" Text="{Binding RecipeEditor.Error}"
                                Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"
                                ToolTip="Your edits remain in memory. Resolve the storage problem, then retry the recipe operation."/>
@@ -596,6 +621,23 @@
                                 </Button.Style>
                             </Button>
                         </StackPanel>
+                        <Button x:Name="AlarmResetButton"
+                                Command="{Binding ResetCommand}"
+                                ToolTip="Same recovery as hardware RESET. Rechecks hardware and may enable servos; does not home axes or start automatic operation. Stop the machine and resolve safety faults before resetting."
+                                ToolTipService.ShowOnDisabled="True"
+                                MinWidth="120" Height="48" Margin="0,0,8,0">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                    <Setter Property="Content" Value="RESET"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ResetCommand.IsRunning}" Value="True">
+                                            <Setter Property="Content" Value="RESETTING..."/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                         <Button Content="STOP"
                                 Command="{Binding Operation.StopCommand}"
                                 MinWidth="144"

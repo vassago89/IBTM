@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:ui="clr-namespace:IBTM.UI"
+        xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
         mc:Ignorable="d"
         d:DataContext="{d:DesignInstance Type=ui:InputWindow, IsDesignTimeCreatable=False}"
         Title="Digital Inputs"
@@ -35,6 +36,7 @@
         </Grid>
 
         <TextBlock Grid.Row="1"
+                   TextWrapping="Wrap"
                    Margin="0,4,0,18">
             <TextBlock.Style>
                 <Style TargetType="TextBlock"
@@ -44,6 +46,10 @@
                         <DataTrigger Binding="{Binding IsVirtual}" Value="True">
                             <Setter Property="Text"
                                     Value="Virtual mode · blue = energized · toggle inputs to simulate the machine"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding InputsAvailable}" Value="False">
+                            <Setter Property="Text" Value="I/O disconnected · UNKNOWN (—). Input states are unavailable, not OFF."/>
+                            <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
@@ -57,12 +63,14 @@
         <Grid Grid.Row="3"
               Margin="12,0,12,6">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="64"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="110"/>
                 <ColumnDefinition Width="90"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Text="INPUT" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="1"
+            <TextBlock Text="NO." Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="1" Text="INPUT" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="2"
                        Text="STATE"
                        Style="{StaticResource SectionHeaderStyle}"/>
         </Grid>
@@ -70,7 +78,7 @@
         <ListBox Grid.Row="4"
                  ItemsSource="{Binding Filter.FilteredRows}"
                  Style="{StaticResource IoListStyle}"
-                 ItemContainerStyle="{StaticResource IoListItemStyle}">
+                 ItemContainerStyle="{StaticResource IoInputListItemStyle}">
             <ListBox.GroupStyle>
                 <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
                             HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
@@ -81,19 +89,36 @@
                 <DataTemplate>
                     <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="110"/>
                             <ColumnDefinition Width="90"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="{Binding Signal,
+                        <TextBlock Text="{Binding Address}" Style="{StaticResource IoAddressStyle}"/>
+                        <StackPanel Grid.Column="1" Margin="0,0,12,0" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Signal,
                                                  Converter={StaticResource EnumDescriptionConverter}}"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                   VerticalAlignment="Center"/>
-                        <ContentControl Grid.Column="1"
+                                       Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
+                            <TextBlock Text="ON = MANUAL / OFF = AUTO" FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap" Margin="0,2,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Signal}" Value="{x:Static device:InputIo.AutoMode}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                        <ContentControl Grid.Column="2"
                                         Tag="{Binding IsOn}"
                                         Style="{StaticResource IoInputStateStyle}"/>
-                        <Button Grid.Column="2"
+                        <Button Grid.Column="3"
                                 Content="Toggle"
                                 Style="{StaticResource IoToggleButtonStyle}"
                                 Visibility="{Binding IsVirtual,

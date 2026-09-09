@@ -16,6 +16,8 @@ public sealed class BufferStage
     private readonly AxisPosition _supplyHandoff;
     private readonly AxisPosition _placementHandoff;
     private readonly Func<double> _placementEntryZ;
+    private readonly Func<bool> _supplyEnabled;
+    private readonly Func<bool> _placementEnabled;
 
     public BufferStage(
         PcbBufferSettings settings,
@@ -25,7 +27,9 @@ public sealed class BufferStage
         IMotionFeedback placementMotion,
         AxisPosition supplyHandoff,
         AxisPosition placementHandoff,
-        Func<double> placementEntryZ)
+        Func<double> placementEntryZ,
+        Func<bool>? supplyEnabled = null,
+        Func<bool>? placementEnabled = null)
     {
         _settings = settings;
         _io = io;
@@ -35,6 +39,8 @@ public sealed class BufferStage
         _supplyHandoff = supplyHandoff;
         _placementHandoff = placementHandoff;
         _placementEntryZ = placementEntryZ;
+        _supplyEnabled = supplyEnabled ?? (() => true);
+        _placementEnabled = placementEnabled ?? (() => true);
         supplyMotion.PositionChanged += (_, _, _) => PositionChanged?.Invoke();
         placementMotion.PositionChanged += (_, _, _) => PositionChanged?.Invoke();
         supplyMotion.MovingChanged += _ => StateChanged?.Invoke();
@@ -56,17 +62,21 @@ public sealed class BufferStage
         _io.GetInput(InputIo.PcbBufferPcbPresent);
 
     private bool PositionKnown =>
-        _supplyMotion.GetAxisState(MotionAxis.X).Homed
+        _supplyEnabled() && _placementEnabled()
+        && _supplyMotion.IsReady && _placementMotion.IsReady
+        && _supplyMotion.GetAxisState(MotionAxis.X).Homed
         && _placementMotion.GetAxisState(MotionAxis.X).Homed
         && _placementMotion.GetAxisState(MotionAxis.Y).Homed
         && _placementMotion.GetAxisState(MotionAxis.Z).Homed;
 
     public bool SupplyInside =>
-        _supplyMotion.GetAxisState(MotionAxis.X).Homed
+        _supplyEnabled() && _supplyMotion.IsReady
+        && _supplyMotion.GetAxisState(MotionAxis.X).Homed
         && _settings.ContainsSupplyX(_supplyMotion.GetPosition().X);
 
     public bool PlacementInside =>
-        _placementMotion.GetAxisState(MotionAxis.X).Homed
+        _placementEnabled() && _placementMotion.IsReady
+        && _placementMotion.GetAxisState(MotionAxis.X).Homed
         && _placementMotion.GetAxisState(MotionAxis.Y).Homed
         && IsInsidePlacement(_placementMotion.GetPosition());
 
@@ -87,7 +97,8 @@ public sealed class BufferStage
     }
 
     public bool SupplyAtHandoff =>
-        IsSettled(_supplyMotion)
+        _supplyEnabled() && _supplyMotion.IsReady
+        && IsSettled(_supplyMotion)
         && IsAt(_supplyMotion.GetPosition(), _supplyHandoff);
 
     public bool PlacementSecuredAtHandoff =>
@@ -95,9 +106,12 @@ public sealed class BufferStage
         && _placementState.PcbSecured;
 
     public bool PlacementAtHandoff =>
-        IsSettled(_placementMotion)
+        _placementEnabled() && _placementMotion.IsReady
+        && IsSettled(_placementMotion)
         && IsAt(_placementMotion.GetPosition(), _placementHandoff);
 
+    // Shared-buffer transfers still require both handlers to be enabled and
+    // homed; ignoring an unused drive is not permission to enter an unknown zone.
     public bool CanSupplyLower => PositionKnown && !PlacementBlocksSupply;
     public bool CanSupplyEnter => CanSupplyLower && !PcbPresent;
     public bool CanPlacementEnter =>
@@ -113,7 +127,9 @@ public sealed class BufferStage
     {
         get
         {
-            if (!_supplyMotion.GetAxisState(MotionAxis.X).Homed)
+            if (!_supplyEnabled() || !_placementEnabled()
+                || !_supplyMotion.IsReady || !_placementMotion.IsReady
+                || !_supplyMotion.GetAxisState(MotionAxis.X).Homed)
             {
                 return false;
             }

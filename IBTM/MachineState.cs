@@ -103,7 +103,7 @@ public sealed class MachineState : IDisposable
     private readonly TaskCompletionSource _firstDisplay = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private Task? _displayUpdates;
     private MachineDisplay _display = new();
-    private readonly MotionStatus[] _motionDisplays;
+    private readonly (MotionGroup Group, MotionStatus Motion)[] _motionDisplays;
     private readonly MachineOptions _options;
     private readonly UnitSettings _units;
     private readonly OperationCancellation _operations;
@@ -113,10 +113,6 @@ public sealed class MachineState : IDisposable
     private readonly NgCarrierConveyor _ngConveyor;
     private readonly BufferStage _buffer;
     private readonly BoltTrainingSession _training;
-    private readonly MotionStatus _supplyMotion;
-    private readonly MotionStatus _placementMotion;
-    private readonly MotionStatus _fasteningMotion;
-    private readonly MotionStatus _inspectionMotion;
     private readonly ApplicationLog? _log;
 
     public MachineState(
@@ -144,11 +140,13 @@ public sealed class MachineState : IDisposable
         _ngConveyor = ngConveyor;
         _buffer = buffer;
         _training = training;
-        _motionDisplays = [pcbSupply.Motion, pcbPlacement.Motion, boltFastening.Motion, inspectionGantry.Motion];
-        _supplyMotion = pcbSupply.Motion;
-        _placementMotion = pcbPlacement.Motion;
-        _fasteningMotion = boltFastening.Motion;
-        _inspectionMotion = inspectionGantry.Motion;
+        _motionDisplays =
+        [
+            (MotionGroup.PcbSupply, pcbSupply.Motion),
+            (MotionGroup.PcbPlacementHandler, pcbPlacement.Motion),
+            (MotionGroup.BoltFastening, boltFastening.Motion),
+            (MotionGroup.InspectionGantry, inspectionGantry.Motion),
+        ];
         _log = log;
 
         io.InputChanged += (input, _) =>
@@ -205,8 +203,10 @@ public sealed class MachineState : IDisposable
                         cancellationToken.ThrowIfCancellationRequested();
                         try
                         {
+                            _ioSignals.RefreshInputs();
                             _ioSignals.RefreshOutputs();
-                            foreach (var motion in _motionDisplays) motion.RefreshAxes(_io.IsReady);
+                            foreach (var (group, motion) in _motionDisplays)
+                                motion.RefreshAxes(_io.IsReady && _units.IsMotionEnabled(group));
                             Display = read();
                         }
                         catch (IOException exception)
@@ -222,7 +222,7 @@ public sealed class MachineState : IDisposable
                                 // The connection may fail partway through a scan.
                                 // Keep the original fault and invalidate every axis.
                                 _ioSignals.RefreshOutputs();
-                                foreach (var motion in _motionDisplays) motion.RefreshAxes(available: false);
+                                foreach (var (_, motion) in _motionDisplays) motion.RefreshAxes(available: false);
                                 Display = read();
                             }
                         }
@@ -295,14 +295,8 @@ public sealed class MachineState : IDisposable
             }
         }
 
-        if (_units.PcbSupply || _units.PcbPlacement)
-        {
-            Read(_supplyMotion);
-            Read(_placementMotion);
-        }
-
-        if (_units.BoltFastening) Read(_fasteningMotion);
-        if (_units.Inspection || _units.NgCarrierTransfer) Read(_inspectionMotion);
+        foreach (var (group, motion) in _motionDisplays)
+            if (_units.IsMotionEnabled(group)) Read(motion);
 
         return new(homed, servosOn, faulted);
     }
@@ -319,20 +313,22 @@ public sealed class MachineState : IDisposable
         && !_io.GetInput(InputIo.EmergencyStop1Pressed)
         && !_io.GetInput(InputIo.EmergencyStop2Pressed);
     public bool DoorClosed =>
+        // Door contacts are energized only while closed (legacy mapping keys end in Open).
         _io.IsReady
-        && !_io.GetInput(InputIo.Door1Open)
-        && !_io.GetInput(InputIo.Door2Open)
-        && !_io.GetInput(InputIo.Door3Open)
-        && !_io.GetInput(InputIo.Door4Open)
-        && !_io.GetInput(InputIo.Door5Open)
-        && !_io.GetInput(InputIo.Door6Open);
+        && _io.GetInput(InputIo.Door1Open)
+        && _io.GetInput(InputIo.Door2Open)
+        && _io.GetInput(InputIo.Door3Open)
+        && _io.GetInput(InputIo.Door4Open)
+        && _io.GetInput(InputIo.Door5Open)
+        && _io.GetInput(InputIo.Door6Open);
     public bool AirPressureOk =>
         _io.IsReady
         && !_io.GetInput(InputIo.AirPressureLow);
     public bool ServoMainContactorOn =>
         _io.IsReady && _io.GetInput(InputIo.ServoMainContactorOn);
     public bool AutoMode =>
-        _io.IsReady && _io.GetInput(InputIo.AutoMode);
+        // The selector contact is energized in MANUAL, open in AUTO.
+        _io.IsReady && !_io.GetInput(InputIo.AutoMode);
     public bool ManualMode => !AutoMode;
     public bool DoorInterlockReady =>
         !_options.UseDoorInterlock || DoorClosed;
@@ -363,7 +359,9 @@ public sealed class MachineState : IDisposable
         || BoltTestRunning
         || IsHoming
         || ConveyorRunning
-        || Array.Exists(_motionDisplays, static motion => motion.Feedback.IsMoving)
+        // A motion already in progress must still keep the machine busy, even if
+        // its unit is disabled programmatically before the operation has stopped.
+        || Array.Exists(_motionDisplays, static item => item.Motion.Feedback.IsMoving)
         || (_io.IsReady && _ngConveyor.RunCommandOn);
 
     public bool CanOperate =>

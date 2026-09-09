@@ -60,7 +60,9 @@ Settings > Motion also owns each group's travel speeds, acceleration/deceleratio
 times in seconds, X/Y and Z homing speeds, and axis ranges. Existing common home
 speeds and AJIN ratios are converted once when the settings database is upgraded;
 their equivalent speeds and accelerations are preserved. Home direction, sensor
-and method still come from the AJIN `.mot` file. The driver uses pulse units
+and method use the existing AJIN axis settings; startup uses `AxlOpenNoReset`
+without loading a `.mot` file. The driver still sets pulse units and acceleration
+units explicitly (it does not preserve every axis parameter unchanged), and uses pulse units
 internally and converts acceleration time to pulses/s². Virtual currently models
 travel speed and pulse resolution, not the AJIN acceleration or home-search profile.
 
@@ -154,9 +156,37 @@ feedback waits while retaining pneumatic outputs; a timeout alarms the affected
 unit. Repeating the button with cylinders already Up is allowed.
 If a required cylinder loses its raised state or a carrier is detected during Home,
 the existing cancellation path stops homing. OUTPUTS remains available before
-homing when I/O is ready and the machine is idle, safe, alarm-free and in Manual
-mode; axis movement remains locked until homed. The Supply rotation/limit-search
+homing for status viewing in MANUAL. The OUTPUTS window can only open in MANUAL
+and closes on AUTO selection (or unavailable mode feedback). Alarm and busy status
+alone do not close it; individual controls become read-only when unavailable. Diagnostic toggles require
+idle MANUAL, working I/O, released emergency stops and normal air pressure. Motion
+unavailable, home-failed and inspection alarms do not alone block diagnostic outputs;
+safety, I/O and other process alarms still do. Existing alarms are not cleared.
+Handler outputs reuse local enabled/home/servo and teaching-output interlocks;
+Supply rotation additionally requires rotation Z already reached and never moves an
+axis implicitly. Stopper toggles require their owning conveyor enabled, an empty
+station and the applicable backup-plate/path-clear feedback. Inter-machine ready/
+available outputs use **Test 1s**, not a latched toggle: all normal operating
+interlocks must pass, material sensors and peer ready/available inputs must be OFF,
+and the operator must confirm connected equipment is stopped. The test sends OFF
+after one second or earlier on cancellation/peer feedback changes. Motor, shuttle
+and hold-to-run shooting outputs retain their dedicated controls. The window shows
+why each action is blocked and cancels feedback waits on mode/safety changes or
+STOP without reversing a valve. Feedback timeouts log the output and missing
+feedback details; the row's timeout tooltip also shows those details.
+Teaching and axis movement keep their existing alarm/home restrictions. The Supply rotation/limit-search
 home sequence is unchanged.
+The sidebar **MOTION** button opens a separate Motion Monitor that stays open in
+AUTO, during motion and during alarms. It groups axes by mechanism and shows the
+active controller axis number, position, servo, homed/home sensor, limits and alarm
+feedback. While open it requests a shared background refresh every 250 ms, including
+actual position, so changes made outside the application are also reflected. Disabled
+axes are not read, and closing the window stops its refresh timer. Search accepts the
+axis number or name; enabled axes are shown by default.
+Disabled/unavailable feedback is shown as unknown, not OFF or a valid position.
+Servo and individual Home buttons reuse the existing controller interlocks;
+PCB Supply still uses coordinated HOME ALL. Closing this window cancels only homing
+started there; its STOP button stops the machine. Jog/teaching remains on the existing pages.
 Automatic, saved-position and Home X/Y moves require raised-cylinder feedback
 from its unit: Placement Handler, Fastening Head 1/Head 2, or NG Pickup.
 Up must be ON and Down must be OFF. Loss of this condition during X/Y movement
@@ -281,6 +311,28 @@ must be clear before Station 3 receives a carrier or begins inspection.
 Each `Setting` is stored as a separate JSON row in `Data/Machine.db` beside the executable.
 Units receive only their relevant settings; `MachineSettings` is the host aggregate.
 
+The mode selector input is **ON = MANUAL, OFF = AUTO**. Digital Inputs shows the
+raw contact value as `Auto / Manual Selector`, with an ON/OFF mode legend; the persisted `AutoMode` input
+mapping key and its channel are unchanged. Virtual control starts with the same
+MANUAL (ON) contact state. Mode changes do not start automatic operation.
+The header uses an amber MANUAL badge and a green AUTO badge; unavailable status
+shows a neutral UNKNOWN badge instead of implying MANUAL.
+
+All six door contacts are **ON = CLOSED, OFF = OPEN**. Digital Inputs and I/O
+settings label them `Door 1 Closed` through `Door 6 Closed`, retaining the existing
+`Door1Open`–`Door6Open` database keys and channel mappings. All six inputs must be
+ON for the door-closed indicator/interlock; loss of a closed contact is treated as
+open. Virtual doors start closed (ON). Closing a door does not clear its latched
+alarm or restart automatic operation.
+
+`Enabled Units` also selects motion initialization, status polling, readiness/alarm
+checks, RESET, HOME and manual servo commands. PCB Supply and PCB Placement are
+independent; the inspection gantry is required if either Inspection or NG Carrier
+Transfer is enabled. Disable unused units in MANUAL, save, then RESET to clear an
+existing motion alarm. Shared-buffer automatic transfers still require both
+handlers enabled and homed. Emergency-stop, door and raised-cylinder interlocks
+remain active where required, even when an adjacent unit is disabled.
+
 - `DriverSettings`, `UnitSettings`, `MachineOptions`: machine operation.
 - `*HardwareSettings`: responsibility-owned logical IO and axis mappings.
 - Unit settings: travel/home speeds, acceleration times and taught positions;
@@ -331,7 +383,14 @@ with a 64-bit process. Place that DLL in `IBTM.AlphaMotion/` to have builds and
 publishing copy it beside the executable, or deploy it there directly. The DLL is
 not supplied by the C# declarations. Initialization does not issue reset,
 filter-setting or output-write commands.
-AJIN loads its configured `.mot` file; motion coordinates exposed to units are
+AJIN currently uses `AxlOpenNoReset` for user-operated field testing, without
+loading a `.mot` file or falling back to `AxlOpen` if opening fails. The raw open
+result is logged. The saved `MotionParameterFile` value is retained for compatibility
+but is ignored and disabled in the settings UI. Existing home/signal settings must
+already be valid; preservation across a power cycle has not been verified.
+Motion startup still applies the application's pulse scaling and acceleration units
+and enables the configured servos; homing still applies the configured speeds.
+Motion coordinates exposed to units are
 millimetres, converted from pulses using the configured millimetres-per-pulse.
 AJIN then validates and logs each configured DIO module's identity and DI/DO
 counts. Input scans use WORD offsets 0/1 for 32 DI and only offset 0 for 16 DI,
@@ -343,6 +402,14 @@ If control I/O initialization or the connection fails, the display retains the
 original communication error and leaves output feedback unavailable. Display and
 idle-state queries do not read outputs from unopened hardware. After correcting
 the underlying driver/connection error, RESET retries hardware initialization.
+The main-window footer also provides RESET on every page, including Settings;
+it calls the same recovery path as the physical reset input and may enable servos,
+but does not home axes or start automatic operation. Existing reset safety/busy
+checks remain in force. Settings require stopped MANUAL mode, including during
+an alarm. A configuration fault can be corrected before resetting after switching
+to MANUAL. AUTO, active operations and shutdown lock settings;
+motion, output and teaching permissions are unchanged. The Settings page explains
+the current edit lock. Driver/connection changes still require saving and restart.
 
 Output mappings include their ON/OFF feedback inputs.
 Actuator completion requires the requested endpoint ON and the opposite endpoint
@@ -409,8 +476,10 @@ transfers. Current DI and positions are not reset. Door, emergency-stop and rese
 simulation remain active in either mode. This switch is session-only, not a
 machine setting.
 
-Digital Inputs supports text search and a unit filter. Filtering only changes the
-visible rows; all inputs continue updating. IO numbers remain in Settings.
+Digital Inputs supports text/number search and a unit filter. Input/output windows
+show the configured IO numbers beside each signal. Filtering only changes the
+visible rows; all inputs continue updating. A disconnected input service displays
+UNKNOWN (`—`) instead of stale ON/OFF values, and reconnecting refreshes all rows.
 
 Supply and Station Teaching share a read-only **Related I/O** panel. Selecting a
 point/unit selects its handler and related buffer, feeder or station signals.
@@ -462,8 +531,35 @@ COM port; a blank or failed MOVS connection is reported by hardware initializati
 not dependency construction. Virtual development also forces the light driver to Virtual.
 The MOVS light controller defaults to 19200 baud, 8-N-1 and a 1000 ms write timeout, with the existing
 `:L{channel}{level:000}\r\n`, `:O{channel}\r\n`, `:F{channel}\r\n` commands.
+The **Light Test** controls in that settings card use the active driver/connection,
+with a separate single-channel selection and temporary 0–255 brightness (default 80).
+ON/Test requires idle MANUAL, holds an operation until OFF and does not save recipe
+brightness. OFF, machine STOP, switching to AUTO, leaving Settings or shutdown ends
+the test and sends OFF to the captured test channel. Initialization, ON/OFF writes
+and failures are logged; these are command results, not hardware readback. Failed
+OFF writes explicitly report an unknown light state and retain the original channel.
+The OFF button can retry that channel without sending brightness or ON commands,
+even if the channel field was edited. New ON tests remain blocked until OFF succeeds.
+An OFF-only retry requires the machine idle and is also available in AUTO; shutdown
+makes one final cleanup attempt. Serial edits still need save/restart.
 
 ## Build and validation
+
+For UI/layout/text-only changes, skip tests and compile only when needed. For
+control logic, run only the directly affected safety/regression tests in one configuration.
+`dotnet test` already builds its dependencies; do not repeat a solution build or
+the same tests in Debug and Release for every edit. Manufacturer SDK stand-in tests
+are fast; full virtual route/lifecycle runs are retained but run only when the user
+explicitly requests integration/release verification.
+
+```powershell
+# Choose the command relevant to the change, rather than running all three.
+dotnet test IBTM.Ajin.Tests/IBTM.Ajin.Tests.csproj -c Debug --no-restore
+dotnet test IBTM.AlphaMotion.Tests/IBTM.AlphaMotion.Tests.csproj -c Debug --no-restore
+dotnet test IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj -c Virtual --no-restore --filter "FullyQualifiedName~AlarmRecoveryTests"
+```
+
+Full integration/release validation (when needed):
 
 ```powershell
 dotnet build IBTM.slnx --configuration Release

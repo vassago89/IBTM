@@ -9,14 +9,18 @@ public class IoSignal<T>(
     T signal,
     HardwareArea area,
     IoSection? section,
-    Func<T, bool> read) : INotifyPropertyChanged
+    Func<T, bool> read,
+    int? number = null,
+    Func<bool>? available = null) : INotifyPropertyChanged
     where T : struct, Enum
 {
     public event PropertyChangedEventHandler? PropertyChanged;
     public T Signal { get; } = signal;
     public HardwareArea Area { get; } = area;
     public IoSection? Section { get; } = section;
-    public virtual bool? IsOn => read(Signal);
+    public int? Number { get; } = number;
+    public virtual string Address => Number?.ToString("D3") ?? "—";
+    public virtual bool? IsOn => available?.Invoke() == false ? null : read(Signal);
 
     protected void Notify(string propertyName) =>
         PropertyChanged?.Invoke(this, new(propertyName));
@@ -33,9 +37,12 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
         HardwareArea area,
         IoSection? section,
         IIoService io,
-        IReadOnlyDictionary<InputIo, IoSignal<InputIo>> inputs)
-        : base(signal, area, section, io.GetOutput)
+        IReadOnlyDictionary<InputIo, IoSignal<InputIo>> inputs,
+        int? number = null,
+        int? offNumber = null)
+        : base(signal, area, section, io.GetOutput, number)
     {
+        OffNumber = offNumber;
         Feedback = io.GetOutputFeedback(signal) is { } feedback
             ? [inputs[feedback.OnInput], inputs[feedback.OffInput]]
             : [];
@@ -44,6 +51,8 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
     }
 
     public IoSignal<InputIo>[] Feedback { get; }
+    public int? OffNumber { get; }
+    public override string Address => OffNumber is { } off ? $"{base.Address} / {off:D3}" : base.Address;
     public override bool? IsOn => _isOn;
     public bool HasFeedback => Feedback.Length > 0;
     public bool HasConflict => HasFeedback && Feedback[0].IsOn == true && Feedback[1].IsOn == true;

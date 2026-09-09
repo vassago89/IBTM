@@ -50,11 +50,20 @@ public partial class SettingsViewModel : ObservableObject
         MachineState state,
         ICamera camera,
         MachineStore store,
-        OperationCancellation operations)
+        OperationCancellation operations,
+        ILightController light,
+        ApplicationLog log)
     {
         _state = state;
         _store = store;
         _operations = operations;
+        _light = light;
+        _log = log;
+        _lightTestChannel = settings.Lighting.InspectionChannel;
+        ActiveLightConnection = settings.Drivers.Light == LightDriver.Virtual
+            ? "Virtual" : $"{settings.Lighting.Connection} · {settings.Lighting.BaudRate} baud";
+        TestLightCommand.PropertyChanged += OnLightCommandChanged;
+        OffTestLightCommand.PropertyChanged += OnLightCommandChanged;
         _virtualCamera = camera as VirtualCamera;
         Settings = settings;
         ActiveControlDriver = settings.Drivers.Control;
@@ -141,6 +150,7 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
     private async Task SaveSettingsAsync()
     {
+        if (!CanEditSettings) return;
         if (Settings.Drivers.Light == LightDriver.Movs
             && string.IsNullOrWhiteSpace(Settings.Lighting.Connection))
         {
@@ -156,7 +166,19 @@ public partial class SettingsViewModel : ObservableObject
         _state.Refresh();
     }
 
-    public bool CanEditSettings => _state.ManualMode && !_state.IsRunning;
+    public bool CanEditSettings => !_operations.IsShuttingDown
+        && !_state.IsRunning
+        && _state.ManualMode;
+
+    public string SettingsAccessMessage => _operations.IsShuttingDown
+        ? "Settings are locked while the application is closing."
+        : _state.IsRunning
+            ? "Settings are locked while the machine is busy. Stop the operation before editing."
+            : _state.AutoMode
+                ? "Settings are locked in AUTO, including during an alarm. Switch the machine to MANUAL before editing."
+                : _state.IsError
+                    ? "Stopped in MANUAL with an alarm: settings can be edited without resetting. Motion and teaching remain interlocked."
+                    : "Settings can be edited while stopped in MANUAL.";
 
     public void RefreshCommands()
     {
@@ -166,8 +188,11 @@ public partial class SettingsViewModel : ObservableObject
         SelectMotionParameterFileCommand.NotifyCanExecuteChanged();
         BackupDatabaseCommand.NotifyCanExecuteChanged();
         RestoreDatabaseCommand.NotifyCanExecuteChanged();
+        TestLightCommand.NotifyCanExecuteChanged();
+        OffTestLightCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanEditSettings));
         OnPropertyChanged(nameof(CanChangeDrivers));
+        OnPropertyChanged(nameof(SettingsAccessMessage));
     }
 
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
@@ -265,9 +290,14 @@ public partial class SettingsViewModel : ObservableObject
     private bool CanChangeVirtualImage() => IsVirtualCamera && CanEditSettings;
     private bool CanClearVirtualImage() => CanChangeVirtualImage() && VirtualImageName is not null;
 
-    public Task ShutdownAsync() => CommandShutdown.StopAsync(
-        LoadVirtualImageCommand.Cancel, SaveSettingsCommand, LoadVirtualImageCommand,
-        BackupDatabaseCommand, RestoreDatabaseCommand);
+    public async Task ShutdownAsync()
+    {
+        await CommandShutdown.StopAsync(
+            () => { LoadVirtualImageCommand.Cancel(); TestLightCommand.Cancel(); },
+            SaveSettingsCommand, LoadVirtualImageCommand,
+            BackupDatabaseCommand, RestoreDatabaseCommand, TestLightCommand, OffTestLightCommand);
+        if (PendingLightOffChannel is { } channel) await TurnTestLightOffAsync(channel);
+    }
 
     private void ApplyHardwareMappings()
     {

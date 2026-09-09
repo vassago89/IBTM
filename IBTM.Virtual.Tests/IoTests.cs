@@ -12,6 +12,7 @@ using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Virtual;
+using IBTM.UI;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTest;
 
@@ -62,6 +63,10 @@ public sealed class IoTests
         Assert.Equal(hardware.Area, status.Area);
         Assert.Equal(hardware.Inputs.Keys.Order(), status.Inputs.Select(row => row.Signal));
         var output = Assert.Single(status.Outputs);
+        Assert.Equal(hardware.Outputs[output.Signal].Number, output.Number);
+        Assert.Equal(hardware.Outputs[output.Signal].OffNumber, output.OffNumber);
+        Assert.Equal("068 / 069", output.Address);
+        Assert.All(status.Inputs, row => Assert.Equal(hardware.Inputs[row.Signal], row.Number));
         Assert.Null(output.IsOn);
         Assert.Equal(0, probe.Reads);
         signals.RefreshOutputs();
@@ -77,9 +82,17 @@ public sealed class IoTests
         });
 
         var sensor = status.Sensors.Single(row => row.Signal == InputIo.PcbSupplyPcbDetected);
+        Assert.Equal("999", sensor.Address);
+        var filter = new IoList<IoOutputStatus, OutputIo>(signals.Outputs.Values.ToArray(), row => row);
+        filter.SearchText = "069";
+        Assert.Same(output, Assert.Single(filter.FilteredRows.Cast<IoOutputStatus>()));
+        filter.SearchText = output.Feedback[0].Address;
+        Assert.Same(output, Assert.Single(filter.FilteredRows.Cast<IoOutputStatus>()));
+        filter.SearchText = "999";
+        Assert.Empty(filter.FilteredRows.Cast<IoOutputStatus>());
         var changes = 0;
         sensor.PropertyChanged += (_, _) => changes++;
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         Assert.Equal(0, changes);
         io.SetInput(sensor.Signal, true);
         Assert.True(sensor.IsOn);
@@ -414,10 +427,10 @@ public sealed class IoTests
         io.Initialize();
         motion.Initialize();
         io.AutoResponseEnabled = false;
-        io.SetInput(InputIo.Door1Open, true);
+        io.SetInput(InputIo.Door1Open, false);
         Assert.True(io.GetInput(InputIo.ServoMainContactorOn));
 
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         Assert.False(io.GetInput(InputIo.ServoMainContactorOn));
         Assert.All(motion.Axes, axis =>
         {
@@ -427,7 +440,7 @@ public sealed class IoTests
         io.SetInput(InputIo.ResetButton, true);
         Assert.False(io.GetInput(InputIo.ServoMainContactorOn));
 
-        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.AutoMode, true);
         io.SetInput(InputIo.ResetButton, false);
         io.SetInput(InputIo.ResetButton, true);
         Assert.True(io.GetInput(InputIo.ServoMainContactorOn));

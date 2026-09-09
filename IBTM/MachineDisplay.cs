@@ -59,6 +59,7 @@ public sealed record MachineDisplay
     public ManualControlBlock ManualBlock { get; init; } = ManualControlBlock.MotionNotReady;
     public bool ManualControlsEnabled => Available && ManualBlock == ManualControlBlock.None;
     public bool ManualOutputsEnabled { get; init; }
+    public string? DiagnosticOutputBlock { get; init; } = "Read only: machine status is unavailable.";
     public PcbPlacementState PlacementState { get; init; }
     public HeatSinkSlot? PlacementTarget { get; init; }
     public BoltFasteningState FasteningState { get; init; }

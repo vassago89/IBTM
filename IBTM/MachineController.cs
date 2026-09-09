@@ -60,6 +60,7 @@ public sealed class MachineController
     private readonly NgConveyorDryRun _ngConveyorDryRun;
     private readonly BoltRouteDryRun _boltRoute;
     private readonly BoltInspector _boltInspector;
+    private readonly IReadOnlyDictionary<OutputIo, (MotionGroup Group, TeachingOutput Output)> _diagnosticOutputs;
     private readonly ApplicationLog? _log;
 
     public MachineController(
@@ -92,6 +93,7 @@ public sealed class MachineController
         NgConveyorDryRun ngConveyorDryRun,
         BoltRouteDryRun boltRoute,
         BoltInspector boltInspector,
+        IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs,
         ApplicationLog? log = null)
     {
         _state = state;
@@ -130,6 +132,9 @@ public sealed class MachineController
         _boltRoute = boltRoute;
         boltRoute.Changed += state.RequestDisplayRefresh;
         _boltInspector = boltInspector;
+        _diagnosticOutputs = teachingOutputs
+            .SelectMany(group => group.Value.Values.Select(output => (Group: group.Key, Output: output)))
+            .ToDictionary(item => item.Output.Signal);
         _log = log;
         io.InputChanged += OnInputChanged;
         io.Faulted += OnIoFaulted;
@@ -185,7 +190,7 @@ public sealed class MachineController
         && !_state.IsError
         && !_state.IsRunning
         && HomeBlock == HomeBlockReason.None
-        && (!BufferHandlersEnabled || _pcbSupply.CanHome);
+        && (!_units.PcbSupply || _pcbSupply.CanHome);
     public HomeBlockReason HomeBlock => GetHomeBlock();
     public bool CanRaiseCylinders =>
         _state.ManualOutputsEnabled
@@ -288,13 +293,16 @@ public sealed class MachineController
                 .Where(item => CanHomeAxis(item.group, item.axis, live: false)).ToHashSet(),
             ManualBlock = _state.GetManualBlock(motion),
             ManualOutputsEnabled = _state.ManualOutputsEnabled,
-            PlacementState = _pcbPlacement.State(_recipe.PcbPlacement),
+            DiagnosticOutputBlock = GetDiagnosticOutputSafetyBlock()
+                ?? (running ? "Read only: wait for the current operation to stop." : null),
+            PlacementState = _units.PcbPlacement
+                ? _pcbPlacement.State(_recipe.PcbPlacement) : PcbPlacementState.WaitingForBufferPcb,
             PlacementTarget = _pcbPlacement.TargetHeatSink,
             FasteningState = teachingReady && _units.BoltFastening ? _fasteningStation.State() : BoltFasteningState.Waiting,
             FasteningBolt = teachingReady && _units.BoltFastening && automatic ? _fasteningStation.ActiveBolt() : null,
-            InspectionState = teachingReady ? _inspectionStation.State(bolts) : InspectionStationState.Waiting,
-            InspectionBolt = teachingReady && automatic ? _inspectionStation.ActiveBolt(bolts) : null,
-            InspectionPcb = teachingReady && automatic ? _inspectionStation.ActivePcb(bolts) : null,
+            InspectionState = teachingReady && _units.Inspection ? _inspectionStation.State(bolts) : InspectionStationState.Waiting,
+            InspectionBolt = teachingReady && _units.Inspection && automatic ? _inspectionStation.ActiveBolt(bolts) : null,
+            InspectionPcb = teachingReady && _units.Inspection && automatic ? _inspectionStation.ActivePcb(bolts) : null,
             NgTransferDryRunState = _units.NgCarrierTransfer && _inspectionGantry.Motion.XyHomed
                 ? _ngTransferDryRun.State : NgTransferState.Unavailable,
             NgTransferDestination = _ngTransferDryRun.Destination,
@@ -463,14 +471,183 @@ public sealed class MachineController
         RunManualAsync(edit, MachineAlarm.IoCommunication,
             () => _state.ManualControlsEnabled, cancellationToken, viewCancellation);
 
-    internal bool? ToggleManualOutput(OutputIo signal)
+    private string? GetDiagnosticOutputSafetyBlock()
     {
-        var value = false;
-        return TryRunManual(() =>
+        if (_operations.IsShuttingDown) return "Read only: the machine is shutting down.";
+        if (!_io.IsReady) return "Read only: control I/O is unavailable.";
+        if (!_state.ManualMode) return "Read only: switch the selector to MANUAL.";
+        if (!_state.EmergencyStopReleased || !_state.AirPressureOk)
+            return "Read only: check emergency stops and air pressure.";
+        return _state.Alarm is MachineAlarm.None or MachineAlarm.MotionUnavailable
+            or MachineAlarm.HomeFailed or MachineAlarm.Inspection
+            ? null : "Read only: reset the safety, I/O or process alarm first.";
+    }
+
+    internal string? GetManualOutputBlock(OutputIo signal, bool live = false)
+    {
+        var block = live
+            ? GetDiagnosticOutputSafetyBlock()
+                ?? (_state.IsRunning ? "Read only: wait for the current operation to stop." : null)
+            : _state.Display.DiagnosticOutputBlock;
+        if (block is not null) return block;
+
+        if (signal is OutputIo.MachineLight or OutputIo.TowerLampGreen or OutputIo.TowerLampYellow
+            or OutputIo.TowerLampRed or OutputIo.Buzzer
+            or OutputIo.NgCarrierEjectLamp or OutputIo.NgCarrierEjectCompleteLamp)
+            return null;
+
+        if (IsDiagnosticInterfaceOutput(signal)) return GetDiagnosticInterfaceBlock(signal, live);
+
+        if (signal is OutputIo.PcbPlacementStopperUp or OutputIo.BoltFasteningStopperUp
+            or OutputIo.InspectionStopperUp or OutputIo.NgConveyorStopperUp)
+            return GetDiagnosticStopperBlock(signal, live);
+
+        // Motor, shuttle and shooting outputs need their dedicated
+        // sequences/hold-to-run controls, not an unrestricted latched toggle.
+        if (!_diagnosticOutputs.TryGetValue(signal, out var entry) || entry.Output.HoldToRun)
+            return "Use the dedicated Manual Control / Station Teaching operation for this output.";
+
+        if (entry.Output.RequiresHandler)
         {
-            value = !_io.GetOutput(signal);
-            _io.SetOutput(signal, value);
-        }, () => _state.ManualOutputsEnabled, MachineAlarm.IoCommunication) ? value : null;
+            var motion = GetMotionStatus(entry.Group);
+            if (!_units.IsMotionEnabled(entry.Group) || !motion.Feedback.IsReady
+                || !_state.ServoMainContactorOn
+                || motion.Feedback.Axes.Any(axis =>
+                    (live ? motion.Feedback.GetAxisState(axis) : motion.Axes[axis].State)
+                    is not { Homed: true, ServoOn: true, Alarm: false, Emergency: false }))
+                return "The associated handler must be enabled, homed and free of motion faults.";
+
+            if (entry.Group == MotionGroup.PcbSupply
+                    && (live ? _state.PlacementInBufferArea : _state.Display.PlacementInBufferArea)
+                || entry.Group == MotionGroup.PcbPlacementHandler
+                    && (live ? _state.SupplyInBufferArea : _state.Display.SupplyInBufferArea))
+                return "The other handler is inside the PCB buffer.";
+        }
+
+        if (entry.Output.CanSet?.Invoke(live) == false
+            || signal == OutputIo.PcbSupplyRotate && !_supplyHandler.CanRotateInPlace(live))
+            return "Output interlock: check the handler position and cylinder clearance.";
+        return null;
+    }
+
+    internal static bool IsDiagnosticInterfaceOutput(OutputIo signal) => signal is
+        OutputIo.PcbSupplyReadyToFront1 or OutputIo.MainConveyorReadyToFront2 or OutputIo.MainConveyorAvailableToRear;
+
+    private string? GetDiagnosticStopperBlock(OutputIo signal, bool live)
+    {
+        if (signal == OutputIo.NgConveyorStopperUp)
+            return !_units.NgConveyor ? "Enable the NG conveyor before testing its stopper."
+                : _io.GetInput(InputIo.NgConveyorPosition1Occupied)
+                    || _io.GetInput(InputIo.NgConveyorPosition2Occupied)
+                    || _io.GetInput(InputIo.NgShuttleCarrierDetected)
+                    ? "Empty the NG conveyor and shuttle before testing the stopper." : null;
+
+        if (!_units.MainConveyor) return "Enable the main conveyor before testing its stoppers.";
+        if (!(live ? MainConveyorPathClear : _state.Display.MainConveyorDryRunReady))
+            return "Raise and clear the enabled handlers before testing conveyor stoppers.";
+        var (carrier, plateUp, plateDown) = signal switch
+        {
+            OutputIo.PcbPlacementStopperUp => (InputIo.PcbPlacementCarrierPresent,
+                InputIo.PcbPlacementBackupPlateUp, InputIo.PcbPlacementBackupPlateDown),
+            OutputIo.BoltFasteningStopperUp => (InputIo.BoltFasteningCarrierPresent,
+                InputIo.BoltFasteningBackupPlateUp, InputIo.BoltFasteningBackupPlateDown),
+            _ => (InputIo.InspectionCarrierPresent, InputIo.InspectionBackupPlateUp, InputIo.InspectionBackupPlateDown),
+        };
+        return _io.GetInput(carrier) || _io.GetInput(plateUp) || !_io.GetInput(plateDown)
+            ? "Empty this station and lower its backup plate before testing the stopper." : null;
+    }
+
+    private string? GetDiagnosticInterfaceBlock(OutputIo signal, bool live)
+    {
+        if (!(signal == OutputIo.PcbSupplyReadyToFront1 ? _units.PcbSupply : _units.MainConveyor))
+            return "Enable the owning unit before testing its interface signal.";
+        var ready = live ? _state.CanOperate
+            : _state.Display.Available && _state.Display.Alarm == MachineAlarm.None
+                && _state.Display.SafetyReady && _state.Display.Homed && _state.Display.ServoPowerOn
+                && !_state.Display.MotionFaulted && !_state.Display.BufferConflict;
+        if (!ready) return "Interface tests require ready enabled axes and no machine alarm.";
+        if (Array.Exists(CarrierInputs, _io.GetInput) || _io.GetInput(InputIo.PcbSupplyPcbDetected)
+            || _io.GetInput(InputIo.PcbPlacementPcbDetected) || _io.GetInput(InputIo.PcbBufferPcbPresent))
+            return "Empty the machine before testing interface signals.";
+        if (_io.GetInput(InputIo.PcbSupplyAvailableFromFront1)
+            || _io.GetInput(InputIo.MainConveyorAvailableFromFront2)
+            || _io.GetInput(InputIo.MainConveyorReadyFromRear))
+            return "Stop the connected equipment: its available/ready inputs must be OFF for this test.";
+        return !(live ? MainConveyorPathClear : _state.Display.MainConveyorDryRunReady)
+            ? "Clear the conveyor path before testing interface signals." : null;
+    }
+
+    internal async Task ToggleManualOutputAsync(OutputIo signal, CancellationToken cancellationToken)
+    {
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            // The display controls button availability only. Recheck live state
+            // before any write, including direct invocation of a disabled command.
+            if (GetManualOutputBlock(signal, live: true) is { } block)
+            {
+                _log?.Write($"Manual output {signal} ignored: {block}");
+                return;
+            }
+
+            using var operation = _operations.Link(cancellationToken);
+            var startingAlarm = _state.Alarm;
+            void StopWhenUnavailable()
+            {
+                if (GetDiagnosticOutputSafetyBlock() is not null || _state.Alarm != startingAlarm
+                    || IsDiagnosticInterfaceOutput(signal) && GetDiagnosticInterfaceBlock(signal, live: true) is not null)
+                    operation.Cancel();
+            }
+
+            void OnInterfaceInputChanged(InputIo _, bool __) => StopWhenUnavailable();
+
+            _state.Changed += StopWhenUnavailable;
+            if (IsDiagnosticInterfaceOutput(signal)) _io.InputChanged += OnInterfaceInputChanged;
+            try
+            {
+                StopWhenUnavailable();
+                operation.Token.ThrowIfCancellationRequested();
+                if (IsDiagnosticInterfaceOutput(signal))
+                {
+                    // Never leave an inter-machine request latched after a diagnostic test.
+                    try
+                    {
+                        _log?.Write($"Manual interface test {signal}: ON for at most 1000 ms. Connected equipment must be stopped.");
+                        _io.SetOutput(signal, true);
+                        await Task.Delay(1000, operation.Token);
+                    }
+                    finally
+                    {
+                        _io.SetOutput(signal, false);
+                        _log?.Write($"Manual interface test {signal}: OFF.");
+                    }
+                    return;
+                }
+                var value = !_io.GetOutput(signal);
+                // This window never moves an axis as a side effect of a toggle.
+                _log?.Write($"Manual output {signal}: {(value ? "ON" : "OFF")}; alarm={startingAlarm}.");
+                operation.Token.ThrowIfCancellationRequested();
+                _io.SetOutput(signal, value);
+                if (_io.GetOutputFeedback(signal) is not null)
+                    await _io.WaitForOutputFeedbackAsync(signal, value, operation.Token);
+            }
+            finally
+            {
+                _state.Changed -= StopWhenUnavailable;
+                if (IsDiagnosticInterfaceOutput(signal)) _io.InputChanged -= OnInterfaceInputChanged;
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (IoTimeoutException exception)
+        {
+            _log?.Error($"Manual output {signal}: feedback timed out. {exception.Message}", exception);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _state.SetError(MachineAlarm.IoCommunication, exception);
+            _operations.Cancel();
+        }
     }
 
     internal void RunManualConveyor() =>
@@ -668,14 +845,16 @@ public sealed class MachineController
     }
 
     internal bool CanHomeAxis(MotionGroup group, MotionAxis axis, bool live = true) =>
-        group != MotionGroup.PcbSupply
+        _units.IsMotionEnabled(group)
+        && group != MotionGroup.PcbSupply
         && !_state.IsRunning
         && (group != MotionGroup.PcbPlacementHandler || !_state.SupplyInBufferArea)
         && HomeAxisConditionsReady(group, axis, live);
 
     private bool HomeAxisConditionsReady(MotionGroup group, MotionAxis axis, bool live = true)
     {
-        if (!_state.ManualMode || !_state.SafetyReady || !_state.DoorInterlockReady
+        if (!_units.IsMotionEnabled(group)
+            || !_state.ManualMode || !_state.SafetyReady || !_state.DoorInterlockReady
             || _state.IsError || !_state.ServoMainContactorOn
             || GetHomeBlock(group) != HomeBlockReason.None)
             return false;
@@ -714,7 +893,8 @@ public sealed class MachineController
             canContinue: () => HomeAxisConditionsReady(group, axis));
 
     internal bool CanSetServo(MotionGroup group) =>
-        _state.ManualMode && _state.SafetyReady && !_state.IsRunning
+        _units.IsMotionEnabled(group)
+        && _state.ManualMode && _state.SafetyReady && !_state.IsRunning
         && GetMotionFeedback(group).IsReady;
 
     internal void ToggleServo(MotionGroup group, MotionAxis axis) => TryRunManual(() =>
@@ -825,9 +1005,13 @@ public sealed class MachineController
 
         try
         {
-            if (BufferHandlersEnabled)
+            if (_units.PcbSupply)
             {
                 _supplyHandler.ResetMotion();
+            }
+
+            if (_units.PcbPlacement)
+            {
                 _placementHandler.ResetMotion();
             }
 
@@ -969,11 +1153,15 @@ public sealed class MachineController
         {
             _state.SetHoming(true);
             var zHomeTasks = new List<Task>(3);
-            if (BufferHandlersEnabled)
+            if (_units.PcbPlacement)
             {
                 zHomeTasks.Add(CheckHomeAsync(_placementHandler.HomeAxisAsync(
                     MotionAxis.Z,
                     cancellationToken)));
+            }
+
+            if (_units.PcbSupply)
+            {
                 zHomeTasks.Add(CheckHomeAsync(_supplyHandler.PrepareHomeAsync(
                     cancellationToken)));
             }
@@ -989,7 +1177,7 @@ public sealed class MachineController
             cancellationToken.ThrowIfCancellationRequested();
 
             var safeZTasks = new List<Task>(2);
-            if (BufferHandlersEnabled)
+            if (_units.PcbPlacement)
             {
                 safeZTasks.Add(RunHomeStepAsync(
                     _placementHandler.MoveToHorizontalZAsync(
@@ -1005,11 +1193,15 @@ public sealed class MachineController
             await Task.WhenAll(safeZTasks);
 
             var horizontalHomeTasks = new List<Task>(4);
-            if (BufferHandlersEnabled)
+            if (_units.PcbPlacement)
             {
                 horizontalHomeTasks.Add(
                     CheckHomeAsync(_placementHandler.HomeHorizontalAsync(
                         cancellationToken)));
+            }
+
+            if (_units.PcbSupply)
+            {
                 horizontalHomeTasks.Add(
                     CheckHomeAsync(_supplyHandler.CompleteHomeAsync(
                         cancellationToken)));
@@ -1032,7 +1224,7 @@ public sealed class MachineController
             await Task.WhenAll(horizontalHomeTasks);
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (BufferHandlersEnabled)
+            if (_units.PcbSupply)
             {
                 await _supplyHandler.MoveToRotationZAsync(cancellationToken);
             }
@@ -1054,7 +1246,7 @@ public sealed class MachineController
 
     private void OnInputChanged(InputIo input, bool value)
     {
-        if (input == InputIo.AutoMode && value && !_state.AutomaticRunning)
+        if (input == InputIo.AutoMode && _state.AutoMode && !_state.AutomaticRunning)
             _conveyor.Stop();
 
         if (input is InputIo.AutoMode
@@ -1357,11 +1549,15 @@ public sealed class MachineController
         cancellationToken.ThrowIfCancellationRequested();
         try
         {
-            if (BufferHandlersEnabled)
+            if (_units.PcbSupply)
             {
                 stage = "PCB supply motion initialization";
                 _log?.Write(stage + " started.");
                 _supplyHandler.InitializeMotion();
+            }
+
+            if (_units.PcbPlacement)
+            {
                 stage = "PCB placement motion initialization";
                 _log?.Write(stage + " started.");
                 _placementHandler.InitializeMotion();
@@ -1432,7 +1628,7 @@ public sealed class MachineController
         _units.PcbSupply || _units.PcbPlacement;
 
     private bool InspectionGantryEnabled =>
-        _units.Inspection || _units.NgCarrierTransfer;
+        _units.IsMotionEnabled(MotionGroup.InspectionGantry);
 
     private void StopRunOutputs()
     {

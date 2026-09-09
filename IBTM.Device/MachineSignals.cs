@@ -207,28 +207,30 @@ public enum InputIo
     [Description("Emergency Stop 2 Pressed")]
     EmergencyStop2Pressed,
 
-    [Description("Auto Mode")]
+    // Keep the persisted mapping key; the physical contact is ON in MANUAL.
+    [Description("Auto / Manual Selector")]
     AutoMode,
 
     [Description("Reset Button")]
     ResetButton,
 
-    [Description("Door 1 Open")]
+    // Preserve existing database mapping keys; ON means the door is CLOSED.
+    [Description("Door 1 Closed")]
     Door1Open,
 
-    [Description("Door 2 Open")]
+    [Description("Door 2 Closed")]
     Door2Open,
 
-    [Description("Door 3 Open")]
+    [Description("Door 3 Closed")]
     Door3Open,
 
-    [Description("Door 4 Open")]
+    [Description("Door 4 Closed")]
     Door4Open,
 
-    [Description("Door 5 Open")]
+    [Description("Door 5 Closed")]
     Door5Open,
 
-    [Description("Door 6 Open")]
+    [Description("Door 6 Closed")]
     Door6Open,
 
     [Description("Servo Main Contactor On")]

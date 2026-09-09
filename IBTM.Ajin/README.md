@@ -15,14 +15,17 @@ them together from the manufacturer when updating the SDK.
 
 The corresponding native `AXL.dll` must still be available on the machine.
 Copying these declarations does not install or initialize the native driver.
-IBTM retains its configured interrupt number, motion parameter file, axis scaling
-and RTEX module mappings.
+IBTM retains its configured interrupt number, axis scaling and RTEX module mappings.
+The saved motion-parameter file path is retained for compatibility but is not loaded
+in the current `AxlOpenNoReset` field-test startup.
 
 ## DIO initialization and scanning
 
 The manufacturer's `Visual C#/DIO/DigitalIO/FormDigitalIO.cs` sample opens AXL
 with `AXT_RT_SUCCESS == 0`, queries the DIO modules, and reads inputs in WORD units.
-IBTM keeps its existing `AxlOpen` and motion-parameter load sequence, then checks
+IBTM now uses the manufacturer's `AxlOpenNoReset` to avoid resetting the hardware
+chip and skips `AxmMotLoadParaAll`. There is no automatic fallback to `AxlOpen`;
+the open result is logged and a nonzero result fails initialization. It then checks
 DIO presence, module count, and each configured module's identity and DI/DO counts.
 The detected board, position, module type and point counts are written to the log.
 Each mapped direction must have 16 or 32 points; nonexistent modules, wrong
@@ -35,11 +38,17 @@ slot, with the upper 16 bits cleared for a 16-point module. Existing logical
 addresses remain unchanged: each configured module still occupies a 32-bit slot.
 Access to bits 16..31 of a 16-point module is rejected before calling native I/O.
 
-The controller captures its module lists, interrupt number and parameter-file
-path when constructed. Editing settings cannot redirect a running input scan;
+The controller captures its module lists and interrupt number when constructed.
+Editing settings cannot redirect a running input scan;
 restart is required. Closing and reinitializing refreshes the hardware point counts.
 The shared physical input monitor still faults if either provider fails; no
 communication error is converted to an OFF input or successful machine readiness.
+
+This is an equipment-side field test, not a verified guarantee that axis settings
+persist across power cycles. Existing home/signal settings must already be valid.
+`AjinMotionService` still sets move units to 1/1 and acceleration units to pulses/s²,
+enables the configured servos, and applies home speeds when homing. Only the resetting
+open and `.mot` load are removed; the driver's mm conversion is unchanged.
 
 `IBTM.Ajin.Tests` compiles the real controller and manufacturer constants against
 a test-only in-memory SDK stand-in. It never loads AXL.dll or operates equipment.

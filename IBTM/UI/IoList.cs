@@ -38,17 +38,18 @@ public sealed partial class IoList<TRow, TSignal> : ObservableObject
         {
             var row = signal((TRow)item);
             return (SelectedArea.Key is null || row.Area == SelectedArea.Key)
-                && (Matches(row.Signal)
-                    || row is IoOutputStatus output && output.Feedback.Any(input => Matches(input.Signal)));
+                && (Matches(row)
+                    || row is IoOutputStatus output && output.Feedback.Any(Matches));
         };
     }
 
     public ICollectionView FilteredRows { get; }
     public KeyValuePair<HardwareArea?, string>[] Areas { get; }
 
-    private bool Matches(Enum signal) =>
-        signal.GetDescription().Contains(SearchText, StringComparison.OrdinalIgnoreCase)
-        || signal.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+    private bool Matches<T>(IoSignal<T> row) where T : struct, Enum =>
+        row.Signal.GetDescription().Contains(SearchText, StringComparison.OrdinalIgnoreCase)
+        || row.Signal.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase)
+        || row.Address.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
 
     partial void OnSearchTextChanged(string value) => FilteredRows.Refresh();
     partial void OnSelectedAreaChanged(KeyValuePair<HardwareArea?, string> value) => FilteredRows.Refresh();

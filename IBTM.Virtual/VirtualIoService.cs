@@ -13,8 +13,7 @@ public sealed class VirtualIoService(
 {
     private const int FeedbackDelayMilliseconds = 200;
 
-    private readonly bool[] _inputs = new bool[
-        Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
+    private readonly bool[] _inputs = CreateInitialInputs();
     private readonly bool[] _outputs = new bool[
         Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
     private readonly int[] _feedbackVersions = new int[
@@ -31,6 +30,21 @@ public sealed class VirtualIoService(
     public int TimeoutMilliseconds => options.TimeoutMilliseconds;
     internal event Action<OutputIo, bool>? OutputApplied;
     internal event Action? FeedbackSynchronized;
+
+    private static bool[] CreateInitialInputs()
+    {
+        var inputs = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
+        // Start in MANUAL using the same raw selector polarity as the machine.
+        inputs[(int)InputIo.AutoMode] = true;
+        // All six doors start closed; opening a door switches its raw input OFF.
+        inputs[(int)InputIo.Door1Open] = true;
+        inputs[(int)InputIo.Door2Open] = true;
+        inputs[(int)InputIo.Door3Open] = true;
+        inputs[(int)InputIo.Door4Open] = true;
+        inputs[(int)InputIo.Door5Open] = true;
+        inputs[(int)InputIo.Door6Open] = true;
+        return inputs;
+    }
 
     public bool AutoResponseEnabled
     {

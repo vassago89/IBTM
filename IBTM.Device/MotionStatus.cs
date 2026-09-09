@@ -68,6 +68,11 @@ public sealed class MotionStatus : INotifyPropertyChanged
         {
             foreach (var (axis, status) in Axes)
                 status.Update(available && Feedback.IsReady ? Feedback.GetAxisState(axis) : null);
+            if (available && Feedback.IsReady)
+            {
+                var position = Feedback.GetPosition();
+                OnPositionChanged(position.X, position.Y, position.Z);
+            }
         }
         catch (IOException)
         {

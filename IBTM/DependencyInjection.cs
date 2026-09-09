@@ -248,7 +248,9 @@ public static class DependencyInjection
                 placement.Feedback,
                 settings.PcbSupply.BufferHandoffPosition,
                 settings.PcbPlacementHandler.BufferHandoffPosition,
-                () => settings.PcbPlacementHandler.BufferEntryZ);
+                () => settings.PcbPlacementHandler.BufferEntryZ,
+                () => settings.Units.PcbSupply,
+                () => settings.Units.PcbPlacement);
         });
         services.AddSingleton<Func<PcbLayout>>(_ => () => currentRecipe.Pcb);
         AddBoltHardware(services, settings);

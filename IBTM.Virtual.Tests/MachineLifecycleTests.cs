@@ -1378,7 +1378,7 @@ public sealed class MachineLifecycleTests
         {
             manual.RunConveyorCommand.Execute(null);
             Assert.True(conveyor.RunCommandOn);
-            io.SetInput(InputIo.AutoMode, true);
+            io.SetInput(InputIo.AutoMode, false);
             Assert.False(conveyor.RunCommandOn);
             manual.RunConveyorCommand.Execute(null);
             Assert.False(conveyor.RunCommandOn);
@@ -1462,7 +1462,7 @@ public sealed class MachineLifecycleTests
             () => teaching.SelectNextPointCommand.Execute(null),
             teaching.Deactivate,
             machine.Stop,
-            () => io.SetInput(InputIo.AutoMode, true),
+            () => io.SetInput(InputIo.AutoMode, false),
         ];
         foreach (var stop in stops)
         {
@@ -1498,11 +1498,11 @@ public sealed class MachineLifecycleTests
         await row.ToggleCommand.ExecuteAsync(null);
         Assert.True(io.GetOutput(OutputIo.MachineLight));
 
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         await row.ToggleCommand.ExecuteAsync(null);
         Assert.True(io.GetOutput(OutputIo.MachineLight));
 
-        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.AutoMode, true);
         using (services.GetRequiredService<OperationCancellation>().Link())
         {
             await row.ToggleCommand.ExecuteAsync(null);
@@ -1510,6 +1510,58 @@ public sealed class MachineLifecycleTests
         }
         await row.ToggleCommand.ExecuteAsync(null);
         Assert.False(io.GetOutput(OutputIo.MachineLight));
+    }
+
+    [Fact]
+    public async Task DiagnosticOutputsKeepLocalRotationInterlocksAndCancelFeedbackOnModeChange()
+    {
+        var settings = FlowSettings();
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var signals = services.GetRequiredService<IoSignals>();
+        var motion = services.GetRequiredKeyedService<IAxisMotion>(MotionGroup.PcbSupply);
+        await machine.InitializeAsync();
+        var gripper = new OutputControlRow(io, signals.Outputs[OutputIo.PcbSupplyGripperClosed], machine);
+        Assert.False(gripper.ToggleCommand.CanExecute(null));
+        await gripper.ToggleCommand.ExecuteAsync(null);
+        Assert.False(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+        await machine.HomeAsync(CancellationToken.None);
+        typeof(MachineState).GetMethod("SetError", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(state, [MachineAlarm.MotionUnavailable, new IOException("Another handler is unavailable.")]);
+
+        var rotation = new OutputControlRow(io, signals.Outputs[OutputIo.PcbSupplyRotate], machine);
+        await WaitUntilAsync(() => rotation.ToggleCommand.CanExecute(null));
+        var position = motion.GetPosition();
+        var wasRotated = io.GetOutput(OutputIo.PcbSupplyRotate);
+        await rotation.ToggleCommand.ExecuteAsync(null);
+        Assert.Equal(!wasRotated, io.GetOutput(OutputIo.PcbSupplyRotate));
+        Assert.Equal(position, motion.GetPosition());
+        Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+
+        await motion.MoveZAsync(settings.PcbSupply.RotationZ + 1, 10_000);
+        await WaitUntilAsync(() => !rotation.ToggleCommand.CanExecute(null));
+        position = motion.GetPosition();
+        await rotation.ToggleCommand.ExecuteAsync(null);
+        Assert.Equal(!wasRotated, io.GetOutput(OutputIo.PcbSupplyRotate));
+        Assert.Equal(position, motion.GetPosition()); // No implicit Z recovery move.
+
+        motion.SetServo(MotionAxis.X, false);
+        await gripper.ToggleCommand.ExecuteAsync(null);
+        Assert.False(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
+        motion.SetServo(MotionAxis.X, true);
+        await WaitUntilAsync(() => gripper.ToggleCommand.CanExecute(null));
+        io.AutoResponseEnabled = false;
+        var toggle = gripper.ToggleCommand.ExecuteAsync(null);
+        await WaitUntilAsync(() => gripper.FeedbackState == OutputFeedbackState.Waiting);
+        Assert.True(state.IsRunning);
+        io.SetInput(InputIo.AutoMode, false);
+        await toggle.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(state.IsRunning);
+        Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+        Assert.False(gripper.FeedbackState == OutputFeedbackState.Timeout);
+        await WaitUntilAsync(() => !gripper.ToggleCommand.CanExecute(null));
     }
 
     [Theory]
@@ -1540,7 +1592,7 @@ public sealed class MachineLifecycleTests
         {
             await WaitUntilAsync(() => gantry.Feedback.IsMoving);
             if (closeTeaching) await teaching.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(2));
-            else io.SetInput(InputIo.AutoMode, true);
+            else io.SetInput(InputIo.AutoMode, false);
             await capture.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(gantry.Feedback.IsMoving);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
@@ -1549,7 +1601,7 @@ public sealed class MachineLifecycleTests
             Assert.Null(teaching.CameraError);
             Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
 
-            io.SetInput(InputIo.AutoMode, false);
+            io.SetInput(InputIo.AutoMode, true);
             settings.InspectionGantry.Motion.HorizontalSpeed = 10_000;
             await WaitUntilAsync(() => command.CanExecute(null));
             await command.ExecuteAsync(null);
@@ -1606,7 +1658,7 @@ public sealed class MachineLifecycleTests
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.InspectionBackupPlateDown, false);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         Assert.True(work.CarrierSeated);
         Assert.True(machine.CanStart);
         using var failureStop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -1857,7 +1909,7 @@ public sealed class MachineLifecycleTests
             () => teaching.SelectedMotionGroup = MotionGroup.InspectionGantry,
             machine.Stop,
             teaching.Deactivate,
-            () => io.SetInput(InputIo.AutoMode, true),
+            () => io.SetInput(InputIo.AutoMode, false),
         ];
         foreach (var stop in stopActions)
         {
@@ -1871,11 +1923,11 @@ public sealed class MachineLifecycleTests
             stop();
             await holding.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(io.GetOutput(OutputIo.ShootBolt));
-            io.SetInput(InputIo.AutoMode, false);
+            io.SetInput(InputIo.AutoMode, true);
         }
         Assert.All(outputs, output => Assert.Equal(OutputIo.ShootBolt, output));
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         await WaitUntilAsync(() => !teaching.SetOutputOnCommand.CanExecute(shoot));
     }
 
@@ -1933,9 +1985,9 @@ public sealed class MachineLifecycleTests
         supply.SetServo(MotionAxis.X, false);
         Assert.False(state.ManualControlsEnabled);
         await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(placementPlate));
-        io.SetInput(InputIo.AutoMode, true);
-        await WaitUntilAsync(() => !teaching.SetOutputOnCommand.CanExecute(placementPlate));
         io.SetInput(InputIo.AutoMode, false);
+        await WaitUntilAsync(() => !teaching.SetOutputOnCommand.CanExecute(placementPlate));
+        io.SetInput(InputIo.AutoMode, true);
 
         teaching.SelectedMotionGroup = MotionGroup.InspectionGantry;
         await WaitUntilAsync(() => !teaching.SetOutputOnCommand.CanExecute(teaching.TeachingOutputs[OutputIo.NgCarrierPickupDown]));
@@ -2246,11 +2298,11 @@ public sealed class MachineLifecycleTests
             await WaitUntilAsync(() => !teaching.AddBoltPointCommand.CanExecute(null));
             await WaitUntilAsync(() => !teaching.RemoveBoltPointCommand.CanExecute(null));
         }
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         await WaitUntilAsync(() => !teaching.CanEditTeaching);
         await WaitUntilAsync(() => !teaching.AddBoltPointCommand.CanExecute(null));
         await WaitUntilAsync(() => !teaching.RemoveBoltPointCommand.CanExecute(null));
-        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.AutoMode, true);
         await WaitUntilAsync(() => teaching.CanEditTeaching);
         services.GetRequiredService<InspectionGantry>().SetServo(MotionAxis.X, false);
         await WaitUntilAsync(() => !teaching.CanEditTeaching);
@@ -2284,12 +2336,12 @@ public sealed class MachineLifecycleTests
         }
         await WaitUntilAsync(() => teaching.SaveBufferSetupCommand.CanExecute(null));
 
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         await WaitUntilAsync(() => !teaching.SaveBufferSetupCommand.CanExecute(null));
         await teaching.SaveBufferSetupCommand.ExecuteAsync(null);
         Assert.Equal(60, settings.PcbBuffer.SupplyBoundary1);
 
-        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.AutoMode, true);
         await WaitUntilAsync(() => teaching.SaveBufferSetupCommand.CanExecute(null));
         settings.Units.PcbSupply = false;
         await teaching.SaveBufferSetupCommand.ExecuteAsync(null);
@@ -2348,7 +2400,7 @@ public sealed class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.InspectionCarrierPresent, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, true);
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         void StopDuringTransfer(double x, double y, double z)
         {
             if (x > 40 && io.GetInput(InputIo.NgCarrierDetected))
@@ -2475,13 +2527,13 @@ public sealed class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(state.ManualControlsEnabled);
 
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         Assert.True(machine.CanStart);
         await machine.StartAsync();
         Assert.Equal(MachineAlarm.Inspection, state.Alarm);
         Assert.False(state.IsRunning);
 
-        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.AutoMode, true);
         await machine.ResetAsync();
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.True(state.ManualControlsEnabled);
@@ -2613,7 +2665,7 @@ public sealed class MachineLifecycleTests
         Assert.True(state.IsRunning);
         machine.Stop();
         await head.Stopping.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         Assert.True(state.IsRunning);
         Assert.False(machine.CanStart);
         Assert.False(machine.CanHome);
@@ -2653,7 +2705,7 @@ public sealed class MachineLifecycleTests
         io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateDown, false);
         io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
 
         var run = machine.StartAsync();
         await head.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
@@ -2784,7 +2836,7 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await boltMotion.MoveZAsync(10, 20_000);
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
 
         var run = machine.StartAsync();
         await finished.Task.WaitAsync(TimeSpan.FromSeconds(30));
@@ -2916,7 +2968,7 @@ public sealed class MachineLifecycleTests
         Assert.True(machine.CanHome);
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.MainConveyorReadyFromRear, false);
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         Assert.True(machine.CanStart);
         var run = machine.StartAsync();
         try
@@ -3025,9 +3077,9 @@ public sealed class MachineLifecycleTests
         Assert.True(machine.CanHome);
         Assert.False(state.ManualControlsEnabled);
         Assert.True(state.ManualOutputsEnabled);
-        io.SetInput(InputIo.AutoMode, true);
-        Assert.False(state.ManualOutputsEnabled);
         io.SetInput(InputIo.AutoMode, false);
+        Assert.False(state.ManualOutputsEnabled);
+        io.SetInput(InputIo.AutoMode, true);
         using (services.GetRequiredService<OperationCancellation>().Link())
             Assert.False(state.ManualOutputsEnabled);
         Assert.True(state.ManualOutputsEnabled);
@@ -3568,7 +3620,7 @@ public sealed class MachineLifecycleTests
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, true);
         var jog = gantry.JogAsync(MotionAxis.X, 1);
         await WaitUntilAsync(() => gantry.Feedback.GetPosition().X > 0);
-        if (autoMode) io.SetInput(InputIo.AutoMode, true);
+        if (autoMode) io.SetInput(InputIo.AutoMode, false);
         else gantry.SetServo(MotionAxis.X, false);
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jog.WaitAsync(TimeSpan.FromSeconds(2)));
         var stopped = gantry.Feedback.GetPosition();
@@ -3656,7 +3708,7 @@ public sealed class MachineLifecycleTests
                 Assert.False(services.GetRequiredService<InspectionWork>().CanReceive);
             }
 
-            io.SetInput(InputIo.AutoMode, true);
+            io.SetInput(InputIo.AutoMode, false);
             Assert.True(machine.CanStart);
 
             var run = machine.StartAsync();
@@ -3683,6 +3735,108 @@ public sealed class MachineLifecycleTests
         }
     }
 
+    [Theory]
+    [InlineData(MachineUnit.PcbSupply, MotionGroup.PcbSupply)]
+    [InlineData(MachineUnit.PcbPlacement, MotionGroup.PcbPlacementHandler)]
+    [InlineData(MachineUnit.BoltFastening, MotionGroup.BoltFastening)]
+    [InlineData(MachineUnit.Inspection, MotionGroup.InspectionGantry)]
+    [InlineData(MachineUnit.NgCarrierTransfer, MotionGroup.InspectionGantry)]
+    public async Task OnlyEnabledMotionsAreInitializedReadResetAndHomed(MachineUnit unit, MotionGroup group)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(unit);
+        using var services = CreateMotionScopeServices(settings, out var probes);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        foreach (var (candidate, probe) in probes)
+        {
+            if (candidate == group) continue;
+            // Also simulate an initialized drive that was subsequently disabled.
+            probe.ReportReady = true;
+            probe.FailHardwareCalls = true;
+        }
+
+        await machine.InitializeAsync();
+        Assert.Equal(MachineAlarm.None, state.Alarm);
+        Assert.True(state.Display.Available);
+        Assert.False(state.Faulted);
+        Assert.True(machine.CanHome);
+        await machine.HomeAsync(CancellationToken.None);
+        Assert.True(state.Ready);
+        Assert.True(state.ManualControlsEnabled);
+
+        probes[group].Motion.SetServo(MotionAxis.X, false);
+        Assert.True(machine.CanReset);
+        await machine.ResetAsync();
+        Assert.True(state.Ready);
+        Assert.Equal(1, probes[group].ResetCalls);
+
+        if (group == MotionGroup.BoltFastening)
+        {
+            var teaching = services.GetRequiredService<StationTeachingViewModel>();
+            teaching.SelectedMotionGroup = group;
+            teaching.StepDistance = 0.1;
+            await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+            var before = probes[group].Motion.GetPosition();
+            await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
+            Assert.Equal(before.X + 0.1, probes[group].Motion.GetPosition().X, precision: 6);
+        }
+
+        if (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler)
+        {
+            var buffer = services.GetRequiredService<BufferStage>();
+            Assert.False(buffer.CanSupplyLower);
+            Assert.False(buffer.CanPlacementEnter);
+        }
+
+        foreach (var row in manual.Axes.Where(row => row.Group != group))
+        {
+            Assert.False(manual.ToggleServoCommand.CanExecute(row));
+            Assert.False(manual.HomeAxisCommand.CanExecute(row));
+            Assert.Null(row.Feedback.State);
+            // Bypassing CanExecute still must not command a disabled drive.
+            manual.ToggleServoCommand.Execute(row);
+            await manual.HomeAxisCommand.ExecuteAsync(row);
+        }
+        Assert.All(probes.Where(item => item.Key != group),
+            item => Assert.Equal(0, item.Value.HardwareCalls));
+        Assert.Equal(MachineAlarm.None, state.Alarm);
+    }
+
+    [Fact]
+    public async Task DisablingAFailedMotionAllowsResetWithoutHidingAnEnabledMotionFailure()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        using var services = CreateMotionScopeServices(settings, out var probes);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        probes[MotionGroup.PcbSupply].FailHardwareCalls = true;
+
+        await machine.InitializeAsync();
+        Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+        Assert.False(state.ManualControlsEnabled);
+        var failedCalls = probes[MotionGroup.PcbSupply].HardwareCalls;
+
+        settings.Units.PcbSupply = false;
+        settings.Units.PcbPlacement = true;
+        Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+        await machine.ResetAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        Assert.Equal(MachineAlarm.None, state.Alarm);
+        Assert.True(state.Ready);
+        Assert.True(state.ManualControlsEnabled);
+        Assert.Equal(failedCalls, probes[MotionGroup.PcbSupply].HardwareCalls);
+
+        // Re-enabling the same faulty hardware makes it mandatory again.
+        settings.Units.PcbSupply = true;
+        Assert.True(state.Faulted);
+        Assert.False(state.ManualControlsEnabled);
+        await machine.ResetAsync();
+        Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+    }
+
     [Fact]
     public async Task DisabledTransferStillBlocksShuttleUntilPickupIsRaised()
     {
@@ -3702,7 +3856,7 @@ public sealed class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierGripperClosed, true);
         io.SetInput(InputIo.NgCarrierDetected, true);
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
 
         var run = machine.StartAsync();
         try
@@ -3743,7 +3897,7 @@ public sealed class MachineLifecycleTests
         var operations = services.GetRequiredService<OperationCancellation>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         Assert.True(machine.CanStart);
 
         using var manual = operations.Link();
@@ -3783,7 +3937,7 @@ public sealed class MachineLifecycleTests
 
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         head.WaitForReadiness = true;
         var readinessChecks = head.ReadinessChecks;
 
@@ -3824,7 +3978,7 @@ public sealed class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         var stopped = false;
         var feederStarted = false;
@@ -3876,19 +4030,19 @@ public sealed class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(state.Homed);
 
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         Assert.True(machine.CanStart);
         var firstRun = machine.StartAsync();
         await WaitUntilAsync(() => state.AutomaticRunning);
 
-        io.SetInput(InputIo.Door1Open, true);
+        io.SetInput(InputIo.Door1Open, false);
         await firstRun.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.Equal(MachineAlarm.DoorOpen, state.Alarm);
         Assert.False(state.IsRunning);
         Assert.False(state.ServosOn);
 
-        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.AutoMode, true);
         io.SetInput(InputIo.ResetButton, true);
         await WaitUntilAsync(() => !state.IsError);
         io.SetInput(InputIo.ResetButton, false);
@@ -3896,8 +4050,8 @@ public sealed class MachineLifecycleTests
         Assert.True(state.ServosOn);
         Assert.True(state.Homed);
 
-        io.SetInput(InputIo.Door1Open, false);
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.Door1Open, true);
+        io.SetInput(InputIo.AutoMode, false);
         var secondRun = machine.StartAsync();
         await WaitUntilAsync(() => state.AutomaticRunning);
 
@@ -3923,7 +4077,7 @@ public sealed class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
 
         await machine.InitializeAsync();
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(2));
 
@@ -3962,7 +4116,7 @@ public sealed class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
 
         await machine.InitializeAsync();
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         var run = machine.StartAsync();
         await WaitUntilAsync(() => state.AutomaticRunning);
 
@@ -4009,7 +4163,7 @@ public sealed class MachineLifecycleTests
 
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        io.SetInput(InputIo.AutoMode, true);
+        io.SetInput(InputIo.AutoMode, false);
         var run = machine.StartAsync();
         await WaitUntilAsync(() => state.AutomaticRunning);
 
@@ -4311,6 +4465,68 @@ public sealed class MachineLifecycleTests
                 ValidateOnBuild = true,
                 ValidateScopes = true,
             });
+
+    private static ServiceProvider CreateMotionScopeServices(
+        MachineSettings settings, out Dictionary<MotionGroup, ScopedMotionProbe> probes)
+    {
+        var captured = new Dictionary<MotionGroup, ScopedMotionProbe>();
+        probes = captured;
+        T Wrap<T>(MotionGroup group, T motion) where T : class, IAxisMotion
+        {
+            var wrapper = DispatchProxy.Create<T, ScopedMotionProbe>();
+            var probe = (ScopedMotionProbe)(object)wrapper;
+            probe.Motion = motion;
+            captured.Add(group, probe);
+            return wrapper;
+        }
+
+        return new ServiceCollection()
+            .AddSingleton<RecipeStore>()
+            .AddIbtmApplication(settings, new Recipe { Pcb = VirtualTest.TaughtPcbLayout() })
+            .AddSingleton(provider => new PcbSupplyHandler(
+                Wrap(MotionGroup.PcbSupply, provider.GetRequiredKeyedService<IAxisMotion>(MotionGroup.PcbSupply)),
+                provider.GetRequiredService<IIoService>(), settings.PcbSupply, settings.PcbBuffer))
+            .AddSingleton(provider => new PcbPlacementHandler(
+                Wrap(MotionGroup.PcbPlacementHandler, provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler)),
+                provider.GetRequiredService<IIoService>(), settings.PcbPlacementHandler))
+            .AddSingleton(provider => new BoltFasteningGantry(
+                provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
+                provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
+                provider.GetRequiredService<IIoService>(),
+                Wrap(MotionGroup.BoltFastening, provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening)),
+                settings.BoltFastening, settings.CarrierReference))
+            .AddSingleton(provider => new InspectionGantry(
+                Wrap(MotionGroup.InspectionGantry, provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry)),
+                provider.GetRequiredService<NgCarrierTransfer>(), provider.GetRequiredService<OperationCancellation>(),
+                settings.InspectionGantry))
+            .BuildServiceProvider();
+    }
+
+    public class ScopedMotionProbe : DispatchProxy
+    {
+        private bool _initialized;
+        public IAxisMotion Motion = null!;
+        public bool ReportReady;
+        public bool FailHardwareCalls;
+        public int HardwareCalls;
+        public int ResetCalls;
+
+        protected override object? Invoke(MethodInfo? method, object?[]? arguments)
+        {
+            var name = method!.Name;
+            if (name == "get_IsReady") return ReportReady || _initialized;
+            if ((!method.IsSpecialName && name != nameof(IMotionFeedback.GetRange))
+                || name == "get_IsAtHorizontalZ")
+            {
+                Interlocked.Increment(ref HardwareCalls);
+                if (name == nameof(IAxisMotion.Reset)) Interlocked.Increment(ref ResetCalls);
+                if (FailHardwareCalls) throw new IOException($"Unavailable motion: {name}");
+            }
+            var result = method.Invoke(Motion, arguments);
+            if (name == nameof(IAxisMotion.Initialize)) _initialized = true;
+            return result;
+        }
+    }
 
     private static UnitSettings EnableOnly(MachineUnit unit) => new()
     {

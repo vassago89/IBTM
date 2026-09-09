@@ -3,6 +3,17 @@
                     xmlns:ui="clr-namespace:IBTM.UI">
 
     <ui:TeachingOutputConverter x:Key="TeachingOutputConverter"/>
+    <SolidColorBrush x:Key="IoInputOnBrush" Color="#39BAFF"/>
+    <SolidColorBrush x:Key="IoOutputOnBrush" Color="#FFD166"/>
+
+    <Style x:Key="IoAddressStyle" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="Consolas"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="ToolTip" Value="Configured I/O channel number. Paired outputs show ON / OFF numbers."/>
+    </Style>
 
     <Style x:Key="IoListStyle" TargetType="ListBox">
         <Setter Property="Background" Value="Transparent"/>
@@ -107,6 +118,30 @@
         <Setter Property="Padding" Value="10,4"/>
     </Style>
 
+    <Style x:Key="IoInputListItemStyle" TargetType="ListBoxItem" BasedOn="{StaticResource IoListItemStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding IsOn}" Value="True">
+                <Setter Property="Background" Value="#173B50"/>
+                <Setter Property="BorderBrush" Value="{StaticResource IoInputOnBrush}"/>
+                <Setter Property="BorderThickness" Value="3,0,0,1"/>
+                <Setter Property="Padding" Value="8,7,11,7"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="IoOutputListItemStyle" TargetType="ListBoxItem" BasedOn="{StaticResource IoListItemStyle}">
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Io.IsOn}" Value="True">
+                <Setter Property="Background" Value="#493B21"/>
+                <Setter Property="BorderBrush" Value="{StaticResource IoOutputOnBrush}"/>
+                <Setter Property="BorderThickness" Value="3,0,0,1"/>
+                <Setter Property="Padding" Value="8,7,11,7"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="IoInputLedStyle" TargetType="Ellipse">
         <Setter Property="Width" Value="10"/>
         <Setter Property="Height" Value="10"/>
@@ -124,63 +159,60 @@
     </Style>
 
     <Style x:Key="IoInputStateStyle" TargetType="ContentControl">
-        <Setter Property="Content" Value="OFF"/>
-        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ContentControl">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Ellipse Width="10"
-                                 Height="10"
-                                 Fill="{TemplateBinding Foreground}"/>
-                        <TextBlock Margin="8,0,0,0"
-                                   Text="{TemplateBinding Content}"
-                                   Foreground="{TemplateBinding Foreground}"
-                                   FontWeight="SemiBold"/>
-                    </StackPanel>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
-                <Setter Property="Content" Value="ON"/>
-                <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
-            </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
-    <Style x:Key="IoOutputStateStyle" TargetType="ContentControl">
         <Setter Property="Content" Value="—"/>
+        <Setter Property="ToolTip" Value="UNKNOWN: feedback is unavailable."/>
         <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="Background" Value="#222C32"/>
+        <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="MinWidth" Value="68"/>
+        <Setter Property="Height" Value="28"/>
+        <Setter Property="Padding" Value="8,3"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ContentControl">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <Border x:Name="Indicator" Width="10"
-                                Height="10"
-                                Background="{TemplateBinding Foreground}"
-                                CornerRadius="1"/>
-                        <TextBlock Margin="8,0,0,0"
-                                   Text="{TemplateBinding Content}"
-                                   Foreground="{TemplateBinding Foreground}"
-                                   FontWeight="SemiBold"/>
-                    </StackPanel>
+                    <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <Ellipse x:Name="Indicator" Width="10" Height="10" Fill="Transparent"
+                                     Stroke="{TemplateBinding Foreground}" StrokeThickness="1"/>
+                            <TextBlock Margin="7,0,0,0" Text="{TemplateBinding Content}"
+                                       Foreground="{TemplateBinding Foreground}" FontSize="13" FontWeight="Bold"/>
+                        </StackPanel>
+                    </Border>
                     <ControlTemplate.Triggers>
-                        <Trigger Property="Tag" Value="{x:Null}">
-                            <Setter TargetName="Indicator" Property="Background" Value="Transparent"/>
-                            <Setter TargetName="Indicator" Property="BorderBrush" Value="{StaticResource TextMutedBrush}"/>
-                            <Setter TargetName="Indicator" Property="BorderThickness" Value="1"/>
-                        </Trigger>
+                        <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}" Value="True">
+                            <Setter TargetName="Indicator" Property="Fill" Value="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/>
+                        </DataTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
         <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="False">
+                <Setter Property="Content" Value="OFF"/>
+                <Setter Property="ToolTip" Value="OFF"/>
+            </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="True">
                 <Setter Property="Content" Value="ON"/>
-                <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                <Setter Property="ToolTip" Value="ON"/>
+                <Setter Property="Foreground" Value="#0D1B26"/>
+                <Setter Property="Background" Value="{StaticResource IoInputOnBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource IoInputOnBrush}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="IoOutputStateStyle" TargetType="ContentControl" BasedOn="{StaticResource IoInputStateStyle}">
+        <Setter Property="Content" Value="—"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
+                         Value="True">
+                <Setter Property="Content" Value="ON"/>
+                <Setter Property="Background" Value="{StaticResource IoOutputOnBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource IoOutputOnBrush}"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
                          Value="False">
@@ -198,6 +230,7 @@
             <StackPanel>
                 <TextBlock Text="SEARCH" Style="{StaticResource SectionHeaderStyle}"/>
                 <TextBox Margin="0,6,0,0"
+                         ToolTip="Search by signal name or configured I/O number."
                          Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
             </StackPanel>
             <StackPanel Grid.Column="2">
@@ -212,13 +245,15 @@
     <DataTemplate x:Key="IoSignalReadoutTemplate">
         <Grid Margin="0,3">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="42"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="52"/>
+                <ColumnDefinition Width="72"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
+            <TextBlock Text="{Binding Address}" Style="{StaticResource IoAddressStyle}" FontSize="11"/>
+            <TextBlock Grid.Column="1" Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
                        TextWrapping="Wrap" Margin="0,0,8,0" VerticalAlignment="Center"
                        Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
-            <ContentControl Grid.Column="1" Tag="{Binding IsOn}"
+            <ContentControl Grid.Column="2" Tag="{Binding IsOn}"
                             Style="{StaticResource IoInputStateStyle}" FontSize="11"/>
         </Grid>
     </DataTemplate>
@@ -247,7 +282,7 @@
                                                 <Grid Margin="0,0,0,3">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="52"/>
+                                                        <ColumnDefinition Width="72"/>
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
                                                                TextWrapping="Wrap" Margin="0,0,8,0" FontSize="12"

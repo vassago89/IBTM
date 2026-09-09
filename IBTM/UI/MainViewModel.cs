@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -58,6 +59,9 @@ public partial class MainViewModel : ObservableObject
     private readonly IAsyncRelayCommand[] _recipeEditingCommands;
     private int _stateRefreshQueued;
     private bool _shuttingDown;
+
+    [ObservableProperty]
+    private string? _resetError;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CurrentPage))]
@@ -157,6 +161,9 @@ public partial class MainViewModel : ObservableObject
     };
     public bool ManualControlsEnabled => _state.Display.ManualControlsEnabled;
     public bool ManualOutputsEnabled => _state.ManualOutputsEnabled;
+    // Window access follows selector mode only, not alarm/busy output admission.
+    public bool OutputsWindowEnabled => !_shuttingDown
+        && _state.Display.Available && !_state.Display.AutoMode;
     public bool AdcProtocolEnabled =>
         _virtualBolt || _machine.AdcProtocolAvailable;
     public bool CurrentPageEnabled =>
@@ -169,12 +176,14 @@ public partial class MainViewModel : ObservableObject
     public Task ShutdownAsync()
     {
         _shuttingDown = true;
+        ResetCommand.NotifyCanExecuteChanged();
         _state.DisplayChanged -= OnMachineStateChanged;
         foreach (var command in _recipeEditingCommands)
         {
             command.PropertyChanged -= OnRecipeEditingChanged;
         }
         return Task.WhenAll(
+            CommandShutdown.WaitAsync(CommandShutdown.Capture(ResetCommand)),
             _operationViewModel.ShutdownAsync(),
             _supplyTeachingViewModel.ShutdownAsync(),
             _stationTeachingViewModel.ShutdownAsync(),
@@ -183,6 +192,34 @@ public partial class MainViewModel : ObservableObject
             _settingsViewModel.ShutdownAsync(),
             RecipeEditor.ShutdownAsync());
     }
+
+    [RelayCommand(CanExecute = nameof(CanReset))]
+    private async Task ResetAsync()
+    {
+        // The controller rechecks the same conditions as the physical RESET input.
+        if (!CanReset()) return;
+        ResetError = null;
+        Trace.TraceInformation("On-screen RESET requested.");
+        try
+        {
+            await Task.Run(_machine.ResetAsync);
+        }
+        catch (OperationCanceledException)
+        {
+            Trace.TraceInformation("On-screen RESET cancelled.");
+        }
+        catch (Exception exception)
+        {
+            ResetError = $"RESET failed: {exception.Message}";
+            Trace.TraceError("On-screen RESET failed. {0}", exception);
+        }
+        finally
+        {
+            ResetCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private bool CanReset() => !_shuttingDown && _machine.CanReset;
 
     [RelayCommand(CanExecute = nameof(CanNavigate))]
     private void Navigate(AppPage page) => SelectedPage = page;
@@ -254,6 +291,9 @@ public partial class MainViewModel : ObservableObject
             case BoltTrainingViewModel training:
                 training.Deactivate();
                 break;
+            case SettingsViewModel settings:
+                settings.TestLightCommand.Cancel();
+                break;
         }
     }
 
@@ -284,10 +324,12 @@ public partial class MainViewModel : ObservableObject
 
             OnPropertyChanged(nameof(ManualControlsEnabled));
             OnPropertyChanged(nameof(ManualOutputsEnabled));
+            OnPropertyChanged(nameof(OutputsWindowEnabled));
             OnPropertyChanged(nameof(AdcProtocolEnabled));
             OnPropertyChanged(nameof(CurrentPageEnabled));
             OnPropertyChanged(nameof(RecipeEditingEnabled));
             NavigateCommand.NotifyCanExecuteChanged();
+            ResetCommand.NotifyCanExecuteChanged();
             if (_state.AutomaticRunning
                 && SelectedPage != AppPage.Operation)
             {

@@ -15,6 +15,16 @@ public sealed class UnitSettings : Setting
     public bool NgShuttle { get; set; } = true;
     public bool NgConveyor { get; set; } = true;
 
+    internal bool IsMotionEnabled(MotionGroup group) => group switch
+    {
+        MotionGroup.PcbSupply => PcbSupply,
+        MotionGroup.PcbPlacementHandler => PcbPlacement,
+        MotionGroup.BoltFastening => BoltFastening,
+        // Inspection and NG transfer use the same physical XY gantry.
+        MotionGroup.InspectionGantry => Inspection || NgCarrierTransfer,
+        _ => false,
+    };
+
     internal bool HasEnabledUnit() =>
         MainConveyor
         || PcbSupply

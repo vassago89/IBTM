@@ -428,6 +428,8 @@ public sealed class PcbSupplyHandler
     private bool AtRotationZ(bool live) =>
         live ? IsAtRotationZ : Motion.IsAtZ(_settings.RotationZ);
 
+    public bool CanRotateInPlace(bool live = true) => !IsInsideBuffer(live) && AtRotationZ(live);
+
     public Task MoveToRotationZAsync(
         CancellationToken cancellationToken = default) =>
         _motion.MoveToHorizontalZAsync(cancellationToken);

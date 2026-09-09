@@ -61,6 +61,8 @@ public partial class OperationViewModel : ObservableObject
         nameof(DoorClosed),
         nameof(AirPressureOk),
         nameof(AutoMode),
+        nameof(ModeKnown),
+        nameof(ModeText),
         nameof(HasAlarm),
         nameof(Alarm),
         nameof(AlarmDetail),
@@ -465,6 +467,8 @@ public partial class OperationViewModel : ObservableObject
     public bool DoorClosed => _machineDisplay.DoorClosed;
     public bool AirPressureOk => _machineDisplay.AirPressureOk;
     public bool AutoMode => _machineDisplay.AutoMode;
+    public bool ModeKnown => _machineDisplay.Available;
+    public string ModeText => ModeKnown ? (AutoMode ? "AUTO" : "MANUAL") : "UNKNOWN";
     public bool HasAlarm => _machineDisplay.Alarm != MachineAlarm.None || _machineDisplay.ReadError is not null;
     public Enum Alarm => _machineDisplay.ReadError is null
         ? _machineDisplay.Alarm : MachineDisplayState.Unavailable;

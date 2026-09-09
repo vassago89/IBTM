@@ -177,6 +177,7 @@
             </StackPanel>
             <StackPanel>
                 <TextBlock Text="Settings" Style="{StaticResource TitleStyle}"/>
+                <TextBlock Text="{Binding SettingsAccessMessage}" Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap"/>
                 <TextBlock Text="{Binding DatabaseMessage}" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
             </StackPanel>
         </DockPanel>
@@ -335,6 +336,8 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel MaxWidth="1480"
                                 Margin="0,0,8,0">
+                <TextBlock Text="Auto / Manual Selector: ON = MANUAL / OFF = AUTO. Doors: ON = CLOSED / OFF = OPEN. Input states show the raw contact value."
+                           Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="12,8,12,12"/>
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>
                         <Grid Margin="0,0,0,14">
@@ -680,6 +683,35 @@
                                 </UniformGrid>
                                 <TextBlock Text="Driver and serial changes require Save Settings and restart. Brightness is taught in the inspection recipe."
                                            TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0"/>
+                                <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,14,0,0" Padding="0,12,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Light Test" Style="{StaticResource SettingSectionTitle}"/>
+                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,10" TextWrapping="Wrap">
+                                            <Run Text="Active connection: "/><Run Text="{Binding ActiveLightConnection, Mode=OneWay}"/>
+                                        </TextBlock>
+                                        <UniformGrid Columns="2">
+                                            <StackPanel Margin="0,0,4,10">
+                                                <TextBlock Text="Test Channel (1–9)" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBox Text="{Binding LightTestChannel, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="4,0,0,10">
+                                                <TextBlock Text="Brightness (0–255)" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBox Text="{Binding LightTestLevel, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                        </UniformGrid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="ON / Test" Command="{Binding TestLightCommand}"
+                                                    Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,8,0"/>
+                                            <Button Content="OFF" Command="{Binding OffTestLightCommand}"
+                                                    ToolTip="Stop the test or retry a failed OFF on the original test channel."
+                                                    Style="{StaticResource DangerButtonStyle}" MinWidth="100"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding LightTestMessage}" Foreground="{StaticResource AccentAmberBrush}"
+                                                   TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                        <TextBlock Text="MANUAL + stopped only. OFF, machine STOP, AUTO selection or leaving Settings ends the test. Test brightness is not saved to the recipe."
+                                                   TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"/>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -739,7 +771,8 @@
                         <UniformGrid Columns="2">
                             <CheckBox Content="Emergency Stop"
                                       IsChecked="{Binding Settings.Options.UseEmergencyStop}"/>
-                            <CheckBox Content="Reset Button"
+                            <CheckBox Content="Hardware Reset Button"
+                                      ToolTip="Enables the physical RESET input. The on-screen RESET uses the same recovery conditions independently of this setting."
                                       IsChecked="{Binding Settings.Options.UseResetButton}"/>
                             <CheckBox Content="Door Interlock"
                                       IsChecked="{Binding Settings.Options.UseDoorInterlock}"/>

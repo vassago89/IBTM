@@ -33,10 +33,12 @@
                     Click="OnRefresh"/>
         </Grid>
 
-        <TextBlock Grid.Row="1"
-                   Text="DO = command  ·  blue = energized input"
-                   Style="{StaticResource PageSubtitleStyle}"
-                   Margin="0,4,0,18"/>
+        <StackPanel Grid.Row="1" Margin="0,4,0,18">
+            <TextBlock Text="Amber = output ON · blue = input ON · paired numbers = ON / OFF channels"
+                       Style="{StaticResource PageSubtitleStyle}" TextWrapping="Wrap"/>
+            <TextBlock Text="{Binding ControlStatus}" Foreground="{StaticResource AccentAmberBrush}"
+                       Margin="0,6,0,0" TextWrapping="Wrap"/>
+        </StackPanel>
 
         <ContentControl Grid.Row="2" Margin="0,0,0,14"
                         Content="{Binding Filter}" ContentTemplate="{StaticResource IoFilterTemplate}"
@@ -45,22 +47,24 @@
         <Grid Grid.Row="3"
               Margin="12,0,12,6">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="96"/>
+                <ColumnDefinition Width="2*"/>
                 <ColumnDefinition Width="90"/>
-                <ColumnDefinition Width="400"/>
+                <ColumnDefinition Width="3*"/>
                 <ColumnDefinition Width="100"/>
                 <ColumnDefinition Width="90"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Text="OUTPUT" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="1" Text="DO" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="2" Text="FEEDBACK INPUTS" Style="{StaticResource SectionHeaderStyle}"/>
-            <TextBlock Grid.Column="3" Text="MATCH" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Text="NO. (ON/OFF)" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="1" Text="OUTPUT" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="2" Text="DO" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="3" Text="FEEDBACK INPUTS" Style="{StaticResource SectionHeaderStyle}"/>
+            <TextBlock Grid.Column="4" Text="MATCH" Style="{StaticResource SectionHeaderStyle}"/>
         </Grid>
 
         <ListBox Grid.Row="4"
                  ItemsSource="{Binding Filter.FilteredRows}"
                  Style="{StaticResource IoListStyle}"
-                 ItemContainerStyle="{StaticResource IoListItemStyle}">
+                 ItemContainerStyle="{StaticResource IoOutputListItemStyle}">
             <ListBox.GroupStyle>
                 <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
                             HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
@@ -71,23 +75,27 @@
                 <DataTemplate>
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="96"/>
+                            <ColumnDefinition Width="2*"/>
                             <ColumnDefinition Width="90"/>
-                            <ColumnDefinition Width="400"/>
+                            <ColumnDefinition Width="3*"/>
                             <ColumnDefinition Width="100"/>
                             <ColumnDefinition Width="90"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                        <TextBlock Text="{Binding Io.Address}" Style="{StaticResource IoAddressStyle}"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,0,12,0"
                                    VerticalAlignment="Center"/>
-                        <ContentControl Grid.Column="1"
+                        <ContentControl Grid.Column="2"
                                         Tag="{Binding Io.IsOn}"
                                         Style="{StaticResource IoOutputStateStyle}"/>
-                        <ItemsControl Grid.Column="2" Margin="0,0,12,0"
+                        <ItemsControl Grid.Column="3" Margin="0,0,12,0"
                                       ItemsSource="{Binding Io.Feedback}"
                                       ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
-                        <StackPanel Grid.Column="3"
+                        <StackPanel Grid.Column="4"
+                                    ToolTip="{Binding FeedbackError}"
                                     Orientation="Horizontal"
                                     VerticalAlignment="Center"
                                     Visibility="{Binding Io.HasFeedback, Converter={StaticResource BoolToVis}}">
@@ -123,9 +131,11 @@
                                 </TextBlock.Style>
                             </TextBlock>
                         </StackPanel>
-                        <Button Grid.Column="4"
-                                Content="Toggle"
+                        <Button Grid.Column="5"
+                                Content="{Binding ToggleLabel}"
                                 Style="{StaticResource IoToggleButtonStyle}"
+                                ToolTip="{Binding ToggleHint}"
+                                ToolTipService.ShowOnDisabled="True"
                                 Command="{Binding ToggleCommand}"/>
                     </Grid>
                 </DataTemplate>

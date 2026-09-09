@@ -20,6 +20,8 @@ public partial class MainWindow : Window
     private readonly MachineState _state;
     private InputWindow? _inputWindow;
     private OutputWindow? _outputWindow;
+    private MotionWindow? _motionWindow;
+    private readonly MotionWindowViewModel _motionViewModel;
     private AdcProtocolWindow? _adcProtocolWindow;
     private readonly ApplicationLog _log;
     private LogWindow? _logWindow;
@@ -34,6 +36,7 @@ public partial class MainWindow : Window
         HantasSettings hantasSettings,
         MachineController machine,
         MachineState state,
+        MachineSettings settings,
         ApplicationLog? log = null)
     {
         _io = io;
@@ -42,6 +45,7 @@ public partial class MainWindow : Window
         _hantasSettings = hantasSettings;
         _machine = machine;
         _state = state;
+        _motionViewModel = new(machine, state, settings);
         _log = log ?? new ApplicationLog();
         InitializeComponent();
         DataContext = viewModel;
@@ -68,7 +72,7 @@ public partial class MainWindow : Window
         foreach (var window in OwnedWindows.Cast<Window>().ToArray())
         {
             window.IsEnabled = false;
-            if (window is not AdcProtocolWindow and not OutputWindow)
+            if (window is not AdcProtocolWindow and not OutputWindow and not MotionWindow)
             {
                 window.Close();
             }
@@ -79,6 +83,7 @@ public partial class MainWindow : Window
             await CommandShutdown.WaitAsync(
                 _adcProtocolWindow?.StopAsync() ?? Task.CompletedTask,
                 _outputWindow?.ShutdownAsync() ?? Task.CompletedTask,
+                _motionWindow?.ShutdownAsync() ?? Task.CompletedTask,
                 ((MainViewModel)DataContext).ShutdownAsync(),
                 _machine.ShutdownAsync());
             _shutdownCompleted = true;
@@ -123,6 +128,10 @@ public partial class MainWindow : Window
 
     private void OnOpenOutputs(object sender, RoutedEventArgs e)
     {
+        // Recheck the selector when clicked, before the next display update arrives.
+        if (_closing || !_state.ManualMode
+            || DataContext is not MainViewModel { OutputsWindowEnabled: true }) return;
+
         if (_outputWindow is not null)
         {
             _outputWindow.Activate();
@@ -135,6 +144,19 @@ public partial class MainWindow : Window
         };
         _outputWindow.Closed += (_, _) => _outputWindow = null;
         _outputWindow.Show();
+    }
+
+    private void OnOpenMotion(object sender, RoutedEventArgs e)
+    {
+        if (_motionWindow is not null) { _motionWindow.Activate(); return; }
+        _motionWindow = new MotionWindow(_motionViewModel, _state) { Owner = this };
+        _motionWindow.Closed += (_, _) =>
+        {
+            _motionWindow = null;
+            _log.Write("Motion monitor closed.");
+        };
+        _motionWindow.Show();
+        _log.Write("Motion monitor opened.");
     }
 
     private void OnOpenAdcProtocol(object sender, RoutedEventArgs e)
@@ -182,8 +204,8 @@ public partial class MainWindow : Window
             _adcProtocolWindow?.RefreshControls();
         }
 
-        if (e.PropertyName == nameof(MainViewModel.ManualOutputsEnabled)
-            && !viewModel.ManualOutputsEnabled)
+        if (e.PropertyName == nameof(MainViewModel.OutputsWindowEnabled)
+            && !viewModel.OutputsWindowEnabled)
         {
             _outputWindow?.Close();
         }
