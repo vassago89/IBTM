@@ -203,12 +203,23 @@ public sealed class MachineState : IDisposable
                         try
                         {
                             _ioSignals.RefreshOutputs();
-                            foreach (var motion in _motionDisplays) motion.RefreshAxes();
+                            foreach (var motion in _motionDisplays) motion.RefreshAxes(_io.IsReady);
                             Display = read();
                         }
                         catch (IOException exception)
                         {
-                            Display = new() { ReadError = exception };
+                            if (_io.IsReady)
+                            {
+                                Display = new() { ReadError = exception };
+                            }
+                            else
+                            {
+                                // The connection may fail partway through a scan.
+                                // Keep the original fault and invalidate every axis.
+                                _ioSignals.RefreshOutputs();
+                                foreach (var motion in _motionDisplays) motion.RefreshAxes(available: false);
+                                Display = read();
+                            }
                         }
                         DisplayChanged?.Invoke();
                         _firstDisplay.TrySetResult();
@@ -331,7 +342,7 @@ public sealed class MachineState : IDisposable
     public string? AlarmDetail { get; private set; }
     public string? AlarmMessage { get; private set; }
 
-    public bool ConveyorRunning => _conveyor.RunCommandOn;
+    public bool ConveyorRunning => _io.IsReady && _conveyor.RunCommandOn;
     public MainConveyorState MainConveyorState => _conveyor.State;
     public bool SupplyInBufferArea => _buffer.SupplyInside;
     internal bool PlacementInBufferArea => _buffer.PlacementInside;
@@ -347,7 +358,7 @@ public sealed class MachineState : IDisposable
         || IsHoming
         || ConveyorRunning
         || Array.Exists(_motionDisplays, static motion => motion.Feedback.IsMoving)
-        || _ngConveyor.RunCommandOn;
+        || (_io.IsReady && _ngConveyor.RunCommandOn);
 
     public bool CanOperate =>
         !IsError

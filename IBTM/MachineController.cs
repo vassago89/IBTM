@@ -221,6 +221,24 @@ public sealed class MachineController
 
     private MachineDisplay ReadDisplay()
     {
+        // Preserve the initialization/connection fault without reading closed I/O.
+        // The unavailable snapshot leaves all movement commands disabled.
+        if (!_io.IsReady)
+        {
+            return new()
+            {
+                Alarm = _state.Alarm,
+                AlarmDetail = _state.AlarmDetail,
+                AlarmMessage = _state.AlarmMessage,
+                IsRunning = _state.IsRunning,
+                IsHoming = _state.IsHoming,
+                AutomaticRunning = _state.AutomaticRunning,
+                StartBlock = StartBlockReason.Alarm,
+                HomeBlock = HomeBlockReason.IoUnavailable,
+                ManualBlock = ManualControlBlock.Alarm,
+            };
+        }
+
         var motion = _state.DisplayMotionReadiness;
         var block = GetStartBlock(motion);
         var servoPower = _state.ServoMainContactorOn && motion.ServosOn;

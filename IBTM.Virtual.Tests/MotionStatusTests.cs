@@ -50,6 +50,25 @@ public sealed class MotionStatusTests
         Assert.Equal(first.Feedback.Condition, second.Feedback.Condition);
     }
 
+    [Fact]
+    public void UnavailableControlInvalidatesReadyAxesWithoutReadingTheDriver()
+    {
+        var motion = new StatusMotion();
+        var status = new MotionStatus(motion);
+        status.RefreshAxes();
+        Assert.True(status.XyHomed);
+        var reads = motion.Reads;
+        motion.Failure = new IOException("AXL connection closed.");
+
+        status.RefreshAxes(available: false);
+
+        Assert.Equal(reads, motion.Reads);
+        Assert.False(status.XyHomed);
+        Assert.All(status.Axes.Values,
+            axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
+        Assert.Same(motion.Failure, Assert.Throws<IOException>(status.RefreshAxes));
+    }
+
     private sealed class StatusMotion() : AjinMotionService(
         new AjinController(new AjinSettings()), new AxisHardware(), null, null,
         0.01, new MotionSettings(), new MachineOptions(), new OperationCancellation(), null)

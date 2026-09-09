@@ -285,6 +285,11 @@ module ID from a logical IO name. Mapping and driver changes apply after restart
 AJIN loads its configured `.mot` file; motion coordinates exposed to units are
 millimetres, converted from pulses using the configured millimetres-per-pulse.
 
+If control I/O initialization or the connection fails, the display retains the
+original communication error and leaves output feedback unavailable. Display and
+idle-state queries do not read outputs from unopened hardware. After correcting
+the underlying driver/connection error, RESET retries hardware initialization.
+
 Output mappings include their ON/OFF feedback inputs.
 Actuator completion requires the requested endpoint ON and the opposite endpoint
 OFF. Contradictory feedback remains pending until corrected or timed out.

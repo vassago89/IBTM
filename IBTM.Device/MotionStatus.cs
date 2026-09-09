@@ -59,13 +59,15 @@ public sealed class MotionStatus : INotifyPropertyChanged
 
     private void OnMovingChanged(bool moving) => IsMoving = moving;
 
-    public void RefreshAxes()
+    public void RefreshAxes() => RefreshAxes(available: true);
+
+    public void RefreshAxes(bool available)
     {
         var wasHomed = XyHomed;
         try
         {
             foreach (var (axis, status) in Axes)
-                status.Update(Feedback.IsReady ? Feedback.GetAxisState(axis) : null);
+                status.Update(available && Feedback.IsReady ? Feedback.GetAxisState(axis) : null);
         }
         catch (IOException)
         {
