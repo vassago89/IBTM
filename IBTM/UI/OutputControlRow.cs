@@ -43,8 +43,6 @@ public sealed partial class OutputControlRow : ObservableObject
                     : "Toggle this output after rechecking live safety conditions.";
         }
     }
-    private bool CanToggle() => BlockReason == OutputBlockReason.None;
-
     [RelayCommand(CanExecute = nameof(CanStopOutputTest))]
     private void StopOutputTest()
     {
@@ -58,7 +56,7 @@ public sealed partial class OutputControlRow : ObservableObject
         StopOutputTestCommand.NotifyCanExecuteChanged();
     }
 
-    [RelayCommand(CanExecute = nameof(CanToggle))]
+    [RelayCommand]
     private async Task ToggleAsync(CancellationToken cancellationToken)
     {
         Refresh();
