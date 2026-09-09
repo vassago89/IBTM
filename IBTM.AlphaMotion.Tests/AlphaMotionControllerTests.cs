@@ -145,15 +145,12 @@ public sealed class AlphaMotionControllerTests
     }
 
     [Theory]
-    [InlineData(0xAEU, 32U, 16U)]
-    [InlineData(0xAEU, 16U, 32U)]
     [InlineData(0xAEU, 0U, 0U)]
-    [InlineData(0xAF1U, 16U, 0U)]
-    [InlineData(0xAE2EU, 32U, 16U)]
-    [InlineData(0xAE2EU, 16U, 32U)]
-    [InlineData(0xAE2EU, 0U, 16U)]
-    [InlineData(0xAE2EU, 16U, 0U)]
-    public void UnexpectedPointCountsPreventPortAccess(uint model, uint inputs, uint outputs)
+    [InlineData(0xAE2EU, uint.MaxValue, 16U)]
+    [InlineData(0xAE2EU, 16U, uint.MaxValue)]
+    [InlineData(0xAE2EU, 65537U, 16U)]
+    [InlineData(0xAE2EU, 16U, 65537U)]
+    public void InvalidOrUnwrittenPointCountsPreventPortAccess(uint model, uint inputs, uint outputs)
     {
         using var controller = new AlphaMotionController(new());
         TMCAEDLL.Model = model;
@@ -162,6 +159,173 @@ public sealed class AlphaMotionControllerTests
         var error = Assert.Throws<IOException>(controller.Initialize);
         Assert.Contains($"model=0x{model:X}, communication=0x0, DI={inputs}, DO={outputs}", error.Message);
         Assert.DoesNotContain(NativeCalls(), call => call.Operation is "AIO_GetDIDWord" or "AIO_GetDODWord" or "AIO_PutDOBit");
+    }
+
+    [Theory]
+    [InlineData(8U, 8U)]
+    [InlineData(32U, 16U)]
+    [InlineData(16U, 32U)]
+    [InlineData(32U, 32U)]
+    [InlineData(64U, 64U)]
+    [InlineData(65536U, 65536U)]
+    public void BoardDoesNotNeedExactlySixteenInputsAndOutputs(uint inputs, uint outputs)
+    {
+        TMCAEDLL.DefaultResult = 0;
+        TMCAEDLL.InputCount = inputs;
+        TMCAEDLL.OutputCount = outputs;
+        using var log = new ApplicationLog();
+        using var controller = new AlphaMotionController(new(), log);
+        controller.Initialize();
+        TMCAEDLL.Inputs = TMCAEDLL.Outputs = 8;
+        Assert.True(controller.ReadInput(3));
+        Assert.True(controller.ReadOutput(3));
+        controller.WriteOutput(3, false);
+        Assert.False(controller.ReadOutput(3));
+        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains($"card=0, DI={inputs}, DO={outputs}"));
+    }
+
+    [Theory]
+    [InlineData(0U, 16U)]
+    [InlineData(16U, 0U)]
+    [InlineData(8U, 16U)]
+    [InlineData(16U, 8U)]
+    public void OnlyChannelsMissingFromTheReportedDirectionAreBlocked(uint inputs, uint outputs)
+    {
+        TMCAEDLL.InputCount = inputs;
+        TMCAEDLL.OutputCount = outputs;
+        using var controller = new AlphaMotionController(new());
+        controller.Initialize();
+        TMCAEDLL.Calls.Clear();
+        if (inputs < 16)
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => controller.ReadInput((int)inputs));
+            Assert.Empty(TMCAEDLL.Calls);
+            if (inputs == 0) Assert.Equal(0U, controller.ReadInputs());
+            controller.WriteOutput(15, true);
+            Assert.True(controller.ReadOutput(15));
+        }
+        else
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => controller.ReadOutput((int)outputs));
+            Assert.Throws<ArgumentOutOfRangeException>(() => controller.WriteOutput((int)outputs, true));
+            Assert.Empty(TMCAEDLL.Calls);
+            TMCAEDLL.Inputs = 0x8000;
+            Assert.True(controller.ReadInput(15));
+        }
+    }
+
+    [Theory]
+    [InlineData(0, 0x10000U)]
+    [InlineData(0, uint.MaxValue)]
+    [InlineData(1, 0x10000U)]
+    [InlineData(1, uint.MaxValue)]
+    public void WiderBoardValuesDoNotChangeTheSixteenChannelMapping(int result, uint value)
+    {
+        TMCAEDLL.DefaultResult = result;
+        TMCAEDLL.InputCount = TMCAEDLL.OutputCount = 32;
+        TMCAEDLL.Inputs = TMCAEDLL.Outputs = value;
+        using var controller = new AlphaMotionController(new());
+        controller.Initialize();
+        Assert.Equal(value & 0xFFFFU, controller.ReadInputs());
+        Assert.Equal((value & 8) != 0, controller.ReadInput(3));
+        Assert.Equal((value & 8) != 0, controller.ReadOutput(3));
+        controller.WriteOutput(3, true);
+        Assert.Equal(value | 8U, TMCAEDLL.Outputs);
+        TMCAEDLL.Calls.Clear();
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.ReadInput(16));
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.WriteOutput(16, true));
+        Assert.Empty(TMCAEDLL.Calls);
+    }
+
+    [Theory]
+    [InlineData("AIO_GetDIDWord", 0)]
+    [InlineData("AIO_GetDIDWord", 1)]
+    [InlineData("AIO_GetDODWord", 0)]
+    [InlineData("AIO_GetDODWord", 1)]
+    public void WiderBoardsStillRejectUnwrittenReadBuffers(string operation, int result)
+    {
+        TMCAEDLL.DefaultResult = result;
+        TMCAEDLL.InputCount = TMCAEDLL.OutputCount = 32;
+        TMCAEDLL.SkipRefWrites.Add(operation);
+        using var controller = new AlphaMotionController(new());
+        var error = Assert.Throws<IOException>(controller.Initialize);
+        Assert.Contains("Invalid or unchanged port data", error.Message);
+        Assert.DoesNotContain(NativeCalls(), call => call.Operation == "AIO_PutDOBit");
+    }
+
+    [Fact]
+    public void ReinitializationUsesTheNewPointCounts()
+    {
+        using var controller = new AlphaMotionController(new());
+        controller.Initialize();
+        controller.Dispose();
+        TMCAEDLL.InputCount = TMCAEDLL.OutputCount = 8;
+        controller.Initialize();
+        TMCAEDLL.Calls.Clear();
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.ReadInput(8));
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.WriteOutput(8, true));
+        Assert.Empty(TMCAEDLL.Calls);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void PortValidationUsesEachDirectionsActualCount(bool input)
+    {
+        TMCAEDLL.InputCount = input ? 8U : 16U;
+        TMCAEDLL.OutputCount = input ? 16U : 8U;
+        TMCAEDLL.Inputs = input ? 0xFFU : 0xFFFFU;
+        TMCAEDLL.Outputs = input ? 0xFFFFU : 0xFFU;
+        using var controller = new AlphaMotionController(new());
+        controller.Initialize();
+        Assert.True(controller.ReadInput(7));
+        Assert.True(controller.ReadOutput(7));
+        if (input) TMCAEDLL.Inputs = 0x100;
+        else TMCAEDLL.Outputs = 0x100;
+        var error = Assert.Throws<IOException>(() => { if (input) controller.ReadInputs(); else controller.ReadOutput(7); });
+        Assert.Contains("Reported channel count=8", error.Message);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void FullWidthAllOnCanTransitionToAllOffDuringBufferValidation(bool input)
+    {
+        TMCAEDLL.InputCount = TMCAEDLL.OutputCount = 32;
+        using var controller = new AlphaMotionController(new());
+        controller.Initialize();
+        var operation = input ? "AIO_GetDIDWord" : "AIO_GetDODWord";
+        var reads = 0;
+        TMCAEDLL.BeforeCall = name =>
+        {
+            if (name != operation) return;
+            var value = ++reads == 1 ? uint.MaxValue : 0U;
+            if (input) TMCAEDLL.Inputs = value;
+            else TMCAEDLL.Outputs = value;
+        };
+        if (input) Assert.Equal(0U, controller.ReadInputs());
+        else Assert.False(controller.ReadOutput(0));
+        Assert.Equal(3, reads);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void BufferValidationDoesNotHideAnSdkFailureOnTheRepeatedRead(bool input)
+    {
+        TMCAEDLL.InputCount = TMCAEDLL.OutputCount = 32;
+        using var controller = new AlphaMotionController(new());
+        controller.Initialize();
+        TMCAEDLL.Inputs = TMCAEDLL.Outputs = uint.MaxValue;
+        var operation = input ? "AIO_GetDIDWord" : "AIO_GetDODWord";
+        var reads = 0;
+        TMCAEDLL.BeforeCall = name =>
+        {
+            if (name == operation && ++reads == 2) TMCAEDLL.ErrorCode = tmcDef.ERR_INVALID_GROUP;
+        };
+        var error = Assert.Throws<IOException>(() => { if (input) controller.ReadInputs(); else controller.ReadOutput(0); });
+        Assert.Contains("ERR_INVALID_GROUP", error.Message);
+        Assert.Equal(2, reads);
     }
 
     [Theory]

@@ -299,20 +299,27 @@ A-series `TMCAEDLL.AIO_*` functions, not Motionnet `nmiMNApi` or B-series `AIO_p
 Settings exposes only **Card No.**, matching the Digital IO utility (normally 0).
 The persisted `ControllerNumber` is retained; old Station/CommunicationSpeed fields
 are ignored when loading old settings. Startup uses the sample's `AIO_BoardInfo`
-to check 16 DI / 16 DO, then probes both ports before readiness. Model and
+to discover actual DI/DO counts, then probes each available direction before readiness.
+The board does not need exactly 16 DI / 16 DO; each mapped channel is checked against
+its direction's reported count. The logical AlphaMotion window remains 0–15 regardless
+of board size, so AJIN addresses never shift. Model and
 communication codes are logged for diagnosis, not used as a model whitelist;
 the field-observed model `0xAE2E` is accepted when the required I/O checks pass.
 Input/output reads use the sample's `AIO_GetDIDWord` / `AIO_GetDODWord`, group 0;
-only channels 0–15 are valid on this board.
+only the mapped channels 0–15 are exposed to the application. Larger boards' extra
+channels are not automatically added to the machine mapping.
 The manufacturer's C# sample (`frmDIGITAL.LoadDevice`) treats `AIO_LoadDevice()`
 as a board-count result: negative means failure, while a nonnegative result plus
 one is the loaded board count (`0` means one board).
 The remaining return conventions are **not yet verified against the equipment's
 DLL**. For user-operated field testing, results 0 or 1 are candidate successes
 only with `AIO_GetErrorCode() == ERR_SUCCESS`; negative/unknown results and SDK
-errors still throw. Read buffers start at `0xFFFFFFFF`: unchanged values,
-missing/mismatched DI/DO counts and port bits outside 0–15 are rejected, not masked
-into OFF. Every output command requires matching port readback (not confirmation
+errors still throw. Read buffers start at `0xFFFFFFFF`: missing/invalid DI/DO counts
+and port bits outside the reported channel range are rejected, not masked into OFF.
+For a full 32-bit port, all-ON data is distinguished from an untouched buffer by
+repeating the read with a changed seed (at most three reads, allowing an ON-to-OFF
+transition). A direction with zero channels is not queried; accessing a mapped channel
+in that direction still fails. Every output command requires matching port readback (not confirmation
 of physical actuator movement). Unload result 0 with no SDK error no longer
 causes a secondary cleanup exception; the controller stays unavailable on close.
 Logs include raw native results, error codes and returned board/port data on the

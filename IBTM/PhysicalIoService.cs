@@ -19,6 +19,7 @@ public sealed class PhysicalIoService(
     ApplicationLog? log = null)
     : IIoService, IDisposable
 {
+    // Persisted logical address boundary, not the detected AlphaMotion board size.
     private const int AlphaMotionChannelCount = AlphaMotionController.ChannelCount;
     private static readonly TimeSpan InputPollInterval =
         TimeSpan.FromMilliseconds(10);

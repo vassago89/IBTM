@@ -13,12 +13,15 @@ public sealed class AlphaMotionController(
     AlphaMotionSettings settings,
     ApplicationLog? log = null) : IDisposable
 {
+    // Reserved logical address window. AJIN starts at 16; this is not a board-size requirement.
     public const int ChannelCount = 16;
-    private const uint PortMask = 0xFFFF;
+    private const uint MappedPortMask = (1U << ChannelCount) - 1;
     private readonly ushort _cardNumber = GetCardNumber(settings.ControllerNumber);
     private readonly Lock _gate = new();
     private readonly HashSet<(string Operation, int Result, int Error)> _reportedResults = [];
     private bool _initialized;
+    private uint _inputCount;
+    private uint _outputCount;
 
     public void Initialize()
     {
@@ -47,15 +50,19 @@ public sealed class AlphaMotionController(
                 var detail = $"model=0x{model:X}, communication=0x{communication:X}, DI={inputs}, DO={outputs}";
                 TraceResult(result, error, nameof(TMCAEDLL.AIO_BoardInfo), detail);
                 CheckStatus(result, error, nameof(TMCAEDLL.AIO_BoardInfo), detail);
-                if (model != tmcDef.TMC_AE || communication == uint.MaxValue
-                    || inputs != ChannelCount || outputs != ChannelCount)
+                // Identity codes and exact board size do not determine compatibility.
+                // Retain the actual counts to reject only unavailable channel addresses.
+                if (inputs > (uint)ushort.MaxValue + 1 || outputs > (uint)ushort.MaxValue + 1
+                    || (inputs == 0 && outputs == 0))
                     throw CreateError(result, error, nameof(TMCAEDLL.AIO_BoardInfo),
-                        $"Invalid or unchanged board information: {detail}. Expected model=0xAE with 16 DI / 16 DO; initialization remains blocked.");
+                        $"Invalid or unchanged I/O counts: {detail}. Counts must fit the SDK channel address range and expose at least one I/O channel.");
+                _inputCount = inputs;
+                _outputCount = outputs;
 
-                // Read both ports before allowing any output command or reporting readiness.
+                // Probe each available direction before allowing any output command.
                 var initialInputs = ReadPort(input: true);
                 var initialOutputs = ReadPort(input: false);
-                log?.Write($"AlphaMotion TMC-AE16DIOe ready: card={_cardNumber}, DI={inputs}, DO={outputs}, loaded boards={(long)loadResult + 1} (AIO_LoadDevice={loadResult}); initial DI=0x{initialInputs:X8}, DO=0x{initialOutputs:X8}.");
+                log?.Write($"AlphaMotion ready: card={_cardNumber}, DI={inputs}, DO={outputs}, loaded boards={(long)loadResult + 1} (AIO_LoadDevice={loadResult}); initial DI=0x{initialInputs:X8}, DO=0x{initialOutputs:X8}.");
                 _initialized = true;
             }
             catch (Exception exception)
@@ -77,6 +84,7 @@ public sealed class AlphaMotionController(
         lock (_gate)
         {
             EnsureReady(nameof(TMCAEDLL.AIO_GetDIDWord), bit);
+            EnsureChannelAvailable(bit, input: true);
             return ((ReadPort(input: true, bit) >> bit) & 1) != 0;
         }
     }
@@ -86,7 +94,7 @@ public sealed class AlphaMotionController(
         lock (_gate)
         {
             EnsureReady(nameof(TMCAEDLL.AIO_GetDIDWord));
-            return ReadPort(input: true);
+            return ReadPort(input: true) & MappedPortMask;
         }
     }
 
@@ -96,6 +104,7 @@ public sealed class AlphaMotionController(
         lock (_gate)
         {
             EnsureReady(nameof(TMCAEDLL.AIO_GetDODWord), bit);
+            EnsureChannelAvailable(bit, input: false);
             return ((ReadPort(input: false, bit) >> bit) & 1) != 0;
         }
     }
@@ -106,6 +115,7 @@ public sealed class AlphaMotionController(
         lock (_gate)
         {
             EnsureReady(nameof(TMCAEDLL.AIO_PutDOBit), bit);
+            EnsureChannelAvailable(bit, input: false);
             var result = TMCAEDLL.AIO_PutDOBit(_cardNumber, channel, value ? (ushort)1 : (ushort)0);
             var error = TMCAEDLL.AIO_GetErrorCode();
             var detail = $"requested={(value ? "ON" : "OFF")}";
@@ -136,9 +146,35 @@ public sealed class AlphaMotionController(
 
     private uint ReadPort(bool input, int? bit = null)
     {
+        var count = input ? _inputCount : _outputCount;
+        if (count == 0) return 0; // This direction has no channels; individual access is rejected.
         var operation = input ? nameof(TMCAEDLL.AIO_GetDIDWord) : nameof(TMCAEDLL.AIO_GetDODWord);
-        uint value = uint.MaxValue;
-        // The manufacturer's 16-channel UI reads DWORD group 0, then displays bits 0..15.
+        var mask = count >= 32 ? uint.MaxValue : (1U << (int)count) - 1;
+        var read = ReadPortValue(input, uint.MaxValue, bit);
+        if (mask == uint.MaxValue && read.Value == uint.MaxValue)
+        {
+            // On wider boards all 32 bits ON is valid. Change the seed to distinguish
+            // real data from an untouched ref buffer; allow an ON -> OFF transition.
+            read = ReadPortValue(input, 0, bit);
+            if (read.Value == 0)
+            {
+                read = ReadPortValue(input, uint.MaxValue, bit);
+                if (read.Value == uint.MaxValue)
+                    throw CreateError(read.Result, read.Error, operation,
+                        "Invalid or unchanged port data after changing the read-buffer seed; I/O state is unavailable.", bit);
+            }
+        }
+        if ((read.Value & ~mask) != 0)
+            throw CreateError(read.Result, read.Error, operation,
+                $"Invalid or unchanged port data: group=0, {(input ? "DI" : "DO")}=0x{read.Value:X8}. Reported channel count={count}; it will not be reported as OFF.", bit);
+        return read.Value;
+    }
+
+    private (uint Value, int Result, int Error) ReadPortValue(bool input, uint initialValue, int? bit)
+    {
+        var operation = input ? nameof(TMCAEDLL.AIO_GetDIDWord) : nameof(TMCAEDLL.AIO_GetDODWord);
+        var value = initialValue;
+        // Keep the manufacturer's DWORD group-0 read; do not shift the application's mapping.
         var result = input
             ? TMCAEDLL.AIO_GetDIDWord(_cardNumber, 0, ref value)
             : TMCAEDLL.AIO_GetDODWord(_cardNumber, 0, ref value);
@@ -146,10 +182,15 @@ public sealed class AlphaMotionController(
         var detail = $"group=0, {(input ? "DI" : "DO")}=0x{value:X8}";
         TraceResult(result, error, operation, detail, bit);
         CheckStatus(result, error, operation, detail, bit);
-        if ((value & ~PortMask) != 0)
-            throw CreateError(result, error, operation,
-                $"Invalid or unchanged port data: {detail}. Expected a 16-bit value; it will not be reported as OFF.", bit);
-        return value;
+        return (value, result, error);
+    }
+
+    private void EnsureChannelAvailable(int bit, bool input)
+    {
+        var count = input ? _inputCount : _outputCount;
+        if ((uint)bit >= count)
+            throw new ArgumentOutOfRangeException(nameof(bit), bit,
+                $"AlphaMotion card={_cardNumber} reports {count} {(input ? "DI" : "DO")} channels; this mapped channel does not exist.");
     }
 
     private void Unload()
@@ -202,7 +243,7 @@ public sealed class AlphaMotionController(
     private static ushort GetChannel(int bit)
     {
         if ((uint)bit >= ChannelCount)
-            throw new ArgumentOutOfRangeException(nameof(bit), bit, "TMC-AE16DIOe channels are 0 through 15.");
+            throw new ArgumentOutOfRangeException(nameof(bit), bit, "AlphaMotion mapped channels are 0 through 15; logical addresses 16 and above belong to AJIN.");
         return (ushort)bit;
     }
 }

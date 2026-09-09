@@ -624,7 +624,7 @@
                                          Text="{Binding Settings.AlphaMotion.ControllerNumber, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
                                          ToolTip="Match Card No. in the manufacturer's Digital IO utility (normally 0). Restart to apply."
                                          Margin="0,0,0,10"/>
-                                <TextBlock Text="16 DI / 16 DO · channels 0–15. Uses the A-series Digital IO API; no station or communication-speed setting."
+                                <TextBlock Text="Mapped channels 0–15; DI/DO counts are detected at startup. Uses the A-series Digital IO API; no station or communication-speed setting."
                                            Foreground="{StaticResource TextMutedBrush}" FontSize="12" TextWrapping="Wrap"/>
                             </StackPanel>
                         </Border>
