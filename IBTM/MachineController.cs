@@ -313,18 +313,21 @@ public sealed partial class MachineController
 
     private IMotionFeedback GetMotionFeedback(MotionGroup group) => _state.GetMotionStatus(group).Feedback;
 
-    internal bool CanUseManualMotion(MotionGroup group, bool live = true) =>
-        (live ? _state.ManualControlsEnabled : _state.Display.ManualControlsEnabled)
-        && group switch
-        {
-            MotionGroup.PcbSupply => _units.PcbSupply
-                && !(live ? _state.PlacementInBufferArea : _state.Display.PlacementInBufferArea),
-            MotionGroup.PcbPlacementHandler => _units.PcbPlacement
-                && !(live ? _state.SupplyInBufferArea : _state.Display.SupplyInBufferArea),
-            MotionGroup.BoltFastening => _units.BoltFastening,
-            MotionGroup.InspectionGantry => _units.Inspection || _units.NgCarrierTransfer,
-            _ => throw new ArgumentOutOfRangeException(nameof(group)),
-        };
+    internal bool CanUseManualMotion(MotionGroup group, bool live = true)
+    {
+        return
+            true//(live ? _state.ManualControlsEnabled : _state.Display.ManualControlsEnabled)
+            && group switch
+            {
+                MotionGroup.PcbSupply => _units.PcbSupply
+                    && !(live ? _state.PlacementInBufferArea : _state.Display.PlacementInBufferArea),
+                MotionGroup.PcbPlacementHandler => _units.PcbPlacement
+                    && !(live ? _state.SupplyInBufferArea : _state.Display.SupplyInBufferArea),
+                MotionGroup.BoltFastening => _units.BoltFastening,
+                MotionGroup.InspectionGantry => _units.Inspection || _units.NgCarrierTransfer,
+                _ => throw new ArgumentOutOfRangeException(nameof(group)),
+            };
+    }
 
     internal Task RunManualMotionAsync(
         MotionGroup group,

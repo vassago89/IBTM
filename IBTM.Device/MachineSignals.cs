@@ -236,8 +236,8 @@ public enum InputIo
     [Description("Servo Main Contactor On")]
     ServoMainContactorOn,
 
-    [Description("Air Pressure Low")]
-    AirPressureLow,
+    [Description("Air Pressure High")]
+    AirPressureHigh,
 
     [Description("Placement Handler PCB Detected")]
     PcbPlacementPcbDetected,

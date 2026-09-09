@@ -9,7 +9,7 @@ public sealed class MachineHardwareSettings : IoHardwareSettings
         InputIo.EmergencyStop1Pressed or InputIo.EmergencyStop2Pressed
             or InputIo.Door1Open or InputIo.Door2Open or InputIo.Door3Open
             or InputIo.Door4Open or InputIo.Door5Open or InputIo.Door6Open
-            or InputIo.AirPressureLow => IoSection.MachineSafety,
+            or InputIo.AirPressureHigh => IoSection.MachineSafety,
         InputIo.ResetButton or InputIo.AutoMode or InputIo.ServoMainContactorOn
             or OutputIo.TowerLampGreen or OutputIo.TowerLampYellow
             or OutputIo.TowerLampRed or OutputIo.Buzzer or OutputIo.MachineLight =>
@@ -32,7 +32,7 @@ public sealed class MachineHardwareSettings : IoHardwareSettings
             [InputIo.Door5Open] = 8,
             [InputIo.Door6Open] = 9,
             [InputIo.ServoMainContactorOn] = 10,
-            [InputIo.AirPressureLow] = 15,
+            [InputIo.AirPressureHigh] = 15,
         };
         Outputs = new()
         {

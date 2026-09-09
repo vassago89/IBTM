@@ -353,7 +353,7 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         && _io.GetInput(InputIo.Door6Open);
     public bool AirPressureOk =>
         _io.IsReady
-        && !_io.GetInput(InputIo.AirPressureLow);
+        && _io.GetInput(InputIo.AirPressureHigh);
     public bool ServoMainContactorOn =>
         _io.IsReady && _io.GetInput(InputIo.ServoMainContactorOn);
     public bool AutoMode =>
@@ -499,7 +499,7 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         or InputIo.Door4Open
         or InputIo.Door5Open
         or InputIo.Door6Open
-        or InputIo.AirPressureLow;
+        or InputIo.AirPressureHigh;
 
     private static bool AffectsMachineState(InputIo input) =>
         input == InputIo.ServoMainContactorOn

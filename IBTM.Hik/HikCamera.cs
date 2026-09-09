@@ -49,18 +49,18 @@ public sealed class HikCamera(InspectionCameraSettings settings)
         try
         {
             Check(_device.Open(), "Open Hik camera");
-            ConfigureAreaCamera(_device);
-            Check(_device.Parameters.GetIntValue("Width", out var width), "Read Hik frame width");
-            Check(_device.Parameters.GetIntValue("Height", out var height), "Read Hik frame height");
-            FrameSize = (checked((int)width.CurValue), checked((int)height.CurValue));
+            //ConfigureAreaCamera(_device);
+            //Check(_device.Parameters.GetIntValue("Width", out var width), "Read Hik frame width");
+            //Check(_device.Parameters.GetIntValue("Height", out var height), "Read Hik frame height");
+            //FrameSize = (checked((int)width.CurValue), checked((int)height.CurValue));
             _streamGrabber = _device.StreamGrabber;
-            Check(
-                _streamGrabber.SetImageNodeNum(ImageNodeCount),
-                "Set image node count");
-            ConfigureSingleCapture(_device);
-            Check(
-                _streamGrabber.StartGrabbing(StreamGrabStrategy.OneByOne),
-                "Start Hik grabbing");
+            //Check(
+            //    _streamGrabber.SetImageNodeNum(ImageNodeCount),
+            //    "Set image node count");
+            //ConfigureSingleCapture(_device);
+            //Check(
+            //    _streamGrabber.StartGrabbing(StreamGrabStrategy.OneByOne),
+            //    "Start Hik grabbing");
             _grabbing = true;
         }
         catch
@@ -116,12 +116,12 @@ public sealed class HikCamera(InspectionCameraSettings settings)
             var device = _device
                 ?? throw new InvalidOperationException("Hik camera is not initialized.");
             var stream = _streamGrabber!;
-            Check(stream.StopGrabbing(), "Stop software-trigger grabbing");
+            //Check(stream.StopGrabbing(), "Stop software-trigger grabbing");
             _grabbing = false;
             ApplyExposureAndGain(device, exposureMicroseconds, gain);
-            Check(
-                device.Parameters.SetEnumValueByString("TriggerMode", "Off"),
-                "Disable trigger for live view");
+            //Check(
+            //    device.Parameters.SetEnumValueByString("TriggerMode", "Off"),
+            //    "Disable trigger for live view");
 
             var frameInterval = Stopwatch.Frequency
                                 / settings.LiveViewFramesPerSecond;
@@ -160,7 +160,7 @@ public sealed class HikCamera(InspectionCameraSettings settings)
             try
             {
                 Check(
-                    stream.StartGrabbing(StreamGrabStrategy.LatestImageOnly),
+                    stream.StartGrabbing(),
                     "Start Hik live view");
                 _grabbing = true;
                 _liveView = true;
@@ -194,10 +194,10 @@ public sealed class HikCamera(InspectionCameraSettings settings)
             Check(stream.StopGrabbing(), "Stop Hik live view");
             _grabbing = false;
 
-            ConfigureSingleCapture(_device!);
-            Check(
-                stream.StartGrabbing(StreamGrabStrategy.OneByOne),
-                "Restart Hik software-trigger grabbing");
+            //ConfigureSingleCapture(_device!);
+            //Check(
+            //    stream.StartGrabbing(StreamGrabStrategy.OneByOne),
+            //    "Restart Hik software-trigger grabbing");
             _grabbing = true;
         }
     }
@@ -245,17 +245,17 @@ public sealed class HikCamera(InspectionCameraSettings settings)
 
     private static void ConfigureSingleCapture(IDevice device)
     {
-        Check(
-            device.Parameters.SetEnumValueByString(
-                "TriggerSelector",
-                "FrameStart"),
-            "Set frame trigger selector");
-        Check(
-            device.Parameters.SetEnumValueByString("TriggerMode", "On"),
-            "Enable software trigger");
-        Check(
-            device.Parameters.SetEnumValueByString("TriggerSource", "Software"),
-            "Set software trigger source");
+        //Check(
+        //    device.Parameters.SetEnumValueByString(
+        //        "TriggerSelector",
+        //        "FrameStart"),
+        //    "Set frame trigger selector");
+        //Check(
+        //    device.Parameters.SetEnumValueByString("TriggerMode", "On"),
+        //    "Enable software trigger");
+        //Check(
+        //    device.Parameters.SetEnumValueByString("TriggerSource", "Software"),
+        //    "Set software trigger source");
     }
 
     private static void ConfigureGigE(IDevice device)

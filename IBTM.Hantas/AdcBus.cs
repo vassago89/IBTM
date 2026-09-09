@@ -202,7 +202,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         }
     }
 
-    private static async Task<byte[]> ReadResponseAsync(
+    private static async Task<byte[]> ReadResponseAsync(    
         Stream stream,
         Action abortRead,
         Action<byte[]> received,
