@@ -153,6 +153,8 @@ public sealed class MachineState : IDisposable
 
         io.InputChanged += (input, _) =>
         {
+            // Feedback badges also use the shared UI refresh, not I/O-thread commands.
+            RequestDisplayRefresh();
             if (AffectsMachineState(input))
             {
                 NotifyChanged();

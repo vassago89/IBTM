@@ -204,15 +204,21 @@ continues owning an operation; its OFF button remains available while the machin
 is busy. OFF, STOP, AUTO selection, closing OUTPUTS or interlock/peer feedback
 changes end the test and send OFF. This OFF cleanup
 runs independently of the UI dispatcher, including when UI command completion is
-delayed. Motor, shuttle
-and hold-to-run shooting outputs retain their dedicated controls, except **Main
-Conveyor Run**, which provides an owned **ON / OFF** motor test in OUTPUTS.
-It requires idle MANUAL, enabled main conveyor, an empty conveyor and clearance
-from the enabled handlers; the diagnostic emergency-stop/air/alarm checks still
-apply. It selects forward/normal speed without starting a material-transfer route
-or asserting interface requests. ON leaves the window open and the button becomes
-OFF. OFF, machine STOP, AUTO, safety/path loss, carrier detection or closing the window cancels
-the test and stops the motor. Reverse/speed outputs remain read-only here.
+delayed. Shuttle and hold-to-run shooting outputs retain their dedicated controls.
+Main and NG Conveyor Run provide owned **ON / OFF** motor tests in OUTPUTS.
+Manual Control uses the same commands for its two conveyor Run/Stop rows;
+axis controls are in MOTION and transfer sequences remain in Dry Run.
+Motor tests require idle MANUAL, working I/O, the conveyor enabled,
+and the diagnostic emergency-stop/air/alarm checks. Main conveyor retains its
+empty-conveyor and enabled-handler clearance checks. NG manual RUN does not
+require an empty conveyor/shuttle or a particular shuttle height; carrier
+detection does not stop this motor-only operation. Automatic transfer is unchanged.
+RUN selects forward/normal speed without starting a transfer sequence or
+asserting interface requests. OFF, machine STOP, AUTO, applicable interlock loss
+or closing the owning view stops the test. Either control can stop a
+motor started from the other; leaving Manual does not cancel an OUTPUTS-owned run.
+Reverse and normal-speed outputs can be toggled both ON and OFF while idle,
+without starting the motor. They cannot be changed during a running operation.
 The window shows
 why each action is blocked and cancels feedback waits on mode/safety changes or
 STOP without reversing a valve. Feedback timeouts log the output and missing

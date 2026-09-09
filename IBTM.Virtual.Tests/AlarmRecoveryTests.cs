@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using IBTM.AlphaMotion;
@@ -289,6 +290,158 @@ public sealed class AlarmRecoveryTests
                 Assert.False(state.IsRunning);
                 io.SetInput(input, false);
             }
+        }
+        finally { await machine.ShutdownAsync(); }
+    }
+
+    [Fact]
+    public async Task ConveyorDirectionAndSpeedToggleBothWaysOnlyWhileIdle()
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var signals = services.GetRequiredService<IoSignals>();
+        await machine.InitializeAsync();
+        try
+        {
+            io.AutoResponseEnabled = false;
+            SetAlarm(state, MachineAlarm.MotionUnavailable);
+            foreach (var output in new[] { OutputIo.MainConveyorReverse, OutputIo.MainConveyorNormalSpeed,
+                OutputIo.NgConveyorReverse, OutputIo.NgConveyorNormalSpeed })
+            {
+                var row = new OutputControlRow(signals.Outputs[output], machine);
+                io.SetOutput(output, false);
+                state.RequestDisplayRefresh();
+                Assert.True(await VirtualTest.WaitUntilAsync(() => row.ToggleCommand.CanExecute(null),
+                    TimeSpan.FromSeconds(2)));
+                await row.ToggleCommand.ExecuteAsync(null);
+                Assert.True(io.GetOutput(output));
+                await row.ToggleCommand.ExecuteAsync(null);
+                Assert.False(io.GetOutput(output));
+
+                // Direct invocation must not change direction or speed during another operation.
+                using (services.GetRequiredService<OperationCancellation>().Link())
+                {
+                    await row.ToggleCommand.ExecuteAsync(null);
+                    Assert.False(io.GetOutput(output));
+                    io.SetOutput(output, true);
+                    await row.ToggleCommand.ExecuteAsync(null);
+                    Assert.True(io.GetOutput(output));
+                }
+                io.SetOutput(output, false);
+            }
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+        }
+        finally { await machine.ShutdownAsync(); }
+    }
+
+    [Theory]
+    [InlineData(OutputIo.MainConveyorRun)]
+    [InlineData(OutputIo.NgConveyorRun)]
+    public async Task ManualAndOutputsShareConveyorControlAndCanStopEachOther(OutputIo output)
+    {
+        using var services = CreateServices();
+        services.GetRequiredService<MachineSettings>().Units.NgConveyor = true;
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var signals = services.GetRequiredService<IoSignals>();
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            io.AutoResponseEnabled = false;
+            SetAlarm(state, MachineAlarm.MotionUnavailable);
+            Assert.Equal(new[] { OutputIo.MainConveyorRun, OutputIo.NgConveyorRun },
+                manual.Conveyors.Select(row => row.Io.Signal));
+            var manualRow = manual.Conveyors.Single(row => row.Io.Signal == output);
+            var outputRow = new OutputControlRow(signals.Outputs[output], machine);
+            foreach (var (start, stop) in new[] { (manualRow, outputRow), (outputRow, manualRow) })
+            {
+                Assert.True(await VirtualTest.WaitUntilAsync(() => start.BlockReason == OutputBlockReason.None,
+                    TimeSpan.FromSeconds(2)));
+                Assert.Equal(start.BlockReason, stop.BlockReason);
+                var run = start.ToggleCommand.ExecuteAsync(null);
+                Assert.True(await VirtualTest.WaitUntilAsync(() => io.GetOutput(output), TimeSpan.FromSeconds(2)));
+                signals.RefreshOutputs();
+                if (start == outputRow)
+                {
+                    manual.Deactivate(); // Leaving Manual must not cancel OUTPUTS' operation.
+                    Assert.True(io.GetOutput(output));
+                }
+                Assert.True(stop.StopOutputTestCommand.CanExecute(null));
+                Assert.Equal("OFF", stop.ToggleLabel);
+                stop.StopOutputTestCommand.Execute(null);
+                await run.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.False(io.GetOutput(output));
+                Assert.False(state.IsRunning);
+            }
+            var ownedRun = manualRow.ToggleCommand.ExecuteAsync(null);
+            Assert.True(io.GetOutput(output));
+            manual.Deactivate();
+            await ownedRun.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(io.GetOutput(output));
+            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+        }
+        finally { await manual.ShutdownAsync(); await machine.ShutdownAsync(); }
+    }
+
+    [Fact]
+    public async Task NgMotorRunDoesNotUseCarrierOrShuttlePositionAsAdmission()
+    {
+        using var services = CreateServices();
+        services.GetRequiredService<MachineSettings>().Units.NgConveyor = true;
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        try
+        {
+            io.AutoResponseEnabled = false;
+            var row = new OutputControlRow(services.GetRequiredService<IoSignals>()
+                .Outputs[OutputIo.NgConveyorRun], machine);
+            var shuttle = io.GetOutput(OutputIo.NgShuttleDown);
+            var stopper = io.GetOutput(OutputIo.NgConveyorStopperUp);
+            foreach (var up in new[] { true, false })
+            {
+                io.SetInput(InputIo.NgShuttleUp, up);
+                io.SetInput(InputIo.NgShuttleDown, !up);
+                var run = row.ToggleCommand.ExecuteAsync(null);
+                Assert.True(await VirtualTest.WaitUntilAsync(() => io.GetOutput(OutputIo.NgConveyorRun),
+                    TimeSpan.FromSeconds(2)));
+                Assert.False(io.GetOutput(OutputIo.NgConveyorReverse));
+                Assert.True(io.GetOutput(OutputIo.NgConveyorNormalSpeed));
+                Assert.Equal(shuttle, io.GetOutput(OutputIo.NgShuttleDown));
+                Assert.Equal(stopper, io.GetOutput(OutputIo.NgConveyorStopperUp));
+                // First pass: carriers appear while running. Second pass: start
+                // with every carrier sensor already ON. Neither starts a sequence.
+                var previous = state.Display;
+                io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+                io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
+                io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+                state.RequestDisplayRefresh();
+                Assert.True(await VirtualTest.WaitUntilAsync(() => !ReferenceEquals(previous, state.Display),
+                    TimeSpan.FromSeconds(2)));
+                Assert.True(io.GetOutput(OutputIo.NgConveyorRun));
+                Assert.False(run.IsCompleted);
+                row.ToggleCommand.Cancel();
+                await run.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            }
+            var active = row.ToggleCommand.ExecuteAsync(null);
+            Assert.True(io.GetOutput(OutputIo.NgConveyorRun));
+            // Removing occupancy admission does not remove the MANUAL-only gate.
+            io.SetInput(InputIo.AutoMode, false);
+            await active.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            Assert.True(await VirtualTest.WaitUntilAsync(() => row.BlockReason == OutputBlockReason.AutoMode,
+                TimeSpan.FromSeconds(2)));
+            await row.ToggleCommand.ExecuteAsync(null);
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            Assert.False(state.IsRunning);
         }
         finally { await machine.ShutdownAsync(); }
     }

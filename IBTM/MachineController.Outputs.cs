@@ -98,16 +98,8 @@ public sealed partial class MachineController
         else throw new ArgumentOutOfRangeException(nameof(signal));
     }
 
-    private OutputBlockReason GetNgConveyorOutputBlock()
-    {
-        if (!_units.NgConveyor) return OutputBlockReason.NgConveyorDisabled;
-        if (_ngConveyor.CarrierCount != 0) return OutputBlockReason.NgConveyorOccupied;
-        // An empty shuttle can stay at either height during a motor-only test.
-        // Carrier transfer and automatic shuttle movement belong to Dry Run.
-        if (InspectionGantryEnabled && !_ngTransfer.IsRaised) return OutputBlockReason.NgPickupNotRaised;
-        if (_ngTransfer.CarrierDetected) return OutputBlockReason.NgCarrierDetected;
-        return OutputBlockReason.None;
-    }
+    private OutputBlockReason GetNgConveyorOutputBlock() =>
+        _units.NgConveyor ? OutputBlockReason.None : OutputBlockReason.NgConveyorDisabled;
 
     private OutputBlockReason GetConveyorOutputBlock(bool live)
     {

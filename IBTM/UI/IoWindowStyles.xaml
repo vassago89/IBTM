@@ -118,6 +118,69 @@
         <Setter Property="Padding" Value="10,4"/>
     </Style>
 
+    <Style x:Key="OutputControlButtonStyle" TargetType="Button"
+           BasedOn="{StaticResource IoToggleButtonStyle}">
+        <Setter Property="Content" Value="ON"/>
+        <Setter Property="Command" Value="{Binding ToggleCommand}"/>
+        <Setter Property="ToolTip" Value="{Binding ToggleHint}"/>
+        <Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+        <Style.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsMaintainedOutput}" Value="False"/>
+                    <Condition Binding="{Binding Io.IsOn}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Content" Value="OFF"/>
+            </MultiDataTrigger>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsConveyorRun}" Value="True"/>
+                    <Condition Binding="{Binding Io.IsOn}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Content" Value="OFF"/>
+                <Setter Property="Command" Value="{Binding StopOutputTestCommand}"/>
+                <Setter Property="ToolTip" Value="Stop this conveyor motor."/>
+            </MultiDataTrigger>
+            <!-- An owned operation can be cancelled before ON feedback arrives. -->
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition Binding="{Binding IsMaintainedOutput}" Value="True"/>
+                    <Condition Binding="{Binding ToggleCommand.IsRunning}" Value="True"/>
+                </MultiDataTrigger.Conditions>
+                <Setter Property="Content" Value="OFF"/>
+                <Setter Property="Command" Value="{Binding StopOutputTestCommand}"/>
+                <Setter Property="ToolTip" Value="Send OFF and cancel this output operation."/>
+            </MultiDataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="OutputFeedbackTextStyle" TargetType="TextBlock">
+        <Setter Property="Text" Value="Not matched"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Io.IsMatched}" Value="True">
+                <Setter Property="Text" Value="Matched"/>
+                <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Io.IsOn}" Value="{x:Null}">
+                <Setter Property="Text" Value="Unknown"/>
+                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding ToggleCommand.IsRunning}" Value="True">
+                <Setter Property="Text" Value="Waiting"/>
+                <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Io.HasConflict}" Value="True">
+                <Setter Property="Text" Value="Input conflict"/>
+                <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding HasFeedbackError}" Value="True">
+                <Setter Property="Text" Value="Timeout"/>
+                <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="IoInputListItemStyle" TargetType="ListBoxItem" BasedOn="{StaticResource IoListItemStyle}">
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsOn}" Value="True">

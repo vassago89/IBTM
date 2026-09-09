@@ -99,44 +99,9 @@
                                     Orientation="Horizontal"
                                     VerticalAlignment="Center"
                                     Visibility="{Binding Io.HasFeedback, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{Binding FeedbackState,
-                                                      Converter={StaticResource EnumDescriptionConverter}}">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground"
-                                                Value="{StaticResource TextSecondaryBrush}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding FeedbackState}"
-                                                         Value="{x:Static ui:OutputFeedbackState.Matched}">
-                                                <Setter Property="Foreground"
-                                                        Value="{StaticResource AccentGreenBrush}"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding FeedbackState}"
-                                                         Value="{x:Static ui:OutputFeedbackState.Conflict}">
-                                                <Setter Property="Foreground"
-                                                        Value="{StaticResource AccentRedBrush}"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding FeedbackState}"
-                                                         Value="{x:Static ui:OutputFeedbackState.Waiting}">
-                                                <Setter Property="Foreground"
-                                                        Value="{StaticResource AccentAmberBrush}"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding FeedbackState}"
-                                                         Value="{x:Static ui:OutputFeedbackState.Timeout}">
-                                                <Setter Property="Foreground"
-                                                        Value="{StaticResource AccentRedBrush}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                            <TextBlock Style="{StaticResource OutputFeedbackTextStyle}"/>
                         </StackPanel>
-                        <Button Grid.Column="5"
-                                Content="{Binding ToggleLabel}"
-                                Style="{StaticResource IoToggleButtonStyle}"
-                                ToolTip="{Binding ToggleHint}"
-                                ToolTipService.ShowOnDisabled="True"
-                                Command="{Binding ActionCommand}"/>
+                        <Button Grid.Column="5" Style="{StaticResource OutputControlButtonStyle}"/>
                     </Grid>
                 </DataTemplate>
             </ListBox.ItemTemplate>

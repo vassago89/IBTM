@@ -68,7 +68,7 @@ public enum OutputBlockReason
 
     [Description("Remove carriers from the main conveyor before this motor-only test.")]
     MainConveyorCarrierDetected,
-    [Description("Empty the NG conveyor and shuttle before testing its motor or stopper.")]
+    [Description("Empty the NG conveyor and shuttle before testing its stopper.")]
     NgConveyorOccupied,
     [Description("Remove the carrier from this station before testing the stopper.")]
     StationCarrierDetected,

@@ -1441,19 +1441,21 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        var runOutput = manual.Conveyors.Single(row => row.Io.Signal == OutputIo.MainConveyorRun);
         try
         {
-            manual.RunConveyorCommand.Execute(null);
+            var run = runOutput.ToggleCommand.ExecuteAsync(null);
             Assert.True(conveyor.RunCommandOn);
             io.SetInput(InputIo.AutoMode, false);
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(conveyor.RunCommandOn);
-            manual.RunConveyorCommand.Execute(null);
+            await runOutput.ToggleCommand.ExecuteAsync(null);
             Assert.False(conveyor.RunCommandOn);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
         }
         finally
         {
-            conveyor.Stop();
+            await machine.ShutdownAsync();
         }
     }
 
@@ -1476,8 +1478,8 @@ public sealed class MachineLifecycleTests
         manual.ToggleServoCommand.Execute(row);
         Assert.Equal(MachineAlarm.MotionUnavailable, services.GetRequiredService<MachineState>().Alarm);
         Assert.Contains("Servo feedback failed", services.GetRequiredService<MachineState>().AlarmDetail);
-        await WaitUntilAsync(() => !row.Feedback.ServoOn);
-        Assert.False(row.Feedback.ServoOn);
+        await WaitUntilAsync(() => row.ServoOn == false);
+        Assert.False(row.ServoOn);
     }
 
     [Fact]
