@@ -36,7 +36,6 @@ public sealed class MachineController
     private readonly MachineOptions _options;
     private readonly UnitSettings _units;
     private readonly Recipe _recipe;
-    private readonly HomeSettings _home;
     private readonly CarrierReferenceSettings _carrierReference;
     private readonly IIoService _io;
     private readonly MainConveyor _conveyor;
@@ -68,7 +67,6 @@ public sealed class MachineController
         MachineOptions options,
         UnitSettings units,
         Recipe recipe,
-        HomeSettings home,
         CarrierReferenceSettings carrierReference,
         IIoService io,
         MainConveyor conveyor,
@@ -99,7 +97,6 @@ public sealed class MachineController
         _options = options;
         _units = units;
         _recipe = recipe;
-        _home = home;
         _carrierReference = carrierReference;
         _io = io;
         _conveyor = conveyor;
@@ -674,12 +671,11 @@ public sealed class MachineController
             _state.SetHoming(true);
             try
             {
-                var velocity = axis == MotionAxis.Z ? _home.ZSpeed : _home.HorizontalSpeed;
                 var homed = await (group switch
                 {
-                    MotionGroup.PcbPlacementHandler => _placementHandler.HomeAxisAsync(axis, velocity, token),
-                    MotionGroup.BoltFastening => _fasteningGantry.HomeAxisAsync(axis, velocity, token),
-                    MotionGroup.InspectionGantry => _inspectionGantry.HomeAxisAsync(axis, velocity, token),
+                    MotionGroup.PcbPlacementHandler => _placementHandler.HomeAxisAsync(axis, token),
+                    MotionGroup.BoltFastening => _fasteningGantry.HomeAxisAsync(axis, token),
+                    MotionGroup.InspectionGantry => _inspectionGantry.HomeAxisAsync(axis, token),
                     _ => throw new ArgumentOutOfRangeException(nameof(group)),
                 });
                 if (!homed && !token.IsCancellationRequested) _state.SetError(MachineAlarm.HomeFailed);
@@ -950,10 +946,8 @@ public sealed class MachineController
             {
                 zHomeTasks.Add(CheckHomeAsync(_placementHandler.HomeAxisAsync(
                     MotionAxis.Z,
-                    _home.ZSpeed,
                     cancellationToken)));
                 zHomeTasks.Add(CheckHomeAsync(_supplyHandler.PrepareHomeAsync(
-                    _home.ZSpeed,
                     cancellationToken)));
             }
 
@@ -961,7 +955,6 @@ public sealed class MachineController
             {
                 zHomeTasks.Add(CheckHomeAsync(_fasteningGantry.HomeAxisAsync(
                     MotionAxis.Z,
-                    _home.ZSpeed,
                     cancellationToken)));
             }
 
@@ -989,12 +982,9 @@ public sealed class MachineController
             {
                 horizontalHomeTasks.Add(
                     CheckHomeAsync(_placementHandler.HomeHorizontalAsync(
-                        _home.HorizontalSpeed,
                         cancellationToken)));
                 horizontalHomeTasks.Add(
                     CheckHomeAsync(_supplyHandler.CompleteHomeAsync(
-                        _home.HorizontalSpeed,
-                        _home.ZSpeed,
                         cancellationToken)));
             }
 
@@ -1002,7 +992,6 @@ public sealed class MachineController
             {
                 horizontalHomeTasks.Add(
                     CheckHomeAsync(_fasteningGantry.HomeHorizontalAsync(
-                        _home.HorizontalSpeed,
                         cancellationToken)));
             }
 
@@ -1010,7 +999,6 @@ public sealed class MachineController
             {
                 horizontalHomeTasks.Add(
                     CheckHomeAsync(_inspectionGantry.HomeHorizontalAsync(
-                        _home.HorizontalSpeed,
                         cancellationToken)));
             }
 

@@ -22,7 +22,6 @@ public sealed class MachineSettings
     public DriverSettings Drivers { get; set; } = new();
     public UnitSettings Units { get; set; } = new();
     public MachineOptions Options { get; set; } = new();
-    public HomeSettings Home { get; set; } = new();
     public RecipeSelectionSettings RecipeSelection { get; set; } = new();
     public CarrierReferenceSettings CarrierReference { get; set; } = new();
     public AjinSettings Ajin { get; set; } = new();
@@ -87,7 +86,7 @@ public sealed class MachineSettings
     internal Setting[] Sections =>
     [
         .. HardwareSections,
-        Drivers, Units, Options, Home, RecipeSelection, CarrierReference,
+        Drivers, Units, Options, RecipeSelection, CarrierReference,
         Ajin, AlphaMotion, InspectionCamera, Lighting, Hantas,
         NgCarrierTransfer, NgConveyor, PcbBuffer, PcbSupply,
         PcbPlacementHandler, BoltFeeder, BoltFastening, InspectionGantry,
@@ -102,7 +101,6 @@ public sealed class MachineSettings
         Drivers = values.Get<DriverSettings>(),
         Units = values.Get<UnitSettings>(),
         Options = values.Get<MachineOptions>(),
-        Home = values.Get<HomeSettings>(),
         RecipeSelection = values.Get<RecipeSelectionSettings>(),
         CarrierReference = values.Get<CarrierReferenceSettings>(),
         MachineHardware = values.Get<MachineHardwareSettings>(),

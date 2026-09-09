@@ -111,19 +111,17 @@ public sealed class BoltFasteningGantry
 
     public Task<bool> HomeAxisAsync(
         MotionAxis axis,
-        double velocity,
         CancellationToken cancellationToken = default)
     {
         if (axis != MotionAxis.Z) EnsureCanMoveHorizontal(cancellationToken);
-        return _motion.HomeAsync(axis, velocity, cancellationToken);
+        return _motion.HomeAsync(axis, _settings.Motion.Home(axis).SearchSpeed, cancellationToken);
     }
 
     public Task<bool> HomeHorizontalAsync(
-        double velocity,
         CancellationToken cancellationToken = default)
     {
         EnsureCanMoveHorizontal(cancellationToken);
-        return _motion.HomeHorizontalAsync(velocity, cancellationToken);
+        return _motion.HomeHorizontalAsync(_settings.Motion.HorizontalHome.SearchSpeed, cancellationToken);
     }
 
     public Task MoveToXYAsync(

@@ -63,7 +63,6 @@ public static class DependencyInjection
         services.AddSingleton(settings.Drivers);
         services.AddSingleton(settings.Units);
         services.AddSingleton(settings.Options);
-        services.AddSingleton(settings.Home);
         services.AddSingleton(settings.RecipeSelection);
         services.AddSingleton(settings.CarrierReference);
         services.AddSingleton(settings.PcbBuffer);
@@ -194,7 +193,8 @@ public static class DependencyInjection
             var gantry = new InspectionGantry(
                 provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry),
                 provider.GetRequiredService<NgCarrierTransfer>(),
-                provider.GetRequiredService<OperationCancellation>());
+                provider.GetRequiredService<OperationCancellation>(),
+                settings.InspectionGantry);
             if (settings.Drivers.Control == ControlDriver.Virtual)
             {
                 var machine = provider.GetRequiredService<VirtualMachine>();

@@ -38,6 +38,20 @@ station inputs and work completion. Inspection depends on the NG shuttle/conveyo
 not the reverse. Inspection and NG carrier transfer share one XY gantry and one
 execution loop; there is no inspection Z axis.
 
+Motion coordinates use mm and speeds use mm/s. The default pulse length is
+1 µm/pulse (0.001 mm/pulse), editable per motion group in Settings > Motion.
+Ajin conversion and Virtual resolution use the same setting; 100 mm/s corresponds
+to 100,000 pulses/s at this resolution. Existing saved pulse lengths are preserved;
+change them explicitly and restart before using different hardware scaling.
+
+Settings > Motion also owns each group's travel speeds, acceleration/deceleration
+times in seconds, X/Y and Z homing speeds, and axis ranges. Existing common home
+speeds and AJIN ratios are converted once when the settings database is upgraded;
+their equivalent speeds and accelerations are preserved. Home direction, sensor
+and method still come from the AJIN `.mot` file. The driver uses pulse units
+internally and converts acceleration time to pulses/s². Virtual currently models
+travel speed and pulse resolution, not the AJIN acceleration or home-search profile.
+
 `Manual > Dry Run > PCB Return` returns one unfastened PCB from the selected
 heat sink through Buffer to Supply. If the carrier is still at Station 2/3,
 the main conveyor first returns it to the front sensor, then moves forward to
@@ -252,12 +266,13 @@ must be clear before Station 3 receives a carrier or begins inspection.
 
 ## Settings, teaching and storage
 
-Each `Setting` is stored as its own JSON file in `Settings` beside the executable.
+Each `Setting` is stored as a separate JSON row in `Data/Machine.db` beside the executable.
 Units receive only their relevant settings; `MachineSettings` is the host aggregate.
 
-- `DriverSettings`, `UnitSettings`, `MachineOptions`, `HomeSettings`: machine operation.
+- `DriverSettings`, `UnitSettings`, `MachineOptions`: machine operation.
 - `*HardwareSettings`: responsibility-owned logical IO and axis mappings.
-- Unit motion settings: ranges, speeds and taught positions.
+- Unit settings: travel/home speeds, acceleration times and taught positions;
+  each unit's motion hardware settings own its axis ranges and pulse length.
 - `CarrierReferenceSettings`: inspection upper-left/lower-right locating pins.
 - `NgCarrierTransferSettings`: carrier pickup, shuttle placement and transfer speed.
 - `NgConveyorSettings`: NG conveyor behavior and alarm count.

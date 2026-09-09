@@ -39,6 +39,7 @@ public class AjinMotionService(
     private const int InPositionBit = 5;
     private const int EmergencyBit = 6;
     private const int HomeSensorBit = 7;
+    private const uint AccelerationInUnitsPerSecondSquared = 0;
     private static readonly TimeSpan StatusPollInterval = TimeSpan.FromMilliseconds(10);
 
     private readonly int _axisX = axisX.Number;
@@ -61,6 +62,11 @@ public class AjinMotionService(
         controller.Initialize();
         foreach (var axis in _axes)
         {
+            // mm conversion belongs here, not in the .mot file's SDK scaling.
+            AjinController.Check(AjinNative.AxmMotSetMoveUnitPerPulse(axis, 1, 1),
+                nameof(AjinNative.AxmMotSetMoveUnitPerPulse));
+            AjinController.Check(AjinNative.AxmMotSetAccelUnit(axis, AccelerationInUnitsPerSecondSquared),
+                nameof(AjinNative.AxmMotSetAccelUnit));
             SetServo(axis, true);
         }
 
@@ -109,7 +115,6 @@ public class AjinMotionService(
         var velocityInUnits = ToUnits(velocity);
         var velocityX = velocityInUnits * distanceX / totalDistance;
         var velocityY = velocityInUnits * distanceY / totalDistance;
-        var accelerationMultiplier = controller.Settings.AccelerationMultiplier;
         var axes = new[] { _axisX, axisYNumber };
 
         return RunMoveAsync(
@@ -118,8 +123,8 @@ public class AjinMotionService(
                 axes,
                 [ToUnits(x), ToUnits(y)],
                 [velocityX, velocityY],
-                [velocityX * accelerationMultiplier, velocityY * accelerationMultiplier],
-                [velocityX * accelerationMultiplier, velocityY * accelerationMultiplier]),
+                [velocityX / Settings.AccelerationSeconds, velocityY / Settings.AccelerationSeconds],
+                [velocityX / Settings.DecelerationSeconds, velocityY / Settings.DecelerationSeconds]),
             nameof(AjinNative.AxmMoveMultiPos),
             axes,
             cancellationToken);
@@ -171,8 +176,7 @@ public class AjinMotionService(
             nameof(AjinNative.AxmSignalGetLimit));
 
         var velocityInUnits = ToUnits(velocity);
-        var acceleration = velocityInUnits
-                           * controller.Settings.AccelerationMultiplier;
+        var acceleration = velocityInUnits / Settings.AccelerationSeconds;
 
         await RunMoveAsync(
             () => AjinNative.AxmMoveSignalSearch(
@@ -200,9 +204,10 @@ public class AjinMotionService(
     {
         var axisNumber = GetAxis(axis);
         var velocityInUnits = ToUnits(velocity);
-        var acceleration = Math.Abs(velocityInUnits) * controller.Settings.AccelerationMultiplier;
+        var acceleration = Math.Abs(velocityInUnits) / Settings.AccelerationSeconds;
+        var deceleration = Math.Abs(velocityInUnits) / Settings.DecelerationSeconds;
         return RunMoveAsync(
-            () => AjinNative.AxmMoveVel(axisNumber, velocityInUnits, acceleration, acceleration),
+            () => AjinNative.AxmMoveVel(axisNumber, velocityInUnits, acceleration, deceleration),
             nameof(AjinNative.AxmMoveVel),
             [axisNumber],
             cancellationToken);
@@ -271,6 +276,8 @@ public class AjinMotionService(
         var axisNumber = GetAxis(axis);
         var velocityInUnits = ToUnits(velocity);
 
+        var home = Settings.Home(axis);
+
         AjinController.Check(
             AjinNative.AxmHomeSetResult(axisNumber, HomeUnknown),
             nameof(AjinNative.AxmHomeSetResult));
@@ -278,15 +285,11 @@ public class AjinMotionService(
             AjinNative.AxmHomeSetVel(
                 axisNumber,
                 velocityInUnits,
-                velocityInUnits
-                * controller.Settings.HomeSecondVelocityRatio,
-                velocityInUnits
-                * controller.Settings.HomeThirdVelocityRatio,
-                velocityInUnits
-                * controller.Settings.HomeLastVelocityRatio,
-                velocityInUnits,
-                velocityInUnits
-                * controller.Settings.HomeSecondAccelerationRatio),
+                ToUnits(home.DetectionSpeed),
+                ToUnits(home.ApproachSpeed),
+                ToUnits(home.FineSpeed),
+                velocityInUnits / home.SearchAccelerationSeconds,
+                ToUnits(home.DetectionSpeed) / home.DetectionAccelerationSeconds),
             nameof(AjinNative.AxmHomeSetVel));
         using var cancellationRegistration = cancellationToken.Register(() =>
         {
@@ -400,7 +403,8 @@ public class AjinMotionService(
         CancellationToken cancellationToken)
     {
         var velocityInUnits = ToUnits(velocity);
-        var acceleration = velocityInUnits * controller.Settings.AccelerationMultiplier;
+        var acceleration = velocityInUnits / Settings.AccelerationSeconds;
+        var deceleration = velocityInUnits / Settings.DecelerationSeconds;
 
         return RunMoveAsync(
             () => AjinNative.AxmMovePos(
@@ -408,7 +412,7 @@ public class AjinMotionService(
                 ToUnits(position),
                 velocityInUnits,
                 acceleration,
-                acceleration),
+                deceleration),
             nameof(AjinNative.AxmMovePos),
             [axis],
             cancellationToken);

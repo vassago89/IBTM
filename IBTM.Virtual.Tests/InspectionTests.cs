@@ -97,8 +97,8 @@ public sealed class InspectionTests
             new NgCarrierTransferHardwareSettings().Outputs, new());
         io.Initialize();
         motion.Initialize();
-        var gantry = new InspectionGantry(motion, new NgCarrierTransfer(io), operations);
-        Assert.True(await gantry.HomeHorizontalAsync(1_000));
+        var gantry = new InspectionGantry(motion, new NgCarrierTransfer(io), operations, settings);
+        Assert.True(await gantry.HomeHorizontalAsync());
         var scale = 0.05;
         var recipe = new BoltInspectionRecipe();
         var pcb = TaughtPcbLayout();
@@ -170,7 +170,7 @@ public sealed class InspectionTests
             xRange: (0, 40),
             yRange: (0, 30));
         var transfer = new NgCarrierTransfer(io);
-        var gantry = new InspectionGantry(motion, transfer, operations);
+        var gantry = new InspectionGantry(motion, transfer, operations, gantrySettings);
         BoltTarget[] bolts =
         [
             Bolt(1, HeatSinkSlot.HeatSink1, 9, 9, carrierReference),

@@ -106,6 +106,7 @@ public abstract class MotionService(
     (double Minimum, double Maximum)? zRange = null) : IXyMotion
 {
     public const double PositionToleranceMillimeters = 0.05;
+    protected MotionSettings Settings { get; } = settings;
 
     private readonly MotionAxis[] _axes = (hasY, hasZ) switch
     {
@@ -187,9 +188,9 @@ public abstract class MotionService(
         await MoveXYCoreAsync(
             x,
             y,
-            settings.HorizontalSpeed,
+            Settings.HorizontalSpeed,
             cancellationToken);
-        await MoveZCoreAsync(z, settings.ZSpeed, cancellationToken);
+        await MoveZCoreAsync(z, Settings.ZSpeed, cancellationToken);
     }
 
     public async Task MoveXAsync(
@@ -309,7 +310,7 @@ public abstract class MotionService(
         {
             await MoveZCoreAsync(
                 HorizontalZ,
-                settings.ZSpeed,
+                Settings.ZSpeed,
                 cancellationToken);
         }
     }
@@ -408,7 +409,7 @@ public abstract class MotionService(
             {
                 if (!await HomeCoreAsync(
                     MotionAxis.Z,
-                    settings.ZSpeed,
+                    Settings.ZSpeed,
                     cancellationToken))
                 {
                     return false;

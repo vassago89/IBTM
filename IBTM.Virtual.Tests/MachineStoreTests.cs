@@ -16,6 +16,56 @@ namespace IBTM.Virtual.Tests;
 public sealed class MachineStoreTests
 {
     [Fact]
+    public async Task MotionSettingsConvertLegacyRatiosOnceAndRemainIndependent()
+    {
+        var file = Path.Combine(CreateDirectory(), "Machine.db");
+        var store = new MachineStore(file);
+        Assert.False(store.HasData);
+        var settings = new MachineSettings();
+        settings.PcbSupply.RotationZ = 17;
+        settings.PcbSupplyHardware.MillimetersPerPulse = 0.005;
+        await settings.SaveAsync(store);
+        using (var connection = new SqliteConnection($"Data Source={file}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO Settings (Key, Value) VALUES ('HomeSettings', '{"HorizontalSpeed":40,"ZSpeed":20}');
+                UPDATE Settings SET Value = json_set(Value, '$.AccelerationMultiplier', 4.0,
+                    '$.HomeSecondVelocityRatio', 0.25, '$.HomeThirdVelocityRatio', 0.125,
+                    '$.HomeLastVelocityRatio', 0.05, '$.HomeSecondAccelerationRatio', 0.5)
+                WHERE Key = 'AjinSettings';
+                UPDATE Settings SET Value = json_remove(Value, '$.Motion.AccelerationSeconds',
+                    '$.Motion.DecelerationSeconds', '$.Motion.HorizontalHome', '$.Motion.ZHome')
+                WHERE Key IN ('PcbSupplySettings', 'PcbPlacementHandlerSettings', 'BoltFasteningSettings', 'InspectionGantrySettings');
+                DELETE FROM __EFMigrationsHistory WHERE MigrationId = '20260909160000_MotionSettingsUnits';
+                """;
+            command.ExecuteNonQuery();
+        }
+        var reopened = new MachineStore(file);
+        var loaded = await MachineSettings.LoadAsync(reopened);
+        foreach (var motion in new[] { loaded.PcbSupply.Motion, loaded.PcbPlacementHandler.Motion,
+                     loaded.BoltFastening.Motion, loaded.InspectionGantry.Motion })
+        {
+            Assert.Equal(0.25, motion.AccelerationSeconds);
+            Assert.Equal(0.25, motion.DecelerationSeconds);
+            Assert.Equal((40, 10, 5, 2), (motion.HorizontalHome.SearchSpeed, motion.HorizontalHome.DetectionSpeed,
+                motion.HorizontalHome.ApproachSpeed, motion.HorizontalHome.FineSpeed));
+            Assert.Equal((20, 5, 2.5, 1), (motion.ZHome.SearchSpeed, motion.ZHome.DetectionSpeed,
+                motion.ZHome.ApproachSpeed, motion.ZHome.FineSpeed));
+            Assert.Equal(1, motion.HorizontalHome.SearchAccelerationSeconds);
+            Assert.Equal(0.5, motion.HorizontalHome.DetectionAccelerationSeconds);
+        }
+        Assert.Equal(17, loaded.PcbSupply.RotationZ);
+        Assert.Equal(0.005, loaded.PcbSupplyHardware.MillimetersPerPulse);
+        loaded.PcbSupply.Motion.HorizontalHome.DetectionSpeed = 7;
+        await loaded.SaveAsync(reopened);
+        var again = await MachineSettings.LoadAsync(new MachineStore(file));
+        Assert.Equal(7, again.PcbSupply.Motion.HorizontalHome.DetectionSpeed);
+        Assert.Equal(10, again.PcbPlacementHandler.Motion.HorizontalHome.DetectionSpeed);
+    }
+
+    [Fact]
     public async Task ConfirmedIoMapUpdatesSavedWiringOnceWithoutChangingTeachingOrRecipes()
     {
         var file = Path.Combine(CreateDirectory(), "Machine.db");

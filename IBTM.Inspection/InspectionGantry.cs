@@ -11,15 +11,18 @@ public sealed class InspectionGantry
     private readonly IXyMotion _motion;
     private readonly NgCarrierTransfer _transfer;
     private readonly OperationCancellation _operations;
+    private readonly MotionSettings _settings;
 
     public InspectionGantry(
         IXyMotion motion,
         NgCarrierTransfer transfer,
-        OperationCancellation operations)
+        OperationCancellation operations,
+        InspectionGantrySettings settings)
     {
         _motion = motion;
         _transfer = transfer;
         _operations = operations;
+        _settings = settings.Motion;
         Motion = new(motion);
     }
 
@@ -37,21 +40,19 @@ public sealed class InspectionGantry
 
     public async Task<bool> HomeAxisAsync(
         MotionAxis axis,
-        double velocity,
         CancellationToken cancellationToken = default)
     {
         using var operation = _operations.Link(cancellationToken);
         EnsureCanHome(operation.Token);
-        return await _motion.HomeAsync(axis, velocity, operation.Token);
+        return await _motion.HomeAsync(axis, _settings.Home(axis).SearchSpeed, operation.Token);
     }
 
     public async Task<bool> HomeHorizontalAsync(
-        double velocity,
         CancellationToken cancellationToken = default)
     {
         using var operation = _operations.Link(cancellationToken);
         EnsureCanHome(operation.Token);
-        return await _motion.HomeHorizontalAsync(velocity, operation.Token);
+        return await _motion.HomeHorizontalAsync(_settings.HorizontalHome.SearchSpeed, operation.Token);
     }
 
     public Task MoveToAsync(

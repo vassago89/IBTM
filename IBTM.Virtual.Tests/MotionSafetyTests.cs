@@ -51,6 +51,8 @@ public sealed class MotionSafetyTests
     [Fact]
     public async Task SlowJogAccumulatesSubPulseDistanceAndStopsOnCancellation()
     {
+        const double pulseLength = MotionHardwareSettings.DefaultMillimetersPerPulse;
+        const double velocity = pulseLength * 20;
         using var motion = new VirtualMotionService(
             new MotionSettings(),
             new OperationCancellation(),
@@ -59,10 +61,10 @@ public sealed class MotionSafetyTests
         motion.Initialize();
         using var stop = new CancellationTokenSource();
 
-        var jog = motion.JogXAsync(0.2, stop.Token);
+        var jog = motion.JogXAsync(velocity, stop.Token);
         Assert.False(jog.IsCompleted);
         Assert.True(await WaitUntilAsync(
-            () => motion.GetPosition().X >= 0.01,
+            () => motion.GetPosition().X >= pulseLength,
             TimeSpan.FromSeconds(1)));
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jog.WaitAsync(TimeSpan.FromSeconds(1)));
@@ -72,7 +74,7 @@ public sealed class MotionSafetyTests
         await Task.Delay(30);
         Assert.Equal(stoppedPosition, motion.GetPosition());
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            motion.JogXAsync(0.2, stop.Token));
+            motion.JogXAsync(velocity, stop.Token));
         Assert.False(motion.IsMoving);
     }
 
@@ -134,7 +136,7 @@ public sealed class MotionSafetyTests
         var supply = new PcbSupplyHandler(
             motion,
             io,
-            new PcbSupplySettings(),
+            new PcbSupplySettings { Motion = new() { HorizontalHome = new() { SearchSpeed = 1_000 }, ZHome = new() { SearchSpeed = 1_000 } } },
             new PcbBufferSettings());
         var rotatedBeforeMotion = false;
         var horizontalMovedBeforeZLimit = false;
@@ -177,9 +179,9 @@ public sealed class MotionSafetyTests
         Assert.False(supply.CanPrepareHome);
         io.SetInput(InputIo.PcbSupplyPcbDetected, false);
 
-        var prepared = await supply.PrepareHomeAsync(1_000);
+        var prepared = await supply.PrepareHomeAsync();
         var homed = prepared
-            && await supply.CompleteHomeAsync(1_000, 1_000);
+            && await supply.CompleteHomeAsync();
 
         Assert.True(homed);
         Assert.True(rotatedBeforeMotion);

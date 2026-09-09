@@ -78,7 +78,7 @@ public abstract class MotionHardwareSettings(
     MotionGroup group,
     params (MotionAxis Axis, MachineAxis Signal, int Number, double Maximum)[] axes) : IoHardwareSettings
 {
-    public const double DefaultMillimetersPerPulse = 0.01;
+    public const double DefaultMillimetersPerPulse = 0.001;
 
     [JsonIgnore]
     public MotionGroup Group { get; } = group;

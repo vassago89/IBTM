@@ -264,7 +264,6 @@ public sealed class PcbSupplyHandler
             cancellationToken);
 
     public async Task<bool> PrepareHomeAsync(
-        double zVelocity,
         CancellationToken cancellationToken = default)
     {
         if (!CanPrepareHome)
@@ -278,19 +277,17 @@ public sealed class PcbSupplyHandler
             cancellationToken);
 
         await _motion.MoveZToPositiveLimitAsync(
-            zVelocity,
+            _settings.Motion.ZHome.SearchSpeed,
             cancellationToken);
         return true;
     }
 
     public async Task<bool> CompleteHomeAsync(
-        double horizontalVelocity,
-        double zVelocity,
         CancellationToken cancellationToken = default)
     {
         if (!await _motion.HomeFromZPositiveLimitAsync(
                 MotionAxis.X,
-                horizontalVelocity,
+                _settings.Motion.HorizontalHome.SearchSpeed,
                 cancellationToken))
         {
             return false;
@@ -298,7 +295,7 @@ public sealed class PcbSupplyHandler
 
         if (!await _motion.HomeFromZPositiveLimitAsync(
                 MotionAxis.Y,
-                horizontalVelocity,
+                _settings.Motion.HorizontalHome.SearchSpeed,
                 cancellationToken))
         {
             return false;
@@ -306,7 +303,7 @@ public sealed class PcbSupplyHandler
 
         return await _motion.HomeAsync(
             MotionAxis.Z,
-            zVelocity,
+            _settings.Motion.ZHome.SearchSpeed,
             cancellationToken);
     }
 

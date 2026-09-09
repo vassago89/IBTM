@@ -41,6 +41,7 @@ public partial class SettingsViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CurrentMotionSettings))]
     [NotifyPropertyChangedFor(nameof(CurrentMotionHardwareSettings))]
     [NotifyPropertyChangedFor(nameof(CurrentMotionHasZ))]
+    [NotifyPropertyChangedFor(nameof(CurrentAxisMappings))]
     private MotionGroup _selectedMotionGroup = MotionGroup.PcbSupply;
 
     public SettingsViewModel(
@@ -55,6 +56,10 @@ public partial class SettingsViewModel : ObservableObject
         _operations = operations;
         _virtualCamera = camera as VirtualCamera;
         Settings = settings;
+        ActiveControlDriver = settings.Drivers.Control;
+        ActiveCameraDriver = settings.Drivers.Camera;
+        ActiveBoltDriver = settings.Drivers.Bolt;
+        ActiveInspectionAlgorithm = settings.Drivers.Inspection;
         _motions = settings.MotionSections.ToDictionary(section => section.Hardware.Group);
         MotionGroups = _motions.Keys.ToArray();
         ControlDrivers = Enum.GetValues<ControlDriver>();
@@ -78,7 +83,6 @@ public partial class SettingsViewModel : ObservableObject
             .ToArray();
         InputMappingView = GroupMappings(InputMappings);
         OutputMappingView = GroupMappings(OutputMappings);
-        AxisMappingView = GroupMappings(AxisMappings);
         FeedbackMappings = hardware
             .OfType<IoHardwareSettings>()
             .SelectMany(section => section.Outputs
@@ -90,6 +94,12 @@ public partial class SettingsViewModel : ObservableObject
     }
 
     public MachineSettings Settings { get; }
+    public ControlDriver ActiveControlDriver { get; }
+    public CameraDriver ActiveCameraDriver { get; }
+    public BoltDriver ActiveBoltDriver { get; }
+    public InspectionAlgorithm ActiveInspectionAlgorithm { get; }
+    public bool IsVirtualDevelopment => DevelopmentProfile.IsEnabled;
+    public bool CanChangeDrivers => CanEditSettings && !IsVirtualDevelopment;
     public ControlDriver[] ControlDrivers { get; }
     public CameraDriver[] CameraDrivers { get; }
     public BoltDriver[] BoltDrivers { get; }
@@ -103,15 +113,25 @@ public partial class SettingsViewModel : ObservableObject
     public HardwareMappingRow[] AxisMappings { get; }
     public ICollectionView InputMappingView { get; }
     public ICollectionView OutputMappingView { get; }
-    public ICollectionView AxisMappingView { get; }
     public KeyValuePair<OutputIo, OutputFeedback>[] FeedbackMappings { get; }
     public InputIo[] InputSignals { get; } = Enum.GetValues<InputIo>();
     public MotionGroup[] MotionGroups { get; }
     public MotionSettings CurrentMotionSettings => _motions[SelectedMotionGroup].Settings;
+    public IEnumerable<HardwareMappingRow> CurrentAxisMappings =>
+        AxisMappings.Where(row => row.Area == CurrentMotionHardwareSettings.Area);
     public MotionHardwareSettings CurrentMotionHardwareSettings =>
         _motions[SelectedMotionGroup].Hardware;
     public bool CurrentMotionHasZ =>
         CurrentMotionHardwareSettings.AxisSignals.ContainsKey(MotionAxis.Z);
+
+    [RelayCommand(CanExecute = nameof(CanEditSettings))]
+    private void SelectMotionParameterFile()
+    {
+        var dialog = new OpenFileDialog { Title = "Select AJIN Motion Parameters", Filter = "AJIN parameters|*.mot" };
+        if (dialog.ShowDialog() != true) return;
+        Settings.Ajin.MotionParameterFile = dialog.FileName;
+        OnPropertyChanged(nameof(Settings));
+    }
 
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
     private async Task SaveSettingsAsync()
@@ -119,6 +139,7 @@ public partial class SettingsViewModel : ObservableObject
         using var operation = _operations.Link();
         ApplyHardwareMappings();
         await Settings.SaveAsync(_store, operation.Token);
+        DatabaseMessage = "Settings saved. Restart to apply driver, connection, pulse length and mapping changes.";
         _state.Refresh();
     }
 
@@ -129,9 +150,11 @@ public partial class SettingsViewModel : ObservableObject
         LoadVirtualImageCommand.NotifyCanExecuteChanged();
         ClearVirtualImageCommand.NotifyCanExecuteChanged();
         SaveSettingsCommand.NotifyCanExecuteChanged();
+        SelectMotionParameterFileCommand.NotifyCanExecuteChanged();
         BackupDatabaseCommand.NotifyCanExecuteChanged();
         RestoreDatabaseCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanEditSettings));
+        OnPropertyChanged(nameof(CanChangeDrivers));
     }
 
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
@@ -215,7 +238,7 @@ public partial class SettingsViewModel : ObservableObject
         VirtualImageError = null;
     }
 
-    private bool CanChangeVirtualImage() => IsVirtualCamera && !_state.IsRunning;
+    private bool CanChangeVirtualImage() => IsVirtualCamera && CanEditSettings;
     private bool CanClearVirtualImage() => CanChangeVirtualImage() && VirtualImageName is not null;
 
     public Task ShutdownAsync() => CommandShutdown.StopAsync(

@@ -8,7 +8,6 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
     private const int RtexChannelCountPerModule = 32;
     private bool _initialized;
 
-    internal AjinSettings Settings => settings;
     public int RtexInputWordCount => settings.RtexInputModules.Length;
 
     public void Initialize()

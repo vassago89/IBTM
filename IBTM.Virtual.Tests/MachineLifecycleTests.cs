@@ -1658,6 +1658,9 @@ public sealed class MachineLifecycleTests
             view.SelectedMotionGroup = section.Hardware.Group;
             Assert.Same(section.Settings, view.CurrentMotionSettings);
             Assert.Same(section.Hardware, view.CurrentMotionHardwareSettings);
+            Assert.Equal(section.Hardware.Axes.Keys,
+                view.CurrentAxisMappings.Select(row => (MachineAxis)row.Signal));
+            Assert.Equal(0.001, section.Hardware.MillimetersPerPulse);
             Assert.Equal(section.Hardware.GetAxis(MotionAxis.Z) is not null, view.CurrentMotionHasZ);
             foreach (var axis in section.Hardware.AxisSignals.Keys)
             {
@@ -2629,9 +2632,9 @@ public sealed class MachineLifecycleTests
     {
         var settings = new MachineSettings
         {
-            Home = FastHome(),
             Units = EnableOnly(MachineUnit.BoltFastening),
         };
+        FastHomes(settings);
         var head = new StoppingBoltHead();
         using var services = new ServiceCollection()
             .AddSingleton<RecipeStore>()
@@ -2846,9 +2849,9 @@ public sealed class MachineLifecycleTests
                 PcbSupply = false, PcbPlacement = false, BoltFastening = false,
                 PickupBoltFeeder = false, ShootingBoltFeeder = false,
             },
-            Home = FastHome(),
             Drivers = new() { Inspection = InspectionAlgorithm.Virtual },
         };
+        FastHomes(settings);
         settings.InspectionGantry.Motion = FastMotion();
         settings.CarrierReference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
         settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 0 };
@@ -2968,8 +2971,8 @@ public sealed class MachineLifecycleTests
         var settings = new MachineSettings
         {
             Units = EnableOnly(MachineUnit.NgCarrierTransfer),
-            Home = FastHome(),
         };
+        FastHomes(settings);
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -3147,8 +3150,8 @@ public sealed class MachineLifecycleTests
         var settings = new MachineSettings
         {
             Units = EnableOnly(MachineUnit.NgCarrierTransfer),
-            Home = FastHome(),
         };
+        FastHomes(settings);
         settings.Options.TimeoutMilliseconds = 100;
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
@@ -3181,8 +3184,8 @@ public sealed class MachineLifecycleTests
         var settings = new MachineSettings
         {
             Units = EnableOnly(MachineUnit.NgCarrierTransfer),
-            Home = FastHome(),
         };
+        FastHomes(settings);
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -3197,7 +3200,7 @@ public sealed class MachineLifecycleTests
         Assert.False(machine.CanHome);
         await machine.HomeAsync(CancellationToken.None);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            gantry.HomeAxisAsync(MotionAxis.X, 100));
+            gantry.HomeAxisAsync(MotionAxis.X));
         Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
         Assert.False(state.Homed);
 
@@ -3206,7 +3209,7 @@ public sealed class MachineLifecycleTests
         Assert.False(gantry.CanMove);
         await machine.HomeAsync(CancellationToken.None);
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            gantry.HomeAxisAsync(MotionAxis.X, 100));
+            gantry.HomeAxisAsync(MotionAxis.X));
         Assert.False(state.Homed);
         Assert.True(io.GetOutput(OutputIo.NgCarrierPickupDown));
         Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
@@ -3305,8 +3308,8 @@ public sealed class MachineLifecycleTests
         Assert.Equal(MachineAlarm.None, state.Alarm);
         await Assert.ThrowsAsync<InvalidOperationException>(MoveXY);
         await Assert.ThrowsAsync<InvalidOperationException>(() => isPlacement
-            ? placement.HomeAxisAsync(MotionAxis.X, 100)
-            : fastening.HomeAxisAsync(MotionAxis.X, 100));
+            ? placement.HomeAxisAsync(MotionAxis.X)
+            : fastening.HomeAxisAsync(MotionAxis.X));
         if (isPlacement)
             await Assert.ThrowsAsync<InvalidOperationException>(() => placement.JogAsync(MotionAxis.Y, 10));
 
@@ -3516,7 +3519,7 @@ public sealed class MachineLifecycleTests
         Assert.False(state.IsRunning);
         Assert.Equal(MachineAlarm.None, state.Alarm);
         await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.MoveToXYAsync(30, 30));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.HomeHorizontalAsync(100));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.HomeHorizontalAsync());
 
         var maximum = gantry.Feedback.GetRange(MotionAxis.X)!.Value.Maximum;
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => gantry.AdjustAxisAsync(MotionAxis.X, maximum + 1, 100));
@@ -3614,12 +3617,12 @@ public sealed class MachineLifecycleTests
             var settings = new MachineSettings
             {
                 Units = EnableOnly(unit),
-                Home = FastHome(),
                 Drivers = new()
                 {
                     Inspection = InspectionAlgorithm.Virtual,
                 },
             };
+            FastHomes(settings);
             using var services = CreateServices(settings);
             if (unit is MachineUnit.BoltFastening or MachineUnit.Inspection)
             {
@@ -3763,9 +3766,9 @@ public sealed class MachineLifecycleTests
     {
         var settings = new MachineSettings
         {
-            Home = FastHome(),
             Units = EnableOnly(MachineUnit.BoltFastening),
         };
+        FastHomes(settings);
         var head = new WaitingBoltHead();
         using var services = new ServiceCollection()
             .AddSingleton<RecipeStore>()
@@ -3853,9 +3856,9 @@ public sealed class MachineLifecycleTests
     {
         var settings = new MachineSettings
         {
-            Home = FastHome(),
             Units = EnableOnly(MachineUnit.BoltFastening),
         };
+        FastHomes(settings);
         using var services = CreateServices(settings);
         PrepareCarrierTeaching(
             settings,
@@ -3991,9 +3994,9 @@ public sealed class MachineLifecycleTests
     {
         var settings = new MachineSettings
         {
-            Home = FastHome(),
             Units = EnableOnly(MachineUnit.BoltFastening),
         };
+        FastHomes(settings);
         using var services = CreateServices(settings);
         PrepareCarrierTeaching(
             settings,
@@ -4035,7 +4038,7 @@ public sealed class MachineLifecycleTests
     public async Task HomeStopsWhenItsCarrierOrCylinderConditionChanges(InputIo input, bool value)
     {
         var settings = FlowSettings();
-        settings.Home.ZSpeed = 20;
+        foreach (var motionSettings in MotionSettingsOf(settings)) motionSettings.ZHome.SearchSpeed = 20;
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -4060,7 +4063,7 @@ public sealed class MachineLifecycleTests
     public async Task MotionAlarmBlocksHomeAndStopsAllHomingAxes()
     {
         var settings = FlowSettings();
-        settings.Home.ZSpeed = 20;
+        foreach (var motionSettings in MotionSettingsOf(settings)) motionSettings.ZHome.SearchSpeed = 20;
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -4100,7 +4103,7 @@ public sealed class MachineLifecycleTests
     public async Task FailedHomeReportsCauseAndStopsOtherHomingAxes(bool exception, bool individual)
     {
         var settings = FlowSettings();
-        settings.Home.ZSpeed = 1;
+        foreach (var motionSettings in MotionSettingsOf(settings)) motionSettings.ZHome.SearchSpeed = 1;
         HomeResultMotion? homeResult = null;
         using var services = new ServiceCollection()
             .AddSingleton<RecipeStore>()
@@ -4278,7 +4281,8 @@ public sealed class MachineLifecycleTests
                 probe.Motion = provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
                 return new InspectionGantry(motion,
                     provider.GetRequiredService<NgCarrierTransfer>(),
-                    provider.GetRequiredService<OperationCancellation>());
+                    provider.GetRequiredService<OperationCancellation>(),
+                    provider.GetRequiredService<InspectionGantrySettings>());
             })
             .BuildServiceProvider();
     }
@@ -4322,19 +4326,30 @@ public sealed class MachineLifecycleTests
         NgConveyor = unit == MachineUnit.NgConveyor,
     };
 
-    private static HomeSettings FastHome() => new()
+    private static HomeSettings FastHome() => new() { SearchSpeed = 10_000 };
+
+    private static MotionSettings[] MotionSettingsOf(MachineSettings settings) =>
+    [
+        settings.PcbSupply.Motion, settings.PcbPlacementHandler.Motion,
+        settings.BoltFastening.Motion, settings.InspectionGantry.Motion,
+    ];
+
+    private static void FastHomes(MachineSettings settings)
     {
-        HorizontalSpeed = 10_000,
-        ZSpeed = 10_000,
-    };
+        foreach (var motion in MotionSettingsOf(settings))
+        {
+            motion.HorizontalHome = FastHome();
+            motion.ZHome = FastHome();
+        }
+    }
 
     private static MachineSettings FlowSettings()
     {
         var settings = new MachineSettings
         {
-            Home = FastHome(),
             Drivers = new() { Inspection = InspectionAlgorithm.Virtual },
         };
+        FastHomes(settings);
         settings.PcbSupply.Motion = FastMotion();
         settings.PcbSupply.RotationZ = 0;
         settings.PcbSupply.CarrierY = 10;
@@ -4380,6 +4395,8 @@ public sealed class MachineLifecycleTests
     {
         HorizontalSpeed = 10_000,
         ZSpeed = 10_000,
+        HorizontalHome = FastHome(),
+        ZHome = FastHome(),
     };
 
     private static BoltHeadSettings HeadSettings() => new()

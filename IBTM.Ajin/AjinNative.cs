@@ -16,6 +16,12 @@ internal static class AjinNative
     internal static extern uint AxmMotLoadParaAll(string filePath);
 
     [DllImport(LibraryName)]
+    internal static extern uint AxmMotSetMoveUnitPerPulse(int axis, double unit, int pulse);
+
+    [DllImport(LibraryName)]
+    internal static extern uint AxmMotSetAccelUnit(int axis, uint unit);
+
+    [DllImport(LibraryName)]
     internal static extern uint AxmSignalServoOn(int axis, uint on);
 
     [DllImport(LibraryName)]
