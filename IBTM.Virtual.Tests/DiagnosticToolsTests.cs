@@ -296,15 +296,14 @@ public sealed class DiagnosticToolsTests
             var log = services.GetRequiredService<ApplicationLog>();
             var since = log.LatestSequence;
             var sawWaiting = false;
-            row.PropertyChanged += (_, args) =>
+            row.ToggleCommand.PropertyChanged += (_, _) =>
             {
-                if (args.PropertyName == nameof(row.FeedbackState))
-                    sawWaiting |= row.FeedbackState == OutputFeedbackState.Waiting;
+                sawWaiting |= row.ToggleCommand.IsRunning;
             };
             await row.ToggleCommand.ExecuteAsync(null);
             Assert.True(sawWaiting);
             Assert.True(io.GetOutput(OutputIo.PcbPlacementStopperUp));
-            Assert.Equal(OutputFeedbackState.Timeout, row.FeedbackState);
+            Assert.True(row.HasFeedbackError);
             Assert.Contains("PCB Placement Stopper Up", row.FeedbackError);
             Assert.Contains(log.ReadAfter(since), entry => entry.Level == "ERROR"
                 && entry.Message.Contains("PcbPlacementStopperUp") && entry.Detail!.Contains("timeout"));
@@ -312,8 +311,8 @@ public sealed class DiagnosticToolsTests
 
             row.Refresh();
             Assert.Null(row.FeedbackError);
-            Assert.NotEqual(OutputFeedbackState.Timeout, row.FeedbackState);
-            Assert.NotEqual(OutputFeedbackState.Waiting, row.FeedbackState);
+            Assert.False(row.HasFeedbackError);
+            Assert.False(row.ToggleCommand.IsRunning);
 
             io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
             await row.ToggleCommand.ExecuteAsync(null);
@@ -342,7 +341,7 @@ public sealed class DiagnosticToolsTests
             io.SetInput(InputIo.MainConveyorReadyFromRear, false);
             var row = new OutputControlRow(services.GetRequiredService<IoSignals>()
                 .Outputs[OutputIo.MainConveyorReadyToFront2], machine);
-            Assert.Equal("ON", row.ToggleLabel);
+            Assert.False(row.ToggleCommand.IsRunning);
             var test = row.ToggleCommand.ExecuteAsync(null);
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => io.GetOutput(OutputIo.MainConveyorReadyToFront2), TimeSpan.FromSeconds(2)));
@@ -350,13 +349,12 @@ public sealed class DiagnosticToolsTests
             await Task.Delay(1100);
             Assert.True(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
             Assert.False(test.IsCompleted);
-            Assert.Equal("OFF", row.ToggleLabel);
-            Assert.True(row.ActionCommand.CanExecute(null));
-            row.ActionCommand.Execute(null);
+            Assert.True(row.StopOutputTestCommand.CanExecute(null));
+            row.StopOutputTestCommand.Execute(null);
             await test.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
             Assert.False(state.IsRunning);
-            Assert.Equal("ON", row.ToggleLabel);
+            Assert.False(row.ToggleCommand.IsRunning);
 
             test = row.ToggleCommand.ExecuteAsync(null);
             Assert.True(await VirtualTest.WaitUntilAsync(
@@ -397,7 +395,7 @@ public sealed class DiagnosticToolsTests
             }
             finally { SynchronizationContext.SetSynchronizationContext(previous); }
             Assert.True(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
-            row.ActionCommand.Execute(null);
+            row.StopOutputTestCommand.Execute(null);
             // No queued UI callback is allowed to run before OFF is observed.
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => !io.GetOutput(OutputIo.MainConveyorReadyToFront2), TimeSpan.FromSeconds(2)));

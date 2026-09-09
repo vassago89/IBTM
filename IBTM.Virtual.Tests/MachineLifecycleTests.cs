@@ -1623,13 +1623,13 @@ public sealed class MachineLifecycleTests
         await WaitUntilAsync(() => gripper.ToggleCommand.CanExecute(null));
         io.AutoResponseEnabled = false;
         var toggle = gripper.ToggleCommand.ExecuteAsync(null);
-        await WaitUntilAsync(() => gripper.FeedbackState == OutputFeedbackState.Waiting);
+        await WaitUntilAsync(() => gripper.ToggleCommand.IsRunning);
         Assert.True(state.IsRunning);
         io.SetInput(InputIo.AutoMode, false);
         await toggle.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(state.IsRunning);
         Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
-        Assert.False(gripper.FeedbackState == OutputFeedbackState.Timeout);
+        Assert.False(gripper.HasFeedbackError);
         await WaitUntilAsync(() => !gripper.ToggleCommand.CanExecute(null));
     }
 

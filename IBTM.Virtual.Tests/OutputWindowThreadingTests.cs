@@ -90,6 +90,7 @@ public sealed class OutputWindowThreadingTests
         try
         {
             io.AutoResponseEnabled = false;
+            await VerifyDirectBindingsAsync(services);
             manual.Activate();
             foreach (var output in new[] { OutputIo.MainConveyorRun, OutputIo.NgConveyorRun })
             {
@@ -100,7 +101,7 @@ public sealed class OutputWindowThreadingTests
                     var row = window.Rows.Single(candidate => candidate.Io.Signal == output);
                     var manualRow = manual.Conveyors.Single(candidate => candidate.Io.Signal == output);
                     // These are real WPF command subscribers with the production bindings.
-                    var outputButton = BoundButton(row, nameof(OutputControlRow.ActionCommand));
+                    var outputButton = BoundButton(row);
                     var manualStop = BoundButton(manualRow, nameof(OutputControlRow.StopOutputTestCommand));
                     row.StopOutputTestCommand.CanExecuteChanged += (_, _) => notifications.Add(Environment.CurrentManagedThreadId);
                     row.PropertyChanged += (_, _) => notifications.Add(Environment.CurrentManagedThreadId);
@@ -124,18 +125,13 @@ public sealed class OutputWindowThreadingTests
                     // Also exercise background DI/DO notifications after OFF. Neither may
                     // invoke a command subscriber or stop the common display worker.
                     await Task.Run(() => io.SetOutput(OutputIo.MachineLight, !io.GetOutput(OutputIo.MachineLight)));
-                    var feedback = new TextBlock();
-                    feedback.SetBinding(TextBlock.TextProperty,
-                        new Binding(nameof(OutputControlRow.FeedbackState))
-                        {
-                            Source = window.Rows.Single(candidate => candidate.Io.Signal == OutputIo.NgConveyorStopperUp),
-                        });
+                    var feedback = BoundFeedback(window.Rows.Single(candidate => candidate.Io.Signal == OutputIo.NgConveyorStopperUp));
                     await Task.Run(() =>
                     {
                         io.SetInput(InputIo.NgConveyorStopperUp, true);
                         io.SetInput(InputIo.NgConveyorStopperDown, true);
                     });
-                    Assert.True(await VirtualTest.WaitUntilAsync(() => feedback.Text == nameof(OutputFeedbackState.Conflict),
+                    Assert.True(await VirtualTest.WaitUntilAsync(() => feedback.Text == "Input conflict",
                         TimeSpan.FromSeconds(2)));
                     await Task.Run(() => io.SetInput(InputIo.NgConveyorStopperUp, false));
                     var previous = state.Display;
@@ -161,11 +157,75 @@ public sealed class OutputWindowThreadingTests
         }
     }
 
-    private static Button BoundButton(OutputControlRow row, string command)
+    private static Button BoundButton(OutputControlRow row, string? command = null)
     {
-        var button = new Button();
-        button.SetBinding(Button.CommandProperty, new Binding(command) { Source = row });
-        button.SetBinding(ContentControl.ContentProperty, new Binding(nameof(OutputControlRow.ToggleLabel)) { Source = row });
+        var button = new Button { DataContext = row };
+        if (command is null) button.Style = (Style)Application.Current.FindResource("OutputControlButtonStyle");
+        else button.SetBinding(Button.CommandProperty, new Binding(command));
         return button;
+    }
+
+    private static TextBlock BoundFeedback(OutputControlRow row) => new()
+    {
+        DataContext = row,
+        Style = (Style)Application.Current.FindResource("OutputFeedbackTextStyle"),
+    };
+
+    private static async Task VerifyDirectBindingsAsync(ServiceProvider services)
+    {
+        var io = services.GetRequiredService<VirtualIoService>();
+        var machine = services.GetRequiredService<MachineController>();
+        var signals = services.GetRequiredService<IoSignals>();
+        // These rows have no owning view to call RefreshAccess. Production styles
+        // must follow their nested IO objects without relayed row notifications.
+        var light = new OutputControlRow(signals.Outputs[OutputIo.MachineLight], machine);
+        var button = BoundButton(light);
+        var notifications = 0;
+        light.PropertyChanged += (_, _) => notifications++;
+        foreach (var on in new[] { true, false })
+        {
+            await Task.Run(() => io.SetOutput(OutputIo.MachineLight, on));
+            Assert.True(await VirtualTest.WaitUntilAsync(() => (string?)button.Content == (on ? "OFF" : "ON"),
+                TimeSpan.FromSeconds(2)));
+        }
+        Assert.Equal(0, notifications);
+
+        var stopper = new OutputControlRow(signals.Outputs[OutputIo.NgConveyorStopperUp], machine);
+        var feedback = BoundFeedback(stopper);
+        await Task.Run(() =>
+        {
+            io.SetOutput(OutputIo.NgConveyorStopperUp, false);
+            io.SetInput(InputIo.NgConveyorStopperUp, false);
+            io.SetInput(InputIo.NgConveyorStopperDown, true);
+        });
+        Assert.True(await VirtualTest.WaitUntilAsync(() => feedback.Text == "Matched", TimeSpan.FromSeconds(2)));
+        await Task.Run(() => io.SetInput(InputIo.NgConveyorStopperDown, false));
+        Assert.True(await VirtualTest.WaitUntilAsync(() => feedback.Text == "Not matched", TimeSpan.FromSeconds(2)));
+        var options = services.GetRequiredService<MachineOptions>();
+        var timeout = options.TimeoutMilliseconds;
+        options.TimeoutMilliseconds = 100;
+        try
+        {
+            var waiting = stopper.ToggleCommand.ExecuteAsync(null);
+            Assert.Equal("Waiting", feedback.Text);
+            await waiting.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal("Timeout", feedback.Text);
+            stopper.Refresh();
+            Assert.Equal("Not matched", feedback.Text);
+        }
+        finally { options.TimeoutMilliseconds = timeout; }
+
+        // The async command must remain cancellable even before the first DO snapshot.
+        var signal = signals.Outputs[OutputIo.MainConveyorRun];
+        var pending = new OutputControlRow(new IoOutputStatus(signal.Signal, signal.Area, signal.Section, io, signals.Inputs), machine);
+        var pendingButton = BoundButton(pending);
+        var run = pending.ToggleCommand.ExecuteAsync(null);
+        Assert.Null(pending.Io.IsOn);
+        Assert.True(await VirtualTest.WaitUntilAsync(() => (string?)pendingButton.Content == "OFF"
+            && pendingButton.IsEnabled, TimeSpan.FromSeconds(2)));
+        Assert.Same(pending.StopOutputTestCommand, pendingButton.Command);
+        pendingButton.Command.Execute(null);
+        await run.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
     }
 }
