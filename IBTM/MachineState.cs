@@ -98,7 +98,7 @@ internal readonly record struct MotionReadiness(
     bool ServosOn,
     bool Faulted);
 
-public sealed class MachineState : IDisposable
+public sealed class MachineState : IDisposable, INotifyPropertyChanged
 {
     private readonly AsyncAutoResetEvent _displayRequested = new();
     private readonly CancellationTokenSource _displayLifetime = new();
@@ -182,10 +182,15 @@ public sealed class MachineState : IDisposable
 
     public event Action? Changed;
     public event Action? DisplayChanged;
+    public event PropertyChangedEventHandler? PropertyChanged;
     public MachineDisplay Display
     {
         get => Volatile.Read(ref _display);
-        private set => Volatile.Write(ref _display, value);
+        private set
+        {
+            Volatile.Write(ref _display, value);
+            PropertyChanged?.Invoke(this, new(nameof(Display)));
+        }
     }
 
     public void RequestDisplayRefresh() => _displayRequested.Set();

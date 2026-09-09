@@ -71,7 +71,8 @@
                 <TextBlock Text="PORT"
                            VerticalAlignment="Center"
                            Style="{StaticResource SectionHeaderStyle}"/>
-                <ComboBox x:Name="PortBox" Grid.Column="1" Margin="10,0,8,0"/>
+                <ComboBox x:Name="PortBox" Grid.Column="1" Margin="10,0,8,0"
+                          SelectionChanged="OnPortSelectionChanged"/>
                 <Button x:Name="RefreshPortsButton"
                         Grid.Column="2"
                         Content="Refresh"

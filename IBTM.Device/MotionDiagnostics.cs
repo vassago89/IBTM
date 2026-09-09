@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.IO;
 
 namespace IBTM.Device;
@@ -10,15 +11,26 @@ public interface IMotionDiagnostics
     double ReadDiagnosticPosition(MotionAxis axis);
 }
 
-public sealed record MotionDiagnosticSnapshot(AxisState? State, double? Position, Exception? ReadError);
+public sealed record MotionDiagnosticSnapshot(AxisState? State, double? Position, Exception? ReadError)
+{
+    public AxisCondition Condition => AxisStatus.GetCondition(State);
+    public bool? Faulted => State is { } state ? state.Alarm || state.Emergency : null;
+}
 
-public sealed class MotionDiagnostics
+public sealed class MotionDiagnostics : INotifyPropertyChanged
 {
     private MotionDiagnosticSnapshot _snapshot = new(null, null, null);
     public MotionDiagnosticSnapshot Snapshot => System.Threading.Volatile.Read(ref _snapshot);
+    public event PropertyChangedEventHandler? PropertyChanged;
 
-    internal void Invalidate(Exception error) =>
-        System.Threading.Volatile.Write(ref _snapshot, new(null, null, error));
+    internal void Invalidate(Exception error) => Update(new(null, null, error));
+
+    private void Update(MotionDiagnosticSnapshot snapshot)
+    {
+        if (Snapshot == snapshot) return;
+        System.Threading.Volatile.Write(ref _snapshot, snapshot);
+        PropertyChanged?.Invoke(this, new(nameof(Snapshot)));
+    }
 
     public void Refresh(IMotionDiagnostics feedback, MotionAxis axis)
     {
@@ -30,7 +42,7 @@ public sealed class MotionDiagnostics
         // A status-query failure must not hide a readable position (or another axis).
         try { position = feedback.ReadDiagnosticPosition(axis); }
         catch (Exception exception) when (IsReadFailure(exception)) { error ??= exception; }
-        System.Threading.Volatile.Write(ref _snapshot, new(state, position, error));
+        Update(new(state, position, error));
     }
 
     private static bool IsReadFailure(Exception error) => error is IOException

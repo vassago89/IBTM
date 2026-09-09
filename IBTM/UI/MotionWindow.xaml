@@ -109,18 +109,44 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Text="{Binding Address}" Style="{StaticResource IoAddressStyle}" ToolTip="Active controller axis number."/>
                         <TextBlock Grid.Column="1" Text="{Binding Axis}" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                        <TextBlock Grid.Column="2" Text="{Binding Position}" VerticalAlignment="Center" FontFamily="Consolas" FontSize="15"/>
-                        <TextBlock Grid.Column="3" Text="{Binding Condition}" ToolTip="{Binding ReadError}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0"/>
-                        <ContentControl Grid.Column="4" Tag="{Binding ServoOn}" Style="{StaticResource MotionBit}"/>
-                        <ContentControl Grid.Column="5" Tag="{Binding Homed}" Style="{StaticResource MotionBit}"/>
-                        <ContentControl Grid.Column="6" Tag="{Binding HomeSensor}" Style="{StaticResource MotionBit}"/>
-                        <ContentControl Grid.Column="7" Tag="{Binding NegativeLimit}" Style="{StaticResource MotionFaultBit}"/>
-                        <ContentControl Grid.Column="8" Tag="{Binding PositiveLimit}" Style="{StaticResource MotionFaultBit}"/>
-                        <ContentControl Grid.Column="9" Tag="{Binding Alarm}" Style="{StaticResource MotionFaultBit}" ToolTip="Axis alarm or emergency."/>
+                        <TextBlock Grid.Column="2" Text="{Binding Diagnostics.Snapshot.Position, StringFormat=F3, TargetNullValue=—}"
+                                   VerticalAlignment="Center" FontFamily="Consolas" FontSize="15"/>
+                        <TextBlock Grid.Column="3" ToolTip="{Binding Diagnostics.Snapshot.ReadError.Message}"
+                                   VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0">
+                            <Run Text="{Binding Diagnostics.Snapshot.Condition, Mode=OneWay, Converter={StaticResource EnumDescriptionConverter}}"/>
+                            <Run>
+                                <Run.Style>
+                                    <Style TargetType="Run">
+                                        <Setter Property="Text" Value=""/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Enabled}" Value="False">
+                                                <Setter Property="Text" Value=" · Disabled"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Run.Style>
+                            </Run>
+                        </TextBlock>
+                        <ContentControl Grid.Column="4" Tag="{Binding Diagnostics.Snapshot.State.ServoOn}" Style="{StaticResource MotionBit}"/>
+                        <ContentControl Grid.Column="5" Tag="{Binding Diagnostics.Snapshot.State.Homed}" Style="{StaticResource MotionBit}"/>
+                        <ContentControl Grid.Column="6" Tag="{Binding Diagnostics.Snapshot.State.HomeSensor}" Style="{StaticResource MotionBit}"/>
+                        <ContentControl Grid.Column="7" Tag="{Binding Diagnostics.Snapshot.State.NegativeLimit}" Style="{StaticResource MotionFaultBit}"/>
+                        <ContentControl Grid.Column="8" Tag="{Binding Diagnostics.Snapshot.State.PositiveLimit}" Style="{StaticResource MotionFaultBit}"/>
+                        <ContentControl Grid.Column="9" Tag="{Binding Diagnostics.Snapshot.Faulted}" Style="{StaticResource MotionFaultBit}" ToolTip="Axis alarm or emergency."/>
                         <StackPanel Grid.Column="10" Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="{Binding ServoAction}" Width="96" Margin="8,0,6,0"
-                                    Style="{StaticResource SecondaryButtonStyle}" CommandParameter="{Binding}"
-                                    Command="{Binding DataContext.ToggleServoCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                            <Button Width="96" Margin="8,0,6,0" CommandParameter="{Binding}"
+                                    Command="{Binding DataContext.ToggleServoCommand, RelativeSource={RelativeSource AncestorType=Window}}">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Setter Property="Content" Value="Servo ON"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Diagnostics.Snapshot.State.ServoOn}" Value="True">
+                                                <Setter Property="Content" Value="Servo OFF"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
                             <Button Content="Home" Width="80" Style="{StaticResource SecondaryButtonStyle}"
                                     ToolTip="{Binding HomeHint}" ToolTipService.ShowOnDisabled="True" CommandParameter="{Binding}"
                                     Command="{Binding DataContext.HomeAxisCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>

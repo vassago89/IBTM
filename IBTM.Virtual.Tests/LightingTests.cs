@@ -1,5 +1,10 @@
 using System;
+using System.IO;
+using System.Threading.Tasks;
+using IBTM.Core;
 using IBTM.Device;
+using IBTM.Inspection;
+using IBTM.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -7,6 +12,46 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class LightingTests
 {
+    [Fact]
+    public async Task InspectionAlwaysTurnsLightOffAfterPartialOnFailure()
+    {
+        var light = new PartialOnFailureLight();
+        var settings = new MachineSettings();
+        settings.Drivers.Inspection = InspectionAlgorithm.Virtual;
+        using var services = new ServiceCollection()
+            .AddSingleton(new MachineStore(Path.Combine(Path.GetTempPath(), $"IBTM-light-cleanup-{Guid.NewGuid():N}.db")))
+            .AddIbtmApplication(settings)
+            .AddSingleton<ILightController>(light).BuildServiceProvider();
+        var inspector = services.GetRequiredService<BoltInspector>();
+        var reference = services.GetRequiredService<CarrierReferenceSettings>();
+        reference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
+        reference.LowerRightLocatingPin = new() { X = 20, Y = 20 };
+        foreach (var action in new Func<Task>[]
+        {
+            async () => { await inspector.CaptureCurrentAsync(); },
+            async () => { await inspector.CaptureCarrierImagesAsync(); },
+            () => { inspector.StartLiveView(); return Task.CompletedTask; },
+        })
+        {
+            var error = await Assert.ThrowsAsync<IOException>(action);
+            Assert.Same(light.Failure, error);
+            Assert.False(light.IsOn);
+        }
+        Assert.Equal(3, light.OffCalls);
+    }
+
+    private sealed class PartialOnFailureLight : ILightController
+    {
+        public IOException Failure { get; } = new("ON failed after the output was sent.");
+        public bool IsOn { get; private set; }
+        public int OffCalls { get; private set; }
+        public void Initialize() { }
+        public void SetLevel(int channel, int level) { }
+        public void TurnOn(int channel) { IsOn = true; throw Failure; }
+        public void TurnOff(int channel) { IsOn = false; OffCalls++; }
+        public void TurnOffAll() => IsOn = false;
+    }
+
     [Fact]
     public void VirtualDevelopmentAlsoForcesLightingToVirtual()
     {

@@ -266,7 +266,7 @@
                                     <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                                     <Setter Property="ToolTip" Value="Hardware selector · ON = MANUAL / OFF = AUTO. Change the mode with the physical switch."/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Operation.AutoMode}" Value="True">
+                                        <DataTrigger Binding="{Binding Operation.State.Display.AutoMode}" Value="True">
                                             <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
                                             <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
                                         </DataTrigger>
@@ -393,7 +393,7 @@
                                 Orientation="Horizontal"
                                 VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                            <Ellipse Tag="{Binding Operation.ServoPowerOn}"
+                            <Ellipse Tag="{Binding Operation.State.Display.ServoPowerOn}"
                                      Style="{StaticResource SetupLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
@@ -401,7 +401,7 @@
                                            BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="SERVO OFF"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.ServoPowerOn}"
+                                            <DataTrigger Binding="{Binding Operation.State.Display.ServoPowerOn}"
                                                          Value="True">
                                                 <Setter Property="Text" Value="SERVO ON"/>
                                             </DataTrigger>
@@ -411,7 +411,7 @@
                             </TextBlock>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                            <Ellipse Tag="{Binding Operation.Homed}"
+                            <Ellipse Tag="{Binding Operation.State.Display.Homed}"
                                      Style="{StaticResource SetupLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
@@ -419,7 +419,7 @@
                                            BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="NOT HOMED"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.Homed}"
+                                            <DataTrigger Binding="{Binding Operation.State.Display.Homed}"
                                                          Value="True">
                                                 <Setter Property="Text" Value="HOMED"/>
                                             </DataTrigger>
@@ -429,7 +429,7 @@
                             </TextBlock>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                            <Ellipse Tag="{Binding Operation.EmergencyStopReleased}"
+                            <Ellipse Tag="{Binding Operation.State.Display.EmergencyStopReleased}"
                                      Style="{StaticResource SafetyLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
@@ -437,7 +437,7 @@
                                            BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="E-STOP PRESSED"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.EmergencyStopReleased}"
+                                            <DataTrigger Binding="{Binding Operation.State.Display.EmergencyStopReleased}"
                                                          Value="True">
                                                 <Setter Property="Text" Value="E-STOP OK"/>
                                             </DataTrigger>
@@ -448,7 +448,7 @@
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,16,0"
                                     ToolTip="Door contacts: ON = CLOSED / OFF = OPEN. All six door inputs must be ON.">
-                            <Ellipse Tag="{Binding Operation.DoorClosed}"
+                            <Ellipse Tag="{Binding Operation.State.Display.DoorClosed}"
                                      Style="{StaticResource SafetyLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
@@ -456,7 +456,7 @@
                                            BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="DOORS OPEN"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.DoorClosed}"
+                                            <DataTrigger Binding="{Binding Operation.State.Display.DoorClosed}"
                                                          Value="True">
                                                 <Setter Property="Text" Value="DOORS CLOSED"/>
                                             </DataTrigger>
@@ -466,7 +466,7 @@
                             </TextBlock>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Tag="{Binding Operation.AirPressureOk}"
+                            <Ellipse Tag="{Binding Operation.State.Display.AirPressureOk}"
                                      Style="{StaticResource SafetyLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
@@ -474,7 +474,7 @@
                                            BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="AIR LOW"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.AirPressureOk}"
+                                            <DataTrigger Binding="{Binding Operation.State.Display.AirPressureOk}"
                                                          Value="True">
                                                 <Setter Property="Text" Value="AIR OK"/>
                                             </DataTrigger>
@@ -590,7 +590,7 @@
                                     Height="40"
                                     Margin="0,0,6,0"
                                     Style="{StaticResource SecondaryButtonStyle}"
-                                    Visibility="{Binding Operation.IsHoming,
+                                    Visibility="{Binding Operation.State.Display.IsHoming,
                                                          Converter={StaticResource BoolToVis}}"/>
                             <Button Content="START"
                                     Command="{Binding Operation.StartCommand}"

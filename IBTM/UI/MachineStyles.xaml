@@ -515,7 +515,7 @@
            TargetType="Border"
            BasedOn="{StaticResource DeviceBodyStyle}">
         <Style.Triggers>
-            <DataTrigger Binding="{Binding BufferConflict}" Value="True">
+            <DataTrigger Binding="{Binding State.Display.BufferConflict}" Value="True">
                 <Setter Property="Background"
                         Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>

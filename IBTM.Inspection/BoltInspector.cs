@@ -117,9 +117,9 @@ public sealed class BoltInspector(
 
     private ImageFrame Capture()
     {
-        TurnLightOn();
         try
         {
+            TurnLightOn();
             return CaptureFrame();
         }
         finally
@@ -170,9 +170,9 @@ public sealed class BoltInspector(
         var images = new List<CarrierScanImage>(
             xPositions.Count * yPositions.Count);
 
-        TurnLightOn();
         try
         {
+            TurnLightOn();
             for (var row = 0; row < yPositions.Count; row++)
             {
                 for (var column = 0; column < xPositions.Count; column++)
@@ -205,9 +205,9 @@ public sealed class BoltInspector(
 
     public void StartLiveView()
     {
-        TurnLightOn();
         try
         {
+            TurnLightOn();
             var recipe = getRecipe();
             camera.StartLiveView(recipe.ExposureMicroseconds, recipe.Gain);
         }

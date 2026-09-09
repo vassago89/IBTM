@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
@@ -131,14 +132,18 @@ public partial class AdcProtocolWindow : Window
 
     private void OnRefreshPorts(object sender, RoutedEventArgs e) => RefreshPorts();
 
+    private void OnPortSelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshControls();
+
     private async void OnToggleConnection(object sender, RoutedEventArgs e) =>
         await ExecuteAsync(_ =>
         {
             if (_bus.IsOpen)
             {
+                var connectedPort = _bus.PortName;
                 _bus.Close();
                 ConnectButton.Content = "Connect";
                 ConnectionStatusText.Text = "Disconnected";
+                AppendLog($"DISCONNECT  {connectedPort}");
                 return Task.CompletedTask;
             }
 
@@ -148,6 +153,7 @@ public partial class AdcProtocolWindow : Window
             ConnectButton.Content = "Disconnect";
             ConnectionStatusText.Text =
                 $"{portName} | {baudRate}";
+            AppendLog($"CONNECT  {_bus.PortName} | {_bus.BaudRate}");
             return Task.CompletedTask;
         });
 
@@ -375,15 +381,17 @@ public partial class AdcProtocolWindow : Window
 
     private void RefreshPorts()
     {
-        var selected = PortBox.SelectedItem as string;
+        var selected = PortBox.SelectedItem as string ?? _settings.PortName;
         var ports = _bus.GetPortNames();
         PortBox.ItemsSource = ports;
-        PortBox.SelectedItem = ports.Contains(selected) ? selected : ports.FirstOrDefault();
-        ConnectButton.IsEnabled = ports.Length > 0;
-        if (ports.Length == 0)
+        PortBox.SelectedItem = ports.FirstOrDefault(port =>
+            string.Equals(port, selected, StringComparison.OrdinalIgnoreCase));
+        if (!_bus.IsOpen)
         {
-            ConnectionStatusText.Text = "No serial ports found";
+            ConnectionStatusText.Text = ports.Length == 0 ? "No serial ports found"
+                : PortBox.SelectedItem is null ? "Select a serial port" : "Disconnected";
         }
+        SetBusy(!_operation.IsCompleted);
     }
 
     private void OnFrameTransferred(AdcFrameDirection direction, byte[] frame) =>

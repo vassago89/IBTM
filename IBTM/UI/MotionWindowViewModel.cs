@@ -21,22 +21,11 @@ public sealed class MotionMonitorAxis(
     public int Number { get; } = number;
     public string Address => Number.ToString("D3", CultureInfo.InvariantCulture);
     public bool Enabled => units.IsMotionEnabled(Group);
-    public AxisState? Feedback => motion.MonitorAxes[Axis].Snapshot.State;
-    public string Condition => AxisStatus.GetCondition(Feedback).GetDescription()
-        + (Enabled ? "" : " · Disabled");
-    public string Position => motion.MonitorAxes[Axis].Snapshot.Position?.ToString("F3", CultureInfo.InvariantCulture) ?? "—";
-    public string? ReadError => motion.MonitorAxes[Axis].Snapshot.ReadError?.Message;
-    public bool? ServoOn => Feedback?.ServoOn;
-    public bool? Homed => Feedback?.Homed;
-    public bool? HomeSensor => Feedback?.HomeSensor;
-    public bool? NegativeLimit => Feedback?.NegativeLimit;
-    public bool? PositiveLimit => Feedback?.PositiveLimit;
-    public bool? Alarm => Feedback is { } value ? value.Alarm || value.Emergency : null;
-    public string ServoAction => ServoOn == true ? "Servo OFF" : "Servo ON";
+    public MotionDiagnostics Diagnostics { get; } = motion.MonitorAxes[axis];
     public string HomeHint => Group == MotionGroup.PcbSupply
         ? "PCB Supply requires the coordinated Home All operation on the main screen."
         : "Home this axis using the existing clearance and safety interlocks.";
-    internal void Refresh() => OnPropertyChanged(string.Empty);
+    internal void RefreshEnabled() => OnPropertyChanged(nameof(Enabled));
 }
 
 public partial class MotionWindowViewModel : ObservableObject
@@ -76,7 +65,7 @@ public partial class MotionWindowViewModel : ObservableObject
 
     [RelayCommand(CanExecute = nameof(CanToggleServo))]
     private void ToggleServo(MotionMonitorAxis row) => _machine.ToggleServo(row.Group, row.Axis);
-    private bool CanToggleServo(MotionMonitorAxis? row) => row is { Enabled: true, Feedback: not null }
+    private bool CanToggleServo(MotionMonitorAxis? row) => row is { Enabled: true, Diagnostics.Snapshot.State: not null }
         && _state.Display.Available && !_state.Display.AutoMode
         && _state.Display.SafetyReady && !_state.Display.IsRunning;
 
@@ -95,9 +84,10 @@ public partial class MotionWindowViewModel : ObservableObject
         for (var index = 0; index < Axes.Length; index++)
         {
             var row = Axes[index];
-            enabledChanged |= _enabledStates[index] != row.Enabled;
+            if (_enabledStates[index] == row.Enabled) continue;
+            enabledChanged = true;
             _enabledStates[index] = row.Enabled;
-            row.Refresh();
+            row.RefreshEnabled();
         }
         // Do not reset the list/scroll position on every feedback scan.
         if (enabledChanged) View.Refresh();

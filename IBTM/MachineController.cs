@@ -1146,13 +1146,20 @@ public sealed partial class MachineController
                         _state.SetError(alarm);
                     }
                 }
+                catch (OperationCanceledException) when (operation.IsCancellationRequested)
+                {
+                }
                 catch (Exception exception)
                 {
-                    if (!operation.IsCancellationRequested && !_state.IsError)
+                    if (!_state.IsError)
                     {
                         _state.SetError(exception is MotionException
                             ? MachineAlarm.MotionUnavailable
                             : alarm, exception);
+                    }
+                    else
+                    {
+                        _log?.Error($"Automatic unit {alarm} failed while stopping; existing alarm={_state.Alarm}.", exception);
                     }
                 }
                 finally
@@ -1208,8 +1215,7 @@ public sealed partial class MachineController
                 MachineAlarm.NgConveyor,
                 () => _ngConveyor.RunAsync(operation.Token));
 
-            await Task.WhenAll(runningUnits)
-                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            await Task.WhenAll(runningUnits).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested)
         {
@@ -1343,14 +1349,24 @@ public sealed partial class MachineController
 
     private void StopRunOutputs()
     {
-        if (_io.IsReady)
+        if (!_io.IsReady) return;
+
+        // One device's failed STOP must not skip STOP on the remaining devices.
+        Action[] stops = [
+            _conveyor.Stop,
+            _shootingBoltFeeder.Stop,
+            _fasteningGantry.StopShooting,
+            _ngConveyor.Stop,
+            () => _supplyHandler.SetUpstreamReady(false),
+        ];
+        List<Exception>? failures = null;
+        foreach (var stop in stops)
         {
-            _conveyor.Stop();
-            _shootingBoltFeeder.Stop();
-            _fasteningGantry.StopShooting();
-            _ngConveyor.Stop();
-            _supplyHandler.SetUpstreamReady(false);
+            try { stop(); }
+            catch (Exception exception) { (failures ??= []).Add(exception); }
         }
+        if (failures is not null)
+            throw new AggregateException("One or more devices could not be stopped.", failures);
     }
 
     private void OnIoFaulted(Exception exception)

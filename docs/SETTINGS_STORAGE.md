@@ -96,9 +96,10 @@ idle Manual mode. They hold an operation scope so Auto Start cannot race storage
 work. Backup uses SQLite's backup API, not a copy of an open DB file. It contains
 saved settings/recipes/images, not unsaved edits or the separate training database.
 
-AJIN's vendor `.mot` file is also separate: `AxmMotLoadParaAll` consumes a filesystem
-path. `AjinSettings.MotionParameterFile` is persisted in the machine DB, but the
-vendor file itself is neither rewritten nor embedded. Back it up separately.
+AJIN now opens with `AxlOpenNoReset`; startup does not load a `.mot` file.
+`AjinSettings.MotionParameterFile` remains persisted only for compatibility with
+older settings, and has no editing command or field in the current UI. Any existing
+vendor file is neither rewritten nor embedded. Back it up separately if still needed.
 Do not delete the old Settings directory indiscriminately; it may contain this file.
 
 Restore validates the selected machine database, prepares `Machine.db.restore`,

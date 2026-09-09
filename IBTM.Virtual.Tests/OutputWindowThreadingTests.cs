@@ -34,6 +34,12 @@ public sealed class OutputWindowThreadingTests
             var dispatcher = Dispatcher.CurrentDispatcher;
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             Exception? failure = null;
+            app.DispatcherUnhandledException += (_, args) =>
+            {
+                failure = args.Exception;
+                args.Handled = true;
+                app.Shutdown();
+            };
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
             _ = dispatcher.BeginInvoke(new Action(async () =>
             {
@@ -91,6 +97,7 @@ public sealed class OutputWindowThreadingTests
         {
             io.AutoResponseEnabled = false;
             await VerifyDirectBindingsAsync(services);
+            await VerifyMotionAndMachineBindingsAsync(services);
             manual.Activate();
             foreach (var output in new[] { OutputIo.MainConveyorRun, OutputIo.NgConveyorRun })
             {
@@ -227,5 +234,56 @@ public sealed class OutputWindowThreadingTests
         pendingButton.Command.Execute(null);
         await run.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+    }
+
+    private static async Task VerifyMotionAndMachineBindingsAsync(ServiceProvider services)
+    {
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var settings = services.GetRequiredService<MachineSettings>();
+        var model = new MotionWindowViewModel(services.GetRequiredService<MachineController>(), state, settings);
+        var window = new MotionWindow(model, state);
+        try
+        {
+            var row = model.Axes.Single(axis => axis.Group == MotionGroup.InspectionGantry && axis.Axis == MotionAxis.X);
+            Assert.False(row.Enabled);
+            var list = ((Grid)window.Content).Children.OfType<ListBox>().Single();
+            var cells = (Grid)list.ItemTemplate.LoadContent();
+            cells.DataContext = row;
+            var servo = cells.Children.OfType<ContentControl>().Single(control => Grid.GetColumn(control) == 4);
+            var alarm = cells.Children.OfType<ContentControl>().Single(control => Grid.GetColumn(control) == 9);
+            var actions = cells.Children.OfType<StackPanel>().Single();
+            var servoButton = actions.Children.OfType<Button>().First();
+            var relayedChanges = 0;
+            row.PropertyChanged += (_, _) => relayedChanges++;
+            var motion = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
+            foreach (var on in new[] { true, false })
+            {
+                await Task.Run(() =>
+                {
+                    motion.SetServo(MotionAxis.X, on);
+                    motion.SetAlarm(MotionAxis.X, on);
+                });
+                Assert.True(await VirtualTest.WaitUntilAsync(() => Equals(servo.Tag, on) && Equals(alarm.Tag, on)
+                    && Equals(servoButton.Content, on ? "Servo OFF" : "Servo ON"), TimeSpan.FromSeconds(2)));
+            }
+            Assert.Equal(0, relayedChanges);
+
+            var mode = new TextBlock { DataContext = services.GetRequiredService<MainViewModel>().Operation };
+            mode.SetBinding(TextBlock.TextProperty, new Binding("State.Display.AutoMode"));
+            foreach (var auto in new[] { true, false })
+            {
+                await Task.Run(() => io.SetInput(InputIo.AutoMode, !auto));
+                Assert.True(await VirtualTest.WaitUntilAsync(() => mode.Text == auto.ToString(), TimeSpan.FromSeconds(2)));
+            }
+        }
+        finally
+        {
+            await window.ShutdownAsync();
+            var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            window.Closed += (_, _) => closed.TrySetResult();
+            window.Close();
+            await closed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
     }
 }

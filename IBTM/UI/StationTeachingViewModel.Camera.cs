@@ -224,13 +224,13 @@ public partial class StationTeachingViewModel
                 await action(ct);
             }, token);
         }
+        catch (OperationCanceledException) when (activeCancellation.IsCancellationRequested)
+        {
+        }
         catch (Exception exception)
         {
-            if (!activeCancellation.IsCancellationRequested)
-            {
-                System.Diagnostics.Trace.TraceError("Teaching inspection failed. {0}", exception);
-                CameraError = exception.Message;
-            }
+            System.Diagnostics.Trace.TraceError("Teaching inspection failed. {0}", exception);
+            if (!activeCancellation.IsCancellationRequested) CameraError = exception.Message;
         }
     }
 

@@ -549,20 +549,10 @@
                         <Border Style="{StaticResource SettingCard}" Margin="0,0,0,12">
                             <StackPanel>
                                 <TextBlock Text="AJIN Controller" Style="{StaticResource SettingSectionTitle}"/>
-                                <UniformGrid Columns="2">
-                                    <StackPanel Margin="0,0,4,10">
-                                        <TextBlock Text="Interrupt Number" Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox Text="{Binding Settings.Ajin.InterruptNumber, UpdateSourceTrigger=PropertyChanged}"/>
-                                    </StackPanel>
-                                    <StackPanel Margin="4,0,0,10">
-                                        <TextBlock Text="Motion Parameter File (not used)" Style="{StaticResource SettingFieldLabel}"/>
-                                        <DockPanel IsEnabled="False" ToolTip="AxlOpenNoReset uses existing axis settings. The saved file path is retained but is not loaded.">
-                                            <Button DockPanel.Dock="Right" Content="Browse" Command="{Binding SelectMotionParameterFileCommand}" Margin="8,0,0,0"/>
-                                            <TextBox Text="{Binding Settings.Ajin.MotionParameterFile, UpdateSourceTrigger=PropertyChanged}"
-                                                     ToolTip="Absolute path, or a path relative to the executable folder."/>
-                                        </DockPanel>
-                                    </StackPanel>
-                                </UniformGrid>
+                                <StackPanel Width="180" HorizontalAlignment="Left" Margin="0,0,0,10">
+                                    <TextBlock Text="Interrupt Number" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBox Text="{Binding Settings.Ajin.InterruptNumber, UpdateSourceTrigger=PropertyChanged}"/>
+                                </StackPanel>
                                 <TextBlock Text="AxlOpenNoReset · existing axis settings · no .mot load or automatic reset fallback."
                                            Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
                             </StackPanel>
@@ -600,11 +590,11 @@
                                         <TextBox Text="{Binding Settings.Hantas.BaudRate, UpdateSourceTrigger=PropertyChanged}"/>
                                     </StackPanel>
                                     <StackPanel Margin="0,0,4,0">
-                                        <TextBlock Text="Pickup Address" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBlock Text="Pickup Slave ID" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox Text="{Binding Settings.Hantas.PickupSlaveAddress, UpdateSourceTrigger=PropertyChanged}"/>
                                     </StackPanel>
                                     <StackPanel Margin="4,0,0,0">
-                                        <TextBlock Text="Shooting Address" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBlock Text="Shooting Slave ID" Style="{StaticResource SettingFieldLabel}"/>
                                         <TextBox Text="{Binding Settings.Hantas.ShootingSlaveAddress, UpdateSourceTrigger=PropertyChanged}"/>
                                     </StackPanel>
                                     <StackPanel Margin="0,10,4,0">

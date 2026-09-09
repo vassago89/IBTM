@@ -102,9 +102,10 @@ public sealed class DiagnosticToolsTests
             services.GetRequiredService<MachineState>(), settings);
         var row = Assert.Single(view.Axes, item => item.Group == hardware.Group && item.Axis == axis.Key);
         Assert.Equal("027", row.Address);
-        Assert.Equal("Unavailable · Disabled", row.Condition);
-        Assert.Equal("—", row.Position);
-        Assert.Null(row.Alarm);
+        Assert.Equal(AxisCondition.Unavailable, row.Diagnostics.Snapshot.Condition);
+        Assert.False(row.Enabled);
+        Assert.Null(row.Diagnostics.Snapshot.Position);
+        Assert.Null(row.Diagnostics.Snapshot.Faulted);
         Assert.False(view.ToggleServoCommand.CanExecute(row));
         Assert.False(view.HomeAxisCommand.CanExecute(row));
         Assert.Empty(view.View.Cast<MotionMonitorAxis>());
@@ -168,18 +169,18 @@ public sealed class DiagnosticToolsTests
             var axes = view.Axes.Where(row => row.Group == MotionGroup.InspectionGantry).ToArray();
             Assert.All(axes, row =>
             {
-                Assert.NotNull(row.Feedback);
-                Assert.NotEqual("—", row.Position);
+                Assert.NotNull(row.Diagnostics.Snapshot.State);
+                Assert.NotNull(row.Diagnostics.Snapshot.Position);
                 Assert.False(view.HomeAxisCommand.CanExecute(row));
             });
             var x = Assert.Single(axes, row => row.Axis == MotionAxis.X);
             var y = Assert.Single(axes, row => row.Axis == MotionAxis.Y);
-            Assert.True(await VirtualTest.WaitUntilAsync(() => x.Alarm == true && y.ServoOn == false,
+            Assert.True(await VirtualTest.WaitUntilAsync(() => x.Diagnostics.Snapshot.Faulted == true && y.Diagnostics.Snapshot.State?.ServoOn == false,
                 TimeSpan.FromSeconds(2)));
-            Assert.Equal("Alarm", x.Condition);
-            Assert.True(x.Alarm);
-            Assert.Equal("Servo Off", y.Condition);
-            Assert.False(y.ServoOn);
+            Assert.Equal(AxisCondition.Alarm, x.Diagnostics.Snapshot.Condition);
+            Assert.True(x.Diagnostics.Snapshot.Faulted);
+            Assert.Equal(AxisCondition.ServoOff, y.Diagnostics.Snapshot.Condition);
+            Assert.False(y.Diagnostics.Snapshot.State?.ServoOn);
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
         }
         finally { await machine.ShutdownAsync(); }
@@ -206,7 +207,7 @@ public sealed class DiagnosticToolsTests
             var x = Assert.Single(view.Axes, row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
             var y = Assert.Single(view.Axes, row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.Y);
             Assert.False(x.Enabled);
-            Assert.NotNull(x.Feedback);
+            Assert.NotNull(x.Diagnostics.Snapshot.State);
             Assert.False(view.ToggleServoCommand.CanExecute(x));
             Assert.False(view.HomeAxisCommand.CanExecute(x));
             var reads = diagnostics.Reads;
@@ -214,16 +215,16 @@ public sealed class DiagnosticToolsTests
             // Change raw state silently: no motion, input event, refresh request or monitor window.
             diagnostics.Position = 42;
             diagnostics.Alarmed = true;
-            Assert.True(await VirtualTest.WaitUntilAsync(() => diagnostics.Reads > reads && x.Position == "42.000"
-                && x.Alarm == true, TimeSpan.FromSeconds(2)));
+            Assert.True(await VirtualTest.WaitUntilAsync(() => diagnostics.Reads > reads && x.Diagnostics.Snapshot.Position == 42
+                && x.Diagnostics.Snapshot.Faulted == true, TimeSpan.FromSeconds(2)));
             Assert.Equal(MachineAlarm.None, state.Alarm); // Disabled axes are diagnostic only.
             Assert.False(state.Display.MotionFaulted);
 
             diagnostics.FailX = true;
             diagnostics.Position = 43;
-            Assert.True(await VirtualTest.WaitUntilAsync(() => x.Feedback is null && x.Position == "43.000"
-                && y.Feedback is not null, TimeSpan.FromSeconds(2)));
-            Assert.NotNull(x.ReadError);
+            Assert.True(await VirtualTest.WaitUntilAsync(() => x.Diagnostics.Snapshot.State is null && x.Diagnostics.Snapshot.Position == 43
+                && y.Diagnostics.Snapshot.State is not null, TimeSpan.FromSeconds(2)));
+            Assert.NotNull(x.Diagnostics.Snapshot.ReadError);
             Assert.True(state.Display.Available);
 
             // A failed enabled control scan must not hide the independent monitor cache
@@ -232,8 +233,8 @@ public sealed class DiagnosticToolsTests
             diagnostics.FailControl = true;
             Assert.True(await VirtualTest.WaitUntilAsync(() => !state.Display.Available,
                 TimeSpan.FromSeconds(2)));
-            Assert.NotNull(y.Feedback);
-            Assert.NotEqual("—", y.Position);
+            Assert.NotNull(y.Diagnostics.Snapshot.State);
+            Assert.NotNull(y.Diagnostics.Snapshot.Position);
             Assert.True(machine.CanReset);
             Assert.False(view.ToggleServoCommand.CanExecute(y));
             diagnostics.FailControl = false;
@@ -244,7 +245,7 @@ public sealed class DiagnosticToolsTests
             diagnostics.FailX = false;
             diagnostics.Alarmed = false;
             diagnostics.Position = 44;
-            Assert.True(await VirtualTest.WaitUntilAsync(() => x.Position == "44.000" && x.Alarm == false,
+            Assert.True(await VirtualTest.WaitUntilAsync(() => x.Diagnostics.Snapshot.Position == 44 && x.Diagnostics.Snapshot.Faulted == false,
                 TimeSpan.FromSeconds(2)));
             Assert.False(view.ToggleServoCommand.CanExecute(x));
             Assert.False(view.HomeAxisCommand.CanExecute(x));

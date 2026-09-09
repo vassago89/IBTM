@@ -139,15 +139,6 @@ public partial class SettingsViewModel : ObservableObject
         CurrentMotionHardwareSettings.AxisSignals.ContainsKey(MotionAxis.Z);
 
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
-    private void SelectMotionParameterFile()
-    {
-        var dialog = new OpenFileDialog { Title = "Select AJIN Motion Parameters", Filter = "AJIN parameters|*.mot" };
-        if (dialog.ShowDialog() != true) return;
-        Settings.Ajin.MotionParameterFile = dialog.FileName;
-        OnPropertyChanged(nameof(Settings));
-    }
-
-    [RelayCommand(CanExecute = nameof(CanEditSettings))]
     private async Task SaveSettingsAsync()
     {
         if (!CanEditSettings) return;
@@ -185,7 +176,6 @@ public partial class SettingsViewModel : ObservableObject
         LoadVirtualImageCommand.NotifyCanExecuteChanged();
         ClearVirtualImageCommand.NotifyCanExecuteChanged();
         SaveSettingsCommand.NotifyCanExecuteChanged();
-        SelectMotionParameterFileCommand.NotifyCanExecuteChanged();
         BackupDatabaseCommand.NotifyCanExecuteChanged();
         RestoreDatabaseCommand.NotifyCanExecuteChanged();
         TestLightCommand.NotifyCanExecuteChanged();

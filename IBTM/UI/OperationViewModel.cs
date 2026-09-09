@@ -51,24 +51,16 @@ public partial class OperationViewModel : ObservableObject
         nameof(StartBlocked),
         nameof(StartBlock),
         nameof(HomeBlock),
-        nameof(IsHoming),
         nameof(ConveyorRunning),
         nameof(MainConveyorState),
         nameof(CarrierBetweenPlacementAndBolt),
         nameof(CarrierBetweenBoltAndInspection),
-        nameof(BufferConflict),
-        nameof(EmergencyStopReleased),
-        nameof(DoorClosed),
-        nameof(AirPressureOk),
-        nameof(AutoMode),
         nameof(ModeKnown),
         nameof(ModeText),
         nameof(HasAlarm),
         nameof(Alarm),
         nameof(AlarmDetail),
         nameof(AlarmMessage),
-        nameof(ServoPowerOn),
-        nameof(Homed),
         nameof(SupplyPositionKnown),
         nameof(PlacementPositionKnown),
         nameof(FasteningPositionKnown),
@@ -226,7 +218,6 @@ public partial class OperationViewModel : ObservableObject
     private readonly NgShuttle _ngShuttle;
     private readonly NgCarrierTransfer _ngTransfer;
     private readonly StartPreparationPlan _startPreparations;
-    private volatile MachineDisplay _machineDisplay;
     private IReadOnlyList<BoltTargetView> _boltTargets = [];
     private IReadOnlyList<BoltTargetView> _inspectionTargets = [];
     private volatile bool _active;
@@ -280,7 +271,6 @@ public partial class OperationViewModel : ObservableObject
         Fastening = fastening;
         InspectionGantry = inspectionGantry;
 
-        _machineDisplay = state.Display;
         RefreshBoltFasteningDisplay();
         RefreshInspectionDisplay();
 
@@ -302,6 +292,7 @@ public partial class OperationViewModel : ObservableObject
         state.DisplayChanged += OnMachineDisplayChanged;
     }
 
+    public MachineState State => _state;
     public PcbSupplyHandler Supply { get; }
     public PcbPlacementHandler Placement { get; }
     public BoltFasteningGantry Fastening { get; }
@@ -397,13 +388,12 @@ public partial class OperationViewModel : ObservableObject
     public bool NgConveyorPosition2Occupied =>
         _ngConveyor.Position2Occupied;
     public bool NgAlarmRequired => _ngConveyor.AlarmRequired;
-    public bool NgConveyorRunCommandOn => _machineDisplay.NgConveyorRunning;
+    public bool NgConveyorRunCommandOn => _state.Display.NgConveyorRunning;
     public NgShuttleLiftState NgShuttleLift => _ngShuttle.Feedback.Lift;
-    public NgConveyorState NgConveyorState => _machineDisplay.NgConveyorState;
-    public bool IsHoming => _machineDisplay.IsHoming;
-    public bool ConveyorRunning => _machineDisplay.ConveyorRunning;
+    public NgConveyorState NgConveyorState => _state.Display.NgConveyorState;
+    public bool ConveyorRunning => _state.Display.ConveyorRunning;
     public MainConveyorState MainConveyorState =>
-        _machineDisplay.ConveyorState;
+        _state.Display.ConveyorState;
     public bool CarrierBetweenPlacementAndBolt =>
         !PcbPlacementCarrierPresent
         && !BoltFasteningCarrierPresent
@@ -414,7 +404,6 @@ public partial class OperationViewModel : ObservableObject
         && !InspectionCarrierPresent
         && MainConveyorState
             == MainConveyorState.MovingBoltFasteningToInspection;
-    public bool BufferConflict => _machineDisplay.BufferConflict;
     public bool MainConveyorEnabled => _units.MainConveyor;
     public bool PcbSupplyEnabled => _units.PcbSupply;
     public bool PcbPlacementEnabled => _units.PcbPlacement;
@@ -431,21 +420,21 @@ public partial class OperationViewModel : ObservableObject
         && PcbPlacementCarrierPresent
         && PcbPlacementHeatSink2Present
         && HasAssembly(_pcbPlacementWork, HeatSinkSlot.HeatSink2);
-    public PcbPlacementState PlacementState => _machineDisplay.PlacementState;
+    public PcbPlacementState PlacementState => _state.Display.PlacementState;
     public HeatSinkSlot? PcbPlacementTargetHeatSink =>
-        _machineDisplay.PlacementTarget;
-    public BoltFasteningState FasteningState => _machineDisplay.FasteningState;
+        _state.Display.PlacementTarget;
+    public BoltFasteningState FasteningState => _state.Display.FasteningState;
     public InspectionStationState InspectionState =>
-        _machineDisplay.InspectionState;
+        _state.Display.InspectionState;
     public BoltTarget? BoltFasteningActiveBolt =>
         FasteningStateVisible
-            ? _machineDisplay.FasteningBolt
+            ? _state.Display.FasteningBolt
             : null;
     public BoltTarget? InspectionActiveBolt =>
         InspectionStateVisible
-            ? _machineDisplay.InspectionBolt
+            ? _state.Display.InspectionBolt
             : null;
-    public HeatSinkSlot? InspectionActivePcb => InspectionStateVisible ? _machineDisplay.InspectionPcb : null;
+    public HeatSinkSlot? InspectionActivePcb => InspectionStateVisible ? _state.Display.InspectionPcb : null;
     public string? InspectionPcb1Barcode => InspectionBarcode(HeatSinkSlot.HeatSink1);
     public string? InspectionPcb2Barcode => InspectionBarcode(HeatSinkSlot.HeatSink2);
 
@@ -463,19 +452,13 @@ public partial class OperationViewModel : ObservableObject
         Result(_inspectionWork, HeatSinkSlot.HeatSink1, inspection: true);
     public AssemblyResult InspectionHeatSink2Result =>
         Result(_inspectionWork, HeatSinkSlot.HeatSink2, inspection: true);
-    public bool EmergencyStopReleased => _machineDisplay.EmergencyStopReleased;
-    public bool DoorClosed => _machineDisplay.DoorClosed;
-    public bool AirPressureOk => _machineDisplay.AirPressureOk;
-    public bool AutoMode => _machineDisplay.AutoMode;
-    public bool ModeKnown => _machineDisplay.Available;
-    public string ModeText => ModeKnown ? (AutoMode ? "AUTO" : "MANUAL") : "UNKNOWN";
-    public bool HasAlarm => _machineDisplay.Alarm != MachineAlarm.None || _machineDisplay.ReadError is not null;
-    public Enum Alarm => _machineDisplay.ReadError is null
-        ? _machineDisplay.Alarm : MachineDisplayState.Unavailable;
-    public string? AlarmDetail => _machineDisplay.ReadError?.ToString() ?? _machineDisplay.AlarmDetail;
-    public string? AlarmMessage => _machineDisplay.ReadError?.Message ?? _machineDisplay.AlarmMessage;
-    public bool ServoPowerOn => _machineDisplay.ServoPowerOn;
-    public bool Homed => _machineDisplay.Homed;
+    public bool ModeKnown => _state.Display.Available;
+    public string ModeText => ModeKnown ? (_state.Display.AutoMode ? "AUTO" : "MANUAL") : "UNKNOWN";
+    public bool HasAlarm => _state.Display.Alarm != MachineAlarm.None || _state.Display.ReadError is not null;
+    public Enum Alarm => _state.Display.ReadError is null
+        ? _state.Display.Alarm : MachineDisplayState.Unavailable;
+    public string? AlarmDetail => _state.Display.ReadError?.ToString() ?? _state.Display.AlarmDetail;
+    public string? AlarmMessage => _state.Display.ReadError?.Message ?? _state.Display.AlarmMessage;
     public bool SafetyBypass =>
         !_options.UseEmergencyStop
         || !_options.UseDoorInterlock
@@ -491,7 +474,6 @@ public partial class OperationViewModel : ObservableObject
     {
         _active = true;
         _state.RequestDisplayRefresh();
-        _machineDisplay = _state.Display;
         RefreshBoltFasteningDisplay();
         RefreshInspectionDisplay();
         QueuePositionRefresh(PositionRefresh.All);
@@ -567,10 +549,10 @@ public partial class OperationViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanStopHome))]
     private void StopHome() => HomeCommand.Cancel();
 
-    private bool CanStart() => _machineDisplay.CanStart;
-    private bool CanHome() => _machineDisplay.CanHome;
-    private bool CanRaiseCylinders() => _machineDisplay.CanRaiseCylinders;
-    private bool CanStopHome() => _machineDisplay.IsHoming;
+    private bool CanStart() => _state.Display.CanStart;
+    private bool CanHome() => _state.Display.CanHome;
+    private bool CanRaiseCylinders() => _state.Display.CanRaiseCylinders;
+    private bool CanStopHome() => _state.Display.IsHoming;
     private bool CanOpenBoltFasteningRecovery() => BoltFasteningRecoveryAvailable;
     private bool CanOpenPcbPlacementRecovery() =>
         PcbPlacementRecoveryAvailable;
@@ -827,7 +809,6 @@ public partial class OperationViewModel : ObservableObject
 
     private void OnMachineDisplayChanged()
     {
-        _machineDisplay = _state.Display;
         QueueDisplayRefresh(DisplayRefresh.Machine | DisplayRefresh.PcbSupply
             | DisplayRefresh.PcbPlacement | DisplayRefresh.BoltFastening
             | DisplayRefresh.Inspection | DisplayRefresh.NgConveyor);

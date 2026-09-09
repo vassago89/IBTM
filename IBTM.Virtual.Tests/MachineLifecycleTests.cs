@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -1190,7 +1191,7 @@ public sealed class MachineLifecycleTests
                 var manual = services.GetRequiredService<MotionWindowViewModel>();
                 foreach (var row in manual.Axes)
                 {
-                    _ = row.Condition;
+                    _ = row.Diagnostics.Snapshot.Condition;
                     _ = manual.HomeAxisCommand.CanExecute(row);
                 }
                 var supply = services.GetRequiredService<SupplyTeachingViewModel>();
@@ -1478,8 +1479,8 @@ public sealed class MachineLifecycleTests
         manual.ToggleServoCommand.Execute(row);
         Assert.Equal(MachineAlarm.MotionUnavailable, services.GetRequiredService<MachineState>().Alarm);
         Assert.Contains("Servo feedback failed", services.GetRequiredService<MachineState>().AlarmDetail);
-        await WaitUntilAsync(() => row.ServoOn == false);
-        Assert.False(row.ServoOn);
+        await WaitUntilAsync(() => row.Diagnostics.Snapshot.State?.ServoOn == false);
+        Assert.False(row.Diagnostics.Snapshot.State?.ServoOn);
     }
 
     [Fact]
@@ -2249,18 +2250,29 @@ public sealed class MachineLifecycleTests
         var next = teaching.FilteredPoints.Single(point => point.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
         var recipeBefore = JsonSerializer.Serialize(teaching.RecipeEditor.Recipe);
         var settingsBefore = JsonSerializer.Serialize(settings);
-        var capture = teaching.CaptureInspectionCommand.ExecuteAsync(null);
+        using var trace = new StringWriter();
+        using var listener = new TextWriterTraceListener(trace);
+        Trace.Listeners.Add(listener);
         try
         {
-            await capturing.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            teaching.SelectedPoint = next;
+            var capture = teaching.CaptureInspectionCommand.ExecuteAsync(null);
+            try
+            {
+                await capturing.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                teaching.SelectedPoint = next;
+            }
+            finally
+            {
+                release.Set();
+            }
+            await capture.WaitAsync(TimeSpan.FromSeconds(2));
         }
         finally
         {
-            release.Set();
+            Trace.Listeners.Remove(listener);
         }
-        await capture.WaitAsync(TimeSpan.FromSeconds(2));
 
+        Assert.Equal(cameraFails, trace.ToString().Contains("Previous point capture failed.", StringComparison.Ordinal));
         Assert.Same(next, teaching.SelectedPoint);
         Assert.False(teaching.Preview.HasImage);
         Assert.Null(teaching.Preview.Result);
@@ -3863,7 +3875,7 @@ public sealed class MachineLifecycleTests
         {
             Assert.False(manual.ToggleServoCommand.CanExecute(row));
             Assert.False(manual.HomeAxisCommand.CanExecute(row));
-            Assert.Null(row.Feedback);
+            Assert.Null(row.Diagnostics.Snapshot.State);
             // Bypassing CanExecute still must not command a disabled drive.
             manual.ToggleServoCommand.Execute(row);
             await manual.HomeAxisCommand.ExecuteAsync(row);
@@ -4033,9 +4045,10 @@ public sealed class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task StopOrFailureDuringFirstUnitOutputPreventsLaterStarts(bool failure)
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task StopOrFailureDuringFirstUnitOutputPreventsLaterStarts(bool failure, bool stopBeforeFailure)
     {
         var settings = new MachineSettings
         {
@@ -4058,8 +4071,8 @@ public sealed class MachineLifecycleTests
             if (output == OutputIo.MainConveyorReadyToFront2 && value)
             {
                 stopped = true;
+                if (!failure || stopBeforeFailure) machine.Stop();
                 if (failure) throw error;
-                machine.Stop();
             }
         };
 
@@ -4072,6 +4085,36 @@ public sealed class MachineLifecycleTests
         Assert.Equal(failure ? error.Message : null, state.AlarmMessage);
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
         Assert.False(io.GetOutput(OutputIo.ShootingFeederRunSignal));
+    }
+
+    [Fact]
+    public async Task UnitFailureDuringSafetyStopKeepsFirstAlarmAndLogsFailure()
+    {
+        var settings = new MachineSettings { Units = EnableOnly(MachineUnit.MainConveyor) };
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var log = services.GetRequiredService<ApplicationLog>();
+        await machine.InitializeAsync();
+        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
+        var failure = new IOException("Conveyor cleanup failed after the air pressure trip.");
+        io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.MainConveyorReadyToFront2 || !on) return;
+            io.SetInput(InputIo.AirPressureLow, true);
+            throw failure;
+        };
+
+        await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(MachineAlarm.AirPressureLow, state.Alarm);
+        Assert.False(state.IsRunning);
+        Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        var entry = Assert.Single(log.ReadAfter(0), entry => entry.Detail == failure.ToString());
+        Assert.Contains("Automatic unit MainConveyor", entry.Message);
+        Assert.Contains("AirPressureLow", entry.Message);
     }
 
     [Fact]

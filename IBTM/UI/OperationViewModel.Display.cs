@@ -19,10 +19,10 @@ public partial class OperationViewModel
     public Enum PlacementStatus => PlacementDisplayState is HandlerDisplayState.Working or HandlerDisplayState.Moving
         ? PlacementState : PlacementDisplayState;
     public Enum ConveyorStatus => !MainConveyorEnabled ? HandlerDisplayState.Disabled
-        : !_machineDisplay.AutomaticRunning && !ConveyorRunning ? HandlerDisplayState.Stopped
+        : !_state.Display.AutomaticRunning && !ConveyorRunning ? HandlerDisplayState.Stopped
         : MainConveyorState;
 
-    public MachineDisplayState MachineDisplayState => _machineDisplay switch
+    public MachineDisplayState MachineDisplayState => _state.Display switch
     {
         { Available: false } => MachineDisplayState.Unavailable,
         { SafetyReady: false } => MachineDisplayState.SafetyStop,
@@ -36,23 +36,23 @@ public partial class OperationViewModel
     };
 
     public bool StartBlocked =>
-        !_machineDisplay.CanStart
-        && !_machineDisplay.IsHoming
-        && _machineDisplay.StartBlock != StartBlockReason.None;
+        !_state.Display.CanStart
+        && !_state.Display.IsHoming
+        && _state.Display.StartBlock != StartBlockReason.None;
 
     public bool FasteningStateVisible =>
-        _machineDisplay.AutomaticRunning
+        _state.Display.AutomaticRunning
         && FasteningState != BoltFasteningState.Waiting;
 
     public bool InspectionStateVisible =>
-        _machineDisplay.AutomaticRunning
+        _state.Display.AutomaticRunning
         && InspectionState != InspectionStationState.Waiting;
 
-    public HomeBlockReason HomeBlock => _machineDisplay.HomeBlock;
+    public HomeBlockReason HomeBlock => _state.Display.HomeBlock;
     public Enum StartBlock =>
-        _machineDisplay.StartBlock == StartBlockReason.HomeRequired
+        _state.Display.StartBlock == StartBlockReason.HomeRequired
             && HomeBlock != HomeBlockReason.None
-                ? HomeBlock : _machineDisplay.StartBlock;
+                ? HomeBlock : _state.Display.StartBlock;
 
     public HandlerDisplayState SupplyDisplayState
     {
@@ -74,15 +74,15 @@ public partial class OperationViewModel
                 return HandlerDisplayState.Moving;
             }
 
-            if (!_machineDisplay.AutomaticRunning) return HandlerDisplayState.Stopped;
+            if (!_state.Display.AutomaticRunning) return HandlerDisplayState.Stopped;
 
-            if (_machineDisplay.SupplyAtHandoff)
+            if (_state.Display.SupplyAtHandoff)
             {
                 return _buffer.PcbPresent ? HandlerDisplayState.WaitingForPlacement
                     : HandlerDisplayState.WaitingForBufferPcb;
             }
 
-            if (PcbSupplyPcbSecured && !_machineDisplay.CanSupplyEnter)
+            if (PcbSupplyPcbSecured && !_state.Display.CanSupplyEnter)
                 return HandlerDisplayState.WaitingForBuffer;
             if (PcbSupplyPcbDetected) return HandlerDisplayState.Working;
 
@@ -112,7 +112,7 @@ public partial class OperationViewModel
                 return HandlerDisplayState.Moving;
             }
 
-            if (!_machineDisplay.AutomaticRunning) return HandlerDisplayState.Stopped;
+            if (!_state.Display.AutomaticRunning) return HandlerDisplayState.Stopped;
 
             return PlacementState switch
             {
@@ -144,7 +144,7 @@ public partial class OperationViewModel
 
             if (Fastening.Motion.IsMoving || _state.BoltTestRunning)
                 return StationDisplayState.Working;
-            if (!_machineDisplay.AutomaticRunning) return StationDisplayState.Stopped;
+            if (!_state.Display.AutomaticRunning) return StationDisplayState.Stopped;
 
             if (!BoltFasteningCarrierPresent)
             {
@@ -194,7 +194,7 @@ public partial class OperationViewModel
 
             if (!InspectionPositionKnown) return StationDisplayState.PositionUnknown;
 
-            if (!_machineDisplay.AutomaticRunning && !InspectionGantry.Motion.IsMoving)
+            if (!_state.Display.AutomaticRunning && !InspectionGantry.Motion.IsMoving)
                 return StationDisplayState.Stopped;
 
             if (InspectionGantry.Motion.IsMoving

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -13,6 +14,38 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class IoStartupTests
 {
+    [Fact]
+    public async Task StopAttemptsEveryDeviceAndPreservesWriteFailures()
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        var writes = new List<OutputIo>();
+        var conveyorFailure = new IOException("Main conveyor STOP failed.");
+        var shootingFailure = new IOException("Shoot output OFF failed.");
+        io.BeforeOutputWrite = (output, value) =>
+        {
+            Assert.False(value);
+            writes.Add(output);
+            if (output == OutputIo.MainConveyorRun) throw conveyorFailure;
+            if (output == OutputIo.ShootBolt) throw shootingFailure;
+        };
+        try
+        {
+            var failure = Assert.Throws<AggregateException>(machine.Stop);
+            Assert.Equal(new[] { conveyorFailure, shootingFailure }, failure.InnerExceptions);
+            Assert.Contains(OutputIo.ShootingFeederRunSignal, writes);
+            Assert.Contains(OutputIo.NgConveyorRun, writes);
+            Assert.Contains(OutputIo.PcbSupplyReadyToFront1, writes);
+        }
+        finally
+        {
+            io.BeforeOutputWrite = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public void StateQueriesBeforeInitializationDoNotReadOutputs()
     {
@@ -180,6 +213,7 @@ public sealed class IoStartupTests
         public Exception? InitializationError { get; set; }
         public Exception? OutputReadError { get; set; }
         public Action? BeforeOutputRead { get; set; }
+        public Action<OutputIo, bool>? BeforeOutputWrite { get; set; }
         public bool FailCheckReady { get; set; }
         public int ReadsWhileUnavailable { get; private set; }
         public int WritesWhileUnavailable { get; private set; }
@@ -242,6 +276,7 @@ public sealed class IoStartupTests
                 WritesWhileUnavailable++;
                 throw new IOException("Output write before I/O initialization.");
             }
+            BeforeOutputWrite?.Invoke(output, value);
             inner.SetOutput(output, value);
         }
     }
