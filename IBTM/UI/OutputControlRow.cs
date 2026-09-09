@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.UI;
@@ -40,29 +41,48 @@ public sealed partial class OutputControlRow : ObservableObject
         : Io.IsMatched ? OutputFeedbackState.Matched
         : OutputFeedbackState.NotMatched;
 
-    private bool IsOwnedOutputTest => Io.Signal == OutputIo.MainConveyorRun
+    private bool IsConveyorRun => MachineController.IsConveyorRunOutput(Io.Signal);
+    private bool IsOwnedOutputTest => IsConveyorRun
         || MachineController.IsInterfaceOutput(Io.Signal);
     private bool IsOwnedOutputTestRunning => ToggleCommand.IsRunning && IsOwnedOutputTest;
-    public IRelayCommand ActionCommand => IsOwnedOutputTestRunning ? StopOutputTestCommand : ToggleCommand;
-    public string ToggleHint => IsOwnedOutputTestRunning
-        ? Io.Signal == OutputIo.MainConveyorRun ? "Stop this main conveyor motor test." : "Send OFF to this interface output."
-        : _machine.GetManualOutputBlock(Io.Signal)
-        ?? (Io.Signal == OutputIo.MainConveyorRun
-            ? "Turn ON to run the empty conveyor forward at normal speed. OFF or closing this window stops the test."
-            : MachineController.IsInterfaceOutput(Io.Signal)
-                ? "Confirm connected equipment is stopped. Keep ON until OFF, STOP, window close or an interlock change."
-                : "Toggle this output after rechecking live safety conditions.");
+    private bool CanStopOutputTest => IsOwnedOutputTestRunning || IsConveyorRun && Io.IsOn == true;
+    public IRelayCommand ActionCommand => CanStopOutputTest ? StopOutputTestCommand : ToggleCommand;
+    public OutputBlockReason BlockReason => _machine.GetManualOutputBlock(Io.Signal);
+    public string ToggleHint
+    {
+        get
+        {
+            if (CanStopOutputTest)
+                return IsConveyorRun ? "Stop this conveyor motor." : "Send OFF to this interface output.";
+            var reason = BlockReason;
+            if (reason != OutputBlockReason.None) return $"[{reason}] {reason.GetDescription()}";
+            return IsConveyorRun
+                ? "Turn ON to run the empty conveyor forward at normal speed. OFF or closing this window stops the test."
+                : MachineController.IsInterfaceOutput(Io.Signal)
+                    ? "Confirm connected equipment is stopped. Keep ON until OFF, STOP, window close or an interlock change."
+                    : "Toggle this output after rechecking live safety conditions.";
+        }
+    }
     // Show the action for every row consistently; an owned test stays cancellable
     // even before ON feedback arrives or while the machine is otherwise busy.
-    public string ToggleLabel => (IsOwnedOutputTest ? IsOwnedOutputTestRunning : Io.IsOn == true) ? "OFF" : "ON";
-    private bool CanToggle() => _machine.GetManualOutputBlock(Io.Signal) is null;
+    public string ToggleLabel => (IsOwnedOutputTest ? CanStopOutputTest : Io.IsOn == true) ? "OFF" : "ON";
+    private bool CanToggle() => BlockReason == OutputBlockReason.None;
 
-    [RelayCommand(CanExecute = nameof(IsOwnedOutputTestRunning))]
-    private void StopOutputTest() => ToggleCommand.Cancel();
+    [RelayCommand(CanExecute = nameof(CanStopOutputTest))]
+    private void StopOutputTest()
+    {
+        ToggleCommand.Cancel();
+        if (IsConveyorRun) _machine.StopManualConveyor(Io.Signal);
+    }
 
     private void OnToggleCommandChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName != nameof(IAsyncRelayCommand.IsRunning)) return;
+        RefreshAction();
+    }
+
+    private void RefreshAction()
+    {
         StopOutputTestCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(FeedbackState));
         OnPropertyChanged(nameof(ActionCommand));
@@ -97,13 +117,13 @@ public sealed partial class OutputControlRow : ObservableObject
     public void RefreshAccess()
     {
         ToggleCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(BlockReason));
         OnPropertyChanged(nameof(ToggleHint));
         OnPropertyChanged(nameof(ToggleLabel));
     }
 
     private void OnIoChanged(object? sender, PropertyChangedEventArgs args)
     {
-        OnPropertyChanged(nameof(FeedbackState));
-        OnPropertyChanged(nameof(ToggleLabel));
+        RefreshAction();
     }
 }

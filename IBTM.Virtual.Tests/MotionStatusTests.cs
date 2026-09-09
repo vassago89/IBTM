@@ -15,33 +15,33 @@ public sealed class MotionStatusTests
     {
         var motion = new StatusMotion();
         var status = new MotionStatus(motion);
-        var first = new ManualAxisRow(MotionGroup.PcbSupply, MotionAxis.X, status);
-        var second = new ManualAxisRow(MotionGroup.PcbSupply, MotionAxis.X, status);
+        var first = status.Axes[MotionAxis.X];
+        var second = status.Axes[MotionAxis.X];
 
-        Assert.Same(first.Feedback, second.Feedback);
-        Assert.Equal(AxisCondition.Unavailable, first.Feedback.Condition);
+        Assert.Same(first, second);
+        Assert.Equal(AxisCondition.Unavailable, first.Condition);
         motion.Publish();
         Assert.Equal(0, motion.Reads);
 
         status.RefreshControlFeedback();
         Assert.Equal(new MotionPosition(12, 0, 0), status.Position);
-        Assert.Equal(AxisCondition.Ready, first.Feedback.Condition);
+        Assert.Equal(AxisCondition.Ready, first.Condition);
         Assert.True(status.XyHomed);
         Assert.Equal(1, motion.Reads);
 
         motion.Failure = new IOException("Axis feedback unavailable.");
         Assert.Same(motion.Failure, Assert.Throws<IOException>(status.RefreshControlFeedback));
         var reads = motion.Reads;
-        Assert.Equal(AxisCondition.Unavailable, first.Feedback.Condition);
-        Assert.Null(second.Feedback.State);
+        Assert.Equal(AxisCondition.Unavailable, first.Condition);
+        Assert.Null(second.State);
         Assert.False(status.XyHomed);
         Assert.Equal(reads, motion.Reads);
 
         motion.Failure = null;
         motion.State = motion.State with { Homed = false };
         status.RefreshControlFeedback();
-        Assert.Equal(AxisCondition.HomeRequired, first.Feedback.Condition);
-        Assert.Equal(first.Feedback.Condition, second.Feedback.Condition);
+        Assert.Equal(AxisCondition.HomeRequired, first.Condition);
+        Assert.Equal(first.Condition, second.Condition);
         Assert.False(status.XyHomed);
 
         // External card state can change while no application move is active.
@@ -49,8 +49,8 @@ public sealed class MotionStatusTests
         motion.Position = (24, 0, 0); // No PositionChanged event from an external adjustment.
         status.RefreshControlFeedback();
         Assert.Equal(new MotionPosition(24, 0, 0), status.Position);
-        Assert.Equal(AxisCondition.ServoOff, first.Feedback.Condition);
-        Assert.Equal(first.Feedback.Condition, second.Feedback.Condition);
+        Assert.Equal(AxisCondition.ServoOff, first.Condition);
+        Assert.Equal(first.Condition, second.Condition);
     }
 
     [Fact]

@@ -36,7 +36,7 @@ public partial class MainWindow : Window
         HantasSettings hantasSettings,
         MachineController machine,
         MachineState state,
-        MachineSettings settings,
+        MotionWindowViewModel motionViewModel,
         ApplicationLog? log = null)
     {
         _io = io;
@@ -45,7 +45,7 @@ public partial class MainWindow : Window
         _hantasSettings = hantasSettings;
         _machine = machine;
         _state = state;
-        _motionViewModel = new(machine, state, settings);
+        _motionViewModel = motionViewModel;
         _log = log ?? new ApplicationLog();
         InitializeComponent();
         DataContext = viewModel;

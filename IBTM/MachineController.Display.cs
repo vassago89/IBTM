@@ -30,6 +30,7 @@ public sealed partial class MachineController
                 StartBlock = StartBlockReason.Alarm,
                 HomeBlock = HomeBlockReason.IoUnavailable,
                 ManualBlock = ManualControlBlock.Alarm,
+                ManualOutputBlock = OutputBlockReason.IoUnavailable,
             };
         }
 
@@ -42,7 +43,9 @@ public sealed partial class MachineController
         var teachingReady = TeachingReady;
         var bolts = _recipe.Pcb.GetBolts().ToArray();
         var automatic = _state.AutomaticRunning;
-        var conveyorPathClear = MainConveyorPathClear;
+        var conveyorPathBlock = GetMainConveyorPathBlock();
+        var outputBlock = GetManualOutputSafetyBlock();
+        if (outputBlock == OutputBlockReason.None && running) outputBlock = OutputBlockReason.Busy;
 
         return new()
         {
@@ -80,8 +83,7 @@ public sealed partial class MachineController
                 .Where(item => CanHomeAxis(item.group, item.axis, live: false)).ToHashSet(),
             ManualBlock = _state.GetManualBlock(motion),
             ManualSetupEnabled = _state.ManualSetupEnabled,
-            ManualOutputBlock = GetManualOutputSafetyBlock()
-                ?? (running ? "Read only: wait for the current operation to stop." : null),
+            ManualOutputBlock = outputBlock,
             PlacementState = _units.PcbPlacement
                 ? _pcbPlacement.State(_recipe.PcbPlacement) : PcbPlacementState.WaitingForBufferPcb,
             PlacementTarget = _pcbPlacement.TargetHeatSink,
@@ -103,8 +105,9 @@ public sealed partial class MachineController
             InspectionDryRunBolt = _inspectionDryRun.ActiveBolt,
             InspectionDryRunBarcode = _inspectionDryRun.LastBarcode,
             InspectionDryRunBoltPresent = _inspectionDryRun.LastBoltPresent,
-            MainConveyorPathClear = conveyorPathClear,
-            MainConveyorDryRunState = conveyorPathClear ? _mainConveyorDryRun.State : MainConveyorDryRunState.Unavailable,
+            MainConveyorPathBlock = conveyorPathBlock,
+            MainConveyorDryRunState = conveyorPathBlock == OutputBlockReason.None
+                ? _mainConveyorDryRun.State : MainConveyorDryRunState.Unavailable,
             MainConveyorDestination = _mainConveyorDryRun.Destination,
             MainConveyorDryRunPasses = _mainConveyorDryRun.CompletedPasses,
             PcbReturnState = PcbReturnNeedsCarrier && _mainConveyorDryRun.ReturningToStation1

@@ -22,6 +22,14 @@ public sealed class AlarmRecoveryTests
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var signals = services.GetRequiredService<IoSignals>();
+        Assert.Equal(OutputBlockReason.StateUnavailable, new MachineDisplay().ManualOutputBlock);
+        Assert.False(new MachineDisplay().MainConveyorPathClear);
+        foreach (var reason in Enum.GetValues<OutputBlockReason>())
+        {
+            if (reason == OutputBlockReason.None) continue;
+            Assert.False(string.IsNullOrWhiteSpace(reason.GetDescription()));
+            Assert.NotEqual(reason.ToString(), reason.GetDescription());
+        }
         await machine.InitializeAsync();
         try
         {
@@ -232,19 +240,22 @@ public sealed class AlarmRecoveryTests
             io.AutoResponseEnabled = false;
             var row = new OutputControlRow(
                 services.GetRequiredService<IoSignals>().Outputs[OutputIo.MainConveyorRun], machine);
-            async Task AssertBlockedAsync()
+            async Task AssertBlockedAsync(OutputBlockReason reason)
             {
+                state.RequestDisplayRefresh();
+                Assert.True(await VirtualTest.WaitUntilAsync(() => row.BlockReason == reason,
+                    TimeSpan.FromSeconds(2)));
                 await row.ToggleCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
                 Assert.False(state.IsRunning);
             }
 
             settings.Units.MainConveyor = false;
-            await AssertBlockedAsync();
+            await AssertBlockedAsync(OutputBlockReason.MainConveyorDisabled);
             settings.Units.MainConveyor = true;
             settings.Units.PcbPlacement = true;
             io.SetInput(InputIo.PcbPlacementHandlerUp, false);
-            await AssertBlockedAsync(); // An enabled handler does not have clearance.
+            await AssertBlockedAsync(OutputBlockReason.PlacementNotRaised);
             settings.Units.PcbPlacement = false;
             io.SetInput(InputIo.PcbPlacementHandlerUp, true);
 
@@ -255,11 +266,16 @@ public sealed class AlarmRecoveryTests
                 InputIo.PcbPlacementCarrierPresent })
             {
                 io.SetInput(input, true);
-                await AssertBlockedAsync();
+                await AssertBlockedAsync(input switch
+                {
+                    InputIo.EmergencyStop1Pressed => OutputBlockReason.EmergencyStop,
+                    InputIo.AirPressureLow => OutputBlockReason.AirPressureLow,
+                    _ => OutputBlockReason.MainConveyorCarrierDetected,
+                });
                 io.SetInput(input, false);
             }
             io.SetInput(InputIo.AutoMode, false);
-            await AssertBlockedAsync();
+            await AssertBlockedAsync(OutputBlockReason.AutoMode);
             io.SetInput(InputIo.AutoMode, true);
 
             foreach (var input in new[] { InputIo.MainConveyorEntryCarrierDetected, InputIo.AirPressureLow })
@@ -273,6 +289,69 @@ public sealed class AlarmRecoveryTests
                 Assert.False(state.IsRunning);
                 io.SetInput(input, false);
             }
+        }
+        finally { await machine.ShutdownAsync(); }
+    }
+
+    [Fact]
+    public async Task ConveyorOutputReportsNgClearanceReasonInUiAndLog()
+    {
+        using var services = CreateServices();
+        var settings = services.GetRequiredService<MachineSettings>();
+        settings.Units.Inspection = true; // Inspection also shares the NG pickup clearance.
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var log = services.GetRequiredService<ApplicationLog>();
+        await machine.InitializeAsync();
+        try
+        {
+            io.AutoResponseEnabled = false;
+            SetAlarm(state, MachineAlarm.MotionUnavailable);
+            var row = new OutputControlRow(services.GetRequiredService<IoSignals>()
+                .Outputs[OutputIo.MainConveyorRun], machine);
+            async Task AssertReasonAsync(OutputBlockReason reason)
+            {
+                Assert.True(await VirtualTest.WaitUntilAsync(() => row.BlockReason == reason,
+                    TimeSpan.FromSeconds(2)));
+                Assert.Equal(reason, state.Display.MainConveyorPathBlock);
+                Assert.Equal(reason == OutputBlockReason.None, row.ToggleCommand.CanExecute(null));
+            }
+
+            io.SetInput(InputIo.NgCarrierPickupUp, false);
+            io.SetInput(InputIo.NgCarrierPickupDown, true);
+            await AssertReasonAsync(OutputBlockReason.NgPickupNotRaised);
+            Assert.Contains("[NgPickupNotRaised]", row.ToggleHint);
+            var since = log.LatestSequence;
+            await row.ToggleCommand.ExecuteAsync(null);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.Contains(log.ReadAfter(since), entry => entry.Message.Contains("ignored: [NgPickupNotRaised]"));
+
+            io.SetInput(InputIo.NgCarrierPickupDown, false); // Neither limit is not proof of UP.
+            await AssertReasonAsync(OutputBlockReason.NgPickupNotRaised);
+            io.SetInput(InputIo.NgCarrierPickupUp, true);
+            io.SetInput(InputIo.NgCarrierDetected, true);
+            await AssertReasonAsync(OutputBlockReason.NgCarrierDetected);
+            io.SetInput(InputIo.NgCarrierDetected, false);
+            await AssertReasonAsync(OutputBlockReason.None);
+
+            since = log.LatestSequence;
+            var run = row.ToggleCommand.ExecuteAsync(null);
+            Assert.True(await VirtualTest.WaitUntilAsync(() => io.GetOutput(OutputIo.MainConveyorRun),
+                TimeSpan.FromSeconds(2)));
+            Assert.True(row.ActionCommand.CanExecute(null)); // Busy must not disable OFF.
+            io.SetInput(InputIo.NgCarrierPickupDown, true); // Conflicting UP/DOWN also blocks.
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.Contains(log.ReadAfter(since), entry => entry.Message.Contains("stopped: [NgPickupNotRaised]"));
+            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+
+            settings.Units.Inspection = false;
+            state.RequestDisplayRefresh();
+            await AssertReasonAsync(OutputBlockReason.None); // Disabled units do not add clearance gates.
+            settings.Units.NgCarrierTransfer = true;
+            state.RequestDisplayRefresh();
+            await AssertReasonAsync(OutputBlockReason.NgPickupNotRaised);
         }
         finally { await machine.ShutdownAsync(); }
     }

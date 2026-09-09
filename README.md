@@ -150,6 +150,13 @@ enabled/initialized control-display path; commands still recheck live feedback.
 not whole-machine readiness. `OutputControlRow` derives its waiting state from its
 command instead of maintaining another operation flag.
 
+OUTPUTS admission returns `OutputBlockReason`, with `None` meaning unblocked.
+The first failed condition is preserved in the display snapshot, tooltip and
+rejected/stopped-command log. Reasons distinguish unit enable, safety, handler
+readiness, conveyor clearance (including `NgPickupNotRaised`), material and peer
+handshakes. Text comes from enum descriptions; changing wording cannot change
+admission. These reasons neither replace nor reset `MachineAlarm`.
+
 `MachineController` owns the run lifetime. Startup hardware checks and automatic
 units share the same cancellation token. A unit fault cancels the other units.
 Motion objects stop the axes they own on cancellation. Pneumatic outputs are

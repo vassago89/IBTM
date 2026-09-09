@@ -8,120 +8,36 @@
              xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:ManualHardwareViewModel, IsDesignTimeCreatable=False}">
-    <UserControl.Resources>
-        <Style x:Key="AxisPositionText" TargetType="TextBlock">
-            <Setter Property="Text" Value="{Binding Motion.Position.X, StringFormat=F3}"/>
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding Axis}" Value="{x:Static device:MotionAxis.Y}">
-                    <Setter Property="Text" Value="{Binding Motion.Position.Y, StringFormat=F3}"/>
-                </DataTrigger>
-                <DataTrigger Binding="{Binding Axis}" Value="{x:Static device:MotionAxis.Z}">
-                    <Setter Property="Text" Value="{Binding Motion.Position.Z, StringFormat=F3}"/>
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="ManualAxisListItem"
-               TargetType="ListBoxItem"
-               BasedOn="{StaticResource FlatListItemStyle}">
-            <Setter Property="Padding" Value="4,2"/>
-            <Setter Property="Margin" Value="0,0,0,1"/>
-        </Style>
-    </UserControl.Resources>
-
-    <Grid Margin="24,20,24,18">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="10"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="10"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="10"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-
-        <Grid>
-            <StackPanel>
-                <TextBlock Text="Manual" Style="{StaticResource TitleStyle}"/>
-                <TextBlock Text="{Binding HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
-                           Foreground="{StaticResource AccentAmberBrush}"/>
-            </StackPanel>
-            <Button Content="Stop Home"
-                    Command="{Binding StopHomeCommand}"
-                    Style="{StaticResource DangerButtonStyle}"
-                     HorizontalAlignment="Right"
-                     VerticalAlignment="Center"
-                     MinWidth="120"
-                     Visibility="{Binding IsHoming, Converter={StaticResource BoolToVis}}"/>
-        </Grid>
-
-        <Border Grid.Row="2"
-                Style="{StaticResource CardStyle}"
-                Padding="12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <StackPanel VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="Main Conveyor"
-                                   Style="{StaticResource PanelTitleStyle}"
-                                   Margin="0"/>
-                        <Border Margin="12,0,0,0"
-                                Padding="10,3"
-                                 CornerRadius="2"
-                                BorderThickness="1">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
-                                    <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding ConveyorStatus}"
-                                                     Value="{x:Static ui:ManualConveyorStatus.Running}">
-                                            <Setter Property="Background" Value="{StaticResource ConfirmedStateBackgroundBrush}"/>
-                                            <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <TextBlock Text="{Binding ConveyorStatus,
-                                                      Converter={StaticResource EnumDescriptionConverter}}"
-                                       FontWeight="SemiBold">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding ConveyorStatus}"
-                                                         Value="{x:Static ui:ManualConveyorStatus.Running}">
-                                                <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="24,20,24,18">
+            <TextBlock Text="Manual" Style="{StaticResource TitleStyle}" Margin="0,0,0,12"/>
+            <ItemsControl ItemsSource="{Binding Conveyors}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource CardStyle}" Padding="12" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                                               Style="{StaticResource PanelTitleStyle}" Margin="0,0,16,0"/>
+                                    <ContentControl Tag="{Binding Io.IsOn}" Style="{StaticResource IoOutputStateStyle}"/>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Run" Command="{Binding ToggleCommand}"
+                                        ToolTip="{Binding ToggleHint}" ToolTipService.ShowOnDisabled="True"
+                                        Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,8,0"/>
+                                <Button Grid.Column="2" Content="Stop" Command="{Binding StopOutputTestCommand}"
+                                        Style="{StaticResource SecondaryButtonStyle}" MinWidth="100"/>
+                            </Grid>
                         </Border>
-                    </StackPanel>
-                    <TextBlock Text="Run controls only the conveyor motor."
-                               Margin="0,8,0,0"
-                               Foreground="{StaticResource TextMutedBrush}"/>
-                </StackPanel>
-                <StackPanel Grid.Column="1"
-                            Orientation="Horizontal"
-                            VerticalAlignment="Center">
-                    <Button Content="Run"
-                            Command="{Binding RunConveyorCommand}"
-                            Style="{StaticResource PrimaryButtonStyle}"
-                            MinWidth="100"
-                            Margin="0,0,8,0"/>
-                    <Button Content="Stop"
-                            Command="{Binding StopConveyorCommand}"
-                            Style="{StaticResource SecondaryButtonStyle}"
-                            MinWidth="100"/>
-                </StackPanel>
-            </Grid>
-        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
 
-        <Border Grid.Row="4" Style="{StaticResource CardStyle}" Padding="12" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
+        <Border Margin="0,12,0,0" Style="{StaticResource CardStyle}" Padding="12" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -285,136 +201,6 @@
                 </StackPanel>
             </Grid>
         </Border>
-
-        <Border Grid.Row="6"
-                Style="{StaticResource CardStyle}"
-                Padding="14">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="8"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="6"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-                <Grid>
-                    <TextBlock Text="Axes"
-                               Style="{StaticResource PanelTitleStyle}"
-                               Margin="0"/>
-                    <TextBlock Text="PCB Supply: Home All"
-                               HorizontalAlignment="Right"
-                               VerticalAlignment="Center"
-                               Foreground="{StaticResource TextMutedBrush}"/>
-                </Grid>
-
-                <Grid Grid.Row="2" Margin="12,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="2.1*"/>
-                        <ColumnDefinition Width="70"/>
-                        <ColumnDefinition Width="130"/>
-                        <ColumnDefinition Width="160"/>
-                        <ColumnDefinition Width="250"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="MECHANISM" Style="{StaticResource SectionHeaderStyle}"/>
-                    <TextBlock Grid.Column="1" Text="AXIS" Style="{StaticResource SectionHeaderStyle}"/>
-                    <TextBlock Grid.Column="2" Text="POSITION (mm)" Style="{StaticResource SectionHeaderStyle}"/>
-                    <TextBlock Grid.Column="3" Text="STATE" Style="{StaticResource SectionHeaderStyle}"/>
-                    <TextBlock Grid.Column="4" Text="CONTROL" Style="{StaticResource SectionHeaderStyle}"/>
-                </Grid>
-
-                <ListBox Grid.Row="4"
-                         ItemsSource="{Binding Axes}"
-                         Style="{StaticResource PanelListStyle}"
-                         ItemContainerStyle="{StaticResource ManualAxisListItem}"
-                         ScrollViewer.VerticalScrollBarVisibility="Auto">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <Grid MinHeight="40" Margin="8,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="2.1*"/>
-                                    <ColumnDefinition Width="70"/>
-                                    <ColumnDefinition Width="130"/>
-                                    <ColumnDefinition Width="160"/>
-                                    <ColumnDefinition Width="250"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding Group, Converter={StaticResource EnumDescriptionConverter}}"
-                                           VerticalAlignment="Center"
-                                           FontWeight="SemiBold"/>
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding Axis, Converter={StaticResource EnumDescriptionConverter}}"
-                                           VerticalAlignment="Center"
-                                           Foreground="{StaticResource TextSecondaryBrush}"/>
-                                <TextBlock Grid.Column="2"
-                                           Style="{StaticResource AxisPositionText}"
-                                           VerticalAlignment="Center"
-                                           FontFamily="Cascadia Mono, Consolas"
-                                           FontSize="14"/>
-                                <TextBlock Grid.Column="3"
-                                           Text="{Binding Feedback.Condition, Converter={StaticResource EnumDescriptionConverter}}"
-                                           VerticalAlignment="Center"
-                                           FontWeight="SemiBold">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.Ready}">
-                                                    <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.Moving}">
-                                                    <Setter Property="Foreground" Value="{StaticResource AccentBlueBrush}"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.HomeRequired}">
-                                                    <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.ServoOff}">
-                                                    <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.NegativeLimit}">
-                                                    <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.PositiveLimit}">
-                                                    <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.Alarm}">
-                                                    <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Feedback.Condition}" Value="{x:Static device:AxisCondition.Emergency}">
-                                                    <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                                <StackPanel Grid.Column="4"
-                                            Orientation="Horizontal"
-                                            VerticalAlignment="Center">
-                                    <Button Command="{Binding DataContext.ToggleServoCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="{Binding}"
-                                            MinWidth="108"
-                                            Margin="0,0,8,0">
-                                        <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                <Setter Property="Content" Value="Servo On"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Feedback.ServoOn}" Value="True">
-                                                        <Setter Property="Content" Value="Servo Off"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-                                    <Button Command="{Binding DataContext.HomeAxisCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="{Binding}"
-                                            Content="Home"
-                                            MinWidth="92"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            Visibility="{Binding IndividualHomeAvailable, Converter={StaticResource BoolToVis}}"/>
-                                </StackPanel>
-                            </Grid>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </Grid>
-        </Border>
-    </Grid>
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>

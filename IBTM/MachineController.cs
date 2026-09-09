@@ -347,14 +347,27 @@ public sealed partial class MachineController
         RunManualAsync(edit, MachineAlarm.IoCommunication,
             () => _state.ManualControlsEnabled, cancellationToken, viewCancellation);
 
-    internal void RunManualConveyor() =>
-        TryRunManual(() => _conveyor.RunMotor(),
-            () => _state.ManualControlsEnabled, MachineAlarm.IoCommunication);
+    private bool MainConveyorPathClear => GetMainConveyorPathBlock() == OutputBlockReason.None;
 
-    private bool MainConveyorPathClear =>
-        (!_units.PcbPlacement || _placementHandler.CanMoveHorizontal && _placementHandler.AtHorizontalZ)
-        && (!_units.BoltFastening || _fasteningGantry.CanMoveHorizontal && _fasteningGantry.AtSafeZ)
-        && (!_units.Inspection && !_units.NgCarrierTransfer || _ngTransfer.IsClear);
+    private OutputBlockReason GetMainConveyorPathBlock()
+    {
+        if (_units.PcbPlacement)
+        {
+            if (!_placementHandler.CanMoveHorizontal) return OutputBlockReason.PlacementNotRaised;
+            if (!_placementHandler.AtHorizontalZ) return OutputBlockReason.PlacementNotAtSafeZ;
+        }
+        if (_units.BoltFastening)
+        {
+            if (!_fasteningGantry.CanMoveHorizontal) return OutputBlockReason.FasteningNotRaised;
+            if (!_fasteningGantry.AtSafeZ) return OutputBlockReason.FasteningNotAtSafeZ;
+        }
+        if (_units.Inspection || _units.NgCarrierTransfer)
+        {
+            if (!_ngTransfer.IsRaised) return OutputBlockReason.NgPickupNotRaised;
+            if (_ngTransfer.CarrierDetected) return OutputBlockReason.NgCarrierDetected;
+        }
+        return OutputBlockReason.None;
+    }
 
     private bool PcbReturnNeedsCarrier => _pcbReturn.State == PcbReturnState.WaitingForCarrier;
 

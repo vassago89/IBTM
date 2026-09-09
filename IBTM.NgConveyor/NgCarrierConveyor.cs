@@ -137,6 +137,20 @@ public sealed class NgCarrierConveyor : AutoUnit
         }
     }
 
+    public async Task RunMotorAsync(CancellationToken cancellationToken)
+    {
+        using var stopRegistration = cancellationToken.Register(StopConveyor);
+        try
+        {
+            StartConveyor(cancellationToken);
+            await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            StopConveyor();
+        }
+    }
+
     public async Task RunAsync(
         CancellationToken cancellationToken = default)
     {

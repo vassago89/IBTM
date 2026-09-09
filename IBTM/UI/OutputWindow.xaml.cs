@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.UI;
@@ -31,8 +32,9 @@ public partial class OutputWindow : Window, INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
     public OutputControlRow[] Rows { get; }
     public IoList<OutputControlRow, OutputIo> Filter { get; }
-    public string ControlStatus => _state.Display.ManualOutputBlock
-        ?? "MANUAL output control · individual output interlocks apply · existing alarms remain latched.";
+    public string ControlStatus => _state.Display.ManualOutputBlock is var reason && reason != OutputBlockReason.None
+        ? $"[{reason}] {reason.GetDescription()}"
+        : "MANUAL output control · individual output interlocks apply · existing alarms remain latched.";
 
     private void OnDisplayChanged()
     {

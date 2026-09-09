@@ -1145,7 +1145,7 @@ public sealed class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
-        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        var manual = services.GetRequiredService<MotionWindowViewModel>();
         var axis = manual.Axes.Single(row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
         feedback.BeforeRead = () => throw new IOException("Home feedback read failed.");
 
@@ -1187,10 +1187,10 @@ public sealed class MachineLifecycleTests
             await Task.Run(() =>
             {
                 readingView.Value = true;
-                var manual = services.GetRequiredService<ManualHardwareViewModel>();
+                var manual = services.GetRequiredService<MotionWindowViewModel>();
                 foreach (var row in manual.Axes)
                 {
-                    _ = row.Feedback.Condition;
+                    _ = row.Condition;
                     _ = manual.HomeAxisCommand.CanExecute(row);
                 }
                 var supply = services.GetRequiredService<SupplyTeachingViewModel>();
@@ -1462,7 +1462,7 @@ public sealed class MachineLifecycleTests
     {
         using var services = CreateServices(FlowSettings());
         await services.GetRequiredService<MachineController>().InitializeAsync();
-        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        var manual = services.GetRequiredService<MotionWindowViewModel>();
         var row = manual.Axes.Single(axis => axis.Group == MotionGroup.InspectionGantry && axis.Axis == MotionAxis.X);
         var motion = services.GetRequiredService<InspectionGantry>().Feedback;
         void FailOnce()
@@ -1763,7 +1763,7 @@ public sealed class MachineLifecycleTests
         var settings = FlowSettings();
         settings.PcbSupplyHardware.Axes[MachineAxis.PcbSupplyY].Maximum = 315;
         using var services = CreateServices(settings);
-        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        var manual = services.GetRequiredService<MotionWindowViewModel>();
         var view = services.GetRequiredService<SettingsViewModel>();
         Assert.Equal(11, manual.Axes.Length);
         foreach (var section in new (MotionSettings Settings, MotionHardwareSettings Hardware)[]
@@ -3139,7 +3139,7 @@ public sealed class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        var manual = services.GetRequiredService<MotionWindowViewModel>();
         await machine.InitializeAsync();
         Assert.True(machine.CanHome);
         Assert.False(state.ManualControlsEnabled);
@@ -3815,7 +3815,7 @@ public sealed class MachineLifecycleTests
         using var services = CreateMotionScopeServices(settings, out var probes);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
-        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        var manual = services.GetRequiredService<MotionWindowViewModel>();
         foreach (var (candidate, probe) in probes)
         {
             if (candidate == group) continue;
@@ -3861,7 +3861,7 @@ public sealed class MachineLifecycleTests
         {
             Assert.False(manual.ToggleServoCommand.CanExecute(row));
             Assert.False(manual.HomeAxisCommand.CanExecute(row));
-            Assert.Null(row.Feedback.State);
+            Assert.Null(row.Feedback);
             // Bypassing CanExecute still must not command a disabled drive.
             manual.ToggleServoCommand.Execute(row);
             await manual.HomeAxisCommand.ExecuteAsync(row);
@@ -4350,7 +4350,7 @@ public sealed class MachineLifecycleTests
             MotionGroup.PcbPlacementHandler);
         var supply = services.GetRequiredKeyedService<IAxisMotion>(
             MotionGroup.PcbSupply);
-        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        var manual = services.GetRequiredService<MotionWindowViewModel>();
         await machine.InitializeAsync();
         await placement.MoveZAsync(50, 10_000);
 

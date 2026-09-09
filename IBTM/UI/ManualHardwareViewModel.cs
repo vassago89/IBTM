@@ -1,44 +1,18 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.BoltFastening;
-using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.UI;
 
-public enum ManualConveyorStatus
-{
-    [Description("Stopped")]
-    Stopped,
-
-    [Description("Running")]
-    Running,
-}
-
-public sealed class ManualAxisRow(
-    MotionGroup group,
-    MotionAxis axis,
-    MotionStatus motion)
-{
-    public MotionGroup Group { get; } = group;
-    public MotionAxis Axis { get; } = axis;
-    public MotionStatus Motion { get; } = motion;
-    public AxisStatus Feedback { get; } = motion.Axes[axis];
-    public bool IndividualHomeAvailable =>
-        Group != MotionGroup.PcbSupply;
-}
-
 public partial class ManualHardwareViewModel : ObservableObject
 {
-    private readonly MainConveyor _conveyor;
     private readonly MachineState _state;
     private readonly MachineController _machine;
     private volatile bool _active;
@@ -46,25 +20,22 @@ public partial class ManualHardwareViewModel : ObservableObject
     [ObservableProperty] private DryRunTarget _selectedDryRun;
     [ObservableProperty] private HeatSinkSlot _selectedDryRunHeatSink;
 
-    public bool IsHoming => _state.Display.IsHoming;
-
     public ManualHardwareViewModel(
-        MainConveyor conveyor,
+        IoSignals signals,
         MachineState state,
-        MachineController machine,
-        IReadOnlyList<MotionHardwareSettings> hardware)
+        MachineController machine)
     {
-        _conveyor = conveyor;
         _state = state;
         _machine = machine;
-        Axes = hardware.SelectMany(section => section.AxisSignals.Keys.Select(axis =>
-            new ManualAxisRow(section.Group, axis, state.GetMotionStatus(section.Group)))).ToArray();
+        Conveyors = [
+            new(signals.Outputs[OutputIo.MainConveyorRun], machine),
+            new(signals.Outputs[OutputIo.NgConveyorRun], machine),
+        ];
 
         state.DisplayChanged += OnMachineStateChanged;
     }
 
-    public ManualAxisRow[] Axes { get; }
-    public HomeBlockReason HomeBlock => _state.Display.HomeBlock;
+    public OutputControlRow[] Conveyors { get; }
     public DryRunTarget[] DryRunTargets { get; } = Enum.GetValues<DryRunTarget>();
     public HeatSinkSlot[] DryRunHeatSinks { get; } = Enum.GetValues<HeatSinkSlot>();
     public bool IsInspectionDryRun => SelectedDryRun == DryRunTarget.Inspection;
@@ -112,16 +83,6 @@ public partial class ManualHardwareViewModel : ObservableObject
     public FasteningPass? DryRunFasteningPass => _state.Display.BoltRoutePass;
     public string? DryRunBarcode => _state.Display.InspectionDryRunBarcode;
     public bool? DryRunBoltPresent => _state.Display.InspectionDryRunBoltPresent;
-    public ManualConveyorStatus ConveyorStatus =>
-        _state.Display.ConveyorRunning
-            ? ManualConveyorStatus.Running
-            : ManualConveyorStatus.Stopped;
-
-    [RelayCommand(CanExecute = nameof(CanRunConveyor))]
-    private void RunConveyor() => _machine.RunManualConveyor();
-
-    private bool CanRunConveyor() => _state.Display.ManualControlsEnabled;
-
     [RelayCommand(CanExecute = nameof(CanRunDryRun), IncludeCancelCommand = true)]
     private Task RunDryRunAsync(CancellationToken cancellationToken) =>
         _machine.RunDryRunAsync(SelectedDryRun, cancellationToken, SelectedDryRunHeatSink);
@@ -148,31 +109,6 @@ public partial class ManualHardwareViewModel : ObservableObject
         RunDryRunCommand.NotifyCanExecuteChanged();
     }
 
-    [RelayCommand]
-    private void StopConveyor() => _conveyor.Stop();
-
-    [RelayCommand(CanExecute = nameof(CanToggleServo))]
-    private void ToggleServo(ManualAxisRow row) =>
-        _machine.ToggleServo(row.Group, row.Axis);
-
-    private bool CanToggleServo(ManualAxisRow? row) =>
-        row is not null
-        && _machine.CanSetServo(row.Group);
-
-    [RelayCommand(CanExecute = nameof(CanHomeAxis))]
-    private Task HomeAxisAsync(
-        ManualAxisRow row,
-        CancellationToken cancellationToken) =>
-        _machine.HomeAxisAsync(row.Group, row.Axis, cancellationToken);
-
-    private bool CanHomeAxis(ManualAxisRow? row) =>
-        row is not null && _state.Display.HomeableAxes.Contains((row.Group, row.Axis));
-
-    [RelayCommand(CanExecute = nameof(CanStopHome))]
-    private void StopHome() => HomeAxisCommand.Cancel();
-
-    private bool CanStopHome() => IsHoming;
-
     public void Activate()
     {
         _active = true;
@@ -183,13 +119,12 @@ public partial class ManualHardwareViewModel : ObservableObject
     public void Deactivate()
     {
         _active = false;
-        StopHome();
+        foreach (var row in Conveyors) row.ToggleCommand.Cancel();
         RunDryRunCommand.Cancel();
-        _conveyor.Stop();
     }
 
     public Task ShutdownAsync() =>
-        CommandShutdown.StopAsync(Deactivate, HomeAxisCommand, RunDryRunCommand);
+        CommandShutdown.StopAsync(Deactivate, [.. Conveyors.Select(row => row.ToggleCommand), RunDryRunCommand]);
 
     private void OnMachineStateChanged()
     {
@@ -211,14 +146,8 @@ public partial class ManualHardwareViewModel : ObservableObject
                 return;
             }
 
-            OnPropertyChanged(nameof(IsHoming));
-            OnPropertyChanged(nameof(ConveyorStatus));
-            OnPropertyChanged(nameof(HomeBlock));
+            foreach (var row in Conveyors) row.RefreshAccess();
             RefreshDryRun();
-            RunConveyorCommand.NotifyCanExecuteChanged();
-            ToggleServoCommand.NotifyCanExecuteChanged();
-            HomeAxisCommand.NotifyCanExecuteChanged();
-            StopHomeCommand.NotifyCanExecuteChanged();
         });
     }
 

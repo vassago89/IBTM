@@ -59,7 +59,7 @@ public sealed record MachineDisplay
     public ManualControlBlock ManualBlock { get; init; } = ManualControlBlock.MotionNotReady;
     public bool ManualControlsEnabled => Available && ManualBlock == ManualControlBlock.None;
     public bool ManualSetupEnabled { get; init; }
-    public string? ManualOutputBlock { get; init; } = "Read only: machine status is unavailable.";
+    public OutputBlockReason ManualOutputBlock { get; init; } = OutputBlockReason.StateUnavailable;
     public PcbPlacementState PlacementState { get; init; }
     public HeatSinkSlot? PlacementTarget { get; init; }
     public BoltFasteningState FasteningState { get; init; }
@@ -79,7 +79,8 @@ public sealed record MachineDisplay
     public string? InspectionDryRunBarcode { get; init; }
     public bool? InspectionDryRunBoltPresent { get; init; }
     // Collision clearance only, not automatic-run or whole-machine readiness.
-    public bool MainConveyorPathClear { get; init; }
+    public OutputBlockReason MainConveyorPathBlock { get; init; } = OutputBlockReason.StateUnavailable;
+    public bool MainConveyorPathClear => MainConveyorPathBlock == OutputBlockReason.None;
     public MainConveyorDryRunState MainConveyorDryRunState { get; init; }
     public MainConveyorDestination MainConveyorDestination { get; init; }
     public int MainConveyorDryRunPasses { get; init; }

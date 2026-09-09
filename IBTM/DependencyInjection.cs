@@ -337,6 +337,7 @@ public static class DependencyInjection
         services.AddSingleton<SupplyTeachingViewModel>();
         services.AddSingleton<SettingsViewModel>();
         services.AddSingleton<ManualHardwareViewModel>();
+        services.AddSingleton<MotionWindowViewModel>();
         services.AddSingleton<StationTeachingViewModel>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
