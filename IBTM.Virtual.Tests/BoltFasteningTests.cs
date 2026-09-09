@@ -94,6 +94,80 @@ public sealed class BoltFasteningTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wait);
     }
 
+    [Theory]
+    [InlineData("valid")]
+    [InlineData("crc")]
+    [InlineData("address")]
+    [InlineData("controller-error")]
+    public async Task AdcRawReceiveLogsBytesBeforeResponseValidation(string responseKind)
+    {
+        var frame = AdcRtuFrame.Build(
+            (byte)(responseKind == "address" ? 1 : 0),
+            (AdcFunctionCode)(responseKind == "controller-error" ? 0x84 : 0x04),
+            responseKind == "controller-error" ? [0x02] : [0x02, 0x12, 0x34]);
+        if (responseKind == "crc") frame[^1] ^= 0xFF;
+        using var stream = new AdcResponseStream(frame);
+        var chunks = new List<byte[]>();
+        var reading = ReadAdcResponseAsync(stream, chunks.Add, CancellationToken.None);
+
+        if (responseKind == "valid")
+            Assert.Equal(frame, await reading.WaitAsync(TimeSpan.FromSeconds(2)));
+        else if (responseKind == "controller-error")
+            Assert.Contains("IllegalAddress", (await Assert.ThrowsAsync<IOException>(() => reading)).Message);
+        else
+            await Assert.ThrowsAsync<InvalidDataException>(() => reading);
+
+        Assert.Equal(frame, chunks.SelectMany(chunk => chunk).ToArray());
+        Assert.All(chunks, chunk => Assert.Single(chunk));
+    }
+
+    [Theory]
+    [InlineData(0)] // No response.
+    [InlineData(1)] // Partial header.
+    [InlineData(4)] // Header and partial payload.
+    public async Task AdcRawReceiveKeepsPartialBytesWhenTheReadIsAborted(int receivedCount)
+    {
+        byte[] partial = [0x00, 0x04, 0x02, 0x12];
+        using var stream = new AdcResponseStream(partial[..receivedCount]);
+        using var cancellation = new CancellationTokenSource();
+        var chunks = new List<byte[]>();
+        var reading = ReadAdcResponseAsync(stream, chunks.Add, cancellation.Token);
+        await stream.Waiting.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        // Already visible before the incomplete response times out or is canceled.
+        Assert.Equal(partial[..receivedCount], chunks.SelectMany(chunk => chunk).ToArray());
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reading.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.True(stream.Aborted);
+        Assert.Equal(partial[..receivedCount], chunks.SelectMany(chunk => chunk).ToArray());
+    }
+
+    private static Task<byte[]> ReadAdcResponseAsync(
+        AdcResponseStream stream, Action<byte[]> received, CancellationToken cancellationToken) =>
+        (Task<byte[]>)typeof(AdcBus).GetMethod("ReadResponseAsync", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, [stream, (Action)stream.Abort, received, (byte)0,
+                AdcFunctionCode.ReadInputRegisters, cancellationToken])!;
+
+    private sealed class AdcResponseStream(byte[] bytes) : MemoryStream(bytes)
+    {
+        private readonly TaskCompletionSource<int> _pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Waiting { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool Aborted { get; private set; }
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (Position < Length) return base.ReadAsync(buffer[..1], cancellationToken);
+            Waiting.TrySetResult();
+            return new(_pending.Task); // Model Windows native IO ignoring cancellation.
+        }
+
+        public void Abort()
+        {
+            Aborted = true;
+            _pending.TrySetException(new IOException("Native serial IO aborted."));
+        }
+    }
+
     [Fact]
     public async Task AdcReadinessUsesLiveRunAndDoesNotCallReverseAFastening()
     {
