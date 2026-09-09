@@ -142,7 +142,7 @@ public sealed class ApplicationLogTests
         using var controller = new AlphaMotionController(new() { ControllerNumber = 2 });
         var error = Assert.Throws<IOException>(() => controller.ReadInput(7));
 
-        Assert.Contains("AIO_GetDIBit", error.Message);
+        Assert.Contains("AIO_GetDIDWord", error.Message);
         Assert.Contains("card=2, bit=7", error.Message);
         Assert.Contains("not initialized", error.Message);
     }

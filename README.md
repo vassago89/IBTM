@@ -298,14 +298,27 @@ AlphaMotion is the **TMC-AE16DIOe** (16 DI / 16 DO), using the manufacturer's
 A-series `TMCAEDLL.AIO_*` functions, not Motionnet `nmiMNApi` or B-series `AIO_pmi*`.
 Settings exposes only **Card No.**, matching the Digital IO utility (normally 0).
 The persisted `ControllerNumber` is retained; old Station/CommunicationSpeed fields
-are ignored when loading old settings. Startup checks the selected card's DI/DO
-counts, and input polling reads WORD group 0 (channels 0–15).
+are ignored when loading old settings. Startup uses the sample's `AIO_BoardInfo`
+to check 16 DI / 16 DO, then probes both ports before readiness. Model and
+communication codes are logged for diagnosis, not used as a model whitelist;
+the field-observed model `0xAE2E` is accepted when the required I/O checks pass.
+Input/output reads use the sample's `AIO_GetDIDWord` / `AIO_GetDODWord`, group 0;
+only channels 0–15 are valid on this board.
 The manufacturer's C# sample (`frmDIGITAL.LoadDevice`) treats `AIO_LoadDevice()`
 as a board-count result: negative means failure, while a nonnegative result plus
-one is the loaded board count (`0` means one board). This is separate from the
-`TMC_ST_OK == 1` check for status-returning I/O functions; `ERR_SUCCESS` alone does
-not turn a failed I/O status into success. The startup log includes the load
-result and board count after the selected card's DI/DO counts pass validation.
+one is the loaded board count (`0` means one board).
+The remaining return conventions are **not yet verified against the equipment's
+DLL**. For user-operated field testing, results 0 or 1 are candidate successes
+only with `AIO_GetErrorCode() == ERR_SUCCESS`; negative/unknown results and SDK
+errors still throw. Read buffers start at `0xFFFFFFFF`: unchanged values,
+missing/mismatched DI/DO counts and port bits outside 0–15 are rejected, not masked
+into OFF. Every output command requires matching port readback (not confirmation
+of physical actuator movement). Unload result 0 with no SDK error no longer
+causes a secondary cleanup exception; the controller stays unavailable on close.
+Logs include raw native results, error codes and returned board/port data on the
+first call and newly observed status combinations, without logging every poll.
+The zero-result path is labeled as requiring hardware verification. Compare
+sensor ON/OFF transitions with the manufacturer's monitor before automatic operation.
 Use the manufacturer's matching `tmcDApiAed_x64.dll` and installed board driver
 with a 64-bit process. Place that DLL in `IBTM.AlphaMotion/` to have builds and
 publishing copy it beside the executable, or deploy it there directly. The DLL is

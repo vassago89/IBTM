@@ -14,69 +14,310 @@ public sealed class AlphaMotionControllerTests
 {
     public AlphaMotionControllerTests() => TMCAEDLL.Reset();
 
-    [Fact]
-    public void InitializationLoadsAseriesAndChecksCountsWithoutWritingOutputs()
+    private static TMCAEDLL.Call[] NativeCalls() =>
+        TMCAEDLL.Calls.Where(call => call.Operation != "AIO_GetErrorCode").ToArray();
+
+    [Theory]
+    [InlineData(0, 0xAEU, 0U)]
+    [InlineData(1, 0xAEU, 0U)]
+    [InlineData(0, 0xAE2EU, 0x13U)]
+    [InlineData(1, 0xAE2EU, 0x13U)]
+    [InlineData(0, 0xAE2FU, 0x13U)]
+    [InlineData(1, 0xAF1U, 0U)]
+    [InlineData(0, 0U, 0U)]
+    public void InitializationUsesSampleApisAndProbesBothPortsBeforeReadiness(int result, uint model, uint communication)
     {
+        TMCAEDLL.DefaultResult = result;
+        TMCAEDLL.Model = model;
+        TMCAEDLL.Communication = communication;
+        TMCAEDLL.Inputs = 8;
         using var log = new ApplicationLog();
         using var controller = new AlphaMotionController(new(), log);
         controller.Initialize();
         controller.Initialize();
 
-        Assert.Equal(new[] { "AIO_LoadDevice", "AIO_GetDiNum", "AIO_GetDoNum" },
-            TMCAEDLL.Calls.Select(call => call.Operation));
-        Assert.All(TMCAEDLL.Calls.Skip(1), call => Assert.Equal((ushort)0, call.Card));
-        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains("card=0, DI=16, DO=16"));
+        Assert.Equal(new[] { "AIO_LoadDevice", "AIO_BoardInfo", "AIO_GetDIDWord", "AIO_GetDODWord" },
+            NativeCalls().Select(call => call.Operation));
+        Assert.All(NativeCalls().Skip(1), call => Assert.Equal((ushort)0, call.Card));
+        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains("card=0, DI=16, DO=16")
+            && entry.Message.Contains("initial DI=0x00000008, DO=0x00000000"));
+        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains($"AIO_BoardInfo (card=0): result={result}, ERR_SUCCESS (0); model=0x{model:X}, communication=0x{communication:X}, DI=16, DO=16"));
+        Assert.DoesNotContain(NativeCalls(), call => call.Operation.StartsWith("AIO_Put", StringComparison.Ordinal));
     }
 
     [Theory]
-    [InlineData(0x0008)]
-    [InlineData(0x8000)]
-    [InlineData(0xFFFF)]
-    public void ReadsSixteenInputsFromWordGroupZero(int value)
+    [InlineData(0, 0U)]
+    [InlineData(0, 8U)]
+    [InlineData(0, 0x8000U)]
+    [InlineData(0, 0xFFFFU)]
+    [InlineData(1, 0U)]
+    [InlineData(1, 8U)]
+    [InlineData(1, 0x8000U)]
+    [InlineData(1, 0xFFFFU)]
+    public void ValidPortValuesIncludeAllOffAndAllOn(int result, uint value)
     {
         using var controller = new AlphaMotionController(new());
         controller.Initialize();
+        TMCAEDLL.Results["AIO_GetDIDWord"] = result;
+        TMCAEDLL.Inputs = value;
         TMCAEDLL.Calls.Clear();
-        TMCAEDLL.Inputs = (ushort)value;
-
-        Assert.Equal((uint)value, controller.ReadInputs());
-        Assert.Equal(new TMCAEDLL.Call("AIO_GetDIWord", 0, Group: 0), Assert.Single(TMCAEDLL.Calls));
+        Assert.Equal(value, controller.ReadInputs());
+        Assert.Equal(new TMCAEDLL.Call("AIO_GetDIDWord", 0, Group: 0), Assert.Single(NativeCalls()));
     }
 
     [Theory]
     [InlineData(0)]
     [InlineData(3)]
     [InlineData(15)]
-    public void ReadsBitsUsingCardAndChannelWithoutAStation(int bit)
+    public void BitsUseTheSamplePortApisAndSelectedCard(int bit)
     {
+        TMCAEDLL.DefaultResult = 0;
         using var controller = new AlphaMotionController(new() { ControllerNumber = 2 });
         controller.Initialize();
+        TMCAEDLL.Inputs = TMCAEDLL.Outputs = 1U << bit;
         TMCAEDLL.Calls.Clear();
-        TMCAEDLL.Inputs = TMCAEDLL.Outputs = (ushort)(1 << bit);
-
         Assert.True(controller.ReadInput(bit));
         Assert.True(controller.ReadOutput(bit));
-        Assert.Equal(new[] { new TMCAEDLL.Call("AIO_GetDIBit", 2, (ushort)bit),
-            new TMCAEDLL.Call("AIO_GetDOBit", 2, (ushort)bit) }, TMCAEDLL.Calls);
+        Assert.Equal(new[] { new TMCAEDLL.Call("AIO_GetDIDWord", 2, Group: 0),
+            new TMCAEDLL.Call("AIO_GetDODWord", 2, Group: 0) }, NativeCalls());
         TMCAEDLL.Inputs = TMCAEDLL.Outputs = 0;
         Assert.False(controller.ReadInput(bit));
         Assert.False(controller.ReadOutput(bit));
     }
 
-    [Fact]
-    public void OutputWritesChangeOnlyTheRequestedBit()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void OutputWritesChangeOnlyTheRequestedBitAndVerifyReadback(int result)
+    {
+        TMCAEDLL.DefaultResult = result;
+        using var controller = new AlphaMotionController(new());
+        controller.Initialize();
+        TMCAEDLL.Outputs = 0x8001;
+        TMCAEDLL.Calls.Clear();
+        controller.WriteOutput(3, true);
+        Assert.Equal(0x8009U, TMCAEDLL.Outputs);
+        controller.WriteOutput(3, false);
+        Assert.Equal(0x8001U, TMCAEDLL.Outputs);
+        Assert.Equal(new[] { new TMCAEDLL.Call("AIO_PutDOBit", 0, 3, Value: 1),
+            new TMCAEDLL.Call("AIO_GetDODWord", 0, Group: 0),
+            new TMCAEDLL.Call("AIO_PutDOBit", 0, 3, Value: 0),
+            new TMCAEDLL.Call("AIO_GetDODWord", 0, Group: 0) }, NativeCalls());
+    }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(0, false)]
+    [InlineData(1, true)]
+    [InlineData(1, false)]
+    public void SuccessfulLookingWriteWithoutMatchingReadbackIsRejected(int result, bool requested)
     {
         using var controller = new AlphaMotionController(new());
         controller.Initialize();
-        TMCAEDLL.Calls.Clear();
-        TMCAEDLL.Outputs = 0x8001;
+        TMCAEDLL.Results["AIO_PutDOBit"] = result;
+        TMCAEDLL.SuppressOutputWrites = true;
+        TMCAEDLL.Outputs = requested ? 0U : 8U;
+        var error = Assert.Throws<IOException>(() => controller.WriteOutput(3, requested));
+        Assert.Contains("AIO_PutDOBit (card=0, bit=3)", error.Message);
+        Assert.Contains("Output readback mismatch", error.Message);
+    }
 
-        controller.WriteOutput(3, true);
-        Assert.Equal(0x8009, TMCAEDLL.Outputs);
-        controller.WriteOutput(3, false);
-        Assert.Equal(0x8001, TMCAEDLL.Outputs);
-        Assert.Equal(new[] { new TMCAEDLL.Call("AIO_PutDOBit", 0, 3, Value: 1),
-            new TMCAEDLL.Call("AIO_PutDOBit", 0, 3, Value: 0) }, TMCAEDLL.Calls);
+    [Theory]
+    [InlineData("AIO_BoardInfo", 0)]
+    [InlineData("AIO_BoardInfo", 1)]
+    [InlineData("AIO_GetDIDWord", 0)]
+    [InlineData("AIO_GetDIDWord", 1)]
+    [InlineData("AIO_GetDODWord", 0)]
+    [InlineData("AIO_GetDODWord", 1)]
+    public void UnwrittenRefParametersPreventInitialization(string operation, int result)
+    {
+        using var controller = new AlphaMotionController(new());
+        TMCAEDLL.Results[operation] = result;
+        TMCAEDLL.SkipRefWrites.Add(operation);
+        var error = Assert.Throws<IOException>(controller.Initialize);
+        Assert.Contains(operation, error.Message);
+        Assert.Contains("Invalid or unchanged", error.Message);
+        Assert.Contains("ERR_SUCCESS (0)", error.Message);
+        Assert.Equal("AIO_UnloadDevice", NativeCalls()[^1].Operation);
+        TMCAEDLL.Calls.Clear();
+        Assert.Throws<IOException>(() => controller.WriteOutput(0, true));
+        Assert.Empty(TMCAEDLL.Calls);
+    }
+
+    [Theory]
+    [InlineData(0xAEU, 32U, 16U)]
+    [InlineData(0xAEU, 16U, 32U)]
+    [InlineData(0xAEU, 0U, 0U)]
+    [InlineData(0xAF1U, 16U, 0U)]
+    [InlineData(0xAE2EU, 32U, 16U)]
+    [InlineData(0xAE2EU, 16U, 32U)]
+    [InlineData(0xAE2EU, 0U, 16U)]
+    [InlineData(0xAE2EU, 16U, 0U)]
+    public void UnexpectedPointCountsPreventPortAccess(uint model, uint inputs, uint outputs)
+    {
+        using var controller = new AlphaMotionController(new());
+        TMCAEDLL.Model = model;
+        TMCAEDLL.InputCount = inputs;
+        TMCAEDLL.OutputCount = outputs;
+        var error = Assert.Throws<IOException>(controller.Initialize);
+        Assert.Contains($"model=0x{model:X}, communication=0x0, DI={inputs}, DO={outputs}", error.Message);
+        Assert.DoesNotContain(NativeCalls(), call => call.Operation is "AIO_GetDIDWord" or "AIO_GetDODWord" or "AIO_PutDOBit");
+    }
+
+    [Theory]
+    [InlineData(true, 0x10000U)]
+    [InlineData(true, uint.MaxValue)]
+    [InlineData(false, 0x10000U)]
+    [InlineData(false, uint.MaxValue)]
+    public void InvalidPortValuesAreNeverMaskedIntoValidSignals(bool input, uint value)
+    {
+        using var controller = new AlphaMotionController(new());
+        controller.Initialize();
+        if (input) TMCAEDLL.Inputs = value;
+        else TMCAEDLL.Outputs = value;
+        var error = Assert.Throws<IOException>(() => { if (input) controller.ReadInput(3); else controller.ReadOutput(3); });
+        Assert.Contains($"0x{value:X8}", error.Message);
+        Assert.Contains("Invalid or unchanged port data", error.Message);
+    }
+
+    [Theory]
+    [InlineData("AIO_BoardInfo", 0, tmcDef.ERR_INVALID_BOARD_ID)]
+    [InlineData("AIO_BoardInfo", 1, tmcDef.ERR_INVALID_BOARD_ID)]
+    [InlineData("AIO_GetDIDWord", 0, tmcDef.ERR_INVALID_GROUP)]
+    [InlineData("AIO_GetDODWord", 1, tmcDef.ERR_INVALID_GROUP)]
+    [InlineData("AIO_BoardInfo", -1, tmcDef.ERR_SUCCESS)]
+    [InlineData("AIO_GetDIDWord", 2, tmcDef.ERR_SUCCESS)]
+    public void SdkErrorsAndUnknownResultsStillPreventReadiness(string operation, int result, int errorCode)
+    {
+        using var controller = new AlphaMotionController(new());
+        TMCAEDLL.Results[operation] = result;
+        TMCAEDLL.Errors[operation] = errorCode;
+        var error = Assert.Throws<IOException>(controller.Initialize);
+        Assert.Contains($"{operation} (card=0)", error.Message);
+        Assert.Contains($"result {result};", error.Message);
+        Assert.Contains($"({errorCode})", error.Message);
+        Assert.DoesNotContain(NativeCalls(), call => call.Operation == "AIO_PutDOBit");
+    }
+
+    [Fact]
+    public void OptionalIdentityFieldsDoNotBlockValidCountsAndPortReads()
+    {
+        using var log = new ApplicationLog();
+        using var controller = new AlphaMotionController(new(), log);
+        TMCAEDLL.Model = uint.MaxValue;
+        TMCAEDLL.Communication = uint.MaxValue;
+        controller.Initialize();
+        Assert.Equal(0U, controller.ReadInputs());
+        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains("model=0xFFFFFFFF, communication=0xFFFFFFFF, DI=16, DO=16"));
+        Assert.DoesNotContain(NativeCalls(), call => call.Operation == "AIO_PutDOBit");
+    }
+
+    [Fact]
+    public void FailedInitializationCanBeRetriedAfterTheApiFillsItsData()
+    {
+        TMCAEDLL.DefaultResult = 0;
+        using var controller = new AlphaMotionController(new());
+        TMCAEDLL.SkipRefWrites.Add("AIO_BoardInfo");
+        Assert.Throws<IOException>(controller.Initialize);
+        Assert.Throws<IOException>(() => controller.ReadInputs());
+        TMCAEDLL.SkipRefWrites.Clear();
+        TMCAEDLL.Inputs = 8;
+        controller.Initialize();
+        Assert.Equal(8U, controller.ReadInputs());
+    }
+
+    [Fact]
+    public void WriteSdkErrorIsNotHiddenEvenIfTheOutputAlreadyMatches()
+    {
+        using var controller = new AlphaMotionController(new());
+        controller.Initialize();
+        TMCAEDLL.Outputs = 8;
+        TMCAEDLL.Results["AIO_PutDOBit"] = 0;
+        TMCAEDLL.Errors["AIO_PutDOBit"] = tmcDef.ERR_INVALID_CHANNEL;
+        TMCAEDLL.Calls.Clear();
+        var error = Assert.Throws<IOException>(() => controller.WriteOutput(3, true));
+        Assert.Contains("ERR_INVALID_CHANNEL (-200)", error.Message);
+        Assert.Equal("AIO_PutDOBit", Assert.Single(NativeCalls()).Operation);
+    }
+
+    [Fact]
+    public void WriteReadbackFailureIsNotReportedAsACompletedOutputCommand()
+    {
+        using var controller = new AlphaMotionController(new());
+        controller.Initialize();
+        TMCAEDLL.SkipRefWrites.Add("AIO_GetDODWord");
+        var error = Assert.Throws<IOException>(() => controller.WriteOutput(3, true));
+        Assert.Contains("AIO_GetDODWord", error.Message);
+        Assert.Contains("Invalid or unchanged port data", error.Message);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void NonnegativeLoadResultIsABoardCountMinusOne(int result)
+    {
+        using var log = new ApplicationLog();
+        using var controller = new AlphaMotionController(new(), log);
+        TMCAEDLL.Results["AIO_LoadDevice"] = result;
+        controller.Initialize();
+        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains($"loaded boards={result + 1}"));
+    }
+
+    [Theory]
+    [InlineData(-1, tmcDef.ERR_DEVICE_LOAD)]
+    [InlineData(-100, tmcDef.ERR_INVALID_HANDLE)]
+    [InlineData(-1, tmcDef.ERR_SUCCESS)]
+    public void NegativeLoadResultsNeverProceedToCardQueries(int result, int errorCode)
+    {
+        using var controller = new AlphaMotionController(new());
+        TMCAEDLL.Results["AIO_LoadDevice"] = result;
+        TMCAEDLL.Errors["AIO_LoadDevice"] = errorCode;
+        Assert.Throws<IOException>(controller.Initialize);
+        Assert.Equal("AIO_LoadDevice", Assert.Single(NativeCalls()).Operation);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void UnloadWithNoErrorCanReinitialize(int result)
+    {
+        using var controller = new AlphaMotionController(new());
+        controller.Initialize();
+        TMCAEDLL.Results["AIO_UnloadDevice"] = result;
+        TMCAEDLL.Calls.Clear();
+        controller.Dispose();
+        controller.Dispose();
+        Assert.Equal("AIO_UnloadDevice", Assert.Single(NativeCalls()).Operation);
+        Assert.Throws<IOException>(() => controller.ReadInputs());
+        controller.Initialize();
+        Assert.Equal(0U, controller.ReadInputs());
+    }
+
+    [Fact]
+    public void CleanupFailurePreservesTheOriginalBoardInfoError()
+    {
+        using var log = new ApplicationLog();
+        using var controller = new AlphaMotionController(new(), log);
+        TMCAEDLL.Errors["AIO_BoardInfo"] = tmcDef.ERR_INVALID_BOARD_ID;
+        TMCAEDLL.Errors["AIO_UnloadDevice"] = tmcDef.ERR_UNKNOWN;
+        var error = Assert.Throws<IOException>(controller.Initialize);
+        Assert.Contains("AIO_BoardInfo", error.Message);
+        Assert.Contains("ERR_INVALID_BOARD_ID (-400)", error.Message);
+        Assert.Contains("ERR_UNKNOWN", Assert.IsType<string>(error.Data["AlphaMotionUnloadError"]));
+        Assert.Contains(log.ReadAfter(0), entry => entry.Level == "ERROR");
+    }
+
+    [Fact]
+    public void DisposalFailureDoesNotPermitSubsequentReads()
+    {
+        using var controller = new AlphaMotionController(new());
+        controller.Initialize();
+        TMCAEDLL.Errors["AIO_UnloadDevice"] = tmcDef.ERR_UNKNOWN;
+        Assert.Throws<IOException>(controller.Dispose);
+        TMCAEDLL.Calls.Clear();
+        Assert.Throws<IOException>(() => controller.ReadInputs());
+        Assert.Empty(TMCAEDLL.Calls);
     }
 
     [Fact]
@@ -90,14 +331,28 @@ public sealed class AlphaMotionControllerTests
         controller.ReadInput(1);
         controller.ReadOutput(1);
         controller.WriteOutput(1, false);
-        Assert.All(TMCAEDLL.Calls, call => Assert.Equal((ushort)2, call.Card));
+        Assert.All(NativeCalls(), call => Assert.Equal((ushort)2, call.Card));
         controller.Dispose();
-
         using var next = new AlphaMotionController(settings);
         next.Initialize();
         TMCAEDLL.Calls.Clear();
         next.ReadInputs();
-        Assert.Equal((ushort)5, Assert.Single(TMCAEDLL.Calls).Card);
+        Assert.Equal((ushort)5, Assert.Single(NativeCalls()).Card);
+    }
+
+    [Fact]
+    public void RepeatedPollingDoesNotFloodTheLog()
+    {
+        using var log = new ApplicationLog();
+        using var controller = new AlphaMotionController(new(), log);
+        controller.Initialize();
+        var sequence = log.LatestSequence;
+        for (var index = 0; index < 100; index++) controller.ReadInputs();
+        Assert.Equal(sequence, log.LatestSequence);
+        TMCAEDLL.Results["AIO_GetDIDWord"] = 0;
+        TMCAEDLL.Inputs = 8;
+        for (var index = 0; index < 100; index++) controller.ReadInputs();
+        Assert.Contains("DI=0x00000008", Assert.Single(log.ReadAfter(sequence)).Message);
     }
 
     [Fact]
@@ -116,7 +371,7 @@ public sealed class AlphaMotionControllerTests
     [InlineData(-1)]
     [InlineData(16)]
     [InlineData(65536)]
-    public void InvalidChannelsAreRejectedWithoutWrappingOrCallingNativeFunctions(int bit)
+    public void InvalidChannelsAreRejectedWithoutNativeCalls(int bit)
     {
         using var controller = new AlphaMotionController(new());
         Assert.Throws<ArgumentOutOfRangeException>(() => controller.ReadInput(bit));
@@ -134,152 +389,6 @@ public sealed class AlphaMotionControllerTests
         Assert.Empty(TMCAEDLL.Calls);
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void NonnegativeLoadResultIsABoardCountMinusOneAndAllowsInputScanning(int result)
-    {
-        using var log = new ApplicationLog();
-        using var controller = new AlphaMotionController(new(), log);
-        TMCAEDLL.Results["AIO_LoadDevice"] = result;
-        TMCAEDLL.ErrorCode = tmcDef.ERR_SUCCESS;
-        TMCAEDLL.Inputs = 0x0008;
-
-        controller.Initialize();
-
-        Assert.Equal(0x0008U, controller.ReadInputs());
-        Assert.Equal(new[] { "AIO_LoadDevice", "AIO_GetDiNum", "AIO_GetDoNum", "AIO_GetDIWord" },
-            TMCAEDLL.Calls.Select(call => call.Operation));
-        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains($"loaded boards={result + 1}"));
-    }
-
-    [Theory]
-    [InlineData(-1, tmcDef.ERR_DEVICE_LOAD, "ERR_DEVICE_LOAD")]
-    [InlineData(-100, tmcDef.ERR_INVALID_HANDLE, "ERR_INVALID_HANDLE")]
-    [InlineData(-9999, tmcDef.ERR_UNKNOWN, "ERR_UNKNOWN")]
-    [InlineData(-1, tmcDef.ERR_SUCCESS, "ERR_SUCCESS")]
-    public void NegativeLoadResultFailsWithoutQueryingCardsOrAllowingIo(int result, int errorCode, string errorName)
-    {
-        using var controller = new AlphaMotionController(new());
-        TMCAEDLL.Results["AIO_LoadDevice"] = result;
-        TMCAEDLL.ErrorCode = errorCode;
-        var error = Assert.Throws<IOException>(controller.Initialize);
-
-        Assert.Contains("AIO_LoadDevice (card=0)", error.Message);
-        Assert.Contains($"result {result}; {errorName} ({errorCode})", error.Message);
-        Assert.Throws<IOException>(() => controller.ReadInputs());
-        Assert.Throws<IOException>(() => controller.WriteOutput(0, true));
-        controller.Dispose();
-        Assert.Equal(new[] { "AIO_LoadDevice", "AIO_GetErrorCode" }, TMCAEDLL.Calls.Select(call => call.Operation));
-    }
-
-    [Fact]
-    public void FailedLoadCanBeRetriedWithTheSingleBoardSuccessResult()
-    {
-        using var controller = new AlphaMotionController(new());
-        TMCAEDLL.Results["AIO_LoadDevice"] = -1;
-        Assert.Throws<IOException>(controller.Initialize);
-
-        TMCAEDLL.Results["AIO_LoadDevice"] = 0;
-        controller.Initialize();
-        Assert.Equal(0U, controller.ReadInputs());
-        Assert.Equal(2, TMCAEDLL.Calls.Count(call => call.Operation == "AIO_LoadDevice"));
-    }
-
-    [Fact]
-    public void ZeroInputScanStatusStillFailsEvenWhenTheLastErrorIsSuccess()
-    {
-        using var controller = new AlphaMotionController(new());
-        controller.Initialize();
-        TMCAEDLL.Results["AIO_GetDIWord"] = tmcDef.TMC_ST_FALSE;
-        TMCAEDLL.ErrorCode = tmcDef.ERR_SUCCESS;
-
-        var error = Assert.Throws<IOException>(() => controller.ReadInputs());
-
-        Assert.Contains("AIO_GetDIWord (card=0)", error.Message);
-        Assert.Contains("result 0; ERR_SUCCESS (0)", error.Message);
-    }
-
-    [Theory]
-    [InlineData(0)]
-    [InlineData(-1)]
-    [InlineData(2)]
-    public void OnlyOneIsAcceptedAsSuccessAndInputErrorsAreNotReturnedAsOff(int result)
-    {
-        using var controller = new AlphaMotionController(new() { ControllerNumber = 3 });
-        controller.Initialize();
-        TMCAEDLL.Results["AIO_GetDIBit"] = result;
-        TMCAEDLL.ErrorCode = tmcDef.ERR_INVALID_CHANNEL;
-        var error = Assert.Throws<IOException>(() => controller.ReadInput(7));
-
-        Assert.Contains("AIO_GetDIBit (card=3, bit=7)", error.Message);
-        Assert.Contains($"result {result}; ERR_INVALID_CHANNEL (-200)", error.Message);
-    }
-
-    [Theory]
-    [InlineData(32, 16)]
-    [InlineData(16, 32)]
-    [InlineData(0, 0)]
-    public void UnexpectedChannelCountsFailAndUnloadWithoutAnOutputWrite(int inputs, int outputs)
-    {
-        using var controller = new AlphaMotionController(new());
-        TMCAEDLL.InputCount = (ushort)inputs;
-        TMCAEDLL.OutputCount = (ushort)outputs;
-        var error = Assert.Throws<IOException>(controller.Initialize);
-
-        Assert.Contains($"found {inputs} DI / {outputs} DO", error.Message);
-        Assert.Equal("AIO_UnloadDevice", TMCAEDLL.Calls[^1].Operation);
-        Assert.DoesNotContain(TMCAEDLL.Calls, call => call.Operation.StartsWith("AIO_Put", StringComparison.Ordinal));
-        Assert.Throws<IOException>(() => controller.ReadInputs());
-    }
-
-    [Fact]
-    public void CleanupFailureDoesNotReplaceTheOriginalInitializationFailure()
-    {
-        using var log = new ApplicationLog();
-        using var controller = new AlphaMotionController(new(), log);
-        TMCAEDLL.Results["AIO_GetDiNum"] = 0;
-        TMCAEDLL.Results["AIO_UnloadDevice"] = 0;
-        TMCAEDLL.ErrorCode = tmcDef.ERR_INVALID_BOARD_ID;
-        TMCAEDLL.BeforeCall = operation =>
-        {
-            if (operation == "AIO_UnloadDevice") TMCAEDLL.ErrorCode = tmcDef.ERR_UNKNOWN;
-        };
-        var error = Assert.Throws<IOException>(controller.Initialize);
-
-        Assert.Contains("AIO_GetDiNum", error.Message);
-        Assert.Contains("ERR_INVALID_BOARD_ID (-400)", error.Message);
-        Assert.Contains("ERR_UNKNOWN", Assert.IsType<string>(error.Data["AlphaMotionUnloadError"]));
-        Assert.Contains(log.ReadAfter(0), entry => entry.Level == "ERROR" && entry.Detail!.Contains("AIO_UnloadDevice"));
-    }
-
-    [Fact]
-    public void DisposalUnloadsOnceAndAllowsLaterReinitialization()
-    {
-        using var controller = new AlphaMotionController(new());
-        controller.Initialize();
-        TMCAEDLL.Calls.Clear();
-        controller.Dispose();
-        controller.Dispose();
-        Assert.Equal("AIO_UnloadDevice", Assert.Single(TMCAEDLL.Calls).Operation);
-        Assert.Throws<IOException>(() => controller.ReadInput(0));
-        controller.Initialize();
-        Assert.Equal(0U, controller.ReadInputs());
-    }
-
-    [Fact]
-    public void DisposalFailureDoesNotPermitSubsequentReads()
-    {
-        using var controller = new AlphaMotionController(new());
-        controller.Initialize();
-        TMCAEDLL.Results["AIO_UnloadDevice"] = 0;
-        Assert.Throws<IOException>(controller.Dispose);
-        TMCAEDLL.Calls.Clear();
-        Assert.Throws<IOException>(() => controller.ReadInputs());
-        Assert.Empty(TMCAEDLL.Calls);
-    }
-
     [Fact]
     public void ConcurrentReadsAndWritesUseOneControllerSafely()
     {
@@ -292,8 +401,8 @@ public sealed class AlphaMotionControllerTests
             controller.ReadOutput(index % 16);
             controller.WriteOutput(index % 16, false);
         });
-        Assert.Equal(300, TMCAEDLL.Calls.Count);
-        Assert.All(TMCAEDLL.Calls, call => Assert.Equal((ushort)0, call.Card));
+        Assert.Equal(400, NativeCalls().Length);
+        Assert.All(NativeCalls(), call => Assert.Equal((ushort)0, call.Card));
     }
 
     [Fact]
