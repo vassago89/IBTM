@@ -476,14 +476,14 @@ public static class DependencyInjection
         IServiceCollection services,
         MachineSettings settings)
     {
-        if (settings.Drivers.Control == ControlDriver.Virtual)
+        if (settings.Drivers.Light == LightDriver.Virtual)
         {
             services.AddSingleton<ILightController, VirtualLightController>();
             return;
         }
 
         services.AddSingleton<ILightController>(_ =>
-            new MovsLightController(settings.Lighting.Connection));
+            new MovsLightController(settings.Lighting));
     }
 
     private static void AddXyMotion(

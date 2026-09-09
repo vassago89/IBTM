@@ -395,7 +395,13 @@ start on that controller consumes the result; an already running fastening is
 unchanged. Other protocol commands retain their Manual/safety interlocks.
 An injected Error remains active across preset/direction changes until ADC Alarm
 Reset; attempts to Start during the error do not consume a queued result.
-The MOVS light controller uses 19200 baud and the existing
+Lighting has its own Virtual/MOVS driver selection, independent from motion/I/O.
+Settings → Devices & Safety → Lighting owns its COM port, baud rate, data bits,
+parity, stop bits, write timeout and inspection channel. Driver and serial changes
+require save/restart. Existing databases retain their previous light selection and
+COM port; a blank or failed MOVS connection is reported by hardware initialization,
+not dependency construction. Virtual development also forces the light driver to Virtual.
+The MOVS light controller defaults to 19200 baud, 8-N-1 and a 1000 ms write timeout, with the existing
 `:L{channel}{level:000}\r\n`, `:O{channel}\r\n`, `:F{channel}\r\n` commands.
 
 ## Build and validation

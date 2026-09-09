@@ -26,6 +26,10 @@ internal static class LegacyMachineImport
 
         var values = files.ToDictionary(path => Path.GetFileNameWithoutExtension(path), File.ReadAllText);
         var settings = MachineSettings.From(new SavedSettings(values));
+        if (values.TryGetValue(nameof(DriverSettings), out var driverJson)
+            && JsonNode.Parse(driverJson)?[nameof(DriverSettings.Light)] is null)
+            settings.Drivers.Light = settings.Drivers.Control == ControlDriver.Physical
+                ? LightDriver.Movs : LightDriver.Virtual;
         var recipes = new List<StoredRecipe>();
         foreach (var file in recipeFiles)
         {

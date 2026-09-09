@@ -18,20 +18,20 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
         }
 
         Check(
-            AjinNative.AxlOpen(settings.InterruptNumber),
-            nameof(AjinNative.AxlOpen));
+            CAXL.AxlOpen(settings.InterruptNumber),
+            nameof(CAXL.AxlOpen));
         try
         {
             Check(
-                AjinNative.AxmMotLoadParaAll(Path.Combine(
+                CAXM.AxmMotLoadParaAll(Path.Combine(
                     AppContext.BaseDirectory,
                     settings.MotionParameterFile)),
-                nameof(AjinNative.AxmMotLoadParaAll));
+                nameof(CAXM.AxmMotLoadParaAll));
             _initialized = true;
         }
         catch
         {
-            AjinNative.AxlClose();
+            CAXL.AxlClose();
             throw;
         }
     }
@@ -40,7 +40,7 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
     {
         if (_initialized)
         {
-            AjinNative.AxlClose();
+            CAXL.AxlClose();
             _initialized = false;
         }
     }
@@ -52,11 +52,11 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
             channel);
         var value = 0U;
         Check(
-            AjinNative.AxdiReadInportBit(
+            CAXD.AxdiReadInportBit(
                 module,
                 offset,
                 ref value),
-            nameof(AjinNative.AxdiReadInportBit));
+            nameof(CAXD.AxdiReadInportBit));
         return value != 0;
     }
 
@@ -66,11 +66,11 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
         {
             var value = 0U;
             Check(
-                AjinNative.AxdiReadInportDword(
+                CAXD.AxdiReadInportDword(
                     settings.RtexInputModules[index],
                     0,
                     ref value),
-                nameof(AjinNative.AxdiReadInportDword));
+                nameof(CAXD.AxdiReadInportDword));
             values[index] = value;
         }
     }
@@ -82,11 +82,11 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
             channel);
         var value = 0U;
         Check(
-            AjinNative.AxdoReadOutportBit(
+            CAXD.AxdoReadOutportBit(
                 module,
                 offset,
                 ref value),
-            nameof(AjinNative.AxdoReadOutportBit));
+            nameof(CAXD.AxdoReadOutportBit));
         return value != 0;
     }
 
@@ -96,11 +96,11 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
             settings.RtexOutputModules,
             channel);
         Check(
-            AjinNative.AxdoWriteOutportBit(
+            CAXD.AxdoWriteOutportBit(
                 module,
                 offset,
                 value ? 1U : 0U),
-            nameof(AjinNative.AxdoWriteOutportBit));
+            nameof(CAXD.AxdoWriteOutportBit));
     }
 
     private static (int Module, int Offset) GetRtexAddress(
@@ -111,10 +111,10 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
 
     internal static void Check(uint result, string operation)
     {
-        if (result != 0)
+        if (result != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS)
         {
             throw new IOException(
-                $"{operation} failed with Ajin result 0x{result:X8}.");
+                $"{operation} failed with Ajin result {(AXT_FUNC_RESULT)result} (0x{result:X8}).");
         }
     }
 }

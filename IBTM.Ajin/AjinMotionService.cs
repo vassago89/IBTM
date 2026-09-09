@@ -63,10 +63,10 @@ public class AjinMotionService(
         foreach (var axis in _axes)
         {
             // mm conversion belongs here, not in the .mot file's SDK scaling.
-            AjinController.Check(AjinNative.AxmMotSetMoveUnitPerPulse(axis, 1, 1),
-                nameof(AjinNative.AxmMotSetMoveUnitPerPulse));
-            AjinController.Check(AjinNative.AxmMotSetAccelUnit(axis, AccelerationInUnitsPerSecondSquared),
-                nameof(AjinNative.AxmMotSetAccelUnit));
+            AjinController.Check(CAXM.AxmMotSetMoveUnitPerPulse(axis, 1, 1),
+                nameof(CAXM.AxmMotSetMoveUnitPerPulse));
+            AjinController.Check(CAXM.AxmMotSetAccelUnit(axis, AccelerationInUnitsPerSecondSquared),
+                nameof(CAXM.AxmMotSetAccelUnit));
             SetServo(axis, true);
         }
 
@@ -118,14 +118,14 @@ public class AjinMotionService(
         var axes = new[] { _axisX, axisYNumber };
 
         return RunMoveAsync(
-            () => AjinNative.AxmMoveMultiPos(
+            () => CAXM.AxmMoveMultiPos(
                 axes.Length,
                 axes,
                 [ToUnits(x), ToUnits(y)],
                 [velocityX, velocityY],
                 [velocityX / Settings.AccelerationSeconds, velocityY / Settings.AccelerationSeconds],
                 [velocityX / Settings.DecelerationSeconds, velocityY / Settings.DecelerationSeconds]),
-            nameof(AjinNative.AxmMoveMultiPos),
+            nameof(CAXM.AxmMoveMultiPos),
             axes,
             cancellationToken);
     }
@@ -168,25 +168,25 @@ public class AjinMotionService(
         var positiveLevel = 0U;
         var negativeLevel = 0U;
         AjinController.Check(
-            AjinNative.AxmSignalGetLimit(
+            CAXM.AxmSignalGetLimit(
                 _axisZ!.Value,
                 ref stopMode,
                 ref positiveLevel,
                 ref negativeLevel),
-            nameof(AjinNative.AxmSignalGetLimit));
+            nameof(CAXM.AxmSignalGetLimit));
 
         var velocityInUnits = ToUnits(velocity);
         var acceleration = velocityInUnits / Settings.AccelerationSeconds;
 
         await RunMoveAsync(
-            () => AjinNative.AxmMoveSignalSearch(
+            () => CAXM.AxmMoveSignalSearch(
                 _axisZ!.Value,
                 velocityInUnits,
                 acceleration,
                 PositiveLimitBit,
                 (int)positiveLevel,
                 (int)stopMode),
-            nameof(AjinNative.AxmMoveSignalSearch),
+            nameof(CAXM.AxmMoveSignalSearch),
             [_axisZ.Value],
             cancellationToken);
 
@@ -207,8 +207,8 @@ public class AjinMotionService(
         var acceleration = Math.Abs(velocityInUnits) / Settings.AccelerationSeconds;
         var deceleration = Math.Abs(velocityInUnits) / Settings.DecelerationSeconds;
         return RunMoveAsync(
-            () => AjinNative.AxmMoveVel(axisNumber, velocityInUnits, acceleration, deceleration),
-            nameof(AjinNative.AxmMoveVel),
+            () => CAXM.AxmMoveVel(axisNumber, velocityInUnits, acceleration, deceleration),
+            nameof(CAXM.AxmMoveVel),
             [axisNumber],
             cancellationToken);
     }
@@ -247,14 +247,14 @@ public class AjinMotionService(
         var homeResult = 0U;
         var servoOn = 0U;
         AjinController.Check(
-            AjinNative.AxmStatusReadMechanical(axisNumber, ref mechanical),
-            nameof(AjinNative.AxmStatusReadMechanical));
+            CAXM.AxmStatusReadMechanical(axisNumber, ref mechanical),
+            nameof(CAXM.AxmStatusReadMechanical));
         AjinController.Check(
-            AjinNative.AxmHomeGetResult(axisNumber, ref homeResult),
-            nameof(AjinNative.AxmHomeGetResult));
+            CAXM.AxmHomeGetResult(axisNumber, ref homeResult),
+            nameof(CAXM.AxmHomeGetResult));
         AjinController.Check(
-            AjinNative.AxmSignalIsServoOn(axisNumber, ref servoOn),
-            nameof(AjinNative.AxmSignalIsServoOn));
+            CAXM.AxmSignalIsServoOn(axisNumber, ref servoOn),
+            nameof(CAXM.AxmSignalIsServoOn));
 
         return new AxisState(
             Homed: homeResult == HomeSuccess,
@@ -279,10 +279,10 @@ public class AjinMotionService(
         var home = Settings.Home(axis);
 
         AjinController.Check(
-            AjinNative.AxmHomeSetResult(axisNumber, HomeUnknown),
-            nameof(AjinNative.AxmHomeSetResult));
+            CAXM.AxmHomeSetResult(axisNumber, HomeUnknown),
+            nameof(CAXM.AxmHomeSetResult));
         AjinController.Check(
-            AjinNative.AxmHomeSetVel(
+            CAXM.AxmHomeSetVel(
                 axisNumber,
                 velocityInUnits,
                 ToUnits(home.DetectionSpeed),
@@ -290,26 +290,26 @@ public class AjinMotionService(
                 ToUnits(home.FineSpeed),
                 velocityInUnits / home.SearchAccelerationSeconds,
                 ToUnits(home.DetectionSpeed) / home.DetectionAccelerationSeconds),
-            nameof(AjinNative.AxmHomeSetVel));
+            nameof(CAXM.AxmHomeSetVel));
         using var cancellationRegistration = cancellationToken.Register(() =>
         {
-            AjinNative.AxmMoveSStop(axisNumber);
-            AjinNative.AxmHomeSetResult(axisNumber, HomeUnknown);
+            CAXM.AxmMoveSStop(axisNumber);
+            CAXM.AxmHomeSetResult(axisNumber, HomeUnknown);
         });
         try
         {
             BeginMotion(axis != MotionAxis.Z);
             cancellationToken.ThrowIfCancellationRequested();
             AjinController.Check(
-                AjinNative.AxmHomeSetStart(axisNumber),
-                nameof(AjinNative.AxmHomeSetStart));
+                CAXM.AxmHomeSetStart(axisNumber),
+                nameof(CAXM.AxmHomeSetStart));
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var result = 0U;
                 AjinController.Check(
-                    AjinNative.AxmHomeGetResult(axisNumber, ref result),
-                    nameof(AjinNative.AxmHomeGetResult));
+                    CAXM.AxmHomeGetResult(axisNumber, ref result),
+                    nameof(CAXM.AxmHomeGetResult));
                 PublishPosition();
 
                 if (result == HomeSuccess)
@@ -319,7 +319,7 @@ public class AjinMotionService(
 
                 if (result != HomeSearching)
                 {
-                    AjinNative.AxmMoveSStop(axisNumber);
+                    CAXM.AxmMoveSStop(axisNumber);
                     return false;
                 }
 
@@ -329,8 +329,8 @@ public class AjinMotionService(
         }
         catch
         {
-            AjinNative.AxmMoveSStop(axisNumber);
-            AjinNative.AxmHomeSetResult(axisNumber, HomeUnknown);
+            CAXM.AxmMoveSStop(axisNumber);
+            CAXM.AxmHomeSetResult(axisNumber, HomeUnknown);
             throw;
         }
         finally
@@ -389,8 +389,8 @@ public class AjinMotionService(
         foreach (var axis in _axes)
         {
             AjinController.Check(
-                AjinNative.AxmSignalServoAlarmReset(axis, 1),
-                nameof(AjinNative.AxmSignalServoAlarmReset));
+                CAXM.AxmSignalServoAlarmReset(axis, 1),
+                nameof(CAXM.AxmSignalServoAlarmReset));
         }
 
         PublishStateChanged();
@@ -407,13 +407,13 @@ public class AjinMotionService(
         var deceleration = velocityInUnits / Settings.DecelerationSeconds;
 
         return RunMoveAsync(
-            () => AjinNative.AxmMovePos(
+            () => CAXM.AxmMovePos(
                 axis,
                 ToUnits(position),
                 velocityInUnits,
                 acceleration,
                 deceleration),
-            nameof(AjinNative.AxmMovePos),
+            nameof(CAXM.AxmMovePos),
             [axis],
             cancellationToken);
     }
@@ -514,11 +514,11 @@ public class AjinMotionService(
             var inMotion = 0U;
             var mechanical = 0U;
             AjinController.Check(
-                AjinNative.AxmStatusReadInMotion(axis, ref inMotion),
-                nameof(AjinNative.AxmStatusReadInMotion));
+                CAXM.AxmStatusReadInMotion(axis, ref inMotion),
+                nameof(CAXM.AxmStatusReadInMotion));
             AjinController.Check(
-                AjinNative.AxmStatusReadMechanical(axis, ref mechanical),
-                nameof(AjinNative.AxmStatusReadMechanical));
+                CAXM.AxmStatusReadMechanical(axis, ref mechanical),
+                nameof(CAXM.AxmStatusReadMechanical));
             moving |= inMotion != 0;
             inPosition &= Bit(mechanical, InPositionBit);
             faulted |= Bit(mechanical, AlarmBit) || Bit(mechanical, EmergencyBit);
@@ -532,21 +532,21 @@ public class AjinMotionService(
     {
         foreach (var axis in _axes)
         {
-            AjinNative.AxmMoveSStop(axis);
+            CAXM.AxmMoveSStop(axis);
         }
     }
 
     private void SetServo(int axis, bool on) =>
         AjinController.Check(
-            AjinNative.AxmSignalServoOn(axis, on ? 1U : 0U),
-            nameof(AjinNative.AxmSignalServoOn));
+            CAXM.AxmSignalServoOn(axis, on ? 1U : 0U),
+            nameof(CAXM.AxmSignalServoOn));
 
     private double ReadPosition(int axis)
     {
         var position = 0.0;
         AjinController.Check(
-            AjinNative.AxmStatusGetActPos(axis, ref position),
-            nameof(AjinNative.AxmStatusGetActPos));
+            CAXM.AxmStatusGetActPos(axis, ref position),
+            nameof(CAXM.AxmStatusGetActPos));
         return position * _millimetersPerPulse;
     }
 

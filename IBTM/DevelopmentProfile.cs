@@ -21,6 +21,7 @@ internal static class DevelopmentProfile
         settings.Drivers.Control = ControlDriver.Virtual;
         settings.Drivers.Camera = CameraDriver.Virtual;
         settings.Drivers.Bolt = BoltDriver.Virtual;
+        settings.Drivers.Light = LightDriver.Virtual;
     }
 
     public static async Task PrepareAsync(RecipeStore store, MachineStore database)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.IO.Ports;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -59,6 +60,7 @@ public partial class SettingsViewModel : ObservableObject
         ActiveControlDriver = settings.Drivers.Control;
         ActiveCameraDriver = settings.Drivers.Camera;
         ActiveBoltDriver = settings.Drivers.Bolt;
+        ActiveLightDriver = settings.Drivers.Light;
         ActiveInspectionAlgorithm = settings.Drivers.Inspection;
         _motions = settings.MotionSections.ToDictionary(section => section.Hardware.Group);
         MotionGroups = _motions.Keys.ToArray();
@@ -97,12 +99,17 @@ public partial class SettingsViewModel : ObservableObject
     public ControlDriver ActiveControlDriver { get; }
     public CameraDriver ActiveCameraDriver { get; }
     public BoltDriver ActiveBoltDriver { get; }
+    public LightDriver ActiveLightDriver { get; }
     public InspectionAlgorithm ActiveInspectionAlgorithm { get; }
     public bool IsVirtualDevelopment => DevelopmentProfile.IsEnabled;
     public bool CanChangeDrivers => CanEditSettings && !IsVirtualDevelopment;
     public ControlDriver[] ControlDrivers { get; }
     public CameraDriver[] CameraDrivers { get; }
     public BoltDriver[] BoltDrivers { get; }
+    public LightDriver[] LightDrivers { get; } = Enum.GetValues<LightDriver>();
+    public Parity[] LightParities { get; } = Enum.GetValues<Parity>();
+    public StopBits[] LightStopBits { get; } = [StopBits.One, StopBits.OnePointFive, StopBits.Two];
+    public int[] LightDataBits { get; } = [5, 6, 7, 8];
     public InspectionAlgorithm[] InspectionAlgorithms { get; } =
         Enum.GetValues<InspectionAlgorithm>();
     public bool IsVirtualCamera => _virtualCamera is not null;
@@ -136,6 +143,12 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
     private async Task SaveSettingsAsync()
     {
+        if (Settings.Drivers.Light == LightDriver.Movs
+            && string.IsNullOrWhiteSpace(Settings.Lighting.Connection))
+        {
+            DatabaseMessage = "MOVS light COM port is required. Set Devices & Safety > Lighting > COM Port before saving.";
+            return;
+        }
         using var operation = _operations.Link();
         ApplyHardwareMappings();
         await Settings.SaveAsync(_store, operation.Token);

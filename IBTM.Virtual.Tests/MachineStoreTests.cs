@@ -15,6 +15,59 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class MachineStoreTests
 {
+    [Theory]
+    [InlineData("\"Physical\"", LightDriver.Movs)]
+    [InlineData("1", LightDriver.Movs)]
+    [InlineData("\"Virtual\"", LightDriver.Virtual)]
+    [InlineData("0", LightDriver.Virtual)]
+    public async Task LightingMigrationPreservesOldSelectionAndComThenSavesIndependently(
+        string oldControl, LightDriver expected)
+    {
+        var file = Path.Combine(CreateDirectory(), "Machine.db");
+        var store = new MachineStore(file);
+        await new MachineSettings().SaveAsync(store);
+        using (var connection = new SqliteConnection($"Data Source={file}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE Settings SET Value = json_set(json_remove(Value, '$.Light'), '$.Control', json($control))
+                WHERE Key = 'DriverSettings';
+                UPDATE Settings SET Value = '{"Connection":"COM8","InspectionChannel":3}'
+                WHERE Key = 'LightingSettings';
+                DELETE FROM __EFMigrationsHistory WHERE MigrationId = '20260909170000_IndependentLightDriver';
+                """;
+            command.Parameters.AddWithValue("$control", oldControl);
+            command.ExecuteNonQuery();
+        }
+        var reopened = new MachineStore(file);
+        var loaded = await MachineSettings.LoadAsync(reopened);
+        Assert.Equal(expected, loaded.Drivers.Light);
+        Assert.Equal("COM8", loaded.Lighting.Connection);
+        Assert.Equal(3, loaded.Lighting.InspectionChannel);
+        Assert.Equal(19200, loaded.Lighting.BaudRate);
+        Assert.Equal(8, loaded.Lighting.DataBits);
+        Assert.Equal(System.IO.Ports.Parity.None, loaded.Lighting.Parity);
+        Assert.Equal(System.IO.Ports.StopBits.One, loaded.Lighting.StopBits);
+        loaded.Drivers.Control = ControlDriver.Physical;
+        loaded.Drivers.Light = LightDriver.Virtual;
+        loaded.Lighting.BaudRate = 9600;
+        loaded.Lighting.DataBits = 7;
+        loaded.Lighting.Parity = System.IO.Ports.Parity.Even;
+        loaded.Lighting.StopBits = System.IO.Ports.StopBits.Two;
+        loaded.Lighting.WriteTimeoutMilliseconds = 750;
+        await loaded.SaveAsync(reopened);
+        var again = await MachineSettings.LoadAsync(new MachineStore(file));
+        Assert.Equal(ControlDriver.Physical, again.Drivers.Control);
+        Assert.Equal(LightDriver.Virtual, again.Drivers.Light);
+        Assert.Equal("COM8", again.Lighting.Connection);
+        Assert.Equal(9600, again.Lighting.BaudRate);
+        Assert.Equal(7, again.Lighting.DataBits);
+        Assert.Equal(System.IO.Ports.Parity.Even, again.Lighting.Parity);
+        Assert.Equal(System.IO.Ports.StopBits.Two, again.Lighting.StopBits);
+        Assert.Equal(750, again.Lighting.WriteTimeoutMilliseconds);
+    }
+
     [Fact]
     public async Task MotionSettingsConvertLegacyRatiosOnceAndRemainIndependent()
     {
@@ -201,7 +254,8 @@ public sealed class MachineStoreTests
         var carrierPath = Directory.CreateDirectory(Path.Combine(directory, "Recipes", "Part", "Carrier")).FullName;
         File.WriteAllText(Path.Combine(settingsPath, "PcbSupplySettings.json"), "{\"RotationZ\":17}");
         File.WriteAllText(Path.Combine(settingsPath, "InspectionCameraSettings.json"), "{\"DeviceId\":\"Cam1\",\"ExposureMicroseconds\":750,\"Gain\":2}");
-        File.WriteAllText(Path.Combine(settingsPath, "LightingSettings.json"), "{\"InspectionChannel\":2,\"InspectionLevel\":90}");
+        File.WriteAllText(Path.Combine(settingsPath, "DriverSettings.json"), "{\"Control\":\"Physical\"}");
+        File.WriteAllText(Path.Combine(settingsPath, "LightingSettings.json"), "{\"Connection\":\"COM8\",\"InspectionChannel\":2,\"InspectionLevel\":90}");
         File.WriteAllText(Path.Combine(settingsPath, "InspectionGantrySettings.json"), "{\"CarrierScanOverlapMillimeters\":3}");
         File.WriteAllText(Path.Combine(settingsPath, "BoltInspectionSettings.json"), "{\"RegionSizePixels\":200,\"MaskThreshold\":0.7}");
         File.WriteAllText(Path.Combine(settingsPath, "RecipeSelectionSettings.json"), "{\"LastRecipeName\":\"Part\"}");
@@ -220,6 +274,8 @@ public sealed class MachineStoreTests
         var recipe = store.LoadRecipe<Recipe>("Part");
         Assert.Equal(17, settings.PcbSupply.RotationZ);
         Assert.Equal("Cam1", settings.InspectionCamera.DeviceId);
+        Assert.Equal(LightDriver.Movs, settings.Drivers.Light);
+        Assert.Equal("COM8", settings.Lighting.Connection);
         Assert.Equal(750, recipe.BoltInspection.ExposureMicroseconds);
         Assert.Equal(2, recipe.BoltInspection.Gain);
         Assert.Equal(90, recipe.BoltInspection.LightLevel);

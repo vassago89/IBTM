@@ -14,7 +14,7 @@
 | Inspection | Gantry speeds, shared NG transfer pickup/place positions and speed | ROI, minimum mask area ratio, exposure, gain, light level and scan overlap |
 | Core coordinates | Shared upper-left/lower-right physical locating pins | Carrier-relative work points remain product data |
 | NG Conveyor | Full/alarm carrier count | None |
-| Hardware drivers | Camera ID/timeout/preview rate, light connection/channel, ADC serial bus, AJIN/AlphaMotion configuration | Drivers receive acquisition values for each capture/live start; they do not know Recipe |
+| Hardware drivers | Independent light driver and COM/baud/data bits/parity/stop bits/write timeout/channel; camera ID/timeout/preview rate, ADC serial bus, AJIN/AlphaMotion configuration | Drivers receive acquisition values for each capture/live start; they do not know Recipe |
 | Inspection Training | Separate training DB and model | Model mask threshold, dataset ROI/polygon, inspection image collection mode and epoch/batch/optimizer settings are training data, not machine or product recipes |
 
 Physical clearances, limits and fixed handoff/pin coordinates stay machine-owned.
