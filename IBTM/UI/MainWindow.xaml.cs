@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
 
@@ -20,6 +21,8 @@ public partial class MainWindow : Window
     private InputWindow? _inputWindow;
     private OutputWindow? _outputWindow;
     private AdcProtocolWindow? _adcProtocolWindow;
+    private readonly ApplicationLog _log;
+    private LogWindow? _logWindow;
     private bool _closing;
     private bool _shutdownCompleted;
 
@@ -30,7 +33,8 @@ public partial class MainWindow : Window
         IAdcBus adcBus,
         HantasSettings hantasSettings,
         MachineController machine,
-        MachineState state)
+        MachineState state,
+        ApplicationLog? log = null)
     {
         _io = io;
         _signals = signals;
@@ -38,6 +42,7 @@ public partial class MainWindow : Window
         _hantasSettings = hantasSettings;
         _machine = machine;
         _state = state;
+        _log = log ?? new ApplicationLog();
         InitializeComponent();
         DataContext = viewModel;
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -82,6 +87,7 @@ public partial class MainWindow : Window
         catch (Exception exception)
         {
             _closing = false;
+            _log.Error("Main window shutdown failed.", exception);
             MessageBox.Show(this, exception.Message, "Shutdown Failed",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
@@ -101,6 +107,18 @@ public partial class MainWindow : Window
         };
         _inputWindow.Closed += (_, _) => _inputWindow = null;
         _inputWindow.Show();
+    }
+
+    private void OnOpenLogs(object sender, RoutedEventArgs e)
+    {
+        if (_logWindow is not null)
+        {
+            _logWindow.Activate();
+            return;
+        }
+        _logWindow = new LogWindow(_log) { Owner = this };
+        _logWindow.Closed += (_, _) => _logWindow = null;
+        _logWindow.Show();
     }
 
     private void OnOpenOutputs(object sender, RoutedEventArgs e)
@@ -130,7 +148,8 @@ public partial class MainWindow : Window
         _adcProtocolWindow = new AdcProtocolWindow(
             _adcBus,
             _hantasSettings,
-            _machine)
+            _machine,
+            _log)
         {
             Owner = this,
         };

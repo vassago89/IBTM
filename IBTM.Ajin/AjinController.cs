@@ -56,7 +56,7 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
                 module,
                 offset,
                 ref value),
-            nameof(CAXD.AxdiReadInportBit));
+            nameof(CAXD.AxdiReadInportBit), module, offset);
         return value != 0;
     }
 
@@ -70,7 +70,7 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
                     settings.RtexInputModules[index],
                     0,
                     ref value),
-                nameof(CAXD.AxdiReadInportDword));
+                nameof(CAXD.AxdiReadInportDword), settings.RtexInputModules[index], 0);
             values[index] = value;
         }
     }
@@ -86,7 +86,7 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
                 module,
                 offset,
                 ref value),
-            nameof(CAXD.AxdoReadOutportBit));
+            nameof(CAXD.AxdoReadOutportBit), module, offset);
         return value != 0;
     }
 
@@ -100,7 +100,7 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
                 module,
                 offset,
                 value ? 1U : 0U),
-            nameof(CAXD.AxdoWriteOutportBit));
+            nameof(CAXD.AxdoWriteOutportBit), module, offset);
     }
 
     private static (int Module, int Offset) GetRtexAddress(
@@ -109,12 +109,12 @@ public sealed class AjinController(AjinSettings settings) : IDisposable
         (modules[channel / RtexChannelCountPerModule],
             channel % RtexChannelCountPerModule);
 
-    internal static void Check(uint result, string operation)
+    internal static void Check(uint result, string operation, int? module = null, int? offset = null)
     {
         if (result != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS)
         {
             throw new IOException(
-                $"{operation} failed with Ajin result {(AXT_FUNC_RESULT)result} (0x{result:X8}).");
+                $"{operation}{(module is null ? "" : $" (module={module}, offset={offset})")} failed with Ajin result {(AXT_FUNC_RESULT)result} (0x{result:X8}).");
         }
     }
 }

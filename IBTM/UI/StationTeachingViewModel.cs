@@ -529,6 +529,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         }
         catch (Exception exception)
         {
+            System.Diagnostics.Trace.TraceError("Teaching recipe image load failed. {0}", exception);
             if (!cancellationToken.IsCancellationRequested) CameraError ??= exception.Message;
         }
     }

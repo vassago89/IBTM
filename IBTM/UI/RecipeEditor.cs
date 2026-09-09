@@ -122,6 +122,7 @@ public partial class RecipeEditor(
         catch (OperationCanceledException) { return false; }
         catch (Exception exception)
         {
+            System.Diagnostics.Trace.TraceError("Recipe operation failed. {0}", exception);
             Error = $"Recipe operation failed: {exception.GetBaseException().Message}";
             return false;
         }

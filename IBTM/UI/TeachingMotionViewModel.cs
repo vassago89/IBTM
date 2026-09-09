@@ -126,6 +126,7 @@ public abstract partial class TeachingMotionViewModel(
         try
         {
             await Task.Run(() => store.SaveSettings(settings, cancellationToken), cancellationToken);
+            System.Diagnostics.Trace.TraceInformation("Teaching settings saved: {0}.", CurrentMotionGroup);
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -134,6 +135,7 @@ public abstract partial class TeachingMotionViewModel(
         }
         catch (Exception exception)
         {
+            System.Diagnostics.Trace.TraceError("Teaching settings save failed: {0}. {1}", CurrentMotionGroup, exception);
             SaveError = $"Teaching values were not saved: {exception.GetBaseException().Message}";
             return false;
         }

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.Virtual;
@@ -49,6 +50,8 @@ public sealed class IoStartupTests
         await machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(2));
 
         AssertUnavailable(state, error);
+        Assert.Contains(services.GetRequiredService<ApplicationLog>().ReadAfter(0),
+            entry => entry.Level == "ERROR" && entry.Detail?.Contains(error.Message) == true);
         Assert.True(machine.CanReset);
         Assert.False(machine.CanStart);
         Assert.False(machine.CanHome);
@@ -83,6 +86,8 @@ public sealed class IoStartupTests
         await WaitUntilAsync(() => !state.Display.Available);
 
         AssertUnavailable(state, error);
+        Assert.Contains(services.GetRequiredService<ApplicationLog>().ReadAfter(0),
+            entry => entry.Level == "ERROR" && entry.Detail?.Contains(error.Message) == true);
         Assert.True(machine.CanReset);
         Assert.All(services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));

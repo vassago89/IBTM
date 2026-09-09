@@ -20,6 +20,7 @@ public partial class AdcProtocolWindow : Window
     private readonly IAdcBus _bus;
     private readonly HantasSettings _settings;
     private readonly MachineController _machine;
+    private readonly ApplicationLog? _log;
     private CancellationTokenSource? _operationCancellation;
     private Task _operation = Task.CompletedTask;
     private bool _closing;
@@ -27,11 +28,13 @@ public partial class AdcProtocolWindow : Window
     public AdcProtocolWindow(
         IAdcBus bus,
         HantasSettings settings,
-        MachineController machine)
+        MachineController machine,
+        ApplicationLog? log = null)
     {
         _bus = bus;
         _settings = settings;
         _machine = machine;
+        _log = log;
         ReverseCommand = new AsyncRelayCommand(token => ExecuteAsync(TestReverseAsync, token), CanReverse);
         ReleaseReverseCommand = new RelayCommand(ReverseCommand.Cancel);
         InitializeComponent();
@@ -112,6 +115,7 @@ public partial class AdcProtocolWindow : Window
         {
             _closing = false;
             SetBusy(false);
+            _log?.Error("ADC diagnostic shutdown failed.", exception);
             MessageBox.Show(this, exception.Message, "ADC Shutdown Failed",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
@@ -328,7 +332,8 @@ public partial class AdcProtocolWindow : Window
         {
             ResultText.Text = "Operation failed. Check controller status.";
             ConnectionStatusText.Text = exception.Message;
-            AppendLog($"ERROR  {exception.Message}");
+            _log?.Error("ADC diagnostic operation failed.", exception);
+            AppendLog($"ERROR  {exception.Message}", record: false);
         }
     }
 
@@ -383,10 +388,11 @@ public partial class AdcProtocolWindow : Window
 
     private void OnFrameTransferred(AdcFrameDirection direction, byte[] frame) =>
         Dispatcher.BeginInvoke(() =>
-            AppendLog($"{(direction == AdcFrameDirection.Transmit ? "TX" : "RX")}     {ToHex(frame)}"));
+            AppendLog($"{(direction == AdcFrameDirection.Transmit ? "TX" : "RX")}     {ToHex(frame)}", record: false));
 
-    private void AppendLog(string text)
+    private void AppendLog(string text, bool record = true)
     {
+        if (record) _log?.Write($"ADC {text}");
         LogBox.AppendText($"{DateTime.Now:HH:mm:ss.fff}  {text}{Environment.NewLine}");
         if (LogBox.Text.Length > MaximumLogCharacters)
         {

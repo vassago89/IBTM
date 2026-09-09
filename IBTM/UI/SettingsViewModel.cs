@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Ports;
 using System.Linq;
@@ -147,12 +148,14 @@ public partial class SettingsViewModel : ObservableObject
             && string.IsNullOrWhiteSpace(Settings.Lighting.Connection))
         {
             DatabaseMessage = "MOVS light COM port is required. Set Devices & Safety > Lighting > COM Port before saving.";
+            Trace.TraceError("Settings not saved: {0}", DatabaseMessage);
             return;
         }
         using var operation = _operations.Link();
         ApplyHardwareMappings();
         await Settings.SaveAsync(_store, operation.Token);
         DatabaseMessage = "Settings saved. Restart to apply driver, connection, pulse length and mapping changes.";
+        Trace.TraceInformation("Settings saved to {0}. Restart required for hardware changes.", _store.DatabaseFile);
         _state.Refresh();
     }
 
@@ -181,9 +184,14 @@ public partial class SettingsViewModel : ObservableObject
         {
             await Task.Run(() => _store.Backup(dialog.FileName), operation.Token);
             DatabaseMessage = "Saved settings, recipes and carrier images backed up. Unsaved edits, AJIN .mot files and training data are not included.";
+            Trace.TraceInformation("Machine database backed up to {0}.", dialog.FileName);
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { DatabaseMessage = exception.Message; }
+        catch (Exception exception)
+        {
+            Trace.TraceError("Machine database backup failed. {0}", exception);
+            DatabaseMessage = exception.Message;
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
@@ -198,10 +206,15 @@ public partial class SettingsViewModel : ObservableObject
         {
             await Task.Run(() => _store.PrepareRestore(dialog.FileName), operation.Token);
             DatabaseMessage = "Restore prepared. The selected database will be applied on the next start.";
+            Trace.TraceInformation("Machine database restore prepared from {0}.", dialog.FileName);
             _ = Application.Current.Dispatcher.BeginInvoke(() => Application.Current.MainWindow.Close());
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { DatabaseMessage = exception.Message; }
+        catch (Exception exception)
+        {
+            Trace.TraceError("Machine database restore failed. {0}", exception);
+            DatabaseMessage = exception.Message;
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanChangeVirtualImage))]
@@ -239,6 +252,7 @@ public partial class SettingsViewModel : ObservableObject
         }
         catch (Exception exception)
         {
+            Trace.TraceError("Virtual camera image load failed. {0}", exception);
             VirtualImageError = exception.Message;
         }
     }

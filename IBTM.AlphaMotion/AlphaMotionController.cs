@@ -57,7 +57,7 @@ public sealed class AlphaMotionController(
                 _stationNumber,
                 bit,
                 ref value),
-            nameof(nmiMNApi.nmiDiGetBit));
+            nameof(nmiMNApi.nmiDiGetBit), bit);
         return value != 0;
     }
 
@@ -82,7 +82,7 @@ public sealed class AlphaMotionController(
                 _stationNumber,
                 bit,
                 ref value),
-            nameof(nmiMNApi.nmiDoGetBit));
+            nameof(nmiMNApi.nmiDoGetBit), bit);
         return value != 0;
     }
 
@@ -93,7 +93,7 @@ public sealed class AlphaMotionController(
                 _stationNumber,
                 bit,
                 value ? 1U : 0U),
-            nameof(nmiMNApi.nmiDoSetBit));
+            nameof(nmiMNApi.nmiDoSetBit), bit);
 
     public void Dispose()
     {
@@ -117,12 +117,12 @@ public sealed class AlphaMotionController(
         }
     }
 
-    private static void Check(int result, string operation)
+    private void Check(int result, string operation, int? bit = null)
     {
         if (result < 0)
         {
             throw new IOException(
-                $"{operation} failed with AlphaMotion result {result}.");
+                $"{operation} (controller={_controllerNumber}, station={_stationNumber}{(bit is null ? "" : $", bit={bit}")}) failed with AlphaMotion result {result}.");
         }
     }
 }

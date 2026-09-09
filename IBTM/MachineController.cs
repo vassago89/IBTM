@@ -60,6 +60,7 @@ public sealed class MachineController
     private readonly NgConveyorDryRun _ngConveyorDryRun;
     private readonly BoltRouteDryRun _boltRoute;
     private readonly BoltInspector _boltInspector;
+    private readonly ApplicationLog? _log;
 
     public MachineController(
         MachineState state,
@@ -90,7 +91,8 @@ public sealed class MachineController
         PcbDryRun pcbDryRun,
         NgConveyorDryRun ngConveyorDryRun,
         BoltRouteDryRun boltRoute,
-        BoltInspector boltInspector)
+        BoltInspector boltInspector,
+        ApplicationLog? log = null)
     {
         _state = state;
         _operations = operations;
@@ -128,6 +130,7 @@ public sealed class MachineController
         _boltRoute = boltRoute;
         boltRoute.Changed += state.RequestDisplayRefresh;
         _boltInspector = boltInspector;
+        _log = log;
         io.InputChanged += OnInputChanged;
         io.Faulted += OnIoFaulted;
         placementHandler.Feedback.MovingChanged += _ => CheckMotionInterlocks();
@@ -372,6 +375,7 @@ public sealed class MachineController
 
     public async Task InitializeAsync()
     {
+        _log?.Write("Machine initialization started.");
         using (var operation = _operations.Link())
         {
             var (alarm, error) = await CheckHardwareAsync(operation.Token);
@@ -382,10 +386,12 @@ public sealed class MachineController
             else _state.SetError(alarm, error);
         }
         await _state.StartDisplayUpdatesAsync(ReadDisplay);
+        _log?.Write($"Machine initialization finished. Alarm={_state.Alarm}.");
     }
 
     public void Stop()
     {
+        _log?.Write("Machine STOP requested.");
         try
         {
             _operations.Cancel();
@@ -399,6 +405,7 @@ public sealed class MachineController
 
     public async Task ShutdownAsync()
     {
+        _log?.Write("Machine shutdown requested.");
         var displayStopped = _state.StopDisplayUpdatesAsync();
         var shutdown = _operations.ShutdownAsync();
         try
@@ -796,9 +803,11 @@ public sealed class MachineController
     {
         if (!CanReset)
         {
+            _log?.Write("Machine RESET ignored: reset conditions are not satisfied.");
             return;
         }
 
+        _log?.Write("Machine RESET started.");
         using var operation = _operations.Link();
         var (alarm, error) = await CheckHardwareAsync(operation.Token);
         operation.Token.ThrowIfCancellationRequested();
@@ -1316,6 +1325,8 @@ public sealed class MachineController
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var stage = "Control I/O initialization";
+        _log?.Write(stage + " started.");
         try
         {
             // Reset can come from InputChanged; do not make its monitor wait for itself.
@@ -1324,10 +1335,13 @@ public sealed class MachineController
                 cancellationToken.ThrowIfCancellationRequested();
                 _io.Initialize();
                 cancellationToken.ThrowIfCancellationRequested();
+                stage = "Control I/O readiness check";
                 _io.CheckReady();
             }, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
+            stage = "Stopping run outputs after I/O initialization";
             StopRunOutputs();
+            _log?.Write("Control I/O initialization and readiness check completed.");
         }
         catch (OperationCanceledException) when (
             cancellationToken.IsCancellationRequested)
@@ -1336,6 +1350,7 @@ public sealed class MachineController
         }
         catch (Exception exception)
         {
+            _log?.Error(stage + " failed.", exception);
             return (MachineAlarm.IoCommunication, exception);
         }
 
@@ -1344,22 +1359,32 @@ public sealed class MachineController
         {
             if (BufferHandlersEnabled)
             {
+                stage = "PCB supply motion initialization";
+                _log?.Write(stage + " started.");
                 _supplyHandler.InitializeMotion();
+                stage = "PCB placement motion initialization";
+                _log?.Write(stage + " started.");
                 _placementHandler.InitializeMotion();
             }
 
             if (_units.BoltFastening)
             {
+                stage = "Bolt fastening motion initialization";
+                _log?.Write(stage + " started.");
                 _fasteningGantry.InitializeMotion();
             }
 
             if (InspectionGantryEnabled)
             {
+                stage = "Inspection motion initialization";
+                _log?.Write(stage + " started.");
                 _inspectionGantry.InitializeMotion();
             }
+            _log?.Write("Motion initialization completed.");
         }
         catch (Exception exception)
         {
+            _log?.Error(stage + " failed.", exception);
             return (MachineAlarm.MotionUnavailable, exception);
         }
 
@@ -1368,10 +1393,13 @@ public sealed class MachineController
         {
             try
             {
+                _log?.Write("Vision / lighting initialization started.");
                 _boltInspector.InitializeVision();
+                _log?.Write("Vision / lighting initialization completed.");
             }
             catch (Exception exception)
             {
+                _log?.Error("Vision / lighting initialization failed.", exception);
                 return (MachineAlarm.Inspection, exception);
             }
         }
@@ -1381,7 +1409,9 @@ public sealed class MachineController
         {
             try
             {
+                _log?.Write("Bolt controller readiness check started.");
                 await _fasteningGantry.CheckReadyAsync(cancellationToken);
+                _log?.Write("Bolt controller readiness check completed.");
             }
             catch (OperationCanceledException) when (
                 cancellationToken.IsCancellationRequested)
@@ -1390,6 +1420,7 @@ public sealed class MachineController
             }
             catch (Exception exception)
             {
+                _log?.Error("Bolt controller readiness check failed.", exception);
                 return (MachineAlarm.BoltFastening, exception);
             }
         }

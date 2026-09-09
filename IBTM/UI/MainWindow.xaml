@@ -197,6 +197,9 @@
                             Style="{StaticResource SidebarToolButtonStyle}"
                             IsEnabled="{Binding AdcProtocolEnabled}"
                             Click="OnOpenAdcProtocol"/>
+                    <Button Content="LOGS"
+                            Style="{StaticResource SidebarToolButtonStyle}"
+                            Click="OnOpenLogs"/>
                 </StackPanel>
 
             </Grid>

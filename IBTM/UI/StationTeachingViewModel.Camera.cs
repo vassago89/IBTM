@@ -226,7 +226,11 @@ public partial class StationTeachingViewModel
         }
         catch (Exception exception)
         {
-            if (!activeCancellation.IsCancellationRequested) CameraError = exception.Message;
+            if (!activeCancellation.IsCancellationRequested)
+            {
+                System.Diagnostics.Trace.TraceError("Teaching inspection failed. {0}", exception);
+                CameraError = exception.Message;
+            }
         }
     }
 
@@ -240,6 +244,7 @@ public partial class StationTeachingViewModel
         }
         catch (Exception exception)
         {
+            System.Diagnostics.Trace.TraceError("Camera live view stop failed. {0}", exception);
             CameraError = exception.Message;
         }
         lock (_liveImageGate)
@@ -254,6 +259,7 @@ public partial class StationTeachingViewModel
 
     private void HandleLiveViewFailure(Exception exception)
     {
+        System.Diagnostics.Trace.TraceError("Camera live view failed. {0}", exception);
         if (!IsCameraLive)
         {
             return;

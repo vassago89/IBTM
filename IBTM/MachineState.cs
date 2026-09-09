@@ -117,6 +117,7 @@ public sealed class MachineState : IDisposable
     private readonly MotionStatus _placementMotion;
     private readonly MotionStatus _fasteningMotion;
     private readonly MotionStatus _inspectionMotion;
+    private readonly ApplicationLog? _log;
 
     public MachineState(
         MachineOptions options,
@@ -131,7 +132,8 @@ public sealed class MachineState : IDisposable
         PcbSupplyHandler pcbSupply,
         PcbPlacementHandler pcbPlacement,
         BoltFasteningGantry boltFastening,
-        InspectionGantry inspectionGantry)
+        InspectionGantry inspectionGantry,
+        ApplicationLog? log = null)
     {
         _options = options;
         _units = units;
@@ -147,6 +149,7 @@ public sealed class MachineState : IDisposable
         _placementMotion = pcbPlacement.Motion;
         _fasteningMotion = boltFastening.Motion;
         _inspectionMotion = inspectionGantry.Motion;
+        _log = log;
 
         io.InputChanged += (input, _) =>
         {
@@ -208,6 +211,8 @@ public sealed class MachineState : IDisposable
                         }
                         catch (IOException exception)
                         {
+                            if (Display.ReadError?.Message != exception.Message)
+                                _log?.Error("Display refresh failed.", exception);
                             if (_io.IsReady)
                             {
                                 Display = new() { ReadError = exception };
@@ -231,6 +236,7 @@ public sealed class MachineState : IDisposable
                 }
                 catch (Exception exception)
                 {
+                    _log?.Error("Display worker stopped by an unexpected error.", exception);
                     Display = new() { ReadError = exception };
                     _firstDisplay.TrySetException(exception);
                     DisplayChanged?.Invoke();
@@ -400,18 +406,21 @@ public sealed class MachineState : IDisposable
 
     internal void SetHoming(bool value)
     {
+        if (IsHoming != value) _log?.Write($"Homing {(value ? "started" : "finished")}.");
         IsHoming = value;
         Changed?.Invoke();
     }
 
     internal void SetAutomaticRunning(bool value)
     {
+        if (AutomaticRunning != value) _log?.Write($"Automatic operation {(value ? "started" : "stopped")}.");
         AutomaticRunning = value;
         Changed?.Invoke();
     }
 
     internal void SetBoltTestRunning(bool value)
     {
+        if (BoltTestRunning != value) _log?.Write($"Bolt test {(value ? "started" : "stopped")}.");
         BoltTestRunning = value;
         Changed?.Invoke();
     }
@@ -426,11 +435,13 @@ public sealed class MachineState : IDisposable
         Alarm = alarm;
         AlarmDetail = exception?.ToString();
         AlarmMessage = exception?.Message;
+        _log?.Error($"Machine alarm: {alarm}.", exception);
         Changed?.Invoke();
     }
 
     internal void ClearError()
     {
+        if (Alarm != MachineAlarm.None) _log?.Write($"Machine alarm cleared: {Alarm}.");
         Alarm = MachineAlarm.None;
         AlarmDetail = null;
         AlarmMessage = null;

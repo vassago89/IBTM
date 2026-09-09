@@ -32,6 +32,16 @@ expose feedback and operations; automatic units use these objects, not arbitrary
 IO numbers. The Operation page displays unit feedback. Digital Inputs/Outputs
 windows are the intentional maintenance access.
 
+The sidebar's **LOGS** button opens one shared log window, with the newest
+messages at the top. Initialization, physical DI changes/DO commands, alarms,
+ADC frames, Trace messages and unhandled exceptions are recorded even when
+the window is closed. Errors include their exception details and stack traces.
+The window keeps recent messages; complete session logs are written under
+`Logs/IBTM-<timestamp>-<process>.log` beside the executable. **Pause display**
+and **Clear view** only affect the display, not collection or file recording.
+If file recording fails, the window reports the failure and retains recent
+messages in memory. Successful 10 ms input polls are not logged individually.
+
 Supply and Placement coordinate through `BufferStage`; neither calls the other
 automatic unit. Stations do not command the main conveyor. The conveyor observes
 station inputs and work completion. Inspection depends on the NG shuttle/conveyor,

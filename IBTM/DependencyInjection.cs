@@ -31,6 +31,7 @@ public static class DependencyInjection
         MachineSettings settings,
         Recipe? recipe = null)
     {
+        services.TryAddSingleton<ApplicationLog>();
         services.TryAddSingleton(_ => new MachineStore());
         services.TryAddSingleton<RecipeStore>();
         var hardware = settings.HardwareSections;

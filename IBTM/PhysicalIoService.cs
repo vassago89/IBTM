@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Ajin;
 using IBTM.AlphaMotion;
+using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM;
@@ -14,7 +15,8 @@ public sealed class PhysicalIoService(
     AjinController ajin,
     IReadOnlyDictionary<InputIo, int> inputMap,
     IReadOnlyDictionary<OutputIo, OutputHardware> outputMap,
-    MachineOptions options)
+    MachineOptions options,
+    ApplicationLog? log = null)
     : IIoService, IDisposable
 {
     private const int AlphaMotionChannelCount = 16;
@@ -47,19 +49,37 @@ public sealed class PhysicalIoService(
                 return;
             }
 
-            StopInputMonitor();
-            alphaMotion.Initialize();
-            ajin.Initialize();
-            foreach (var input in Inputs)
+            var stage = "Stopping previous input scan";
+            try
             {
-                _inputs[(int)input] = ReadInput(inputMap[input]);
-            }
+                StopInputMonitor();
+                stage = "AlphaMotion initialization";
+                log?.Write(stage + " started.");
+                alphaMotion.Initialize();
+                log?.Write(stage + " completed.");
+                stage = "AJIN initialization / motion parameter loading";
+                log?.Write(stage + " started.");
+                ajin.Initialize();
+                log?.Write(stage + " completed.");
+                foreach (var input in Inputs)
+                {
+                    stage = $"Initial DI read: {input}, channel={inputMap[input]}";
+                    var value = ReadInput(inputMap[input]);
+                    _inputs[(int)input] = value;
+                    log?.Write($"{stage}: {(value ? "ON" : "OFF")}");
+                }
 
-            _ready = true;
-            _inputMonitor = new CancellationTokenSource();
-            var cancellationToken = _inputMonitor.Token;
-            _inputMonitorTask = Task.Run(
-                () => MonitorInputsAsync(cancellationToken));
+                _ready = true;
+                _inputMonitor = new CancellationTokenSource();
+                var cancellationToken = _inputMonitor.Token;
+                _inputMonitorTask = Task.Run(
+                    () => MonitorInputsAsync(cancellationToken));
+            }
+            catch (Exception exception)
+            {
+                log?.Error($"{stage} failed. Input scan is not running.", exception);
+                throw;
+            }
         }
     }
 
@@ -89,9 +109,10 @@ public sealed class PhysicalIoService(
                     }
                 }
             }
-            catch
+            catch (Exception exception)
             {
                 _ready = false;
+                log?.Error("Control I/O readiness check failed.", exception);
                 throw;
             }
         }
@@ -109,16 +130,25 @@ public sealed class PhysicalIoService(
     public void SetOutput(OutputIo output, bool value)
     {
         var mapping = outputMap[output];
-        if (mapping.OffNumber is { } offChannel)
+        try
         {
-            WriteOutput(value ? offChannel : mapping.Number, false);
-            WriteOutput(value ? mapping.Number : offChannel, true);
+            if (mapping.OffNumber is { } offChannel)
+            {
+                WriteOutput(value ? offChannel : mapping.Number, false);
+                WriteOutput(value ? mapping.Number : offChannel, true);
+            }
+            else
+            {
+                WriteOutput(mapping.Number, value);
+            }
         }
-        else
+        catch (Exception exception)
         {
-            WriteOutput(mapping.Number, value);
+            log?.Error($"DO {output}, channel={mapping.Number}, paired OFF={mapping.OffNumber}: write {(value ? "ON" : "OFF")} failed.", exception);
+            throw;
         }
 
+        log?.Write($"DO {output}, channel={mapping.Number}: {(value ? "ON" : "OFF")}");
         OutputChanged?.Invoke(output, value);
     }
 
@@ -165,13 +195,24 @@ public sealed class PhysicalIoService(
 
     private async Task MonitorInputsAsync(CancellationToken cancellationToken)
     {
+        var stage = "Starting input scan";
         try
         {
+            log?.Write("Input scan started (10 ms interval).");
+            var firstScan = true;
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                stage = "AlphaMotion input read";
                 var alphaInputs = alphaMotion.ReadInputs();
+                stage = "AJIN input read";
                 ajin.ReadRtexInputs(_rtexInputs);
+                if (firstScan)
+                {
+                    log?.Write($"First input scan completed. AlphaMotion=0x{alphaInputs:X8}; AJIN words={string.Join(", ", _rtexInputs.Select(word => $"0x{word:X8}"))}.");
+                    firstScan = false;
+                }
+                stage = "Input address mapping";
                 foreach (var input in Inputs)
                 {
                     _inputScan[(int)input] = ReadMonitoredInput(
@@ -196,6 +237,8 @@ public sealed class PhysicalIoService(
                 for (var index = 0; index < changedCount; index++)
                 {
                     var input = _changedInputs[index];
+                    stage = $"Input change notification: {input}, channel={inputMap[input]}";
+                    log?.Write($"DI {input}, channel={inputMap[input]}: {(_inputScan[(int)input] ? "ON" : "OFF")}");
                     InputChanged?.Invoke(input, _inputScan[(int)input]);
                 }
 
@@ -206,10 +249,12 @@ public sealed class PhysicalIoService(
         catch (OperationCanceledException) when (
             cancellationToken.IsCancellationRequested)
         {
+            log?.Write("Input scan stopped.");
         }
         catch (Exception exception)
         {
             _ready = false;
+            log?.Error($"Input scan stopped by error during {stage}. Inputs will no longer update until initialization succeeds.", exception);
             Faulted?.Invoke(exception);
             throw;
         }

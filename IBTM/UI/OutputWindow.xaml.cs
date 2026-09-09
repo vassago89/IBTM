@@ -70,6 +70,7 @@ public partial class OutputWindow : Window
         {
             _closing = false;
             IsEnabled = true;
+            System.Diagnostics.Trace.TraceError("Output window shutdown failed. {0}", exception);
             MessageBox.Show(this, exception.Message, "Output Shutdown Failed",
                 MessageBoxButton.OK, MessageBoxImage.Error);
         }
