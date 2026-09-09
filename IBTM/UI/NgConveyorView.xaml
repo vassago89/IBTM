@@ -80,9 +80,6 @@
                         <Style TargetType="{x:Type ui:CarrierView}" BasedOn="{StaticResource CarrierStyle}">
                             <Setter Property="Visibility" Value="Collapsed"/>
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding NgConveyorPosition3Occupied}" Value="True">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                </DataTrigger>
                                 <DataTrigger Binding="{Binding NgShuttleCarrierDetected}" Value="True">
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </DataTrigger>

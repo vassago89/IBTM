@@ -176,7 +176,19 @@ public static class DependencyInjection
                 inspection,
                 routeInspectionToNg: () => units.NgCarrierTransfer && inspection.RouteToNg);
         });
+        services.AddSingleton(provider => new MainConveyorDryRun(
+            provider.GetRequiredService<MainConveyor>(),
+            [provider.GetRequiredService<PcbPlacementWork>().Station,
+             provider.GetRequiredService<BoltFasteningWork>().Station,
+             provider.GetRequiredService<InspectionWork>().Station]));
         services.AddSingleton<NgCarrierTransfer>();
+        services.AddSingleton<NgCarrierMove>();
+        services.AddSingleton<NgTransferDryRun>();
+        services.AddSingleton<InspectionDryRun>();
+        services.AddSingleton<PcbReturn>();
+        services.AddSingleton<PcbDryRun>();
+        services.AddSingleton<NgConveyorDryRun>();
+        services.AddSingleton<BoltRouteDryRun>();
         services.AddSingleton(provider =>
         {
             var gantry = new InspectionGantry(
@@ -222,7 +234,9 @@ public static class DependencyInjection
                         x,
                         y,
                         z,
-                        settings.PcbPlacementHandler.BufferHandoffPosition);
+                        settings.PcbPlacementHandler.BufferHandoffPosition,
+                        recipe.PcbPlacement.HeatSink1PcbPlacementPosition,
+                        recipe.PcbPlacement.HeatSink2PcbPlacementPosition);
             }
 
             return new BufferStage(
@@ -305,8 +319,7 @@ public static class DependencyInjection
                 provider.GetRequiredService<InspectionWork>(),
                 provider.GetRequiredService<BoltInspector>(),
                 provider.GetRequiredService<NgCarrierTransfer>(),
-                provider.GetRequiredService<InspectionGantry>(),
-                settings.NgCarrierTransfer,
+                provider.GetRequiredService<NgCarrierMove>(),
                 provider.GetRequiredService<NgShuttle>(),
                 () => units.NgCarrierTransfer);
         });

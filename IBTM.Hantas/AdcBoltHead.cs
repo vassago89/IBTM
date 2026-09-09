@@ -25,16 +25,18 @@ public sealed class AdcBoltHead(
         await bus.ReadDeviceInformationAsync(
             slaveAddress,
             cancellationToken);
-        ThrowIfControllerError(await bus.ReadFasteningResultAsync(
-            slaveAddress,
-            cancellationToken));
+        var status = await bus.ReadControllerStatusAsync(slaveAddress, cancellationToken);
+        if (status.Alarm != 0)
+            throw new InvalidOperationException($"ADC {slaveAddress} controller error: {status.Alarm}.");
+        if (!status.Ready || status.Running)
+            throw new InvalidOperationException($"ADC {slaveAddress} must be ready and stopped before starting.");
     }
 
     public async Task SelectPresetAsync(
         ushort preset,
         CancellationToken cancellationToken = default)
     {
-        var current = await bus.ReadFasteningResultAsync(
+        var current = await bus.ReadControllerStatusAsync(
             slaveAddress,
             cancellationToken);
         if (current.Preset == preset)
@@ -46,6 +48,28 @@ public sealed class AdcBoltHead(
             slaveAddress,
             preset,
             cancellationToken);
+    }
+
+    // Manual hold-to-run only. Cancellation stops rotation; it is not a loose-complete result.
+    public async Task RunReverseAsync(CancellationToken cancellationToken)
+    {
+        await CheckReadyAsync(cancellationToken);
+        try
+        {
+            await bus.SetDirectionAsync(slaveAddress, AdcDirection.Loosening, cancellationToken);
+            await bus.StartAsync(slaveAddress, cancellationToken);
+            while (true)
+            {
+                var status = await bus.ReadControllerStatusAsync(slaveAddress, cancellationToken);
+                if (status.Alarm != 0)
+                    throw new InvalidOperationException($"ADC {slaveAddress} controller error: {status.Alarm}.");
+                await Task.Delay(ResultPollMilliseconds, cancellationToken);
+            }
+        }
+        finally
+        {
+            await bus.StopAsync(slaveAddress, CancellationToken.None);
+        }
     }
 
     public async Task<BoltResult> TightenAsync(

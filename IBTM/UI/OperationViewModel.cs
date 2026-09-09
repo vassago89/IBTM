@@ -90,7 +90,7 @@ public partial class OperationViewModel : ObservableObject
         nameof(PcbSupplyPcbDetected),
         nameof(PcbSupplyPcbSecured),
         nameof(PcbSupplyIpmFixed),
-        nameof(PcbSupplyNestForward),
+        nameof(PcbSupplyGripperClosed),
         nameof(PcbSupplyRotated),
         nameof(Supply),
         nameof(SupplyDisplayState),
@@ -179,7 +179,6 @@ public partial class OperationViewModel : ObservableObject
         nameof(NgShuttleCarrierDetected),
         nameof(NgConveyorPosition1Occupied),
         nameof(NgConveyorPosition2Occupied),
-        nameof(NgConveyorPosition3Occupied),
         nameof(NgAlarmRequired),
         nameof(NgConveyorRunCommandOn),
         nameof(NgShuttleLift),
@@ -333,8 +332,8 @@ public partial class OperationViewModel : ObservableObject
         Placement.IpmLift == PlacementCylinderState.Down;
     public bool PcbSupplyIpmFixed =>
         Supply.IpmFixer == PcbSupplyCylinderState.Forward;
-    public bool PcbSupplyNestForward =>
-        Supply.Nest == PcbSupplyCylinderState.Forward;
+    public bool PcbSupplyGripperClosed =>
+        Supply.Gripper == PcbSupplyCylinderState.Forward;
     public bool PcbPlacementIpmGripperClosed =>
         Placement.IpmGripper == PlacementGripperState.Closed;
     public bool PcbPlacementStopperUp =>
@@ -395,8 +394,6 @@ public partial class OperationViewModel : ObservableObject
         _ngConveyor.Position1Occupied;
     public bool NgConveyorPosition2Occupied =>
         _ngConveyor.Position2Occupied;
-    public bool NgConveyorPosition3Occupied =>
-        _ngConveyor.Position3Occupied;
     public bool NgAlarmRequired => _ngConveyor.AlarmRequired;
     public bool NgConveyorRunCommandOn => _machineDisplay.NgConveyorRunning;
     public NgShuttleLiftState NgShuttleLift => _ngShuttle.Feedback.Lift;

@@ -1735,3 +1735,182 @@ The full Virtual suite passed 187/187 immediately before this UI-only change.
 The final Virtual application build and isolated verification build both have
 zero warnings/errors. Only the off-screen teaching-bindings verification mode
 was run; the fixture's interactive modes were not exercised.
+
+## NG Transfer actual-carrier dry run — 2026-09-08
+
+Manual Hardware now offers a repeating Station 3 ↔ upper shuttle transfer using
+the existing taught pickup/place coordinates, gantry, gripper and lift owners.
+Station 3 must have its backup plate raised and stopper lowered; the shuttle
+must be raised. The destination must be empty. The other automatic units are
+not started by this manual operation.
+
+NgTransferDryRun derives each action from live carrier/gripper/lift and position
+feedback. It retains only destination intent and a transfer counter. Stop uses
+the existing manual cancellation path: no release, Home or return-to-start action
+is added. Restart retains the destination while carrying; otherwise the occupied
+support determines the direction. Every XY move requires the pickup raised.
+
+The UI reads the existing background MachineDisplay sample, not motion SDK
+properties. It shows destination, next/current action, transfer count and Run/Stop.
+Leaving the page cancels the run; shutdown drains its command. VirtualMachine now
+supports picking back up from the shuttle and placing onto Station 3, preserving
+the virtual carrier's heat-sink presence during a round trip.
+
+Verification: the Virtual suite passed 188/188. After refining restart with an
+empty pickup initially lowered at the shuttle, the targeted lifecycle regression
+passed again. It covers a round trip, occupied destination, raised-pickup XY,
+immediate Stop during return travel, restart while carrying and starting with a
+carrier on the shuttle. Final Virtual/verification builds have zero warnings and
+errors. Hidden WPF binding checks pass, including the dry-run button's pre-Home
+disabled state. No real hardware was operated.
+
+Scope is NG Transfer only. Full-machine reverse cycles and ADC bolt loosening
+completion are not implemented or verified by this change.
+
+## Turn-on review: shared transfer and ADC cancellation — 2026-09-08
+
+NG automatic transfer and the manual round trip now share `NgCarrierMove` for
+physical state selection and commands. `InspectionStation` only supplies work/NG
+acceptance policy; `NgTransferDryRun` supplies direction and completed-transfer
+count. Both continue from actual lift/gripper/presence/position feedback. No
+persisted occupancy, generic reverse-command framework or new project was added.
+
+Both directions were checked at release, while the pickup still sees a released
+carrier, and while the destination sensor becomes ON during descent before the
+Down limit. The automatic path retains the shuttle/NG storage acceptance check;
+the manual round trip uses the raised shuttle as a stationary support.
+
+ADC preparation now reads current Ready/Run/Alarm/Preset from 3303~3309 instead of
+treating the last fastening event as current readiness. Virtual ADC exposes these
+registers and no longer synthesizes a fastening completion for reverse operation.
+The protocol window separates current status from the last result. Raw Start
+4003=1 is rejected rather than silently invoking a forward fastening test; the
+supervised Start Fastening command and direct Stop remain.
+
+The Windows System.IO.Ports 10.0.0 native asynchronous read/write implementation
+does not cancel an already-issued operation when its token is cancelled. ADC
+exchange now applies one configured deadline to write/read, explicitly purges
+the pending native operation on cancellation, and drains it before releasing the
+shared bus. Tests cover cancellation and timeout with an in-flight operation
+that ignores its token. They do not exercise a real serial adapter/driver.
+Source: [.NET 10 SerialStream.Windows](https://github.com/dotnet/runtime/blob/v10.0.0/src/libraries/System.IO.Ports/src/System/IO/Ports/SerialStream.Windows.cs).
+
+Final verification for this change:
+
+- Release and Virtual solution builds: zero warnings/errors.
+- Full Virtual suite: 193 passed, zero failed/skipped.
+- Off-screen WPF teaching/IO/settings/Manual/ADC checks: passed, no binding warnings.
+  Includes initial ADC selections, raw Start producing no frame, current-status
+  display, and disabled NG dry-run command before Home. The initial fixture tried
+  the new ADC handlers before mounting its content; it was corrected to resolve
+  normal WPF bindings first, without adding production Loaded handlers.
+- Whitespace diff check: passed.
+- No real board, camera, ADC, motion, Home or pneumatic operation was run.
+
+`STATION3_COMMISSIONING.md` now distinguishes DB locations, current model-readiness
+checks, all-disabled conveyor bypass and the limited NG round-trip scope. The
+actual machine's wiring/polarity, .mot, pulse scale, clearances, taught positions,
+stopping distance and inspection quality still require staged on-site checks.
+Automatic bolt loosen completion and the full-product reverse cycle remain
+unimplemented; reverse time protection is not a success condition.
+
+## Inspection route dry run — 2026-09-08 evening
+
+Manual now selects NG Transfer or Inspection Route in the same cancellable dry-run
+panel. Inspection uses the existing gantry and `BoltInspector` to visit each
+detected PCB's Data Matrix and numbered bolts, then traverse the route in reverse.
+It preserves the pending target/direction across Stop and rebuilds targets from
+the current heat-sink DI on Run. The carrier stays seated; no production barcode,
+bolt result, completion or conveyor release is written by this test.
+
+Manual admission still requires the active unit, homed/ready axes and live manual
+conditions. Loss of seating or clear/raised NG pickup cancels the inspection route.
+Missing teaching and unreadable barcodes report an Inspection alarm. Camera/model
+errors are handled at the dry-run command boundary, not by broadening the shared
+manual-motion catch: the first full suite caught that broader catch stealing a
+teaching camera error, and it was narrowed back before final verification.
+
+Verification: 196 Virtual tests passed, zero failed/skipped; Release and Virtual
+solution builds succeeded without warnings/errors. Off-screen WPF checks passed
+with no binding warnings, including route selection and disabled Run before Home.
+The rendered Manual panel was inspected and its new text foreground made explicit.
+Long barcodes are trimmed with their full text available in the tooltip. No actual
+hardware was initialized or operated. See commissioning sections 6-A and 6-B for
+the separate scopes; complete product reversal/bolt loosening is still not done.
+
+## ADC manual reverse commissioning control — 2026-09-08 evening
+
+Added Reverse (Hold) to ADC diagnostics using the existing HoldButton. AdcBoltHead
+owns direction, Start, live alarm reads and unconditional Stop on cancellation or
+failure. The common machine bolt-test scope retains readiness/safety admission and
+keeps other motion/Home/Auto blocked until cleanup finishes. Release, pointer
+exit/capture loss, the Stop button and window close cancel the same command.
+The hold control is outside the disabled operation panel so starting it does not
+immediately disable and release itself. No axis, cylinder, feeder or vacuum moves.
+
+Read Result now shows current direction, and command failure replaces an obsolete
+Fastening/Loosening message with an explicit failure notice. Raw Start is still
+rejected. The README's obsolete loose-JSON storage and implicit raw-Start wording
+were corrected to match current DB storage and explicit test controls.
+
+PDF review distinguished Model from Multi-sequence: Operation Manual pp15-17
+documents MA/MB loosening turns, but the Model Fastening step selects only 1-15.
+Model Complete therefore is not an established MA/MB completion contract. The
+protocol's pp8/19 support reverse/start/stop and live alarm monitoring, but provide
+no explicit loose-completion status. Manual reverse intentionally returns no
+success result; full-product reverse/automatic loosen remains unimplemented.
+
+Verification: 198 Virtual tests passed. Two cases check reverse cancellation and
+communication failure, selected slave only, Stop, no fake completion, then a normal
+forward tightening. Isolated off-screen WPF exercised hold release, window Stop,
+window close, machine Stop and safety loss; all finished Stop before unlocking the
+machine, with no binding warnings. Release/Virtual builds passed without warnings
+or errors. No physical equipment was initialized or operated.
+
+Virtual ADC starts at preset 1, not the invalid preset 0. This exposed a test
+observer that treated any input-register reply as a fastening result: a live
+preset value incorrectly triggered cancellation before Start. The observer now
+identifies the result block separately from the live status block, retaining the
+original Stop-before-result and resume assertions.
+
+## 2026-09-08 23:12 KST — Main conveyor actual-carrier dry run
+
+Manual / Dry Run now includes Main Conveyor alongside NG Transfer and Inspection
+Route. Its own caption describes Station 1 -> 2 -> 3 -> front sensor -> Station 1,
+not the NG transfer route. It displays the live-derived next action, retained
+destination intent and completed end-to-end passes; the selector is disabled
+while running. There is no separate test screen or direct ViewModel IO control.
+
+The conveyor owns motor Stop and SMEMA-off cleanup in production and dry run.
+Forward moves prepare the receiving stopper/plate and seat each arrival. Reverse
+lowers all three plates/stoppers and stops on the front sensor, as confirmed by
+the user. No external handshakes, production work loops or automatic carrier
+release are started. Stop retains pneumatic outputs and unfinished destination;
+an enabled working head losing its raised/clear position cancels the dry run.
+Virtual return retains the same simulated heat-sink composition at the entry.
+
+Five new cases cover route/stopper/plate ordering, no SMEMA, composition, Stop at
+entry/between sensors, direct conveyor Stop, Manual commands, Main-only operation
+and NG head-clearance loss. Full suite: 203 passed; Release/Virtual builds clean.
+Safe hidden WPF teaching/manual/ADC binding checks and all five ADC hold-exit
+checks passed. No real hardware was initialized or operated.
+
+NG sensor identity is still awaiting clarification: the final Excel separately
+lists DI-142 Shuttle Carrier and DI-145 NG ST3, while the user says P3 is on the
+shuttle and expects one sensor. The layout document's outdated DI-140..142 list
+was corrected. No speculative IO merge or NG reverse route was implemented.
+
+## 2026-09-08 confirmed IO map follow-up
+
+The user resolved the sensor question: DI-146 is absent; shuttle carrier/P3 is
+one DI-142 input, with P1/P2 at DI-144/145. The operating view now uses that single
+source, and Supply Nest is renamed Gripper. No additional IO or safety-mode rules
+were introduced. The 260901 map updates Supply, main entry/exit and NG addresses;
+mode contacts are exposed as raw IO without invented polarity-dependent behavior.
+
+205 Virtual tests passed, including full NG storage/eject and the one-time saved
+IO migration. Release and Virtual builds passed with zero warnings/errors.
+The off-screen teaching/manual/IO binding check passed with no binding warnings.
+Its old P3 display probe was updated to use carrier detection plus shuttle Down.
+No real hardware was initialized, no production database was opened, and the
+source workbook was not modified. See `IO_MAP.md` for the current wiring contract.

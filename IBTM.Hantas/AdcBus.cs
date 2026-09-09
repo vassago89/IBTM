@@ -167,10 +167,6 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         {
             var port = _port!;
             port.DiscardInBuffer();
-            FrameTransferred?.Invoke(AdcFrameDirection.Transmit, request);
-            await port.BaseStream.WriteAsync(request, cancellationToken);
-            await port.BaseStream.FlushAsync(cancellationToken);
-
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken);
             timeout.CancelAfter(settings.ResponseTimeoutMilliseconds);
@@ -178,8 +174,13 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
             byte[] response;
             try
             {
+                FrameTransferred?.Invoke(AdcFrameDirection.Transmit, request);
+                await AwaitSerialIoAsync(
+                    port.BaseStream.WriteAsync(request, timeout.Token).AsTask(),
+                    port.DiscardOutBuffer, timeout.Token);
                 response = await ReadResponseAsync(
                     port.BaseStream,
+                    port.DiscardInBuffer,
                     slaveAddress,
                     function,
                     timeout.Token);
@@ -203,17 +204,21 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
 
     private static async Task<byte[]> ReadResponseAsync(
         Stream stream,
+        Action abortRead,
         byte slaveAddress,
         AdcFunctionCode function,
         CancellationToken cancellationToken)
     {
+        Task ReadAsync(byte[] bytes) => AwaitSerialIoAsync(
+            stream.ReadExactlyAsync(bytes, cancellationToken).AsTask(), abortRead, cancellationToken);
+
         var header = new byte[2];
-        await stream.ReadExactlyAsync(header, cancellationToken);
+        await ReadAsync(header);
 
         if ((header[1] & ExceptionFunctionMask) != 0)
         {
             var tail = new byte[3];
-            await stream.ReadExactlyAsync(tail, cancellationToken);
+            await ReadAsync(tail);
             byte[] errorFrame = [.. header, .. tail];
             ValidateFrame(
                 errorFrame,
@@ -228,21 +233,37 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         if (function == AdcFunctionCode.WriteSingleRegister)
         {
             var tail = new byte[6];
-            await stream.ReadExactlyAsync(tail, cancellationToken);
+            await ReadAsync(tail);
             response = [.. header, .. tail];
         }
         else
         {
             var count = new byte[1];
-            await stream.ReadExactlyAsync(count, cancellationToken);
+            await ReadAsync(count);
             var byteCount = count[0];
             var tail = new byte[byteCount + 2];
-            await stream.ReadExactlyAsync(tail, cancellationToken);
+            await ReadAsync(tail);
             response = [.. header, byteCount, .. tail];
         }
 
         ValidateFrame(response, slaveAddress, (byte)function);
         return response;
+    }
+
+    private static async Task AwaitSerialIoAsync(Task operation, Action abort, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await operation.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Windows SerialStream ignores cancellation once native IO has started.
+            // Purge aborts that IO; drain it before releasing the shared bus to Stop/the next request.
+            abort();
+            await operation.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            throw;
+        }
     }
 
     private static void ValidateFrame(

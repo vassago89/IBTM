@@ -14,9 +14,9 @@ Supply stops at its handoff position with the IPM fixer forward
   -> Placement enters and stops at its handoff position
   -> Placement vacuum and IPM gripper inputs turn on
   -> Supply retracts the IPM fixer
-  -> Supply retracts the Nest
+  -> Supply opens its gripper
   -> Supply moves down to Clear Z and exits in X
-  -> Placement exits with the PCB assembly
+  -> Placement raises its Handler and Z, keeping IPM Down, and exits with the PCB assembly
 ```
 
 While Placement enters, Supply must remain at its taught handoff position.
@@ -31,6 +31,13 @@ equality.
 `PcbSupplier` and `PcbPlacer` do not read the Buffer PCB input directly. They
 use the live entry, handoff, and exit conditions from this object. Neither
 automatic unit references or calls the other.
+
+The manual PCB-return operation uses the same physical handoff in reverse.
+Placement returns with the PCB and IPM Down while Supply is outside, then stays secured at
+Handoff. Empty Supply enters at Clear Z and rises to Handoff. After Supply
+secures the PCB, Placement releases and retracts above Buffer Entry Z before
+Supply withdraws. `CanPlacementReturn` and `CanSupplyReturn` expose these live
+conditions; they do not add an owner, lock or a separate collision rule.
 
 Manual teaching is stricter than automatic handoff: a handler cannot be moved
 manually while the other handler is inside the Buffer area.

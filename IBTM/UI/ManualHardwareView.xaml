@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="clr-namespace:IBTM.UI"
+             xmlns:app="clr-namespace:IBTM"
              xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:ManualHardwareViewModel, IsDesignTimeCreatable=False}">
@@ -29,6 +30,8 @@
 
     <Grid Margin="24,20,24,18">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="10"/>
             <RowDefinition Height="Auto"/>
@@ -118,7 +121,172 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="4"
+        <Border Grid.Row="4" Style="{StaticResource CardStyle}" Padding="12" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <TextBlock Text="Dry Run" Style="{StaticResource PanelTitleStyle}" Margin="0,0,16,0" VerticalAlignment="Center"/>
+                        <ComboBox Width="220" ItemsSource="{Binding DryRunTargets}" SelectedItem="{Binding SelectedDryRun}">
+                            <ComboBox.Style>
+                                <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding RunDryRunCommand.IsRunning}" Value="True">
+                                            <Setter Property="IsEnabled" Value="False"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ComboBox.Style>
+                        </ComboBox>
+                        <ComboBox Width="150" Margin="8,0,0,0" ItemsSource="{Binding DryRunHeatSinks}"
+                                  SelectedItem="{Binding SelectedDryRunHeatSink}">
+                            <ComboBox.Style>
+                                <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="ToolTip" Value="A changed target applies to the next complete cycle."/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedDryRun}" Value="{x:Static app:DryRunTarget.PcbReturn}">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Setter Property="ToolTip" Value="An unfinished return keeps its active heat sink. A changed selection applies to the next return."/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding SelectedDryRun}" Value="{x:Static app:DryRunTarget.PcbRoundTrip}">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding RunDryRunCommand.IsRunning}" Value="True">
+                                            <Setter Property="IsEnabled" Value="False"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ComboBox.Style>
+                        </ComboBox>
+                    </StackPanel>
+                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,20,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Text" Value="Actual carrier · Station 3 ↔ Shuttle"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsInspectionDryRun}" Value="True">
+                                        <Setter Property="Text" Value="Seated carrier · Taught barcode and bolt points, forward and return · No carrier release"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding SelectedDryRun}" Value="{x:Static app:DryRunTarget.MainConveyor}">
+                                        <Setter Property="Text" Value="One carrier · Station 1 → 2 → 3 → Front sensor → Station 1 · No SMEMA exchange"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding SelectedDryRun}" Value="{x:Static app:DryRunTarget.PcbReturn}">
+                                        <Setter Property="Text" Value="Unfastened PCB · Front sensor → Station 1 → Buffer → Supply · One return"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding SelectedDryRun}" Value="{x:Static app:DryRunTarget.PcbRoundTrip}">
+                                        <Setter Property="Text" Value="One PCB preloaded in Supply · Supply ↔ Selected heat sink · Repeat until Stop · No bolts or conveyors"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding SelectedDryRun}" Value="{x:Static app:DryRunTarget.NgConveyor}">
+                                        <Setter Property="Text" Value="One carrier · P1 ↔ Shuttle / P3 · Shuttle Down before travel, Up after arrival · No operator ejection"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding SelectedDryRun}" Value="{x:Static app:DryRunTarget.BoltRoute}">
+                                        <Setter Property="Text" Value="Head 2 → Head 1 seating → Head 1 final, then return · Pickup XY/Z and head strokes · No vacuum, escape, shooting, fastening or loosening"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <TextBlock Text="{Binding DryRunDestination, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,16,0"/>
+                        <TextBlock Margin="0,0,16,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{Binding DryRunState, Converter={StaticResource EnumDescriptionConverter}}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding RunDryRunCommand.IsRunning}" Value="False">
+                                            <Setter Property="Text" Value="{Binding DryRunState, Converter={StaticResource EnumDescriptionConverter}, StringFormat='Next: {0}'}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="{Binding DryRunPasses, StringFormat='Passes: {0}'}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedDryRun}" Value="{x:Static app:DryRunTarget.PcbRoundTrip}">
+                                            <Setter Property="Text" Value="{Binding DryRunPasses, StringFormat='Cycles: {0}'}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Margin="16,0,0,0" Text="{Binding DryRunPcb, Converter={StaticResource EnumDescriptionConverter}, StringFormat='Active: {0}', TargetNullValue='Active: —'}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedDryRun}" Value="{x:Static app:DryRunTarget.PcbRoundTrip}">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding SelectedDryRun}" Value="{x:Static app:DryRunTarget.PcbReturn}">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,20,0">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SelectedDryRun}" Value="{x:Static app:DryRunTarget.BoltRoute}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="{Binding DryRunHead, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
+                        <TextBlock Text="{Binding DryRunFasteningPass, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
+                        <TextBlock Text="{Binding DryRunPcb, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
+                        <TextBlock Text="{Binding DryRunBolt, StringFormat='Bolt {0}'}"/>
+                    </StackPanel>
+                    <Grid Margin="0,6,20,0" Visibility="{Binding IsInspectionDryRun, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding DryRunPcb, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="1" Text="{Binding DryRunBolt, StringFormat='Bolt {0}', TargetNullValue='Data Matrix'}" Margin="0,0,20,0"/>
+                        <TextBlock Grid.Column="2" Text="Last barcode: " Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Grid.Column="3" Text="{Binding DryRunBarcode, TargetNullValue='—'}" ToolTip="{Binding DryRunBarcode}" TextTrimming="CharacterEllipsis" Margin="0,0,20,0"/>
+                        <TextBlock Grid.Column="4" Text="Last bolt: " Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Grid.Column="5">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="—"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DryRunBoltPresent}" Value="True">
+                                            <Setter Property="Text" Value="Present"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding DryRunBoltPresent}" Value="False">
+                                            <Setter Property="Text" Value="Missing"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Run" Command="{Binding RunDryRunCommand}" Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,8,0"/>
+                    <Button Content="Stop" Command="{Binding RunDryRunCancelCommand}" Style="{StaticResource DangerButtonStyle}" MinWidth="100"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="6"
                 Style="{StaticResource CardStyle}"
                 Padding="14">
             <Grid>

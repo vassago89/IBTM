@@ -9,7 +9,7 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings
     public override IoSection? GetSection(System.Enum signal) => signal switch
     {
         InputIo.NgConveyorPosition1Occupied or InputIo.NgConveyorPosition2Occupied
-            or InputIo.NgConveyorPosition3Occupied or InputIo.NgConveyorStopperUp
+            or InputIo.NgConveyorAutoMode or InputIo.NgConveyorStopperUp
             or InputIo.NgConveyorStopperDown or OutputIo.NgConveyorStopperUp
             or OutputIo.NgConveyorRun or OutputIo.NgConveyorReverse
             or OutputIo.NgConveyorNormalSpeed => IoSection.NgConveyorStorage,
@@ -23,26 +23,26 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings
     {
         Inputs = new()
         {
-            [InputIo.NgConveyorPosition1Occupied] = 83,
-            [InputIo.NgConveyorPosition2Occupied] = 84,
-            [InputIo.NgConveyorPosition3Occupied] = 85,
-            [InputIo.NgConveyorStopperUp] = 86,
-            [InputIo.NgConveyorStopperDown] = 87,
-            [InputIo.NgCarrierEjectButton] = 88,
-            [InputIo.NgCarrierEjectCompleteButton] = 89,
+            [InputIo.NgConveyorAutoMode] = 83,
+            [InputIo.NgConveyorPosition1Occupied] = 84,
+            [InputIo.NgConveyorPosition2Occupied] = 85,
+            [InputIo.NgConveyorStopperUp] = 87,
+            [InputIo.NgConveyorStopperDown] = 88,
+            [InputIo.NgCarrierEjectButton] = 89,
+            [InputIo.NgCarrierEjectCompleteButton] = 90,
         };
         Outputs = new()
         {
             [OutputIo.NgConveyorStopperUp] = Output(
-                69,
                 70,
+                71,
                 InputIo.NgConveyorStopperUp,
                 InputIo.NgConveyorStopperDown),
-            [OutputIo.NgConveyorRun] = Output(71),
-            [OutputIo.NgConveyorReverse] = Output(72),
-            [OutputIo.NgConveyorNormalSpeed] = Output(73),
-            [OutputIo.NgCarrierEjectLamp] = Output(74),
-            [OutputIo.NgCarrierEjectCompleteLamp] = Output(75),
+            [OutputIo.NgConveyorRun] = Output(72),
+            [OutputIo.NgConveyorReverse] = Output(73),
+            [OutputIo.NgConveyorNormalSpeed] = Output(74),
+            [OutputIo.NgCarrierEjectLamp] = Output(75),
+            [OutputIo.NgCarrierEjectCompleteLamp] = Output(76),
         };
     }
 }

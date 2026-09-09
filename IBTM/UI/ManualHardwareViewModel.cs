@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.ComponentModel;
@@ -6,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using IBTM.BoltFastening;
 using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
@@ -41,6 +43,8 @@ public partial class ManualHardwareViewModel : ObservableObject
     private readonly MachineController _machine;
     private volatile bool _active;
     private int _stateRefreshQueued;
+    [ObservableProperty] private DryRunTarget _selectedDryRun;
+    [ObservableProperty] private HeatSinkSlot _selectedDryRunHeatSink;
 
     public bool IsHoming => _state.Display.IsHoming;
 
@@ -61,6 +65,53 @@ public partial class ManualHardwareViewModel : ObservableObject
 
     public ManualAxisRow[] Axes { get; }
     public HomeBlockReason HomeBlock => _state.Display.HomeBlock;
+    public DryRunTarget[] DryRunTargets { get; } = Enum.GetValues<DryRunTarget>();
+    public HeatSinkSlot[] DryRunHeatSinks { get; } = Enum.GetValues<HeatSinkSlot>();
+    public bool IsInspectionDryRun => SelectedDryRun == DryRunTarget.Inspection;
+    public Enum DryRunState => SelectedDryRun switch
+    {
+        DryRunTarget.MainConveyor => _state.Display.MainConveyorDryRunState,
+        DryRunTarget.Inspection => _state.Display.InspectionDryRunState,
+        DryRunTarget.PcbReturn => _state.Display.PcbReturnState,
+        DryRunTarget.PcbRoundTrip => _state.Display.PcbDryRunState,
+        DryRunTarget.NgConveyor => _state.Display.NgConveyorDryRunState,
+        DryRunTarget.BoltRoute => _state.Display.BoltRouteState,
+        _ => _state.Display.NgTransferDryRunState,
+    };
+    public Enum DryRunDestination => SelectedDryRun switch
+    {
+        DryRunTarget.MainConveyor => _state.Display.MainConveyorDestination,
+        DryRunTarget.Inspection => _state.Display.InspectionDryRunDirection,
+        DryRunTarget.PcbReturn => _state.Display.PcbReturnDestination,
+        DryRunTarget.PcbRoundTrip => _state.Display.PcbDryRunDirection,
+        DryRunTarget.NgConveyor => _state.Display.NgConveyorDestination,
+        DryRunTarget.BoltRoute => _state.Display.BoltRouteDirection,
+        _ => _state.Display.NgTransferDestination,
+    };
+    public int DryRunPasses => SelectedDryRun switch
+    {
+        DryRunTarget.MainConveyor => _state.Display.MainConveyorDryRunPasses,
+        DryRunTarget.Inspection => _state.Display.InspectionDryRunPasses,
+        DryRunTarget.PcbReturn => _state.Display.PcbReturnCount,
+        DryRunTarget.PcbRoundTrip => _state.Display.PcbDryRunCycles,
+        DryRunTarget.NgConveyor => _state.Display.NgConveyorDryRunPasses,
+        DryRunTarget.BoltRoute => _state.Display.BoltRoutePasses,
+        _ => _state.Display.NgTransferDryRunTransfers,
+    };
+    public HeatSinkSlot? DryRunPcb => SelectedDryRun switch
+    {
+        DryRunTarget.PcbReturn => _state.Display.PcbReturnHeatSink,
+        DryRunTarget.PcbRoundTrip => _state.Display.PcbDryRunDirection == PcbDryRunDirection.Ready
+            ? null : _state.Display.PcbDryRunHeatSink,
+        DryRunTarget.BoltRoute => _state.Display.BoltRouteTarget?.HeatSink,
+        _ => _state.Display.InspectionDryRunPcb,
+    };
+    public int? DryRunBolt => SelectedDryRun == DryRunTarget.BoltRoute
+        ? _state.Display.BoltRouteTarget?.Number : _state.Display.InspectionDryRunBolt;
+    public FasteningHead? DryRunHead => _state.Display.BoltRouteTarget?.Head;
+    public FasteningPass? DryRunFasteningPass => _state.Display.BoltRoutePass;
+    public string? DryRunBarcode => _state.Display.InspectionDryRunBarcode;
+    public bool? DryRunBoltPresent => _state.Display.InspectionDryRunBoltPresent;
     public ManualConveyorStatus ConveyorStatus =>
         _state.Display.ConveyorRunning
             ? ManualConveyorStatus.Running
@@ -70,6 +121,32 @@ public partial class ManualHardwareViewModel : ObservableObject
     private void RunConveyor() => _machine.RunManualConveyor();
 
     private bool CanRunConveyor() => _state.Display.ManualControlsEnabled;
+
+    [RelayCommand(CanExecute = nameof(CanRunDryRun), IncludeCancelCommand = true)]
+    private Task RunDryRunAsync(CancellationToken cancellationToken) =>
+        _machine.RunDryRunAsync(SelectedDryRun, cancellationToken, SelectedDryRunHeatSink);
+
+    private bool CanRunDryRun() => _machine.CanRunDryRun(SelectedDryRun);
+
+    partial void OnSelectedDryRunChanged(DryRunTarget value)
+    {
+        OnPropertyChanged(nameof(IsInspectionDryRun));
+        RefreshDryRun();
+    }
+
+    private void RefreshDryRun()
+    {
+        OnPropertyChanged(nameof(DryRunState));
+        OnPropertyChanged(nameof(DryRunDestination));
+        OnPropertyChanged(nameof(DryRunPasses));
+        OnPropertyChanged(nameof(DryRunPcb));
+        OnPropertyChanged(nameof(DryRunBolt));
+        OnPropertyChanged(nameof(DryRunHead));
+        OnPropertyChanged(nameof(DryRunFasteningPass));
+        OnPropertyChanged(nameof(DryRunBarcode));
+        OnPropertyChanged(nameof(DryRunBoltPresent));
+        RunDryRunCommand.NotifyCanExecuteChanged();
+    }
 
     [RelayCommand]
     private void StopConveyor() => _conveyor.Stop();
@@ -107,11 +184,12 @@ public partial class ManualHardwareViewModel : ObservableObject
     {
         _active = false;
         StopHome();
+        RunDryRunCommand.Cancel();
         _conveyor.Stop();
     }
 
     public Task ShutdownAsync() =>
-        CommandShutdown.StopAsync(Deactivate, HomeAxisCommand);
+        CommandShutdown.StopAsync(Deactivate, HomeAxisCommand, RunDryRunCommand);
 
     private void OnMachineStateChanged()
     {
@@ -136,6 +214,7 @@ public partial class ManualHardwareViewModel : ObservableObject
             OnPropertyChanged(nameof(IsHoming));
             OnPropertyChanged(nameof(ConveyorStatus));
             OnPropertyChanged(nameof(HomeBlock));
+            RefreshDryRun();
             RunConveyorCommand.NotifyCanExecuteChanged();
             ToggleServoCommand.NotifyCanExecuteChanged();
             HomeAxisCommand.NotifyCanExecuteChanged();

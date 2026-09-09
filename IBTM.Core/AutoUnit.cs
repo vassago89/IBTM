@@ -15,12 +15,13 @@ public abstract class AutoUnit
 
     protected async Task RunLoopAsync(
         Func<CancellationToken, Task> execute,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<bool>? completed = null)
     {
         Changed += _stateChanged.Set;
         try
         {
-            while (!cancellationToken.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested && completed?.Invoke() != true)
             {
                 await execute(cancellationToken);
             }

@@ -67,13 +67,16 @@ public sealed class BoltFasteningGantry
     internal BoltHeadState HeadState(FasteningHead head) =>
         GetHead(head).State;
 
-    internal bool AtSafeZ =>
+    public bool AtSafeZ =>
         !_motion.IsMoving
         && _motion.GetAxisState(MotionAxis.Z).InPosition
         && _motion.IsAtHorizontalZ;
 
     internal bool IsAt(BoltTarget bolt) =>
         IsAt(_settings.GetBoltPosition(bolt, _carrierReference));
+
+    internal bool HasPosition(BoltTarget bolt) =>
+        _settings.HasBoltPosition(bolt, _carrierReference);
 
     public bool HasReference(FasteningHead head)
     {

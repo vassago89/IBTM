@@ -94,7 +94,7 @@ public sealed class BufferStage
         PlacementAtHandoff
         && _placementState.PcbSecured;
 
-    private bool PlacementAtHandoff =>
+    public bool PlacementAtHandoff =>
         IsSettled(_placementMotion)
         && IsAt(_placementMotion.GetPosition(), _placementHandoff);
 
@@ -104,6 +104,11 @@ public sealed class BufferStage
         PositionKnown
         && PcbPresent
         && (!SupplyInside || SupplyAtHandoff);
+    public bool CanPlacementReturn =>
+        PositionKnown && !SupplyInside
+        && (!PcbPresent || PlacementInside && _placementState.PcbSecured);
+    public bool CanSupplyReturn =>
+        PositionKnown && PcbPresent && PlacementSecuredAtHandoff;
     public bool Conflict
     {
         get

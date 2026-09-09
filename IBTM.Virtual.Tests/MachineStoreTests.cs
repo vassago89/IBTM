@@ -16,6 +16,89 @@ namespace IBTM.Virtual.Tests;
 public sealed class MachineStoreTests
 {
     [Fact]
+    public async Task ConfirmedIoMapUpdatesSavedWiringOnceWithoutChangingTeachingOrRecipes()
+    {
+        var file = Path.Combine(CreateDirectory(), "Machine.db");
+        var store = new MachineStore(file);
+        var settings = new MachineSettings();
+        settings.PcbSupply.RotationZ = 17;
+        settings.PcbSupplyHardware.Axes[MachineAxis.PcbSupplyY].Maximum = 350;
+        settings.PcbSupplyHardware.MillimetersPerPulse = 0.005;
+        await settings.SaveAsync(store);
+        store.SaveRecipe("Part", new Recipe { Name = "Part" }, []);
+
+        using (var connection = new SqliteConnection($"Data Source={file}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE Settings SET Value = json_set(
+                    replace(replace(Value, 'PcbSupplyGripperClosed', 'PcbSupplyNestForward'),
+                        'PcbSupplyGripperOpen', 'PcbSupplyNestBackward'),
+                    '$.Inputs.PcbSupplyRotated', 22, '$.Inputs.PcbSupplyUnrotated', 23,
+                    '$.Inputs.PcbSupplyNestForward', 20, '$.Inputs.PcbSupplyNestBackward', 21,
+                    '$.Inputs.PcbSupplyIpmFixerForward', 26, '$.Inputs.PcbSupplyIpmFixerBackward', 27,
+                    '$.Outputs.PcbSupplyRotate.Number', 22, '$.Outputs.PcbSupplyRotate.OffNumber', 23,
+                    '$.Outputs.PcbSupplyNestForward.Number', 20, '$.Outputs.PcbSupplyNestForward.OffNumber', 21,
+                    '$.Outputs.PcbSupplyIpmFixerForward.Number', 26, '$.Outputs.PcbSupplyIpmFixerForward.OffNumber', 27)
+                WHERE Key = 'PcbSupplyHardwareSettings';
+                UPDATE Settings SET Value = json_set(json_remove(Value, '$.Inputs.MainConveyorAutoMode'),
+                    '$.Inputs.MainConveyorEntryCarrierDetected', 90,
+                    '$.Inputs.MainConveyorExitCarrierDetected', 91)
+                WHERE Key = 'ConveyorHardwareSettings';
+                UPDATE Settings SET Value = json_set(Value,
+                    '$.Outputs.NgCarrierPickupDown.Number', 63, '$.Outputs.NgCarrierPickupDown.OffNumber', 64,
+                    '$.Outputs.NgCarrierGripperClose.Number', 65, '$.Outputs.NgCarrierGripperClose.OffNumber', 66)
+                WHERE Key = 'NgCarrierTransferHardwareSettings';
+                UPDATE Settings SET Value = json_set(Value,
+                    '$.Outputs.NgShuttleDown.Number', 67, '$.Outputs.NgShuttleDown.OffNumber', 68)
+                WHERE Key = 'NgShuttleHardwareSettings';
+                UPDATE Settings SET Value = json_set(json_remove(Value, '$.Inputs.NgConveyorAutoMode'),
+                    '$.Inputs.NgConveyorPosition1Occupied', 83, '$.Inputs.NgConveyorPosition2Occupied', 84,
+                    '$.Inputs.NgConveyorPosition3Occupied', 85,
+                    '$.Inputs.NgConveyorStopperUp', 86, '$.Inputs.NgConveyorStopperDown', 87,
+                    '$.Inputs.NgCarrierEjectButton', 88, '$.Inputs.NgCarrierEjectCompleteButton', 89,
+                    '$.Outputs.NgConveyorStopperUp.Number', 69, '$.Outputs.NgConveyorStopperUp.OffNumber', 70,
+                    '$.Outputs.NgConveyorRun.Number', 71, '$.Outputs.NgConveyorReverse.Number', 72,
+                    '$.Outputs.NgConveyorNormalSpeed.Number', 73,
+                    '$.Outputs.NgCarrierEjectLamp.Number', 74, '$.Outputs.NgCarrierEjectCompleteLamp.Number', 75)
+                WHERE Key = 'NgConveyorHardwareSettings';
+                DELETE FROM __EFMigrationsHistory WHERE MigrationId = '20260908150000_IoMap260901';
+                """;
+            command.ExecuteNonQuery();
+        }
+
+        var reopened = new MachineStore(file);
+        var loaded = await MachineSettings.LoadAsync(reopened);
+        foreach (var property in typeof(MachineSettings).GetProperties())
+        {
+            if (property.GetValue(settings) is not InputHardwareSettings expected) continue;
+            var actual = (InputHardwareSettings)property.GetValue(loaded)!;
+            Assert.Equal(expected.Inputs.OrderBy(pair => pair.Key), actual.Inputs.OrderBy(pair => pair.Key));
+            if (expected is not IoHardwareSettings expectedIo) continue;
+            var actualIo = (IoHardwareSettings)actual;
+            Assert.Equal(expectedIo.Outputs.Keys.Order(), actualIo.Outputs.Keys.Order());
+            foreach (var (signal, output) in expectedIo.Outputs)
+            {
+                var saved = actualIo.Outputs[signal];
+                Assert.Equal(output.Number, saved.Number);
+                Assert.Equal(output.OffNumber, saved.OffNumber);
+                Assert.Equal(output.Feedback?.OnInput, saved.Feedback?.OnInput);
+                Assert.Equal(output.Feedback?.OffInput, saved.Feedback?.OffInput);
+            }
+        }
+        Assert.Equal(17, loaded.PcbSupply.RotationZ);
+        Assert.Equal(350, loaded.PcbSupplyHardware.Axes[MachineAxis.PcbSupplyY].Maximum);
+        Assert.Equal(0.005, loaded.PcbSupplyHardware.MillimetersPerPulse);
+        Assert.Equal("Part", reopened.LoadRecipe<Recipe>("Part").Name);
+
+        loaded.ConveyorHardware.Inputs[InputIo.MainConveyorEntryCarrierDetected] = 99;
+        await loaded.SaveAsync(reopened);
+        Assert.Equal(99, (await MachineSettings.LoadAsync(new MachineStore(file)))
+            .ConveyorHardware.Inputs[InputIo.MainConveyorEntryCarrierDetected]);
+    }
+
+    [Fact]
     public async Task SettingsBatchAndDatabaseBackupRestorePreserveValues()
     {
         var directory = CreateDirectory();

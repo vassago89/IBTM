@@ -163,8 +163,20 @@ public sealed class MainConveyor : AutoUnit
         }
     }
 
-    public async Task RunAsync(
-        CancellationToken cancellationToken = default)
+    public Task RunAsync(CancellationToken cancellationToken = default) =>
+        RunControlledAsync(token => RunLoopAsync(ExecuteAsync, token), cancellationToken);
+
+    internal Task RunDryRunAsync(Func<CancellationToken, Task> run, CancellationToken cancellationToken)
+    {
+        // Dry run owns its route; an interrupted production transfer must not
+        // move production results when the carrier passes a station in reverse.
+        _transfer = ConveyorTransfer.None;
+        return RunControlledAsync(run, cancellationToken);
+    }
+
+    private async Task RunControlledAsync(
+        Func<CancellationToken, Task> run,
+        CancellationToken cancellationToken)
     {
         Stop();
         using var runCancellation = _operations.Link(cancellationToken);
@@ -173,7 +185,7 @@ public sealed class MainConveyor : AutoUnit
         using var stopRegistration = cancellationToken.Register(StopMotor);
         try
         {
-            await RunLoopAsync(ExecuteAsync, cancellationToken);
+            await run(cancellationToken);
         }
         finally
         {
@@ -427,10 +439,24 @@ public sealed class MainConveyor : AutoUnit
         _transfer = ConveyorTransfer.None;
     }
 
-    private void StartMotor(CancellationToken cancellationToken)
+    internal async Task RunUntilAsync(InputIo destination, bool reverse, CancellationToken cancellationToken)
+    {
+        if (_io.GetInput(destination)) return;
+        try
+        {
+            StartMotor(cancellationToken, reverse);
+            await _io.WaitForInputAsync(destination, true, cancellationToken);
+        }
+        finally
+        {
+            StopMotor();
+        }
+    }
+
+    private void StartMotor(CancellationToken cancellationToken, bool reverse = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _io.SetOutput(OutputIo.MainConveyorReverse, false);
+        _io.SetOutput(OutputIo.MainConveyorReverse, reverse);
         _io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.MainConveyorRun, true);

@@ -88,12 +88,16 @@ public sealed class VirtualAdcBus : IAdcBus
                     break;
                 case AdcRemoteRegister.RemoteStart:
                     var version = ++controller.FasteningVersion;
+                    controller.Running = value != 0 && controller.Status != AdcEventStatus.Error;
                     if (value != 0 && controller.Status != AdcEventStatus.Error)
                     {
                         controller.Status = AdcEventStatus.None;
-                        var status = controller.NextStatus;
-                        controller.NextStatus = AdcEventStatus.FasteningOk;
-                        _ = CompleteFasteningAsync(controller, version, status);
+                        if (controller.Direction == AdcDirection.Fastening)
+                        {
+                            var status = controller.NextStatus;
+                            controller.NextStatus = AdcEventStatus.FasteningOk;
+                            _ = CompleteFasteningAsync(controller, version, status);
+                        }
                     }
                     break;
                 case AdcRemoteRegister.Preset:
@@ -158,7 +162,9 @@ public sealed class VirtualAdcBus : IAdcBus
             {
                 var register = (ushort)(address + index);
                 values[index] = function == AdcFunctionCode.ReadInputRegisters
-                    ? ReadResultRegister(controller, register)
+                    ? register >= (ushort)AdcStatusRegister.Preset && register <= (ushort)AdcStatusRegister.Direction
+                        ? ReadStatusRegister(controller, register)
+                        : ReadResultRegister(controller, register)
                     : controller.Registers.TryGetValue(register, out var value)
                         ? value
                         : (ushort)0;
@@ -201,9 +207,20 @@ public sealed class VirtualAdcBus : IAdcBus
 
             controller.EventCount++;
             controller.ScrewCount++;
+            controller.Running = false;
             controller.Status = status;
         }
     }
+
+    private static ushort ReadStatusRegister(Controller controller, ushort address) => (AdcStatusRegister)address switch
+    {
+        AdcStatusRegister.Preset => controller.Preset,
+        AdcStatusRegister.Ready => (ushort)(!controller.Running && controller.Status != AdcEventStatus.Error ? 1 : 0),
+        AdcStatusRegister.MotorRun => (ushort)(controller.Running ? 1 : 0),
+        AdcStatusRegister.Alarm => (ushort)(controller.Status == AdcEventStatus.Error ? 1 : 0),
+        AdcStatusRegister.Direction => (ushort)controller.Direction,
+        _ => 0,
+    };
 
     private static ushort ReadResultRegister(
         Controller controller,
@@ -238,12 +255,13 @@ public sealed class VirtualAdcBus : IAdcBus
     {
         public Dictionary<ushort, ushort> Registers { get; } = [];
         public ushort EventCount { get; set; }
-        public ushort Preset { get; set; }
+        public ushort Preset { get; set; } = 1;
         public ushort ScrewCount { get; set; }
         public AdcDirection Direction { get; set; }
         public AdcEventStatus Status { get; set; }
         public AdcEventStatus NextStatus { get; set; } =
             AdcEventStatus.FasteningOk;
         public int FasteningVersion { get; set; }
+        public bool Running { get; set; }
     }
 }

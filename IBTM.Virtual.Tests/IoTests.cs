@@ -20,6 +20,32 @@ namespace IBTM.Virtual.Tests;
 public sealed class IoTests
 {
     [Fact]
+    public void ConfirmedIoMapHasOneSignalPerInputAndNoSeparateP3Sensor()
+    {
+        var settings = new MachineSettings();
+        var hardware = typeof(MachineSettings).GetProperties()
+            .Select(property => property.GetValue(settings)).OfType<InputHardwareSettings>().ToArray();
+        var inputs = hardware.SelectMany(section => section.Inputs).ToDictionary(pair => pair.Key, pair => pair.Value);
+        Assert.Equal(Enum.GetValues<InputIo>().Order(), inputs.Keys.Order());
+        Assert.Equal(inputs.Count, inputs.Values.Distinct().Count());
+        Assert.DoesNotContain(86, inputs.Values); // DI-146 is not installed; P3 is DI-142.
+        Assert.Equal(82, inputs[InputIo.NgShuttleCarrierDetected]);
+        Assert.Equal(84, inputs[InputIo.NgConveyorPosition1Occupied]);
+        Assert.Equal(85, inputs[InputIo.NgConveyorPosition2Occupied]);
+        Assert.Equal(91, inputs[InputIo.MainConveyorEntryCarrierDetected]);
+        Assert.Equal(92, inputs[InputIo.MainConveyorExitCarrierDetected]);
+        Assert.Equal(20, inputs[InputIo.PcbSupplyRotated]);
+        Assert.Equal(22, inputs[InputIo.PcbSupplyGripperClosed]);
+        Assert.Equal(24, inputs[InputIo.PcbSupplyIpmFixerForward]);
+
+        var outputs = hardware.OfType<IoHardwareSettings>().SelectMany(section => section.Outputs).ToArray();
+        Assert.Equal(Enum.GetValues<OutputIo>().Order(), outputs.Select(pair => pair.Key).Order());
+        var channels = outputs.SelectMany(pair => pair.Value.OffNumber is { } off
+            ? new[] { pair.Value.Number, off } : new[] { pair.Value.Number }).ToArray();
+        Assert.Equal(channels.Length, channels.Distinct().Count());
+    }
+
+    [Fact]
     public void IoStatusSharesInputsAndRefreshesOutputDisplayOnlyWhenRequested()
     {
         var hardware = new NgShuttleHardwareSettings();
@@ -114,6 +140,41 @@ public sealed class IoTests
     }
 
     [Fact]
+    public async Task StoppedShootingRetainsTubeBoltUntilManualShooting()
+    {
+        var io = new VirtualIoService(
+            new BoltFasteningHardwareSettings().Outputs,
+            new MachineOptions());
+        _ = new VirtualMachine(io, []);
+        io.Initialize();
+        IIoService signals = io;
+        await signals.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, true);
+        io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
+
+        void StopAtTube(InputIo input, bool value)
+        {
+            if (input == InputIo.ShootingTubeBoltDetected && value)
+                io.SetOutput(OutputIo.ShootBolt, false);
+        }
+
+        io.InputChanged += StopAtTube;
+        io.SetOutput(OutputIo.ShootBolt, true);
+        await signals.WaitForInputAsync(InputIo.ShootingTubeBoltDetected, true);
+        await Task.Delay(300);
+        io.InputChanged -= StopAtTube;
+
+        Assert.False(io.GetOutput(OutputIo.ShootBolt));
+        Assert.True(io.GetInput(InputIo.ShootingTubeBoltDetected));
+        Assert.False(io.GetInput(InputIo.ShootingHeadVacuumDetected));
+
+        io.SetOutput(OutputIo.ShootBolt, true);
+        await signals.WaitForInputAsync(InputIo.ShootingHeadVacuumDetected, true);
+        io.SetOutput(OutputIo.ShootBolt, false);
+        Assert.False(io.GetInput(InputIo.ShootingTubeBoltDetected));
+        Assert.True(io.GetInput(InputIo.ShootingHeadVacuumDetected));
+    }
+
+    [Fact]
     public async Task CylinderFeedbackRequiresOneEndpointAndRejectsContradictoryInputs()
     {
         var io = new VirtualIoService(
@@ -184,7 +245,7 @@ public sealed class IoTests
         Assert.True(io.GetOutput(OutputIo.NgShuttleDown));
         Assert.True(io.GetInput(InputIo.NgShuttleUp));
         Assert.False(io.GetInput(InputIo.NgShuttleDown));
-        Assert.False(io.GetInput(InputIo.NgConveyorPosition3Occupied));
+        Assert.True(io.GetInput(InputIo.NgShuttleCarrierDetected));
 
         io.SetOutput(OutputIo.NgShuttleDown, false);
         io.SetOutput(OutputIo.NgShuttleDown, true);
@@ -199,7 +260,9 @@ public sealed class IoTests
         Assert.True(io.GetInput(InputIo.NgShuttleDown));
         Assert.False(io.GetInput(InputIo.NgShuttleUp));
         Assert.True(io.GetInput(InputIo.NgShuttleCarrierDetected));
-        Assert.False(io.GetInput(InputIo.NgConveyorPosition3Occupied));
+
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
+        Assert.True(io.GetInput(InputIo.NgShuttleCarrierDetected));
     }
 
     [Theory]
@@ -216,7 +279,9 @@ public sealed class IoTests
         _ = new VirtualMachine(io, []);
         io.Initialize();
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true);
-        io.SetInput(InputIo.NgConveyorPosition3Occupied, true);
+        io.SetInput(InputIo.NgShuttleDown, true);
+        io.SetInput(InputIo.NgShuttleUp, false);
+        io.SetInput(InputIo.NgShuttleCarrierDetected, true);
         io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         await ((IIoService)io).WaitForInputAsync(
@@ -234,7 +299,7 @@ public sealed class IoTests
 
         Assert.True(io.GetOutput(OutputIo.NgConveyorRun));
         Assert.True(io.GetOutput(OutputIo.ShootingFeederRunSignal));
-        Assert.True(io.GetInput(InputIo.NgConveyorPosition3Occupied));
+        Assert.True(io.GetInput(InputIo.NgShuttleCarrierDetected));
         Assert.False(io.GetInput(InputIo.NgConveyorPosition1Occupied));
         Assert.False(io.GetInput(InputIo.PickupFeederBoltDetected));
         Assert.False(io.GetInput(InputIo.ShootingFeederBoltDetected));
@@ -248,7 +313,7 @@ public sealed class IoTests
             () => io.GetInput(InputIo.NgConveyorPosition1Occupied)
                   && io.GetInput(InputIo.ShootingFeederBoltDetected),
             TimeSpan.FromSeconds(2)));
-        Assert.False(io.GetInput(InputIo.NgConveyorPosition3Occupied));
+        Assert.False(io.GetInput(InputIo.NgShuttleCarrierDetected));
         Assert.False(io.GetInput(InputIo.PickupFeederBoltDetected));
     }
 
@@ -295,13 +360,13 @@ public sealed class IoTests
         foreach (var secured in new[] { true, false })
         {
             io.AutoResponseEnabled = false;
-            io.SetOutput(OutputIo.PcbSupplyNestForward, secured);
+            io.SetOutput(OutputIo.PcbSupplyGripperClosed, secured);
             io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, secured);
             io.SetOutput(OutputIo.PcbPlacementIpmGripperClose, secured);
             io.SetOutput(OutputIo.PcbPlacementVacuumEjector, secured);
             io.SetInput(InputIo.PcbSupplyPcbDetected, secured);
-            io.SetInput(InputIo.PcbSupplyNestForward, secured);
-            io.SetInput(InputIo.PcbSupplyNestBackward, !secured);
+            io.SetInput(InputIo.PcbSupplyGripperClosed, secured);
+            io.SetInput(InputIo.PcbSupplyGripperOpen, !secured);
             io.SetInput(InputIo.PcbSupplyIpmFixerForward, secured);
             io.SetInput(InputIo.PcbSupplyIpmFixerBackward, !secured);
             io.SetInput(InputIo.PcbPlacementPcbDetected, secured);
@@ -320,8 +385,8 @@ public sealed class IoTests
 
         io.AutoResponseEnabled = false;
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
-        io.SetInput(InputIo.PcbSupplyNestForward, true);
-        io.SetInput(InputIo.PcbSupplyNestBackward, false);
+        io.SetInput(InputIo.PcbSupplyGripperClosed, true);
+        io.SetInput(InputIo.PcbSupplyGripperOpen, false);
         io.SetInput(InputIo.PcbSupplyIpmFixerForward, true);
         io.SetInput(InputIo.PcbSupplyIpmFixerBackward, false);
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);

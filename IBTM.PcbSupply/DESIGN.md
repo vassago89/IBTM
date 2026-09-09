@@ -50,19 +50,18 @@ coordinated XY commands are not available to Supply code.
 Supply and Placement overlap only at their taught Buffer handoff positions.
 Placement secures the PCB with vacuum and the loose IPM with its IPM gripper.
 After both feedback inputs are confirmed at the taught handoff position, Supply
-retracts its IPM fixer and leaves the Buffer. Placement waits until Supply is
+retracts its IPM fixer, opens its gripper, and leaves the Buffer. Placement waits until Supply is
 outside before leaving. See
 [`BufferStage`](../IBTM.PcbBuffer/DESIGN.md).
 
-The Buffer PCB-present input is confirmed. Additional Buffer actuators and
-clearance inputs have not been confirmed yet.
+The Buffer has the confirmed PCB-present input, with no clamp or lift actuator.
 
 ## Observed state
 
 The automatic trigger is based on digital inputs. An output value is never used
 as proof that a pneumatic actuator reached its commanded position.
 
-Rotation, Nest, IPM fixer, and PCB state are calculated from the current inputs.
+Rotation, Gripper, IPM fixer, and PCB state are calculated from the current inputs.
 They are not retained in process memory. Rotation has three values:
 
 ```csharp
@@ -77,17 +76,17 @@ public enum PcbSupplyRotationState
 | State | Confirmed inputs |
 | --- | --- |
 | `Unrotated` | Unrotated input ON, rotated input OFF |
-| `Between` | Both rotation-position inputs OFF |
+| `Between` | Both rotation-position inputs OFF or both ON |
 | `Rotated` | Unrotated input OFF, rotated input ON |
 
 `Unrotated` and `Rotated` describe orientation, not the handler's X/Y/Z
 coordinates.
 
-Nest and IPM fixer each use `Backward`, `Between`, and `Forward`. `Between`
+Gripper and IPM fixer each use `Backward`, `Between`, and `Forward`. `Between`
 also covers an invalid pair where both endpoint inputs are ON, so it is never
 mistaken for either completed endpoint.
 
-The PCB-detection sensor is independent of the Nest and IPM fixer. Its input only
+The PCB-detection sensor is independent of the Gripper and IPM fixer. Its input only
 means that a PCB is within the sensor's detection range; it does not prove that
 the handler holds the PCB. The live PCB state is:
 
@@ -95,10 +94,10 @@ the handler holds the PCB. The live PCB state is:
 | --- | --- |
 | `None` | PCB detection OFF |
 | `Detected` | PCB detection ON without both fixing mechanisms forward |
-| `Secured` | PCB detection, Nest forward, and IPM fixer forward ON |
+| `Secured` | PCB detection, Gripper forward, and IPM fixer forward ON |
 
 `PcbSupplyHandler` is the only production class that reads Supply IO. Placement
-does not read Supply PCB, Nest, or IPM-fixer inputs directly. Both automatic units use
+does not read Supply PCB, Gripper, or IPM-fixer inputs directly. Both automatic units use
 the live handoff state published by `BufferStage`.
 
 Every relevant input change re-evaluates the behavior of the current state.
@@ -172,9 +171,9 @@ PCB 2 Pick X/Z
 ```
 
 Positive Z points downward, so Clear Z must be greater than Place Z. The only
-horizontal movement below Rotation Z is the X-only exit from Buffer to the X home
-position. Buffer Y stays fixed and the handler remains rotated at the confirmed
-Clear Z.
+horizontal path below Rotation Z is between Buffer and the X home position at
+Clear Z: the empty exit in production and its reverse entry in PCB return.
+Buffer Y stays fixed and the handler remains rotated.
 
 While Supply is inside its Buffer collision range, manual Y, Z, and rotation
 commands are disabled. A manual point move to the Buffer requires the rotated
@@ -225,8 +224,8 @@ X home
   -> Carrier Y
   -> selected PCB X/Z
   -> PCB input ON
-  -> Supply Nest forward
-  -> Supply Nest-forward input ON
+  -> Supply Gripper forward
+  -> Supply Gripper-forward input ON
   -> IPM fixer forward
   -> IPM fixer-forward input ON
   -> Rotation Z
@@ -282,7 +281,7 @@ PCB 2 buffer placement.
 The confirmed high-level `Rotated` flow is:
 
 ```text
-Supply PCB detected, Nest forward, and IPM fixer forward
+Supply PCB detected, Gripper forward, and IPM fixer forward
   -> Rotation Z
   -> rotate
   -> wait while Placement blocks Buffer entry
@@ -291,7 +290,7 @@ Supply PCB detected, Nest forward, and IPM fixer forward
   -> Place Z
   -> wait for Placement PCB, vacuum, and IPM-gripper inputs
   -> retract Supply IPM fixer
-  -> retract Supply Nest
+  -> retract Supply Gripper
   -> move down to Clear Z
   -> X origin outside the machine with Y unchanged, clear of the Buffer
   -> Rotation Z
@@ -317,10 +316,80 @@ After the PCB 1 buffer placement and unrotation, check PCB 2 on the same carrier
 After the PCB 2 buffer placement and unrotation, wait for the next accepted SMEMA carrier and
 start again from PCB 1.
 
+## Actual-product dry run
+
+The dry run uses one actual PCB supplied by Supply, not the normal two-PCB
+carrier sequence. Do not pick another PCB while that PCB is completing its
+forward/return route. The normal PCB 1 -> PCB 2 -> upstream carrier release flow
+must not be reused as the dry-run cycle-completion condition.
+
+Initial setup: the operator places one PCB in the Supply gripper before
+starting the test. Start resolves the current PCB, fixing-cylinder, rotation and
+axis feedback, then continues the forward route. It does not first wait for a new
+upstream SMEMA cycle or fetch a PCB from source position 1/2. This describes initial
+preparation, not a forced start position on every Run. Stop/Run resumes the current
+physical state and route intent without loading another PCB or resetting the axes.
+
+Confirmed preparation for Placement to pick the PCB back off the heat sink:
+open the IPM gripper, then lower the IPM lift while the gripper remains open.
+This matches the existing Buffer pickup preparation. The IPM lift is not the
+handler lift: normal X/Y travel still requires the handler lift to be Up.
+The implemented `Manual > Dry Run > PCB Return` performs one return from the
+selected heat sink to Supply. It requires an unfastened PCB. If the carrier is at
+Station 2/3, the host first uses MainConveyorDryRun's finite return: front sensor
+in reverse -> Station 1 forward -> plate Up / stopper Down -> motor stopped.
+A carrier already at Station 1 only needs seating. The PCB handoff then uses the
+existing sequence below; conveyor travel is not restarted during that handoff.
+Supply and Placement must be enabled, plus Main Conveyor when carrier seating
+is still needed. The run does not loosen bolts or start the production supply loop.
+
+```text
+Placement: Open -> IPM Down -> taught PCB position -> Handler Down
+  -> PCB detection -> vacuum -> Close -> Handler Up -> Safe Z; keep IPM Down
+  -> heat-sink-1 rotation X/Y -> unrotate -> Buffer X/Y -> Handoff Z
+  -> Handler Down -> IPM Down; keep vacuum and gripper holding
+Supply: empty and outside -> Open / fixer retract -> rotate at Rotation Z
+  -> Buffer Y -> Clear Z -> Buffer X beneath Placement -> Handoff Z upward
+  -> PCB detection -> gripper Close -> fixer forward
+Placement: vacuum Off -> Open -> IPM Up -> Handler Up -> Safe Z
+Supply: Rotation Z -> X origin outside, Y unchanged -> carrier Y -> unrotate
+```
+
+Placement stays settled at Handoff while Supply enters underneath. Supply stays
+settled at Handoff while Placement releases and retracts. Only then does Supply
+withdraw with the PCB. Supply X/Y remain separate moves. All positions reuse
+existing teaching; no dry-run coordinates are hard-coded. The reverse leg finishes
+with Supply holding the PCB outside the buffer. It does not put the PCB back on
+the external source or immediately begin another forward cycle.
+
+`PcbReturn` coordinates the peer handlers in the host; neither handler project
+references the other. Route intent survives Stop in memory, while PCB, grip,
+vacuum, rotation and settled-position checks use live feedback.
+PCB pickup also keeps its original heat-sink target across Stop; changing the
+selector cannot redirect a partially vacuum-held PCB. Manual shows this active
+target separately, and a new selection applies after the current return completes.
+Partial Supply X entry resumes at Clear Z; partial upward handoff resumes upward, not by
+re-running the normal forward buffer entry. This intent is not persisted across
+application restart.
+
+`Manual > Dry Run > PCB Round Trip` repeats the forward and return routes until
+Stop. Start with one PCB in Supply and a seated Station 1 carrier. Both heat sinks
+may be present, but only the selected heat sink is used. No source pickup, SMEMA,
+conveyor, bolt or inspection loop starts. A complete return to Supply counts as
+one cycle. Changing the selected heat sink during Stop applies at the next cycle;
+the unfinished cycle keeps its original target and direction.
+
+`PcbDryRun` reuses `PcbSupplier.TransferStepAsync` and `PcbPlacer.PlaceStepAsync`,
+the same actions used by their production loops. It does not copy their forward
+motion/IO implementation. The standalone PCB Return remains available for one
+reverse leg. Production still uses PCB 1 -> PCB 2 and normal upstream SMEMA.
+Full-machine repeating integration, including NG transport, is separate. Fastening and
+loosening are excluded from dry run by user decision; taught bolt-point movement
+is retained in the independent Bolt Route test.
+
 ## Not defined yet
 
-The current design intentionally covers the normal machine flow only. Automatic
-recovery is not yet defined for:
+Automatic recovery is not yet defined for:
 
 - PCB input OFF while the IPM fixer-forward input is ON;
 - both rotation-position inputs being ON; or

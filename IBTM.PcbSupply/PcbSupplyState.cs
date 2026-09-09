@@ -2,7 +2,7 @@ using System.ComponentModel;
 
 namespace IBTM.PcbSupply;
 
-internal enum PcbSupplyState
+public enum PcbSupplyState
 {
     [Description("Waiting for Carrier")]
     WaitingForCarrier,

@@ -52,9 +52,6 @@ public enum NgShuttleState
     [Description("Waiting for Carrier Pickup Up")]
     WaitingForCarrierPickupUp,
 
-    [Description("Waiting for Position 3")]
-    WaitingForPosition3,
-
     [Description("Lowering NG Shuttle")]
     Lowering,
 
@@ -84,5 +81,4 @@ internal enum NgConveyorPosition
 {
     Position1 = 1,
     Position2 = 2,
-    Position3 = 3,
 }

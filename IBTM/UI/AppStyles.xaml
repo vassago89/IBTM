@@ -209,6 +209,8 @@
                         </Border>
 
                         <ToggleButton Focusable="False"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch"
                                       Background="Transparent"
                                       BorderThickness="0"
                                       ClickMode="Press"

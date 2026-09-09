@@ -48,11 +48,11 @@ public enum InputIo
     [Description("Supply Handler Rotated")]
     PcbSupplyRotated,
 
-    [Description("Supply Nest Forward")]
-    PcbSupplyNestForward,
+    [Description("Supply Gripper Closed")]
+    PcbSupplyGripperClosed,
 
-    [Description("Supply Nest Backward")]
-    PcbSupplyNestBackward,
+    [Description("Supply Gripper Open")]
+    PcbSupplyGripperOpen,
 
     [Description("Supply IPM Fixer Forward")]
     PcbSupplyIpmFixerForward,
@@ -177,7 +177,7 @@ public enum InputIo
     [Description("NG Shuttle Up")]
     NgShuttleUp,
 
-    [Description("NG Shuttle Carrier Detected")]
+    [Description("NG Shuttle Carrier Detected (P3)")]
     NgShuttleCarrierDetected,
 
     [Description("NG Conveyor Position 1 Occupied")]
@@ -185,9 +185,6 @@ public enum InputIo
 
     [Description("NG Conveyor Position 2 Occupied")]
     NgConveyorPosition2Occupied,
-
-    [Description("NG Conveyor Position 3 Occupied")]
-    NgConveyorPosition3Occupied,
 
     [Description("NG Conveyor Stopper Up")]
     NgConveyorStopperUp,
@@ -251,6 +248,12 @@ public enum InputIo
 
     [Description("Main Conveyor Exit Carrier Detected")]
     MainConveyorExitCarrierDetected,
+
+    [Description("Main Conveyor Auto / Manual")]
+    MainConveyorAutoMode,
+
+    [Description("NG Conveyor Auto / Manual")]
+    NgConveyorAutoMode,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<OutputIo>))]
@@ -274,8 +277,8 @@ public enum OutputIo
     [Description("Supply Handler Rotate")]
     PcbSupplyRotate,
 
-    [Description("Supply Nest Forward")]
-    PcbSupplyNestForward,
+    [Description("Supply Gripper Closed")]
+    PcbSupplyGripperClosed,
 
     [Description("Supply IPM Fixer Forward")]
     PcbSupplyIpmFixerForward,

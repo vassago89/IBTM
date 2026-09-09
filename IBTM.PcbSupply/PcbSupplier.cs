@@ -15,6 +15,27 @@ public sealed class PcbSupplier(
         && (handler.Rotation != PcbSupplyRotationState.Unrotated
             || !buffer.PcbPresent);
 
+    public PcbSupplyState TransferState => State(PickStep.WaitingForCarrierExit);
+    public bool TransferComplete => handler.Pcb == PcbSupplyPcbState.None
+        && !buffer.SupplyInside && handler.IsAtRotationZ
+        && handler.Rotation == PcbSupplyRotationState.Unrotated;
+
+    // A preloaded PCB uses the production handoff without source pickup or SMEMA.
+    public Task? TransferStepAsync(CancellationToken token) => ExecuteTransferAsync(TransferState, token);
+
+    private Task? ExecuteTransferAsync(PcbSupplyState state, CancellationToken token) => state switch
+    {
+        PcbSupplyState.SecuringPcb => SecurePcbAsync(token),
+        PcbSupplyState.RaisingForPickup => handler.MoveToRotationZAsync(token),
+        PcbSupplyState.MovingAboveBuffer => handler.MoveAboveHandoffAsync(token),
+        PcbSupplyState.RotatingForBuffer => handler.SetRotatedAsync(true, token),
+        PcbSupplyState.MovingToBuffer => handler.MoveToHandoffZAsync(token),
+        PcbSupplyState.WaitingForBufferPcb => buffer.WaitForPcbAsync(token),
+        PcbSupplyState.ReleasingPcb => ReleasePcbAsync(token),
+        PcbSupplyState.UnrotatingForPickup => handler.SetRotatedAsync(false, token),
+        _ => null,
+    };
+
     public override event Action? Changed
     {
         add
@@ -68,19 +89,9 @@ public sealed class PcbSupplier(
                 handler.SetUpstreamReady(true);
             }
 
-            return State(pickStep) switch
-            {
-                PcbSupplyState.PickingPcb => PickAsync(token),
-                PcbSupplyState.SecuringPcb => handler.SecurePcbAsync(token),
-                PcbSupplyState.RaisingForPickup => handler.MoveToRotationZAsync(token),
-                PcbSupplyState.MovingAboveBuffer => handler.MoveAboveHandoffAsync(token),
-                PcbSupplyState.RotatingForBuffer => handler.SetRotatedAsync(true, token),
-                PcbSupplyState.MovingToBuffer => handler.LowerToHandoffAsync(token),
-                PcbSupplyState.WaitingForBufferPcb => buffer.WaitForPcbAsync(token),
-                PcbSupplyState.ReleasingPcb => ReleasePcbAsync(token),
-                PcbSupplyState.UnrotatingForPickup => handler.SetRotatedAsync(false, token),
-                _ => WaitForChangeAsync(token),
-            };
+            var state = State(pickStep);
+            return state == PcbSupplyState.PickingPcb ? PickAsync(token)
+                : ExecuteTransferAsync(state, token) ?? WaitForChangeAsync(token);
         }
 
         Changed += OnStateChanged;
@@ -95,10 +106,16 @@ public sealed class PcbSupplier(
         }
     }
 
+    private async Task SecurePcbAsync(CancellationToken cancellationToken)
+    {
+        await handler.SecurePcbAsync(cancellationToken);
+        await handler.MoveToRotationZAsync(cancellationToken);
+    }
+
     private async Task ReleasePcbAsync(CancellationToken cancellationToken)
     {
         await handler.SetIpmFixerAsync(false, cancellationToken);
-        await handler.SetNestAsync(false, cancellationToken);
+        await handler.SetGripperClosedAsync(false, cancellationToken);
         await handler.MoveClearAsync(cancellationToken);
     }
 

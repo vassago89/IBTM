@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.BoltFastening;
@@ -15,6 +17,142 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class ConveyorTests
 {
+    [Fact]
+    public async Task ReturnToStation1FinishesSeatedAndUsesTheCarrierPositionOnTheNextReturn()
+    {
+        var io = CreateIo();
+        _ = new VirtualMachine(io, []);
+        var conveyor = CreateConveyor(io);
+        var dryRun = new MainConveyorDryRun(conveyor,
+            [ConveyorStation.PcbPlacement(io), ConveyorStation.BoltFastening(io), ConveyorStation.Inspection(io)]);
+        io.Initialize();
+        foreach (var source in new[] { InputIo.InspectionCarrierPresent, InputIo.BoltFasteningCarrierPresent })
+        {
+            io.SetInput(InputIo.PcbPlacementCarrierPresent, false);
+            io.SetInput(source, true);
+            using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await dryRun.ReturnToStation1Async(stop.Token);
+            Assert.False(stop.IsCancellationRequested);
+            Assert.True(dryRun.AtStation1);
+            Assert.False(io.GetInput(source));
+            Assert.True(io.GetInput(InputIo.PcbPlacementCarrierPresent));
+            Assert.True(io.GetInput(InputIo.PcbPlacementBackupPlateUp));
+            Assert.True(io.GetInput(InputIo.PcbPlacementStopperDown));
+            Assert.False(conveyor.RunCommandOn);
+        }
+        io.SetInput(InputIo.PcbPlacementCarrierPresent, false);
+        var ranWithoutCarrier = false;
+        io.OutputChanged += (output, value) => ranWithoutCarrier |= output == OutputIo.MainConveyorRun && value;
+        using var empty = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => dryRun.ReturnToStation1Async(empty.Token));
+        Assert.False(ranWithoutCarrier);
+    }
+
+    [Fact]
+    public async Task MainDryRunSeatsEveryStationReturnsToEntryAndKeepsTheSameCarrier()
+    {
+        var io = CreateIo();
+        _ = new VirtualMachine(io, []);
+        var conveyor = CreateConveyor(io);
+        var stations = new[] { ConveyorStation.PcbPlacement(io), ConveyorStation.BoltFastening(io), ConveyorStation.Inspection(io) };
+        var dryRun = new MainConveyorDryRun(conveyor, stations);
+        io.Initialize();
+        io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+        await SetSeatedCarrierAsync(io, io, InputIo.PcbPlacementCarrierPresent, OutputIo.PcbPlacementBackupPlateUp);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        var arrivals = new List<InputIo>();
+        var unsafeMove = false;
+        var smemaOffered = false;
+        var reverseRuns = 0;
+        io.OutputChanged += (output, value) =>
+        {
+            if (value && output is OutputIo.MainConveyorReadyToFront2 or OutputIo.MainConveyorAvailableToRear)
+                smemaOffered = true;
+            if (output != OutputIo.MainConveyorRun || !value) return;
+            if (io.GetOutput(OutputIo.MainConveyorReverse))
+            {
+                reverseRuns++;
+                unsafeMove |= stations.Any(station => station.BackupPlate != StationCylinderState.Down
+                    || station.Stopper != StationCylinderState.Down);
+            }
+            else
+            {
+                var target = stations[(int)dryRun.Destination - (int)MainConveyorDestination.Station1];
+                unsafeMove |= target.BackupPlate != StationCylinderState.Down || target.Stopper != StationCylinderState.Up;
+            }
+        };
+        io.InputChanged += (input, value) =>
+        {
+            if (value && input is InputIo.PcbPlacementCarrierPresent or InputIo.BoltFasteningCarrierPresent
+                or InputIo.InspectionCarrierPresent or InputIo.MainConveyorEntryCarrierDetected)
+                arrivals.Add(input);
+        };
+        dryRun.Changed += () => { if (dryRun.CompletedPasses == 3) stop.Cancel(); };
+        await dryRun.RunAsync(stop.Token);
+
+        Assert.Equal(3, dryRun.CompletedPasses);
+        Assert.Equal(new[] { InputIo.BoltFasteningCarrierPresent, InputIo.InspectionCarrierPresent,
+            InputIo.MainConveyorEntryCarrierDetected, InputIo.PcbPlacementCarrierPresent,
+            InputIo.BoltFasteningCarrierPresent, InputIo.InspectionCarrierPresent }, arrivals);
+        Assert.Equal(1, reverseRuns);
+        Assert.False(unsafeMove);
+        Assert.False(smemaOffered);
+        Assert.False(conveyor.RunCommandOn);
+        Assert.False(conveyor.ExitCarrierDetected);
+        Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
+        Assert.False(io.GetInput(InputIo.InspectionHeatSink2Present));
+        Assert.All(stations, station => Assert.Equal(StationCylinderState.Up, station.BackupPlate));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MainDryRunStopKeepsItsReturnIntentAndRestartsFromLiveInputs(bool atEntry)
+    {
+        var io = CreateIo();
+        var conveyor = CreateConveyor(io);
+        var dryRun = new MainConveyorDryRun(conveyor,
+            [ConveyorStation.PcbPlacement(io), ConveyorStation.BoltFastening(io), ConveyorStation.Inspection(io)]);
+        io.Initialize();
+        await SetSeatedCarrierAsync(io, io, InputIo.InspectionCarrierPresent, OutputIo.InspectionBackupPlateUp);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        void StopReturn(OutputIo output, bool value)
+        {
+            if (output != OutputIo.MainConveyorRun || !value) return;
+            io.SetInput(InputIo.InspectionCarrierPresent, false);
+            if (atEntry) io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+            conveyor.Stop();
+        }
+        io.OutputChanged += StopReturn;
+        await dryRun.RunAsync(stop.Token);
+        io.OutputChanged -= StopReturn;
+        Assert.False(conveyor.RunCommandOn);
+        Assert.Equal(MainConveyorDestination.Entry, dryRun.Destination);
+
+        var reverseRuns = 0;
+        using var resumed = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        io.OutputChanged += (output, value) =>
+        {
+            if (output != OutputIo.MainConveyorRun || !value) return;
+            if (io.GetOutput(OutputIo.MainConveyorReverse))
+            {
+                reverseRuns++;
+                io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+            }
+            else
+            {
+                io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
+                io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+            }
+        };
+        dryRun.Changed += () => { if (dryRun.Destination == MainConveyorDestination.Station2) resumed.Cancel(); };
+        await dryRun.RunAsync(resumed.Token);
+        Assert.Equal(atEntry ? 0 : 1, reverseRuns);
+        Assert.Equal(MainConveyorDestination.Station2, dryRun.Destination);
+        Assert.True(io.GetInput(InputIo.PcbPlacementBackupPlateUp));
+        Assert.False(conveyor.RunCommandOn);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

@@ -16,6 +16,8 @@ public sealed class VirtualMachine
     private readonly bool[] _supplyPcbs = new bool[2];
     private int _supplySmemaVersion;
     private int _mainConveyorTransferVersion;
+    private (bool HeatSink1, bool HeatSink2, bool Pcb1, bool Pcb2)? _mainEntryCarrier;
+    private readonly Dictionary<InputIo, (bool Pcb1, bool Pcb2)> _carrierPcbs = [];
     private int _placementVacuumVersion;
     private int _pickupVacuumVersion;
     private int _shootingVacuumVersion;
@@ -27,9 +29,13 @@ public sealed class VirtualMachine
     private bool _supplyHoldingPcb;
     private bool _placementAtBuffer;
     private bool _placementHoldingPcb;
+    private readonly bool[] _placedPcbs = new bool[2];
+    private int? _placementHeatSink;
     private bool _inspectionAtNgPickup;
     private bool _inspectionAtNgShuttle;
     private bool _ngCarrierHeld;
+    private bool _ngCarrierHeatSink1;
+    private bool _ngCarrierHeatSink2;
 
     public VirtualMachine(
         VirtualIoService io,
@@ -72,8 +78,8 @@ public sealed class VirtualMachine
         _io.ApplyAutoResponse(_io.AutoResponseVersion, () =>
         {
             _supplyHoldingPcb = _io.GetInput(InputIo.PcbSupplyPcbDetected)
-                && _io.GetInput(InputIo.PcbSupplyNestForward)
-                && !_io.GetInput(InputIo.PcbSupplyNestBackward)
+                && _io.GetInput(InputIo.PcbSupplyGripperClosed)
+                && !_io.GetInput(InputIo.PcbSupplyGripperOpen)
                 && _io.GetInput(InputIo.PcbSupplyIpmFixerForward)
                 && !_io.GetInput(InputIo.PcbSupplyIpmFixerBackward);
             _placementHoldingPcb = _io.GetInput(InputIo.PcbPlacementPcbDetected)
@@ -87,6 +93,10 @@ public sealed class VirtualMachine
 
     private void OnInputChanged(InputIo input, bool value)
     {
+        if (input == InputIo.PcbPlacementCarrierPresent && !value)
+            Array.Clear(_placedPcbs);
+        if (!value && input is InputIo.BoltFasteningCarrierPresent or InputIo.InspectionCarrierPresent)
+            _carrierPcbs.Remove(input);
         if (value
             && (IsEmergencyStop(input)
                 || (input == InputIo.AutoMode || IsDoor(input))
@@ -152,6 +162,7 @@ public sealed class VirtualMachine
         (double X, double Z) pcb2,
         AxisPosition buffer)
     {
+        var wasAtBuffer = _supplyAtBuffer;
         _supplyAtBuffer = IsAt(x, y, z, buffer);
         if (!_supplyHoldingPcb)
         {
@@ -170,12 +181,17 @@ public sealed class VirtualMachine
                 {
                     _io.SetInput(InputIo.PcbBufferPcbPresent, true);
                 }
+                else if (wasAtBuffer && !_placementAtBuffer)
+                {
+                    _io.SetInput(InputIo.PcbBufferPcbPresent, false);
+                }
                 return;
             }
 
             _io.SetInput(
                 InputIo.PcbSupplyPcbDetected,
-                _supplyPickupSlot is { } slot && _supplyPcbs[slot]);
+                _supplyAtBuffer && _io.GetInput(InputIo.PcbBufferPcbPresent)
+                || _supplyPickupSlot is { } slot && _supplyPcbs[slot]);
         });
     }
 
@@ -183,24 +199,33 @@ public sealed class VirtualMachine
         double x,
         double y,
         double z,
-        AxisPosition bufferPosition)
+        AxisPosition bufferPosition,
+        AxisPosition? heatSink1 = null,
+        AxisPosition? heatSink2 = null)
     {
         var wasAtBuffer = _placementAtBuffer;
         _placementAtBuffer = IsAt(x, y, z, bufferPosition);
+        _placementHeatSink = heatSink1 is not null && IsAt(x, y, z, heatSink1) ? 0
+            : heatSink2 is not null && IsAt(x, y, z, heatSink2) ? 1 : null;
         _io.ApplyAutoResponse(_io.AutoResponseVersion, () =>
         {
+            if (_placementAtBuffer && _placementHoldingPcb)
+                _io.SetInput(InputIo.PcbBufferPcbPresent, true);
             if (wasAtBuffer && !_placementAtBuffer && _placementHoldingPcb)
             {
                 _io.SetInput(InputIo.PcbBufferPcbPresent, false);
             }
 
-            _io.SetInput(
-                InputIo.PcbPlacementPcbDetected,
-                _placementHoldingPcb
-                || _placementAtBuffer
-                && _io.GetInput(InputIo.PcbBufferPcbPresent));
+            UpdatePlacementDetection();
         });
     }
+
+    private void UpdatePlacementDetection() => _io.SetInput(
+        InputIo.PcbPlacementPcbDetected,
+        _placementHoldingPcb
+        || _placementAtBuffer && _io.GetInput(InputIo.PcbBufferPcbPresent)
+        || _placementHeatSink is { } slot && _placedPcbs[slot]
+            && _io.GetInput(InputIo.PcbPlacementHandlerDown));
 
     public void UpdateInspectionPosition(
         double x,
@@ -268,7 +293,10 @@ public sealed class VirtualMachine
         if (output == OutputIo.ShootBolt)
         {
             var shootVersion = Interlocked.Increment(ref _shootVersion);
-            _ = ApplyShootAsync(value, shootVersion);
+            if (value)
+            {
+                _ = ApplyShootAsync(shootVersion);
+            }
             return;
         }
 
@@ -318,9 +346,7 @@ public sealed class VirtualMachine
 
             _io.SetInput(
                 InputIo.PcbPlacementVacuumDetected,
-                value
-                && _placementAtBuffer
-                && _io.GetInput(InputIo.PcbBufferPcbPresent));
+                value && _io.GetInput(InputIo.PcbPlacementPcbDetected));
         });
 
     private Task ApplyPickupVacuumAsync(bool value, int version)
@@ -357,19 +383,13 @@ public sealed class VirtualMachine
             }
         });
 
-    private Task ApplyShootAsync(bool value, int version)
+    private Task ApplyShootAsync(int version)
     {
         var responseVersion = _io.AutoResponseVersion;
         return RespondAsync(responseVersion, () =>
         {
             if (_shootVersion != version)
             {
-                return;
-            }
-
-            if (!value)
-            {
-                _io.SetInput(InputIo.ShootingTubeBoltDetected, false);
                 return;
             }
 
@@ -385,6 +405,7 @@ public sealed class VirtualMachine
                 if (_shootVersion == version
                     && _io.GetOutput(OutputIo.ShootBolt))
                 {
+                    _io.SetInput(InputIo.ShootingTubeBoltDetected, false);
                     _io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
                 }
             });
@@ -440,6 +461,12 @@ public sealed class VirtualMachine
             if (_mainConveyorTransferVersion != version
                 || !_io.GetOutput(OutputIo.MainConveyorRun))
             {
+                return;
+            }
+
+            if (_io.GetOutput(OutputIo.MainConveyorReverse))
+            {
+                ReturnMainCarrier();
                 return;
             }
 
@@ -526,12 +553,43 @@ public sealed class VirtualMachine
                     }
 
                     _io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
-                    _io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
-                    _io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+                    var carrier = _mainEntryCarrier ?? (HeatSink1: true, HeatSink2: true, Pcb1: false, Pcb2: false);
+                    _mainEntryCarrier = null;
+                    _placedPcbs[0] = carrier.Pcb1;
+                    _placedPcbs[1] = carrier.Pcb2;
+                    _io.SetInput(InputIo.PcbPlacementHeatSink1Present, carrier.HeatSink1);
+                    _io.SetInput(InputIo.PcbPlacementHeatSink2Present, carrier.HeatSink2);
                     _io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
                 });
             }
         });
+    }
+
+    private void ReturnMainCarrier()
+    {
+        // The returning carrier passes every station. There is no reverse stopper.
+        foreach (var input in new[]
+        {
+            InputIo.PcbPlacementBackupPlateDown, InputIo.PcbPlacementStopperDown,
+            InputIo.BoltFasteningBackupPlateDown, InputIo.BoltFasteningStopperDown,
+            InputIo.InspectionBackupPlateDown, InputIo.InspectionStopperDown,
+        })
+            if (!_io.GetInput(input)) return;
+
+        foreach (var (carrier, heatSink1, heatSink2) in new[]
+        {
+            (InputIo.InspectionCarrierPresent, InputIo.InspectionHeatSink1Present, InputIo.InspectionHeatSink2Present),
+            (InputIo.BoltFasteningCarrierPresent, InputIo.BoltFasteningHeatSink1Present, InputIo.BoltFasteningHeatSink2Present),
+            (InputIo.PcbPlacementCarrierPresent, InputIo.PcbPlacementHeatSink1Present, InputIo.PcbPlacementHeatSink2Present),
+        })
+        {
+            if (!_io.GetInput(carrier)) continue;
+            var pcbs = CarrierPcbs(carrier);
+            _mainEntryCarrier = (_io.GetInput(heatSink1), _io.GetInput(heatSink2), pcbs.Pcb1, pcbs.Pcb2);
+            ClearCarrier(carrier, heatSink1, heatSink2);
+            _io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+            return;
+        }
     }
 
     private Task PresentMainCarrierAsync(int version) =>
@@ -556,7 +614,9 @@ public sealed class VirtualMachine
     {
         var heatSink1 = _io.GetInput(sourceHeatSink1);
         var heatSink2 = _io.GetInput(sourceHeatSink2);
+        var pcbs = CarrierPcbs(sourceCarrier);
         ClearCarrier(sourceCarrier, sourceHeatSink1, sourceHeatSink2);
+        _carrierPcbs[destinationCarrier] = pcbs;
         _io.SetInput(destinationHeatSink1, heatSink1);
         _io.SetInput(destinationHeatSink2, heatSink2);
         _io.SetInput(destinationCarrier, true);
@@ -571,6 +631,11 @@ public sealed class VirtualMachine
         _io.SetInput(heatSink1, false);
         _io.SetInput(heatSink2, false);
     }
+
+    // Simulated material travels with the carrier; real control still reads only sensors.
+    private (bool Pcb1, bool Pcb2) CarrierPcbs(InputIo carrier) =>
+        carrier == InputIo.PcbPlacementCarrierPresent
+            ? (_placedPcbs[0], _placedPcbs[1]) : _carrierPcbs.GetValueOrDefault(carrier);
 
     private void ApplyPhysicalOutput(OutputIo output, bool value) =>
         _io.ApplyAutoResponse(_io.AutoResponseVersion, () =>
@@ -600,6 +665,7 @@ public sealed class VirtualMachine
                         && _io.GetInput(InputIo.PcbPlacementVacuumDetected))
                     {
                         _placementHoldingPcb = true;
+                        if (_placementHeatSink is { } slot) _placedPcbs[slot] = false;
                     }
                     else if (!value && _placementHoldingPcb)
                     {
@@ -607,6 +673,7 @@ public sealed class VirtualMachine
                         {
                             _io.SetInput(InputIo.PcbBufferPcbPresent, true);
                         }
+                        if (_placementHeatSink is { } slot) _placedPcbs[slot] = true;
 
                         _placementHoldingPcb = false;
                         _io.SetInput(
@@ -617,33 +684,45 @@ public sealed class VirtualMachine
                     }
                     break;
 
-                case OutputIo.PcbPlacementHandlerDown when !value:
-                    _io.SetInput(
-                        InputIo.PcbPlacementPcbDetected,
-                        _placementHoldingPcb
-                        || _placementAtBuffer
-                        && _io.GetInput(InputIo.PcbBufferPcbPresent));
+                case OutputIo.PcbPlacementHandlerDown:
+                    UpdatePlacementDetection();
                     break;
 
                 case OutputIo.ShootingEscapeForward when value:
                     _io.SetInput(InputIo.ShootingFeederBoltDetected, false);
                     break;
-                case OutputIo.NgCarrierPickupDown when value
-                    && _ngCarrierHeld && _inspectionAtNgShuttle:
-                    _io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+                case OutputIo.NgCarrierPickupDown when _ngCarrierHeld:
+                    if (_inspectionAtNgShuttle)
+                        _io.SetInput(InputIo.NgShuttleCarrierDetected, value);
+                    else if (_inspectionAtNgPickup)
+                        _io.SetInput(InputIo.InspectionCarrierPresent, value);
                     break;
                 case OutputIo.NgCarrierGripperClose:
                     if (value
+                        && !_ngCarrierHeld
                         && _inspectionAtNgPickup
                         && _io.GetInput(InputIo.NgCarrierPickupDown)
                         && _io.GetInput(InputIo.InspectionBackupPlateUp)
                         && _io.GetInput(InputIo.InspectionCarrierPresent))
                     {
                         _ngCarrierHeld = true;
+                        _ngCarrierHeatSink1 = _io.GetInput(InputIo.InspectionHeatSink1Present);
+                        _ngCarrierHeatSink2 = _io.GetInput(InputIo.InspectionHeatSink2Present);
                         _io.SetInput(InputIo.NgCarrierDetected, true);
                         _io.SetInput(InputIo.InspectionCarrierPresent, false);
                         _io.SetInput(InputIo.InspectionHeatSink1Present, false);
                         _io.SetInput(InputIo.InspectionHeatSink2Present, false);
+                    }
+                    else if (value
+                             && !_ngCarrierHeld
+                             && _inspectionAtNgShuttle
+                             && _io.GetInput(InputIo.NgCarrierPickupDown)
+                             && _io.GetInput(InputIo.NgShuttleUp)
+                             && _io.GetInput(InputIo.NgShuttleCarrierDetected))
+                    {
+                        _ngCarrierHeld = true;
+                        _io.SetInput(InputIo.NgCarrierDetected, true);
+                        _io.SetInput(InputIo.NgShuttleCarrierDetected, false);
                     }
                     else if (!value
                              && _ngCarrierHeld
@@ -655,20 +734,17 @@ public sealed class VirtualMachine
                         _io.SetInput(InputIo.NgCarrierDetected, false);
                         _io.SetInput(InputIo.NgShuttleCarrierDetected, true);
                     }
-                    break;
-                case OutputIo.NgShuttleDown:
-                    if (value
-                        && _io.GetInput(InputIo.NgShuttleCarrierDetected))
+                    else if (!value
+                             && _ngCarrierHeld
+                             && _inspectionAtNgPickup
+                             && _io.GetInput(InputIo.NgCarrierPickupDown)
+                             && _io.GetInput(InputIo.InspectionBackupPlateUp))
                     {
-                        _io.SetInput(
-                            InputIo.NgConveyorPosition3Occupied,
-                            true);
-                    }
-                    else if (!value)
-                    {
-                        _io.SetInput(
-                            InputIo.NgShuttleCarrierDetected,
-                            false);
+                        _ngCarrierHeld = false;
+                        _io.SetInput(InputIo.NgCarrierDetected, false);
+                        _io.SetInput(InputIo.InspectionCarrierPresent, true);
+                        _io.SetInput(InputIo.InspectionHeatSink1Present, _ngCarrierHeatSink1);
+                        _io.SetInput(InputIo.InspectionHeatSink2Present, _ngCarrierHeatSink2);
                     }
                     break;
             }
@@ -688,7 +764,21 @@ public sealed class VirtualMachine
             var position2 =
                 _io.GetInput(InputIo.NgConveyorPosition2Occupied);
             var position3 =
-                _io.GetInput(InputIo.NgConveyorPosition3Occupied);
+                _io.GetInput(InputIo.NgShuttleCarrierDetected)
+                && _io.GetInput(InputIo.NgShuttleDown)
+                && !_io.GetInput(InputIo.NgShuttleUp);
+
+            if (_io.GetOutput(OutputIo.NgConveyorReverse))
+            {
+                if (_io.GetInput(InputIo.NgShuttleDown) && !_io.GetInput(InputIo.NgShuttleUp)
+                    && !position3 && (position1 || position2))
+                {
+                    _io.SetInput(InputIo.NgConveyorPosition1Occupied, false);
+                    _io.SetInput(InputIo.NgConveyorPosition2Occupied, false);
+                    _io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+                }
+                return;
+            }
 
             if (_io.GetInput(InputIo.NgConveyorStopperDown))
             {
@@ -708,7 +798,6 @@ public sealed class VirtualMachine
                 _io.SetInput(
                     InputIo.NgConveyorPosition2Occupied,
                     position3);
-                _io.SetInput(InputIo.NgConveyorPosition3Occupied, false);
                 if (position3)
                 {
                     _io.SetInput(InputIo.NgShuttleCarrierDetected, false);
@@ -719,7 +808,6 @@ public sealed class VirtualMachine
             if (!position1 && position3)
             {
                 _io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
-                _io.SetInput(InputIo.NgConveyorPosition3Occupied, false);
                 _io.SetInput(InputIo.NgShuttleCarrierDetected, false);
                 return;
             }
@@ -727,7 +815,6 @@ public sealed class VirtualMachine
             if (position1 && !position2 && position3)
             {
                 _io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
-                _io.SetInput(InputIo.NgConveyorPosition3Occupied, false);
                 _io.SetInput(InputIo.NgShuttleCarrierDetected, false);
             }
         });

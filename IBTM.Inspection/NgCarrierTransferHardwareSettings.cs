@@ -19,13 +19,13 @@ public sealed class NgCarrierTransferHardwareSettings : IoHardwareSettings
         Outputs = new()
         {
             [OutputIo.NgCarrierPickupDown] = Output(
-                63,
                 64,
+                65,
                 InputIo.NgCarrierPickupDown,
                 InputIo.NgCarrierPickupUp),
             [OutputIo.NgCarrierGripperClose] = Output(
-                65,
                 66,
+                67,
                 InputIo.NgCarrierGripperClosed,
                 InputIo.NgCarrierGripperOpen),
         };

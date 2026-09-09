@@ -83,12 +83,18 @@ for entering and leaving the configured buffer collision area.
 ## PCB placement
 
 PCB Placement Handler owns the moving XYZ handler. It picks the PCB from the Buffer,
-raises to Buffer Entry Z, moves above Heat Sink 1, rotates, and waits. A confirmed carrier
+keeps the IPM Down, raises the Handler and Z to Buffer Entry Z, moves above Heat Sink 1,
+rotates, and waits. A confirmed carrier
 and raised Backup Plate allow work only at detected heat sinks. No placement-side
 camera is controlled. At a target heat sink it lowers the Handler, releases vacuum,
-opens the IPM gripper, closes it above the PCB, lowers the IPM to press, records that
+opens the IPM gripper, raises the IPM, closes the gripper, lowers the IPM to press, records that
 heat sink, then raises the IPM, Handler, and Z. The carrier is completed only after
 this final raised state for every detected heat sink.
+
+Pressing requires the taught placement XYZ, rotated feedback, and Handler Down.
+The pending press target survives Stop because the initial carrying Down and the
+completed pressing Down have identical feedback. Restart during Close or Down
+continues that press; it does not reopen the gripper or raise the IPM again.
 
 ## Main carrier conveyor
 
@@ -117,7 +123,7 @@ arrival input.
 
 The final I/O map assigns Carrier arrival inputs to PCB Placement (`DI-128`),
 Bolt Fastening (`DI-12F`), and Inspection (`DI-136`). The main conveyor entry and
-exit sensors are `DI-14A` and `DI-14B`. Their heat sink sensors remain only the
+exit sensors are `DI-14B` and `DI-14C`. Their heat sink sensors remain only the
 work-slot mask.
 
 Automatic transfer selection must be ordered
@@ -364,14 +370,19 @@ number. A missing bolt makes the carrier NG only after all remaining bolt points
 also been inspected. A Carrier with neither heat sink present skips image capture
 and is completed as NG.
 
-NG Conveyor and NG Shuttle are separate mechanical assemblies below Station 3. The
-three NG Conveyor position sensors are `DI-140`, `DI-141`, and `DI-142`. They are
-shown as a secondary handling path next to the inspection transfer. NG capacity
+NG Conveyor and NG Shuttle are separate mechanical assemblies below Station 3.
+The confirmed 260901 IO map, with the user's correction, has P1 at `DI-144`,
+P2 at `DI-145`, and P3 on the shuttle at `DI-142`. `DI-146` is absent.
+There is one P3/carrier input, owned by the shuttle; raising or lowering the shuttle
+does not clear it. Lift feedback remains separate at `DI-140/141`.
+The NG sensors are shown as a secondary handling path next to the inspection transfer. NG capacity
 counts carriers, not individual PCBs. The Shuttle lowers a new Carrier at
 Position 3. With Position 1 empty the belt moves it to Position 1; otherwise it moves
 to Position 2, and with Positions 1 and 2 occupied it remains at Position 3. All three
-occupied inputs block the next NG pickup at Station 3. The eject button releases the
-Carrier at Position 1 and the remaining carriers move forward. The complete lamp then
+occupied inputs block the next NG pickup at Station 3. A full shuttle stays raised
+with its carrier while the lower belt ejects P1 and compacts P2. After eject completion
+is acknowledged, the shuttle can lower its retained carrier into the free position.
+The eject button releases the Carrier at Position 1. The complete lamp
 stays on until the operator removes the ejected carrier and presses the eject-complete
 button; operator confirmation has no automatic timeout.
 

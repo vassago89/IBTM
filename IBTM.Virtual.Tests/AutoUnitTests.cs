@@ -97,7 +97,19 @@ public sealed class AutoUnitTests
         public bool HasSubscribers => Changed is not null;
         public void NotifyChanged() => Changed?.Invoke();
         public Task WaitAsync(CancellationToken token) => WaitForChangeAsync(token);
-        public Task RunAsync(Func<CancellationToken, Task> execute, CancellationToken token) =>
-            RunLoopAsync(execute, token);
+        public Task RunAsync(Func<CancellationToken, Task> execute, CancellationToken token,
+            Func<bool>? completed = null) => RunLoopAsync(execute, token, completed);
+    }
+
+    [Fact]
+    public async Task FiniteOperationCompletesWithoutCancellingItsToken()
+    {
+        var unit = new TestUnit();
+        using var stop = new CancellationTokenSource();
+        var count = 0;
+        await unit.RunAsync(_ => { count++; return Task.CompletedTask; }, stop.Token, () => count == 2);
+        Assert.Equal(2, count);
+        Assert.False(stop.IsCancellationRequested);
+        Assert.False(unit.HasSubscribers);
     }
 }

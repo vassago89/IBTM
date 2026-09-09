@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.BoltFastening;
@@ -19,6 +20,113 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class BoltFasteningTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ManualReverseStopsOnReleaseOrCommunicationFailureWithoutACompletionResult(bool communicationFailure)
+    {
+        IAdcBus bus = new VirtualAdcBus();
+        var head = new AdcBoltHead(bus, new HantasSettings(), 2);
+        var started = false;
+        var stops = 0;
+        var writes = new List<(byte Slave, ushort Address, ushort Value)>();
+        bus.FrameTransferred += (direction, frame) =>
+        {
+            if (direction != AdcFrameDirection.Transmit) return;
+            var address = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2));
+            if (frame[1] == (byte)AdcFunctionCode.WriteSingleRegister)
+            {
+                var value = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4));
+                writes.Add((frame[0], address, value));
+                if (address == (ushort)AdcRemoteRegister.RemoteStart)
+                {
+                    if (value == 0) stops++;
+                    else started = true;
+                }
+            }
+            if (communicationFailure && started && stops == 0
+                && frame[1] == (byte)AdcFunctionCode.ReadInputRegisters)
+                throw new IOException("Reverse monitoring failed.");
+        };
+        using var release = new CancellationTokenSource();
+        var running = head.RunReverseAsync(release.Token);
+        Assert.True(started);
+        if (communicationFailure)
+            await Assert.ThrowsAsync<IOException>(() => running);
+        else
+        {
+            await Task.Delay(300);
+            Assert.False(running.IsCompleted);
+            var status = await bus.ReadControllerStatusAsync(2);
+            Assert.True(status.Running);
+            Assert.Equal(AdcDirection.Loosening, status.Direction);
+            release.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
+        }
+        Assert.Equal(new[]
+        {
+            ((byte)2, (ushort)AdcRemoteRegister.Direction, (ushort)AdcDirection.Loosening),
+            ((byte)2, (ushort)AdcRemoteRegister.RemoteStart, (ushort)1),
+            ((byte)2, (ushort)AdcRemoteRegister.RemoteStart, (ushort)0),
+        }, writes);
+        Assert.Equal(1, stops);
+        Assert.False((await bus.ReadControllerStatusAsync(2)).Running);
+        Assert.Equal((ushort)0, (await bus.ReadFasteningResultAsync(2)).EventCount);
+        Assert.True((await head.TightenAsync()).Success); // Forward explicitly restores its own direction.
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SerialCancellationAbortsAndDrainsTheNativeOperation(bool timeout)
+    {
+        using var cancellation = new CancellationTokenSource();
+        var nativeIo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var abortCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Action abort = () => abortCalled.SetResult();
+        var wait = (Task)typeof(AdcBus).GetMethod("AwaitSerialIoAsync", BindingFlags.Static | BindingFlags.NonPublic)!
+            .Invoke(null, [nativeIo.Task, abort, cancellation.Token])!;
+        if (timeout) cancellation.CancelAfter(20);
+        else cancellation.Cancel();
+        await abortCalled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(wait.IsCompleted); // A following bus request must not overlap the aborted native IO.
+        nativeIo.SetException(new IOException("Native serial IO aborted."));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wait);
+    }
+
+    [Fact]
+    public async Task AdcReadinessUsesLiveRunAndDoesNotCallReverseAFastening()
+    {
+        IAdcBus bus = new VirtualAdcBus();
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1);
+        await head.CheckReadyAsync();
+        Assert.Equal((ushort)1, (await bus.ReadControllerStatusAsync(1)).Preset);
+        var statusReads = 0;
+        bus.FrameTransferred += (direction, frame) =>
+        {
+            if (direction == AdcFrameDirection.Transmit && frame[1] == (byte)AdcFunctionCode.ReadInputRegisters
+                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcStatusRegister.Preset)
+                statusReads++;
+        };
+        await head.SelectPresetAsync(3);
+        Assert.Equal(1, statusReads);
+        Assert.Equal((ushort)3, (await bus.ReadControllerStatusAsync(1)).Preset);
+
+        await bus.SetDirectionAsync(1, AdcDirection.Loosening);
+        await bus.StartAsync(1);
+        var running = await bus.ReadControllerStatusAsync(1);
+        Assert.True(running.Running);
+        Assert.False(running.Ready);
+        Assert.Equal(AdcDirection.Loosening, running.Direction);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
+        await Task.Delay(300);
+        Assert.True((await bus.ReadControllerStatusAsync(1)).Running);
+        Assert.Equal((ushort)0, (await bus.ReadFasteningResultAsync(1)).EventCount);
+        await bus.StopAsync(1);
+        await head.CheckReadyAsync();
+        Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
+    }
+
     [Fact]
     public void RecoveryPreservesMeasuredResultsUntilExplicitlyUnchecked()
     {
@@ -561,7 +669,9 @@ public sealed class BoltFasteningTests
                         == (ushort)AdcRemoteRegister.RemoteStart
                     && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) == 0)
                     stopSent = true;
-                if (frame[1] == (byte)AdcFunctionCode.ReadInputRegisters)
+                if (frame[1] == (byte)AdcFunctionCode.ReadInputRegisters
+                    && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2))
+                        == (ushort)AdcResultRegister.EventCount)
                 {
                     readBeforeStop |= !stopSent;
                     resultReadsAfterCancellation++;
@@ -570,6 +680,7 @@ public sealed class BoltFasteningTests
             }
             if (direction != AdcFrameDirection.Receive
                 || frame[1] != (byte)AdcFunctionCode.ReadInputRegisters
+                || frame[2] != AdcFasteningResult.RegisterCount * sizeof(ushort)
                 || BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(3)) == 0)
                 return;
 

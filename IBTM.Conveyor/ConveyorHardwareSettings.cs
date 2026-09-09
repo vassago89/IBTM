@@ -9,6 +9,7 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
     public override IoSection? GetSection(System.Enum signal) => signal switch
     {
         InputIo.MainConveyorAvailableFromFront2 or InputIo.MainConveyorReadyFromRear
+            or InputIo.MainConveyorAutoMode
             or InputIo.MainConveyorEntryCarrierDetected or InputIo.MainConveyorExitCarrierDetected
             or OutputIo.MainConveyorReadyToFront2 or OutputIo.MainConveyorAvailableToRear
             or OutputIo.MainConveyorRun or OutputIo.MainConveyorReverse
@@ -34,6 +35,7 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
         {
             [InputIo.MainConveyorAvailableFromFront2] = 17,
             [InputIo.MainConveyorReadyFromRear] = 18,
+            [InputIo.MainConveyorAutoMode] = 53,
             [InputIo.PcbPlacementCarrierPresent] = 56,
             [InputIo.PcbPlacementStopperUp] = 57,
             [InputIo.PcbPlacementStopperDown] = 58,
@@ -49,8 +51,8 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
             [InputIo.InspectionStopperDown] = 72,
             [InputIo.InspectionBackupPlateUp] = 73,
             [InputIo.InspectionBackupPlateDown] = 74,
-            [InputIo.MainConveyorEntryCarrierDetected] = 90,
-            [InputIo.MainConveyorExitCarrierDetected] = 91,
+            [InputIo.MainConveyorEntryCarrierDetected] = 91,
+            [InputIo.MainConveyorExitCarrierDetected] = 92,
         };
         Outputs = new()
         {

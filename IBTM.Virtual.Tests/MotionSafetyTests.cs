@@ -298,7 +298,7 @@ public sealed class MotionSafetyTests
         };
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            supply.LowerToHandoffAsync(default));
+            supply.MoveToHandoffZAsync(default));
 
         await supply.SetRotatedAsync(true);
         var handoff = Array.Find(settings.GetTeachingPositions(new()),

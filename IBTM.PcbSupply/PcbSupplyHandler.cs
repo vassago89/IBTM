@@ -38,9 +38,9 @@ public sealed class PcbSupplyHandler
 
     public bool UpstreamCarrierAvailable =>
         _io.GetInput(InputIo.PcbSupplyAvailableFromFront1);
-    public PcbSupplyCylinderState Nest => CylinderState(
-        InputIo.PcbSupplyNestForward,
-        InputIo.PcbSupplyNestBackward);
+    public PcbSupplyCylinderState Gripper => CylinderState(
+        InputIo.PcbSupplyGripperClosed,
+        InputIo.PcbSupplyGripperOpen);
     public PcbSupplyCylinderState IpmFixer => CylinderState(
         InputIo.PcbSupplyIpmFixerForward,
         InputIo.PcbSupplyIpmFixerBackward);
@@ -53,7 +53,7 @@ public sealed class PcbSupplyHandler
                 return PcbSupplyPcbState.None;
             }
 
-            return Nest == PcbSupplyCylinderState.Forward
+            return Gripper == PcbSupplyCylinderState.Forward
                 && IpmFixer == PcbSupplyCylinderState.Forward
                     ? PcbSupplyPcbState.Secured
                     : PcbSupplyPcbState.Detected;
@@ -127,7 +127,7 @@ public sealed class PcbSupplyHandler
             cancellationToken);
     }
 
-    public Task LowerToHandoffAsync(
+    public Task MoveToHandoffZAsync(
         CancellationToken cancellationToken,
         double? z = null) =>
         Rotation != PcbSupplyRotationState.Rotated
@@ -156,12 +156,11 @@ public sealed class PcbSupplyHandler
         }
     }
 
-    internal async Task SecurePcbAsync(
+    public async Task SecurePcbAsync(
         CancellationToken cancellationToken = default)
     {
-        await SetNestAsync(true, cancellationToken);
+        await SetGripperClosedAsync(true, cancellationToken);
         await SetIpmFixerAsync(true, cancellationToken);
-        await _motion.MoveToHorizontalZAsync(cancellationToken);
     }
 
     public bool CanMoveToTeachingPosition(TeachingPosition point, bool live = true) =>
@@ -194,7 +193,7 @@ public sealed class PcbSupplyHandler
             case TeachMode.Full:
                 await MoveHorizontalAsync(position.X, position.Y, cancellationToken);
                 if (point.Target == TeachingTarget.SupplyBufferHandoff)
-                    await LowerToHandoffAsync(cancellationToken, position.Z);
+                    await MoveToHandoffZAsync(cancellationToken, position.Z);
                 else
                     await MoveTeachingZAsync(position.Z, cancellationToken);
                 break;
@@ -243,7 +242,7 @@ public sealed class PcbSupplyHandler
 
     public TeachingOutput[] GetTeachingOutputs() =>
     [
-        new(OutputIo.PcbSupplyNestForward, HardwareArea.PcbSupply, SetNestAsync),
+        new(OutputIo.PcbSupplyGripperClosed, HardwareArea.PcbSupply, SetGripperClosedAsync),
         new(OutputIo.PcbSupplyIpmFixerForward, HardwareArea.PcbSupply, SetIpmFixerAsync),
         new(OutputIo.PcbSupplyRotate, HardwareArea.PcbSupply, SetRotatedAsync, live => !IsInsideBuffer(live)),
     ];
@@ -256,12 +255,12 @@ public sealed class PcbSupplyHandler
             forward,
             cancellationToken);
 
-    internal Task SetNestAsync(
-        bool forward,
+    internal Task SetGripperClosedAsync(
+        bool closed,
         CancellationToken cancellationToken = default) =>
         _io.SetOutputAndWaitAsync(
-            OutputIo.PcbSupplyNestForward,
-            forward,
+            OutputIo.PcbSupplyGripperClosed,
+            closed,
             cancellationToken);
 
     public async Task<bool> PrepareHomeAsync(
@@ -309,6 +308,53 @@ public sealed class PcbSupplyHandler
             MotionAxis.Z,
             zVelocity,
             cancellationToken);
+    }
+
+    public bool AtReturnEntryZ =>
+        Rotation == PcbSupplyRotationState.Rotated
+        && !_motion.IsMoving
+        && _motion.GetAxisState(MotionAxis.Y).InPosition
+        && _motion.GetAxisState(MotionAxis.Z).InPosition
+        && Math.Abs(_motion.GetPosition().Y - _settings.BufferHandoffPosition.Y)
+            <= MotionService.PositionToleranceMillimeters
+        && Math.Abs(_motion.GetPosition().Z - _settings.BufferClearZ)
+            <= MotionService.PositionToleranceMillimeters;
+
+    public bool OnReturnHandoffPath =>
+        AtHandoffXY
+        && Rotation == PcbSupplyRotationState.Rotated
+        && _motion.GetPosition().Z >= _settings.BufferHandoffPosition.Z
+            - MotionService.PositionToleranceMillimeters
+        && _motion.GetPosition().Z <= _settings.BufferClearZ
+            + MotionService.PositionToleranceMillimeters;
+
+    public Task WaitForPcbAsync(CancellationToken cancellationToken) =>
+        _io.WaitForInputAsync(InputIo.PcbSupplyPcbDetected, true, cancellationToken);
+
+    public async Task PrepareReturnEntryAsync(CancellationToken cancellationToken)
+    {
+        await SetGripperClosedAsync(false, cancellationToken);
+        await SetIpmFixerAsync(false, cancellationToken);
+        await SetRotatedAsync(true, cancellationToken);
+        await MoveYAsync(_settings.BufferHandoffPosition.Y, cancellationToken);
+        await MoveTeachingZAsync(_settings.BufferClearZ, cancellationToken);
+    }
+
+    public Task EnterAtClearZAsync(CancellationToken cancellationToken) =>
+        Rotation != PcbSupplyRotationState.Rotated
+            ? throw new InvalidOperationException("Supply must be rotated before entering the buffer.")
+            : _motion.MoveXAtClearZAsync(
+                _settings.BufferHandoffPosition.X,
+                _settings.BufferClearZ,
+                _settings.Motion.HorizontalSpeed,
+                cancellationToken);
+
+    public async Task ReturnWithPcbAsync(CancellationToken cancellationToken)
+    {
+        await MoveToRotationZAsync(cancellationToken);
+        await MoveXAsync(XHome, cancellationToken);
+        await MoveYAsync(_settings.CarrierY, cancellationToken);
+        await SetRotatedAsync(false, cancellationToken);
     }
 
     public Task MoveXAsync(
@@ -411,8 +457,8 @@ public sealed class PcbSupplyHandler
         if (input is InputIo.PcbSupplyAvailableFromFront1
             or InputIo.PcbSupplyUnrotated
             or InputIo.PcbSupplyRotated
-            or InputIo.PcbSupplyNestForward
-            or InputIo.PcbSupplyNestBackward
+            or InputIo.PcbSupplyGripperClosed
+            or InputIo.PcbSupplyGripperOpen
             or InputIo.PcbSupplyIpmFixerForward
             or InputIo.PcbSupplyIpmFixerBackward
             or InputIo.PcbSupplyPcbDetected)

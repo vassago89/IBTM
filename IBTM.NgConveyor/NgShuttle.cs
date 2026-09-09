@@ -64,11 +64,6 @@ public sealed class NgShuttle : AutoUnit
                     return NgShuttleState.WaitingForCarrierPickupUp;
                 }
 
-                if (_conveyor.Position3Occupied)
-                {
-                    return NgShuttleState.WaitingForPosition3;
-                }
-
                 return _conveyor.CanAcceptCarrier
                     ? NgShuttleState.Lowering
                     : NgShuttleState.WaitingForConveyor;
@@ -85,18 +80,12 @@ public sealed class NgShuttle : AutoUnit
 
     private Task ExecuteAsync(CancellationToken cancellationToken) => State switch
     {
-        NgShuttleState.Lowering => LowerAsync(cancellationToken),
+        NgShuttleState.Lowering => SetDownAsync(true, cancellationToken),
         NgShuttleState.Raising => SetDownAsync(false, cancellationToken),
         _ => WaitForChangeAsync(cancellationToken),
     };
 
-    private async Task LowerAsync(CancellationToken cancellationToken)
-    {
-        await SetDownAsync(true, cancellationToken);
-        await _conveyor.WaitForPosition3Async(cancellationToken);
-    }
-
-    private Task SetDownAsync(
+    internal Task SetDownAsync(
         bool down,
         CancellationToken cancellationToken = default) =>
         _io.SetOutputAndWaitAsync(

@@ -29,7 +29,6 @@ public sealed class MachineController
         InputIo.NgShuttleCarrierDetected,
         InputIo.NgConveyorPosition1Occupied,
         InputIo.NgConveyorPosition2Occupied,
-        InputIo.NgConveyorPosition3Occupied,
     ];
 
     private readonly MachineState _state;
@@ -54,6 +53,13 @@ public sealed class MachineController
     private readonly BoltFasteningGantry _fasteningGantry;
     private readonly InspectionGantry _inspectionGantry;
     private readonly NgCarrierTransfer _ngTransfer;
+    private readonly NgTransferDryRun _ngTransferDryRun;
+    private readonly InspectionDryRun _inspectionDryRun;
+    private readonly MainConveyorDryRun _mainConveyorDryRun;
+    private readonly PcbReturn _pcbReturn;
+    private readonly PcbDryRun _pcbDryRun;
+    private readonly NgConveyorDryRun _ngConveyorDryRun;
+    private readonly BoltRouteDryRun _boltRoute;
     private readonly BoltInspector _boltInspector;
 
     public MachineController(
@@ -79,6 +85,13 @@ public sealed class MachineController
         BoltFasteningGantry fasteningGantry,
         InspectionGantry inspectionGantry,
         NgCarrierTransfer ngTransfer,
+        NgTransferDryRun ngTransferDryRun,
+        InspectionDryRun inspectionDryRun,
+        MainConveyorDryRun mainConveyorDryRun,
+        PcbReturn pcbReturn,
+        PcbDryRun pcbDryRun,
+        NgConveyorDryRun ngConveyorDryRun,
+        BoltRouteDryRun boltRoute,
         BoltInspector boltInspector)
     {
         _state = state;
@@ -103,6 +116,20 @@ public sealed class MachineController
         _fasteningGantry = fasteningGantry;
         _inspectionGantry = inspectionGantry;
         _ngTransfer = ngTransfer;
+        _ngTransferDryRun = ngTransferDryRun;
+        ngTransferDryRun.Changed += state.RequestDisplayRefresh;
+        _inspectionDryRun = inspectionDryRun;
+        inspectionDryRun.Changed += state.RequestDisplayRefresh;
+        _mainConveyorDryRun = mainConveyorDryRun;
+        mainConveyorDryRun.Changed += state.RequestDisplayRefresh;
+        _pcbReturn = pcbReturn;
+        pcbReturn.Changed += state.RequestDisplayRefresh;
+        _pcbDryRun = pcbDryRun;
+        pcbDryRun.Changed += state.RequestDisplayRefresh;
+        _ngConveyorDryRun = ngConveyorDryRun;
+        ngConveyorDryRun.Changed += state.RequestDisplayRefresh;
+        _boltRoute = boltRoute;
+        boltRoute.Changed += state.RequestDisplayRefresh;
         _boltInspector = boltInspector;
         io.InputChanged += OnInputChanged;
         io.Faulted += OnIoFaulted;
@@ -250,6 +277,44 @@ public sealed class MachineController
             InspectionState = teachingReady ? _inspectionStation.State(bolts) : InspectionStationState.Waiting,
             InspectionBolt = teachingReady && automatic ? _inspectionStation.ActiveBolt(bolts) : null,
             InspectionPcb = teachingReady && automatic ? _inspectionStation.ActivePcb(bolts) : null,
+            NgTransferDryRunState = _units.NgCarrierTransfer && _inspectionGantry.Motion.XyHomed
+                ? _ngTransferDryRun.State : NgTransferState.Unavailable,
+            NgTransferDestination = _ngTransferDryRun.Destination,
+            NgTransferDryRunTransfers = _ngTransferDryRun.CompletedTransfers,
+            InspectionDryRunReady = _inspectionDryRun.Ready,
+            InspectionDryRunState = _units.Inspection && _inspectionGantry.Motion.XyHomed
+                ? _inspectionDryRun.State : InspectionDryRunState.Unavailable,
+            InspectionDryRunDirection = _inspectionDryRun.Direction,
+            InspectionDryRunPasses = _inspectionDryRun.CompletedPasses,
+            InspectionDryRunPcb = _inspectionDryRun.ActivePcb,
+            InspectionDryRunBolt = _inspectionDryRun.ActiveBolt,
+            InspectionDryRunBarcode = _inspectionDryRun.LastBarcode,
+            InspectionDryRunBoltPresent = _inspectionDryRun.LastBoltPresent,
+            MainConveyorDryRunReady = MainConveyorPathClear,
+            MainConveyorDryRunState = MainConveyorPathClear ? _mainConveyorDryRun.State : MainConveyorDryRunState.Unavailable,
+            MainConveyorDestination = _mainConveyorDryRun.Destination,
+            MainConveyorDryRunPasses = _mainConveyorDryRun.CompletedPasses,
+            PcbReturnState = PcbReturnNeedsCarrier && _mainConveyorDryRun.ReturningToStation1
+                ? _mainConveyorDryRun.State : _pcbReturn.State,
+            PcbReturnDestination = PcbReturnNeedsCarrier && _mainConveyorDryRun.ReturningToStation1
+                ? _mainConveyorDryRun.Destination : _pcbReturn.Destination,
+            PcbReturnCount = _pcbReturn.CompletedReturns,
+            PcbReturnHeatSink = _pcbReturn.HeatSink,
+            PcbDryRunState = _pcbDryRun.State,
+            PcbDryRunDirection = _pcbDryRun.Direction,
+            PcbDryRunHeatSink = _pcbDryRun.HeatSink,
+            PcbDryRunCycles = _pcbDryRun.CompletedCycles,
+            NgConveyorDryRunState = _ngConveyorDryRun.State,
+            NgConveyorDestination = _ngConveyorDryRun.Destination,
+            NgConveyorDryRunPasses = _ngConveyorDryRun.CompletedPasses,
+            NgConveyorDryRunReady = _ngConveyorDryRun.Ready,
+            BoltRouteReady = _boltRoute.Ready,
+            BoltRouteState = _units.BoltFastening && _fasteningGantry.Motion.XyHomed
+                ? _boltRoute.State : BoltRouteState.Unavailable,
+            BoltRouteDirection = _boltRoute.Direction,
+            BoltRouteTarget = _boltRoute.ActiveBolt,
+            BoltRoutePass = _boltRoute.ActivePass,
+            BoltRoutePasses = _boltRoute.CompletedPasses,
         };
     }
 
@@ -389,6 +454,104 @@ public sealed class MachineController
     internal void RunManualConveyor() =>
         TryRunManual(() => _conveyor.RunMotor(),
             () => _state.ManualControlsEnabled, MachineAlarm.IoCommunication);
+
+    private bool MainConveyorPathClear =>
+        (!_units.PcbPlacement || _placementHandler.CanMoveHorizontal && _placementHandler.AtHorizontalZ)
+        && (!_units.BoltFastening || _fasteningGantry.CanMoveHorizontal && _fasteningGantry.AtSafeZ)
+        && (!_units.Inspection && !_units.NgCarrierTransfer || _ngTransfer.IsClear);
+
+    private bool PcbReturnNeedsCarrier => _pcbReturn.State == PcbReturnState.WaitingForCarrier;
+
+    internal bool CanRunDryRun(DryRunTarget target, bool live = false) =>
+        (live ? _state.ManualControlsEnabled : _state.Display.ManualControlsEnabled) && target switch
+        {
+            DryRunTarget.NgTransfer => _units.NgCarrierTransfer,
+            DryRunTarget.BoltRoute => _units.BoltFastening
+                && (live ? _boltRoute.Ready : _state.Display.BoltRouteReady),
+            DryRunTarget.PcbReturn => _units.PcbSupply && _units.PcbPlacement
+                && (!(live ? PcbReturnNeedsCarrier
+                        : _state.Display.PcbReturnState is MainConveyorDryRunState or PcbReturnState.WaitingForCarrier)
+                    || _units.MainConveyor
+                    && (live ? MainConveyorPathClear : _state.Display.MainConveyorDryRunReady)),
+            DryRunTarget.PcbRoundTrip => _units.PcbSupply && _units.PcbPlacement,
+            DryRunTarget.NgConveyor => _units.NgConveyor && _units.NgShuttle
+                && (live ? _ngConveyorDryRun.Ready : _state.Display.NgConveyorDryRunReady),
+            DryRunTarget.Inspection => _units.Inspection
+                && (live ? _inspectionDryRun.Ready : _state.Display.InspectionDryRunReady),
+            DryRunTarget.MainConveyor => _units.MainConveyor
+                && (live ? MainConveyorPathClear : _state.Display.MainConveyorDryRunReady),
+            _ => false,
+        };
+
+    internal async Task RunDryRunAsync(DryRunTarget target, CancellationToken cancellationToken,
+        HeatSinkSlot pcb = HeatSinkSlot.HeatSink1)
+    {
+        var alarm = target switch
+        {
+            DryRunTarget.MainConveyor => MachineAlarm.MainConveyor,
+            DryRunTarget.BoltRoute => MachineAlarm.BoltFastening,
+            DryRunTarget.Inspection => MachineAlarm.Inspection,
+            DryRunTarget.PcbReturn or DryRunTarget.PcbRoundTrip => MachineAlarm.PcbPlacement,
+            DryRunTarget.NgConveyor => MachineAlarm.NgConveyor,
+            _ => MachineAlarm.NgCarrierTransfer,
+        };
+        Task Run(CancellationToken token) => target switch
+        {
+            DryRunTarget.MainConveyor => RunMainConveyorDryRunAsync(token),
+            DryRunTarget.BoltRoute => _boltRoute.RunAsync(token),
+            DryRunTarget.Inspection => _inspectionDryRun.RunAsync(token),
+            DryRunTarget.PcbReturn => RunPcbReturnAsync(pcb, token),
+            DryRunTarget.PcbRoundTrip => _pcbDryRun.RunAsync(pcb, token),
+            DryRunTarget.NgConveyor => _ngConveyorDryRun.RunAsync(token),
+            _ => _ngTransferDryRun.RunAsync(token),
+        };
+        try
+        {
+            await RunManualAsync(Run, alarm, () => CanRunDryRun(target, live: true), cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            if (!_state.IsError) _state.SetError(alarm, exception);
+            Stop();
+        }
+    }
+
+    private async Task RunPcbReturnAsync(HeatSinkSlot heatSink, CancellationToken cancellationToken)
+    {
+        if (PcbReturnNeedsCarrier)
+        {
+            if (!await RunConveyorDryRunAsync(_mainConveyorDryRun.ReturnToStation1Async, cancellationToken)
+                || !_mainConveyorDryRun.AtStation1) return;
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+        await _pcbReturn.RunAsync(heatSink, cancellationToken);
+    }
+
+    private Task RunMainConveyorDryRunAsync(CancellationToken cancellationToken) =>
+        RunConveyorDryRunAsync(_mainConveyorDryRun.RunAsync, cancellationToken);
+
+    private async Task<bool> RunConveyorDryRunAsync(Func<CancellationToken, Task> run, CancellationToken cancellationToken)
+    {
+        using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        void CheckPath() { if (!MainConveyorPathClear) operation.Cancel(); }
+        _state.Changed += CheckPath;
+        _placementHandler.Changed += CheckPath;
+        _fasteningGantry.Changed += CheckPath;
+        _ngTransfer.Changed += CheckPath;
+        try
+        {
+            CheckPath();
+            await run(operation.Token);
+            return !operation.IsCancellationRequested;
+        }
+        finally
+        {
+            _state.Changed -= CheckPath;
+            _placementHandler.Changed -= CheckPath;
+            _fasteningGantry.Changed -= CheckPath;
+            _ngTransfer.Changed -= CheckPath;
+        }
+    }
 
     private bool TryRunManual(Action execute, Func<bool> allowed, MachineAlarm alarm)
     {
@@ -587,8 +750,8 @@ public sealed class MachineController
         }
     }
 
-    internal async Task<BoltResult> TestBoltHeadAsync(
-        IBoltHead head,
+    internal async Task RunBoltTestAsync(
+        Func<CancellationToken, Task> test,
         CancellationToken cancellationToken)
     {
         // RunAdcProtocolAsync owns admission and cancellation for this command.
@@ -601,8 +764,7 @@ public sealed class MachineController
         try
         {
             _state.SetBoltTestRunning(true);
-            await head.CheckReadyAsync(cancellationToken);
-            return await head.TightenAsync(cancellationToken);
+            await test(cancellationToken);
         }
         catch (Exception exception)
             when (exception is not OperationCanceledException)

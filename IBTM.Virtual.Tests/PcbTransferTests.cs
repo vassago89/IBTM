@@ -134,12 +134,16 @@ public sealed class PcbTransferTests
         var bufferEntries = 0;
         var enteredBufferPrepared = true;
         var movedWithLoweredCylinder = false;
+        var carriedWithIpmRaised = false;
         var wasInsideBuffer = false;
         var heatSinkChangedDuringMove = false;
         placementMotion.PositionChanged += (x, y, _) =>
         {
             movedWithLoweredCylinder |= placementMotion.IsMovingHorizontal
                 && !placementHandler.CanMoveHorizontal;
+            carriedWithIpmRaised |= placementMotion.IsMovingHorizontal
+                && placementHandler.Pcb == PlacementPcbState.Secured
+                && placementHandler.IpmLift != PlacementCylinderState.Down;
             var inside = x is >= 40 and <= 60 && y is >= 0 and <= 15;
             if (inside && !wasInsideBuffer)
             {
@@ -173,17 +177,23 @@ public sealed class PcbTransferTests
             {
                 placementPhase = 2;
             }
-            else if (output == OutputIo.PcbPlacementIpmGripperClose
+            else if (output == OutputIo.PcbPlacementIpmDown
                      && placementPhase == 2
-                     && value)
+                     && !value)
             {
                 placementPhase = 3;
             }
-            else if (output == OutputIo.PcbPlacementIpmDown
+            else if (output == OutputIo.PcbPlacementIpmGripperClose
                      && placementPhase == 3
                      && value)
             {
                 placementPhase = 4;
+            }
+            else if (output == OutputIo.PcbPlacementIpmDown
+                     && placementPhase == 4
+                     && value)
+            {
+                placementPhase = 5;
             }
         };
 
@@ -242,6 +252,7 @@ public sealed class PcbTransferTests
         Assert.True(completed);
         Assert.True(prefetched);
         Assert.False(movedWithLoweredCylinder);
+        Assert.False(carriedWithIpmRaised);
         Assert.True(heatSinkChangedDuringMove);
         Assert.True(io.GetInput(InputIo.PcbPlacementHeatSink1Present));
         Assert.False(io.GetInput(InputIo.PcbPlacementHeatSink2Present));
@@ -249,10 +260,10 @@ public sealed class PcbTransferTests
         Assert.True(enteredBufferPrepared);
         var assembly = Assert.Single(work.Assemblies);
         Assert.Equal(HeatSinkSlot.HeatSink2, assembly.HeatSink);
-        Assert.Equal(PlacementCylinderState.Up, placementHandler.IpmLift);
+        Assert.Equal(PlacementCylinderState.Down, placementHandler.IpmLift);
         Assert.Equal(PlacementCylinderState.Up, placementHandler.Lift);
         Assert.True(placementHandler.AtHorizontalZ);
-        Assert.Equal(4, placementPhase);
+        Assert.Equal(5, placementPhase);
         Assert.False(buffer.Conflict);
         Assert.False(supplyMotion.IsMoving);
         Assert.False(placementMotion.IsMoving);
@@ -425,7 +436,7 @@ public sealed class PcbTransferTests
         await Task.WhenAll(HomeAsync(supplyMotion, 2_000), HomeAsync(placementMotion, 2_000));
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
         await ((IIoService)io).SetOutputAndWaitAsync(
-            OutputIo.PcbSupplyNestForward, true);
+            OutputIo.PcbSupplyGripperClosed, true);
         await ((IIoService)io).SetOutputAndWaitAsync(
             OutputIo.PcbSupplyIpmFixerForward, true);
 

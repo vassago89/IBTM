@@ -38,6 +38,48 @@ station inputs and work completion. Inspection depends on the NG shuttle/conveyo
 not the reverse. Inspection and NG carrier transfer share one XY gantry and one
 execution loop; there is no inspection Z axis.
 
+`Manual > Dry Run > PCB Return` returns one unfastened PCB from the selected
+heat sink through Buffer to Supply. If the carrier is still at Station 2/3,
+the main conveyor first returns it to the front sensor, then moves forward to
+seat it at Station 1. It finishes conveyor travel there, without advancing to
+Station 2. A carrier already at Station 1 only needs seating; an ongoing PCB
+handoff resumes without restarting conveyor travel.
+`PcbReturn` in the host coordinates existing handler operations and live handoff
+feedback without a peer-project reference. Stop retains route intent; Run resumes
+from current IO and axis feedback. An unfinished PCB pickup keeps its heat-sink
+target even if the selector changes during Stop; Manual shows the actual Active
+target separately. The new selection applies to a new return after completion.
+Completion leaves the PCB held by the retracted Supply handler. No upstream
+placement, bolt operation or new forward cycle starts.
+This is one reverse leg, not a complete repeating forward/return machine cycle.
+
+`PCB Round Trip` adds repeated Supply -> selected heat sink -> Supply operation
+with one preloaded PCB. It reuses the production transfer/placement actions,
+retains direction and target across Stop, and never fetches a second PCB. A full
+round trip is one cycle. The carrier stays seated at Station 1.
+
+`NG Conveyor Round Trip` repeats P1 <-> P3 with one carrier. The shuttle must be
+Down before either belt direction and rises after the belt has stopped at its
+destination. The P3 carrier sensor moves with the shuttle. Stop preserves the
+unfinished destination even between sensors; NG pickup Up is required throughout.
+This test does not move the NG transfer gantry or operate the main conveyor.
+These are independent component tests, not one integrated machine cycle.
+
+`Bolt Route` traverses every taught bolt point on the detected Station 2 heat
+sinks: Head 2 PCB points, Head 1 IPM seating points, then Head 1 IPM final points.
+It returns through that route and repeats until Stop, using the production
+head-specific coordinate conversion. At each bolt point the selected head lowers
+and rises without running the driver; XY always moves with both heads raised.
+Each IPM seating point also visits the pickup: XY -> Head 1 Down -> pickup Z ->
+Safe Z -> Head 1 Up. Vacuum and bolt-detection waits are omitted. IPM final points
+do not repick. The return route visits these same locations in reverse order.
+Shooting escape, shooting air, vacuum and all associated bolt-supply waits are
+omitted. Z stays at Safe Z at fastening points, and moves only at the pickup.
+Stop resumes the pending axis/cylinder stroke from live feedback; no fake bolt
+sensor or fastening result is created. No ADC command or production completion
+is performed. Fastening and loosening are excluded from all dry-run plans;
+the separate ADC diagnostic controls and normal production remain unchanged.
+
 See [machine layout](docs/MACHINE_LAYOUT.md),
 [Supply behavior](IBTM.PcbSupply/DESIGN.md) and
 [Buffer handoff](IBTM.PcbBuffer/DESIGN.md) for detailed mechanical contracts.
@@ -95,6 +137,9 @@ Up must be ON and Down must be OFF. Loss of this condition during X/Y movement
 alarms the unit and cancels the machine's operations. Z-only movement is separate;
 the condition is checked again before the following X/Y command starts.
 Placement enters buffer X/Y with its Handler raised and IPM lowered for pickup.
+It keeps IPM Down while carrying the PCB, including the reverse dry-run route.
+At the taught heat-sink XYZ with Handler Down, release is vacuum Off -> gripper
+Open -> IPM Up -> gripper Close -> IPM Down to press -> IPM Up -> Handler Up -> Safe Z.
 IPM lift and gripper feedback do not restrict Home or X/Y movement.
 Bolt teaching Jog/Step are separate manual adjustments: they keep the other axes,
 including Z, at their current positions and may run with the heads lowered.
@@ -186,14 +231,19 @@ owns escape and shooting actions.
 ADC controller errors and communication failures are machine faults, not ordinary
 fastening NG results. The shooting passage sensor is watched before the shooting
 output turns on so a short ON/OFF pulse is not missed.
+Virtual also retains a detected tube bolt when shooting air stops; air OFF is not
+proof that the tube is clear. Manual shooting can deliver that retained bolt
+with the existing escape and vacuum states, without advancing a new bolt.
 
 Inspection moves to each taught bolt point and checks presence. NG carriers move
 on the shared gantry to the independent NG shuttle, then onto the vertical NG
 conveyor at position 3. The conveyor fills position 1 first, then 2, then 3.
 The alarm carrier count is configurable.
 At the shuttle, the NG pickup confirms the gripper open and shuttle carrier input
-before raising. Restart during raising does not close the gripper again, even if
+before raising. Automatic and dry-run restart finish that release without closing
+the gripper again during raising, even if
 the pickup's carrier sensor still detects the released carrier.
+Dry run changes to the return direction only after pickup retraction completes.
 
 With Inspection disabled and NG Carrier Transfer enabled, Station 3 carriers route
 to NG. Disabling transfer prevents its automatic motion/IO, not its physical
@@ -306,9 +356,11 @@ Mapping changes apply after restart.
 Each motion hardware definition declares its group and X/Y/Z signal mapping once.
 Driver construction, Settings and the manual axis list reuse this definition;
 Inspection does not acquire a Z axis through a separate UI assumption.
-`MachineSettings` loads/saves the responsibility-owned Settings files.
-`RecipeStore` manages only recipes and their images. Existing file locations and
-JSON formats are unchanged.
+Typed machine settings remain responsibility-owned. The host persists settings,
+recipes and carrier images in `Data/Machine.db`; `RecipeStore` handles the WPF image
+conversion boundary. Training data/model remain in `TrainingData/BoltTraining.db`.
+There are no separate settings JSON or recipe image files; see
+[settings storage](docs/SETTINGS_STORAGE.md) for backup and ownership.
 
 One RS-422 bus addresses both ADC controllers. Presets are configured on the
 controllers; recipes select preset numbers. `AdcBus` serializes requests and
@@ -316,8 +368,12 @@ controllers; recipes select preset numbers. `AdcBus` serializes requests and
 The ADC diagnostic window remains available in safe, idle Manual mode for
 communication and alarm reset, including before homing. Fastening tests require
 the normal machine-ready conditions and exclude automatic operation, motion,
-home and reset until the ADC Stop request completes. Raw Remote Start uses the
-same supervised test operation.
+home and reset until the ADC Stop request completes. Raw Remote Start is rejected;
+use Start Fastening or Reverse (Hold). Reverse runs only while held and stops on
+release, pointer exit/capture loss, STOP or window close. It uses the selected
+controller's loosening settings, never moves machine axes/cylinders/feeders and
+does not report automatic loosening completion. These diagnostic commands are
+separate from dry run, which never starts fastening or loosening.
 With a Virtual ADC, the window also stays available during Auto for **Next Result**:
 select the slave, choose OK/NG/Error and click **Apply Once**. The next fastening
 start on that controller consumes the result; an already running fastening is

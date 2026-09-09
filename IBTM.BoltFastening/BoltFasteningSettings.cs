@@ -40,11 +40,11 @@ public sealed class BoltFasteningSettings : Setting
     private TeachingPosition GetBoltTeachingPosition(BoltTarget bolt, CarrierReferenceSettings reference) =>
         new(
             TeachingTarget.BoltPosition, MotionGroup.BoltFastening, TeachMode.XYOnly,
-            () => HasBoltXY(bolt, reference) ? GetBoltPosition(bolt, reference) : new(),
+            () => HasBoltPosition(bolt, reference) ? GetBoltPosition(bolt, reference) : new(),
             null,
-            isDefined: () => HasBoltXY(bolt, reference)) { Bolt = bolt };
+            isDefined: () => HasBoltPosition(bolt, reference)) { Bolt = bolt };
 
-    private bool HasBoltXY(BoltTarget bolt, CarrierReferenceSettings reference)
+    internal bool HasBoltPosition(BoltTarget bolt, CarrierReferenceSettings reference)
     {
         var head = GetHead(bolt.Head);
         return reference.IsDefined

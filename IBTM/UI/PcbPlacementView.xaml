@@ -144,7 +144,7 @@
                             BorderBrush="{StaticResource TextMutedBrush}"
                             BorderThickness="1"
                             CornerRadius="2"
-                            Visibility="{Binding PcbSupplyNestForward,
+                            Visibility="{Binding PcbSupplyGripperClosed,
                                                  Converter={StaticResource BoolToVis}}"/>
                     <Grid Width="{StaticResource PcbWidth}"
                           Height="{StaticResource PcbHeight}"

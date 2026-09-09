@@ -13,8 +13,7 @@ public sealed class InspectionStation : AutoUnit
     private readonly InspectionWork _work;
     private readonly BoltInspector _inspector;
     private readonly NgCarrierTransfer _transfer;
-    private readonly InspectionGantry _gantry;
-    private readonly NgCarrierTransferSettings _transferSettings;
+    private readonly NgCarrierMove _move;
     private readonly NgShuttle _shuttle;
     private readonly Func<bool> _isTransferEnabled;
     private HeatSinkSlot[]? _runTargets;
@@ -23,28 +22,24 @@ public sealed class InspectionStation : AutoUnit
         InspectionWork work,
         BoltInspector inspector,
         NgCarrierTransfer transfer,
-        InspectionGantry gantry,
-        NgCarrierTransferSettings transferSettings,
+        NgCarrierMove move,
         NgShuttle shuttle,
         Func<bool> isTransferEnabled)
     {
         _work = work;
         _inspector = inspector;
         _transfer = transfer;
-        _gantry = gantry;
-        _transferSettings = transferSettings;
+        _move = move;
         _shuttle = shuttle;
         _isTransferEnabled = isTransferEnabled;
-        work.Changed += NotifyChanged;
-        transfer.Changed += NotifyChanged;
-        shuttle.Changed += NotifyChanged;
+        move.Changed += NotifyChanged;
     }
 
     public override event Action? Changed;
 
     public InspectionStationState State(
         IReadOnlyList<BoltTarget> bolts) =>
-        TransferState() ?? NextInspectionState(NextBolt(bolts));
+        TransferState(CurrentTransferState) ?? NextInspectionState(NextBolt(bolts));
 
     public BoltTarget? ActiveBolt(IReadOnlyList<BoltTarget> bolts) =>
         _work.Enabled
@@ -72,148 +67,40 @@ public sealed class InspectionStation : AutoUnit
 
     private Task ExecuteAsync(
         IReadOnlyList<BoltTarget> bolts,
-        CancellationToken cancellationToken) => State(bolts) switch
+        CancellationToken cancellationToken)
     {
-        InspectionStationState.MovingToBarcode
-            or InspectionStationState.ReadingBarcode
-            or InspectionStationState.MovingToBolt
-            or InspectionStationState.InspectingBolt
-            or InspectionStationState.CompletingInspection =>
-            ExecuteInspectionAsync(bolts, cancellationToken),
-        InspectionStationState.MovingTransferToCarrier =>
-            _gantry.MoveToAsync(
-                _transferSettings.CarrierPickupPosition,
-                _transferSettings.Speed, cancellationToken),
-        InspectionStationState.LoweringTransferAtCarrier
-            or InspectionStationState.LoweringTransferAtShuttle =>
-            _transfer.SetLiftDownAsync(true, cancellationToken),
-        InspectionStationState.ClosingTransferGripper =>
-            _transfer.SetGripperClosedAsync(true, cancellationToken),
-        InspectionStationState.WaitingForCarrierGrip =>
-            _transfer.WaitForCarrierGripAsync(cancellationToken),
-        InspectionStationState.RaisingCarrierTransfer =>
-            _transfer.SetLiftDownAsync(false, cancellationToken),
-        InspectionStationState.MovingTransferToShuttle =>
-            _gantry.MoveToAsync(
-                _transferSettings.ShuttlePlacePosition,
-                _transferSettings.Speed, cancellationToken),
-        InspectionStationState.OpeningTransferGripper =>
-            _transfer.SetGripperClosedAsync(false, cancellationToken),
-        InspectionStationState.WaitingForShuttleCarrier =>
-            _shuttle.WaitForCarrierAsync(true, cancellationToken),
-        _ => WaitForChangeAsync(cancellationToken),
-    };
+        var transferState = CurrentTransferState;
+        if (TransferState(transferState) is not null)
+            return _move.ExecuteAsync(NgTransferDestination.Shuttle, transferState, cancellationToken)
+                ?? WaitForChangeAsync(cancellationToken);
 
-    private bool CarrierReadyForNg =>
-        _work.CarrierSeated
-        && _work.Completed
-        && _work.RouteToNg
-        && _shuttle.CanReceive;
-
-    private bool TransferAtCarrier =>
-        _gantry.IsAt(_transferSettings.CarrierPickupPosition);
-    private bool TransferAtShuttle =>
-        _gantry.IsAt(_transferSettings.ShuttlePlacePosition);
-
-    private InspectionStationState? TransferState()
-    {
-        if (!_isTransferEnabled())
-        {
-            return null;
-        }
-
-        if (TransferAtShuttle)
-        {
-            if (_transfer.Gripper == NgTransferGripperState.Open)
-            {
-                if (_transfer.Lift != NgTransferLiftState.Up)
-                {
-                    return _shuttle.Feedback.CarrierDetected
-                        ? InspectionStationState.RaisingCarrierTransfer
-                        : InspectionStationState.WaitingForShuttleCarrier;
-                }
-
-                if (_transfer.CarrierDetected || _shuttle.Feedback.CarrierDetected)
-                {
-                    return null;
-                }
-            }
-
-            if (_transfer.Lift == NgTransferLiftState.Down
-                && _shuttle.Feedback.CarrierDetected)
-            {
-                return InspectionStationState.OpeningTransferGripper;
-            }
-        }
-
-        if (_transfer.CarrierDetected)
-        {
-            if (TransferAtShuttle
-                && _transfer.Lift == NgTransferLiftState.Down)
-            {
-                return InspectionStationState.OpeningTransferGripper;
-            }
-
-            if (_transfer.Gripper != NgTransferGripperState.Closed)
-            {
-                return InspectionStationState.ClosingTransferGripper;
-            }
-
-            if (TransferAtShuttle)
-            {
-                if (!_shuttle.CanReceive)
-                {
-                    return InspectionStationState.WaitingForShuttleReady;
-                }
-
-                return InspectionStationState.LoweringTransferAtShuttle;
-            }
-
-            return _transfer.Lift == NgTransferLiftState.Up
-                ? InspectionStationState.MovingTransferToShuttle
-                : InspectionStationState.RaisingCarrierTransfer;
-        }
-
-        if (_shuttle.Feedback.CarrierDetected)
-        {
-            return _transfer.Lift == NgTransferLiftState.Up
-                ? null
-                : InspectionStationState.RaisingCarrierTransfer;
-        }
-
-        if (!CarrierReadyForNg)
-        {
-            if (_transfer.Lift != NgTransferLiftState.Up)
-            {
-                return InspectionStationState.RaisingCarrierTransfer;
-            }
-
-            return _transfer.Gripper == NgTransferGripperState.Open
-                ? null
-                : InspectionStationState.OpeningTransferGripper;
-        }
-
-        if (!TransferAtCarrier)
-        {
-            if (_transfer.Lift != NgTransferLiftState.Up)
-            {
-                return InspectionStationState.RaisingCarrierTransfer;
-            }
-
-            return _transfer.Gripper == NgTransferGripperState.Open
-                ? InspectionStationState.MovingTransferToCarrier
-                : InspectionStationState.OpeningTransferGripper;
-        }
-
-        if (_transfer.Lift != NgTransferLiftState.Down)
-        {
-            return InspectionStationState.LoweringTransferAtCarrier;
-        }
-
-        return _transfer.Gripper == NgTransferGripperState.Closed
-            ? InspectionStationState.WaitingForCarrierGrip
-            : InspectionStationState.ClosingTransferGripper;
+        return NextInspectionState(NextBolt(bolts)) is InspectionStationState.Waiting
+            or InspectionStationState.BarcodeTeachingRequired
+                ? WaitForChangeAsync(cancellationToken)
+                : ExecuteInspectionAsync(bolts, cancellationToken);
     }
+
+    private NgTransferState CurrentTransferState => !_isTransferEnabled() ? NgTransferState.Idle : _move.State(
+        NgTransferDestination.Shuttle,
+        canPickUp: _work.CarrierSeated && _work.Completed && _work.RouteToNg && _shuttle.CanReceive,
+        canReceive: _shuttle.CanReceive);
+
+    // Inspection's display enum describes the same shared transfer states.
+    private static InspectionStationState? TransferState(NgTransferState state) => state switch
+    {
+        NgTransferState.MovingToCarrier => InspectionStationState.MovingTransferToCarrier,
+        NgTransferState.LoweringToCarrier => InspectionStationState.LoweringTransferAtCarrier,
+        NgTransferState.Closing => InspectionStationState.ClosingTransferGripper,
+        NgTransferState.WaitingForGrip => InspectionStationState.WaitingForCarrierGrip,
+        NgTransferState.Raising => InspectionStationState.RaisingCarrierTransfer,
+        NgTransferState.MovingToDestination => InspectionStationState.MovingTransferToShuttle,
+        NgTransferState.StationNotReady or NgTransferState.ShuttleNotReady
+            or NgTransferState.WaitingForDestination => InspectionStationState.WaitingForShuttleReady,
+        NgTransferState.LoweringAtDestination => InspectionStationState.LoweringTransferAtShuttle,
+        NgTransferState.Opening => InspectionStationState.OpeningTransferGripper,
+        NgTransferState.WaitingForPlacement => InspectionStationState.WaitingForShuttleCarrier,
+        _ => null,
+    };
 
     private async Task ExecuteInspectionAsync(
         IReadOnlyList<BoltTarget> bolts,

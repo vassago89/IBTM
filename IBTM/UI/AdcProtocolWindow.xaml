@@ -121,11 +121,14 @@
                         <TextBlock Text="CONTROLLER"
                                    VerticalAlignment="Center"
                                    Style="{StaticResource SectionHeaderStyle}"/>
-                        <Button x:Name="StopButton"
-                                Content="Stop"
-                                HorizontalAlignment="Right"
-                                Style="{StaticResource DangerButtonStyle}"
-                                Click="OnStop"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <ui:HoldButton x:Name="ReverseButton" Content="Reverse (Hold)" Margin="0,0,8,0"
+                                           PressCommand="{Binding ReverseCommand}" ReleaseCommand="{Binding ReleaseReverseCommand}"
+                                           Style="{StaticResource SecondaryButtonStyle}"
+                                           ToolTip="Loosen while held. Release or Stop ends rotation; no automatic loose-complete judgement."/>
+                            <Button x:Name="StopButton" Content="Stop"
+                                    Style="{StaticResource DangerButtonStyle}" Click="OnStop"/>
+                        </StackPanel>
                     </Grid>
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel x:Name="OperationPanel" IsEnabled="False">
@@ -170,7 +173,7 @@
                                 Click="OnReadDeviceInformation"/>
                     </WrapPanel>
 
-                    <TextBlock Text="LAST RESULT" Style="{StaticResource SectionHeaderStyle}"/>
+                    <TextBlock Text="CONTROLLER / LAST RESULT" Style="{StaticResource SectionHeaderStyle}"/>
                     <TextBlock x:Name="ResultText"
                                Margin="0,10,0,0"
                                Text="No result read"

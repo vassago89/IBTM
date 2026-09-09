@@ -51,6 +51,15 @@ public interface IAdcBus
         return AdcFasteningResult.FromRegisters(values);
     }
 
+    async Task<AdcControllerStatus> ReadControllerStatusAsync(
+        byte slaveAddress,
+        CancellationToken cancellationToken = default)
+    {
+        var values = await ReadInputRegistersAsync(slaveAddress,
+            (ushort)AdcStatusRegister.Preset, AdcControllerStatus.RegisterCount, cancellationToken);
+        return AdcControllerStatus.FromRegisters(values);
+    }
+
     Task ResetAlarmAsync(
         byte slaveAddress,
         CancellationToken cancellationToken = default) =>
@@ -184,6 +193,28 @@ public enum AdcResultRegister : ushort
 
     [Description("Snug Angle")]
     SnugAngle = 3213,
+}
+
+public enum AdcStatusRegister : ushort
+{
+    [Description("Current Preset")] Preset = 3303,
+    [Description("Ready")] Ready = 3306,
+    [Description("Motor Run")] MotorRun = 3307,
+    [Description("Current Alarm")] Alarm = 3308,
+    [Description("Current Direction")] Direction = 3309,
+}
+
+public sealed record AdcControllerStatus(ushort Preset, bool Ready, bool Running, ushort Alarm, AdcDirection Direction)
+{
+    public const ushort RegisterCount = (ushort)AdcStatusRegister.Direction - (ushort)AdcStatusRegister.Preset + 1;
+
+    internal static AdcControllerStatus FromRegisters(ushort[] values)
+    {
+        ushort Read(AdcStatusRegister register) => values[(ushort)register - (ushort)AdcStatusRegister.Preset];
+        return new(Read(AdcStatusRegister.Preset), Read(AdcStatusRegister.Ready) != 0,
+            Read(AdcStatusRegister.MotorRun) != 0, Read(AdcStatusRegister.Alarm),
+            (AdcDirection)Read(AdcStatusRegister.Direction));
+    }
 }
 
 public enum AdcDirection : ushort

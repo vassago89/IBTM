@@ -16,30 +16,30 @@ public sealed class PcbSupplyHardwareSettings : MotionHardwareSettings
         Inputs = new()
         {
             [InputIo.PcbSupplyAvailableFromFront1] = 16,
-            [InputIo.PcbSupplyNestForward] = 20,
-            [InputIo.PcbSupplyNestBackward] = 21,
-            [InputIo.PcbSupplyRotated] = 22,
-            [InputIo.PcbSupplyUnrotated] = 23,
-            [InputIo.PcbSupplyIpmFixerForward] = 26,
-            [InputIo.PcbSupplyIpmFixerBackward] = 27,
+            [InputIo.PcbSupplyRotated] = 20,
+            [InputIo.PcbSupplyUnrotated] = 21,
+            [InputIo.PcbSupplyGripperClosed] = 22,
+            [InputIo.PcbSupplyGripperOpen] = 23,
+            [InputIo.PcbSupplyIpmFixerForward] = 24,
+            [InputIo.PcbSupplyIpmFixerBackward] = 25,
             [InputIo.PcbSupplyPcbDetected] = 28,
         };
         Outputs = new()
         {
             [OutputIo.PcbSupplyReadyToFront1] = Output(16),
-            [OutputIo.PcbSupplyNestForward] = Output(
-                20,
-                21,
-                InputIo.PcbSupplyNestForward,
-                InputIo.PcbSupplyNestBackward),
-            [OutputIo.PcbSupplyRotate] = Output(
+            [OutputIo.PcbSupplyGripperClosed] = Output(
                 22,
                 23,
+                InputIo.PcbSupplyGripperClosed,
+                InputIo.PcbSupplyGripperOpen),
+            [OutputIo.PcbSupplyRotate] = Output(
+                20,
+                21,
                 InputIo.PcbSupplyRotated,
                 InputIo.PcbSupplyUnrotated),
             [OutputIo.PcbSupplyIpmFixerForward] = Output(
-                26,
-                27,
+                24,
+                25,
                 InputIo.PcbSupplyIpmFixerForward,
                 InputIo.PcbSupplyIpmFixerBackward),
         };

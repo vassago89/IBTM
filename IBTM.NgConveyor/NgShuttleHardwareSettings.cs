@@ -17,8 +17,8 @@ public sealed class NgShuttleHardwareSettings : IoHardwareSettings
         Outputs = new()
         {
             [OutputIo.NgShuttleDown] = Output(
-                67,
                 68,
+                69,
                 InputIo.NgShuttleDown,
                 InputIo.NgShuttleUp),
         };

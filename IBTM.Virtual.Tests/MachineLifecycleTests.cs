@@ -28,6 +28,1104 @@ namespace IBTM.Virtual.Tests;
 public sealed class MachineLifecycleTests
 {
     [Fact]
+    public async Task BoltDryRunResumesCylinderAndPickupZStrokesWithoutVacuum()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.BoltFastening.Motion.ZSpeed = 30;
+        using var services = CreateServices(settings);
+        services.GetRequiredService<Recipe>().Pcb.BoltPoints =
+            [new() { Number = 1, Head = FasteningHead.Pickup, X = 10, Y = 10 }];
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var gantry = services.GetRequiredService<BoltFasteningGantry>();
+        var route = services.GetRequiredService<BoltRouteDryRun>();
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        manual.SelectedDryRun = DryRunTarget.BoltRoute;
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+        await services.GetRequiredService<BoltFasteningWork>().Station.SeatAsync(CancellationToken.None);
+
+        var stops = new Queue<BoltRouteState>([
+            BoltRouteState.LoweringForPickup, BoltRouteState.MovingToPickupZ,
+            BoltRouteState.MovingToSafeZ, BoltRouteState.LoweringAtPoint, BoltRouteState.RaisingHeads]);
+        void InterruptStroke()
+        {
+            if (!stops.TryPeek(out var next) || route.State != next) return;
+            if (next is BoltRouteState.MovingToPickupZ or BoltRouteState.MovingToSafeZ
+                && gantry.Feedback.GetPosition().Z is not (> 1 and < 9)) return;
+            stops.Dequeue();
+            manual.RunDryRunCommand.Cancel();
+        }
+        var adcFrames = 0;
+        services.GetRequiredService<IAdcBus>().FrameTransferred += (_, _) => adcFrames++;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.PickupHeadDown) return;
+            if (!on) Assert.Equal(settings.BoltFastening.SafeZ, gantry.Feedback.GetPosition().Z, 2);
+            InterruptStroke();
+        };
+        gantry.Feedback.PositionChanged += (_, _, _) => InterruptStroke();
+        gantry.Feedback.MovingChanged += _ =>
+        {
+            if (gantry.Feedback.IsMovingHorizontal) Assert.True(gantry.CanMoveHorizontal);
+        };
+        while (stops.Count > 0)
+        {
+            var count = stops.Count;
+            await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+            await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(count - 1, stops.Count);
+            Assert.False(gantry.Feedback.IsMoving);
+            Assert.Equal(0, route.CompletedPasses);
+        }
+        route.Changed += () => { if (route.CompletedPasses == 2) manual.RunDryRunCommand.Cancel(); };
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
+        Assert.Equal(2, route.CompletedPasses);
+        Assert.True(gantry.AtSafeZ);
+        Assert.True(gantry.CanMoveHorizontal);
+        Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
+        Assert.False(io.GetInput(InputIo.PickupHeadVacuumDetected));
+        Assert.Equal(0, adcFrames);
+        Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
+        await machine.ShutdownAsync();
+    }
+
+    [Theory]
+    [InlineData(HeatSinkLoad.HeatSink1)]
+    [InlineData(HeatSinkLoad.HeatSink2)]
+    [InlineData(HeatSinkLoad.Both)]
+    public async Task BoltRouteVisitsBothHeadsAndPassesWithoutDrivingBolts(HeatSinkLoad load)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.BoltFastening.PickupHead.UpperLeftLocatingPin = new() { X = 50, Y = 5 };
+        settings.BoltFastening.PickupHead.LowerRightLocatingPin = new() { X = 150, Y = 5 };
+        using var services = CreateServices(settings);
+        var recipe = services.GetRequiredService<Recipe>();
+        recipe.Pcb.BoltPoints =
+        [
+            new() { Number = 1, Head = FasteningHead.Pickup, X = 10, Y = 10 },
+            new() { Number = 2, Head = FasteningHead.Shooting, X = 5, Y = 5 },
+        ];
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var gantry = services.GetRequiredService<BoltFasteningGantry>();
+        var work = services.GetRequiredService<BoltFasteningWork>();
+        var route = services.GetRequiredService<BoltRouteDryRun>();
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        manual.SelectedDryRun = DryRunTarget.BoltRoute;
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        Assert.False(manual.RunDryRunCommand.CanExecute(null));
+        io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+        io.SetInput(InputIo.BoltFasteningHeatSink1Present, load.HasFlag(HeatSinkLoad.HeatSink1));
+        io.SetInput(InputIo.BoltFasteningHeatSink2Present, load.HasFlag(HeatSinkLoad.HeatSink2));
+        Assert.False(manual.RunDryRunCommand.CanExecute(null));
+        await work.Station.SeatAsync(CancellationToken.None);
+        var production = work.Assembly(load == HeatSinkLoad.HeatSink2 ? HeatSinkSlot.HeatSink2 : HeatSinkSlot.HeatSink1);
+        production.RecordPcbBolt(2, new(false, 3, BoltResultSource.Controller));
+        // A lowered head is raised before any XY movement, not treated as a completed point.
+        await gantry.GetTeachingOutputs().Single(output => output.Signal == OutputIo.PickupHeadDown)
+            .SetAsync(true, CancellationToken.None);
+
+        // No bolt is available. Dry run must not wait on either feeder or shooting feedback.
+        io.SetInput(InputIo.PickupHeadVacuumDetected, false);
+        io.SetInput(InputIo.ShootingHeadVacuumDetected, false);
+        io.SetInput(InputIo.ShootingTubeBoltDetected, true);
+        io.SetInput(InputIo.ShootingEscapeBackward, false);
+
+        var adcFrames = 0;
+        services.GetRequiredService<IAdcBus>().FrameTransferred += (_, _) => adcFrames++;
+        var outputs = new List<OutputIo>();
+        io.OutputChanged += (output, on) => { if (on) outputs.Add(output); };
+        var visited = new List<(HeatSinkSlot HeatSink, int Number, FasteningPass Pass)>();
+        var pickups = new List<(HeatSinkSlot HeatSink, BoltRouteDirection Direction)>();
+        var stopAfter = 2;
+        route.Changed += () =>
+        {
+            if (route.State == BoltRouteState.AtPoint && route.ActiveBolt is { } bolt)
+            {
+                var target = (bolt.HeatSink, bolt.Number, route.ActivePass!.Value);
+                if (visited.Count == 0 || visited[^1] != target) visited.Add(target);
+                var expected = settings.BoltFastening.GetBoltPosition(bolt, settings.CarrierReference);
+                var actual = gantry.Feedback.GetPosition();
+                Assert.Equal(expected.X, actual.X, 2);
+                Assert.Equal(expected.Y, actual.Y, 2);
+                Assert.Equal(settings.BoltFastening.SafeZ, actual.Z, 2);
+            }
+            if (route.State == BoltRouteState.AtPickup)
+            {
+                Assert.Equal(FasteningPass.IpmSeating, route.ActivePass);
+                var pickup = (route.ActiveBolt!.HeatSink, route.Direction);
+                if (pickups.Count == 0 || pickups[^1] != pickup) pickups.Add(pickup);
+                Assert.Equal(BoltCylinderState.Down, gantry.PickupHeadPosition);
+                var actual = gantry.Feedback.GetPosition();
+                Assert.Equal(settings.BoltFastening.PickupPosition.X, actual.X, 2);
+                Assert.Equal(settings.BoltFastening.PickupPosition.Y, actual.Y, 2);
+                Assert.Equal(settings.BoltFastening.PickupPosition.Z, actual.Z, 2);
+            }
+            if (route.CompletedPasses == stopAfter) manual.RunDryRunCommand.Cancel();
+        };
+        gantry.Feedback.MovingChanged += moving =>
+        {
+            if (gantry.Feedback.IsMovingHorizontal) Assert.True(gantry.CanMoveHorizontal);
+            else if (moving)
+            {
+                // Every Z stroke is at the pickup, with Head 1 down. Never at a bolt point.
+                var actual = gantry.Feedback.GetPosition();
+                Assert.Equal(settings.BoltFastening.PickupPosition.X, actual.X, 2);
+                Assert.Equal(settings.BoltFastening.PickupPosition.Y, actual.Y, 2);
+                Assert.Equal(BoltCylinderState.Down, gantry.PickupHeadPosition);
+            }
+        };
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(10));
+
+        var slots = Enum.GetValues<HeatSinkSlot>().Where(work.HeatSinkPresent).ToArray();
+        var forward = slots.Select(slot => (slot, 2, FasteningPass.Pcb))
+            .Concat(slots.Select(slot => (slot, 1, FasteningPass.IpmSeating)))
+            .Concat(slots.Select(slot => (slot, 1, FasteningPass.IpmFinal))).ToArray();
+        Assert.Equal(forward.Concat(forward.Reverse().Skip(1)), visited);
+        Assert.Equal(slots.Select(slot => (slot, BoltRouteDirection.Forward))
+            .Concat(slots.Reverse().Select(slot => (slot, BoltRouteDirection.Return))), pickups);
+        Assert.Equal(2, route.CompletedPasses);
+        Assert.Equal(0, adcFrames);
+        Assert.DoesNotContain(OutputIo.ShootBolt, outputs);
+        Assert.DoesNotContain(OutputIo.PickupHeadVacuumPump, outputs);
+        Assert.DoesNotContain(OutputIo.ShootingHeadVacuumPump, outputs);
+        Assert.DoesNotContain(OutputIo.ShootingEscapeForward, outputs);
+        Assert.Equal(visited.Count(point => point.Pass != FasteningPass.Pcb) + pickups.Count,
+            outputs.Count(output => output == OutputIo.PickupHeadDown));
+        Assert.Equal(visited.Count(point => point.Pass == FasteningPass.Pcb),
+            outputs.Count(output => output == OutputIo.ShootingHeadDown));
+        Assert.True(gantry.CanMoveHorizontal);
+        Assert.False(work.Completed);
+        Assert.True(work.CarrierSeated);
+        Assert.False(Assert.Single(production.PcbBoltResults).Value.Success);
+        Assert.Empty(production.IpmSeatingResults);
+        Assert.Empty(production.IpmFinalResults);
+
+        // Cancel mid-XY, then resume the same pending point without running any ADC command.
+        settings.BoltFastening.Motion.HorizontalSpeed = 30;
+        stopAfter = 4;
+        var interrupted = false;
+        gantry.Feedback.PositionChanged += (_, _, _) =>
+        {
+            if (interrupted || !gantry.Feedback.IsMoving) return;
+            interrupted = true;
+            manual.RunDryRunCommand.Cancel();
+        };
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(interrupted);
+        Assert.Equal(2, route.CompletedPasses);
+        Assert.False(gantry.Feedback.IsMoving);
+        var pending = route.ActiveBolt;
+        settings.BoltFastening.Motion.HorizontalSpeed = 10_000;
+        visited.Clear();
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal((pending!.HeatSink, pending.Number), (visited[0].HeatSink, visited[0].Number));
+        Assert.Equal(4, route.CompletedPasses);
+        Assert.Equal(0, adcFrames);
+        Assert.Equal(MachineAlarm.None, state.Alarm);
+
+        stopAfter = 6;
+        var seatLost = false;
+        gantry.Feedback.PositionChanged += (_, _, _) =>
+        {
+            if (seatLost || !gantry.Feedback.IsMoving) return;
+            seatLost = true;
+            io.SetInput(InputIo.BoltFasteningBackupPlateUp, false);
+        };
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(seatLost);
+        Assert.False(gantry.Feedback.IsMoving);
+        Assert.Equal(4, route.CompletedPasses);
+        await WaitUntilAsync(() => !manual.RunDryRunCommand.CanExecute(null));
+        await machine.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task NgConveyorRoundTripLowersShuttleBeforeReverseAndResumesBetweenSensors()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgConveyor);
+        settings.Units.NgShuttle = true;
+        settings.Units.NgCarrierTransfer = true;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var route = services.GetRequiredService<NgConveyorDryRun>();
+        var conveyor = services.GetRequiredService<NgCarrierConveyor>();
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        manual.SelectedDryRun = DryRunTarget.NgConveyor;
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+        var stopFirstReverse = true;
+        var lowerPickup = false;
+        var unsafeTravel = false;
+        var raisedWhileRunning = false;
+        var stopAtPass = 2;
+        route.Changed += () => { if (route.CompletedPasses == stopAtPass) machine.Stop(); };
+        io.OutputChanged += (output, value) =>
+        {
+            raisedWhileRunning |= output == OutputIo.NgShuttleDown && !value && conveyor.RunCommandOn;
+            if (output != OutputIo.NgConveyorRun || !value) return;
+            unsafeTravel |= !io.GetInput(InputIo.NgShuttleDown) || io.GetInput(InputIo.NgShuttleUp);
+            if (stopFirstReverse && io.GetOutput(OutputIo.NgConveyorReverse))
+            {
+                stopFirstReverse = false;
+                machine.Stop();
+            }
+            if (lowerPickup) io.SetInput(InputIo.NgCarrierPickupUp, false);
+        };
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
+        Assert.Equal(1, route.CompletedPasses);
+        Assert.Equal(NgConveyorDestination.Shuttle, route.Destination);
+        Assert.False(conveyor.RunCommandOn);
+
+        // Resume a stopped carrier between P1 and P3: no input is currently ON.
+        io.AutoResponseEnabled = false;
+        io.SetInput(InputIo.NgConveyorPosition1Occupied, false);
+        Assert.Equal(0, conveyor.CarrierCount);
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        var resumed = manual.RunDryRunCommand.ExecuteAsync(null);
+        try
+        {
+            await VirtualTest.WaitForOutputAsync(io, OutputIo.NgConveyorRun, true);
+            Assert.True(io.GetOutput(OutputIo.NgConveyorReverse));
+            io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+            await VirtualTest.WaitForOutputAsync(io, OutputIo.NgConveyorRun, false);
+            await VirtualTest.WaitForOutputAsync(io, OutputIo.NgShuttleDown, false);
+            io.SetInput(InputIo.NgShuttleDown, false);
+            io.SetInput(InputIo.NgShuttleUp, true);
+            await resumed.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally { machine.Stop(); await resumed; }
+        Assert.Equal(2, route.CompletedPasses);
+        Assert.True(io.GetInput(InputIo.NgShuttleCarrierDetected));
+        Assert.True(io.GetInput(InputIo.NgShuttleUp));
+
+        io.AutoResponseEnabled = true;
+        stopAtPass = 4;
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
+        Assert.Equal(4, route.CompletedPasses);
+        Assert.True(io.GetInput(InputIo.NgShuttleCarrierDetected));
+        Assert.True(io.GetInput(InputIo.NgShuttleUp));
+        Assert.False(unsafeTravel);
+        Assert.False(raisedWhileRunning);
+        Assert.False(state.IsError, state.AlarmDetail);
+
+        stopAtPass = -1;
+        lowerPickup = true;
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.False(conveyor.RunCommandOn);
+        Assert.Equal(NgConveyorDryRunState.WaitingForPickup, route.State);
+        await machine.ShutdownAsync();
+    }
+
+    [Theory]
+    [InlineData(HeatSinkSlot.HeatSink1)]
+    [InlineData(HeatSinkSlot.HeatSink2)]
+    public async Task OnePcbRepeatsTheSelectedHeatSinkRouteWithoutNewSupplyOrConveyorMotion(HeatSinkSlot heatSink)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.Units.PcbSupply = true;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var supply = services.GetRequiredService<PcbSupplyHandler>();
+        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        var work = services.GetRequiredService<PcbPlacementWork>();
+        var buffer = services.GetRequiredService<BufferStage>();
+        var recipe = services.GetRequiredService<Recipe>();
+        recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
+        recipe.PcbPlacement.HeatSink2PcbPlacementPosition = new() { X = 40, Y = 100, Z = 10 };
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        var route = services.GetRequiredService<PcbDryRun>();
+        manual.SelectedDryRun = DryRunTarget.PcbRoundTrip;
+        manual.SelectedDryRunHeatSink = heatSink;
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+        io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+        io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+        await work.Station.SeatAsync(CancellationToken.None);
+        var selectedInput = heatSink == HeatSinkSlot.HeatSink1
+            ? InputIo.PcbPlacementHeatSink1Present : InputIo.PcbPlacementHeatSink2Present;
+        io.SetInput(selectedInput, false);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => route.RunAsync(heatSink, CancellationToken.None));
+        Assert.Equal(PcbDryRunDirection.Ready, route.Direction);
+        io.SetInput(selectedInput, true);
+        io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        await supply.SecurePcbAsync();
+
+        var stops = 0;
+        var selectedPlacements = 0;
+        var otherPlacements = 0;
+        var unwantedOutput = false;
+        var unsafeMotion = false;
+        io.OutputChanged += (output, value) =>
+        {
+            unwantedOutput |= value && output is OutputIo.PcbSupplyReadyToFront1
+                or OutputIo.MainConveyorRun or OutputIo.NgConveyorRun or OutputIo.ShootBolt;
+            if (output == OutputIo.PcbPlacementVacuumEjector && !value
+                && route.Direction == PcbDryRunDirection.Forward)
+            {
+                var expected = heatSink == HeatSinkSlot.HeatSink1
+                    ? recipe.PcbPlacement.HeatSink1PcbPlacementPosition : recipe.PcbPlacement.HeatSink2PcbPlacementPosition;
+                if (placement.IsAtXY(expected)) selectedPlacements++;
+                else otherPlacements++;
+            }
+        };
+        io.InputChanged += (input, value) =>
+        {
+            if (stops == 0 && route.Direction == PcbDryRunDirection.Forward
+                && input == InputIo.PcbSupplyIpmFixerForward && !value
+                || stops == 1 && route.Direction == PcbDryRunDirection.Return
+                && input == InputIo.PcbPlacementVacuumDetected && !value)
+            {
+                stops++;
+                machine.Stop();
+            }
+        };
+        placement.Feedback.PositionChanged += (_, _, _) =>
+            unsafeMotion |= placement.Feedback.IsMovingHorizontal && !placement.CanMoveHorizontal;
+        route.Changed += () => { if (route.CompletedCycles == 2) machine.Stop(); };
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+            var run = manual.RunDryRunCommand.ExecuteAsync(null);
+            try { await run.WaitAsync(TimeSpan.FromSeconds(20)); }
+            finally { machine.Stop(); await run; }
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.False(buffer.Conflict);
+            if (attempt < 2) Assert.Equal(attempt + 1, stops);
+        }
+        Assert.Equal(2, route.CompletedCycles);
+        Assert.Equal(2, selectedPlacements);
+        Assert.Equal(0, otherPlacements);
+        Assert.Equal(PcbSupplyPcbState.Secured, supply.Pcb);
+        Assert.Equal(PcbSupplyRotationState.Unrotated, supply.Rotation);
+        Assert.Equal(PlacementPcbState.None, placement.Pcb);
+        Assert.False(buffer.PcbPresent);
+        Assert.False(work.Completed);
+        Assert.Empty(work.Assemblies);
+        Assert.False(unwantedOutput);
+        Assert.False(unsafeMotion);
+        await machine.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task PlacementOpensAndRaisesIpmBeforePressingAndResumesWithoutReopening()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.Units.PcbSupply = true;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var handler = services.GetRequiredService<PcbPlacementHandler>();
+        var placer = services.GetRequiredService<PcbPlacer>();
+        var work = services.GetRequiredService<PcbPlacementWork>();
+        var recipe = services.GetRequiredService<Recipe>().PcbPlacement;
+        recipe.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        await handler.MoveToXYAsync(20, 100);
+        io.AutoResponseEnabled = false;
+        io.SetOutput(OutputIo.PcbPlacementIpmGripperClose, true);
+        io.SetOutput(OutputIo.PcbPlacementIpmDown, true);
+        foreach (var input in new[] { InputIo.PcbPlacementCarrierPresent,
+            InputIo.PcbPlacementBackupPlateUp, InputIo.PcbPlacementStopperDown,
+            InputIo.PcbPlacementHeatSink1Present, InputIo.PcbPlacementPcbDetected,
+            InputIo.PcbPlacementIpmGripperClosed, InputIo.PcbPlacementHandlerRotated,
+            InputIo.PcbPlacementIpmDown }) io.SetInput(input, true);
+        foreach (var input in new[] { InputIo.PcbPlacementBackupPlateDown,
+            InputIo.PcbPlacementStopperUp, InputIo.PcbPlacementIpmGripperOpen,
+            InputIo.PcbPlacementHandlerUnrotated, InputIo.PcbPlacementIpmUp }) io.SetInput(input, false);
+
+        // XY alone is not a placement position, even with PCB detection and vacuum OFF.
+        Assert.DoesNotContain(placer.State(recipe), new[] { PcbPlacementState.PressingPcb, PcbPlacementState.RecordingPlacement });
+        await handler.MoveZAsync(10);
+        Assert.DoesNotContain(placer.State(recipe), new[] { PcbPlacementState.PressingPcb, PcbPlacementState.RecordingPlacement });
+        io.SetInput(InputIo.PcbPlacementHandlerUp, false);
+        io.SetInput(InputIo.PcbPlacementHandlerDown, true);
+
+        var outputs = new List<(OutputIo, bool)>();
+        using var closing = new CancellationTokenSource();
+        using var pressing = new CancellationTokenSource();
+        io.OutputChanged += (output, on) =>
+        {
+            if (output is not (OutputIo.PcbPlacementIpmDown or OutputIo.PcbPlacementIpmGripperClose)) return;
+            outputs.Add((output, on));
+            var feedback = io.GetOutputFeedback(output)!;
+            io.SetInput(on ? feedback.OffInput : feedback.OnInput, false);
+            if (output == OutputIo.PcbPlacementIpmDown && on)
+            {
+                pressing.Cancel(); // Stop between Up and Down feedback.
+                return;
+            }
+            io.SetInput(on ? feedback.OnInput : feedback.OffInput, true);
+            if (output == OutputIo.PcbPlacementIpmGripperClose && on) closing.Cancel();
+        };
+
+        Assert.Equal(PcbPlacementState.OpeningGripper, placer.State(recipe));
+        await placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, CancellationToken.None)!;
+        Assert.Equal(PcbPlacementState.RaisingIpm, placer.State(recipe));
+        await placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, CancellationToken.None)!;
+        Assert.Equal(PcbPlacementState.PressingPcb, placer.State(recipe));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, closing.Token)!);
+        Assert.Equal(PlacementGripperState.Closed, handler.IpmGripper);
+        Assert.Equal(PcbPlacementState.PressingPcb, placer.State(recipe));
+        Assert.Empty(work.Assemblies);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, pressing.Token)!);
+        Assert.Equal(PlacementCylinderState.Between, handler.IpmLift);
+        Assert.Equal(PcbPlacementState.PressingPcb, placer.State(recipe));
+        Assert.Empty(work.Assemblies);
+        io.SetInput(InputIo.PcbPlacementIpmDown, true);
+        Assert.Equal(PcbPlacementState.RecordingPlacement, placer.State(recipe));
+        await placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, CancellationToken.None)!;
+        Assert.Single(work.Assemblies);
+        Assert.Equal(new[] { (OutputIo.PcbPlacementIpmGripperClose, false),
+            (OutputIo.PcbPlacementIpmDown, false), (OutputIo.PcbPlacementIpmGripperClose, true),
+            (OutputIo.PcbPlacementIpmDown, true) }, outputs);
+        await machine.ShutdownAsync();
+    }
+
+    [Theory]
+    [InlineData(HeatSinkSlot.HeatSink1)]
+    [InlineData(HeatSinkSlot.HeatSink2)]
+    public async Task PcbReturnReversesHandoffAndResumesWithoutReleasingTheReceivingHandler(HeatSinkSlot heatSink)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.Units.PcbSupply = true;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        var supply = services.GetRequiredService<PcbSupplyHandler>();
+        var buffer = services.GetRequiredService<BufferStage>();
+        var work = services.GetRequiredService<PcbPlacementWork>();
+        var recipe = services.GetRequiredService<Recipe>();
+        recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
+        recipe.PcbPlacement.HeatSink2PcbPlacementPosition = new() { X = 40, Y = 100, Z = 10 };
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        var returning = services.GetRequiredService<PcbReturn>();
+        manual.SelectedDryRun = DryRunTarget.PcbReturn;
+        manual.SelectedDryRunHeatSink = heatSink;
+        await machine.InitializeAsync();
+        Assert.False(manual.RunDryRunCommand.CanExecute(null));
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+        io.SetInput(InputIo.PcbPlacementHeatSink1Present, heatSink == HeatSinkSlot.HeatSink1);
+        io.SetInput(InputIo.PcbPlacementHeatSink2Present, heatSink == HeatSinkSlot.HeatSink2);
+        await work.Station.SeatAsync(CancellationToken.None);
+
+        // Place one real simulated PCB through the existing forward operation first.
+        io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+        await placement.SetVacuumAsync(true);
+        await placement.SetIpmGripperAsync(true);
+        using var placed = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        work.Changed += () => { if (work.Completed) placed.Cancel(); };
+        await services.GetRequiredService<PcbPlacer>().RunAsync(recipe.PcbPlacement, placed.Token);
+        Assert.True(work.Completed);
+        Assert.Equal(PlacementPcbState.None, placement.Pcb);
+        Assert.Equal(PcbSupplyPcbState.None, supply.Pcb);
+        if (heatSink == HeatSinkSlot.HeatSink2)
+        {
+            await placement.MoveToXYAsync(20, 100);
+            await placement.SetRotatedAsync(false);
+            await placement.MoveToXYAsync(0, 0);
+        }
+
+        settings.PcbSupply.Motion.HorizontalSpeed = 200;
+        settings.PcbSupply.Motion.ZSpeed = 100;
+        var stopped = 0;
+        var movedBeforeRelease = false;
+        var movedWithHeadDown = false;
+        var carriedWithIpmRaised = false;
+        var changedYInside = false;
+        var releasedBeforeSupplySecured = false;
+        var enteredWithOpenDown = false;
+        var rotatedAwayFromTeaching = false;
+        var stoppedAtPickup = false;
+        io.OutputChanged += (output, _) =>
+        {
+            if (output == OutputIo.PcbPlacementHandlerRotate)
+                rotatedAwayFromTeaching |= !placement.IsAtXY(recipe.PcbPlacement.HeatSink1PcbPlacementPosition)
+                    || !placement.AtHorizontalZ || !placement.CanMoveHorizontal;
+        };
+        placement.Feedback.PositionChanged += (x, y, z) =>
+        {
+            movedWithHeadDown |= placement.Feedback.IsMovingHorizontal && !placement.CanMoveHorizontal;
+            carriedWithIpmRaised |= placement.Feedback.IsMovingHorizontal
+                && placement.Pcb == PlacementPcbState.Secured
+                && placement.IpmLift != PlacementCylinderState.Down;
+            var target = heatSink == HeatSinkSlot.HeatSink1
+                ? recipe.PcbPlacement.HeatSink1PcbPlacementPosition : recipe.PcbPlacement.HeatSink2PcbPlacementPosition;
+            if (returning.Destination == PcbReturnDestination.HeatSink
+                && Math.Abs(x - target.X) < 0.05 && Math.Abs(y - target.Y) < 0.05
+                && z > 0)
+                enteredWithOpenDown |= placement.IpmGripper == PlacementGripperState.Open
+                    && placement.IpmLift == PlacementCylinderState.Down;
+        };
+        supply.Feedback.PositionChanged += (x, y, z) =>
+        {
+            if (returning.Destination != PcbReturnDestination.Supply) return;
+            changedYInside |= x >= 60 && Math.Abs(y - 30) > 0.05;
+            movedBeforeRelease |= supply.Pcb == PcbSupplyPcbState.Secured
+                && (!placement.AtHorizontalZ || !placement.CanMoveHorizontal);
+            if (stopped == 0 && x > 65 && Math.Abs(z - 20) < 0.05
+                || stopped == 1 && Math.Abs(x - 80) < 0.05 && z is > 11 and < 18)
+            {
+                stopped++;
+                machine.Stop();
+            }
+        };
+        io.InputChanged += (input, value) =>
+        {
+            if (!stoppedAtPickup && input == InputIo.PcbPlacementVacuumDetected && value
+                && returning.Destination == PcbReturnDestination.HeatSink)
+            {
+                stoppedAtPickup = true;
+                machine.Stop();
+            }
+            if (input != InputIo.PcbPlacementVacuumDetected || value
+                || returning.Destination != PcbReturnDestination.Supply) return;
+            releasedBeforeSupplySecured |= supply.Pcb != PcbSupplyPcbState.Secured;
+            if (stopped == 2) { stopped++; machine.Stop(); }
+        };
+
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
+        Assert.True(stoppedAtPickup);
+        Assert.True(placement.VacuumDetected);
+        Assert.NotEqual(PlacementPcbState.Secured, placement.Pcb);
+        await WaitUntilAsync(() => manual.DryRunPcb == heatSink);
+        manual.SelectedDryRunHeatSink = heatSink == HeatSinkSlot.HeatSink1
+            ? HeatSinkSlot.HeatSink2 : HeatSinkSlot.HeatSink1;
+        Assert.Equal(heatSink, manual.DryRunPcb);
+
+        for (var pass = 0; pass < 4; pass++)
+        {
+            await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+            var run = manual.RunDryRunCommand.ExecuteAsync(null);
+            try { await run.WaitAsync(TimeSpan.FromSeconds(8)); }
+            finally { machine.Stop(); await run; }
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.False(supply.Feedback.IsMoving);
+            Assert.False(placement.Feedback.IsMoving);
+            Assert.False(buffer.Conflict);
+            if (pass < 3) Assert.Equal(pass + 1, stopped);
+        }
+
+        Assert.Equal(PcbReturnState.Completed, returning.State);
+        Assert.Equal(1, returning.CompletedReturns);
+        Assert.Null(returning.HeatSink);
+        Assert.Equal(PcbSupplyPcbState.Secured, supply.Pcb);
+        Assert.Equal(PcbSupplyRotationState.Unrotated, supply.Rotation);
+        Assert.Equal((0, settings.PcbSupply.CarrierY, settings.PcbSupply.RotationZ), supply.Feedback.GetPosition());
+        Assert.Equal(PlacementPcbState.None, placement.Pcb);
+        Assert.False(buffer.PcbPresent);
+        Assert.False(work.Completed);
+        Assert.Empty(work.Assemblies);
+        Assert.True(enteredWithOpenDown);
+        Assert.False(movedBeforeRelease);
+        Assert.False(movedWithHeadDown);
+        Assert.False(carriedWithIpmRaised);
+        Assert.False(changedYInside);
+        Assert.False(releasedBeforeSupplySecured);
+        Assert.False(rotatedAwayFromTeaching);
+        Assert.False(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+        await machine.ShutdownAsync();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MainConveyorDryRunUsesManualCommandsAndStopsIfAnEnabledHeadLowers(bool transferEnabled)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.MainConveyor);
+        settings.Units.NgCarrierTransfer = transferEnabled;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        var dryRun = services.GetRequiredService<MainConveyorDryRun>();
+        manual.SelectedDryRun = DryRunTarget.MainConveyor;
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        io.SetInput(InputIo.InspectionHeatSink1Present, true);
+        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        var stopAfter = 2;
+        dryRun.Changed += () => { if (dryRun.CompletedPasses == stopAfter) manual.RunDryRunCommand.Cancel(); };
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
+        Assert.Equal(2, dryRun.CompletedPasses);
+        Assert.True(io.GetInput(InputIo.MainConveyorEntryCarrierDetected));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+        Assert.False(state.IsError);
+
+        // A second start continues forward from the front sensor, not back to Station 3.
+        stopAfter = -1;
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        io.OutputChanged += (output, value) =>
+        {
+            if (output != OutputIo.MainConveyorRun || !value) return;
+            if (transferEnabled) io.SetInput(InputIo.NgCarrierPickupUp, false);
+            else machine.Stop();
+        };
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorReverse));
+        Assert.Equal(MainConveyorDestination.Station1, dryRun.Destination);
+        Assert.False(state.IsError);
+        if (transferEnabled)
+        {
+            await WaitUntilAsync(() => !manual.RunDryRunCommand.CanExecute(null));
+            Assert.Equal(MainConveyorDryRunState.Unavailable, manual.DryRunState);
+        }
+    }
+
+    [Fact]
+    public async Task PcbReturnBringsTheCarrierBackToStation1ThenReturnsItsPcbToSupply()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.Units.PcbSupply = true;
+        settings.Units.MainConveyor = true;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        var supply = services.GetRequiredService<PcbSupplyHandler>();
+        var buffer = services.GetRequiredService<BufferStage>();
+        var work = services.GetRequiredService<PcbPlacementWork>();
+        var recipe = services.GetRequiredService<Recipe>();
+        var conveyor = services.GetRequiredService<MainConveyorDryRun>();
+        var returning = services.GetRequiredService<PcbReturn>();
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
+        recipe.PcbPlacement.HeatSink2PcbPlacementPosition = new() { X = 40, Y = 100, Z = 10 };
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+        io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+        await work.Station.SeatAsync(CancellationToken.None);
+
+        // Put a PCB down normally, then carry that same simulated product to Station 3.
+        io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+        await placement.SetVacuumAsync(true);
+        await placement.SetIpmGripperAsync(true);
+        using var placed = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        work.Changed += () => { if (work.Completed) placed.Cancel(); };
+        await services.GetRequiredService<PcbPlacer>().RunAsync(recipe.PcbPlacement, placed.Token);
+        Assert.True(work.Completed);
+        manual.SelectedDryRun = DryRunTarget.MainConveyor;
+        void StopAtStation3() { if (conveyor.CompletedPasses == 1) machine.Stop(); }
+        conveyor.Changed += StopAtStation3;
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
+        conveyor.Changed -= StopAtStation3;
+        Assert.True(io.GetInput(InputIo.InspectionCarrierPresent));
+        Assert.False(state.IsError, state.AlarmDetail);
+
+        manual.SelectedDryRun = DryRunTarget.PcbReturn;
+        manual.SelectedDryRunHeatSink = HeatSinkSlot.HeatSink2;
+        settings.Units.MainConveyor = false;
+        await WaitUntilAsync(() => !manual.RunDryRunCommand.CanExecute(null));
+        settings.Units.MainConveyor = true;
+
+        var stops = 0;
+        var arrivals = new List<InputIo>();
+        var motorDirections = new List<bool>();
+        var unexpectedOutput = false;
+        var pickedBeforeSeated = false;
+        io.InputChanged += (input, value) =>
+        {
+            if (!value) return;
+            if (input is InputIo.MainConveyorEntryCarrierDetected or InputIo.PcbPlacementCarrierPresent
+                or InputIo.BoltFasteningCarrierPresent or InputIo.InspectionCarrierPresent)
+                arrivals.Add(input);
+            if (stops == 0 && input == InputIo.MainConveyorEntryCarrierDetected)
+            {
+                stops++;
+                machine.Stop();
+            }
+        };
+        work.Changed += () =>
+        {
+            if (stops == 1 && work.CarrierSeated)
+            {
+                stops++;
+                machine.Stop();
+            }
+        };
+        io.OutputChanged += (output, value) =>
+        {
+            if (output == OutputIo.MainConveyorRun && value)
+                motorDirections.Add(io.GetOutput(OutputIo.MainConveyorReverse));
+            if (output == OutputIo.PcbPlacementVacuumEjector && value)
+                pickedBeforeSeated |= !work.CarrierSeated;
+            unexpectedOutput |= value && output is OutputIo.MainConveyorReadyToFront2
+                or OutputIo.MainConveyorAvailableToRear or OutputIo.PcbSupplyReadyToFront1
+                or OutputIo.ShootBolt;
+        };
+
+        for (var pass = 0; pass < 3; pass++)
+        {
+            await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+            var run = manual.RunDryRunCommand.ExecuteAsync(null);
+            try { await run.WaitAsync(TimeSpan.FromSeconds(10)); }
+            finally { if (!run.IsCompleted) { machine.Stop(); await run; } }
+            Assert.False(state.IsError, state.AlarmDetail);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            if (pass < 2)
+            {
+                Assert.Equal(pass + 1, stops);
+                Assert.Equal(PlacementPcbState.None, placement.Pcb);
+                Assert.Equal(PcbSupplyPcbState.None, supply.Pcb);
+            }
+        }
+
+        Assert.Equal(new[] { InputIo.MainConveyorEntryCarrierDetected, InputIo.PcbPlacementCarrierPresent }, arrivals);
+        Assert.Equal(new[] { true, false }, motorDirections);
+        Assert.True(conveyor.AtStation1);
+        Assert.True(work.CarrierSeated);
+        Assert.False(io.GetInput(InputIo.PcbPlacementHeatSink1Present));
+        Assert.True(io.GetInput(InputIo.PcbPlacementHeatSink2Present));
+        Assert.Equal(PcbReturnState.Completed, returning.State);
+        Assert.Equal(1, returning.CompletedReturns);
+        Assert.Equal(PcbSupplyPcbState.Secured, supply.Pcb);
+        Assert.Equal(PcbSupplyRotationState.Unrotated, supply.Rotation);
+        Assert.Equal((0, settings.PcbSupply.CarrierY, settings.PcbSupply.RotationZ), supply.Feedback.GetPosition());
+        Assert.Equal(PlacementPcbState.None, placement.Pcb);
+        Assert.False(buffer.PcbPresent);
+        Assert.False(pickedBeforeSeated);
+        Assert.False(unexpectedOutput);
+
+        // After the operator unloads the returned PCB, a new carrier needs conveyor return again.
+        io.SetInput(InputIo.PcbSupplyPcbDetected, false);
+        io.SetInput(InputIo.PcbPlacementCarrierPresent, false);
+        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        Assert.Equal(PcbReturnState.WaitingForCarrier, returning.State);
+        settings.Units.MainConveyor = false;
+        await WaitUntilAsync(() => !manual.RunDryRunCommand.CanExecute(null));
+        await machine.ShutdownAsync();
+    }
+
+    [Fact]
+    public async Task InspectionDryRunTraversesTheRouteBothWaysAndResumesThePendingPoint()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.InspectionGantry.Motion.HorizontalSpeed = 30;
+        using var services = CreateServices(settings);
+        services.GetRequiredService<Recipe>().Pcb.BoltPoints =
+        [
+            new() { Number = 1, X = 5, Y = 5 },
+            new() { Number = 2, X = 15, Y = 22 },
+        ];
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var work = services.GetRequiredService<InspectionWork>();
+        var gantry = services.GetRequiredService<InspectionGantry>();
+        var dryRun = services.GetRequiredService<InspectionDryRun>();
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        manual.SelectedDryRun = DryRunTarget.Inspection;
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        Assert.False(manual.RunDryRunCommand.CanExecute(null));
+        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        io.SetInput(InputIo.InspectionHeatSink1Present, true);
+        Assert.False(manual.RunDryRunCommand.CanExecute(null));
+        await work.Station.SeatAsync(CancellationToken.None);
+        var production = work.Assembly(HeatSinkSlot.HeatSink1);
+        production.RecordBarcode("production");
+        production.RecordBoltPresence(1, false);
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+
+        var visited = new List<int>();
+        services.GetRequiredService<BoltInspector>().Inspected += image =>
+        {
+            Assert.Equal(HeatSinkSlot.HeatSink1, image.HeatSink);
+            visited.Add(image.BoltNumber);
+        };
+        var stopAfter = 2;
+        dryRun.Changed += () =>
+        {
+            if (dryRun.CompletedPasses == stopAfter) manual.RunDryRunCommand.Cancel();
+        };
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(new[] { 1, 2, 1 }, visited);
+        Assert.Equal("PCB-1", dryRun.LastBarcode);
+        Assert.Equal(2, dryRun.CompletedPasses);
+        Assert.Equal(InspectionRouteDirection.Forward, dryRun.Direction);
+        Assert.True(work.CarrierSeated);
+        Assert.False(work.Completed);
+        Assert.Equal("production", production.PcbBarcode);
+        Assert.False(Assert.Single(production.BoltPresenceResults).Value);
+
+        stopAfter = 4;
+        var interrupted = false;
+        gantry.Feedback.PositionChanged += (x, _, _) =>
+        {
+            if (!interrupted && dryRun.ActiveBolt == 2 && x is > 7 and < 12)
+            {
+                interrupted = true;
+                manual.RunDryRunCommand.Cancel();
+            }
+        };
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(interrupted);
+        Assert.Equal(2, dryRun.CompletedPasses);
+        Assert.Equal(2, dryRun.ActiveBolt);
+        Assert.False(gantry.Feedback.IsMoving);
+        visited.Clear();
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(new[] { 2, 1 }, visited);
+        Assert.Equal(4, dryRun.CompletedPasses);
+        Assert.True(work.CarrierSeated);
+        Assert.False(work.Completed);
+        Assert.Equal("production", production.PcbBarcode);
+        Assert.False(Assert.Single(production.BoltPresenceResults).Value);
+        Assert.Equal(MachineAlarm.None, state.Alarm);
+
+        stopAfter = 6;
+        var seatLost = false;
+        gantry.Feedback.PositionChanged += (_, _, _) =>
+        {
+            if (seatLost) return;
+            seatLost = true;
+            io.SetInput(InputIo.InspectionBackupPlateUp, false);
+        };
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(seatLost);
+        Assert.False(gantry.Feedback.IsMoving);
+        Assert.Equal(4, dryRun.CompletedPasses);
+        await WaitUntilAsync(() => !manual.RunDryRunCommand.CanExecute(null));
+        Assert.True(work.CarrierPresent);
+        Assert.False(work.Completed);
+        await machine.ShutdownAsync();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task InspectionDryRunReportsMissingTeachingAndUnreadableBarcodes(bool missingTeaching)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var work = services.GetRequiredService<InspectionWork>();
+        var camera = services.GetRequiredService<VirtualCamera>();
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        manual.SelectedDryRun = DryRunTarget.Inspection;
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        if (missingTeaching)
+            services.GetRequiredService<Recipe>().Pcb.DataMatrix = null;
+        else
+        {
+            var frame = camera.Capture(500, 0);
+            camera.SourceImage = frame with { Pixels = new byte[frame.Pixels.Length] };
+        }
+        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        io.SetInput(InputIo.InspectionHeatSink1Present, true);
+        await work.Station.SeatAsync(CancellationToken.None);
+        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Equal(MachineAlarm.Inspection, state.Alarm);
+        Assert.Contains(missingTeaching ? "Teach" : "Data Matrix could not be read", state.AlarmMessage);
+        Assert.False(services.GetRequiredService<InspectionGantry>().Feedback.IsMoving);
+        Assert.True(work.CarrierSeated);
+        Assert.False(work.Completed);
+        Assert.All(work.Assemblies, assembly =>
+        {
+            Assert.Null(assembly.PcbBarcode);
+            Assert.Empty(assembly.BoltPresenceResults);
+        });
+        await machine.ShutdownAsync();
+    }
+
+    [Theory]
+    [InlineData(NgTransferDestination.Station)]
+    [InlineData(NgTransferDestination.Shuttle)]
+    public async Task NgTransferUsesTheSameLiveReleaseStatesInBothDirections(NgTransferDestination destination)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var move = services.GetRequiredService<NgCarrierMove>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
+        await services.GetRequiredService<InspectionGantry>().MoveToAsync(destination == NgTransferDestination.Station
+            ? settings.NgCarrierTransfer.CarrierPickupPosition : settings.NgCarrierTransfer.ShuttlePlacePosition, 1_000);
+        io.AutoResponseEnabled = false;
+        var destinationSensor = destination == NgTransferDestination.Station
+            ? InputIo.InspectionCarrierPresent : InputIo.NgShuttleCarrierDetected;
+        io.SetInput(InputIo.NgCarrierDetected, true);
+        io.SetInput(InputIo.NgCarrierGripperOpen, false);
+        io.SetInput(InputIo.NgCarrierGripperClosed, true);
+        Assert.Equal(NgTransferState.WaitingForDestination,
+            move.State(destination, canPickUp: true, canReceive: false));
+        io.SetInput(destinationSensor, true);
+        AssertState(NgTransferState.WaitingForDestination);
+
+        // The descending held carrier can enter the support sensor before Down.
+        io.SetInput(InputIo.NgCarrierPickupUp, false);
+        AssertState(NgTransferState.LoweringAtDestination);
+        io.SetInput(InputIo.NgCarrierPickupDown, true);
+        AssertState(NgTransferState.Opening);
+        io.SetInput(InputIo.NgCarrierGripperClosed, false);
+        AssertState(NgTransferState.Opening);
+        io.SetInput(InputIo.NgCarrierGripperOpen, true);
+        io.SetInput(destinationSensor, false);
+        AssertState(NgTransferState.WaitingForPlacement);
+        io.SetInput(destinationSensor, true);
+        AssertState(NgTransferState.Raising);
+        io.SetInput(InputIo.NgCarrierPickupDown, false);
+        io.SetInput(InputIo.NgCarrierPickupUp, true);
+        AssertState(NgTransferState.Completed);
+        await machine.ShutdownAsync();
+
+        void AssertState(NgTransferState expected)
+        {
+            Assert.Equal(expected, move.State(destination, canPickUp: false));
+            Assert.Equal(expected, move.State(destination, canPickUp: true));
+        }
+    }
+
+    [Fact]
+    public async Task NgTransferDryRunReturnsTheCarrierAndResumesWhileHoldingIt()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.NgCarrierTransfer.Speed = 200;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var gantry = services.GetRequiredService<InspectionGantry>();
+        var transfer = services.GetRequiredService<NgCarrierTransfer>();
+        var dryRun = services.GetRequiredService<NgTransferDryRun>();
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        Assert.Equal(NgTransferState.WaitingForCarrier, dryRun.State);
+        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        Assert.Equal(NgTransferState.StationNotReady, dryRun.State);
+        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
+        io.SetInput(InputIo.InspectionHeatSink1Present, true);
+        io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+        Assert.Equal(NgTransferState.WaitingForDestination, dryRun.State);
+        io.SetInput(InputIo.NgShuttleCarrierDetected, false);
+        await gantry.MoveToAsync(settings.NgCarrierTransfer.ShuttlePlacePosition, 1_000);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, true);
+        Assert.Equal(NgTransferState.Raising, dryRun.State);
+        await WaitUntilAsync(() => state.Display.ManualControlsEnabled);
+
+        var stopAfter = 2;
+        dryRun.Changed += () =>
+        {
+            if (dryRun.CompletedTransfers == stopAfter) manual.RunDryRunCommand.Cancel();
+        };
+        gantry.Feedback.MovingChanged += moving =>
+        {
+            if (moving) Assert.True(transfer.IsRaised);
+        };
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(15));
+
+        Assert.Equal(2, dryRun.CompletedTransfers);
+        Assert.True(io.GetInput(InputIo.InspectionCarrierPresent));
+        Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
+        Assert.False(io.GetInput(InputIo.InspectionHeatSink2Present));
+        Assert.False(io.GetInput(InputIo.NgShuttleCarrierDetected));
+        Assert.False(transfer.CarrierDetected);
+        Assert.True(transfer.IsRaised);
+
+        stopAfter = 4;
+        var interrupted = false;
+        gantry.Feedback.PositionChanged += (x, _, _) =>
+        {
+            if (!interrupted && dryRun.Destination == NgTransferDestination.Station
+                && transfer.CarrierDetected && x is > 30 and < 140)
+            {
+                interrupted = true;
+                manual.RunDryRunCommand.Cancel();
+            }
+        };
+        await WaitUntilAsync(() => state.Display.ManualControlsEnabled);
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.True(interrupted);
+        Assert.Equal(3, dryRun.CompletedTransfers);
+        Assert.Equal(NgTransferDestination.Station, dryRun.Destination);
+        Assert.True(transfer.CarrierDetected);
+        Assert.Equal(NgTransferGripperState.Closed, transfer.Gripper);
+        Assert.False(gantry.Feedback.IsMoving);
+        Assert.InRange(gantry.Feedback.GetPosition().X, 30, 140);
+        Assert.False(io.GetInput(InputIo.InspectionCarrierPresent));
+        Assert.False(io.GetInput(InputIo.NgShuttleCarrierDetected));
+
+        await WaitUntilAsync(() => state.Display.ManualControlsEnabled);
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(4, dryRun.CompletedTransfers);
+        Assert.True(io.GetInput(InputIo.InspectionCarrierPresent));
+        Assert.True(transfer.IsRaised);
+        Assert.False(transfer.CarrierDetected);
+        Assert.Equal(MachineAlarm.None, state.Alarm);
+
+        // Retract an empty lowered pickup before reversing toward an existing shuttle carrier.
+        io.SetInput(InputIo.InspectionCarrierPresent, false);
+        io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, true);
+        stopAfter = 5;
+        await WaitUntilAsync(() => state.Display.ManualControlsEnabled);
+        await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(5, dryRun.CompletedTransfers);
+        Assert.True(io.GetInput(InputIo.InspectionCarrierPresent));
+        Assert.False(io.GetInput(InputIo.NgShuttleCarrierDetected));
+        await machine.ShutdownAsync();
+    }
+
+    [Fact]
     public void RecipeAccessUsesTheLiveObjectNotTheServiceProvider()
     {
         var services = CreateServices(FlowSettings());
@@ -631,8 +1729,8 @@ public sealed class MachineLifecycleTests
         var teaching = services.GetRequiredService<SupplyTeachingViewModel>();
         var io = services.GetRequiredService<VirtualIoService>();
         var state = services.GetRequiredService<MachineState>();
-        var nest = teaching.TeachingOutputs[OutputIo.PcbSupplyNestForward];
-        await WaitUntilAsync(() => !teaching.SetOutputOnCommand.CanExecute(nest));
+        var gripper = teaching.TeachingOutputs[OutputIo.PcbSupplyGripperClosed];
+        await WaitUntilAsync(() => !teaching.SetOutputOnCommand.CanExecute(gripper));
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var handler = services.GetRequiredService<PcbSupplyHandler>();
@@ -647,32 +1745,32 @@ public sealed class MachineLifecycleTests
         await WaitUntilAsync(() => !teaching.StepCommand.CanExecute(TeachingDirection.ZPlus));
         await handler.MoveXAsync(0);
         io.AutoResponseEnabled = false;
-        await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(nest));
+        await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(gripper));
 
-        var pending = teaching.SetOutputOnCommand.ExecuteAsync(nest);
-        Assert.True(io.GetOutput(nest.Signal));
+        var pending = teaching.SetOutputOnCommand.ExecuteAsync(gripper);
+        Assert.True(io.GetOutput(gripper.Signal));
         Assert.False(pending.IsCompleted);
-        await WaitUntilAsync(() => !teaching.SetOutputOffCommand.CanExecute(nest));
+        await WaitUntilAsync(() => !teaching.SetOutputOffCommand.CanExecute(gripper));
         await WaitUntilAsync(() => !teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
-        var feedback = io.GetOutputFeedback(nest.Signal)!;
+        var feedback = io.GetOutputFeedback(gripper.Signal)!;
         io.SetInput(feedback.OnInput, true);
         Assert.False(pending.IsCompleted); // Both inputs ON is not completion.
         io.SetInput(feedback.OffInput, false);
         await pending.WaitAsync(TimeSpan.FromSeconds(2));
-        await teaching.SetOutputOnCommand.ExecuteAsync(nest); // ON again is allowed.
+        await teaching.SetOutputOnCommand.ExecuteAsync(gripper); // ON again is allowed.
 
         teaching.SelectedPoint = teaching.Points.Last(point => point.MotionGroup == MotionGroup.PcbSupply);
         var beforeSelection = handler.Feedback.GetPosition();
-        var releasing = teaching.SetOutputOffCommand.ExecuteAsync(nest);
+        var releasing = teaching.SetOutputOffCommand.ExecuteAsync(gripper);
         Assert.False(releasing.IsCompleted);
         teaching.SelectNextPointCommand.Execute(null);
         await releasing.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Equal(MotionGroup.PcbPlacementHandler, teaching.SelectedPoint!.MotionGroup);
         Assert.Equal(beforeSelection, handler.Feedback.GetPosition());
-        Assert.False(io.GetOutput(nest.Signal));
+        Assert.False(io.GetOutput(gripper.Signal));
         Assert.True(io.GetInput(feedback.OnInput));
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        await WaitUntilAsync(() => !teaching.SetOutputOnCommand.CanExecute(nest));
+        await WaitUntilAsync(() => !teaching.SetOutputOnCommand.CanExecute(gripper));
 
         var lift = teaching.TeachingOutputs[OutputIo.PcbPlacementHandlerDown];
         var lowering = teaching.SetOutputOnCommand.ExecuteAsync(lift);
@@ -1319,6 +2417,9 @@ public sealed class MachineLifecycleTests
         stop.Cancel();
         await run;
 
+        if (lift != NgTransferLiftState.Up)
+            await VerifyDryRunReleaseAsync(NgTransferState.Raising);
+
         // The carrier may leave the pickup sensor before the gripper reaches Open.
         io.SetInput(InputIo.NgCarrierDetected, false);
         io.SetInput(InputIo.NgCarrierPickupUp, false);
@@ -1326,6 +2427,25 @@ public sealed class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
         Assert.Equal(InspectionStationState.OpeningTransferGripper, station.State([]));
+        await VerifyDryRunReleaseAsync(NgTransferState.Opening);
+
+        async Task VerifyDryRunReleaseAsync(NgTransferState expected)
+        {
+            var dryRun = services.GetRequiredService<NgTransferDryRun>();
+            using var dryRunStop = new CancellationTokenSource();
+            var dryRunTask = dryRun.RunAsync(dryRunStop.Token);
+            try
+            {
+                Assert.Equal(NgTransferDestination.Shuttle, dryRun.Destination);
+                Assert.Equal(expected, dryRun.State);
+                Assert.False(io.GetOutput(OutputIo.NgCarrierGripperClose));
+            }
+            finally
+            {
+                dryRunStop.Cancel();
+                await dryRunTask;
+            }
+        }
     }
 
     [Fact]
@@ -1649,9 +2769,8 @@ public sealed class MachineLifecycleTests
                 && io.GetInput(InputIo.InspectionBackupPlateUp);
             var ngFinished = expectedNg
                 && io.GetInput(InputIo.NgConveyorPosition1Occupied)
-                && !io.GetInput(InputIo.NgConveyorPosition3Occupied)
-                && io.GetInput(InputIo.NgShuttleUp)
                 && !io.GetInput(InputIo.NgShuttleCarrierDetected)
+                && io.GetInput(InputIo.NgShuttleUp)
                 && !io.GetOutput(OutputIo.NgConveyorRun);
             if (okFinished || ngFinished)
             {
@@ -1918,7 +3037,7 @@ public sealed class MachineLifecycleTests
             InputIo.BoltFasteningCarrierPresent, InputIo.InspectionCarrierPresent,
             InputIo.MainConveyorExitCarrierDetected, InputIo.NgCarrierDetected,
             InputIo.NgShuttleCarrierDetected, InputIo.NgConveyorPosition1Occupied,
-            InputIo.NgConveyorPosition2Occupied, InputIo.NgConveyorPosition3Occupied,
+            InputIo.NgConveyorPosition2Occupied,
         })
         {
             await WaitUntilAsync(() => state.Display is
@@ -1997,11 +3116,11 @@ public sealed class MachineLifecycleTests
         var outputChanges = new ConcurrentQueue<OutputIo>();
         io.OutputChanged += (output, _) => outputChanges.Enqueue(output);
 
-        io.SetInput(InputIo.NgConveyorPosition3Occupied, true);
+        io.SetInput(InputIo.NgShuttleCarrierDetected, true);
         Assert.False(machine.CanRaiseCylinders);
         await machine.RaiseCylindersAsync(CancellationToken.None);
         Assert.Empty(outputChanges);
-        io.SetInput(InputIo.NgConveyorPosition3Occupied, false);
+        io.SetInput(InputIo.NgShuttleCarrierDetected, false);
         Assert.True(machine.CanRaiseCylinders);
         Assert.False(machine.CanHome);
 

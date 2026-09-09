@@ -213,8 +213,7 @@ public sealed class InspectionTests
             work,
             inspector,
             transfer,
-            gantry,
-            transferSettings,
+            new NgCarrierMove(work, shuttle, transfer, gantry, transferSettings),
             shuttle,
             isTransferEnabled: () => false);
 
@@ -337,15 +336,13 @@ public sealed class InspectionTests
             X = position.X,
             Y = position.Y,
         };
+        var transferWork = new InspectionWork(
+            ConveyorStation.Inspection(io), transferFeedback, isEnabled: () => false);
         var transferStation = new InspectionStation(
-            new InspectionWork(
-                ConveyorStation.Inspection(io),
-                transferFeedback,
-                isEnabled: () => false),
+            transferWork,
             inspector,
             transfer,
-            gantry,
-            transferSettings,
+            new NgCarrierMove(transferWork, shuttle, transfer, gantry, transferSettings),
             shuttle,
             isTransferEnabled: () => true);
         io.SetInput(InputIo.NgShuttleUp, true);

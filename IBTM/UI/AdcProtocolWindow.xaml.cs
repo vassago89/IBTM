@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Hantas;
@@ -31,6 +32,8 @@ public partial class AdcProtocolWindow : Window
         _bus = bus;
         _settings = settings;
         _machine = machine;
+        ReverseCommand = new AsyncRelayCommand(token => ExecuteAsync(TestReverseAsync, token), CanReverse);
+        ReleaseReverseCommand = new RelayCommand(ReverseCommand.Cancel);
         InitializeComponent();
         DataContext = this;
         RefreshPorts();
@@ -56,6 +59,8 @@ public partial class AdcProtocolWindow : Window
     public AdcRegisterAccess[] RegisterAccesses { get; } =
         Enum.GetValues<AdcRegisterAccess>();
     public bool IsVirtual => _bus is VirtualAdcBus;
+    public IAsyncRelayCommand ReverseCommand { get; }
+    public IRelayCommand ReleaseReverseCommand { get; }
     public AdcEventStatus[] FasteningResults { get; } =
     [
         AdcEventStatus.FasteningOk,
@@ -172,22 +177,33 @@ public partial class AdcProtocolWindow : Window
         });
     }
 
-    private async Task TestFasteningAsync(CancellationToken cancellationToken)
-    {
-        var connection = new HantasSettings
+    private AdcBoltHead CreateHead() => new(_bus, new HantasSettings
         {
             PortName = _bus.PortName,
             BaudRate = _bus.BaudRate,
             ResponseTimeoutMilliseconds = _settings.ResponseTimeoutMilliseconds,
             FasteningTimeoutMilliseconds = _settings.FasteningTimeoutMilliseconds,
-        };
-        ResultText.Text = "Fastening...";
-        var result = await _machine.TestBoltHeadAsync(
-            new AdcBoltHead(_bus, connection, SlaveAddress),
-            cancellationToken);
-        ResultText.Text =
-            $"{(result.Success ? "OK" : "NG")}  Torque {result.Torque:F2}";
-    }
+        }, SlaveAddress);
+
+    private Task TestFasteningAsync(CancellationToken cancellationToken) =>
+        _machine.RunBoltTestAsync(async token =>
+        {
+            var head = CreateHead();
+            await head.CheckReadyAsync(token);
+            ResultText.Text = "Fastening...";
+            var result = await head.TightenAsync(token);
+            ResultText.Text = $"{(result.Success ? "OK" : "NG")}  Torque {result.Torque:F2}";
+        }, cancellationToken);
+
+    private Task TestReverseAsync(CancellationToken cancellationToken) =>
+        _machine.RunBoltTestAsync(async token =>
+        {
+            ResultText.Text = "Loosening — hold to run; release to stop. No automatic completion judgement.";
+            await CreateHead().RunReverseAsync(token);
+        }, cancellationToken);
+
+    private bool CanReverse() => !_closing && _bus.IsOpen
+        && _machine.CanUseAdcProtocol && _machine.CanTestBoltHead;
 
     private async void OnResetAlarm(object sender, RoutedEventArgs e) =>
         await ExecuteAsync(async cancellationToken =>
@@ -202,8 +218,11 @@ public partial class AdcProtocolWindow : Window
             var result = await _bus.ReadFasteningResultAsync(
                 SlaveAddress,
                 cancellationToken);
+            var current = await _bus.ReadControllerStatusAsync(SlaveAddress, cancellationToken);
             ResultText.Text =
-                $"{result.Status}  Event {result.EventCount}\n" +
+                $"Current: Ready {current.Ready}  Run {current.Running}  Alarm {current.Alarm}  Preset {current.Preset}\n" +
+                $"Direction: {current.Direction.GetDescription()}\n" +
+                $"Last result: {result.Status.GetDescription()}  Event {result.EventCount}\n" +
                 $"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n" +
                 $"Time {result.FasteningTimeMilliseconds} ms  Error {result.Error}";
         });
@@ -248,16 +267,14 @@ public partial class AdcProtocolWindow : Window
                     if (address == (ushort)AdcRemoteRegister.RemoteStart
                         && value != 0)
                     {
-                        await TestFasteningAsync(cancellationToken);
+                        RegisterResultText.Text = "Raw Start is not available. Use Start Fastening or Reverse (Hold).";
+                        return;
                     }
-                    else
-                    {
-                        await _bus.WriteRegisterAsync(
-                            SlaveAddress,
-                            address,
-                            value,
-                            cancellationToken);
-                    }
+                    await _bus.WriteRegisterAsync(
+                        SlaveAddress,
+                        address,
+                        value,
+                        cancellationToken);
                     RegisterResultText.Text = $"{address} = {value} (0x{value:X4})";
                     break;
                 default:
@@ -267,7 +284,7 @@ public partial class AdcProtocolWindow : Window
 
     private void OnClearLog(object sender, RoutedEventArgs e) => LogBox.Clear();
 
-    private Task ExecuteAsync(Func<CancellationToken, Task> operation)
+    private Task ExecuteAsync(Func<CancellationToken, Task> operation, CancellationToken cancellationToken = default)
     {
         if (!_machine.CanUseAdcProtocol || !_operation.IsCompleted || _closing)
         {
@@ -275,7 +292,7 @@ public partial class AdcProtocolWindow : Window
         }
 
         _operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            _lifetime.Token);
+            _lifetime.Token, cancellationToken);
         SetBusy(true);
         _operation = ExecuteCoreAsync(operation, _operationCancellation.Token);
         return ShowResultAsync(_operation);
@@ -309,6 +326,7 @@ public partial class AdcProtocolWindow : Window
         }
         catch (Exception exception)
         {
+            ResultText.Text = "Operation failed. Check controller status.";
             ConnectionStatusText.Text = exception.Message;
             AppendLog($"ERROR  {exception.Message}");
         }
@@ -343,6 +361,8 @@ public partial class AdcProtocolWindow : Window
         OperationPanel.IsEnabled = protocolEnabled && connected;
         RegisterPanel.IsEnabled = protocolEnabled && connected;
         StartButton.IsEnabled = protocolEnabled && connected && _machine.CanTestBoltHead;
+        ReverseButton.IsEnabled = connected && !_closing && _machine.AdcProtocolAvailable;
+        ReverseCommand.NotifyCanExecuteChanged();
         StopButton.IsEnabled = connected && !_closing
             && (busy ? _machine.AdcProtocolAvailable : _machine.CanUseAdcProtocol);
         VirtualResultPanel.IsEnabled = !_closing;
