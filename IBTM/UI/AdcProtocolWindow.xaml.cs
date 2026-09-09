@@ -396,7 +396,7 @@ public partial class AdcProtocolWindow : Window
 
     private void OnFrameTransferred(AdcFrameDirection direction, byte[] frame) =>
         Dispatcher.BeginInvoke(() =>
-            AppendLog($"{(direction == AdcFrameDirection.Transmit ? "TX" : "RX")}     {ToHex(frame)}", record: false));
+            AppendLog($"{(direction == AdcFrameDirection.Transmit ? "TX" : "RX RAW")}     {ToHex(frame)}", record: false));
 
     private void AppendLog(string text, bool record = true)
     {

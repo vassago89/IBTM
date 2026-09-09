@@ -181,6 +181,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
                 response = await ReadResponseAsync(
                     port.BaseStream,
                     port.DiscardInBuffer,
+                    bytes => FrameTransferred?.Invoke(AdcFrameDirection.Receive, bytes),
                     slaveAddress,
                     function,
                     timeout.Token);
@@ -193,7 +194,6 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
                     + $"{settings.ResponseTimeoutMilliseconds} ms.");
             }
 
-            FrameTransferred?.Invoke(AdcFrameDirection.Receive, response);
             return response;
         }
         finally
@@ -205,12 +205,28 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
     private static async Task<byte[]> ReadResponseAsync(
         Stream stream,
         Action abortRead,
+        Action<byte[]> received,
         byte slaveAddress,
         AdcFunctionCode function,
         CancellationToken cancellationToken)
     {
         Task ReadAsync(byte[] bytes) => AwaitSerialIoAsync(
-            stream.ReadExactlyAsync(bytes, cancellationToken).AsTask(), abortRead, cancellationToken);
+            ReadAndReportAsync(bytes), abortRead, cancellationToken);
+
+        async Task ReadAndReportAsync(byte[] bytes)
+        {
+            var offset = 0;
+            while (offset < bytes.Length)
+            {
+                var count = await stream.ReadAsync(bytes.AsMemory(offset), cancellationToken)
+                    .ConfigureAwait(false);
+                if (count == 0) throw new EndOfStreamException("ADC response ended before the frame was complete.");
+
+                // Report bytes before parsing, including partial and invalid responses.
+                received(bytes.AsSpan(offset, count).ToArray());
+                offset += count;
+            }
+        }
 
         var header = new byte[2];
         await ReadAsync(header);

@@ -11,6 +11,7 @@ public interface IAdcBus
     string PortName { get; }
     int BaudRate { get; }
 
+    // Receive notifications are raw chunks, not necessarily complete or valid frames.
     event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
     string[] GetPortNames();

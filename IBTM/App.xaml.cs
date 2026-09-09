@@ -167,6 +167,6 @@ public partial class App : System.Windows.Application
         _log?.Error("Unobserved background task exception.", e.Exception);
 
     private void OnAdcFrameTransferred(AdcFrameDirection direction, byte[] frame) =>
-        _log?.Write($"ADC {(direction == AdcFrameDirection.Transmit ? "TX" : "RX")} {Convert.ToHexString(frame)}");
+        _log?.Write($"ADC {(direction == AdcFrameDirection.Transmit ? "TX" : "RX RAW")} {Convert.ToHexString(frame)}");
 
 }
