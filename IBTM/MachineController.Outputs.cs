@@ -161,14 +161,17 @@ public sealed partial class MachineController
         return live ? GetMainConveyorPathBlock() : _state.Display.MainConveyorPathBlock;
     }
 
-    internal async Task ToggleManualOutputAsync(OutputIo signal, CancellationToken cancellationToken)
+    internal async Task ToggleManualOutputAsync(
+        OutputIo signal,
+        CancellationToken cancellationToken,
+        bool ignoreManualOutputBlock = false)
     {
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
             // The display controls button availability only. Recheck live state
             // before any write, including direct invocation of a disabled command.
-            var block = GetManualOutputBlock(signal, live: true);
+            var block = ignoreManualOutputBlock ? OutputBlockReason.None : GetManualOutputBlock(signal, live: true);
             if (block != OutputBlockReason.None)
             {
                 _log?.Write($"Manual output {signal} ignored: [{block}] {block.GetDescription()}");

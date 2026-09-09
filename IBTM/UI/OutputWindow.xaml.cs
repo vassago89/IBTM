@@ -20,7 +20,7 @@ public partial class OutputWindow : Window, INotifyPropertyChanged
     {
         _state = state;
         Rows = signals.Outputs.Values.OrderBy(row => row.Signal)
-            .Select(row => new OutputControlRow(row, machine)).ToArray();
+            .Select(row => new OutputControlRow(row, machine, ignoreManualBlock: true)).ToArray();
         Filter = new(Rows, row => row.Io, nameof(OutputControlRow.Io));
 
         InitializeComponent();

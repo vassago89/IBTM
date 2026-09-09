@@ -12,11 +12,13 @@ namespace IBTM.UI;
 public sealed partial class OutputControlRow : ObservableObject
 {
     private readonly MachineController _machine;
+    private readonly bool _ignoreManualBlock;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasFeedbackError))] private string? _feedbackError;
 
-    public OutputControlRow(IoOutputStatus status, MachineController machine)
+    public OutputControlRow(IoOutputStatus status, MachineController machine, bool ignoreManualBlock = false)
     {
         _machine = machine;
+        _ignoreManualBlock = ignoreManualBlock;
         Io = status;
         ToggleCommand.PropertyChanged += OnToggleCommandChanged;
     }
@@ -63,7 +65,7 @@ public sealed partial class OutputControlRow : ObservableObject
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await _machine.ToggleManualOutputAsync(Io.Signal, cancellationToken);
+            await _machine.ToggleManualOutputAsync(Io.Signal, cancellationToken, _ignoreManualBlock);
         }
         catch (IoTimeoutException exception)
         {
