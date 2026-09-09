@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\IBTM.Core\IBTM.Core.csproj" />
@@ -6,13 +6,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Vendor\AXL.dll">
+    <None Update="AXL.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="Vendor\AXL.lib">
+    <None Update="AXL.lib">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Update="Vendor\EzBasicAxl.dll">
+    <None Update="EzBasicAxl.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
