@@ -58,7 +58,7 @@ public partial class ManualHardwareViewModel : ObservableObject
         _state = state;
         _machine = machine;
         Axes = hardware.SelectMany(section => section.AxisSignals.Keys.Select(axis =>
-            new ManualAxisRow(section.Group, axis, machine.GetMotionStatus(section.Group)))).ToArray();
+            new ManualAxisRow(section.Group, axis, state.GetMotionStatus(section.Group)))).ToArray();
 
         state.DisplayChanged += OnMachineStateChanged;
     }

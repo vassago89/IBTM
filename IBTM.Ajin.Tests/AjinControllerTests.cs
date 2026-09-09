@@ -25,31 +25,38 @@ public sealed class AjinControllerTests
         var status = new MotionStatus(motion);
         AjinSdk.Calls.Clear();
 
-        status.RefreshDiagnostics();
+        status.RefreshMonitorFeedback();
 
         Assert.False(motion.IsReady); // Monitoring must not initialize motion/parameters/servo.
-        Assert.True(status.Diagnostics[MotionAxis.X].Snapshot.State!.Value.Alarm);
-        Assert.True(status.Diagnostics[MotionAxis.X].Snapshot.State!.Value.HomeSensor);
-        Assert.Equal(12.34, status.Diagnostics[MotionAxis.X].Snapshot.Position);
-        Assert.False(status.Diagnostics[MotionAxis.Y].Snapshot.State!.Value.ServoOn);
-        Assert.Equal(-5.67, status.Diagnostics[MotionAxis.Y].Snapshot.Position);
+        Assert.True(status.MonitorAxes[MotionAxis.X].Snapshot.State!.Value.Alarm);
+        Assert.True(status.MonitorAxes[MotionAxis.X].Snapshot.State!.Value.HomeSensor);
+        Assert.Equal(12.34, status.MonitorAxes[MotionAxis.X].Snapshot.Position);
+        Assert.False(status.MonitorAxes[MotionAxis.Y].Snapshot.State!.Value.ServoOn);
+        Assert.Equal(-5.67, status.MonitorAxes[MotionAxis.Y].Snapshot.Position);
 
         var stateRead = new AjinSdk.Call(nameof(CAXM.AxmStatusReadMechanical), Axis: 9);
         var positionRead = new AjinSdk.Call(nameof(CAXM.AxmStatusGetActPos), Axis: 10);
+        var reportedErrors = 0;
+        void ReportError(MotionAxis _, Exception __) => reportedErrors++;
         AjinSdk.Results[stateRead] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
         AjinSdk.Results[positionRead] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
-        status.RefreshDiagnostics();
-        Assert.Null(status.Diagnostics[MotionAxis.X].Snapshot.State);
-        Assert.Equal(12.34, status.Diagnostics[MotionAxis.X].Snapshot.Position);
-        Assert.Contains("axis=9", status.Diagnostics[MotionAxis.X].Snapshot.ReadError!.Message);
-        Assert.NotNull(status.Diagnostics[MotionAxis.Y].Snapshot.State);
-        Assert.Null(status.Diagnostics[MotionAxis.Y].Snapshot.Position);
+        status.RefreshMonitorFeedback(ReportError);
+        status.RefreshMonitorFeedback(ReportError);
+        Assert.Equal(2, reportedErrors); // Unchanged errors are reported only once.
+        Assert.Null(status.MonitorAxes[MotionAxis.X].Snapshot.State);
+        Assert.Equal(12.34, status.MonitorAxes[MotionAxis.X].Snapshot.Position);
+        Assert.Contains("axis=9", status.MonitorAxes[MotionAxis.X].Snapshot.ReadError!.Message);
+        Assert.NotNull(status.MonitorAxes[MotionAxis.Y].Snapshot.State);
+        Assert.Null(status.MonitorAxes[MotionAxis.Y].Snapshot.Position);
 
         AjinSdk.Results.Clear();
         AjinSdk.MotionAxes[10] = AjinSdk.MotionAxes[10] with { Position = -5.67, Unit = 1, Pulse = 100 };
-        status.RefreshDiagnostics();
-        Assert.Equal(-5.67, status.Diagnostics[MotionAxis.Y].Snapshot.Position!.Value, 8);
-        Assert.All(status.Diagnostics.Values, axis => Assert.Null(axis.Snapshot.ReadError));
+        status.RefreshMonitorFeedback(ReportError);
+        Assert.Equal(-5.67, status.MonitorAxes[MotionAxis.Y].Snapshot.Position!.Value, 8);
+        Assert.All(status.MonitorAxes.Values, axis => Assert.Null(axis.Snapshot.ReadError));
+        AjinSdk.Results[stateRead] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        status.RefreshMonitorFeedback(ReportError);
+        Assert.Equal(3, reportedErrors); // The same fault is logged again after recovery.
         Assert.All(AjinSdk.Calls, call => Assert.Contains(call.Operation, new[] {
             nameof(CAXM.AxmStatusReadMechanical), nameof(CAXM.AxmHomeGetResult),
             nameof(CAXM.AxmSignalIsServoOn), nameof(CAXM.AxmStatusGetActPos),
@@ -68,7 +75,7 @@ public sealed class AjinControllerTests
 
         motion.Initialize();
         motion.Initialize();
-        status.RefreshAxes();
+        status.RefreshControlFeedback();
 
         Assert.True(motion.IsReady);
         Assert.Equal(new MotionPosition(12.34, -5.67, 0), status.Position);
@@ -81,7 +88,7 @@ public sealed class AjinControllerTests
         var error = Assert.Throws<IOException>(() => motion.SetServo(MotionAxis.X, true));
         Assert.Contains("AXT_RT_MOTION_ERROR_IN_ALARM", error.Message);
         Assert.Contains("axis=9", error.Message);
-        status.RefreshAxes();
+        status.RefreshControlFeedback();
         Assert.True(motion.IsReady); // An operator command failure must not hide feedback.
         Assert.Equal(AxisCondition.Alarm, status.Axes[MotionAxis.X].Condition);
         Assert.Equal(new MotionPosition(12.34, -5.67, 0), status.Position);
@@ -89,11 +96,11 @@ public sealed class AjinControllerTests
         var reset = new AjinSdk.Call(nameof(CAXM.AxmSignalServoAlarmReset), Value: 1, Axis: 9);
         AjinSdk.Results[reset] = (uint)AXT_FUNC_RESULT.AXT_RT_MOTION_ERROR_IN_ALARM;
         Assert.Throws<IOException>(motion.Reset);
-        status.RefreshAxes();
+        status.RefreshControlFeedback();
         Assert.Equal(AxisCondition.Alarm, status.Axes[MotionAxis.X].Condition);
         AjinSdk.Results.Remove(reset);
         motion.Reset(); // Explicit RESET can now reach alarm reset before requesting Servo ON.
-        status.RefreshAxes();
+        status.RefreshControlFeedback();
         Assert.False(status.Axes[MotionAxis.X].State!.Value.Alarm);
         Assert.True(status.Axes[MotionAxis.X].ServoOn);
         Assert.True(status.Axes[MotionAxis.Y].ServoOn);

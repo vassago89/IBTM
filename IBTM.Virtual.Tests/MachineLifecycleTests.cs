@@ -1219,7 +1219,7 @@ public sealed class MachineLifecycleTests
             Assert.False(light.IsOn);
             io.SetOutput(light.Signal, true);
             Assert.False(light.IsOn); // Display acquisition is still blocked.
-            var row = new OutputControlRow(io, light, machine);
+            var row = new OutputControlRow(light, machine);
             await row.ToggleCommand.ExecuteAsync(null);
             Assert.False(io.GetOutput(light.Signal)); // Toggle the real ON, not the displayed OFF.
 
@@ -1560,7 +1560,7 @@ public sealed class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
-        var row = new OutputControlRow(io,
+        var row = new OutputControlRow(
             services.GetRequiredService<IoSignals>().Outputs[OutputIo.MachineLight], machine);
         await row.ToggleCommand.ExecuteAsync(null);
         Assert.True(io.GetOutput(OutputIo.MachineLight));
@@ -1590,7 +1590,7 @@ public sealed class MachineLifecycleTests
         var signals = services.GetRequiredService<IoSignals>();
         var motion = services.GetRequiredKeyedService<IAxisMotion>(MotionGroup.PcbSupply);
         await machine.InitializeAsync();
-        var gripper = new OutputControlRow(io, signals.Outputs[OutputIo.PcbSupplyGripperClosed], machine);
+        var gripper = new OutputControlRow(signals.Outputs[OutputIo.PcbSupplyGripperClosed], machine);
         Assert.False(gripper.ToggleCommand.CanExecute(null));
         await gripper.ToggleCommand.ExecuteAsync(null);
         Assert.False(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
@@ -1598,7 +1598,7 @@ public sealed class MachineLifecycleTests
         typeof(MachineState).GetMethod("SetError", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(state, [MachineAlarm.MotionUnavailable, new IOException("Another handler is unavailable.")]);
 
-        var rotation = new OutputControlRow(io, signals.Outputs[OutputIo.PcbSupplyRotate], machine);
+        var rotation = new OutputControlRow(signals.Outputs[OutputIo.PcbSupplyRotate], machine);
         await WaitUntilAsync(() => rotation.ToggleCommand.CanExecute(null));
         var position = motion.GetPosition();
         var wasRotated = io.GetOutput(OutputIo.PcbSupplyRotate);
@@ -1985,7 +1985,7 @@ public sealed class MachineLifecycleTests
             var holding = teaching.SetOutputOnCommand.ExecuteAsync(shoot);
             Assert.True(io.GetOutput(OutputIo.ShootBolt));
             Assert.False(holding.IsCompleted);
-            Assert.False(state.ManualOutputsEnabled);
+            Assert.False(state.ManualSetupEnabled);
             Assert.False(machine.CanStart);
             stop();
             await holding.WaitAsync(TimeSpan.FromSeconds(2));
@@ -3143,13 +3143,13 @@ public sealed class MachineLifecycleTests
         await machine.InitializeAsync();
         Assert.True(machine.CanHome);
         Assert.False(state.ManualControlsEnabled);
-        Assert.True(state.ManualOutputsEnabled);
+        Assert.True(state.ManualSetupEnabled);
         io.SetInput(InputIo.AutoMode, false);
-        Assert.False(state.ManualOutputsEnabled);
+        Assert.False(state.ManualSetupEnabled);
         io.SetInput(InputIo.AutoMode, true);
         using (services.GetRequiredService<OperationCancellation>().Link())
-            Assert.False(state.ManualOutputsEnabled);
-        Assert.True(state.ManualOutputsEnabled);
+            Assert.False(state.ManualSetupEnabled);
+        Assert.True(state.ManualSetupEnabled);
         var outputsChanged = 0;
         io.OutputChanged += (_, _) => outputsChanged++;
 
@@ -3249,7 +3249,7 @@ public sealed class MachineLifecycleTests
         var raising = machine.RaiseCylindersAsync(CancellationToken.None);
         Assert.True(state.IsRunning);
         Assert.False(state.IsHoming);
-        Assert.False(state.ManualOutputsEnabled);
+        Assert.False(state.ManualSetupEnabled);
         Assert.False(machine.CanHome);
         await raising;
         Assert.True(machine.CanHome);
@@ -4270,7 +4270,7 @@ public sealed class MachineLifecycleTests
         await Task.WhenAll(placement.MoveZAsync(50), fastening.MoveZAsync(50));
         var homing = machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => placement.Feedback.IsMoving && fastening.Feedback.IsMoving);
-        Assert.False(state.ManualOutputsEnabled);
+        Assert.False(state.ManualSetupEnabled);
         io.SetInput(input, value);
         await homing.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(state.IsHoming);

@@ -21,7 +21,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
     {
         Feedback = motion;
         Axes = motion.Axes.ToDictionary(axis => axis, _ => new AxisStatus());
-        Diagnostics = motion.Axes.ToDictionary(axis => axis, _ => new MotionDiagnostics());
+        MonitorAxes = motion.Axes.ToDictionary(axis => axis, _ => new MotionDiagnostics());
         _position = new(0, 0, 0);
         _isMoving = motion.IsMoving;
 
@@ -35,62 +35,63 @@ public sealed class MotionStatus : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public IMotionFeedback Feedback { get; }
+    // Enabled/initialized control feedback; unavailable control invalidates these axes.
     public IReadOnlyDictionary<MotionAxis, AxisStatus> Axes { get; }
-    public IReadOnlyDictionary<MotionAxis, MotionDiagnostics> Diagnostics { get; }
+    // Independent raw monitoring continues for disabled, servo-off and alarmed axes.
+    public IReadOnlyDictionary<MotionAxis, MotionDiagnostics> MonitorAxes { get; }
     public Task MonitoringCompletion => _monitoring ?? Task.CompletedTask;
 
+    // Startup awaits the first sample; MonitoringCompletion owns the lifetime of the loop.
     public Task StartMonitoringAsync(CancellationToken lifetime, Action refreshed,
         Action<MotionAxis, Exception> reportError)
     {
         if (Feedback is not IMotionDiagnostics) return Task.CompletedTask;
         if (_monitoring is not null) return _firstMonitorRead.Task;
-        _monitoring = Task.Run(async () =>
-        {
-            var errors = new Dictionary<MotionAxis, string>();
-            try
-            {
-                while (true)
-                {
-                    lifetime.ThrowIfCancellationRequested();
-                    RefreshDiagnostics();
-                    foreach (var (axis, status) in Diagnostics)
-                    {
-                        var error = status.Snapshot.ReadError;
-                        if (error is null) errors.Remove(axis);
-                        else if (!errors.TryGetValue(axis, out var previous) || previous != error.Message)
-                        {
-                            errors[axis] = error.Message;
-                            reportError(axis, error);
-                        }
-                    }
-                    refreshed();
-                    _firstMonitorRead.TrySetResult();
-                    await Task.Delay(TimeSpan.FromMilliseconds(250), lifetime).ConfigureAwait(false);
-                }
-            }
-            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
-            {
-                _firstMonitorRead.TrySetCanceled(lifetime);
-            }
-            catch (Exception error)
-            {
-                foreach (var (axis, status) in Diagnostics)
-                {
-                    status.Invalidate(error);
-                    reportError(axis, error);
-                }
-                refreshed();
-                _firstMonitorRead.TrySetException(error);
-                throw;
-            }
-        });
+        _monitoring = Task.Run(() => MonitorAsync(lifetime, refreshed, reportError));
         return _firstMonitorRead.Task;
     }
 
-    public void RefreshDiagnostics()
+    private async Task MonitorAsync(CancellationToken lifetime, Action refreshed,
+        Action<MotionAxis, Exception> reportError)
+    {
+        try
+        {
+            while (true)
+            {
+                lifetime.ThrowIfCancellationRequested();
+                RefreshMonitorFeedback(reportError);
+                refreshed();
+                _firstMonitorRead.TrySetResult();
+                await Task.Delay(TimeSpan.FromMilliseconds(250), lifetime).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            _firstMonitorRead.TrySetCanceled(lifetime);
+        }
+        catch (Exception error)
+        {
+            foreach (var (axis, status) in MonitorAxes)
+            {
+                status.Invalidate(error);
+                reportError(axis, error);
+            }
+            refreshed();
+            _firstMonitorRead.TrySetException(error);
+            throw;
+        }
+    }
+
+    public void RefreshMonitorFeedback(Action<MotionAxis, Exception>? reportError = null)
     {
         if (Feedback is not IMotionDiagnostics diagnostics) return;
-        foreach (var (axis, status) in Diagnostics) status.Refresh(diagnostics, axis);
+        foreach (var (axis, status) in MonitorAxes)
+        {
+            var previous = status.Snapshot.ReadError?.Message;
+            status.Refresh(diagnostics, axis);
+            if (status.Snapshot.ReadError is { } error && error.Message != previous)
+                reportError?.Invoke(axis, error);
+        }
     }
 
     public bool XyHomed => Axes[MotionAxis.X].State is { Homed: true }
@@ -121,9 +122,9 @@ public sealed class MotionStatus : INotifyPropertyChanged
 
     private void OnMovingChanged(bool moving) => IsMoving = moving;
 
-    public void RefreshAxes() => RefreshAxes(available: true);
+    public void RefreshControlFeedback() => RefreshControlFeedback(available: true);
 
-    public void RefreshAxes(bool available)
+    public void RefreshControlFeedback(bool available)
     {
         var wasHomed = XyHomed;
         try

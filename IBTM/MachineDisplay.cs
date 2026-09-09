@@ -58,8 +58,8 @@ public sealed record MachineDisplay
     public IReadOnlySet<(MotionGroup Group, MotionAxis Axis)> HomeableAxes { get; init; } = new HashSet<(MotionGroup, MotionAxis)>();
     public ManualControlBlock ManualBlock { get; init; } = ManualControlBlock.MotionNotReady;
     public bool ManualControlsEnabled => Available && ManualBlock == ManualControlBlock.None;
-    public bool ManualOutputsEnabled { get; init; }
-    public string? DiagnosticOutputBlock { get; init; } = "Read only: machine status is unavailable.";
+    public bool ManualSetupEnabled { get; init; }
+    public string? ManualOutputBlock { get; init; } = "Read only: machine status is unavailable.";
     public PcbPlacementState PlacementState { get; init; }
     public HeatSinkSlot? PlacementTarget { get; init; }
     public BoltFasteningState FasteningState { get; init; }
@@ -78,7 +78,8 @@ public sealed record MachineDisplay
     public int? InspectionDryRunBolt { get; init; }
     public string? InspectionDryRunBarcode { get; init; }
     public bool? InspectionDryRunBoltPresent { get; init; }
-    public bool MainConveyorDryRunReady { get; init; }
+    // Collision clearance only, not automatic-run or whole-machine readiness.
+    public bool MainConveyorPathClear { get; init; }
     public MainConveyorDryRunState MainConveyorDryRunState { get; init; }
     public MainConveyorDestination MainConveyorDestination { get; init; }
     public int MainConveyorDryRunPasses { get; init; }

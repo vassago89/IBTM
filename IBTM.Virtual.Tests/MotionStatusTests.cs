@@ -23,14 +23,14 @@ public sealed class MotionStatusTests
         motion.Publish();
         Assert.Equal(0, motion.Reads);
 
-        status.RefreshAxes();
+        status.RefreshControlFeedback();
         Assert.Equal(new MotionPosition(12, 0, 0), status.Position);
         Assert.Equal(AxisCondition.Ready, first.Feedback.Condition);
         Assert.True(status.XyHomed);
         Assert.Equal(1, motion.Reads);
 
         motion.Failure = new IOException("Axis feedback unavailable.");
-        Assert.Same(motion.Failure, Assert.Throws<IOException>(status.RefreshAxes));
+        Assert.Same(motion.Failure, Assert.Throws<IOException>(status.RefreshControlFeedback));
         var reads = motion.Reads;
         Assert.Equal(AxisCondition.Unavailable, first.Feedback.Condition);
         Assert.Null(second.Feedback.State);
@@ -39,7 +39,7 @@ public sealed class MotionStatusTests
 
         motion.Failure = null;
         motion.State = motion.State with { Homed = false };
-        status.RefreshAxes();
+        status.RefreshControlFeedback();
         Assert.Equal(AxisCondition.HomeRequired, first.Feedback.Condition);
         Assert.Equal(first.Feedback.Condition, second.Feedback.Condition);
         Assert.False(status.XyHomed);
@@ -47,7 +47,7 @@ public sealed class MotionStatusTests
         // External card state can change while no application move is active.
         motion.State = motion.State with { ServoOn = false };
         motion.Position = (24, 0, 0); // No PositionChanged event from an external adjustment.
-        status.RefreshAxes();
+        status.RefreshControlFeedback();
         Assert.Equal(new MotionPosition(24, 0, 0), status.Position);
         Assert.Equal(AxisCondition.ServoOff, first.Feedback.Condition);
         Assert.Equal(first.Feedback.Condition, second.Feedback.Condition);
@@ -58,20 +58,20 @@ public sealed class MotionStatusTests
     {
         var motion = new StatusMotion();
         var status = new MotionStatus(motion);
-        status.RefreshAxes();
+        status.RefreshControlFeedback();
         Assert.True(status.XyHomed);
         var reads = motion.Reads;
         var positionReads = motion.PositionReads;
         motion.Failure = new IOException("AXL connection closed.");
 
-        status.RefreshAxes(available: false);
+        status.RefreshControlFeedback(available: false);
 
         Assert.Equal(reads, motion.Reads);
         Assert.Equal(positionReads, motion.PositionReads);
         Assert.False(status.XyHomed);
         Assert.All(status.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
-        Assert.Same(motion.Failure, Assert.Throws<IOException>(status.RefreshAxes));
+        Assert.Same(motion.Failure, Assert.Throws<IOException>(status.RefreshControlFeedback));
     }
 
     private sealed class StatusMotion() : AjinMotionService(

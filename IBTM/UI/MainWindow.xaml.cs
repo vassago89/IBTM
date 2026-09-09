@@ -138,7 +138,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _outputWindow = new OutputWindow(_io, _signals, _machine, _state)
+        _outputWindow = new OutputWindow(_signals, _machine, _state)
         {
             Owner = this,
         };

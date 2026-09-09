@@ -75,7 +75,7 @@ public abstract partial class TeachingMotionViewModel(
     public IReadOnlyDictionary<OutputIo, TeachingOutput> TeachingOutputs => teachingOutputs[CurrentMotionGroup];
     public bool HasY => CurrentFeedback.HasY;
     public bool HasZ => CurrentFeedback.HasZ;
-    public MotionStatus Motion => machine.GetMotionStatus(CurrentMotionGroup);
+    public MotionStatus Motion => state.GetMotionStatus(CurrentMotionGroup);
     protected IMotionFeedback CurrentFeedback => Motion.Feedback;
 
     protected abstract MotionGroup CurrentMotionGroup { get; }
@@ -177,7 +177,7 @@ public abstract partial class TeachingMotionViewModel(
     private bool CanSetOutput(TeachingOutput? output) =>
         output is not null
         && TeachingOutputs.ContainsKey(output.Signal)
-        && (output.RequiresHandler ? CanUseCurrentHandler() : state.Display.ManualOutputsEnabled)
+        && (output.RequiresHandler ? CanUseCurrentHandler() : state.Display.ManualSetupEnabled)
         && (output.CanSet?.Invoke(false) ?? true);
 
     protected bool CanUseCurrentHandler() => machine.CanUseManualMotion(CurrentMotionGroup, live: false);
@@ -186,7 +186,7 @@ public abstract partial class TeachingMotionViewModel(
     {
         try
         {
-            await machine.RunManualOutputAsync(output, value, cancellationToken, ViewCancellation);
+            await machine.RunTeachingOutputAsync(output, value, cancellationToken, ViewCancellation);
         }
         finally
         {

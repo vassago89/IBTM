@@ -55,7 +55,7 @@ public sealed class IoStartupTests
         Assert.True(machine.CanReset);
         Assert.False(machine.CanStart);
         Assert.False(machine.CanHome);
-        Assert.False(state.ManualOutputsEnabled);
+        Assert.False(state.ManualSetupEnabled);
         Assert.All(services.GetRequiredService<IoSignals>().Outputs.Values,
             output => Assert.Null(output.IsOn));
         Assert.Equal(0, io.ReadsWhileUnavailable);
@@ -137,7 +137,7 @@ public sealed class IoStartupTests
         await WaitUntilAsync(() => ReferenceEquals(error, state.Display.ReadError));
 
         Assert.False(state.Display.CanStart);
-        Assert.False(state.Display.ManualOutputsEnabled);
+        Assert.False(state.Display.ManualSetupEnabled);
         io.OutputReadError = null;
         await machine.ShutdownAsync();
     }
@@ -153,7 +153,7 @@ public sealed class IoStartupTests
         Assert.False(state.Display.CanStart);
         Assert.False(state.Display.CanHome);
         Assert.False(state.Display.ManualControlsEnabled);
-        Assert.False(state.Display.ManualOutputsEnabled);
+        Assert.False(state.Display.ManualSetupEnabled);
     }
 
     private static ServiceProvider CreateServices() => new ServiceCollection()

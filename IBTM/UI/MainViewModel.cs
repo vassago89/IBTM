@@ -160,7 +160,6 @@ public partial class MainViewModel : ObservableObject
         _ => throw new ArgumentOutOfRangeException(nameof(SelectedPage)),
     };
     public bool ManualControlsEnabled => _state.Display.ManualControlsEnabled;
-    public bool ManualOutputsEnabled => _state.ManualOutputsEnabled;
     // Window access follows selector mode only, not alarm/busy output admission.
     public bool OutputsWindowEnabled => !_shuttingDown
         && _state.Display.Available && !_state.Display.AutoMode;
@@ -323,7 +322,6 @@ public partial class MainViewModel : ObservableObject
             }
 
             OnPropertyChanged(nameof(ManualControlsEnabled));
-            OnPropertyChanged(nameof(ManualOutputsEnabled));
             OnPropertyChanged(nameof(OutputsWindowEnabled));
             OnPropertyChanged(nameof(AdcProtocolEnabled));
             OnPropertyChanged(nameof(CurrentPageEnabled));

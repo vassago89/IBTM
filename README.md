@@ -139,6 +139,17 @@ monitor starts during machine initialization and refreshes its cached position a
 signals every 250 ms, including while idle. Motion-completion waits remain separate
 and return when their command finishes.
 
+State lookup belongs to `MachineState.GetMotionStatus`; the UI and command controller
+share that registry. `MotionStatus.MonitorAxes` and `RefreshMonitorFeedback` are the
+independent raw monitor path. `Axes` and `RefreshControlFeedback` are the
+enabled/initialized control-display path; commands still recheck live feedback.
+`MachineController.Display.cs` assembles UI snapshots, while
+`MachineController.Outputs.cs` owns output admission and cancellation. OUTPUTS uses
+`GetManualOutputBlock`; teaching/camera preparation uses `ManualSetupEnabled` and
+`RunTeachingOutputAsync`. `MainConveyorPathClear` means collision clearance only,
+not whole-machine readiness. `OutputControlRow` derives its waiting state from its
+command instead of maintaining another operation flag.
+
 `MachineController` owns the run lifetime. Startup hardware checks and automatic
 units share the same cancellation token. A unit fault cancels the other units.
 Motion objects stop the axes they own on cancellation. Pneumatic outputs are
@@ -175,9 +186,12 @@ safety, I/O and other process alarms still do. Existing alarms are not cleared.
 Handler outputs reuse local enabled/home/servo and teaching-output interlocks;
 Supply rotation additionally requires rotation Z already reached and never moves an
 axis implicitly. Stopper toggles require their owning conveyor enabled, an empty
-station and the applicable backup-plate/path-clear feedback. Inter-machine ready/
-available outputs use **ON / OFF** without a time limit: all normal operating
-interlocks must pass, material sensors and peer ready/available inputs must be OFF,
+station and the applicable backup-plate/path-clear feedback. All OUTPUTS action
+buttons consistently use **ON / OFF**, including ordinary toggles and the conveyor test.
+Inter-machine ready/available tests do not require whole-machine homing, Servo ON
+or fault-free unrelated axes. They still require the owning unit enabled, no buffer
+conflict, clearance of the enabled handlers, and the common diagnostic safety gates.
+Material sensors and peer ready/available inputs must be OFF,
 and the operator must confirm connected equipment is stopped. While ON the test
 continues owning an operation; its OFF button remains available while the machine
 is busy. OFF, STOP, AUTO selection, closing OUTPUTS or interlock/peer feedback
@@ -185,12 +199,12 @@ changes end the test and send OFF. This OFF cleanup
 runs independently of the UI dispatcher, including when UI command completion is
 delayed. Motor, shuttle
 and hold-to-run shooting outputs retain their dedicated controls, except **Main
-Conveyor Run**, which provides an owned **RUN / STOP** motor test in OUTPUTS.
+Conveyor Run**, which provides an owned **ON / OFF** motor test in OUTPUTS.
 It requires idle MANUAL, enabled main conveyor, an empty conveyor and clearance
 from the enabled handlers; the diagnostic emergency-stop/air/alarm checks still
 apply. It selects forward/normal speed without starting a material-transfer route
-or asserting interface requests. RUN leaves the window open and the button becomes
-STOP. STOP, AUTO, safety/path loss, carrier detection or closing the window cancels
+or asserting interface requests. ON leaves the window open and the button becomes
+OFF. OFF, machine STOP, AUTO, safety/path loss, carrier detection or closing the window cancels
 the test and stops the motor. Reverse/speed outputs remain read-only here.
 The window shows
 why each action is blocked and cancels feedback waits on mode/safety changes or

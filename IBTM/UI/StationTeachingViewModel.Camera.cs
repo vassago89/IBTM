@@ -26,7 +26,7 @@ public partial class StationTeachingViewModel
         }
         else
         {
-            if (!_state.ManualOutputsEnabled) return;
+            if (!_state.ManualSetupEnabled) return;
             CameraError = null;
             Preview.Clear(SelectedBarcode);
             IsCameraLive = true;
@@ -43,7 +43,7 @@ public partial class StationTeachingViewModel
 
     private bool CanToggleLiveView() =>
         IsInspectionSelected
-        && (IsCameraLive || _state.Display.ManualOutputsEnabled);
+        && (IsCameraLive || _state.Display.ManualSetupEnabled);
 
     [RelayCommand(CanExecute = nameof(CanCaptureCarrierImages))]
     private async Task CaptureCarrierImagesAsync(

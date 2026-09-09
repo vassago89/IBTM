@@ -16,7 +16,7 @@ using IBTM.PcbSupply;
 
 namespace IBTM;
 
-public sealed class MachineController
+public sealed partial class MachineController
 {
     private static readonly InputIo[] CarrierInputs =
     [
@@ -60,7 +60,7 @@ public sealed class MachineController
     private readonly NgConveyorDryRun _ngConveyorDryRun;
     private readonly BoltRouteDryRun _boltRoute;
     private readonly BoltInspector _boltInspector;
-    private readonly IReadOnlyDictionary<OutputIo, (MotionGroup Group, TeachingOutput Output)> _diagnosticOutputs;
+    private readonly IReadOnlyDictionary<OutputIo, (MotionGroup Group, TeachingOutput Output)> _teachingOutputs;
     private readonly ApplicationLog? _log;
 
     public MachineController(
@@ -132,7 +132,7 @@ public sealed class MachineController
         _boltRoute = boltRoute;
         boltRoute.Changed += state.RequestDisplayRefresh;
         _boltInspector = boltInspector;
-        _diagnosticOutputs = teachingOutputs
+        _teachingOutputs = teachingOutputs
             .SelectMany(group => group.Value.Values.Select(output => (Group: group.Key, Output: output)))
             .ToDictionary(item => item.Output.Signal);
         _log = log;
@@ -195,7 +195,7 @@ public sealed class MachineController
         && (!_units.PcbSupply || _pcbSupply.CanHome);
     public HomeBlockReason HomeBlock => GetHomeBlock();
     public bool CanRaiseCylinders =>
-        _state.ManualOutputsEnabled
+        _state.ManualSetupEnabled
         && (BufferHandlersEnabled || _units.BoltFastening || InspectionGantryEnabled)
         && !Array.Exists(CarrierInputs, _io.GetInput);
 
@@ -228,123 +228,6 @@ public sealed class MachineController
         && block == StartBlockReason.None;
 
     public StartBlockReason StartBlock => GetStartBlock(_state.MotionReadiness);
-
-    private MachineDisplay ReadDisplay()
-    {
-        // Preserve the initialization/connection fault without reading closed I/O.
-        // The unavailable snapshot leaves all movement commands disabled.
-        if (!_io.IsReady)
-        {
-            return new()
-            {
-                Alarm = _state.Alarm,
-                AlarmDetail = _state.AlarmDetail,
-                AlarmMessage = _state.AlarmMessage,
-                IsRunning = _state.IsRunning,
-                IsHoming = _state.IsHoming,
-                AutomaticRunning = _state.AutomaticRunning,
-                StartBlock = StartBlockReason.Alarm,
-                HomeBlock = HomeBlockReason.IoUnavailable,
-                ManualBlock = ManualControlBlock.Alarm,
-            };
-        }
-
-        var motion = _state.DisplayMotionReadiness;
-        var block = GetStartBlock(motion);
-        var servoPower = _state.ServoMainContactorOn && motion.ServosOn;
-        var conflict = _state.BufferConflict;
-        var running = _state.IsRunning;
-        var safetyReady = _state.SafetyReady;
-        var teachingReady = TeachingReady;
-        var bolts = _recipe.Pcb.GetBolts().ToArray();
-        var automatic = _state.AutomaticRunning;
-
-        return new()
-        {
-            Available = true,
-            SafetyReady = safetyReady,
-            MotionFaulted = motion.Faulted,
-            IsRunning = running,
-            StartBlock = block,
-            HomeBlock = HomeBlock,
-            IsHoming = _state.IsHoming,
-            AutomaticRunning = automatic,
-            ConveyorRunning = _state.ConveyorRunning,
-            ConveyorState = _state.MainConveyorState,
-            NgConveyorRunning = _ngConveyor.RunCommandOn,
-            NgConveyorState = _ngConveyor.State,
-            BufferConflict = conflict,
-            SupplyInBufferArea = _state.SupplyInBufferArea,
-            PlacementInBufferArea = _state.PlacementInBufferArea,
-            SupplyAtHandoff = _state.SupplyAtHandoff,
-            CanSupplyEnter = _state.CanSupplyEnter,
-            EmergencyStopReleased = _state.EmergencyStopReleased,
-            DoorClosed = _state.DoorClosed,
-            AirPressureOk = _state.AirPressureOk,
-            AutoMode = _state.AutoMode,
-            Alarm = _state.Alarm,
-            AlarmDetail = _state.AlarmDetail,
-            AlarmMessage = _state.AlarmMessage,
-            ServoPowerOn = servoPower,
-            Homed = motion.Homed,
-            CanStart = IsStartAllowed(block),
-            CanHome = IsHomeAllowed(motion),
-            CanRaiseCylinders = CanRaiseCylinders,
-            HomeableAxes = Enum.GetValues<MotionGroup>()
-                .SelectMany(group => GetMotionFeedback(group).Axes.Select(axis => (group, axis)))
-                .Where(item => CanHomeAxis(item.group, item.axis, live: false)).ToHashSet(),
-            ManualBlock = _state.GetManualBlock(motion),
-            ManualOutputsEnabled = _state.ManualOutputsEnabled,
-            DiagnosticOutputBlock = GetDiagnosticOutputSafetyBlock()
-                ?? (running ? "Read only: wait for the current operation to stop." : null),
-            PlacementState = _units.PcbPlacement
-                ? _pcbPlacement.State(_recipe.PcbPlacement) : PcbPlacementState.WaitingForBufferPcb,
-            PlacementTarget = _pcbPlacement.TargetHeatSink,
-            FasteningState = teachingReady && _units.BoltFastening ? _fasteningStation.State() : BoltFasteningState.Waiting,
-            FasteningBolt = teachingReady && _units.BoltFastening && automatic ? _fasteningStation.ActiveBolt() : null,
-            InspectionState = teachingReady && _units.Inspection ? _inspectionStation.State(bolts) : InspectionStationState.Waiting,
-            InspectionBolt = teachingReady && _units.Inspection && automatic ? _inspectionStation.ActiveBolt(bolts) : null,
-            InspectionPcb = teachingReady && _units.Inspection && automatic ? _inspectionStation.ActivePcb(bolts) : null,
-            NgTransferDryRunState = _units.NgCarrierTransfer && _inspectionGantry.Motion.XyHomed
-                ? _ngTransferDryRun.State : NgTransferState.Unavailable,
-            NgTransferDestination = _ngTransferDryRun.Destination,
-            NgTransferDryRunTransfers = _ngTransferDryRun.CompletedTransfers,
-            InspectionDryRunReady = _inspectionDryRun.Ready,
-            InspectionDryRunState = _units.Inspection && _inspectionGantry.Motion.XyHomed
-                ? _inspectionDryRun.State : InspectionDryRunState.Unavailable,
-            InspectionDryRunDirection = _inspectionDryRun.Direction,
-            InspectionDryRunPasses = _inspectionDryRun.CompletedPasses,
-            InspectionDryRunPcb = _inspectionDryRun.ActivePcb,
-            InspectionDryRunBolt = _inspectionDryRun.ActiveBolt,
-            InspectionDryRunBarcode = _inspectionDryRun.LastBarcode,
-            InspectionDryRunBoltPresent = _inspectionDryRun.LastBoltPresent,
-            MainConveyorDryRunReady = MainConveyorPathClear,
-            MainConveyorDryRunState = MainConveyorPathClear ? _mainConveyorDryRun.State : MainConveyorDryRunState.Unavailable,
-            MainConveyorDestination = _mainConveyorDryRun.Destination,
-            MainConveyorDryRunPasses = _mainConveyorDryRun.CompletedPasses,
-            PcbReturnState = PcbReturnNeedsCarrier && _mainConveyorDryRun.ReturningToStation1
-                ? _mainConveyorDryRun.State : _pcbReturn.State,
-            PcbReturnDestination = PcbReturnNeedsCarrier && _mainConveyorDryRun.ReturningToStation1
-                ? _mainConveyorDryRun.Destination : _pcbReturn.Destination,
-            PcbReturnCount = _pcbReturn.CompletedReturns,
-            PcbReturnHeatSink = _pcbReturn.HeatSink,
-            PcbDryRunState = _pcbDryRun.State,
-            PcbDryRunDirection = _pcbDryRun.Direction,
-            PcbDryRunHeatSink = _pcbDryRun.HeatSink,
-            PcbDryRunCycles = _pcbDryRun.CompletedCycles,
-            NgConveyorDryRunState = _ngConveyorDryRun.State,
-            NgConveyorDestination = _ngConveyorDryRun.Destination,
-            NgConveyorDryRunPasses = _ngConveyorDryRun.CompletedPasses,
-            NgConveyorDryRunReady = _ngConveyorDryRun.Ready,
-            BoltRouteReady = _boltRoute.Ready,
-            BoltRouteState = _units.BoltFastening && _fasteningGantry.Motion.XyHomed
-                ? _boltRoute.State : BoltRouteState.Unavailable,
-            BoltRouteDirection = _boltRoute.Direction,
-            BoltRouteTarget = _boltRoute.ActiveBolt,
-            BoltRoutePass = _boltRoute.ActivePass,
-            BoltRoutePasses = _boltRoute.CompletedPasses,
-        };
-    }
 
     private StartBlockReason GetStartBlock(MotionReadiness motion)
     {
@@ -428,16 +311,7 @@ public sealed class MachineController
         }
     }
 
-    internal MotionStatus GetMotionStatus(MotionGroup group) => group switch
-    {
-        MotionGroup.PcbSupply => _supplyHandler.Motion,
-        MotionGroup.PcbPlacementHandler => _placementHandler.Motion,
-        MotionGroup.BoltFastening => _fasteningGantry.Motion,
-        MotionGroup.InspectionGantry => _inspectionGantry.Motion,
-        _ => throw new ArgumentOutOfRangeException(nameof(group)),
-    };
-
-    private IMotionFeedback GetMotionFeedback(MotionGroup group) => GetMotionStatus(group).Feedback;
+    private IMotionFeedback GetMotionFeedback(MotionGroup group) => _state.GetMotionStatus(group).Feedback;
 
     internal bool CanUseManualMotion(MotionGroup group, bool live = true) =>
         (live ? _state.ManualControlsEnabled : _state.Display.ManualControlsEnabled)
@@ -473,234 +347,6 @@ public sealed class MachineController
         RunManualAsync(edit, MachineAlarm.IoCommunication,
             () => _state.ManualControlsEnabled, cancellationToken, viewCancellation);
 
-    private string? GetDiagnosticOutputSafetyBlock()
-    {
-        if (_operations.IsShuttingDown) return "Read only: the machine is shutting down.";
-        if (!_io.IsReady) return "Read only: control I/O is unavailable.";
-        if (!_state.ManualMode) return "Read only: switch the selector to MANUAL.";
-        if (!_state.EmergencyStopReleased || !_state.AirPressureOk)
-            return "Read only: check emergency stops and air pressure.";
-        return _state.Alarm is MachineAlarm.None or MachineAlarm.MotionUnavailable
-            or MachineAlarm.HomeFailed or MachineAlarm.Inspection
-            ? null : "Read only: reset the safety, I/O or process alarm first.";
-    }
-
-    internal string? GetManualOutputBlock(OutputIo signal, bool live = false)
-    {
-        var block = live
-            ? GetDiagnosticOutputSafetyBlock()
-                ?? (_state.IsRunning ? "Read only: wait for the current operation to stop." : null)
-            : _state.Display.DiagnosticOutputBlock;
-        if (block is not null) return block;
-
-        if (signal == OutputIo.MainConveyorRun) return GetDiagnosticMainConveyorBlock(live);
-
-        if (signal is OutputIo.MachineLight or OutputIo.TowerLampGreen or OutputIo.TowerLampYellow
-            or OutputIo.TowerLampRed or OutputIo.Buzzer
-            or OutputIo.NgCarrierEjectLamp or OutputIo.NgCarrierEjectCompleteLamp)
-            return null;
-
-        if (IsDiagnosticInterfaceOutput(signal)) return GetDiagnosticInterfaceBlock(signal, live);
-
-        if (signal is OutputIo.PcbPlacementStopperUp or OutputIo.BoltFasteningStopperUp
-            or OutputIo.InspectionStopperUp or OutputIo.NgConveyorStopperUp)
-            return GetDiagnosticStopperBlock(signal, live);
-
-        // Motor, shuttle and shooting outputs need their dedicated
-        // sequences/hold-to-run controls, not an unrestricted latched toggle.
-        if (!_diagnosticOutputs.TryGetValue(signal, out var entry) || entry.Output.HoldToRun)
-            return "Use the dedicated Manual Control / Station Teaching operation for this output.";
-
-        if (entry.Output.RequiresHandler)
-        {
-            var motion = GetMotionStatus(entry.Group);
-            if (!_units.IsMotionEnabled(entry.Group) || !motion.Feedback.IsReady
-                || !_state.ServoMainContactorOn
-                || motion.Feedback.Axes.Any(axis =>
-                    (live ? motion.Feedback.GetAxisState(axis) : motion.Axes[axis].State)
-                    is not { Homed: true, ServoOn: true, Alarm: false, Emergency: false }))
-                return "The associated handler must be enabled, homed and free of motion faults.";
-
-            if (entry.Group == MotionGroup.PcbSupply
-                    && (live ? _state.PlacementInBufferArea : _state.Display.PlacementInBufferArea)
-                || entry.Group == MotionGroup.PcbPlacementHandler
-                    && (live ? _state.SupplyInBufferArea : _state.Display.SupplyInBufferArea))
-                return "The other handler is inside the PCB buffer.";
-        }
-
-        if (entry.Output.CanSet?.Invoke(live) == false
-            || signal == OutputIo.PcbSupplyRotate && !_supplyHandler.CanRotateInPlace(live))
-            return "Output interlock: check the handler position and cylinder clearance.";
-        return null;
-    }
-
-    internal static bool IsDiagnosticInterfaceOutput(OutputIo signal) => signal is
-        OutputIo.PcbSupplyReadyToFront1 or OutputIo.MainConveyorReadyToFront2 or OutputIo.MainConveyorAvailableToRear;
-
-    private string? GetDiagnosticMainConveyorBlock(bool live)
-    {
-        if (!_units.MainConveyor) return "Enable the main conveyor before its motor test.";
-        if (!(live ? MainConveyorPathClear : _state.Display.MainConveyorDryRunReady))
-            return "Raise and clear the enabled handlers before running the main conveyor.";
-        if (_io.GetInput(InputIo.MainConveyorEntryCarrierDetected)
-            || _io.GetInput(InputIo.PcbPlacementCarrierPresent)
-            || _io.GetInput(InputIo.BoltFasteningCarrierPresent)
-            || _io.GetInput(InputIo.InspectionCarrierPresent)
-            || _io.GetInput(InputIo.MainConveyorExitCarrierDetected))
-            return "Remove carriers from the main conveyor before this motor-only test.";
-        return null;
-    }
-
-    private string? GetDiagnosticStopperBlock(OutputIo signal, bool live)
-    {
-        if (signal == OutputIo.NgConveyorStopperUp)
-            return !_units.NgConveyor ? "Enable the NG conveyor before testing its stopper."
-                : _io.GetInput(InputIo.NgConveyorPosition1Occupied)
-                    || _io.GetInput(InputIo.NgConveyorPosition2Occupied)
-                    || _io.GetInput(InputIo.NgShuttleCarrierDetected)
-                    ? "Empty the NG conveyor and shuttle before testing the stopper." : null;
-
-        if (!_units.MainConveyor) return "Enable the main conveyor before testing its stoppers.";
-        if (!(live ? MainConveyorPathClear : _state.Display.MainConveyorDryRunReady))
-            return "Raise and clear the enabled handlers before testing conveyor stoppers.";
-        var (carrier, plateUp, plateDown) = signal switch
-        {
-            OutputIo.PcbPlacementStopperUp => (InputIo.PcbPlacementCarrierPresent,
-                InputIo.PcbPlacementBackupPlateUp, InputIo.PcbPlacementBackupPlateDown),
-            OutputIo.BoltFasteningStopperUp => (InputIo.BoltFasteningCarrierPresent,
-                InputIo.BoltFasteningBackupPlateUp, InputIo.BoltFasteningBackupPlateDown),
-            _ => (InputIo.InspectionCarrierPresent, InputIo.InspectionBackupPlateUp, InputIo.InspectionBackupPlateDown),
-        };
-        return _io.GetInput(carrier) || _io.GetInput(plateUp) || !_io.GetInput(plateDown)
-            ? "Empty this station and lower its backup plate before testing the stopper." : null;
-    }
-
-    private string? GetDiagnosticInterfaceBlock(OutputIo signal, bool live)
-    {
-        if (!(signal == OutputIo.PcbSupplyReadyToFront1 ? _units.PcbSupply : _units.MainConveyor))
-            return "Enable the owning unit before testing its interface signal.";
-        var ready = live ? _state.CanOperate
-            : _state.Display.Available && _state.Display.Alarm == MachineAlarm.None
-                && _state.Display.SafetyReady && _state.Display.Homed && _state.Display.ServoPowerOn
-                && !_state.Display.MotionFaulted && !_state.Display.BufferConflict;
-        if (!ready) return "Interface tests require ready enabled axes and no machine alarm.";
-        if (Array.Exists(CarrierInputs, _io.GetInput) || _io.GetInput(InputIo.PcbSupplyPcbDetected)
-            || _io.GetInput(InputIo.PcbPlacementPcbDetected) || _io.GetInput(InputIo.PcbBufferPcbPresent))
-            return "Empty the machine before testing interface signals.";
-        if (_io.GetInput(InputIo.PcbSupplyAvailableFromFront1)
-            || _io.GetInput(InputIo.MainConveyorAvailableFromFront2)
-            || _io.GetInput(InputIo.MainConveyorReadyFromRear))
-            return "Stop the connected equipment: its available/ready inputs must be OFF for this test.";
-        return !(live ? MainConveyorPathClear : _state.Display.MainConveyorDryRunReady)
-            ? "Clear the conveyor path before testing interface signals." : null;
-    }
-
-    internal async Task ToggleManualOutputAsync(OutputIo signal, CancellationToken cancellationToken)
-    {
-        try
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            // The display controls button availability only. Recheck live state
-            // before any write, including direct invocation of a disabled command.
-            if (GetManualOutputBlock(signal, live: true) is { } block)
-            {
-                _log?.Write($"Manual output {signal} ignored: {block}");
-                return;
-            }
-
-            using var operation = _operations.Link(cancellationToken);
-            var startingAlarm = _state.Alarm;
-            void StopWhenUnavailable()
-            {
-                if (operation.IsCancellationRequested) return;
-                if (GetDiagnosticOutputSafetyBlock() is not null || _state.Alarm != startingAlarm
-                    || IsDiagnosticInterfaceOutput(signal) && GetDiagnosticInterfaceBlock(signal, live: true) is not null)
-                    operation.Cancel();
-                if (signal == OutputIo.MainConveyorRun && !operation.IsCancellationRequested)
-                {
-                    try
-                    {
-                        if (GetDiagnosticMainConveyorBlock(live: true) is not null) operation.Cancel();
-                    }
-                    catch (Exception exception)
-                    {
-                        _log?.Error("Main conveyor motor test stopped: interlock feedback could not be read.", exception);
-                        operation.Cancel();
-                    }
-                }
-            }
-
-            void OnDiagnosticInputChanged(InputIo _, bool __) => StopWhenUnavailable();
-            var watchInputs = IsDiagnosticInterfaceOutput(signal) || signal == OutputIo.MainConveyorRun;
-
-            _state.Changed += StopWhenUnavailable;
-            if (watchInputs) _io.InputChanged += OnDiagnosticInputChanged;
-            if (signal == OutputIo.MainConveyorRun) _state.DisplayChanged += StopWhenUnavailable;
-            try
-            {
-                StopWhenUnavailable();
-                operation.Token.ThrowIfCancellationRequested();
-                if (signal == OutputIo.MainConveyorRun)
-                {
-                    try
-                    {
-                        _log?.Write($"Main conveyor motor test RUN: forward, normal speed; alarm={startingAlarm}.");
-                        // The conveyor owns immediate OFF on cancellation, independently of the UI.
-                        _conveyor.RunMotor(operation.Token);
-                        await Task.Delay(Timeout.Infinite, operation.Token).ConfigureAwait(false);
-                    }
-                    finally
-                    {
-                        _conveyor.Stop();
-                        _log?.Write("Main conveyor motor test STOP.");
-                    }
-                    return;
-                }
-                if (IsDiagnosticInterfaceOutput(signal))
-                {
-                    // Keep the request owned until OFF/STOP; there is no timed pulse.
-                    try
-                    {
-                        _log?.Write($"Manual interface output {signal}: ON until OFF or cancellation. Connected equipment must be stopped.");
-                        _io.SetOutput(signal, true);
-                        // OFF must not wait for the OUTPUTS window's UI dispatcher.
-                        await Task.Delay(Timeout.Infinite, operation.Token).ConfigureAwait(false);
-                    }
-                    finally
-                    {
-                        _io.SetOutput(signal, false);
-                        _log?.Write($"Manual interface output {signal}: OFF.");
-                    }
-                    return;
-                }
-                var value = !_io.GetOutput(signal);
-                // This window never moves an axis as a side effect of a toggle.
-                _log?.Write($"Manual output {signal}: {(value ? "ON" : "OFF")}; alarm={startingAlarm}.");
-                operation.Token.ThrowIfCancellationRequested();
-                _io.SetOutput(signal, value);
-                if (_io.GetOutputFeedback(signal) is not null)
-                    await _io.WaitForOutputFeedbackAsync(signal, value, operation.Token);
-            }
-            finally
-            {
-                _state.Changed -= StopWhenUnavailable;
-                if (watchInputs) _io.InputChanged -= OnDiagnosticInputChanged;
-                if (signal == OutputIo.MainConveyorRun) _state.DisplayChanged -= StopWhenUnavailable;
-            }
-        }
-        catch (OperationCanceledException) { throw; }
-        catch (IoTimeoutException exception)
-        {
-            _log?.Error($"Manual output {signal}: feedback timed out. {exception.Message}", exception);
-            throw;
-        }
-        catch (Exception exception)
-        {
-            _state.SetError(MachineAlarm.IoCommunication, exception);
-            _operations.Cancel();
-        }
-    }
-
     internal void RunManualConveyor() =>
         TryRunManual(() => _conveyor.RunMotor(),
             () => _state.ManualControlsEnabled, MachineAlarm.IoCommunication);
@@ -722,14 +368,14 @@ public sealed class MachineController
                 && (!(live ? PcbReturnNeedsCarrier
                         : _state.Display.PcbReturnState is MainConveyorDryRunState or PcbReturnState.WaitingForCarrier)
                     || _units.MainConveyor
-                    && (live ? MainConveyorPathClear : _state.Display.MainConveyorDryRunReady)),
+                    && (live ? MainConveyorPathClear : _state.Display.MainConveyorPathClear)),
             DryRunTarget.PcbRoundTrip => _units.PcbSupply && _units.PcbPlacement,
             DryRunTarget.NgConveyor => _units.NgConveyor && _units.NgShuttle
                 && (live ? _ngConveyorDryRun.Ready : _state.Display.NgConveyorDryRunReady),
             DryRunTarget.Inspection => _units.Inspection
                 && (live ? _inspectionDryRun.Ready : _state.Display.InspectionDryRunReady),
             DryRunTarget.MainConveyor => _units.MainConveyor
-                && (live ? MainConveyorPathClear : _state.Display.MainConveyorDryRunReady),
+                && (live ? MainConveyorPathClear : _state.Display.MainConveyorPathClear),
             _ => false,
         };
 
@@ -819,30 +465,6 @@ public sealed class MachineController
         }
     }
 
-    internal Task RunManualOutputAsync(
-        TeachingOutput output,
-        bool value,
-        CancellationToken cancellationToken,
-        CancellationToken viewCancellation) =>
-        RunManualAsync(token => output.SetAsync(value, token), output.Owner switch
-        {
-            HardwareArea.MainConveyor => MachineAlarm.MainConveyor,
-            HardwareArea.PcbSupply => MachineAlarm.PcbSupply,
-            HardwareArea.PcbPlacementHandler => MachineAlarm.PcbPlacement,
-            HardwareArea.BoltFastening => MachineAlarm.BoltFastening,
-            HardwareArea.NgCarrierTransfer => MachineAlarm.NgCarrierTransfer,
-            _ => throw new ArgumentOutOfRangeException(nameof(output)),
-        }, () => _state.ManualOutputsEnabled
-            && (output.CanSet?.Invoke(true) ?? true)
-            && (!output.RequiresHandler || CanUseManualMotion(output.Owner switch
-            {
-                HardwareArea.PcbSupply => MotionGroup.PcbSupply,
-                HardwareArea.PcbPlacementHandler => MotionGroup.PcbPlacementHandler,
-                HardwareArea.BoltFastening => MotionGroup.BoltFastening,
-                HardwareArea.NgCarrierTransfer => MotionGroup.InspectionGantry,
-                _ => throw new ArgumentOutOfRangeException(nameof(output)),
-            })), cancellationToken, viewCancellation);
-
     private async Task RunManualAsync(
         Func<CancellationToken, Task> execute,
         MachineAlarm alarm,
@@ -910,7 +532,7 @@ public sealed class MachineController
             || GetHomeBlock(group) != HomeBlockReason.None)
             return false;
 
-        var motion = GetMotionStatus(group);
+        var motion = _state.GetMotionStatus(group);
         return motion.Feedback.IsReady && motion.Feedback.Axes
             .Where(candidate => candidate == axis || candidate == MotionAxis.Z)
             .All(candidate => (live ? motion.Feedback.GetAxisState(candidate) : motion.Axes[candidate].State)

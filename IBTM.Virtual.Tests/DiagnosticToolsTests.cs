@@ -291,17 +291,29 @@ public sealed class DiagnosticToolsTests
         {
             io.AutoResponseEnabled = false;
             services.GetRequiredService<MachineOptions>().TimeoutMilliseconds = 30;
-            var row = new OutputControlRow(io, services.GetRequiredService<IoSignals>()
+            var row = new OutputControlRow(services.GetRequiredService<IoSignals>()
                 .Outputs[OutputIo.PcbPlacementStopperUp], machine);
             var log = services.GetRequiredService<ApplicationLog>();
             var since = log.LatestSequence;
+            var sawWaiting = false;
+            row.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(row.FeedbackState))
+                    sawWaiting |= row.FeedbackState == OutputFeedbackState.Waiting;
+            };
             await row.ToggleCommand.ExecuteAsync(null);
+            Assert.True(sawWaiting);
             Assert.True(io.GetOutput(OutputIo.PcbPlacementStopperUp));
             Assert.Equal(OutputFeedbackState.Timeout, row.FeedbackState);
             Assert.Contains("PCB Placement Stopper Up", row.FeedbackError);
             Assert.Contains(log.ReadAfter(since), entry => entry.Level == "ERROR"
                 && entry.Message.Contains("PcbPlacementStopperUp") && entry.Detail!.Contains("timeout"));
             Assert.False(state.IsRunning);
+
+            row.Refresh();
+            Assert.Null(row.FeedbackError);
+            Assert.NotEqual(OutputFeedbackState.Timeout, row.FeedbackState);
+            Assert.NotEqual(OutputFeedbackState.Waiting, row.FeedbackState);
 
             io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
             await row.ToggleCommand.ExecuteAsync(null);
@@ -328,7 +340,7 @@ public sealed class DiagnosticToolsTests
             io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
             io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
             io.SetInput(InputIo.MainConveyorReadyFromRear, false);
-            var row = new OutputControlRow(io, services.GetRequiredService<IoSignals>()
+            var row = new OutputControlRow(services.GetRequiredService<IoSignals>()
                 .Outputs[OutputIo.MainConveyorReadyToFront2], machine);
             Assert.Equal("ON", row.ToggleLabel);
             var test = row.ToggleCommand.ExecuteAsync(null);
@@ -375,7 +387,7 @@ public sealed class DiagnosticToolsTests
             io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
             io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
             io.SetInput(InputIo.MainConveyorReadyFromRear, false);
-            row = new OutputControlRow(io, services.GetRequiredService<IoSignals>()
+            row = new OutputControlRow(services.GetRequiredService<IoSignals>()
                 .Outputs[OutputIo.MainConveyorReadyToFront2], machine);
             var previous = SynchronizationContext.Current;
             try
@@ -397,6 +409,56 @@ public sealed class DiagnosticToolsTests
             context.Release();
             if (test is not null) await test.WaitAsync(TimeSpan.FromSeconds(2));
             await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task InterfaceInterlockReadFailureStopsOutputWithoutThrowingIntoInputNotifications()
+    {
+        var motion = System.Reflection.DispatchProxy.Create<IXyMotion, InterfaceClearanceMotion>();
+        var probe = (InterfaceClearanceMotion)motion;
+        using var services = CreateServices(new RecordingLight(), collection =>
+            collection.AddSingleton(provider => new IBTM.PcbPlacement.PcbPlacementHandler(motion,
+                provider.GetRequiredService<IIoService>(),
+                provider.GetRequiredService<IBTM.PcbPlacement.PcbPlacementHandlerSettings>())));
+        var settings = services.GetRequiredService<MachineSettings>();
+        settings.Units.PcbPlacement = true;
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            io.AutoResponseEnabled = false;
+            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+            io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
+            io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+            var row = new OutputControlRow(services.GetRequiredService<IoSignals>()
+                .Outputs[OutputIo.MainConveyorReadyToFront2], machine);
+            var test = row.ToggleCommand.ExecuteAsync(null);
+            Assert.True(await VirtualTest.WaitUntilAsync(() => io.GetOutput(OutputIo.MainConveyorReadyToFront2),
+                TimeSpan.FromSeconds(2)));
+            probe.FailReads = true;
+            Assert.Null(Record.Exception(() => io.SetInput(InputIo.PcbSupplyGripperOpen, true)));
+            await test.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            Assert.True(io.IsReady);
+        }
+        finally { probe.FailReads = false; await machine.ShutdownAsync(); }
+    }
+
+    public class InterfaceClearanceMotion : System.Reflection.DispatchProxy
+    {
+        private readonly VirtualMotionService _motion = new(new(), new());
+        public volatile bool FailReads;
+        protected override object? Invoke(System.Reflection.MethodInfo? method, object?[]? arguments)
+        {
+            if (method!.Name is nameof(IMotionFeedback.GetAxisState) or "get_IsAtHorizontalZ")
+            {
+                if (FailReads) throw new IOException("Placement clearance feedback failed.");
+                if (method.Name == "get_IsAtHorizontalZ") return true;
+                return new AxisState(true, true, false, true, false, false, false, false);
+            }
+            return method.Invoke(_motion, arguments);
         }
     }
 

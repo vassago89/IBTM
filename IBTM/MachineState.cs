@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -104,7 +105,7 @@ public sealed class MachineState : IDisposable
     private readonly TaskCompletionSource _firstDisplay = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private Task? _displayUpdates;
     private MachineDisplay _display = new();
-    private readonly (MotionGroup Group, MotionStatus Motion)[] _motionDisplays;
+    private readonly IReadOnlyDictionary<MotionGroup, MotionStatus> _motions;
     private readonly MachineOptions _options;
     private readonly UnitSettings _units;
     private readonly OperationCancellation _operations;
@@ -141,13 +142,13 @@ public sealed class MachineState : IDisposable
         _ngConveyor = ngConveyor;
         _buffer = buffer;
         _training = training;
-        _motionDisplays =
-        [
-            (MotionGroup.PcbSupply, pcbSupply.Motion),
-            (MotionGroup.PcbPlacementHandler, pcbPlacement.Motion),
-            (MotionGroup.BoltFastening, boltFastening.Motion),
-            (MotionGroup.InspectionGantry, inspectionGantry.Motion),
-        ];
+        _motions = new Dictionary<MotionGroup, MotionStatus>
+        {
+            [MotionGroup.PcbSupply] = pcbSupply.Motion,
+            [MotionGroup.PcbPlacementHandler] = pcbPlacement.Motion,
+            [MotionGroup.BoltFastening] = boltFastening.Motion,
+            [MotionGroup.InspectionGantry] = inspectionGantry.Motion,
+        };
         _log = log;
 
         io.InputChanged += (input, _) =>
@@ -187,85 +188,95 @@ public sealed class MachineState : IDisposable
 
     public void RequestDisplayRefresh() => _displayRequested.Set();
 
+    internal MotionStatus GetMotionStatus(MotionGroup group) =>
+        _motions.TryGetValue(group, out var motion) ? motion : throw new ArgumentOutOfRangeException(nameof(group));
+
     internal async Task StartDisplayUpdatesAsync(Func<MachineDisplay> read)
     {
         if (_displayUpdates is null)
         {
             var monitors = new List<Task>();
-            foreach (var (group, motion) in _motionDisplays)
+            foreach (var (group, motion) in _motions)
                 monitors.Add(motion.StartMonitoringAsync(_displayLifetime.Token, RequestDisplayRefresh,
                     (axis, error) => _log?.Error($"Motion monitor {group}/{axis}: feedback read failed.", error)));
             await Task.WhenAll(monitors).ConfigureAwait(false);
             Changed += RequestDisplayRefresh;
             RequestDisplayRefresh();
-            _displayUpdates = Task.Run(async () =>
-            {
-                var cancellationToken = _displayLifetime.Token;
-                try
-                {
-                    while (true)
-                    {
-                        // Motion objects publish their own always-on monitor cache. Keep the
-                        // automatic watchdog for feedback providers without a monitor loop.
-                        await _displayRequested.WaitAsync(AutomaticRunning
-                            ? TimeSpan.FromMilliseconds(250) : Timeout.InfiniteTimeSpan,
-                            cancellationToken).ConfigureAwait(false);
-                        cancellationToken.ThrowIfCancellationRequested();
-                        try
-                        {
-                            _ioSignals.RefreshInputs();
-                            _ioSignals.RefreshOutputs();
-                            foreach (var (group, motion) in _motionDisplays)
-                                motion.RefreshAxes(_io.IsReady && _units.IsMotionEnabled(group));
-                            Display = read();
-                        }
-                        catch (IOException exception)
-                        {
-                            if (Display.ReadError?.Message != exception.Message)
-                                _log?.Error("Display refresh failed.", exception);
-                            if (_io.IsReady)
-                            {
-                                Display = new() { ReadError = exception };
-                            }
-                            else
-                            {
-                                // The connection may fail partway through a scan.
-                                // Keep the original fault and invalidate every axis.
-                                _ioSignals.RefreshOutputs();
-                                foreach (var (_, motion) in _motionDisplays) motion.RefreshAxes(available: false);
-                                Display = read();
-                            }
-                        }
-                        DisplayChanged?.Invoke();
-                        _firstDisplay.TrySetResult();
-                    }
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    _firstDisplay.TrySetCanceled(cancellationToken);
-                }
-                catch (Exception exception)
-                {
-                    _log?.Error("Display worker stopped by an unexpected error.", exception);
-                    Display = new() { ReadError = exception };
-                    _firstDisplay.TrySetException(exception);
-                    DisplayChanged?.Invoke();
-                    throw;
-                }
-                finally
-                {
-                    Changed -= RequestDisplayRefresh;
-                }
-            });
+            _displayUpdates = Task.Run(() => UpdateDisplayLoopAsync(read));
         }
         await _firstDisplay.Task.ConfigureAwait(false);
+    }
+
+    private async Task UpdateDisplayLoopAsync(Func<MachineDisplay> read)
+    {
+        var cancellationToken = _displayLifetime.Token;
+        try
+        {
+            while (true)
+            {
+                // Motion objects publish their own always-on monitor cache. Keep the
+                // automatic watchdog for feedback providers without a monitor loop.
+                await _displayRequested.WaitAsync(AutomaticRunning
+                    ? TimeSpan.FromMilliseconds(250) : Timeout.InfiniteTimeSpan,
+                    cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                RefreshDisplay(read);
+                DisplayChanged?.Invoke();
+                _firstDisplay.TrySetResult();
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _firstDisplay.TrySetCanceled(cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            _log?.Error("Display worker stopped by an unexpected error.", exception);
+            Display = new() { ReadError = exception };
+            _firstDisplay.TrySetException(exception);
+            DisplayChanged?.Invoke();
+            throw;
+        }
+        finally
+        {
+            Changed -= RequestDisplayRefresh;
+        }
+    }
+
+    private void RefreshDisplay(Func<MachineDisplay> read)
+    {
+        try
+        {
+            _ioSignals.RefreshInputs();
+            _ioSignals.RefreshOutputs();
+            foreach (var (group, motion) in _motions)
+                motion.RefreshControlFeedback(_io.IsReady && _units.IsMotionEnabled(group));
+            Display = read();
+        }
+        catch (IOException exception)
+        {
+            if (Display.ReadError?.Message != exception.Message)
+                _log?.Error("Display refresh failed.", exception);
+            if (_io.IsReady)
+            {
+                Display = new() { ReadError = exception };
+            }
+            else
+            {
+                // The connection may fail partway through a scan.
+                // Keep the original fault and invalidate every axis.
+                _ioSignals.RefreshOutputs();
+                foreach (var (_, motion) in _motions) motion.RefreshControlFeedback(available: false);
+                Display = read();
+            }
+        }
     }
 
     internal Task StopDisplayUpdatesAsync()
     {
         _displayLifetime.Cancel();
         var stopped = new List<Task> { _displayUpdates ?? Task.CompletedTask };
-        foreach (var (_, motion) in _motionDisplays) stopped.Add(motion.MonitoringCompletion);
+        foreach (var (_, motion) in _motions) stopped.Add(motion.MonitoringCompletion);
         return Task.WhenAll(stopped);
     }
 
@@ -307,7 +318,7 @@ public sealed class MachineState : IDisposable
             }
         }
 
-        foreach (var (group, motion) in _motionDisplays)
+        foreach (var (group, motion) in _motions)
             if (_units.IsMotionEnabled(group)) Read(motion);
 
         return new(homed, servosOn, faulted);
@@ -373,7 +384,7 @@ public sealed class MachineState : IDisposable
         || ConveyorRunning
         // A motion already in progress must still keep the machine busy, even if
         // its unit is disabled programmatically before the operation has stopped.
-        || Array.Exists(_motionDisplays, static item => item.Motion.Feedback.IsMoving)
+        || _motions.Values.Any(static motion => motion.Feedback.IsMoving)
         || (_io.IsReady && _ngConveyor.RunCommandOn);
 
     public bool CanOperate =>
@@ -397,7 +408,9 @@ public sealed class MachineState : IDisposable
         _ => ManualControlBlock.None,
     };
     public bool ManualControlsEnabled => ManualBlock == ManualControlBlock.None;
-    public bool ManualOutputsEnabled =>
+    // Teaching, camera setup and coordinated cylinder preparation. OUTPUTS uses
+    // MachineController.GetManualOutputBlock so motion alarms do not block unrelated I/O.
+    public bool ManualSetupEnabled =>
         _io.IsReady
         && !_operations.IsShuttingDown
         && ManualMode
