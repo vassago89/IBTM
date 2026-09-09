@@ -67,9 +67,10 @@ public class AjinMotionService(
                 nameof(CAXM.AxmMotSetMoveUnitPerPulse));
             AjinController.Check(CAXM.AxmMotSetAccelUnit(axis, AccelerationInUnitsPerSecondSquared),
                 nameof(CAXM.AxmMotSetAccelUnit));
-            SetServo(axis, true);
         }
 
+        // Communication readiness is independent of servo power and axis alarms.
+        // Servo ON belongs to an explicit operator command (or the existing RESET flow).
         _initialized = true;
         PublishPosition();
         PublishStateChanged();
@@ -390,7 +391,7 @@ public class AjinMotionService(
         {
             AjinController.Check(
                 CAXM.AxmSignalServoAlarmReset(axis, 1),
-                nameof(CAXM.AxmSignalServoAlarmReset));
+                $"{nameof(CAXM.AxmSignalServoAlarmReset)} (axis={axis})");
         }
 
         PublishStateChanged();
@@ -539,7 +540,7 @@ public class AjinMotionService(
     private void SetServo(int axis, bool on) =>
         AjinController.Check(
             CAXM.AxmSignalServoOn(axis, on ? 1U : 0U),
-            nameof(CAXM.AxmSignalServoOn));
+            $"{nameof(CAXM.AxmSignalServoOn)} (axis={axis}, on={on})");
 
     private double ReadPosition(int axis)
     {

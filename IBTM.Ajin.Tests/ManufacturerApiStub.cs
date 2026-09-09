@@ -5,8 +5,10 @@ using System.Collections.Generic;
 internal static class AjinSdk
 {
     internal sealed record Call(string Operation, int? Module = null, int? Offset = null,
-        uint? Value = null, string? Path = null);
+        uint? Value = null, string? Path = null, int? Axis = null);
     internal sealed record Module(int Inputs, int Outputs, AXT_MODULE Type, int Board = 0, int Position = 0);
+    internal sealed record MotionAxis(uint Mechanical = 0, uint HomeResult = 0, uint ServoOn = 0, double Position = 0);
+    internal static readonly Dictionary<int, MotionAxis> MotionAxes = [];
     internal static readonly List<Call> Calls = [];
     internal static readonly Dictionary<Call, uint> Results = [];
     internal static readonly Dictionary<int, Module> Modules = [];
@@ -20,6 +22,7 @@ internal static class AjinSdk
     internal static void Reset()
     {
         Calls.Clear();
+        MotionAxes.Clear();
         Results.Clear();
         Modules.Clear();
         Inputs.Clear();
@@ -50,7 +53,7 @@ internal static class CAXL
     public static int AxlClose() => (int)AjinSdk.Record(new(nameof(AxlClose)));
 }
 
-internal static class CAXM
+internal static partial class CAXM
 {
     public static uint AxmMotLoadParaAll(string path) => AjinSdk.Record(new(nameof(AxmMotLoadParaAll), Path: path));
 }

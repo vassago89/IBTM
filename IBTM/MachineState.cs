@@ -199,7 +199,11 @@ public sealed class MachineState : IDisposable
                 {
                     while (true)
                     {
-                        await _displayRequested.WaitAsync(cancellationToken).ConfigureAwait(false);
+                        // Automatic operation must detect external drive faults even with all
+                        // monitor windows closed and no input/motion events being published.
+                        await _displayRequested.WaitAsync(AutomaticRunning
+                            ? TimeSpan.FromMilliseconds(250) : Timeout.InfiniteTimeSpan,
+                            cancellationToken).ConfigureAwait(false);
                         cancellationToken.ThrowIfCancellationRequested();
                         try
                         {

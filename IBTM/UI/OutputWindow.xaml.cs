@@ -121,6 +121,7 @@ public sealed partial class OutputControlRow : ObservableObject
         Io = status;
         PropertyChangedEventManager.AddHandler(
             status, OnFeedbackChanged, nameof(IoOutputStatus.IsMatched));
+        ToggleCommand.PropertyChanged += OnToggleCommandChanged;
     }
 
     public IoOutputStatus Io { get; }
@@ -132,12 +133,32 @@ public sealed partial class OutputControlRow : ObservableObject
         : Io.IsMatched ? OutputFeedbackState.Matched
         : OutputFeedbackState.NotMatched;
 
-    public string ToggleHint => _machine.GetManualOutputBlock(Io.Signal)
-        ?? (MachineController.IsDiagnosticInterfaceOutput(Io.Signal)
-            ? "Confirm connected equipment is stopped. Send ON for up to 1 second, then automatically OFF."
-            : "Toggle this output after rechecking live safety conditions.");
-    public string ToggleLabel => MachineController.IsDiagnosticInterfaceOutput(Io.Signal) ? "Test 1s" : "Toggle";
+    private bool IsOwnedOutputTestRunning => ToggleCommand.IsRunning
+        && (Io.Signal == OutputIo.MainConveyorRun || MachineController.IsDiagnosticInterfaceOutput(Io.Signal));
+    public IRelayCommand ActionCommand => IsOwnedOutputTestRunning ? StopOutputTestCommand : ToggleCommand;
+    public string ToggleHint => IsOwnedOutputTestRunning
+        ? Io.Signal == OutputIo.MainConveyorRun ? "Stop this main conveyor motor test." : "Send OFF to this interface output."
+        : _machine.GetManualOutputBlock(Io.Signal)
+        ?? (Io.Signal == OutputIo.MainConveyorRun
+            ? "Run the empty conveyor forward at normal speed until STOP. Closing this window also stops the test."
+            : MachineController.IsDiagnosticInterfaceOutput(Io.Signal)
+                ? "Confirm connected equipment is stopped. Keep ON until OFF, STOP, window close or an interlock change."
+                : "Toggle this output after rechecking live safety conditions.");
+    public string ToggleLabel => Io.Signal == OutputIo.MainConveyorRun ? IsOwnedOutputTestRunning ? "STOP" : "RUN"
+        : MachineController.IsDiagnosticInterfaceOutput(Io.Signal) ? IsOwnedOutputTestRunning ? "OFF" : "ON" : "Toggle";
     private bool CanToggle() => _machine.GetManualOutputBlock(Io.Signal) is null;
+
+    [RelayCommand(CanExecute = nameof(IsOwnedOutputTestRunning))]
+    private void StopOutputTest() => ToggleCommand.Cancel();
+
+    private void OnToggleCommandChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName != nameof(IAsyncRelayCommand.IsRunning)) return;
+        StopOutputTestCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(ActionCommand));
+        OnPropertyChanged(nameof(ToggleLabel));
+        OnPropertyChanged(nameof(ToggleHint));
+    }
 
     [RelayCommand(CanExecute = nameof(CanToggle))]
     private async Task ToggleAsync(CancellationToken cancellationToken)

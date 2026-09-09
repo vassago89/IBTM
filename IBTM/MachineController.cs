@@ -491,6 +491,8 @@ public sealed class MachineController
             : _state.Display.DiagnosticOutputBlock;
         if (block is not null) return block;
 
+        if (signal == OutputIo.MainConveyorRun) return GetDiagnosticMainConveyorBlock(live);
+
         if (signal is OutputIo.MachineLight or OutputIo.TowerLampGreen or OutputIo.TowerLampYellow
             or OutputIo.TowerLampRed or OutputIo.Buzzer
             or OutputIo.NgCarrierEjectLamp or OutputIo.NgCarrierEjectCompleteLamp)
@@ -532,6 +534,20 @@ public sealed class MachineController
 
     internal static bool IsDiagnosticInterfaceOutput(OutputIo signal) => signal is
         OutputIo.PcbSupplyReadyToFront1 or OutputIo.MainConveyorReadyToFront2 or OutputIo.MainConveyorAvailableToRear;
+
+    private string? GetDiagnosticMainConveyorBlock(bool live)
+    {
+        if (!_units.MainConveyor) return "Enable the main conveyor before its motor test.";
+        if (!(live ? MainConveyorPathClear : _state.Display.MainConveyorDryRunReady))
+            return "Raise and clear the enabled handlers before running the main conveyor.";
+        if (_io.GetInput(InputIo.MainConveyorEntryCarrierDetected)
+            || _io.GetInput(InputIo.PcbPlacementCarrierPresent)
+            || _io.GetInput(InputIo.BoltFasteningCarrierPresent)
+            || _io.GetInput(InputIo.InspectionCarrierPresent)
+            || _io.GetInput(InputIo.MainConveyorExitCarrierDetected))
+            return "Remove carriers from the main conveyor before this motor-only test.";
+        return null;
+    }
 
     private string? GetDiagnosticStopperBlock(OutputIo signal, bool live)
     {
@@ -594,32 +610,64 @@ public sealed class MachineController
             var startingAlarm = _state.Alarm;
             void StopWhenUnavailable()
             {
+                if (operation.IsCancellationRequested) return;
                 if (GetDiagnosticOutputSafetyBlock() is not null || _state.Alarm != startingAlarm
                     || IsDiagnosticInterfaceOutput(signal) && GetDiagnosticInterfaceBlock(signal, live: true) is not null)
                     operation.Cancel();
+                if (signal == OutputIo.MainConveyorRun && !operation.IsCancellationRequested)
+                {
+                    try
+                    {
+                        if (GetDiagnosticMainConveyorBlock(live: true) is not null) operation.Cancel();
+                    }
+                    catch (Exception exception)
+                    {
+                        _log?.Error("Main conveyor motor test stopped: interlock feedback could not be read.", exception);
+                        operation.Cancel();
+                    }
+                }
             }
 
-            void OnInterfaceInputChanged(InputIo _, bool __) => StopWhenUnavailable();
+            void OnDiagnosticInputChanged(InputIo _, bool __) => StopWhenUnavailable();
+            var watchInputs = IsDiagnosticInterfaceOutput(signal) || signal == OutputIo.MainConveyorRun;
 
             _state.Changed += StopWhenUnavailable;
-            if (IsDiagnosticInterfaceOutput(signal)) _io.InputChanged += OnInterfaceInputChanged;
+            if (watchInputs) _io.InputChanged += OnDiagnosticInputChanged;
+            if (signal == OutputIo.MainConveyorRun) _state.DisplayChanged += StopWhenUnavailable;
             try
             {
                 StopWhenUnavailable();
                 operation.Token.ThrowIfCancellationRequested();
-                if (IsDiagnosticInterfaceOutput(signal))
+                if (signal == OutputIo.MainConveyorRun)
                 {
-                    // Never leave an inter-machine request latched after a diagnostic test.
                     try
                     {
-                        _log?.Write($"Manual interface test {signal}: ON for at most 1000 ms. Connected equipment must be stopped.");
+                        _log?.Write($"Main conveyor motor test RUN: forward, normal speed; alarm={startingAlarm}.");
+                        // The conveyor owns immediate OFF on cancellation, independently of the UI.
+                        _conveyor.RunMotor(operation.Token);
+                        await Task.Delay(Timeout.Infinite, operation.Token).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        _conveyor.Stop();
+                        _log?.Write("Main conveyor motor test STOP.");
+                    }
+                    return;
+                }
+                if (IsDiagnosticInterfaceOutput(signal))
+                {
+                    // Keep the request owned until OFF/STOP; there is no timed pulse.
+                    try
+                    {
+                        _log?.Write($"Manual interface output {signal}: ON until OFF or cancellation. Connected equipment must be stopped.");
                         _io.SetOutput(signal, true);
-                        await Task.Delay(1000, operation.Token);
+                        // OFF must not wait for the OUTPUTS window's UI dispatcher.
+                        await Task.Delay(Timeout.Infinite, operation.Token).ConfigureAwait(false);
                     }
                     finally
                     {
                         _io.SetOutput(signal, false);
-                        _log?.Write($"Manual interface test {signal}: OFF.");
+                        _log?.Write($"Manual interface output {signal}: OFF.");
                     }
                     return;
                 }
@@ -634,7 +682,8 @@ public sealed class MachineController
             finally
             {
                 _state.Changed -= StopWhenUnavailable;
-                if (IsDiagnosticInterfaceOutput(signal)) _io.InputChanged -= OnInterfaceInputChanged;
+                if (watchInputs) _io.InputChanged -= OnDiagnosticInputChanged;
+                if (signal == OutputIo.MainConveyorRun) _state.DisplayChanged -= StopWhenUnavailable;
             }
         }
         catch (OperationCanceledException) { throw; }
@@ -1384,6 +1433,29 @@ public sealed class MachineController
             operation.Cancel();
         }
 
+        void StopWhenDisplayedMotionBecomesUnavailable()
+        {
+            if (operation.IsCancellationRequested) return;
+            if (_state.IsError)
+            {
+                operation.Cancel();
+                return;
+            }
+            var display = _state.Display;
+            if (display.Available && display.Homed && display.ServoPowerOn && !display.MotionFaulted)
+                return;
+            // Consume the completed scan, not a second native read that could miss a
+            // transient fault. Disabled axes have already been excluded from this snapshot.
+            try
+            {
+                _state.SetError(_io.IsReady ? MachineAlarm.MotionUnavailable : MachineAlarm.IoCommunication,
+                    display.ReadError ?? new InvalidOperationException(
+                        $"Enabled motion feedback became unavailable during automatic operation: " +
+                        $"homed={display.Homed}, servoPower={display.ServoPowerOn}, faulted={display.MotionFaulted}."));
+            }
+            finally { operation.Cancel(); }
+        }
+
         try
         {
             var (startAlarm, startError) = await CheckHardwareAsync(operation.Token);
@@ -1408,6 +1480,7 @@ public sealed class MachineController
             }
 
             _state.Changed += StopWhenOperationBecomesUnavailable;
+            _state.DisplayChanged += StopWhenDisplayedMotionBecomesUnavailable;
             StopWhenOperationBecomesUnavailable();
             if (operation.IsCancellationRequested)
             {
@@ -1507,6 +1580,7 @@ public sealed class MachineController
         finally
         {
             _state.Changed -= StopWhenOperationBecomesUnavailable;
+            _state.DisplayChanged -= StopWhenDisplayedMotionBecomesUnavailable;
             _state.SetAutomaticRunning(false);
             StopRunOutputs();
             _state.Refresh();

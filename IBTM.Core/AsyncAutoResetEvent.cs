@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,6 +11,9 @@ public sealed class AsyncAutoResetEvent
 
     public Task WaitAsync(CancellationToken cancellationToken = default) =>
         _signal.WaitAsync(cancellationToken);
+
+    public Task<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken = default) =>
+        _signal.WaitAsync(timeout, cancellationToken);
 
     public void Set()
     {

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using IBTM.Ajin;
 using IBTM.Core;
+using IBTM.Device;
 using Xunit;
 
 namespace IBTM.Ajin.Tests;
@@ -11,6 +12,49 @@ namespace IBTM.Ajin.Tests;
 public sealed class AjinControllerTests
 {
     public AjinControllerTests() => AjinSdk.Reset();
+
+    [Fact]
+    public void MotionInitializationReadsAlarmsAndServoOffWithoutTurningServosOn()
+    {
+        using var controller = new AjinController(new());
+        AjinSdk.MotionAxes[9] = new(Mechanical: (1U << 4) | (1U << 7), Position: 1234);
+        AjinSdk.MotionAxes[10] = new(Mechanical: 1U << 5, HomeResult: 1, Position: -567);
+        var motion = new AjinMotionService(controller, new() { Number = 9 }, new() { Number = 10 }, null,
+            0.01, new(), new(), new(), null);
+        var status = new MotionStatus(motion);
+
+        motion.Initialize();
+        motion.Initialize();
+        status.RefreshAxes();
+
+        Assert.True(motion.IsReady);
+        Assert.Equal(new MotionPosition(12.34, -5.67, 0), status.Position);
+        Assert.Equal(AxisCondition.Alarm, status.Axes[MotionAxis.X].Condition);
+        Assert.True(status.Axes[MotionAxis.X].State!.Value.HomeSensor);
+        Assert.Equal(AxisCondition.ServoOff, status.Axes[MotionAxis.Y].Condition);
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation is
+            nameof(CAXM.AxmSignalServoOn) or nameof(CAXM.AxmSignalServoAlarmReset));
+
+        var error = Assert.Throws<IOException>(() => motion.SetServo(MotionAxis.X, true));
+        Assert.Contains("AXT_RT_MOTION_ERROR_IN_ALARM", error.Message);
+        Assert.Contains("axis=9", error.Message);
+        status.RefreshAxes();
+        Assert.True(motion.IsReady); // An operator command failure must not hide feedback.
+        Assert.Equal(AxisCondition.Alarm, status.Axes[MotionAxis.X].Condition);
+        Assert.Equal(new MotionPosition(12.34, -5.67, 0), status.Position);
+
+        var reset = new AjinSdk.Call(nameof(CAXM.AxmSignalServoAlarmReset), Value: 1, Axis: 9);
+        AjinSdk.Results[reset] = (uint)AXT_FUNC_RESULT.AXT_RT_MOTION_ERROR_IN_ALARM;
+        Assert.Throws<IOException>(motion.Reset);
+        status.RefreshAxes();
+        Assert.Equal(AxisCondition.Alarm, status.Axes[MotionAxis.X].Condition);
+        AjinSdk.Results.Remove(reset);
+        motion.Reset(); // Explicit RESET can now reach alarm reset before requesting Servo ON.
+        status.RefreshAxes();
+        Assert.False(status.Axes[MotionAxis.X].State!.Value.Alarm);
+        Assert.True(status.Axes[MotionAxis.X].ServoOn);
+        Assert.True(status.Axes[MotionAxis.Y].ServoOn);
+    }
 
     [Fact]
     public void InitializationUsesZeroSuccessAndLogsTheActualFiveModulesWithoutWritingOutputs()

@@ -1301,6 +1301,73 @@ public sealed class MachineLifecycleTests
         Assert.Equal((x, y, 0), gantry.Feedback.GetPosition());
     }
 
+    [Theory]
+    [InlineData("Alarm")]
+    [InlineData("ServoOff")]
+    [InlineData("ReadFailure")]
+    public async Task AutomaticPollingStopsOnSilentEnabledMotionFaultWithoutMonitorWindow(string fault)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.Units.MainConveyor = true;
+        using var services = CreateMotionScopeServices(settings, out var probes);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var active = probes[MotionGroup.InspectionGantry];
+        foreach (var probe in probes.Where(item => item.Key != MotionGroup.InspectionGantry).Select(item => item.Value))
+        {
+            probe.ReportReady = true;
+            probe.FailHardwareCalls = true; // Disabled hardware must not be sampled, even while AUTO polls.
+        }
+        Task? run = null;
+        try
+        {
+            await machine.InitializeAsync();
+            await machine.HomeAsync(CancellationToken.None);
+            io.AutoResponseEnabled = false;
+            io.SetInput(InputIo.AutoMode, false);
+            Assert.True(machine.CanStart);
+            run = machine.StartAsync();
+            await WaitUntilAsync(() => state.Display.AutomaticRunning && state.Display.Homed);
+            var scans = 0;
+            void CountScan() => Interlocked.Increment(ref scans);
+            state.DisplayChanged += CountScan;
+            try
+            {
+                await WaitUntilAsync(() => Volatile.Read(ref scans) >= 2);
+                Assert.False(run.IsCompleted);
+                Assert.Equal(MachineAlarm.None, state.Alarm);
+                if (fault == "ReadFailure") active.FailHardwareCalls = true;
+                else active.OverrideState = value => fault == "Alarm"
+                    ? value with { Alarm = true } : value with { ServoOn = false };
+                // No StateChanged, DI changes, UI timer or explicit refresh request accompanies this fault.
+                await run.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+                Assert.False(state.AutomaticRunning);
+                Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+                Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+                Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
+                await WaitUntilAsync(() => !services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+                Assert.All(probes.Where(item => item.Key != MotionGroup.InspectionGantry),
+                    item => Assert.Equal(0, item.Value.HardwareCalls));
+                active.FailHardwareCalls = false;
+                active.OverrideState = null;
+                state.RequestDisplayRefresh();
+                await WaitUntilAsync(() => state.Display.Available && !state.Display.MotionFaulted);
+                Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm); // Recovery never restarts AUTO.
+            }
+            finally { state.DisplayChanged -= CountScan; }
+        }
+        finally
+        {
+            active.FailHardwareCalls = false;
+            active.OverrideState = null;
+            await machine.ShutdownAsync();
+            if (run is not null) await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
     [Fact]
     public async Task DisplayReadFailureIsVisibleAndDoesNotReplaceLiveAdmissionChecks()
     {
@@ -4510,6 +4577,7 @@ public sealed class MachineLifecycleTests
         public bool FailHardwareCalls;
         public int HardwareCalls;
         public int ResetCalls;
+        public Func<AxisState, AxisState>? OverrideState;
 
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
         {
@@ -4524,6 +4592,8 @@ public sealed class MachineLifecycleTests
             }
             var result = method.Invoke(Motion, arguments);
             if (name == nameof(IAxisMotion.Initialize)) _initialized = true;
+            if (name == nameof(IMotionFeedback.GetAxisState) && OverrideState is { } transform)
+                return transform((AxisState)result!);
             return result;
         }
     }

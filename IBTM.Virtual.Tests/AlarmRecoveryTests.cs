@@ -39,8 +39,10 @@ public sealed class AlarmRecoveryTests
             Assert.Equal(alarm, state.Alarm);
             Assert.False(state.ManualControlsEnabled);
             Assert.False(state.ManualOutputsEnabled); // Teaching/automatic admission is unchanged.
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => !state.Display.IsRunning, TimeSpan.FromSeconds(2)));
 
-            foreach (var output in new[] { OutputIo.MainConveyorRun, OutputIo.ShootBolt, OutputIo.NgShuttleDown })
+            foreach (var output in new[] { OutputIo.ShootBolt, OutputIo.NgShuttleDown })
             {
                 var restricted = new OutputControlRow(io, signals.Outputs[output], machine);
                 Assert.False(restricted.ToggleCommand.CanExecute(null));
@@ -65,6 +67,113 @@ public sealed class AlarmRecoveryTests
             io.SetConnected(false);
             await row.ToggleCommand.ExecuteAsync(null);
             Assert.True(io.GetOutput(OutputIo.MachineLight));
+        }
+        finally { await machine.ShutdownAsync(); }
+    }
+
+    [Fact]
+    public async Task DiagnosticMainConveyorRunsUntilStopAutoOrWindowCancellation()
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            io.AutoResponseEnabled = false;
+            SetAlarm(state, MachineAlarm.MotionUnavailable);
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => state.Display.Alarm == MachineAlarm.MotionUnavailable, TimeSpan.FromSeconds(2)));
+            var row = new OutputControlRow(io,
+                services.GetRequiredService<IoSignals>().Outputs[OutputIo.MainConveyorRun], machine);
+
+            foreach (var stop in new Action[]
+            {
+                () => row.ActionCommand.Execute(null), // The RUN button becomes STOP, even while busy.
+                machine.Stop,
+                () => io.SetInput(InputIo.AutoMode, false),
+                row.ToggleCommand.Cancel, // OutputWindow.ShutdownAsync uses this cancellation.
+            })
+            {
+                io.SetInput(InputIo.AutoMode, true);
+                Assert.Equal("RUN", row.ToggleLabel);
+                var run = row.ToggleCommand.ExecuteAsync(null);
+                Assert.True(await VirtualTest.WaitUntilAsync(
+                    () => io.GetOutput(OutputIo.MainConveyorRun), TimeSpan.FromSeconds(2)));
+                Assert.True(state.IsRunning);
+                Assert.False(io.GetOutput(OutputIo.MainConveyorReverse));
+                Assert.True(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
+                Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+                Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
+                Assert.Equal("STOP", row.ToggleLabel);
+                Assert.True(row.ActionCommand.CanExecute(null));
+                Assert.Same(row.StopOutputTestCommand, row.ActionCommand);
+                stop();
+                await run.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+                Assert.False(state.IsRunning);
+                Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+            }
+        }
+        finally { await machine.ShutdownAsync(); }
+    }
+
+    [Fact]
+    public async Task DiagnosticMainConveyorKeepsSafetyAndPathAdmissionAndStopsOnMaterial()
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var settings = services.GetRequiredService<MachineSettings>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            io.AutoResponseEnabled = false;
+            var row = new OutputControlRow(io,
+                services.GetRequiredService<IoSignals>().Outputs[OutputIo.MainConveyorRun], machine);
+            async Task AssertBlockedAsync()
+            {
+                await row.ToggleCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+                Assert.False(state.IsRunning);
+            }
+
+            settings.Units.MainConveyor = false;
+            await AssertBlockedAsync();
+            settings.Units.MainConveyor = true;
+            settings.Units.PcbPlacement = true;
+            io.SetInput(InputIo.PcbPlacementHandlerUp, false);
+            await AssertBlockedAsync(); // An enabled handler does not have clearance.
+            settings.Units.PcbPlacement = false;
+            io.SetInput(InputIo.PcbPlacementHandlerUp, true);
+
+            var options = services.GetRequiredService<MachineOptions>();
+            options.UseEmergencyStop = false;
+            options.UseAirPressureInterlock = false;
+            foreach (var input in new[] { InputIo.EmergencyStop1Pressed, InputIo.AirPressureLow,
+                InputIo.PcbPlacementCarrierPresent })
+            {
+                io.SetInput(input, true);
+                await AssertBlockedAsync();
+                io.SetInput(input, false);
+            }
+            io.SetInput(InputIo.AutoMode, false);
+            await AssertBlockedAsync();
+            io.SetInput(InputIo.AutoMode, true);
+
+            foreach (var input in new[] { InputIo.MainConveyorEntryCarrierDetected, InputIo.AirPressureLow })
+            {
+                var run = row.ToggleCommand.ExecuteAsync(null);
+                Assert.True(await VirtualTest.WaitUntilAsync(
+                    () => io.GetOutput(OutputIo.MainConveyorRun), TimeSpan.FromSeconds(2)));
+                io.SetInput(input, true);
+                await run.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+                Assert.False(state.IsRunning);
+                io.SetInput(input, false);
+            }
         }
         finally { await machine.ShutdownAsync(); }
     }

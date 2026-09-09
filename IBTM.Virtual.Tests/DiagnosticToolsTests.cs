@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
@@ -143,6 +144,46 @@ public sealed class DiagnosticToolsTests
     }
 
     [Fact]
+    public async Task MotionMonitorShowsFeedbackWithAxisAlarmServoOffAndLatchedMachineAlarm()
+    {
+        using var services = CreateServices(new RecordingLight());
+        var settings = services.GetRequiredService<MachineSettings>();
+        settings.Units.NgCarrierTransfer = true;
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var motion = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
+        await machine.InitializeAsync();
+        try
+        {
+            motion.SetAlarm(MotionAxis.X, true);
+            motion.SetServo(MotionAxis.Y, false);
+            typeof(MachineState).GetMethod("SetError",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .Invoke(state, [MachineAlarm.MotionUnavailable, new IOException("Axis alarm is latched.")]);
+            state.RequestDisplayRefresh();
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => state.Display.Available && state.Display.MotionFaulted && !state.Display.ServoPowerOn,
+                TimeSpan.FromSeconds(2)));
+            var view = new MotionWindowViewModel(machine, state, settings);
+            var axes = view.Axes.Where(row => row.Group == MotionGroup.InspectionGantry).ToArray();
+            Assert.All(axes, row =>
+            {
+                Assert.NotNull(row.Feedback);
+                Assert.NotEqual("—", row.Position);
+                Assert.False(view.HomeAxisCommand.CanExecute(row));
+            });
+            var x = Assert.Single(axes, row => row.Axis == MotionAxis.X);
+            var y = Assert.Single(axes, row => row.Axis == MotionAxis.Y);
+            Assert.Equal("Alarm", x.Condition);
+            Assert.True(x.Alarm);
+            Assert.Equal("Servo Off", y.Condition);
+            Assert.False(y.ServoOn);
+            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+        }
+        finally { await machine.ShutdownAsync(); }
+    }
+
+    [Fact]
     public async Task StopperTestReportsTimeoutAndRejectsAnOccupiedStation()
     {
         using var services = CreateServices(new RecordingLight());
@@ -178,7 +219,7 @@ public sealed class DiagnosticToolsTests
     }
 
     [Fact]
-    public async Task InterfaceTestReturnsOffOnTimeoutAndOnPeerReady()
+    public async Task InterfaceOutputStaysOnUntilOffOrPeerInterlock()
     {
         using var services = CreateServices(new RecordingLight());
         var machine = services.GetRequiredService<MachineController>();
@@ -193,13 +234,21 @@ public sealed class DiagnosticToolsTests
             io.SetInput(InputIo.MainConveyorReadyFromRear, false);
             var row = new OutputControlRow(io, services.GetRequiredService<IoSignals>()
                 .Outputs[OutputIo.MainConveyorReadyToFront2], machine);
-            Assert.Equal("Test 1s", row.ToggleLabel);
+            Assert.Equal("ON", row.ToggleLabel);
             var test = row.ToggleCommand.ExecuteAsync(null);
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => io.GetOutput(OutputIo.MainConveyorReadyToFront2), TimeSpan.FromSeconds(2)));
             Assert.True(state.IsRunning);
+            await Task.Delay(1100);
+            Assert.True(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            Assert.False(test.IsCompleted);
+            Assert.Equal("OFF", row.ToggleLabel);
+            Assert.True(row.ActionCommand.CanExecute(null));
+            row.ActionCommand.Execute(null);
             await test.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            Assert.False(state.IsRunning);
+            Assert.Equal("ON", row.ToggleLabel);
 
             test = row.ToggleCommand.ExecuteAsync(null);
             Assert.True(await VirtualTest.WaitUntilAsync(
@@ -212,6 +261,68 @@ public sealed class DiagnosticToolsTests
             Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
         }
         finally { await machine.ShutdownAsync(); }
+    }
+
+    [Fact]
+    public async Task InterfaceOutputSendsOffWhileUiContextIsBlocked()
+    {
+        using var services = CreateServices(new RecordingLight());
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var context = new PausedSynchronizationContext();
+        OutputControlRow? row = null;
+        Task? test = null;
+        await machine.InitializeAsync();
+        try
+        {
+            io.AutoResponseEnabled = false;
+            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+            io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
+            io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+            row = new OutputControlRow(io, services.GetRequiredService<IoSignals>()
+                .Outputs[OutputIo.MainConveyorReadyToFront2], machine);
+            var previous = SynchronizationContext.Current;
+            try
+            {
+                SynchronizationContext.SetSynchronizationContext(context);
+                test = row.ToggleCommand.ExecuteAsync(null);
+            }
+            finally { SynchronizationContext.SetSynchronizationContext(previous); }
+            Assert.True(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            row.ActionCommand.Execute(null);
+            // No queued UI callback is allowed to run before OFF is observed.
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => !io.GetOutput(OutputIo.MainConveyorReadyToFront2), TimeSpan.FromSeconds(2)));
+            Assert.False(test.IsCompleted); // Only the UI command completion is still queued.
+        }
+        finally
+        {
+            row?.ToggleCommand.Cancel();
+            context.Release();
+            if (test is not null) await test.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    private sealed class PausedSynchronizationContext : SynchronizationContext
+    {
+        private readonly ConcurrentQueue<Action> _pending = new();
+        private int _released;
+        public override void Post(SendOrPostCallback callback, object? state)
+        {
+            _pending.Enqueue(() => callback(state));
+            if (Volatile.Read(ref _released) != 0) Drain();
+        }
+        public void Release()
+        {
+            Volatile.Write(ref _released, 1);
+            Drain();
+        }
+        private void Drain()
+        {
+            while (_pending.TryDequeue(out var callback))
+                ThreadPool.QueueUserWorkItem(_ => callback());
+        }
     }
 
     private static ServiceProvider CreateServices(RecordingLight light) => new ServiceCollection()

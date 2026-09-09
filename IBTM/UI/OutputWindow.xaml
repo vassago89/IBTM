@@ -136,7 +136,7 @@
                                 Style="{StaticResource IoToggleButtonStyle}"
                                 ToolTip="{Binding ToggleHint}"
                                 ToolTipService.ShowOnDisabled="True"
-                                Command="{Binding ToggleCommand}"/>
+                                Command="{Binding ActionCommand}"/>
                     </Grid>
                 </DataTemplate>
             </ListBox.ItemTemplate>

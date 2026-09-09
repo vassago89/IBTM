@@ -46,9 +46,12 @@ communication error is converted to an OFF input or successful machine readiness
 
 This is an equipment-side field test, not a verified guarantee that axis settings
 persist across power cycles. Existing home/signal settings must already be valid.
-`AjinMotionService` still sets move units to 1/1 and acceleration units to pulses/s²,
-enables the configured servos, and applies home speeds when homing. Only the resetting
-open and `.mot` load are removed; the driver's mm conversion is unchanged.
+`AjinMotionService` still sets move units to 1/1 and acceleration units to pulses/s²
+and applies home speeds when homing; the driver's mm conversion is unchanged.
+Initialization does not send Servo ON or reset axis alarms. Once initialized,
+position and signal feedback remain readable with servos OFF or axis alarms active.
+Explicit Servo ON failures do not invalidate communication readiness. The existing
+operator RESET sequence still resets axis alarms before requesting Servo ON.
 
-`IBTM.Ajin.Tests` compiles the real controller and manufacturer constants against
+`IBTM.Ajin.Tests` compiles the real controller, motion wrapper and manufacturer constants against
 a test-only in-memory SDK stand-in. It never loads AXL.dll or operates equipment.

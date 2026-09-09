@@ -126,8 +126,16 @@ NG Shuttle and NG Conveyor separately. Unit changes apply to the next run.
 
 Inspection and NG Carrier Transfer have separate enable flags but share the
 InspectionStation loop. The other enabled automatic units run independently.
-Enabling either Supply or Placement requires both handlers' motion feedback and
-homing because their shared handoff interlock uses both positions.
+Only enabled motion groups participate in hardware readiness and homing. Supply
+and Placement are initialized independently; their shared buffer handoff still
+requires both handlers' valid positions.
+
+During automatic operation the shared background worker samples enabled motion
+feedback at least once per 250 ms wait interval, even with the MOTION window closed.
+An observed axis fault, lost servo/home readiness or failed feedback scan latches
+the corresponding alarm and cancels automatic operation. Recovering feedback does
+not clear that alarm or restart the machine. Manual idle refresh remains event-driven
+unless a monitor window requests polling.
 
 `MachineController` owns the run lifetime. Startup hardware checks and automatic
 units share the same cancellation token. A unit fault cancels the other units.
@@ -166,11 +174,23 @@ Handler outputs reuse local enabled/home/servo and teaching-output interlocks;
 Supply rotation additionally requires rotation Z already reached and never moves an
 axis implicitly. Stopper toggles require their owning conveyor enabled, an empty
 station and the applicable backup-plate/path-clear feedback. Inter-machine ready/
-available outputs use **Test 1s**, not a latched toggle: all normal operating
+available outputs use **ON / OFF** without a time limit: all normal operating
 interlocks must pass, material sensors and peer ready/available inputs must be OFF,
-and the operator must confirm connected equipment is stopped. The test sends OFF
-after one second or earlier on cancellation/peer feedback changes. Motor, shuttle
-and hold-to-run shooting outputs retain their dedicated controls. The window shows
+and the operator must confirm connected equipment is stopped. While ON the test
+continues owning an operation; its OFF button remains available while the machine
+is busy. OFF, STOP, AUTO selection, closing OUTPUTS or interlock/peer feedback
+changes end the test and send OFF. This OFF cleanup
+runs independently of the UI dispatcher, including when UI command completion is
+delayed. Motor, shuttle
+and hold-to-run shooting outputs retain their dedicated controls, except **Main
+Conveyor Run**, which provides an owned **RUN / STOP** motor test in OUTPUTS.
+It requires idle MANUAL, enabled main conveyor, an empty conveyor and clearance
+from the enabled handlers; the diagnostic emergency-stop/air/alarm checks still
+apply. It selects forward/normal speed without starting a material-transfer route
+or asserting interface requests. RUN leaves the window open and the button becomes
+STOP. STOP, AUTO, safety/path loss, carrier detection or closing the window cancels
+the test and stops the motor. Reverse/speed outputs remain read-only here.
+The window shows
 why each action is blocked and cancels feedback waits on mode/safety changes or
 STOP without reversing a valve. Feedback timeouts log the output and missing
 feedback details; the row's timeout tooltip also shows those details.
@@ -184,6 +204,10 @@ actual position, so changes made outside the application are also reflected. Dis
 axes are not read, and closing the window stops its refresh timer. Search accepts the
 axis number or name; enabled axes are shown by default.
 Disabled/unavailable feedback is shown as unknown, not OFF or a valid position.
+AJIN startup no longer turns servos ON automatically. Axis alarms and Servo OFF
+are displayed as feedback, not as missing communication; failed Servo ON/RESET
+commands do not hide readable positions or signals. Explicit Servo controls and
+the existing RESET sequence remain separate from startup initialization.
 Servo and individual Home buttons reuse the existing controller interlocks;
 PCB Supply still uses coordinated HOME ALL. Closing this window cancels only homing
 started there; its STOP button stops the machine. Jog/teaching remains on the existing pages.
