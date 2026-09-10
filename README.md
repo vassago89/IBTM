@@ -3,6 +3,17 @@
 .NET 10 WPF control application for a three-station carrier line.
 One executable hosts independently enabled machine units and the teaching UI.
 
+## Project folders
+
+- `IBTM/`: WPF application and machine coordination. The startup project stays here.
+- `Hardware/`: AJIN, AlphaMotion, HANTAS, Hik and virtual device implementations.
+- `Stations/`: Conveyor, PCB handling, fastening, inspection and training projects.
+- `Shared/`: Core types, device contracts and storage.
+- `Tests/`: Driver stand-ins and virtual regression tests.
+
+The solution uses the same folders. Project names, assemblies and namespaces are
+unchanged; folder grouping does not add another layer of code or control flow.
+
 ## Machine and project boundaries
 
 | Project | Responsibility |
@@ -109,8 +120,8 @@ is performed. Fastening and loosening are excluded from all dry-run plans;
 the separate ADC diagnostic controls and normal production remain unchanged.
 
 See [machine layout](docs/MACHINE_LAYOUT.md),
-[Supply behavior](IBTM.PcbSupply/DESIGN.md) and
-[Buffer handoff](IBTM.PcbBuffer/DESIGN.md) for detailed mechanical contracts.
+[Supply behavior](Stations/IBTM.PcbSupply/DESIGN.md) and
+[Buffer handoff](Stations/IBTM.PcbBuffer/DESIGN.md) for detailed mechanical contracts.
 
 For partial hardware arrival, see the
 [Station 3 and conveyor commissioning plan](docs/STATION3_COMMISSIONING.md),
@@ -436,7 +447,7 @@ first call and newly observed status combinations, without logging every poll.
 The zero-result path is labeled as requiring hardware verification. Compare
 sensor ON/OFF transitions with the manufacturer's monitor before automatic operation.
 Use the manufacturer's matching `tmcDApiAed_x64.dll` and installed board driver
-with a 64-bit process. Place that DLL in `IBTM.AlphaMotion/` to have builds and
+with a 64-bit process. Place that DLL in `Hardware/IBTM.AlphaMotion/` to have builds and
 publishing copy it beside the executable, or deploy it there directly. The DLL is
 not supplied by the C# declarations. Initialization does not issue reset,
 filter-setting or output-write commands.
@@ -616,17 +627,17 @@ does not introduce concurrent machine scenarios or a new fixture hierarchy.
 
 ```powershell
 # Choose the command relevant to the change, rather than running all three.
-dotnet test IBTM.Ajin.Tests/IBTM.Ajin.Tests.csproj -c Virtual --no-restore
-dotnet test IBTM.AlphaMotion.Tests/IBTM.AlphaMotion.Tests.csproj -c Virtual --no-restore
-dotnet test IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj -c Virtual --no-restore --filter "FullyQualifiedName~AlarmRecoveryTests"
+dotnet test Tests/IBTM.Ajin.Tests/IBTM.Ajin.Tests.csproj -c Virtual --no-restore
+dotnet test Tests/IBTM.AlphaMotion.Tests/IBTM.AlphaMotion.Tests.csproj -c Virtual --no-restore
+dotnet test Tests/IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj -c Virtual --no-restore --filter "FullyQualifiedName~AlarmRecoveryTests"
 ```
 
 Long machine-flow checks, only when requested:
 
 ```powershell
-dotnet test IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj -c Virtual --no-restore --filter "Category=MachineFlow"
+dotnet test Tests/IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj -c Virtual --no-restore --filter "Category=MachineFlow"
 # Explicitly include every virtual test only for a requested full verification.
-dotnet test IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj -c Virtual --no-restore --filter "FullyQualifiedName~IBTM.Virtual.Tests"
+dotnet test Tests/IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj -c Virtual --no-restore --filter "FullyQualifiedName~IBTM.Virtual.Tests"
 ```
 
 ### Offline development
@@ -657,7 +668,7 @@ carrier. Mark the bolt recess, or mark an empty sample, and train on CPU in the
 same application. It retains original frames while labeling; the existing centred
 128×128 training ROI is unchanged. Actual **Capture Bolt Points** still requires
 homing, ready motion and a seated carrier. See the
-[training guide](IBTM.Inspection.Training/README.md).
+[training guide](Stations/IBTM.Inspection.Training/README.md).
 
 Virtual tests do not certify physical wiring, pneumatic timing, camera optics,
 servo parameters or machine clearances. Confirm those with the actual equipment.

@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <ItemGroup>
-    <ProjectReference Include="..\IBTM.Core\IBTM.Core.csproj" />
-    <ProjectReference Include="..\IBTM.Device\IBTM.Device.csproj" />
-    <ProjectReference Include="..\IBTM.Inspection\IBTM.Inspection.csproj" />
-  </ItemGroup>
-
-</Project>

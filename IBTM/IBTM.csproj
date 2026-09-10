@@ -21,23 +21,23 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\IBTM.Ajin\IBTM.Ajin.csproj" />
-    <ProjectReference Include="..\IBTM.AlphaMotion\IBTM.AlphaMotion.csproj" />
-    <ProjectReference Include="..\IBTM.BoltFastening\IBTM.BoltFastening.csproj" />
-    <ProjectReference Include="..\IBTM.BoltFeeder\IBTM.BoltFeeder.csproj" />
-    <ProjectReference Include="..\IBTM.Conveyor\IBTM.Conveyor.csproj" />
-    <ProjectReference Include="..\IBTM.Core\IBTM.Core.csproj" />
-    <ProjectReference Include="..\IBTM.Device\IBTM.Device.csproj" />
-    <ProjectReference Include="..\IBTM.Hantas\IBTM.Hantas.csproj" />
-    <ProjectReference Include="..\IBTM.Hik\IBTM.Hik.csproj" />
-    <ProjectReference Include="..\IBTM.Inspection\IBTM.Inspection.csproj" />
-    <ProjectReference Include="..\IBTM.Inspection.Training\IBTM.Inspection.Training.csproj" />
-    <ProjectReference Include="..\IBTM.NgConveyor\IBTM.NgConveyor.csproj" />
-    <ProjectReference Include="..\IBTM.PcbBuffer\IBTM.PcbBuffer.csproj" />
-    <ProjectReference Include="..\IBTM.PcbPlacement\IBTM.PcbPlacement.csproj" />
-    <ProjectReference Include="..\IBTM.PcbSupply\IBTM.PcbSupply.csproj" />
-    <ProjectReference Include="..\IBTM.Storage\IBTM.Storage.csproj" />
-    <ProjectReference Include="..\IBTM.Virtual\IBTM.Virtual.csproj" />
+    <ProjectReference Include="..\Hardware\IBTM.Ajin\IBTM.Ajin.csproj" />
+    <ProjectReference Include="..\Hardware\IBTM.AlphaMotion\IBTM.AlphaMotion.csproj" />
+    <ProjectReference Include="..\Stations\IBTM.BoltFastening\IBTM.BoltFastening.csproj" />
+    <ProjectReference Include="..\Stations\IBTM.BoltFeeder\IBTM.BoltFeeder.csproj" />
+    <ProjectReference Include="..\Stations\IBTM.Conveyor\IBTM.Conveyor.csproj" />
+    <ProjectReference Include="..\Shared\IBTM.Core\IBTM.Core.csproj" />
+    <ProjectReference Include="..\Shared\IBTM.Device\IBTM.Device.csproj" />
+    <ProjectReference Include="..\Hardware\IBTM.Hantas\IBTM.Hantas.csproj" />
+    <ProjectReference Include="..\Hardware\IBTM.Hik\IBTM.Hik.csproj" />
+    <ProjectReference Include="..\Stations\IBTM.Inspection\IBTM.Inspection.csproj" />
+    <ProjectReference Include="..\Stations\IBTM.Inspection.Training\IBTM.Inspection.Training.csproj" />
+    <ProjectReference Include="..\Stations\IBTM.NgConveyor\IBTM.NgConveyor.csproj" />
+    <ProjectReference Include="..\Stations\IBTM.PcbBuffer\IBTM.PcbBuffer.csproj" />
+    <ProjectReference Include="..\Stations\IBTM.PcbPlacement\IBTM.PcbPlacement.csproj" />
+    <ProjectReference Include="..\Stations\IBTM.PcbSupply\IBTM.PcbSupply.csproj" />
+    <ProjectReference Include="..\Shared\IBTM.Storage\IBTM.Storage.csproj" />
+    <ProjectReference Include="..\Hardware\IBTM.Virtual\IBTM.Virtual.csproj" />
   </ItemGroup>
 
 </Project>

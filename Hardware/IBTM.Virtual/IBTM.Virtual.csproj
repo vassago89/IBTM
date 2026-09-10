@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\IBTM.Core\IBTM.Core.csproj" />
+    <ProjectReference Include="..\..\Shared\IBTM.Device\IBTM.Device.csproj" />
+    <ProjectReference Include="..\..\Stations\IBTM.Inspection\IBTM.Inspection.csproj" />
+  </ItemGroup>
+
+</Project>

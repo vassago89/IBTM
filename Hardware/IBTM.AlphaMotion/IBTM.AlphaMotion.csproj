@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\IBTM.Core\IBTM.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="tmcDApiAed_x64.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <Reference Include="MvCameraControl.Net">
+      <HintPath>Vendor\MVS\MvCameraControl.Net.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\IBTM.Core\IBTM.Core.csproj" />
+    <ProjectReference Include="..\..\Shared\IBTM.Device\IBTM.Device.csproj" />
+  </ItemGroup>
+
+</Project>
