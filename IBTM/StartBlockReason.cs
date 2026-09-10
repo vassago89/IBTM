@@ -37,6 +37,9 @@ public enum StartBlockReason
     [Description("Enable a unit in Settings")]
     NoUnitEnabled,
 
+    [Description("Repeat requires Main Conveyor, NG Transfer, NG Shuttle and NG Conveyor")]
+    RepeatRouteUnavailable,
+
     [Description("Complete bolt teaching")]
     TeachingIncomplete,
 }

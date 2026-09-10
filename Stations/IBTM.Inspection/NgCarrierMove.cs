@@ -58,9 +58,9 @@ public sealed class NgCarrierMove(
     NgShuttle shuttle,
     NgCarrierTransfer pickup,
     InspectionGantry gantry,
-    NgCarrierTransferSettings settings)
+    NgCarrierTransferSettings settings) : AutoUnit
 {
-    public event Action? Changed
+    public override event Action? Changed
     {
         add
         {
@@ -145,6 +145,18 @@ public sealed class NgCarrierMove(
                 ? NgTransferState.Closing
                 : open ? NgTransferState.LoweringToCarrier : NgTransferState.Opening;
         return open ? NgTransferState.MovingToCarrier : NgTransferState.Opening;
+    }
+
+    public async Task RunToAsync(
+        NgTransferDestination destination,
+        CancellationToken cancellationToken)
+    {
+        await RunLoopAsync(
+            token => ExecuteAsync(destination, State(destination, canPickUp: true), token)
+                ?? WaitForChangeAsync(token),
+            cancellationToken,
+            () => State(destination, canPickUp: true) == NgTransferState.Completed);
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     // Passive states issue no command; the caller waits or performs its other work.

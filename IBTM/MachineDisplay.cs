@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using IBTM.BoltFastening;
 using IBTM.Conveyor;
 using IBTM.Core;
@@ -10,35 +9,6 @@ using IBTM.NgConveyor;
 using IBTM.PcbPlacement;
 
 namespace IBTM;
-
-public enum DryRunTarget
-{
-    [Description("NG Transfer")]
-    NgTransfer,
-    [Description("Inspection Route")]
-    Inspection,
-    [Description("Main Conveyor")]
-    MainConveyor,
-    [Description("PCB Return")]
-    PcbReturn,
-    [Description("PCB Round Trip")]
-    PcbRoundTrip,
-    [Description("NG Conveyor Round Trip")]
-    NgConveyor,
-    [Description("Bolt Route")]
-    BoltRoute,
-}
-
-public sealed record DryRunDisplay(Enum State, Enum Destination, int Passes)
-{
-    public bool Ready { get; init; }
-    public HeatSinkSlot? Pcb { get; init; }
-    public int? Bolt { get; init; }
-    public FasteningHead? Head { get; init; }
-    public FasteningPass? Pass { get; init; }
-    public string? LastBarcode { get; init; }
-    public bool? LastBoltPresent { get; init; }
-}
 
 // A completed display read, never an authorization to operate the equipment.
 public sealed record MachineDisplay
@@ -102,6 +72,6 @@ public sealed record MachineDisplay
         }
     }
 
-    public IReadOnlyDictionary<DryRunTarget, DryRunDisplay> DryRuns { get; init; } =
-        new Dictionary<DryRunTarget, DryRunDisplay>();
+    public RepeatPhase RepeatPhase { get; init; }
+    public int RepeatCycles { get; init; }
 }

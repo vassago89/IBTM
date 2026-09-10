@@ -70,7 +70,9 @@ public abstract class StationWork
     {
         get
         {
-            return !Enabled || Volatile.Read(ref _completed);
+            return Enabled
+                ? Volatile.Read(ref _completed)
+                : CarrierPresent && BackupPlate == StationCylinderState.Up;
         }
     }
 
@@ -140,7 +142,7 @@ public abstract class StationWork
 
     public void Complete()
     {
-        if (Completed)
+        if (!Enabled || Completed)
         {
             return;
         }

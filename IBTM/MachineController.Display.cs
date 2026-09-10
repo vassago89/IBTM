@@ -96,7 +96,7 @@ public sealed partial class MachineController
                 ? _fasteningStation.ActiveBolt()
                 : null,
             InspectionState = teachingReady && _units.Inspection
-                ? _inspectionStation.State(bolts)
+                ? _inspectionStation.State(bolts, _state.RepeatEnabled)
                 : InspectionStationState.Waiting,
             InspectionBolt = teachingReady && _units.Inspection && automatic
                 ? _inspectionStation.ActiveBolt(bolts)
@@ -105,9 +105,8 @@ public sealed partial class MachineController
                 ? _inspectionStation.ActivePcb(bolts)
                 : null,
             MainConveyorPathBlock = conveyorPathBlock,
-            DryRuns = Enum.GetValues<DryRunTarget>().ToDictionary(
-                target => target,
-                target => ReadDryRunDisplay(target, conveyorPathBlock)),
+            RepeatPhase = _repeatPhase,
+            RepeatCycles = _repeatCycles,
         };
     }
 }

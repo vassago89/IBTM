@@ -229,7 +229,7 @@ public sealed partial class MachineLifecycleTests
         await run;
 
         if (lift != NgTransferLiftState.Up)
-            await VerifyDryRunReleaseAsync(NgTransferState.Raising);
+            await VerifyTransferReleaseAsync(NgTransferState.Raising);
         // The carrier may leave the pickup sensor before the gripper reaches Open.
         io.SetInput(InputIo.NgCarrierDetected, false);
         io.SetInput(InputIo.NgCarrierPickupUp, false);
@@ -237,23 +237,22 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
         Assert.Equal(InspectionStationState.OpeningTransferGripper, station.State([]));
-        await VerifyDryRunReleaseAsync(NgTransferState.Opening);
+        await VerifyTransferReleaseAsync(NgTransferState.Opening);
 
-        async Task VerifyDryRunReleaseAsync(NgTransferState expected)
+        async Task VerifyTransferReleaseAsync(NgTransferState expected)
         {
-            var dryRun = services.GetRequiredService<NgTransferDryRun>();
-            using var dryRunStop = new CancellationTokenSource();
-            var dryRunTask = dryRun.RunAsync(dryRunStop.Token);
+            var move = services.GetRequiredService<NgCarrierMove>();
+            using var moveStop = new CancellationTokenSource();
+            var moveTask = move.RunToAsync(NgTransferDestination.Shuttle, moveStop.Token);
             try
             {
-                Assert.Equal(NgTransferDestination.Shuttle, dryRun.Destination);
-                Assert.Equal(expected, dryRun.State);
+                Assert.Equal(expected, move.State(NgTransferDestination.Shuttle, canPickUp: true));
                 Assert.False(io.GetOutput(OutputIo.NgCarrierGripperClose));
             }
             finally
             {
-                dryRunStop.Cancel();
-                await dryRunTask;
+                moveStop.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => moveTask);
             }
         }
     }

@@ -94,7 +94,7 @@ public sealed class NgShuttle : AutoUnit
         };
     }
 
-    internal Task SetDownAsync(bool down, CancellationToken cancellationToken = default)
+    public Task SetDownAsync(bool down, CancellationToken cancellationToken = default)
     {
         return _io.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, down, cancellationToken);
     }

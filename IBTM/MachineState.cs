@@ -103,6 +103,7 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         TaskCreationOptions.RunContinuationsAsynchronously);
     private Task? _displayUpdates;
     private MachineDisplay _display = new();
+    private bool _repeatEnabled;
     private readonly IReadOnlyDictionary<MotionGroup, MotionStatus> _motions;
     private readonly MachineOptions _options;
     private readonly UnitSettings _units;
@@ -114,6 +115,22 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
     private readonly BufferStage _buffer;
     private readonly BoltTrainingSession _training;
     private readonly ApplicationLog? _log;
+
+    public bool RepeatEnabled
+    {
+        get
+        {
+            return _repeatEnabled;
+        }
+        set
+        {
+            if (_repeatEnabled == value || !SetupEditingEnabled)
+                return;
+            _repeatEnabled = value;
+            PropertyChanged?.Invoke(this, new(nameof(RepeatEnabled)));
+            RequestDisplayRefresh();
+        }
+    }
 
     public MachineState(
         MachineOptions options,

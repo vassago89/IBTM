@@ -123,7 +123,6 @@ public sealed class OutputWindowThreadingTests
         {
             io.AutoResponseEnabled = false;
             await VerifyBackgroundDisplayBindingsAsync(services);
-            manual.Activate();
             const OutputIo output = OutputIo.MainConveyorRun;
             for (var reopen = 0; reopen < 2; reopen++)
             {

@@ -175,24 +175,6 @@ public sealed class BufferStage
         }
     }
 
-    public bool CanPlacementReturn
-    {
-        get
-        {
-            return PositionKnown
-                && !SupplyInside
-                && (!PcbPresent || PlacementInside && _placementState.PcbSecured);
-        }
-    }
-
-    public bool CanSupplyReturn
-    {
-        get
-        {
-            return PositionKnown && PcbPresent && PlacementSecuredAtHandoff;
-        }
-    }
-
     public bool Conflict
     {
         get

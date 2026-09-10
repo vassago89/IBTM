@@ -77,47 +77,33 @@ units explicitly (it does not preserve every axis parameter unchanged), and uses
 internally and converts acceleration time to pulses/s². Virtual currently models
 travel speed and pulse resolution, not the AJIN acceleration or home-search profile.
 
-`Manual > Dry Run > PCB Return` returns one unfastened PCB from the selected
-heat sink through Buffer to Supply. If the carrier is still at Station 2/3,
-the main conveyor first returns it to the front sensor, then moves forward to
-seat it at Station 1. It finishes conveyor travel there, without advancing to
-Station 2. A carrier already at Station 1 only needs seating; an ongoing PCB
-handoff resumes without restarting conveyor travel.
-`PcbReturn` in the host coordinates existing handler operations and live handoff
-feedback without a peer-project reference. Stop retains route intent; Run resumes
-from current IO and axis feedback. An unfinished PCB pickup keeps its heat-sink
-target even if the selector changes during Stop; Manual shows the actual Active
-target separately. The new selection applies to a new return after completion.
-Completion leaves the PCB held by the retracted Supply handler. No upstream
-placement, bolt operation or new forward cycle starts.
-This is one reverse leg, not a complete repeating forward/return machine cycle.
+### Repeat / Dry Run (Auto 기반)
 
-`PCB Round Trip` adds repeated Supply -> selected heat sink -> Supply operation
-with one preloaded PCB. It reuses the production transfer/placement actions,
-retains direction and target across Stop, and never fetches a second PCB. A full
-round trip is one cycle. The carrier stays seated at Station 1.
+Operation의 `REPEAT (DRY RUN)`을 켜면 기존 Auto 정방향을 실행한 뒤 캐리어 하나를 복귀시킨다.
 
-`NG Conveyor Round Trip` repeats P1 <-> P3 with one carrier. The shuttle must be
-Down before either belt direction and rises after the belt has stopped at its
-destination. The P3 carrier sensor moves with the shuttle. Stop preserves the
-unfinished destination even between sensors; NG pickup Up is required throughout.
-This test does not move the NG transfer gantry or operate the main conveyor.
-These are independent component tests, not one integrated machine cycle.
+Station 1 → Station 2 → Station 3 → NG Transfer → 셔틀 → NG 끝단(P1)
+→ 셔틀 → NG Transfer → Station 3 → 메인 앞 센서 → Station 1 → 반복
 
-`Bolt Route` traverses every taught bolt point on the detected Station 2 heat
-sinks: Head 2 PCB points, Head 1 IPM seating points, then Head 1 IPM final points.
-It returns through that route and repeats until Stop, using the production
-head-specific coordinate conversion. At each bolt point the selected head lowers
-and rises without running the driver; XY always moves with both heads raised.
-Each IPM seating point also visits the pickup: XY -> Head 1 Down -> pickup Z ->
-Safe Z -> Head 1 Up. Vacuum and bolt-detection waits are omitted. IPM final points
-do not repick. The return route visits these same locations in reverse order.
-Shooting escape, shooting air, vacuum and all associated bolt-supply waits are
-omitted. Z stays at Safe Z at fastening points, and moves only at the pickup.
-Stop resumes the pending axis/cylinder stroke from live feedback; no fake bolt
-sensor or fastening result is created. No ADC command or production completion
-is performed. Fastening and loosening are excluded from all dry-run plans;
-the separate ADC diagnostic controls and normal production remain unchanged.
+- Manual에서 Main Conveyor, NG Carrier Transfer, NG Shuttle, NG Conveyor를 ON으로 설정한다.
+- 공정 없이 순환만 확인하려면 PCB Supply, PCB Placement(1번), Bolt Fastening(2번),
+  Inspection(3번), 두 Bolt Feeder를 OFF로 둔다.
+- NG Transfer의 Station 3 픽업 / 셔틀 놓기 위치를 티칭하고, 캐리어를 넣기 전에 HOME ALL을 완료한다.
+- 첫 번째 백업 플레이트 구간에 캐리어 한 개를 놓고 `REPEAT (DRY RUN)`을 체크한다.
+- AUTO 스위치로 전환하고 기존 START를 누른다. STOP으로 정지한다.
+- 미사용 스테이션도 캐리어 감지와 백업 플레이트 UP을 확인한 뒤 완료/통과한다.
+- 정방향은 별도 시험 시퀀스가 아닌 Auto다. 켜둔 공정은 실제 작업을 수행하므로,
+  체결하지 않을 시험에서는 Bolt Fastening을 OFF로 둔다. 가짜 체결/검사 결과를 만들지 않는다.
+- Repeat 중에는 외부 캐리어를 추가 요청하거나 후방 SMEMA로 배출하지 않는다.
+  Repeat를 끈 일반 Auto에서는 NG Transfer OFF일 때 기존 후방 Ready/Available 핸드셰이크로 배출한다.
+- NG 끝단 도착 후 모든 정방향 작업의 취소/정지 완료를 기다린 다음 역이송한다.
+  NG 역이송은 셔틀 DOWN, XY 이송은 픽업 UP, 메인 복귀는 헤드 간섭 조건을 확인한다.
+- STOP 후에는 미완료 복귀 방향을 유지하고 현재 IO로 이어간다.
+  센서 사이에 정지하여 위치를 확인할 수 없다면 임의로 움직이지 않고 위치 확인을 요구한다.
+  프로그램 재시작은 복귀 이력을 보존하지 않으므로 첫 번째 플레이트 또는 확인 가능한 구간에 다시 준비한다.
+- Cycles는 Station 1 복귀·안착 완료 횟수다. Repeat 선택과 횟수는 실행 세션 동안만 유지한다.
+
+예전 Manual의 개별 Dry Run 선택 및 별도 PCB/검사/체결 포인트 왕복 시퀀스는 제거했다.
+이 모드는 요청한 전체 NG 순환이며, PCB를 Supply로 회수하는 별도 시험 모드는 포함하지 않는다.
 
 See [machine layout](docs/MACHINE_LAYOUT.md),
 [Supply behavior](Stations/IBTM.PcbSupply/DESIGN.md) and
@@ -261,7 +247,7 @@ Up must be ON and Down must be OFF. Loss of this condition during X/Y movement
 alarms the unit and cancels the machine's operations. Z-only movement is separate;
 the condition is checked again before the following X/Y command starts.
 Placement enters buffer X/Y with its Handler raised and IPM lowered for pickup.
-It keeps IPM Down while carrying the PCB, including the reverse dry-run route.
+It keeps IPM Down while carrying the PCB.
 At the taught heat-sink XYZ with Handler Down, release is vacuum Off -> gripper
 Open -> IPM Up -> gripper Close -> IPM Down to press -> IPM Up -> Handler Up -> Safe Z.
 IPM lift and gripper feedback do not restrict Home or X/Y movement.
@@ -584,7 +570,7 @@ use Start Fastening or Reverse (Hold). Reverse runs only while held and stops on
 release, pointer exit/capture loss, STOP or window close. It uses the selected
 controller's loosening settings, never moves machine axes/cylinders/feeders and
 does not report automatic loosening completion. These diagnostic commands are
-separate from dry run, which never starts fastening or loosening.
+separate from Repeat. Disable Bolt Fastening when circulating without fastening.
 With a Virtual ADC, the window also stays available during Auto for **Next Result**:
 select the slave, choose OK/NG/Error and click **Apply Once**. The next fastening
 start on that controller consumes the result; an already running fastening is
@@ -621,7 +607,7 @@ are fast. The remaining long route simulations have `Category=MachineFlow` and
 are excluded by default in `IBTM.Virtual.Tests`. An explicit filter overrides
 that default. Run only the affected tests during development.
 
-`MachineLifecycleTests` is split into DryRuns, Teaching, Motion, Display, Flow
+`MachineLifecycleTests` is split into Repeat, Transfers, Teaching, Motion, Display, Flow
 and Support partial files. It remains one xUnit class, so splitting the source
 does not introduce concurrent machine scenarios or a new fixture hierarchy.
 

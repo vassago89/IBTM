@@ -17,31 +17,6 @@ public sealed class PcbSupplier(PcbSupplyHandler handler, BufferStage buffer) : 
         }
     }
 
-    public PcbSupplyState TransferState
-    {
-        get
-        {
-            return State(PickStep.WaitingForCarrierExit);
-        }
-    }
-
-    public bool TransferComplete
-    {
-        get
-        {
-            return handler.Pcb == PcbSupplyPcbState.None
-                && !buffer.SupplyInside
-                && handler.IsAtRotationZ
-                && handler.Rotation == PcbSupplyRotationState.Unrotated;
-        }
-    }
-
-    // A preloaded PCB uses the production handoff without source pickup or SMEMA.
-    public Task? TransferStepAsync(CancellationToken token)
-    {
-        return ExecuteTransferAsync(TransferState, token);
-    }
-
     private Task? ExecuteTransferAsync(PcbSupplyState state, CancellationToken token)
     {
         return state switch

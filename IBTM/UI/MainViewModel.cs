@@ -325,9 +325,6 @@ public partial class MainViewModel : ObservableObject
             case AppPage.StationTeaching:
                 _stationTeachingViewModel.Activate();
                 break;
-            case AppPage.ManualHardware:
-                _manualHardwareViewModel.Activate();
-                break;
             case AppPage.BoltTraining:
                 _boltTrainingViewModel.Activate();
                 break;

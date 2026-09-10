@@ -316,63 +316,6 @@ public sealed class PcbSupplyHandler
             cancellationToken);
     }
 
-    public bool AtReturnEntryZ
-    {
-        get
-        {
-            return Rotation == PcbSupplyRotationState.Rotated
-                && !_motion.IsMoving
-                && _motion.GetAxisState(MotionAxis.Y).InPosition
-                && _motion.GetAxisState(MotionAxis.Z).InPosition
-                && Math.Abs(_motion.GetPosition().Y - _settings.BufferHandoffPosition.Y) <= MotionService.PositionToleranceMillimeters
-                && Math.Abs(_motion.GetPosition().Z - _settings.BufferClearZ) <= MotionService.PositionToleranceMillimeters;
-        }
-    }
-
-    public bool OnReturnHandoffPath
-    {
-        get
-        {
-            return AtHandoffXY
-                && Rotation == PcbSupplyRotationState.Rotated
-                && _motion.GetPosition().Z >= _settings.BufferHandoffPosition.Z - MotionService.PositionToleranceMillimeters
-                && _motion.GetPosition().Z <= _settings.BufferClearZ + MotionService.PositionToleranceMillimeters;
-        }
-    }
-
-    public Task WaitForPcbAsync(CancellationToken cancellationToken)
-    {
-        return _io.WaitForInputAsync(InputIo.PcbSupplyPcbDetected, true, cancellationToken);
-    }
-
-    public async Task PrepareReturnEntryAsync(CancellationToken cancellationToken)
-    {
-        await SetGripperClosedAsync(false, cancellationToken);
-        await SetIpmFixerAsync(false, cancellationToken);
-        await SetRotatedAsync(true, cancellationToken);
-        await MoveYAsync(_settings.BufferHandoffPosition.Y, cancellationToken);
-        await MoveTeachingZAsync(_settings.BufferClearZ, cancellationToken);
-    }
-
-    public Task EnterAtClearZAsync(CancellationToken cancellationToken)
-    {
-        return Rotation != PcbSupplyRotationState.Rotated
-            ? throw new InvalidOperationException("Supply must be rotated before entering the buffer.")
-            : _motion.MoveXAtClearZAsync(
-                _settings.BufferHandoffPosition.X,
-                _settings.BufferClearZ,
-                _settings.Motion.HorizontalSpeed,
-                cancellationToken);
-    }
-
-    public async Task ReturnWithPcbAsync(CancellationToken cancellationToken)
-    {
-        await MoveToRotationZAsync(cancellationToken);
-        await MoveXAsync(XHome, cancellationToken);
-        await MoveYAsync(_settings.CarrierY, cancellationToken);
-        await SetRotatedAsync(false, cancellationToken);
-    }
-
     public Task MoveXAsync(double x, CancellationToken cancellationToken = default)
     {
         return _motion.MoveAxisAsync(MotionAxis.X, x, _settings.Motion.HorizontalSpeed, cancellationToken);

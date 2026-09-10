@@ -547,6 +547,14 @@
                         <StackPanel Orientation="Horizontal"
                                     Visibility="{Binding OperationPageSelected,
                                                          Converter={StaticResource BoolToVis}}">
+                            <StackPanel Margin="0,0,18,0" VerticalAlignment="Center">
+                                <CheckBox x:Name="RepeatMode" Content="REPEAT (DRY RUN)"
+                                          IsChecked="{Binding Operation.State.RepeatEnabled}"
+                                          IsEnabled="{Binding Operation.State.Display.SetupEditingEnabled}"/>
+                                <TextBlock Text="{Binding Operation.State.Display.RepeatCycles, StringFormat='Cycles: {0}'}"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Visibility="{Binding Operation.State.RepeatEnabled, Converter={StaticResource BoolToVis}}"/>
+                            </StackPanel>
                             <Button Command="{Binding Operation.RaiseCylindersCommand}"
                                     IsEnabled="{Binding Operation.State.Display.CanRaiseCylinders}"
                                     ToolTip="Raise cylinders for the homing units only. Does not move or home axes."

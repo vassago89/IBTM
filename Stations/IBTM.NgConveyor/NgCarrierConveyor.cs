@@ -13,6 +13,7 @@ public sealed class NgCarrierConveyor : AutoUnit
     private readonly NgShuttleFeedback _shuttle;
     private volatile Movement _movement;
     private volatile EjectionPhase _ejectionPhase;
+    private bool _repeat;
 
     public NgCarrierConveyor(IIoService io, NgConveyorSettings settings, NgShuttleFeedback shuttle)
     {
@@ -130,7 +131,7 @@ public sealed class NgCarrierConveyor : AutoUnit
                 && _ejectionPhase == EjectionPhase.Idle
                 && !Full
                 && !NeedsCompaction
-                && !EjectRequested
+                && (_repeat || !EjectRequested)
                 && !RunCommandOn;
         }
     }
@@ -188,6 +189,7 @@ public sealed class NgCarrierConveyor : AutoUnit
             }
 
             if (Position1Occupied
+                && !_repeat
                 && EjectRequested
                 && _shuttle.Lift == NgShuttleLiftState.Up)
             {
@@ -247,10 +249,11 @@ public sealed class NgCarrierConveyor : AutoUnit
         }
     }
 
-    public async Task RunAsync(CancellationToken cancellationToken = default)
+    public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
     {
+        _repeat = repeat;
         using var stopRegistration = cancellationToken.Register(StopConveyor);
-        if (_ejectionPhase == EjectionPhase.Idle && EjectRequested)
+        if (!repeat && _ejectionPhase == EjectionPhase.Idle && EjectRequested)
         {
             _ejectionPhase = EjectionPhase.WaitingForButtonRelease;
             Changed?.Invoke();
@@ -263,7 +266,21 @@ public sealed class NgCarrierConveyor : AutoUnit
         finally
         {
             Stop();
+            _repeat = false;
         }
+    }
+
+    public async Task ReturnToShuttleAsync(CancellationToken cancellationToken)
+    {
+        if (CarrierCount != 1)
+            throw new InvalidOperationException("NG return requires one carrier with known presence feedback.");
+        if (_shuttle.Lift != NgShuttleLiftState.Down && !Position3Occupied)
+            throw new InvalidOperationException("Lower the NG shuttle before returning the carrier.");
+
+        _movement = Movement.None;
+        _ejectionPhase = EjectionPhase.Idle;
+        await SetStopperUpAsync(false, cancellationToken);
+        await RunUntilAsync(InputIo.NgShuttleCarrierDetected, true, true, cancellationToken);
     }
 
     private Task ExecuteAsync(CancellationToken cancellationToken)

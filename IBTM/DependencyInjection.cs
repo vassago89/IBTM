@@ -186,23 +186,8 @@ public static class DependencyInjection
                     inspection,
                     routeInspectionToNg: () => units.NgCarrierTransfer && inspection.RouteToNg);
             });
-        services.AddSingleton(
-            provider =>
-                new MainConveyorDryRun(
-                    provider.GetRequiredService<MainConveyor>(),
-                    [
-            provider.GetRequiredService<PcbPlacementWork>().Station,
-            provider.GetRequiredService<BoltFasteningWork>().Station,
-            provider.GetRequiredService<InspectionWork>().Station
-        ]));
         services.AddSingleton<NgCarrierTransfer>();
         services.AddSingleton<NgCarrierMove>();
-        services.AddSingleton<NgTransferDryRun>();
-        services.AddSingleton<InspectionDryRun>();
-        services.AddSingleton<PcbReturn>();
-        services.AddSingleton<PcbDryRun>();
-        services.AddSingleton<NgConveyorDryRun>();
-        services.AddSingleton<BoltRouteDryRun>();
         services.AddSingleton(
             provider =>
             {

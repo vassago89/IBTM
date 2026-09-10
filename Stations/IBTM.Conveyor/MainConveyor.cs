@@ -22,6 +22,8 @@ public sealed class MainConveyor : AutoUnit
     private OperationCancellation.Operation? _automaticCancellation;
     private OperationCancellation.Operation? _manualCancellation;
     private volatile ConveyorTransfer _transfer;
+    private bool _repeat;
+    private bool _returningFromEntry;
 
     public MainConveyor(
         IIoService io,
@@ -197,20 +199,68 @@ public sealed class MainConveyor : AutoUnit
         }
     }
 
-    public Task RunAsync(CancellationToken cancellationToken = default)
+    public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
     {
-        return RunControlledAsync(token => RunLoopAsync(ExecuteAsync, token), cancellationToken);
+        _repeat = repeat;
+        try
+        {
+            await RunControlledAsync(token => RunLoopAsync(ExecuteAsync, token), cancellationToken);
+        }
+        finally
+        {
+            _repeat = false;
+        }
     }
 
-    internal Task RunDryRunAsync(Func<CancellationToken, Task> run, CancellationToken cancellationToken)
+    public async Task ReturnToStartAsync(CancellationToken cancellationToken)
     {
-        // Dry run owns its route; an interrupted production transfer must not
-        // move production results when the carrier passes a station in reverse.
+        // Reverse travel does not transfer production results to stations it passes.
         _transfer = ConveyorTransfer.None;
-        return RunControlledAsync(run, cancellationToken);
+        _repeat = true;
+        try
+        {
+            await RunControlledAsync(ReturnCarrierAsync, cancellationToken);
+        }
+        finally
+        {
+            _repeat = false;
+        }
     }
 
-    private async Task RunControlledAsync(
+    private async Task ReturnCarrierAsync(CancellationToken cancellationToken)
+    {
+        if (!_returningFromEntry)
+        {
+            if (!EntryCarrierDetected
+                && !_placement.CarrierPresent
+                && !_boltFastening.CarrierPresent
+                && !_inspection.CarrierPresent)
+            {
+                throw new InvalidOperationException("Return carrier position is unknown. Restore carrier presence before restarting.");
+            }
+
+            await Task.WhenAll(
+                _placement.ReleaseAsync(cancellationToken),
+                _boltFastening.ReleaseAsync(cancellationToken),
+                _inspection.ReleaseAsync(cancellationToken));
+            await RunUntilAsync(InputIo.MainConveyorEntryCarrierDetected, true, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            _returningFromEntry = true;
+        }
+
+        if (!_placement.CarrierPresent)
+        {
+            if (!EntryCarrierDetected)
+                throw new InvalidOperationException("Return carrier is not at the entry or Station 1.");
+            await ReceiveAtPlacementAsync(cancellationToken);
+        }
+
+        await _placement.SeatAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        _returningFromEntry = false;
+    }
+
+    internal async Task RunControlledAsync(
         Func<CancellationToken, Task> run,
         CancellationToken cancellationToken)
     {
@@ -333,7 +383,7 @@ public sealed class MainConveyor : AutoUnit
         {
             return ExitCarrierDetected
                 || InspectionDischargeActive
-                || !_routeInspectionToNg()
+                || !_repeat && !_routeInspectionToNg()
                 && _inspectionWork.CanTransfer;
         }
     }
@@ -367,7 +417,7 @@ public sealed class MainConveyor : AutoUnit
         get
         {
             return _placementWork.CanReceive
-                && (_io.GetInput(InputIo.MainConveyorAvailableFromFront2)
+                && (!_repeat && _io.GetInput(InputIo.MainConveyorAvailableFromFront2)
                     || EntryCarrierDetected);
         }
     }
@@ -384,7 +434,7 @@ public sealed class MainConveyor : AutoUnit
     private void UpdateSmema()
     {
         var rearAvailable = CanOfferToRear;
-        _io.SetOutput(OutputIo.MainConveyorReadyToFront2, _placementWork.CanReceive && !rearAvailable);
+        _io.SetOutput(OutputIo.MainConveyorReadyToFront2, !_repeat && _placementWork.CanReceive && !rearAvailable);
         _io.SetOutput(OutputIo.MainConveyorAvailableToRear, rearAvailable);
     }
 
@@ -402,7 +452,7 @@ public sealed class MainConveyor : AutoUnit
         try
         {
             await _placement.PrepareToReceiveAsync(cancellationToken);
-            if (_transfer == ConveyorTransfer.ReceivingBeforeEntry)
+            if (!_repeat && _transfer == ConveyorTransfer.ReceivingBeforeEntry)
             {
                 _io.SetOutput(OutputIo.MainConveyorReadyToFront2, true);
             }

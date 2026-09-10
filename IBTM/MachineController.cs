@@ -51,13 +51,8 @@ public sealed partial class MachineController
     private readonly BoltFasteningGantry _fasteningGantry;
     private readonly InspectionGantry _inspectionGantry;
     private readonly NgCarrierTransfer _ngTransfer;
-    private readonly NgTransferDryRun _ngTransferDryRun;
-    private readonly InspectionDryRun _inspectionDryRun;
-    private readonly MainConveyorDryRun _mainConveyorDryRun;
-    private readonly PcbReturn _pcbReturn;
-    private readonly PcbDryRun _pcbDryRun;
-    private readonly NgConveyorDryRun _ngConveyorDryRun;
-    private readonly BoltRouteDryRun _boltRoute;
+    private readonly NgCarrierMove _ngMove;
+    private readonly InspectionWork _inspectionWork;
     private readonly BoltInspector _boltInspector;
     private readonly ApplicationLog? _log;
 
@@ -83,13 +78,8 @@ public sealed partial class MachineController
         BoltFasteningGantry fasteningGantry,
         InspectionGantry inspectionGantry,
         NgCarrierTransfer ngTransfer,
-        NgTransferDryRun ngTransferDryRun,
-        InspectionDryRun inspectionDryRun,
-        MainConveyorDryRun mainConveyorDryRun,
-        PcbReturn pcbReturn,
-        PcbDryRun pcbDryRun,
-        NgConveyorDryRun ngConveyorDryRun,
-        BoltRouteDryRun boltRoute,
+        NgCarrierMove ngMove,
+        InspectionWork inspectionWork,
         BoltInspector boltInspector,
         ApplicationLog? log = null)
     {
@@ -114,20 +104,8 @@ public sealed partial class MachineController
         _fasteningGantry = fasteningGantry;
         _inspectionGantry = inspectionGantry;
         _ngTransfer = ngTransfer;
-        _ngTransferDryRun = ngTransferDryRun;
-        ngTransferDryRun.Changed += state.RequestDisplayRefresh;
-        _inspectionDryRun = inspectionDryRun;
-        inspectionDryRun.Changed += state.RequestDisplayRefresh;
-        _mainConveyorDryRun = mainConveyorDryRun;
-        mainConveyorDryRun.Changed += state.RequestDisplayRefresh;
-        _pcbReturn = pcbReturn;
-        pcbReturn.Changed += state.RequestDisplayRefresh;
-        _pcbDryRun = pcbDryRun;
-        pcbDryRun.Changed += state.RequestDisplayRefresh;
-        _ngConveyorDryRun = ngConveyorDryRun;
-        ngConveyorDryRun.Changed += state.RequestDisplayRefresh;
-        _boltRoute = boltRoute;
-        boltRoute.Changed += state.RequestDisplayRefresh;
+        _ngMove = ngMove;
+        _inspectionWork = inspectionWork;
         _boltInspector = boltInspector;
         _log = log;
         io.InputChanged += OnInputChanged;
@@ -289,6 +267,9 @@ public sealed partial class MachineController
             return StartBlockReason.AutoMode;
         if (!TeachingReady)
             return StartBlockReason.TeachingIncomplete;
+        if (_state.RepeatEnabled
+            && (!_units.MainConveyor || !_units.NgCarrierTransfer || !_units.NgShuttle || !_units.NgConveyor))
+            return StartBlockReason.RepeatRouteUnavailable;
         return _units.HasEnabledUnit() ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
     }
 
@@ -1235,88 +1216,16 @@ public sealed partial class MachineController
                 return;
             }
 
-            var runningUnits = new List<Task>();
-            void StartUnit(bool enabled, MachineAlarm alarm, Func<Task> start)
-            {
-                if (enabled && !operation.IsCancellationRequested)
-                {
-                    runningUnits.Add(RunUnitAsync(alarm, start));
-                }
-            }
-
-            async Task RunUnitAsync(MachineAlarm alarm, Func<Task> start)
-            {
-                try
-                {
-                    await start();
-                    if (!operation.IsCancellationRequested && !_state.IsError)
-                    {
-                        _state.SetError(alarm);
-                    }
-                }
-                catch (OperationCanceledException) when (operation.IsCancellationRequested)
-                {
-                }
-                catch (Exception exception)
-                {
-                    if (!_state.IsError)
-                    {
-                        _state.SetError(
-                            exception is MotionException ? MachineAlarm.MotionUnavailable : alarm,
-                            exception);
-                    }
-                    else
-                    {
-                        _log?.Error(
-                            $"Automatic unit {alarm} failed while stopping; existing alarm={_state.Alarm}.",
-                            exception);
-                    }
-                }
-                finally
-                {
-                    operation.Cancel();
-                }
-            }
-
             _state.SetAutomaticRunning(true);
-            StartUnit(
-                _units.MainConveyor,
-                MachineAlarm.MainConveyor,
-                () => _conveyor.RunAsync(operation.Token));
-            StartUnit(
-                _units.PcbSupply,
-                MachineAlarm.PcbSupply,
-                () => _pcbSupply.RunAsync(_recipe.PcbSupply, operation.Token));
-            StartUnit(
-                _units.PcbPlacement,
-                MachineAlarm.PcbPlacement,
-                () => _pcbPlacement.RunAsync(_recipe.PcbPlacement, operation.Token));
-            StartUnit(
-                _units.PickupBoltFeeder,
-                MachineAlarm.PickupBoltFeeder,
-                () => _pickupBoltFeeder.RunAsync(operation.Token));
-            StartUnit(
-                _units.ShootingBoltFeeder,
-                MachineAlarm.ShootingBoltFeeder,
-                () => _shootingBoltFeeder.RunAsync(operation.Token));
-            StartUnit(
-                _units.BoltFastening,
-                MachineAlarm.BoltFastening,
-                () => _fasteningStation.RunAsync(_recipe.BoltFastening, operation.Token));
-            StartUnit(
-                InspectionGantryEnabled,
-                _units.Inspection ? MachineAlarm.Inspection : MachineAlarm.NgCarrierTransfer,
-                () => _inspectionStation.RunAsync(_recipe.Pcb.GetBolts().ToArray(), operation.Token));
-            StartUnit(
-                _units.NgShuttle,
-                MachineAlarm.NgShuttle,
-                () => _ngShuttle.RunAsync(operation.Token));
-            StartUnit(
-                _units.NgConveyor,
-                MachineAlarm.NgConveyor,
-                () => _ngConveyor.RunAsync(operation.Token));
-
-            await Task.WhenAll(runningUnits).ConfigureAwait(false);
+            if (_state.RepeatEnabled)
+            {
+                await RunRepeatAsync(operation.Token);
+            }
+            else
+            {
+                using var cycle = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
+                await RunAutomaticUnitsAsync(cycle, repeat: false);
+            }
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested)
         {
