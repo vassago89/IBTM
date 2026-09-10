@@ -57,6 +57,7 @@ public sealed partial class MachineLifecycleTests
         settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 20, Y = 20 };
         settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 100, Y = 20 };
         settings.NgCarrierTransfer.Speed = 10_000;
+        settings.NgCarrierTransfer.PickupSafeX = 5;
         using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<Recipe>();
         recipe.Pcb.BoltPoints = [new() { Number = 1, X = 10, Y = 10 },];

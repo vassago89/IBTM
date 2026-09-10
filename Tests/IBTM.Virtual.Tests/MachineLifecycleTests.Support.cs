@@ -200,6 +200,7 @@ public sealed partial class MachineLifecycleTests
         public Action? BeforePositionRead;
         public MotionAxis? LastMovedAxis { get; private set; }
         public double? LastMoveVelocity { get; private set; }
+        public List<(MotionAxis Axis, double Position)> AxisMoves { get; } = [];
 
         public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
         {
@@ -218,7 +219,10 @@ public sealed partial class MachineLifecycleTests
             if (method.Name == nameof(IMotionFeedback.GetPosition))
                 BeforePositionRead?.Invoke();
             if (method.Name == nameof(IAxisMotion.MoveAxisAsync))
+            {
                 LastMovedAxis = (MotionAxis)arguments![0]!;
+                AxisMoves.Add(((MotionAxis)arguments![0]!, (double)arguments[1]!));
+            }
             if (method.Name is nameof(IAxisMotion.MoveAxisAsync) or nameof(IXyMotion.MoveToXYAsync))
                 LastMoveVelocity = (double)arguments![2]!;
             return method.Invoke(Motion, arguments);
@@ -425,6 +429,7 @@ public sealed partial class MachineLifecycleTests
         settings.CarrierReference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
         settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 0 };
         settings.NgCarrierTransfer.Speed = 10_000;
+        settings.NgCarrierTransfer.PickupSafeX = 5;
         settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 20, Y = 20 };
         settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 150, Y = 20 };
         return settings;

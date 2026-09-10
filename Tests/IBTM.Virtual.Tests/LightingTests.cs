@@ -82,7 +82,7 @@ public sealed class LightingTests
             },
             async () =>
             {
-                await inspector.CaptureCarrierImagesAsync();
+                await inspector.CaptureCarrierImageAsync();
             },
             () =>
             {
@@ -117,7 +117,7 @@ public sealed class LightingTests
         Assert.Equal(5, light.OffCalls);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => inspector.CaptureCarrierImagesAsync(cancellation.Token));
+            () => inspector.CaptureCarrierImageAsync(cancellation.Token));
         Assert.Equal(5, light.OffCalls); // An already-cancelled scan must not touch the light.
 
         light.OnStarted = null;

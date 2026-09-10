@@ -109,13 +109,13 @@
                             <Grid Margin="0,8,0,0">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                                 <WrapPanel Margin="0,0,0,6">
-                                    <Button Content="Scan Carrier" Command="{Binding CaptureCarrierImagesCommand}" Margin="0,0,8,6"
-                                            Style="{StaticResource PrimaryButtonStyle}"/>
+                                    <Button Content="Add Current Image" Command="{Binding CaptureCarrierImageCommand}" Margin="0,0,8,6"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            ToolTip="Capture one image here and add it to the map. Does not move any axis."/>
+                                    <Button Content="Clear Map" Command="{Binding ClearCarrierImagesCommand}" Margin="0,0,8,6"
+                                            Style="{StaticResource SecondaryButtonStyle}"/>
                                     <TextBlock Text="mm/px" VerticalAlignment="Center" Margin="0,0,4,6"/>
                                     <TextBox Text="{Binding MillimetersPerPixel, UpdateSourceTrigger=LostFocus}" Width="60" Margin="0,0,8,6"
-                                             IsEnabled="{Binding CanEditInspectionRecipe}"/>
-                                    <TextBlock Text="Overlap (mm)" VerticalAlignment="Center" Margin="0,0,4,6"/>
-                                    <TextBox Text="{Binding ScanOverlap, UpdateSourceTrigger=LostFocus}" Width="50" Margin="0,0,0,6"
                                              IsEnabled="{Binding CanEditInspectionRecipe}"/>
                                 </WrapPanel>
                                 <Grid Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
@@ -131,7 +131,7 @@
                                           Cursor="Cross"
                                           ToolTip="Teach PCB 1 bounds, then click the matching upper-left corner on PCB 2. Bolts and barcode share one PCB pattern. Esc: cancel. Wheel: zoom. Right drag: pan."
                                           RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                                    <TextBlock Text="Scan Carrier to create a teaching map." TextWrapping="Wrap" Margin="12"
+                                    <TextBlock Text="Jog to each position, stop, then Add Current Image. Each image is saved to the map." TextWrapping="Wrap" Margin="12"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
                                                Foreground="{StaticResource TextMutedBrush}">
                                         <TextBlock.Style>

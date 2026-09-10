@@ -22,6 +22,8 @@ public enum RepeatPhase
     ReturnToStart,
     [Description("Shuttle down → up")]
     CycleShuttle,
+    [Description("Station 3 → First inspection FOV")]
+    ClearStation3,
 }
 
 public sealed partial class MachineController
@@ -158,6 +160,13 @@ public sealed partial class MachineController
 
                     case RepeatPhase.ReturnToStation3:
                         await _ngMove.ReturnToStationAsync(cancellationToken);
+                        SetRepeatPhase(RepeatPhase.ClearStation3);
+                        break;
+
+                    case RepeatPhase.ClearStation3:
+                        await _ngMove.ClearStationAsync(
+                            _recipe.CarrierImages.MinBy(image => image.Number)?.Center,
+                            cancellationToken);
                         SetRepeatPhase(RepeatPhase.ReturnToStart);
                         break;
 
@@ -188,7 +197,7 @@ public sealed partial class MachineController
                 {
                     RepeatPhase.ReturnToShuttle => MachineAlarm.NgConveyor,
                     RepeatPhase.CycleShuttle => MachineAlarm.NgShuttle,
-                    RepeatPhase.ReturnToStation3 => MachineAlarm.NgCarrierTransfer,
+                    RepeatPhase.ReturnToStation3 or RepeatPhase.ClearStation3 => MachineAlarm.NgCarrierTransfer,
                     _ => MachineAlarm.MainConveyor,
                 };
             _state.SetError(alarm, exception);

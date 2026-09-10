@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -9,7 +8,7 @@ using IBTM.Device;
 
 namespace IBTM.Inspection;
 
-public sealed record CarrierScanImage(AxisPosition Center, ImageFrame Frame);
+public sealed record CarrierImage(AxisPosition Center, ImageFrame Frame);
 
 public sealed class BoltInspector
 {
@@ -288,72 +287,36 @@ public sealed class BoltInspector
             cancellationToken);
     }
 
-    public async Task<IReadOnlyList<CarrierScanImage>> CaptureCarrierImagesAsync(
+    public async Task<CarrierImage> CaptureCarrierImageAsync(
         CancellationToken cancellationToken = default)
     {
         await _visionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await Task.Run(
-                () => CaptureCarrierImagesCoreAsync(cancellationToken),
+            var image = await Task.Run(
+                () =>
+                {
+                    var feedback = gantry.Feedback;
+                    if (feedback.IsMoving
+                        || !feedback.GetAxisState(MotionAxis.X).InPosition
+                        || !feedback.GetAxisState(MotionAxis.Y).InPosition)
+                        throw new InvalidOperationException("Stop jogging before adding a map image.");
+
+                    var position = feedback.GetPosition();
+                    var center = new AxisPosition { X = position.X, Y = position.Y };
+                    var frame = Capture();
+                    if (!gantry.IsAt(center))
+                        throw new InvalidOperationException("The gantry moved during capture. Stop jogging and capture the map image again.");
+                    return new CarrierImage(center, frame);
+                },
                 cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return image;
         }
         finally
         {
             _visionGate.Release();
         }
-    }
-
-    private async Task<IReadOnlyList<CarrierScanImage>> CaptureCarrierImagesCoreAsync(
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        StopLiveView();
-        var overlap = getRecipe().CarrierScanOverlapMillimeters;
-        var (width, height) = FieldOfView;
-        var xPositions = ScanPositions(
-            carrierReference.UpperLeftLocatingPin!.X,
-            carrierReference.LowerRightLocatingPin!.X,
-            width - overlap);
-        var yPositions = ScanPositions(
-            carrierReference.UpperLeftLocatingPin.Y,
-            carrierReference.LowerRightLocatingPin.Y,
-            height - overlap);
-        var images = new List<CarrierScanImage>(xPositions.Count * yPositions.Count);
-        var channel = lightingSettings.InspectionChannel;
-        Exception? failure = null;
-
-        try
-        {
-            TurnLightOn(channel);
-            for (var row = 0; row < yPositions.Count; row++)
-            {
-                for (var column = 0; column < xPositions.Count; column++)
-                {
-                    var xIndex = row % 2 == 0 ? column : xPositions.Count - column - 1;
-                    var center = new AxisPosition
-                    {
-                        X = xPositions[xIndex],
-                        Y = yPositions[row],
-                    };
-                    await MoveToAsync(center, cancellationToken).ConfigureAwait(false);
-                    var frame = await Task.Run(CaptureFrame, cancellationToken).ConfigureAwait(false);
-                    cancellationToken.ThrowIfCancellationRequested();
-                    images.Add(new(center, frame));
-                }
-            }
-        }
-        catch (Exception exception)
-        {
-            failure = exception;
-            throw;
-        }
-        finally
-        {
-            TurnLightOff(channel, failure);
-        }
-
-        return images;
     }
 
     public async Task StartLiveViewAsync(CancellationToken cancellationToken = default)
@@ -484,25 +447,6 @@ public sealed class BoltInspector
     private Task MoveToAsync(AxisPosition position, CancellationToken cancellationToken)
     {
         return gantry.MoveToAsync(position, gantrySettings.Motion.HorizontalSpeed, cancellationToken);
-    }
-
-    private static IReadOnlyList<double> ScanPositions(double start, double end, double pitch)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pitch);
-        var distance = Math.Abs(end - start);
-        if (distance == 0)
-        {
-            return [start];
-        }
-
-        var segments = (int)Math.Ceiling(distance / pitch);
-        var positions = new double[segments + 1];
-        for (var index = 0; index <= segments; index++)
-        {
-            positions[index] = start + ((end - start) * index / segments);
-        }
-
-        return positions;
     }
 
     private void TurnLightOn(int channel)

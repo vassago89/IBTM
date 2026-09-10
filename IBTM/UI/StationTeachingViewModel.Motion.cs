@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Inspection;
 
 namespace IBTM.UI;
 
@@ -29,6 +30,9 @@ public partial class StationTeachingViewModel
                 if (Motion.Axes.Values.Any(axis => axis.State is { Homed: false }))
                     return TeachingMotionHint.HomeRequired;
             }
+            if (SelectedTeachingUnit == HardwareArea.NgCarrierTransfer
+                && _ngTransferSettings.PickupSafeX is null)
+                return TeachingMotionHint.NgPickupSafeXRequired;
             return ActiveMotionGroup switch
             {
                 MotionGroup.PcbPlacementHandler when _state.Display.SupplyInBufferArea
@@ -188,6 +192,10 @@ public partial class StationTeachingViewModel
                     point.Position,
                     point.Read(),
                     token),
+                MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgPickupSafeX
+                    => _inspectionGantry.MoveAxisAsync(MotionAxis.X, point.X, TeachingXySpeed, token),
+                MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgCarrierPickup
+                    => _ngCarrierMove.MoveToCarrierAsync(NgTransferDestination.Station, token),
                 MotionGroup.InspectionGantry => _inspectionGantry.MoveToAsync(
                     new AxisPosition { X = point.X, Y = point.Y },
                     TeachingXySpeed,
@@ -203,6 +211,8 @@ public partial class StationTeachingViewModel
         return SelectedPoint is not null
             && Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
             && (SelectedPoint.Position.Mode == TeachMode.ZOnly || CanMoveHorizontal())
+            && (SelectedPoint.Position.Target != TeachingTarget.NgCarrierPickup
+                || _ngTransferSettings.PickupSafeX is not null)
             && SelectedPoint.Position.HasPosition;
     }
 
@@ -229,7 +239,8 @@ public partial class StationTeachingViewModel
         NotifyMotionCommands();
         ReturnFromPickupCommand.NotifyCanExecuteChanged();
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
-        CaptureCarrierImagesCommand.NotifyCanExecuteChanged();
+        CaptureCarrierImageCommand.NotifyCanExecuteChanged();
+        ClearCarrierImagesCommand.NotifyCanExecuteChanged();
         CaptureInspectionCommand.NotifyCanExecuteChanged();
         ReinspectImageCommand.NotifyCanExecuteChanged();
         CollectBoltImagesCommand.NotifyCanExecuteChanged();

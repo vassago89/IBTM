@@ -29,6 +29,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     private readonly PcbPlacementHandlerSettings _placementSettings;
     private readonly BoltFasteningSettings _fasteningSettings;
     private readonly NgCarrierTransferSettings _ngTransferSettings;
+    private readonly NgCarrierMove _ngCarrierMove;
     private readonly InspectionWork _inspectionWork;
     private readonly BoltTrainingStore _trainingStore;
     private CancellationTokenSource _recipeImageCancellation = new();
@@ -39,7 +40,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     [NotifyPropertyChangedFor(nameof(ActiveTeachingUnit))]
     [NotifyPropertyChangedFor(nameof(TeachingIoGroups))]
     [NotifyCanExecuteChangedFor(nameof(ToggleLiveViewCommand))]
-    [NotifyCanExecuteChangedFor(nameof(CaptureCarrierImagesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CaptureCarrierImageCommand))]
     [NotifyCanExecuteChangedFor(nameof(TeachImagePointCommand))]
     [NotifyCanExecuteChangedFor(nameof(AddBoltPointCommand))]
     [NotifyCanExecuteChangedFor(nameof(ReturnFromPickupCommand))]
@@ -62,14 +63,11 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     [NotifyPropertyChangedFor(nameof(HasCarrierImages))]
     [NotifyCanExecuteChangedFor(nameof(TeachImagePointCommand))]
     [NotifyCanExecuteChangedFor(nameof(TeachImageRegionCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ClearCarrierImagesCommand))]
     private IReadOnlyList<CarrierImageTileView> _carrierImages = [];
 
     [ObservableProperty]
     private double _millimetersPerPixel;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CaptureCarrierImagesCommand))]
-    private double _scanOverlap;
 
     private string? _cameraError;
 
@@ -102,6 +100,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         PcbPlacementHandlerSettings placementSettings,
         BoltFasteningSettings fasteningSettings,
         NgCarrierTransferSettings ngTransferSettings,
+        NgCarrierMove ngCarrierMove,
         RecipeEditor recipeEditor,
         InspectionWork inspectionWork,
         BoltTrainingStore trainingStore,
@@ -125,6 +124,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         _placementSettings = placementSettings;
         _fasteningSettings = fasteningSettings;
         _ngTransferSettings = ngTransferSettings;
+        _ngCarrierMove = ngCarrierMove;
         RecipeEditor = recipeEditor;
         _inspectionWork = inspectionWork;
         _trainingStore = trainingStore;
@@ -142,12 +142,11 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         inspectionWork.Changed += QueueManualCommandRefresh;
 
         MillimetersPerPixel = RecipeEditor.Recipe.CarrierImageMillimetersPerPixel;
-        ScanOverlap = RecipeEditor.Recipe.BoltInspection.CarrierScanOverlapMillimeters;
 
         inspectionGantry.Motion.PropertyChanged += OnInspectionMotionChanged;
         boltInspector.FrameReady += UpdateLiveImage;
         boltInspector.LiveViewChanged += OnLiveViewChanged;
-        CaptureCarrierImagesCommand.PropertyChanged += OnInspectionCommandChanged;
+        CaptureCarrierImageCommand.PropertyChanged += OnInspectionCommandChanged;
         CaptureInspectionCommand.PropertyChanged += OnInspectionCommandChanged;
         CollectBoltImagesCommand.PropertyChanged += OnInspectionCommandChanged;
         state.DisplayChanged += QueueManualCommandRefresh;
@@ -156,7 +155,8 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         {
             if (e.PropertyName != nameof(RecipeEditor.CanSave))
                 return;
-            CaptureCarrierImagesCommand.NotifyCanExecuteChanged();
+            CaptureCarrierImageCommand.NotifyCanExecuteChanged();
+            ClearCarrierImagesCommand.NotifyCanExecuteChanged();
             TeachImagePointCommand.NotifyCanExecuteChanged();
             TeachImageRegionCommand.NotifyCanExecuteChanged();
         };
@@ -473,7 +473,8 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 ReturnFromPickupCommand,
                 SetOutputOnCommand,
                 SetOutputOffCommand,
-                CaptureCarrierImagesCommand,
+                CaptureCarrierImageCommand,
+                ClearCarrierImagesCommand,
                 CaptureInspectionCommand,
                 ReinspectImageCommand,
                 CollectBoltImagesCommand,
@@ -577,7 +578,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         RecipeEditor.Recipe.CarrierImageMillimetersPerPixel = value;
         OnPropertyChanged(nameof(CameraFieldOfView));
-        CaptureCarrierImagesCommand.NotifyCanExecuteChanged();
+        CaptureCarrierImageCommand.NotifyCanExecuteChanged();
         CaptureInspectionCommand.NotifyCanExecuteChanged();
         TeachImageRegionCommand.NotifyCanExecuteChanged();
         Preview.RefreshBarcodeRegion();
@@ -595,11 +596,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             OnPropertyChanged(nameof(CameraFieldOfView));
     }
 
-    partial void OnScanOverlapChanged(double value)
-    {
-        RecipeEditor.Recipe.BoltInspection.CarrierScanOverlapMillimeters = value;
-    }
-
     private void OnRecipeChanged()
     {
         CameraError = null;
@@ -612,7 +608,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             SelectedPcb = HeatSinkSlot.HeatSink1;
         OnPropertyChanged(nameof(BoltRecipe));
         OnPropertyChanged(nameof(InspectionRecipe));
-        ScanOverlap = RecipeEditor.Recipe.BoltInspection.CarrierScanOverlapMillimeters;
         MillimetersPerPixel = RecipeEditor.Recipe.CarrierImageMillimetersPerPixel;
         ShowRecipeImages();
     }

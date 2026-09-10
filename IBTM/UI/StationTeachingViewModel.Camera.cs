@@ -56,7 +56,7 @@ public partial class StationTeachingViewModel
         return Inspector.IsLiveView
             || IsInspectionSelected
                 && _state.ManualMode
-                && !CaptureCarrierImagesCommand.IsRunning
+                && !CaptureCarrierImageCommand.IsRunning
                 && !CaptureInspectionCommand.IsRunning
                 && !CollectBoltImagesCommand.IsRunning;
     }
@@ -67,63 +67,55 @@ public partial class StationTeachingViewModel
             ToggleLiveViewCommand.NotifyCanExecuteChanged();
     }
 
-    [RelayCommand(CanExecute = nameof(CanCaptureCarrierImages))]
-    private async Task CaptureCarrierImagesAsync(CancellationToken cancellationToken)
+    [RelayCommand(CanExecute = nameof(CanCaptureCarrierImage))]
+    private Task CaptureCarrierImageAsync(CancellationToken cancellationToken)
     {
-        var selectedPoint = SelectedPoint;
-        var completed = false;
-        try
-        {
-            await RunInspectionAsync(
-                async token =>
-                {
-                    _recipeImageCancellation.Cancel();
-                    await _recipeImageUpdate;
-                    token.ThrowIfCancellationRequested();
-                    Preview.Clear(SelectedBarcode);
-                    CarrierImages = [];
-                    var captured = await Inspector.CaptureCarrierImagesAsync(token);
-                    var images = await Task.Run(
-                        () => captured.Select(
-                            (image, index) => new CarrierImageTileView(
-                                index + 1,
-                                image.Center,
-                                InspectionPreview.CreateBitmap(image.Frame)))
-                            .ToArray(),
-                        token);
-
-                    token.ThrowIfCancellationRequested();
-                    CarrierImages = images;
-                    completed = await RecipeEditor.SaveCarrierImagesAsync(images, token);
-                    if (completed && SelectedPoint == selectedPoint)
-                    {
-                        SelectedPoint = NextTeachingPoint() ?? FilteredPoints.FirstOrDefault(
-                            point => point.Position.Target == TeachingTarget.BoltReference);
-                    }
-                },
-                cancellationToken);
-        }
-        finally
-        {
-            if (!completed)
+        SelectedCameraTab = 1;
+        return RunInspectionAsync(
+            async token =>
             {
-                ShowRecipeImages();
                 await _recipeImageUpdate;
-            }
-        }
+                token.ThrowIfCancellationRequested();
+                if (CarrierImages.Count != RecipeEditor.Recipe.CarrierImages.Count)
+                    throw new InvalidOperationException("Load the existing map images before adding another image.");
+                var captured = await Inspector.CaptureCarrierImageAsync(token);
+                var image = await Task.Run(
+                    () => InspectionPreview.CreateBitmap(captured.Frame),
+                    token);
+                var number = CarrierImages.Count == 0 ? 1 : CarrierImages.Max(tile => tile.Number) + 1;
+                CarrierImageTileView[] images = [.. CarrierImages, new(number, captured.Center, image)];
+                if (await RecipeEditor.SaveCarrierImagesAsync(images, token))
+                    CarrierImages = images;
+            },
+            cancellationToken);
     }
 
-    private bool CanCaptureCarrierImages()
+    private bool CanCaptureCarrierImage()
     {
         return IsInspectionSelected
             && Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
-            && _inspectionGantry.CanMove
-            && _carrierReference.IsDefined
+            && Motion.Axes.Values.All(axis => axis.State is { InMotion: false, InPosition: true })
             && MillimetersPerPixel > 0
-            && ScanOverlap >= 0
-            && ScanOverlap < Inspector.FieldOfView.Width
-            && ScanOverlap < Inspector.FieldOfView.Height
             && RecipeEditor.CanSave;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanClearCarrierImages))]
+    private Task ClearCarrierImagesAsync(CancellationToken cancellationToken)
+    {
+        return Machine.RunTeachingEditAsync(
+            async token =>
+            {
+                await _recipeImageUpdate;
+                if (await RecipeEditor.SaveCarrierImagesAsync([], token))
+                    CarrierImages = [];
+            },
+            cancellationToken,
+            ViewCancellation);
+    }
+
+    private bool CanClearCarrierImages()
+    {
+        return IsInspectionSelected && CanEditTeaching && HasCarrierImages && RecipeEditor.CanSave;
     }
 
     [RelayCommand(CanExecute = nameof(CanTeachImagePoint))]
@@ -381,7 +373,7 @@ public partial class StationTeachingViewModel
         }
 
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
-        CaptureCarrierImagesCommand.NotifyCanExecuteChanged();
+        CaptureCarrierImageCommand.NotifyCanExecuteChanged();
         TeachImagePointCommand.NotifyCanExecuteChanged();
         TeachImageRegionCommand.NotifyCanExecuteChanged();
     }

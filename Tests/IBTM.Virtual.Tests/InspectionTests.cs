@@ -76,19 +76,13 @@ public sealed class InspectionTests
         Assert.Equal(255, source.Pixels[0]);
     }
 
-    [Theory]
-    [InlineData(2, 3, 32, 23)]
-    [InlineData(32, 23, 2, 3)]
-    public async Task CarrierScanUsesTheTwoReferencePins(
-        double left,
-        double top,
-        double right,
-        double bottom)
+    [Fact]
+    public async Task CarrierMapCaptureUsesCurrentPositionWithoutMoving()
     {
         var reference = new CarrierReferenceSettings
         {
-            UpperLeftLocatingPin = new() { X = left, Y = top },
-            LowerRightLocatingPin = new() { X = right, Y = bottom },
+            UpperLeftLocatingPin = new() { X = 2, Y = 3 },
+            LowerRightLocatingPin = new() { X = 32, Y = 23 },
         };
         var settings = new InspectionGantrySettings
         {
@@ -127,27 +121,18 @@ public sealed class InspectionTests
         var inspections = new List<BoltInspectionImage>();
         inspector.Inspected += inspections.Add;
 
-        var images = await inspector.CaptureCarrierImagesAsync();
-        var middleX = (left + right) / 2;
-        var middleY = (top + bottom) / 2;
-        Assert.Equal(
-            new[] { (left, top), (middleX, top), (right, top), (right, middleY), (
-                middleX,
-                middleY), (
-                    left,
-                    middleY), (
-                        left,
-                        bottom), (
-                            middleX,
-                            bottom), (
-                                right,
-                                bottom), },
-            images.Select(
-                image => (
-                    image.Center.X,
-                    image.Center.Y)));
-        Assert.True(gantry.IsAt(reference.LowerRightLocatingPin));
-        Assert.All(images, image => Assert.NotEmpty(image.Frame.Pixels));
+        var movements = 0;
+        motion.PositionChanged += (_, _, _) => movements++;
+        foreach (var center in new[] { new AxisPosition { X = 12, Y = 9 }, new AxisPosition { X = 27, Y = 16 } })
+        {
+            await gantry.MoveToAsync(center, 1_000);
+            movements = 0;
+            var image = await inspector.CaptureCarrierImageAsync();
+            Assert.Equal((center.X, center.Y), (image.Center.X, image.Center.Y));
+            Assert.True(gantry.IsAt(center));
+            Assert.Equal(0, movements);
+            Assert.NotEmpty(image.Frame.Pixels);
+        }
         Assert.Empty(inspections); // Carrier teaching images are not automatic bolt inspections.
 
         pcb.DataMatrix = new(0, 0, 10, 4);
@@ -157,15 +142,6 @@ public sealed class InspectionTests
         Assert.Equal((8, 6), inspector.FieldOfView);
         Assert.Equal((400, 160), inspector.BarcodePixelSize());
         Assert.False(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
-        images = await inspector.CaptureCarrierImagesAsync();
-        Assert.Equal(30, images.Count); // 6 columns at <= 7 mm, 5 rows at <= 5 mm.
-        var xs = images.Select(image => image.Center.X).Distinct().Order().ToArray();
-        var ys = images.Select(image => image.Center.Y).Distinct().Order().ToArray();
-        Assert.All(xs.Zip(xs.Skip(1)), pair => Assert.InRange(pair.Second - pair.First, 0, 7));
-        Assert.All(ys.Zip(ys.Skip(1)), pair => Assert.InRange(pair.Second - pair.First, 0, 5));
-        recipe.CarrierScanOverlapMillimeters = inspector.FieldOfView.Height;
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
-            () => inspector.CaptureCarrierImagesAsync());
     }
 
     [Trait("Category", "MachineFlow")]

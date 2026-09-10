@@ -119,6 +119,9 @@ public enum TeachingTarget
 
     [Description("Data Matrix")]
     DataMatrix,
+
+    [Description("NG Pickup Safe X")]
+    NgPickupSafeX,
 }
 
 public sealed class TeachingPosition(

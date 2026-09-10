@@ -188,7 +188,7 @@ public sealed class IoStartupTests
         {
             station.SelectedTeachingUnit = group;
             Assert.Equal(TeachingMotionHint.None, station.MotionHint);
-            Assert.False(station.CaptureCarrierImagesCommand.CanExecute(null));
+            Assert.False(station.CaptureCarrierImageCommand.CanExecute(null));
             Assert.False(station.CollectBoltImagesCommand.CanExecute(null));
         }
         Assert.Equal(TeachingMotionHint.None, supply.MotionHint);

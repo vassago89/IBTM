@@ -177,6 +177,22 @@ public sealed class NgCarrierMove(
         await RunToAsync(NgTransferDestination.Station, cancellationToken);
     }
 
+    public async Task ClearStationAsync(AxisPosition? firstFov, CancellationToken cancellationToken)
+    {
+        if (firstFov is null)
+            return;
+        if (!station.CarrierPresent
+            || pickup.Gripper != NgTransferGripperState.Open
+            || !pickup.IsRaised)
+            throw new InvalidOperationException("Place the carrier on Station 3 and raise the open pickup before moving to the first FOV.");
+
+        var safeX = settings.PickupSafeX
+            ?? throw new InvalidOperationException("Teach NG Pickup Safe X before leaving Station 3.");
+        await gantry.MoveAxisAsync(MotionAxis.X, safeX, settings.Speed, cancellationToken);
+        await gantry.MoveAxisAsync(MotionAxis.Y, firstFov.Y, settings.Speed, cancellationToken);
+        await gantry.MoveAxisAsync(MotionAxis.X, firstFov.X, settings.Speed, cancellationToken);
+    }
+
     // Passive states issue no command; the caller waits or performs its other work.
     public Task? ExecuteAsync(
         NgTransferDestination destination,
@@ -191,7 +207,7 @@ public sealed class NgCarrierMove(
             NgTransferState.LoweringToCarrier or NgTransferState.LoweringAtDestination
                 => pickup.SetLiftUpAsync(false, cancellationToken),
             NgTransferState.MovingToCarrier
-                => gantry.MoveToAsync(Position(Opposite(destination)), settings.Speed, cancellationToken),
+                => MoveToCarrierAsync(Opposite(destination), cancellationToken),
             NgTransferState.MovingToDestination
                 => gantry.MoveToAsync(Position(destination), settings.Speed, cancellationToken),
             NgTransferState.WaitingForGrip => pickup.WaitForCarrierGripAsync(cancellationToken),
@@ -208,6 +224,21 @@ public sealed class NgCarrierMove(
         return destination == NgTransferDestination.Shuttle
             ? NgTransferDestination.Station
             : NgTransferDestination.Shuttle;
+    }
+
+    public async Task MoveToCarrierAsync(
+        NgTransferDestination source,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var position = Position(source);
+        if (gantry.IsAt(position))
+            return;
+        var safeX = settings.PickupSafeX
+            ?? throw new InvalidOperationException("Teach NG Pickup Safe X before moving to a carrier.");
+        await gantry.MoveAxisAsync(MotionAxis.X, safeX, settings.Speed, cancellationToken);
+        await gantry.MoveAxisAsync(MotionAxis.Y, position.Y, settings.Speed, cancellationToken);
+        await gantry.MoveAxisAsync(MotionAxis.X, position.X, settings.Speed, cancellationToken);
     }
 
     private AxisPosition Position(NgTransferDestination location)

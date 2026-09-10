@@ -563,10 +563,9 @@ public sealed class OutputWindowThreadingTests
             reference.LowerRightLocatingPin = new() { X = 1, Y = 0 };
             await services.GetRequiredService<InspectionGantry>().HomeHorizontalAsync();
             teaching.RecipeEditor.Name = "ThreadingScan";
-            teaching.ScanOverlap = 0;
             // Device failures are reported at the teaching command boundary.
             light.BeforeOn = () => throw new InvalidOperationException("Scan light ON failed.");
-            await teaching.CaptureCarrierImagesCommand.ExecuteAsync(null);
+            await teaching.CaptureCarrierImageCommand.ExecuteAsync(null);
             Assert.Equal("Scan light ON failed.", teaching.CameraError);
             Assert.False(state.IsRunning);
             Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
@@ -581,14 +580,14 @@ public sealed class OutputWindowThreadingTests
                 Assert.True(releaseStop.Wait(TimeSpan.FromSeconds(2)));
             };
             light.BeforeOff = () => Assert.NotEqual(uiThread, Environment.CurrentManagedThreadId);
-            var scan = teaching.CaptureCarrierImagesCommand.ExecuteAsync(null);
+            var scan = teaching.CaptureCarrierImageCommand.ExecuteAsync(null);
             await scanStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(liveButton.IsEnabled);
             var onCalls = light.OnCalls;
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
             Assert.False(teaching.Inspector.IsLiveView);
             Assert.Equal(onCalls, light.OnCalls);
-            teaching.CaptureCarrierImagesCommand.Cancel();
+            teaching.CaptureCarrierImageCommand.Cancel();
             releaseStop.Set();
             await scan.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Null(teaching.CameraError);
@@ -605,10 +604,18 @@ public sealed class OutputWindowThreadingTests
                 if (args.PropertyName == nameof(RecipeEditor.ActiveName))
                     teaching.SelectedPoint = next;
             };
-            Assert.True(teaching.CaptureCarrierImagesCommand.CanExecute(null));
-            await teaching.CaptureCarrierImagesCommand.ExecuteAsync(null);
+            Assert.True(teaching.CaptureCarrierImageCommand.CanExecute(null));
+            await teaching.CaptureCarrierImageCommand.ExecuteAsync(null);
             Assert.Same(next, teaching.SelectedPoint);
             Assert.True(teaching.HasCarrierImages);
+            Assert.Single(teaching.CarrierImages);
+            var gantry = services.GetRequiredService<InspectionGantry>();
+            await gantry.MoveAxisAsync(MotionAxis.X, 10, 10_000);
+            await teaching.CaptureCarrierImageCommand.ExecuteAsync(null);
+            Assert.Equal(2, teaching.CarrierImages.Count);
+            Assert.Equal(0, teaching.CarrierImages[0].Center.X);
+            Assert.Equal(10, teaching.CarrierImages[1].Center.X);
+            Assert.Equal(10, gantry.Feedback.GetPosition().X);
             var saved = await services.GetRequiredService<RecipeStore>()
                 .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
             Assert.Equal(teaching.CarrierImages.Count, saved.CarrierImages.Count);
@@ -617,6 +624,39 @@ public sealed class OutputWindowThreadingTests
                 services.GetRequiredService<MachineStore>()
                     .LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
             Assert.Null(teaching.CameraError);
+            foreach (var closeTeaching in new[] { false, true })
+            {
+                var captureStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                releaseStop.Reset();
+                light.BeforeOn = () =>
+                {
+                    captureStarted.TrySetResult();
+                    Assert.True(releaseStop.Wait(TimeSpan.FromSeconds(2)));
+                };
+                var capture = teaching.CaptureCarrierImageCommand.ExecuteAsync(null);
+                await captureStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                var closing = closeTeaching ? teaching.ShutdownAsync() : Task.CompletedTask;
+                if (!closeTeaching)
+                    io.SetInput(InputIo.AutoMode, false);
+                releaseStop.Set();
+                await Task.WhenAll(capture, closing).WaitAsync(TimeSpan.FromSeconds(2));
+                saved = await services.GetRequiredService<RecipeStore>()
+                    .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
+                Assert.Equal(2, saved.CarrierImages.Count);
+                Assert.Null(teaching.CameraError);
+                Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+                light.BeforeOn = null;
+                io.SetInput(InputIo.AutoMode, true);
+                teaching.Activate();
+                Assert.True(await VirtualTest.WaitUntilAsync(
+                    () => teaching.CarrierImages.Count == 2 && teaching.CaptureCarrierImageCommand.CanExecute(null),
+                    TimeSpan.FromSeconds(2)));
+            }
+            await teaching.ClearCarrierImagesCommand.ExecuteAsync(null);
+            Assert.Empty(teaching.CarrierImages);
+            saved = await services.GetRequiredService<RecipeStore>()
+                .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
+            Assert.Empty(saved.CarrierImages);
         }
         finally
         {
