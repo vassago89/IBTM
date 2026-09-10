@@ -63,11 +63,11 @@ public abstract partial class TeachingMotionViewModel(
     MachineState state,
     MachineController machine,
     MachineStore store,
-    IReadOnlyDictionary<MotionGroup, IoStatus[]> ioGroups,
-    IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : ObservableObject
+    IReadOnlyDictionary<HardwareArea, IoStatus[]> ioGroups,
+    IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : ObservableObject
 {
     private CancellationTokenSource _viewCancellation = new();
-    private readonly Dictionary<MotionGroup, TeachingIoGroup[]> _teachingIoGroups = [];
+    private readonly Dictionary<HardwareArea, TeachingIoGroup[]> _teachingIoGroups = [];
     private int _manualCommandRefreshQueued;
 
     [ObservableProperty]
@@ -78,12 +78,27 @@ public abstract partial class TeachingMotionViewModel(
     private double _stepDistance = 0.1;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ManualSpeedLabel))]
     private TeachingMoveMode _moveMode;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(TeachCurrentPositionCommand))]
+    [NotifyCanExecuteChangedFor(nameof(MoveToPointCommand))]
+    [NotifyPropertyChangedFor(nameof(TeachingIoGroups))]
+    private TeachingPoint? _selectedPoint;
 
     [ObservableProperty]
     private string? _saveError;
 
     public TeachingMoveMode[] MoveModes { get; } = Enum.GetValues<TeachingMoveMode>();
+
+    public string ManualSpeedLabel
+    {
+        get
+        {
+            return MoveMode == TeachingMoveMode.Step ? "Step speed" : "Jog speed";
+        }
+    }
 
     public ManualControlBlock ManualBlock
     {
@@ -104,14 +119,15 @@ public abstract partial class TeachingMotionViewModel(
     }
 
     public abstract TeachingMotionHint MotionHint { get; }
+    public abstract TeachingSaveBehavior SaveBehavior { get; }
 
     public IReadOnlyList<TeachingIoGroup> TeachingIoGroups
     {
         get
         {
-            if (!_teachingIoGroups.TryGetValue(ActiveMotionGroup, out var groups))
+            if (!_teachingIoGroups.TryGetValue(ActiveTeachingUnit, out var groups))
             {
-                groups = ioGroups[ActiveMotionGroup].Select(
+                groups = ioGroups[ActiveTeachingUnit].Select(
                     io =>
                         new TeachingIoGroup(
                             io,
@@ -120,7 +136,7 @@ public abstract partial class TeachingMotionViewModel(
                             SetOutputOffCommand,
                             SetOutputOnCancelCommand))
                     .ToArray();
-                _teachingIoGroups.Add(ActiveMotionGroup, groups);
+                _teachingIoGroups.Add(ActiveTeachingUnit, groups);
             }
 
             return groups;
@@ -131,7 +147,7 @@ public abstract partial class TeachingMotionViewModel(
     {
         get
         {
-            return teachingOutputs[ActiveMotionGroup];
+            return teachingOutputs[ActiveTeachingUnit];
         }
     }
 
@@ -146,6 +162,7 @@ public abstract partial class TeachingMotionViewModel(
     protected MachineController Machine { get; } = machine;
 
     public abstract MotionGroup ActiveMotionGroup { get; }
+    public abstract HardwareArea ActiveTeachingUnit { get; }
 
     protected bool PositionUpdatesActive { get; private set; }
 
@@ -158,7 +175,15 @@ public abstract partial class TeachingMotionViewModel(
     }
 
     protected abstract IReadOnlyList<TeachingPoint> CurrentPoints { get; }
-    protected abstract TeachingPoint? CurrentPoint { get; set; }
+    partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
+    {
+        CancelTeaching();
+        NotifyPointSelectionCommands();
+        OnPropertyChanged(nameof(SaveBehavior));
+        OnTeachingPointChanged(oldValue, newValue);
+    }
+
+    protected abstract void OnTeachingPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue);
 
     [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
     private Task TeachCurrentPositionAsync(CancellationToken cancellationToken)
@@ -166,7 +191,7 @@ public abstract partial class TeachingMotionViewModel(
         return Machine.RunTeachingEditAsync(
             async token =>
             {
-                if (CurrentPoint is not { Position.Mode: not TeachMode.Image, Position.CanTeach: true } point
+                if (SelectedPoint is not { Position.Mode: not TeachMode.Image, Position.CanTeach: true } point
                     || !Motion.Feedback.IsReady)
                     return;
                 var current = Motion.Feedback.GetPosition();
@@ -190,7 +215,7 @@ public abstract partial class TeachingMotionViewModel(
 
     private bool CanTeachCurrentPosition()
     {
-        return CurrentPoint is { Position.Mode: not TeachMode.Image, Position.CanTeach: true }
+        return SelectedPoint is { Position.Mode: not TeachMode.Image, Position.CanTeach: true }
             && CanEditTeaching
             && Motion.Axes.Values.All(axis => axis.State is not null);
     }
@@ -239,7 +264,7 @@ public abstract partial class TeachingMotionViewModel(
         get
         {
             for (var index = 0; index < CurrentPoints.Count; index++)
-                if (CurrentPoints[index] == CurrentPoint)
+                if (CurrentPoints[index] == SelectedPoint)
                     return index;
             return -1;
         }
@@ -248,13 +273,13 @@ public abstract partial class TeachingMotionViewModel(
     [RelayCommand(CanExecute = nameof(CanSelectPreviousPoint))]
     private void SelectPreviousPoint()
     {
-        CurrentPoint = CurrentPoints[CurrentPointIndex - 1];
+        SelectedPoint = CurrentPoints[CurrentPointIndex - 1];
     }
 
     [RelayCommand(CanExecute = nameof(CanSelectNextPoint))]
     private void SelectNextPoint()
     {
-        CurrentPoint = CurrentPoints[CurrentPointIndex + 1];
+        SelectedPoint = CurrentPoints[CurrentPointIndex + 1];
     }
 
     private bool CanSelectPreviousPoint()
@@ -382,6 +407,21 @@ public abstract partial class TeachingMotionViewModel(
     protected abstract bool CanJog(MotionAxis axis);
     protected abstract void NotifyManualTeachingCommands();
 
+    [RelayCommand(CanExecute = nameof(CanHomeAxis))]
+    private async Task HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken)
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            ViewCancellation);
+        await Machine.HomeAxisAsync(ActiveMotionGroup, axis, cancellation.Token);
+    }
+
+    private bool CanHomeAxis(MotionAxis axis)
+    {
+        return Motion.Axes.ContainsKey(axis)
+            && Machine.CanHomeAxis(ActiveMotionGroup, axis, live: false);
+    }
+
     [RelayCommand(CanExecute = nameof(CanJogZ))]
     protected abstract Task MoveToHorizontalZAsync(CancellationToken cancellationToken);
 
@@ -395,6 +435,7 @@ public abstract partial class TeachingMotionViewModel(
 
     protected void NotifyMotionCommands()
     {
+        HomeAxisCommand.NotifyCanExecuteChanged();
         JogCommand.NotifyCanExecuteChanged();
         StepCommand.NotifyCanExecuteChanged();
         MoveToHorizontalZCommand.NotifyCanExecuteChanged();

@@ -247,6 +247,7 @@ public sealed class InspectionTests
         io.SetInput(InputIo.InspectionHeatSink2Present, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.InspectionStopperDown, true);
+        io.SetInput(InputIo.InspectionStopperUp, false);
         io.SetInput(InputIo.InspectionCarrierPresent, true);
 
         var barcodeImage = await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink2);

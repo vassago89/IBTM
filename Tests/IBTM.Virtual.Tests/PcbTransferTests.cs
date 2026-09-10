@@ -184,7 +184,7 @@ public sealed class PcbTransferTests
         supplyMotion.Initialize();
         placementMotion.Initialize();
         await Task.WhenAll(HomeAsync(supplyMotion, 2_000), HomeAsync(placementMotion, 2_000));
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementBackupPlateUp, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementBackupPlateDown, false);
         io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
         io.SetInput(InputIo.PcbPlacementHeatSink2Present, false);
         io.SetInput(InputIo.PcbPlacementCarrierPresent, true);

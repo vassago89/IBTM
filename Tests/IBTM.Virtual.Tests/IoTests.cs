@@ -59,6 +59,8 @@ public sealed class IoTests
         {
             AutoResponseEnabled = false,
         };
+        io.SetOutput(OutputIo.NgShuttleUp, false);
+        io.SetInput(InputIo.NgShuttleUp, false);
         var observedIo = DispatchProxy.Create<IIoService, OutputReadProbe>();
         var probe = (OutputReadProbe)observedIo;
         probe.Io = io;
@@ -82,9 +84,9 @@ public sealed class IoTests
         signals.RefreshOutputs();
         Assert.False(output.IsOn);
         Assert.Equal(1, probe.Reads);
-        Assert.Equal(OutputIo.NgShuttleDown, output.Signal);
+        Assert.Equal(OutputIo.NgShuttleUp, output.Signal);
         Assert.Equal(
-            new[] { InputIo.NgShuttleDown, InputIo.NgShuttleUp },
+            new[] { InputIo.NgShuttleUp, InputIo.NgShuttleDown },
             output.Feedback.Select(row => row.Signal));
         Assert.All(
             output.Feedback,
@@ -190,21 +192,21 @@ public sealed class IoTests
         io.AutoResponseEnabled = false;
         IIoService signals = io;
         io.SetInput(InputIo.NgShuttleDown, true);
-        var waiting = signals.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true);
+        var waiting = signals.SetOutputAndWaitAsync(OutputIo.NgShuttleUp, false);
         Assert.False(waiting.IsCompleted);
         io.SetInput(InputIo.NgShuttleUp, false);
         await waiting;
 
         io.SetInput(InputIo.NgShuttleUp, true);
         await Assert.ThrowsAsync<IoTimeoutException>(
-            () => signals.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true));
-        Assert.True(io.GetOutput(OutputIo.NgShuttleDown));
+            () => signals.SetOutputAndWaitAsync(OutputIo.NgShuttleUp, false));
+        Assert.False(io.GetOutput(OutputIo.NgShuttleUp));
 
         using var stop = new CancellationTokenSource();
-        waiting = signals.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false, stop.Token);
+        waiting = signals.SetOutputAndWaitAsync(OutputIo.NgShuttleUp, true, stop.Token);
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
-        Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
+        Assert.True(io.GetOutput(OutputIo.NgShuttleUp));
     }
 
     [Fact]

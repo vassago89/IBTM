@@ -105,7 +105,7 @@ public sealed partial class MachineLifecycleTests
         io.AutoResponseEnabled = false;
         io.SetInput(InputIo.ShootingTubeBoltDetected, true);
         io.SetInput(InputIo.ShootingHeadVacuumDetected, false);
-        teaching.SelectedMotionGroup = MotionGroup.BoltFastening;
+        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         var shoot = teaching.TeachingOutputs[OutputIo.ShootBolt];
         var outputs = new List<OutputIo>();
         io.OutputChanged += (output, _) => outputs.Add(output);
@@ -113,14 +113,14 @@ public sealed partial class MachineLifecycleTests
 
         Action[] stopActions = [
             () => teaching.SetOutputOnCancelCommand.Execute(null),
-            () => teaching.SelectedMotionGroup = MotionGroup.InspectionGantry,
+            () => teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry,
             machine.Stop,
             teaching.Deactivate,
             () => io.SetInput(InputIo.AutoMode, false),
         ];
         foreach (var stop in stopActions)
         {
-            teaching.SelectedMotionGroup = MotionGroup.BoltFastening;
+            teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
             await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(shoot));
             var holding = teaching.SetOutputOnCommand.ExecuteAsync(shoot);
             Assert.True(io.GetOutput(OutputIo.ShootBolt));
@@ -152,7 +152,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.InspectionCarrierPresent, true);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateDown, false);
         io.SetInput(InputIo.AutoMode, false);
         void StopDuringTransfer(double x, double y, double z)
         {
@@ -224,7 +224,7 @@ public sealed partial class MachineLifecycleTests
 
         using var stop = new CancellationTokenSource();
         var run = station.RunAsync([], stop.Token);
-        Assert.False(io.GetOutput(OutputIo.NgCarrierGripperClose));
+        Assert.True(io.GetOutput(OutputIo.NgCarrierGripperOpen));
         stop.Cancel();
         await run;
 
@@ -247,7 +247,7 @@ public sealed partial class MachineLifecycleTests
             try
             {
                 Assert.Equal(expected, move.State(NgTransferDestination.Shuttle, canPickUp: true));
-                Assert.False(io.GetOutput(OutputIo.NgCarrierGripperClose));
+                Assert.True(io.GetOutput(OutputIo.NgCarrierGripperOpen));
             }
             finally
             {
@@ -316,7 +316,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.InspectionCarrierPresent, true);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.MainConveyorReadyFromRear, true);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateDown, false);
         var assembly = work.Assembly(HeatSinkSlot.HeatSink1);
         assembly.RecordBoltPresence(1, true);
         assembly.CompleteInspection();
@@ -431,14 +431,14 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.Equal(NgShuttleState.WaitingForCarrierPickupUp, shuttle.State);
-            Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
+            Assert.True(io.GetOutput(OutputIo.NgShuttleUp));
             Assert.False(gantry.Feedback.GetAxisState(MotionAxis.X).ServoOn);
             Assert.False(gantry.Feedback.GetAxisState(MotionAxis.X).Homed);
 
             io.SetInput(InputIo.NgCarrierGripperClosed, false);
             io.SetInput(InputIo.NgCarrierGripperOpen, true);
             Assert.Equal(NgShuttleState.WaitingForCarrierPickupUp, shuttle.State);
-            Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
+            Assert.True(io.GetOutput(OutputIo.NgShuttleUp));
 
             io.SetInput(InputIo.NgCarrierPickupDown, false);
             io.SetInput(InputIo.NgCarrierPickupUp, true);

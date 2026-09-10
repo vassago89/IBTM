@@ -71,66 +71,77 @@ public static class DependencyInjection
         services.AddSingleton(settings.InspectionGantry);
         services.AddSingleton(settings.NgCarrierTransfer);
         services.AddSingleton(settings.NgConveyor);
+        services.AddSingleton(settings.Conveyor);
         services.AddSingleton(settings.Hantas);
         services.AddSingleton<OperationCancellation>();
         var currentRecipe = recipe ?? new Recipe();
         services.AddSingleton(currentRecipe);
 
         AddControlHardware(services, settings);
-        services.AddSingleton<IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>>>(
-            new Dictionary<MotionGroup, TeachingOutput[]>
+        services.AddSingleton<IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>>>(
+            new Dictionary<HardwareArea, TeachingOutput[]>
             {
-                [MotionGroup.PcbSupply] = [
+                [HardwareArea.PcbSupply] = [
                     new(OutputIo.PcbSupplyGripperClosed, HardwareArea.PcbSupply),
                     new(OutputIo.PcbSupplyIpmFixerForward, HardwareArea.PcbSupply),
                     new(OutputIo.PcbSupplyRotate, HardwareArea.PcbSupply),
                 ],
-                [MotionGroup.PcbPlacementHandler] = [
+                [HardwareArea.PcbPlacementHandler] = [
                     new(OutputIo.PcbPlacementHandlerDown, HardwareArea.PcbPlacementHandler),
                     new(OutputIo.PcbPlacementIpmDown, HardwareArea.PcbPlacementHandler),
                     new(OutputIo.PcbPlacementIpmGripperClose, HardwareArea.PcbPlacementHandler),
                     new(OutputIo.PcbPlacementVacuumEjector, HardwareArea.PcbPlacementHandler),
                     new(OutputIo.PcbPlacementHandlerRotate, HardwareArea.PcbPlacementHandler),
-                    new(OutputIo.PcbPlacementBackupPlateUp, HardwareArea.MainConveyor),
+                    new(OutputIo.PcbPlacementBackupPlateDown, HardwareArea.MainConveyor),
                 ],
-                [MotionGroup.BoltFastening] = [
+                [HardwareArea.BoltFastening] = [
                     new(OutputIo.PickupHeadDown, HardwareArea.BoltFastening),
                     new(OutputIo.ShootingHeadDown, HardwareArea.BoltFastening),
                     new(OutputIo.PickupHeadVacuumPump, HardwareArea.BoltFastening),
                     new(OutputIo.ShootingHeadVacuumPump, HardwareArea.BoltFastening),
                     new(OutputIo.ShootBolt, HardwareArea.BoltFastening, HoldToRun: true),
-                    new(OutputIo.BoltFasteningBackupPlateUp, HardwareArea.MainConveyor),
+                    new(OutputIo.BoltFasteningBackupPlateDown, HardwareArea.MainConveyor),
                 ],
-                [MotionGroup.InspectionGantry] = [
-                    new(OutputIo.NgCarrierPickupDown, HardwareArea.NgCarrierTransfer),
-                    new(OutputIo.NgCarrierGripperClose, HardwareArea.NgCarrierTransfer),
-                    new(OutputIo.InspectionBackupPlateUp, HardwareArea.MainConveyor),
+                [HardwareArea.InspectionGantry] = [
+                    new(OutputIo.NgCarrierPickupUp, HardwareArea.NgCarrierTransfer),
+                    new(OutputIo.InspectionBackupPlateDown, HardwareArea.MainConveyor),
+                ],
+                [HardwareArea.NgCarrierTransfer] = [
+                    new(OutputIo.NgCarrierPickupUp, HardwareArea.NgCarrierTransfer),
+                    new(OutputIo.NgCarrierGripperOpen, HardwareArea.NgCarrierTransfer),
+                    new(OutputIo.NgShuttleUp, HardwareArea.NgShuttle),
+                    new(OutputIo.InspectionBackupPlateDown, HardwareArea.MainConveyor),
                 ],
             }.ToDictionary(
                 pair => pair.Key,
                 pair => (IReadOnlyDictionary<OutputIo, TeachingOutput>)pair.Value.ToDictionary(
                     output => output.Signal)));
-        services.AddSingleton<IReadOnlyDictionary<MotionGroup, IoStatus[]>>(
+        services.AddSingleton<IReadOnlyDictionary<HardwareArea, IoStatus[]>>(
             provider =>
             {
                 var io = provider.GetRequiredService<IoSignals>();
                 var buffer = settings.PcbBufferHardware.CreateIoStatus(io);
-                return new Dictionary<MotionGroup, IoStatus[]>
+                return new Dictionary<HardwareArea, IoStatus[]>
                 {
-                    [MotionGroup.PcbSupply] = [settings.PcbSupplyHardware.CreateIoStatus(io), buffer,],
-                    [MotionGroup.PcbPlacementHandler] = [
+                    [HardwareArea.PcbSupply] = [settings.PcbSupplyHardware.CreateIoStatus(io), buffer,],
+                    [HardwareArea.PcbPlacementHandler] = [
                         provider.GetRequiredService<PcbPlacementWork>()
                             .Station.CreateIoStatus(HardwareArea.PcbPlacementStation, io),
                         settings.PcbPlacementHandlerHardware.CreateIoStatus(io),
                         buffer,
                     ],
-                    [MotionGroup.BoltFastening] = [
+                    [HardwareArea.BoltFastening] = [
                         provider.GetRequiredService<BoltFasteningWork>()
                             .Station.CreateIoStatus(HardwareArea.BoltFasteningStation, io),
                         settings.BoltFasteningHardware.CreateIoStatus(io),
                         settings.BoltFeederHardware.CreateIoStatus(io),
                     ],
-                    [MotionGroup.InspectionGantry] = [
+                    [HardwareArea.InspectionGantry] = [
+                        provider.GetRequiredService<InspectionWork>()
+                            .Station.CreateIoStatus(HardwareArea.InspectionStation, io),
+                        settings.NgCarrierTransferHardware.CreateIoStatus(io),
+                    ],
+                    [HardwareArea.NgCarrierTransfer] = [
                         provider.GetRequiredService<InspectionWork>()
                             .Station.CreateIoStatus(HardwareArea.InspectionStation, io),
                         settings.NgCarrierTransferHardware.CreateIoStatus(io),
@@ -180,6 +191,7 @@ public static class DependencyInjection
                 var inspection = provider.GetRequiredService<InspectionWork>();
                 return new MainConveyor(
                     provider.GetRequiredService<IIoService>(),
+                    provider.GetRequiredService<ConveyorSettings>(),
                     provider.GetRequiredService<OperationCancellation>(),
                     provider.GetRequiredService<PcbPlacementWork>(),
                     provider.GetRequiredService<BoltFasteningWork>(),

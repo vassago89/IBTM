@@ -37,6 +37,7 @@ public partial class StationTeachingViewModel
 
             Preview.Clear(SelectedBarcode);
             CameraError = null;
+            SelectedCameraTab = 0;
             await Inspector.StartLiveViewAsync(cancellation.Token);
             if (!_state.ManualMode || !IsInspectionSelected)
                 await StopCameraLiveAsync();
@@ -221,6 +222,7 @@ public partial class StationTeachingViewModel
     [RelayCommand(CanExecute = nameof(CanCaptureInspection))]
     private Task CaptureInspectionAsync(CancellationToken token)
     {
+        SelectedCameraTab = 0;
         return RunInspectionAsync(
             async ct =>
             {

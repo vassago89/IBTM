@@ -68,16 +68,20 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <Grid Margin="18,2">
+    <Viewbox Margin="18,2"
+             Stretch="Uniform"
+             StretchDirection="DownOnly"
+             HorizontalAlignment="Center"
+             VerticalAlignment="Top">
         <Border Background="{StaticResource EquipBgBrush}"
                 BorderBrush="{StaticResource DividerBrush}"
                 BorderThickness="1"
                 CornerRadius="3"
                 ClipToBounds="True">
-            <Grid>
+            <Grid Width="1600">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="72"/>
-                    <RowDefinition Height="820"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <Border Grid.Row="0"
@@ -232,7 +236,7 @@
 
                 <Canvas Grid.Row="1"
                         Width="1600"
-                        Height="820"
+                        Height="{x:Static ui:MachinePlan.PlanHeight}"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Top">
                     <ui:NgConveyorView Canvas.Left="{x:Static ui:MachinePlan.InspectionLeft}" Canvas.Top="0"
@@ -248,5 +252,5 @@
                 </Canvas>
             </Grid>
         </Border>
-    </Grid>
+    </Viewbox>
 </UserControl>

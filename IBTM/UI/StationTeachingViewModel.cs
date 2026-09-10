@@ -35,13 +35,15 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     private Task _recipeImageUpdate = Task.CompletedTask;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInspectionSelected))]
+    [NotifyPropertyChangedFor(nameof(ActiveMotionGroup))]
+    [NotifyPropertyChangedFor(nameof(ActiveTeachingUnit))]
     [NotifyPropertyChangedFor(nameof(TeachingIoGroups))]
     [NotifyCanExecuteChangedFor(nameof(ToggleLiveViewCommand))]
     [NotifyCanExecuteChangedFor(nameof(CaptureCarrierImagesCommand))]
     [NotifyCanExecuteChangedFor(nameof(TeachImagePointCommand))]
     [NotifyCanExecuteChangedFor(nameof(AddBoltPointCommand))]
     [NotifyCanExecuteChangedFor(nameof(ReturnFromPickupCommand))]
-    private MotionGroup _selectedMotionGroup = MotionGroup.InspectionGantry;
+    private HardwareArea _selectedTeachingUnit = HardwareArea.InspectionGantry;
 
     [ObservableProperty]
     private FasteningHead _newFasteningHead = FasteningHead.Shooting;
@@ -52,6 +54,9 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     private HeatSinkSlot _selectedPcb = HeatSinkSlot.HeatSink1;
     [ObservableProperty]
     private BitmapSource? _liveImage;
+
+    [ObservableProperty]
+    private int _selectedCameraTab;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasCarrierImages))]
@@ -85,13 +90,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     public BoltInspector Inspector { get; }
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(TeachCurrentPositionCommand))]
-    [NotifyCanExecuteChangedFor(nameof(MoveToPointCommand))]
-    [NotifyCanExecuteChangedFor(nameof(TeachImagePointCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RemoveBoltPointCommand))]
-    private TeachingPoint? _selectedPoint;
-
     public StationTeachingViewModel(
         PcbPlacementHandler placementHandler,
         BoltFasteningGantry fasteningGantry,
@@ -109,8 +107,8 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         BoltTrainingStore trainingStore,
         BoltTrainingSettings trainingSettings,
         MachineStore store,
-        IReadOnlyDictionary<MotionGroup, IoStatus[]> ioGroups,
-        IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : base(
+        IReadOnlyDictionary<HardwareArea, IoStatus[]> ioGroups,
+        IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : base(
             state,
             machine,
             store,
@@ -142,7 +140,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 ReinspectImageCommand.Execute(null);
         };
         inspectionWork.Changed += QueueManualCommandRefresh;
-        RefreshMotionGroups();
 
         MillimetersPerPixel = RecipeEditor.Recipe.CarrierImageMillimetersPerPixel;
         ScanOverlap = RecipeEditor.Recipe.BoltInspection.CarrierScanOverlapMillimeters;
@@ -224,20 +221,12 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         }
     }
 
-    protected override TeachingPoint? CurrentPoint
-    {
-        get
-        {
-            return SelectedPoint;
-        }
-
-        set
-        {
-            SelectedPoint = value;
-        }
-    }
-
-    public MotionGroup[] MotionGroups { get; private set; } = [];
+    public HardwareArea[] TeachingUnits { get; } = [
+        HardwareArea.PcbPlacementHandler,
+        HardwareArea.BoltFastening,
+        HardwareArea.InspectionGantry,
+        HardwareArea.NgCarrierTransfer,
+    ];
     public FasteningHead[] FasteningHeads { get; } = Enum.GetValues<FasteningHead>();
     public HeatSinkSlot[] HeatSinkSlots { get; } = Enum.GetValues<HeatSinkSlot>();
 
@@ -270,7 +259,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         return live ? _state.SetupEditingEnabled : _state.Display.SetupEditingEnabled;
     }
 
-    public TeachingSaveBehavior SaveBehavior
+    public override TeachingSaveBehavior SaveBehavior
     {
         get
         {
@@ -299,7 +288,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         get
         {
-            return SelectedMotionGroup == MotionGroup.InspectionGantry;
+            return SelectedTeachingUnit == HardwareArea.InspectionGantry;
         }
     }
 
@@ -307,7 +296,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         get
         {
-            return SelectedMotionGroup == MotionGroup.BoltFastening || IsInspectionSelected;
+            return SelectedTeachingUnit == HardwareArea.BoltFastening || IsInspectionSelected;
         }
     }
 
@@ -315,7 +304,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         get
         {
-            return SelectedMotionGroup == MotionGroup.BoltFastening;
+            return SelectedTeachingUnit == HardwareArea.BoltFastening;
         }
     }
 
@@ -384,7 +373,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         NotifyManualTeachingCommands();
     }
 
-    partial void OnSelectedMotionGroupChanged(MotionGroup value)
+    partial void OnSelectedTeachingUnitChanged(HardwareArea value)
     {
         CancelTeaching();
 
@@ -397,7 +386,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         OnPropertyChanged(nameof(CameraFieldOfView));
         OnPropertyChanged(nameof(BoltPointEditorVisible));
         OnPropertyChanged(nameof(BoltPresetEditorVisible));
-        NotifyMotionCommands();
+        NotifyManualTeachingCommands();
     }
 
     protected override void OnPointTaught(TeachingPoint point)
@@ -452,7 +441,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         CameraError = null;
         RecipeEditor.Refresh();
-        RefreshMotionGroups();
         RefreshTeachingPoints();
         ActivatePositionUpdates();
         OnPropertyChanged(nameof(CameraFieldOfView));
@@ -478,6 +466,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 Deactivate,
                 ToggleLiveViewCommand,
                 JogCommand,
+                HomeAxisCommand,
                 StepCommand,
                 MoveToHorizontalZCommand,
                 MoveToPointCommand,
@@ -508,19 +497,19 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         var selectedTarget = SelectedPoint?.Position.Target;
         var selectedBolt = SelectedPoint?.BoltNumber;
-        TeachingPosition[] positions = SelectedMotionGroup switch
+        TeachingPosition[] positions = SelectedTeachingUnit switch
         {
-            MotionGroup.PcbPlacementHandler
+            HardwareArea.PcbPlacementHandler
                 => [
                 .. _placementSettings.GetTeachingPositions(),
                 .. RecipeEditor.Recipe.PcbPlacement.GetTeachingPositions(),
             ],
-            MotionGroup.BoltFastening
+            HardwareArea.BoltFastening
                 => _fasteningSettings.GetTeachingPositions(
                     RecipeEditor.Recipe.Pcb,
                     SelectedPcb,
                     _carrierReference),
-            MotionGroup.InspectionGantry
+            HardwareArea.InspectionGantry
                 => [
                 .. _inspectionGantrySettings.GetTeachingPositions(_carrierReference),
                 .. _inspectionGantrySettings.GetPcbTeachingPositions(
@@ -530,9 +519,9 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 .. _inspectionGantrySettings.GetBoltTeachingPositions(
                     RecipeEditor.Recipe.Pcb.GetBolts(SelectedPcb),
                     _carrierReference),
-                .. _ngTransferSettings.GetTeachingPositions(),
             ],
-            _ => throw new ArgumentOutOfRangeException(nameof(SelectedMotionGroup)),
+            HardwareArea.NgCarrierTransfer => _ngTransferSettings.GetTeachingPositions(),
+            _ => throw new ArgumentOutOfRangeException(nameof(SelectedTeachingUnit)),
         };
         FilteredPoints = positions.Select(position => new TeachingPoint(position)).ToArray();
         SelectedPoint = FilteredPoints.FirstOrDefault(
@@ -569,17 +558,18 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 point => point.Position.Target == TeachingTarget.BoltReference && !point.Position.HasPosition);
     }
 
-    partial void OnSelectedPointChanged(TeachingPoint? value)
+    protected override void OnTeachingPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
     {
-        CancelTeaching();
+        if (IsInspectionSelected)
+            SelectedCameraTab = newValue?.Position.Mode == TeachMode.Image ? 1 : 0;
         Preview.Clear(SelectedBarcode);
         OnPropertyChanged(nameof(SelectedBarcode));
         OnPropertyChanged(nameof(ImageOrigin));
         OnPropertyChanged(nameof(TeachingRegions));
         CaptureInspectionCommand.NotifyCanExecuteChanged();
         TeachImageRegionCommand.NotifyCanExecuteChanged();
-        NotifyPointSelectionCommands();
-        OnPropertyChanged(nameof(SaveBehavior));
+        TeachImagePointCommand.NotifyCanExecuteChanged();
+        RemoveBoltPointCommand.NotifyCanExecuteChanged();
         RefreshImageMarkers();
     }
 
@@ -712,20 +702,4 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         RefreshImageMarkers();
     }
 
-    private void RefreshMotionGroups()
-    {
-        MotionGroups = [
-            MotionGroup.PcbPlacementHandler,
-            MotionGroup.BoltFastening,
-            MotionGroup.InspectionGantry
-        ];
-        OnPropertyChanged(nameof(MotionGroups));
-        OnPropertyChanged(nameof(IsInspectionSelected));
-        OnPropertyChanged(nameof(BoltPointEditorVisible));
-        OnPropertyChanged(nameof(BoltPresetEditorVisible));
-        if (!MotionGroups.Contains(SelectedMotionGroup))
-        {
-            SelectedMotionGroup = MotionGroups[0];
-        }
-    }
 }

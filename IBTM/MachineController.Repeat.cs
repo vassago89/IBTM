@@ -145,9 +145,9 @@ public sealed partial class MachineController
 
                     case RepeatPhase.ReturnToStation3:
                         await _io.SetOutputAndWaitAsync(
-                            OutputIo.InspectionStopperUp, false, cancellationToken);
+                            OutputIo.InspectionStopperDown, true, cancellationToken);
                         await _inspectionWork.Station.RaiseBackupPlateAsync(cancellationToken);
-                        await _ngShuttle.SetDownAsync(false, cancellationToken);
+                        await _ngShuttle.SetUpAsync(true, cancellationToken);
                         await _ngMove.RunToAsync(NgTransferDestination.Station, cancellationToken);
                         SetRepeatPhase(RepeatPhase.ReturnToStart);
                         break;
@@ -215,9 +215,9 @@ public sealed partial class MachineController
             CheckPickup();
             operation.Token.ThrowIfCancellationRequested();
             if (!_ngShuttle.Feedback.CarrierDetected)
-                await _ngShuttle.SetDownAsync(true, operation.Token);
+                await _ngShuttle.SetUpAsync(false, operation.Token);
             await _ngConveyor.ReturnToShuttleAsync(operation.Token);
-            await _ngShuttle.SetDownAsync(false, operation.Token);
+            await _ngShuttle.SetUpAsync(true, operation.Token);
             operation.Token.ThrowIfCancellationRequested();
         }
         finally

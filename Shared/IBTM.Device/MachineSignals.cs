@@ -262,11 +262,11 @@ public enum OutputIo
     [Description("Ready To Front 2 (Heat Sink)")]
     MainConveyorReadyToFront2,
 
-    [Description("PCB Placement Stopper Up")]
-    PcbPlacementStopperUp,
+    [Description("PCB Placement Stopper Down")]
+    PcbPlacementStopperDown,
 
-    [Description("PCB Placement Backup Plate Up")]
-    PcbPlacementBackupPlateUp,
+    [Description("PCB Placement Backup Plate Down")]
+    PcbPlacementBackupPlateDown,
 
     [Description("Placement IPM Gripper Close")]
     PcbPlacementIpmGripperClose,
@@ -304,29 +304,29 @@ public enum OutputIo
     [Description("Pickup Head Vacuum Pump (Head 1)")]
     PickupHeadVacuumPump,
 
-    [Description("Bolt Fastening Stopper Up")]
-    BoltFasteningStopperUp,
+    [Description("Bolt Fastening Stopper Down")]
+    BoltFasteningStopperDown,
 
-    [Description("Bolt Fastening Backup Plate Up")]
-    BoltFasteningBackupPlateUp,
+    [Description("Bolt Fastening Backup Plate Down")]
+    BoltFasteningBackupPlateDown,
 
     [Description("Shooting Head Vacuum Pump (Head 2)")]
     ShootingHeadVacuumPump,
 
-    [Description("Inspection Stopper Up")]
-    InspectionStopperUp,
+    [Description("Inspection Stopper Down")]
+    InspectionStopperDown,
 
-    [Description("Inspection Backup Plate Up")]
-    InspectionBackupPlateUp,
+    [Description("Inspection Backup Plate Down")]
+    InspectionBackupPlateDown,
 
-    [Description("NG Carrier Pickup Down")]
-    NgCarrierPickupDown,
+    [Description("NG Carrier Pickup Up")]
+    NgCarrierPickupUp,
 
-    [Description("NG Carrier Gripper Close")]
-    NgCarrierGripperClose,
+    [Description("NG Carrier Gripper Open")]
+    NgCarrierGripperOpen,
 
-    [Description("NG Shuttle Down")]
-    NgShuttleDown,
+    [Description("NG Shuttle Up")]
+    NgShuttleUp,
 
     [Description("Shooting Feeder Run (Linear)")]
     ShootingFeederRunSignal,
@@ -340,23 +340,17 @@ public enum OutputIo
     [Description("Main Conveyor Run")]
     MainConveyorRun,
 
-    [Description("Main Conveyor Reverse")]
-    MainConveyorReverse,
+    [Description("Main Conveyor Forward")]
+    MainConveyorForward,
 
-    [Description("Main Conveyor Normal Speed")]
-    MainConveyorNormalSpeed,
-
-    [Description("NG Conveyor Stopper Up")]
-    NgConveyorStopperUp,
+    [Description("NG Conveyor Stopper Down")]
+    NgConveyorStopperDown,
 
     [Description("NG Conveyor Run")]
     NgConveyorRun,
 
     [Description("NG Conveyor Reverse")]
     NgConveyorReverse,
-
-    [Description("NG Conveyor Normal Speed")]
-    NgConveyorNormalSpeed,
 
     [Description("NG Carrier Eject Lamp")]
     NgCarrierEjectLamp,

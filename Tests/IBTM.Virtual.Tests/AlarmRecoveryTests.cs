@@ -19,7 +19,7 @@ namespace IBTM.Virtual.Tests;
 public sealed class AlarmRecoveryTests
 {
     [Fact]
-    public async Task TowerLampsAndBuzzerFollowMachineStateNotNgMotorStop()
+    public async Task IndicatorsChangeOnNotificationsNotDisplayRefreshOrNgMotorStop()
     {
         using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
@@ -30,11 +30,35 @@ public sealed class AlarmRecoveryTests
         try
         {
             await AssertIndicatorsAsync(OutputIo.TowerLampYellow, false);
+            Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(OutputIo.Buzzer));
+            Assert.Equal(OutputBlockReason.None, machine.ToggleDiagnosticOutput(OutputIo.TowerLampYellow));
+            var refreshed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            void OnDisplayChanged()
+            {
+                refreshed.TrySetResult();
+            }
+
+            state.DisplayChanged += OnDisplayChanged;
+            try
+            {
+                state.RequestDisplayRefresh();
+                await refreshed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.True(io.GetOutput(OutputIo.Buzzer));
+                Assert.False(io.GetOutput(OutputIo.TowerLampYellow));
+            }
+            finally
+            {
+                state.DisplayChanged -= OnDisplayChanged;
+            }
+
+            state.SilenceBuzzer();
+            Assert.False(io.GetOutput(OutputIo.Buzzer));
+            Assert.False(io.GetOutput(OutputIo.TowerLampYellow));
             io.SetInput(InputIo.AutoMode, false); // Selecting AUTO alone is not Auto Run.
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => state.Display.AutoMode,
                 TimeSpan.FromSeconds(2)));
-            await AssertIndicatorsAsync(OutputIo.TowerLampYellow, false);
+            Assert.False(io.GetOutput(OutputIo.TowerLampYellow));
             state.SetAutomaticRunning(true);
             await AssertIndicatorsAsync(OutputIo.TowerLampGreen, false);
 
@@ -46,8 +70,12 @@ public sealed class AlarmRecoveryTests
             await machine.ResetAsync();
             await AssertIndicatorsAsync(OutputIo.TowerLampRed, false);
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
-            state.UpdateMachineIndicators();
+            state.RequestDisplayRefresh();
             Assert.False(io.GetOutput(OutputIo.Buzzer));
+            state.SetError(MachineAlarm.Inspection);
+            await AssertIndicatorsAsync(OutputIo.TowerLampRed, true);
+            await machine.ResetAsync();
+            await AssertIndicatorsAsync(OutputIo.TowerLampRed, false);
             state.ClearError();
             await AssertIndicatorsAsync(OutputIo.TowerLampGreen, false);
 
@@ -92,8 +120,6 @@ public sealed class AlarmRecoveryTests
         var io = services.GetRequiredService<VirtualIoService>();
         var signals = services.GetRequiredService<IoSignals>();
         await machine.InitializeAsync();
-        // Test the direct write itself; common indicators have their own state policy.
-        await state.StopDisplayUpdatesAsync();
         try
         {
             io.AutoResponseEnabled = false;
@@ -220,6 +246,8 @@ public sealed class AlarmRecoveryTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
+        Assert.True(io.GetOutput(OutputIo.MainConveyorForward));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         try
         {
             io.AutoResponseEnabled = false;
@@ -248,8 +276,7 @@ public sealed class AlarmRecoveryTests
                         () => io.GetOutput(OutputIo.MainConveyorRun),
                         TimeSpan.FromSeconds(2)));
                 Assert.True(state.IsRunning);
-                Assert.False(io.GetOutput(OutputIo.MainConveyorReverse));
-                Assert.True(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
+                Assert.True(io.GetOutput(OutputIo.MainConveyorForward));
                 Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
                 Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
                 Assert.True(row.StopCommand.CanExecute(null));
@@ -297,7 +324,6 @@ public sealed class AlarmRecoveryTests
             Assert.False(state.IsRunning);
 
             outputRow.ToggleCommand.Execute(null);
-            manual.Deactivate(); // Manual does not own an output started by OUTPUTS.
             Assert.True(io.GetOutput(output));
             Assert.True(manualRow.StopCommand.CanExecute(null));
             manualRow.StopCommand.Execute(null);
@@ -306,7 +332,7 @@ public sealed class AlarmRecoveryTests
 
             var ownedRun = manualRow.RunCommand.ExecuteAsync(null);
             Assert.True(io.GetOutput(output));
-            manual.Deactivate();
+            await manual.ShutdownAsync(); // Application shutdown still stops owned runs.
             await ownedRun.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(io.GetOutput(output));
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
@@ -333,8 +359,8 @@ public sealed class AlarmRecoveryTests
             var row = new ManualConveyorRow(
                 services.GetRequiredService<IoSignals>().Outputs[OutputIo.NgConveyorRun],
                 machine);
-            var shuttle = io.GetOutput(OutputIo.NgShuttleDown);
-            var stopper = io.GetOutput(OutputIo.NgConveyorStopperUp);
+            var shuttle = io.GetOutput(OutputIo.NgShuttleUp);
+            var stopper = io.GetOutput(OutputIo.NgConveyorStopperDown);
             foreach (var up in new[] { true, false })
             {
                 io.SetInput(InputIo.NgShuttleUp, up);
@@ -345,9 +371,8 @@ public sealed class AlarmRecoveryTests
                         () => io.GetOutput(OutputIo.NgConveyorRun),
                         TimeSpan.FromSeconds(2)));
                 Assert.False(io.GetOutput(OutputIo.NgConveyorReverse));
-                Assert.True(io.GetOutput(OutputIo.NgConveyorNormalSpeed));
-                Assert.Equal(shuttle, io.GetOutput(OutputIo.NgShuttleDown));
-                Assert.Equal(stopper, io.GetOutput(OutputIo.NgConveyorStopperUp));
+                Assert.Equal(shuttle, io.GetOutput(OutputIo.NgShuttleUp));
+                Assert.Equal(stopper, io.GetOutput(OutputIo.NgConveyorStopperDown));
                 // First pass: carriers appear while running. Second pass: start
                 // with every carrier sensor already ON. Neither starts a sequence.
                 var previous = state.Display;
@@ -457,13 +482,13 @@ public sealed class AlarmRecoveryTests
             Assert.False(machine.CanHome);
 
             var output = view.OutputMappings.Single(
-                row => row.Signal.Equals(OutputIo.PcbPlacementStopperUp)).Output!;
+                row => row.Signal.Equals(OutputIo.PcbPlacementStopperDown)).Output!;
             var axis = view.AxisMappings.Single(
                 row => row.Signal.Equals(MachineAxis.InspectionGantryX)).Axis!;
-            Assert.Same(view.Settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementStopperUp], output);
+            Assert.Same(view.Settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementStopperDown], output);
             Assert.Same(view.Settings.InspectionGantryHardware.Axes[MachineAxis.InspectionGantryX], axis);
             var runningOutput = services.GetRequiredService<IReadOnlyDictionary<OutputIo, OutputHardware>>()
-                [OutputIo.PcbPlacementStopperUp];
+                [OutputIo.PcbPlacementStopperDown];
             var originalOutput = (runningOutput.Number, runningOutput.OffNumber, runningOutput.Feedback!.OnInput);
             var runningMotion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
             var originalRange = runningMotion.GetRange(MotionAxis.X);
@@ -493,7 +518,7 @@ public sealed class AlarmRecoveryTests
                     .Get<AlphaMotionSettings>()
                     .ControllerNumber);
             var saved = services.GetRequiredService<MachineStore>().LoadSettings();
-            var savedOutput = saved.Get<ConveyorHardwareSettings>().Outputs[OutputIo.PcbPlacementStopperUp];
+            var savedOutput = saved.Get<ConveyorHardwareSettings>().Outputs[OutputIo.PcbPlacementStopperDown];
             var savedAxis = saved.Get<InspectionGantryHardwareSettings>().Axes[MachineAxis.InspectionGantryX];
             Assert.Equal((80, (int?)81, InputIo.InspectionStopperUp),
                 (savedOutput.Number, savedOutput.OffNumber, savedOutput.Feedback!.OnInput));

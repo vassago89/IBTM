@@ -37,6 +37,87 @@ public sealed class MachineStore
         using var db = new MachineDb(_options);
         // Settings and recipes evolve inside JSON, not as database columns.
         db.Database.EnsureCreated();
+        // Correct only the obsolete conveyor output keys; retain configured channel numbers.
+        db.Database.ExecuteSqlRaw("""
+            UPDATE Settings
+            SET Value = json_remove(
+                json_set(Value, '$.Outputs.MainConveyorForward',
+                    json(COALESCE(json_extract(Value, '$.Outputs.MainConveyorForward'),
+                                  json_extract(Value, '$.Outputs.MainConveyorReverse')))),
+                '$.Outputs.MainConveyorReverse')
+            WHERE Key = 'ConveyorHardwareSettings'
+              AND json_type(Value, '$.Outputs.MainConveyorReverse') IS NOT NULL;
+
+            UPDATE Settings
+            SET Value = json_remove(Value, '$.Outputs.MainConveyorNormalSpeed', '$.Outputs.NgConveyorNormalSpeed')
+            WHERE Key IN ('ConveyorHardwareSettings', 'NgConveyorHardwareSettings')
+              AND (json_type(Value, '$.Outputs.MainConveyorNormalSpeed') IS NOT NULL
+                OR json_type(Value, '$.Outputs.NgConveyorNormalSpeed') IS NOT NULL);
+            """);
+
+        // These renamed outputs reverse ON/OFF meaning. Keep channels and swap the feedback pair.
+        foreach (var (section, oldSignal, newSignal) in new[]
+        {
+            ("ConveyorHardwareSettings", "PcbPlacementBackupPlateUp", "PcbPlacementBackupPlateDown"),
+            ("ConveyorHardwareSettings", "BoltFasteningBackupPlateUp", "BoltFasteningBackupPlateDown"),
+            ("ConveyorHardwareSettings", "InspectionBackupPlateUp", "InspectionBackupPlateDown"),
+            ("ConveyorHardwareSettings", "PcbPlacementStopperUp", "PcbPlacementStopperDown"),
+            ("ConveyorHardwareSettings", "BoltFasteningStopperUp", "BoltFasteningStopperDown"),
+            ("ConveyorHardwareSettings", "InspectionStopperUp", "InspectionStopperDown"),
+            ("NgConveyorHardwareSettings", "NgConveyorStopperUp", "NgConveyorStopperDown"),
+            ("NgCarrierTransferHardwareSettings", "NgCarrierPickupDown", "NgCarrierPickupUp"),
+            ("NgCarrierTransferHardwareSettings", "NgCarrierGripperClose", "NgCarrierGripperOpen"),
+            ("NgShuttleHardwareSettings", "NgShuttleDown", "NgShuttleUp"),
+        })
+        {
+            var oldPath = $"$.Outputs.{oldSignal}";
+            var newPath = $"$.Outputs.{newSignal}";
+            db.Database.ExecuteSqlRaw("""
+                UPDATE Settings
+                SET Value = json_remove(
+                    json_set(Value, {1}, json(COALESCE(
+                        json_extract(Value, {1}),
+                        json_set(json_extract(Value, {0}),
+                            '$.Feedback.OnInput', json_extract(Value, {0} || '.Feedback.OffInput'),
+                            '$.Feedback.OffInput', json_extract(Value, {0} || '.Feedback.OnInput'))))),
+                    {0})
+                WHERE Key = {2}
+                  AND json_type(Value, {0}) IS NOT NULL;
+                """, oldPath, newPath, section);
+        }
+
+        // Correct the old default DI pairs once; leave custom channel assignments intact.
+        foreach (var (section, signal, oldUp, oldDown) in new[]
+        {
+            ("ConveyorHardwareSettings", "PcbPlacementStopper", 57, 58),
+            ("ConveyorHardwareSettings", "BoltFasteningStopper", 64, 65),
+            ("ConveyorHardwareSettings", "InspectionStopper", 71, 72),
+            ("NgConveyorHardwareSettings", "NgConveyorStopper", 87, 88),
+        })
+        {
+            db.Database.ExecuteSqlRaw("""
+                UPDATE Settings
+                SET Value = json_set(Value, {1}, {4}, {2}, {3})
+                WHERE Key = {0}
+                  AND json_extract(Value, {1}) = {3}
+                  AND json_extract(Value, {2}) = {4};
+                """, section, $"$.Inputs.{signal}Up", $"$.Inputs.{signal}Down", oldUp, oldDown);
+        }
+
+        // Restore mappings omitted by the sensorless NG stopper version; retain configured channels.
+        db.Database.ExecuteSqlRaw("""
+            UPDATE Settings
+            SET Value = json_set(Value,
+                '$.Inputs.NgConveyorStopperDown', COALESCE(json_extract(Value, '$.Inputs.NgConveyorStopperDown'), 87),
+                '$.Inputs.NgConveyorStopperUp', COALESCE(json_extract(Value, '$.Inputs.NgConveyorStopperUp'), 88),
+                '$.Outputs.NgConveyorStopperDown.Feedback',
+                json(COALESCE(json_extract(Value, '$.Outputs.NgConveyorStopperDown.Feedback'),
+                    json_object('OnInput', 'NgConveyorStopperDown', 'OffInput', 'NgConveyorStopperUp'))))
+            WHERE Key = 'NgConveyorHardwareSettings'
+              AND (json_extract(Value, '$.Inputs.NgConveyorStopperUp') IS NULL
+                OR json_extract(Value, '$.Inputs.NgConveyorStopperDown') IS NULL
+                OR json_extract(Value, '$.Outputs.NgConveyorStopperDown.Feedback') IS NULL);
+            """);
     }
 
     public bool HasData

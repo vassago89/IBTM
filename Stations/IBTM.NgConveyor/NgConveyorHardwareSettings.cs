@@ -21,10 +21,9 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings
                 or InputIo.NgConveyorAutoMode
                 or InputIo.NgConveyorStopperUp
                 or InputIo.NgConveyorStopperDown
-                or OutputIo.NgConveyorStopperUp
+                or OutputIo.NgConveyorStopperDown
                 or OutputIo.NgConveyorRun
                 or OutputIo.NgConveyorReverse
-                or OutputIo.NgConveyorNormalSpeed
                 => IoSection.NgConveyorStorage,
             InputIo.NgCarrierEjectButton
                 or InputIo.NgCarrierEjectCompleteButton
@@ -42,21 +41,20 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings
             [InputIo.NgConveyorAutoMode] = 83,
             [InputIo.NgConveyorPosition1Occupied] = 84,
             [InputIo.NgConveyorPosition2Occupied] = 85,
-            [InputIo.NgConveyorStopperUp] = 87,
-            [InputIo.NgConveyorStopperDown] = 88,
+            [InputIo.NgConveyorStopperDown] = 87,
+            [InputIo.NgConveyorStopperUp] = 88,
             [InputIo.NgCarrierEjectButton] = 89,
             [InputIo.NgCarrierEjectCompleteButton] = 90,
         };
         Outputs = new()
         {
-            [OutputIo.NgConveyorStopperUp] = Output(
+            [OutputIo.NgConveyorStopperDown] = Output(
                 70,
                 71,
-                InputIo.NgConveyorStopperUp,
-                InputIo.NgConveyorStopperDown),
+                InputIo.NgConveyorStopperDown,
+                InputIo.NgConveyorStopperUp),
             [OutputIo.NgConveyorRun] = Output(72),
             [OutputIo.NgConveyorReverse] = Output(73),
-            [OutputIo.NgConveyorNormalSpeed] = Output(74),
             [OutputIo.NgCarrierEjectLamp] = Output(75),
             [OutputIo.NgCarrierEjectCompleteLamp] = Output(76),
         };

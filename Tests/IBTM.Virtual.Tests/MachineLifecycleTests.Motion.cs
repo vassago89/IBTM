@@ -179,7 +179,7 @@ public sealed partial class MachineLifecycleTests
             }
         };
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
-        teaching.SelectedMotionGroup = MotionGroup.InspectionGantry;
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
         await teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus)
             .WaitAsync(TimeSpan.FromSeconds(2));
@@ -300,9 +300,10 @@ public sealed partial class MachineLifecycleTests
             OutputIo.PcbPlacementHandlerDown,
             OutputIo.PickupHeadDown,
             OutputIo.ShootingHeadDown,
-            OutputIo.NgCarrierPickupDown,
+            OutputIo.NgCarrierPickupUp,
         ];
-        await Task.WhenAll(cylinders.Select(output => signals.SetOutputAndWaitAsync(output, true)));
+        await Task.WhenAll(cylinders.Select(
+            output => signals.SetOutputAndWaitAsync(output, output != OutputIo.NgCarrierPickupUp)));
         await signals.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
         var motions = new[]
         {
@@ -335,7 +336,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(state.Homed);
         Assert.False(moved);
         Assert.Equal(cylinders.Order(), outputChanges.Order());
-        Assert.All(cylinders, output => Assert.False(io.GetOutput(output)));
+        Assert.All(cylinders, output => Assert.Equal(output == OutputIo.NgCarrierPickupUp, io.GetOutput(output)));
         Assert.True(io.GetOutput(OutputIo.PcbPlacementIpmDown));
         Assert.True(io.GetInput(InputIo.PcbPlacementIpmDown));
         await machine.RaiseCylindersAsync(CancellationToken.None);
@@ -357,7 +358,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         io.AutoResponseEnabled = false;
-        io.SetOutput(OutputIo.NgCarrierPickupDown, true);
+        io.SetOutput(OutputIo.NgCarrierPickupUp, false);
         io.SetOutput(OutputIo.PcbPlacementHandlerDown, true);
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
@@ -365,13 +366,13 @@ public sealed partial class MachineLifecycleTests
         machine.Stop();
         await raising;
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
+        Assert.True(io.GetOutput(OutputIo.NgCarrierPickupUp));
         Assert.True(io.GetOutput(OutputIo.PcbPlacementHandlerDown));
         Assert.False(machine.CanHome);
 
         await machine.RaiseCylindersAsync(CancellationToken.None);
         Assert.Equal(MachineAlarm.NgCarrierTransfer, state.Alarm);
-        Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
+        Assert.True(io.GetOutput(OutputIo.NgCarrierPickupUp));
         Assert.False(state.IsRunning);
         Assert.False(state.Homed);
     }
@@ -391,14 +392,14 @@ public sealed partial class MachineLifecycleTests
         var gantry = services.GetRequiredService<InspectionGantry>();
         IIoService signals = io;
         await machine.InitializeAsync();
-        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperClose, true);
-        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, true);
+        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperOpen, false);
+        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierDetected, true);
 
         Assert.False(machine.CanHome);
         await machine.HomeAsync(CancellationToken.None);
         await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.HomeAxisAsync(MotionAxis.X));
-        Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
+        Assert.False(io.GetOutput(OutputIo.NgCarrierGripperOpen));
         Assert.False(state.Homed);
 
         io.SetInput(InputIo.NgCarrierDetected, false);
@@ -407,11 +408,11 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.HomeAxisAsync(MotionAxis.X));
         Assert.False(state.Homed);
-        Assert.True(io.GetOutput(OutputIo.NgCarrierPickupDown));
-        Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
+        Assert.False(io.GetOutput(OutputIo.NgCarrierPickupUp));
+        Assert.False(io.GetOutput(OutputIo.NgCarrierGripperOpen));
 
-        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperClose, false);
-        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, false);
+        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperOpen, true);
+        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupUp, true);
         Assert.True(machine.CanHome);
 
         var unsafeMovement = false;
@@ -552,7 +553,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await gantry.MoveZAsync(14);
-        teaching.SelectedMotionGroup = MotionGroup.BoltFastening;
+        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.BoltPickup);
         Assert.Equal(TeachingSaveBehavior.BoltPickup, teaching.SaveBehavior);
@@ -644,7 +645,7 @@ public sealed partial class MachineLifecycleTests
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        teaching.SelectedMotionGroup = MotionGroup.BoltFastening;
+        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.BoltPickup);
         if (returning)
@@ -763,7 +764,7 @@ public sealed partial class MachineLifecycleTests
         if (group == MotionGroup.BoltFastening)
         {
             var teaching = services.GetRequiredService<StationTeachingViewModel>();
-            teaching.SelectedMotionGroup = group;
+            teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
             teaching.StepDistance = 0.1;
             await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
             var before = probes[group].Motion.GetPosition();

@@ -70,8 +70,8 @@ public sealed class ConveyorStation
             InputIo.PcbPlacementStopperDown,
             InputIo.PcbPlacementHeatSink1Present,
             InputIo.PcbPlacementHeatSink2Present,
-            OutputIo.PcbPlacementBackupPlateUp,
-            OutputIo.PcbPlacementStopperUp);
+            OutputIo.PcbPlacementBackupPlateDown,
+            OutputIo.PcbPlacementStopperDown);
     }
 
     public static ConveyorStation BoltFastening(IIoService io)
@@ -85,8 +85,8 @@ public sealed class ConveyorStation
             InputIo.BoltFasteningStopperDown,
             InputIo.BoltFasteningHeatSink1Present,
             InputIo.BoltFasteningHeatSink2Present,
-            OutputIo.BoltFasteningBackupPlateUp,
-            OutputIo.BoltFasteningStopperUp);
+            OutputIo.BoltFasteningBackupPlateDown,
+            OutputIo.BoltFasteningStopperDown);
     }
 
     public static ConveyorStation Inspection(IIoService io)
@@ -100,8 +100,8 @@ public sealed class ConveyorStation
             InputIo.InspectionStopperDown,
             InputIo.InspectionHeatSink1Present,
             InputIo.InspectionHeatSink2Present,
-            OutputIo.InspectionBackupPlateUp,
-            OutputIo.InspectionStopperUp);
+            OutputIo.InspectionBackupPlateDown,
+            OutputIo.InspectionStopperDown);
     }
 
     public bool CarrierPresent
@@ -152,27 +152,27 @@ public sealed class ConveyorStation
     public Task PrepareToReceiveAsync(CancellationToken cancellationToken)
     {
         return Task.WhenAll(
-            _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken),
-            _io.SetOutputAndWaitAsync(_backupPlate, false, cancellationToken));
+            _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken),
+            _io.SetOutputAndWaitAsync(_backupPlate, true, cancellationToken));
     }
 
     public Task ReleaseAsync(CancellationToken cancellationToken)
     {
         return Task.WhenAll(
-            _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken),
-            _io.SetOutputAndWaitAsync(_backupPlate, false, cancellationToken));
+            _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken),
+            _io.SetOutputAndWaitAsync(_backupPlate, true, cancellationToken));
     }
 
     public async Task SeatAsync(CancellationToken cancellationToken)
     {
-        await _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken);
-        await _io.SetOutputAndWaitAsync(_backupPlate, true, cancellationToken);
         await _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken);
+        await _io.SetOutputAndWaitAsync(_backupPlate, false, cancellationToken);
+        await _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken);
     }
 
     public Task RaiseBackupPlateAsync(CancellationToken cancellationToken)
     {
-        return _io.SetOutputAndWaitAsync(_backupPlate, true, cancellationToken);
+        return _io.SetOutputAndWaitAsync(_backupPlate, false, cancellationToken);
     }
 
     public Task WaitForCarrierAsync(CancellationToken cancellationToken)

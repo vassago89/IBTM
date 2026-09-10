@@ -341,6 +341,7 @@ public sealed partial class MachineController
                 _state.SetError(alarm, error);
         }
 
+        _state.UpdateMachineIndicators();
         await _state.StartDisplayUpdatesAsync(ReadDisplay);
         _log?.Write($"Machine initialization finished. Alarm={_state.Alarm}.");
     }
@@ -1285,6 +1286,8 @@ public sealed partial class MachineController
             cancellationToken.ThrowIfCancellationRequested();
             stage = "Stopping run outputs after I/O initialization";
             StopRunOutputs();
+            stage = "Setting main conveyor forward direction";
+            _io.SetOutput(OutputIo.MainConveyorForward, true);
             _log?.Write("Control I/O initialization and readiness check completed.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

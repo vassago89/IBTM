@@ -15,7 +15,7 @@ public partial class StationTeachingViewModel
         {
             if (!_state.Display.Available)
                 return TeachingMotionHint.None;
-            return SelectedMotionGroup switch
+            return ActiveMotionGroup switch
             {
                 MotionGroup.PcbPlacementHandler when _state.Display.SupplyInBufferArea
                     => TeachingMotionHint.SupplyInBuffer,
@@ -35,14 +35,29 @@ public partial class StationTeachingViewModel
     {
         get
         {
-            return SelectedMotionGroup;
+            return SelectedTeachingUnit switch
+            {
+                HardwareArea.PcbPlacementHandler => MotionGroup.PcbPlacementHandler,
+                HardwareArea.BoltFastening => MotionGroup.BoltFastening,
+                HardwareArea.InspectionGantry or HardwareArea.NgCarrierTransfer
+                    => MotionGroup.InspectionGantry,
+                _ => throw new ArgumentOutOfRangeException(nameof(SelectedTeachingUnit)),
+            };
+        }
+    }
+
+    public override HardwareArea ActiveTeachingUnit
+    {
+        get
+        {
+            return SelectedTeachingUnit;
         }
     }
 
     protected override bool CanJog(MotionAxis axis)
     {
         return Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
-            && SelectedMotionGroup switch
+            && ActiveMotionGroup switch
             {
                 MotionGroup.PcbPlacementHandler => _placementHandler.CanJog(axis, live: false),
                 MotionGroup.BoltFastening => _fasteningGantry.CanJog(axis),
@@ -56,7 +71,7 @@ public partial class StationTeachingViewModel
         var (axis, sign) = Resolve(direction);
         return Machine.RunManualMotionAsync(
             ActiveMotionGroup,
-            token => SelectedMotionGroup switch
+            token => ActiveMotionGroup switch
             {
                 MotionGroup.PcbPlacementHandler
                     => _placementHandler.JogAsync(axis, sign * JogSpeed, token),
@@ -64,7 +79,7 @@ public partial class StationTeachingViewModel
                     => _fasteningGantry.JogAsync(axis, sign * JogSpeed, token),
                 MotionGroup.InspectionGantry
                     => _inspectionGantry.JogAsync(axis, sign * JogSpeed, token),
-                _ => throw new ArgumentOutOfRangeException(nameof(SelectedMotionGroup)),
+                _ => throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup)),
             },
             cancellationToken,
             ViewCancellation);
@@ -74,12 +89,12 @@ public partial class StationTeachingViewModel
     {
         return Machine.RunManualMotionAsync(
             ActiveMotionGroup,
-            token => SelectedMotionGroup switch
+            token => ActiveMotionGroup switch
             {
                 MotionGroup.PcbPlacementHandler => _placementHandler.MoveToHorizontalZAsync(token),
                 MotionGroup.BoltFastening => _fasteningGantry.MoveToSafeZAsync(token),
                 MotionGroup.InspectionGantry => Task.CompletedTask,
-                _ => throw new ArgumentOutOfRangeException(nameof(SelectedMotionGroup)),
+                _ => throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup)),
             },
             cancellationToken,
             ViewCancellation);
@@ -92,7 +107,7 @@ public partial class StationTeachingViewModel
             token =>
             {
                 var (axis, target) = StepTarget(direction, Motion.Feedback.GetPosition());
-                return SelectedMotionGroup switch
+                return ActiveMotionGroup switch
                 {
                     MotionGroup.PcbPlacementHandler
                         => _placementHandler.MoveAxisAsync(axis, target, token),
@@ -103,7 +118,7 @@ public partial class StationTeachingViewModel
                         target,
                         _inspectionGantrySettings.Motion.HorizontalSpeed,
                         token),
-                    _ => throw new ArgumentOutOfRangeException(nameof(SelectedMotionGroup)),
+                    _ => throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup)),
                 };
             },
             cancellationToken,
@@ -122,7 +137,7 @@ public partial class StationTeachingViewModel
 
     private bool CanReturnFromPickup()
     {
-        return SelectedMotionGroup == MotionGroup.BoltFastening
+        return ActiveMotionGroup == MotionGroup.BoltFastening
             && Machine.CanUseManualMotion(ActiveMotionGroup, live: false);
     }
 
@@ -161,7 +176,7 @@ public partial class StationTeachingViewModel
 
     private bool CanMoveHorizontal()
     {
-        return SelectedMotionGroup switch
+        return ActiveMotionGroup switch
         {
             MotionGroup.PcbPlacementHandler => _placementHandler.CanMoveHorizontal,
             MotionGroup.BoltFastening => _fasteningGantry.CanMoveHorizontal,

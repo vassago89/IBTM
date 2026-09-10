@@ -91,22 +91,6 @@ public sealed class NgCarrierConveyor : AutoUnit
         }
     }
 
-    internal bool StopperUp
-    {
-        get
-        {
-            return _io.GetInput(InputIo.NgConveyorStopperUp);
-        }
-    }
-
-    internal bool StopperDown
-    {
-        get
-        {
-            return _io.GetInput(InputIo.NgConveyorStopperDown);
-        }
-    }
-
     private bool EjectRequested
     {
         get
@@ -171,7 +155,8 @@ public sealed class NgCarrierConveyor : AutoUnit
                 case EjectionPhase.Ejecting:
                     return NgConveyorState.EjectingCarrier;
                 case EjectionPhase.WaitingForConfirmation:
-                    if (!StopperUp)
+                    if (!_io.GetInput(InputIo.NgConveyorStopperUp)
+                        || _io.GetInput(InputIo.NgConveyorStopperDown))
                     {
                         return NgConveyorState.SecuringEjectStopper;
                     }
@@ -207,16 +192,12 @@ public sealed class NgCarrierConveyor : AutoUnit
                         ? NgConveyorState.WaitingForShuttleUp
                         : NgConveyorState.MovingToPosition2;
                 case Movement.Compacting:
-                    return StopperUp
-                        ? NgConveyorState.CompactingCarriers
-                        : NgConveyorState.SecuringEjectStopper;
+                    return NgConveyorState.CompactingCarriers;
             }
 
             if (NeedsCompaction)
             {
-                return StopperUp
-                    ? NgConveyorState.CompactingCarriers
-                    : NgConveyorState.SecuringEjectStopper;
+                return NgConveyorState.CompactingCarriers;
             }
 
             if (Position3Occupied)
@@ -279,7 +260,7 @@ public sealed class NgCarrierConveyor : AutoUnit
 
         _movement = Movement.None;
         _ejectionPhase = EjectionPhase.Idle;
-        await SetStopperUpAsync(false, cancellationToken);
+        await SetStopperDownAsync(true, cancellationToken);
         await RunUntilAsync(InputIo.NgShuttleCarrierDetected, true, true, cancellationToken);
     }
 
@@ -310,7 +291,7 @@ public sealed class NgCarrierConveyor : AutoUnit
             case NgConveyorState.EjectingCarrier:
                 return EjectCarrierAsync(cancellationToken);
             case NgConveyorState.SecuringEjectStopper:
-                return SetStopperUpAsync(true, cancellationToken);
+                return SetStopperDownAsync(false, cancellationToken);
             case NgConveyorState.CompactingCarriers:
                 return CompactCarriersAsync(cancellationToken);
             case NgConveyorState.AcknowledgingEject:
@@ -354,7 +335,7 @@ public sealed class NgCarrierConveyor : AutoUnit
         CancellationToken cancellationToken)
     {
         _movement = movement;
-        await SetStopperUpAsync(true, cancellationToken);
+        await SetStopperDownAsync(false, cancellationToken);
         await RunUntilAsync(PositionInput(destination), true, false, cancellationToken);
 
         Changed?.Invoke();
@@ -366,19 +347,20 @@ public sealed class NgCarrierConveyor : AutoUnit
         SetEjectLamp(false);
         if (Position1Occupied)
         {
-            await SetStopperUpAsync(false, cancellationToken);
+            await SetStopperDownAsync(true, cancellationToken);
             await RunUntilAsync(InputIo.NgConveyorPosition1Occupied, false, false, cancellationToken);
         }
 
+        await SetStopperDownAsync(false, cancellationToken);
         _ejectionPhase = EjectionPhase.WaitingForConfirmation;
         Changed?.Invoke();
-        await SetStopperUpAsync(true, cancellationToken);
         SetEjectCompleteLamp(true);
     }
 
     private async Task CompactCarriersAsync(CancellationToken cancellationToken)
     {
         _movement = Movement.Compacting;
+        await SetStopperDownAsync(false, cancellationToken);
         await RunUntilAsync(InputIo.NgConveyorPosition1Occupied, true, false, cancellationToken);
         _movement = Movement.None;
         Changed?.Invoke();
@@ -398,9 +380,9 @@ public sealed class NgCarrierConveyor : AutoUnit
         SetEjectLamp(alarm);
     }
 
-    internal Task SetStopperUpAsync(bool up, CancellationToken cancellationToken)
+    private Task SetStopperDownAsync(bool down, CancellationToken cancellationToken)
     {
-        return _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, up, cancellationToken);
+        return _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperDown, down, cancellationToken);
     }
 
     internal async Task RunUntilAsync(
@@ -439,7 +421,6 @@ public sealed class NgCarrierConveyor : AutoUnit
     {
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.NgConveyorReverse, reverse);
-        _io.SetOutput(OutputIo.NgConveyorNormalSpeed, true);
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.NgConveyorRun, true);
     }

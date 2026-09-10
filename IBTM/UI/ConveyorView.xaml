@@ -347,17 +347,11 @@
                         <TextBlock Text="{Binding Signals.Outputs[MainConveyorRun].Address}" Style="{StaticResource MapIoAddressStyle}"/>
                         <TextBlock Text="DO Run" Style="{StaticResource MapIoLabelStyle}"/>
                     </DockPanel>
-                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Outputs[MainConveyorReverse].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorReverse].IsOn, Converter={StaticResource SignalTextConverter}}"
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Outputs[MainConveyorForward].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorForward].IsOn, Converter={StaticResource SignalTextConverter}}"
                                    Style="{StaticResource MapIoOutputStyle}"/>
-                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorReverse].Address}" Style="{StaticResource MapIoAddressStyle}"/>
-                        <TextBlock Text="DO Reverse" Style="{StaticResource MapIoLabelStyle}"/>
-                    </DockPanel>
-                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Outputs[MainConveyorNormalSpeed].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorNormalSpeed].IsOn, Converter={StaticResource SignalTextConverter}}"
-                                   Style="{StaticResource MapIoOutputStyle}"/>
-                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorNormalSpeed].Address}" Style="{StaticResource MapIoAddressStyle}"/>
-                        <TextBlock Text="DO Normal spd" Style="{StaticResource MapIoLabelStyle}"/>
+                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorForward].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DO Forward" Style="{StaticResource MapIoLabelStyle}"/>
                     </DockPanel>
                 </StackPanel>
             </Border>

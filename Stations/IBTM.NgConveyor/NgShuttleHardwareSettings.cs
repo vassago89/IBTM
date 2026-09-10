@@ -22,7 +22,7 @@ public sealed class NgShuttleHardwareSettings : IoHardwareSettings
         };
         Outputs = new()
         {
-            [OutputIo.NgShuttleDown] = Output(68, 69, InputIo.NgShuttleDown, InputIo.NgShuttleUp),
+            [OutputIo.NgShuttleUp] = Output(68, 69, InputIo.NgShuttleUp, InputIo.NgShuttleDown),
         };
     }
 }

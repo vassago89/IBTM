@@ -150,17 +150,23 @@
                     <TextBlock Text="{Binding Signals.Inputs[NgConveyorPosition1Occupied].Address}" Style="{StaticResource MapIoAddressStyle}"/>
                     <TextBlock Text="DI P1" Style="{StaticResource MapIoLabelStyle}"/>
                 </DockPanel>
+                <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[NgConveyorStopperDown].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                    <TextBlock Text="{Binding Signals.Inputs[NgConveyorStopperDown].IsOn, Converter={StaticResource SignalTextConverter}}"
+                               Style="{StaticResource MapIoInputStyle}"/>
+                    <TextBlock Text="{Binding Signals.Inputs[NgConveyorStopperDown].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                    <TextBlock Text="DI Stopper down" Style="{StaticResource MapIoLabelStyle}"/>
+                </DockPanel>
                 <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[NgConveyorStopperUp].Signal, Converter={StaticResource EnumDescriptionConverter}}">
                     <TextBlock Text="{Binding Signals.Inputs[NgConveyorStopperUp].IsOn, Converter={StaticResource SignalTextConverter}}"
                                Style="{StaticResource MapIoInputStyle}"/>
                     <TextBlock Text="{Binding Signals.Inputs[NgConveyorStopperUp].Address}" Style="{StaticResource MapIoAddressStyle}"/>
                     <TextBlock Text="DI Stopper up" Style="{StaticResource MapIoLabelStyle}"/>
                 </DockPanel>
-                <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[NgConveyorStopperDown].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                    <TextBlock Text="{Binding Signals.Inputs[NgConveyorStopperDown].IsOn, Converter={StaticResource SignalTextConverter}}"
-                               Style="{StaticResource MapIoInputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Inputs[NgConveyorStopperDown].Address}" Style="{StaticResource MapIoAddressStyle}"/>
-                    <TextBlock Text="DI Stopper down" Style="{StaticResource MapIoLabelStyle}"/>
+                <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Outputs[NgConveyorStopperDown].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                    <TextBlock Text="{Binding Signals.Outputs[NgConveyorStopperDown].IsOn, Converter={StaticResource SignalTextConverter}}"
+                               Style="{StaticResource MapIoOutputStyle}"/>
+                    <TextBlock Text="{Binding Signals.Outputs[NgConveyorStopperDown].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                    <TextBlock Text="DO Stopper down" Style="{StaticResource MapIoLabelStyle}"/>
                 </DockPanel>
                 <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Outputs[NgConveyorRun].Signal, Converter={StaticResource EnumDescriptionConverter}}">
                     <TextBlock Text="{Binding Signals.Outputs[NgConveyorRun].IsOn, Converter={StaticResource SignalTextConverter}}"
@@ -173,12 +179,6 @@
                                Style="{StaticResource MapIoOutputStyle}"/>
                     <TextBlock Text="{Binding Signals.Outputs[NgConveyorReverse].Address}" Style="{StaticResource MapIoAddressStyle}"/>
                     <TextBlock Text="DO Reverse" Style="{StaticResource MapIoLabelStyle}"/>
-                </DockPanel>
-                <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Outputs[NgConveyorNormalSpeed].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                    <TextBlock Text="{Binding Signals.Outputs[NgConveyorNormalSpeed].IsOn, Converter={StaticResource SignalTextConverter}}"
-                               Style="{StaticResource MapIoOutputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Outputs[NgConveyorNormalSpeed].Address}" Style="{StaticResource MapIoAddressStyle}"/>
-                    <TextBlock Text="DO Normal spd" Style="{StaticResource MapIoLabelStyle}"/>
                 </DockPanel>
             </StackPanel>
         </Border>

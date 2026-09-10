@@ -31,6 +31,7 @@ public sealed class MachineSettings
     public LightingSettings Lighting { get; set; } = new();
     public NgCarrierTransferSettings NgCarrierTransfer { get; set; } = new();
     public NgConveyorSettings NgConveyor { get; set; } = new();
+    public ConveyorSettings Conveyor { get; set; } = new();
 
     public PcbSupplySettings PcbSupply { get; set; } = new();
     public PcbSupplyHardwareSettings PcbSupplyHardware { get; set; } = new();
@@ -113,6 +114,7 @@ public sealed class MachineSettings
                 Hantas,
                 NgCarrierTransfer,
                 NgConveyor,
+                Conveyor,
                 PcbBuffer,
                 PcbSupply,
                 PcbPlacementHandler,
@@ -148,6 +150,7 @@ public sealed class MachineSettings
             Hantas = values.Get<HantasSettings>(),
             NgCarrierTransfer = values.Get<NgCarrierTransferSettings>(),
             NgConveyor = values.Get<NgConveyorSettings>(),
+            Conveyor = values.Get<ConveyorSettings>(),
             PcbBuffer = values.Get<PcbBufferSettings>(),
             PcbBufferHardware = values.Get<PcbBufferHardwareSettings>(),
             PcbSupply = values.Get<PcbSupplySettings>(),

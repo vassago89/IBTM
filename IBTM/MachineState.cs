@@ -104,8 +104,8 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
     private Task? _displayUpdates;
     private MachineDisplay _display = new();
     private bool _repeatEnabled;
-    // Operator acknowledgement, not a cached hardware state.
-    private volatile bool _buzzerSilenced;
+    // Last handled notification, not the physical state of the lamp/buzzer outputs.
+    private (MachineAlarm Alarm, bool Running, bool NgAlarm)? _lastIndicatorNotification;
     private readonly IReadOnlyDictionary<MotionGroup, MotionStatus> _motions;
     private readonly MachineOptions _options;
     private readonly UnitSettings _units;
@@ -191,7 +191,7 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         boltFastening.Feedback.StateChanged += NotifyChanged;
         inspectionGantry.Feedback.StateChanged += NotifyChanged;
         conveyor.Changed += NotifyChanged;
-        ngConveyor.Changed += NotifyChanged;
+        ngConveyor.Changed += OnNgConveyorChanged;
         training.Changed += NotifyChanged;
         operations.ActivityChanged += NotifyChanged;
     }
@@ -263,7 +263,6 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
                     cancellationToken)
                     .ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
-                UpdateMachineIndicators();
                 RefreshDisplay(read);
                 DisplayChanged?.Invoke();
                 _firstDisplay.TrySetResult();
@@ -289,10 +288,20 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
 
     internal void SilenceBuzzer()
     {
-        _buzzerSilenced = true;
-        RequestDisplayRefresh();
+        if (!_io.IsReady)
+            return;
+
+        try
+        {
+            _io.SetOutput(OutputIo.Buzzer, false);
+        }
+        catch (IOException exception)
+        {
+            _log?.Error("Buzzer OFF failed.", exception);
+        }
     }
 
+    // Called by alarm/run/NG notifications, never by the display or acquisition loops.
     internal void UpdateMachineIndicators()
     {
         if (!_io.IsReady)
@@ -300,22 +309,23 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
 
         try
         {
-            // Common machine indicators are independent of individual unit stop/cleanup.
-            var attention = IsError || _ngConveyor.AlarmRequired;
-            if (!attention)
-                _buzzerSilenced = false;
-            (OutputIo Signal, bool On)[] indicators = [
-                (OutputIo.TowerLampGreen, AutomaticRunning && !attention),
-                (OutputIo.TowerLampYellow, !AutomaticRunning && !attention),
-                (OutputIo.TowerLampRed, attention),
-                (OutputIo.Buzzer, attention && !_buzzerSilenced),
-            ];
-            foreach (var (signal, on) in indicators)
-            {
-                // Reconcile with actual outputs, not a previously sent command.
-                if (_io.GetOutput(signal) != on)
-                    _io.SetOutput(signal, on);
-            }
+            var notification = (Alarm, Running: AutomaticRunning, NgAlarm: _ngConveyor.AlarmRequired);
+            var previous = _lastIndicatorNotification;
+            if (previous == notification)
+                return;
+
+            var attention = notification.Alarm != MachineAlarm.None || notification.NgAlarm;
+            var newAlarm = notification.Alarm != MachineAlarm.None
+                    && notification.Alarm != previous?.Alarm
+                || notification.NgAlarm && previous?.NgAlarm != true;
+
+            _io.SetOutput(OutputIo.TowerLampGreen, notification.Running && !attention);
+            _io.SetOutput(OutputIo.TowerLampYellow, !notification.Running && !attention);
+            _io.SetOutput(OutputIo.TowerLampRed, attention);
+            if (!attention || newAlarm)
+                _io.SetOutput(OutputIo.Buzzer, newAlarm);
+
+            _lastIndicatorNotification = notification;
         }
         catch (IOException exception)
         {
@@ -705,7 +715,8 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
     {
         if (Alarm == MachineAlarm.None && BufferConflict)
         {
-            Alarm = MachineAlarm.BufferConflict;
+            SetError(MachineAlarm.BufferConflict);
+            return;
         }
 
         NotifyChanged();
@@ -721,9 +732,12 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
 
     internal void SetAutomaticRunning(bool value)
     {
-        if (AutomaticRunning != value)
-            _log?.Write($"Automatic operation {(value ? "started" : "stopped")}.");
+        if (AutomaticRunning == value)
+            return;
+
+        _log?.Write($"Automatic operation {(value ? "started" : "stopped")}.");
         AutomaticRunning = value;
+        UpdateMachineIndicators();
         Changed?.Invoke();
     }
 
@@ -751,6 +765,7 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         AlarmDetail = exception?.ToString();
         AlarmMessage = exception?.Message;
         _log?.Error($"Machine alarm: {alarm}.", exception);
+        UpdateMachineIndicators();
         Changed?.Invoke();
     }
 
@@ -761,6 +776,7 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         Alarm = MachineAlarm.None;
         AlarmDetail = null;
         AlarmMessage = null;
+        UpdateMachineIndicators();
         Changed?.Invoke();
     }
 
@@ -768,9 +784,14 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
     {
         if (Alarm == MachineAlarm.None && BufferConflict)
         {
-            Alarm = MachineAlarm.BufferConflict;
-            NotifyChanged();
+            SetError(MachineAlarm.BufferConflict);
         }
+    }
+
+    private void OnNgConveyorChanged()
+    {
+        UpdateMachineIndicators();
+        NotifyChanged();
     }
 
     private void NotifyChanged()

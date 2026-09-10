@@ -67,12 +67,11 @@ public sealed partial class MachineLifecycleTests
 
                     var supply = services.GetRequiredService<SupplyTeachingViewModel>();
                     var station = services.GetRequiredService<StationTeachingViewModel>();
-                    foreach (var group in Enum.GetValues<MotionGroup>())
+                    foreach (var unit in station.TeachingUnits.Prepend(HardwareArea.PcbSupply))
                     {
-                station.SelectedMotionGroup = group == MotionGroup.PcbSupply
-                    ? MotionGroup.PcbPlacementHandler
-                    : group;
-                        TeachingMotionViewModel teaching = group == MotionGroup.PcbSupply ? supply : station;
+                        if (unit != HardwareArea.PcbSupply)
+                            station.SelectedTeachingUnit = unit;
+                        TeachingMotionViewModel teaching = unit == HardwareArea.PcbSupply ? supply : station;
                         _ = teaching.ManualBlock;
                         _ = teaching.CanEditTeaching;
                         _ = teaching.MotionHint;

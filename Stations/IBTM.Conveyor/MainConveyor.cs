@@ -15,6 +15,7 @@ public sealed class MainConveyor : AutoUnit
     public static readonly bool RepeatUsesStation1ReturnSensor = true;
 
     private readonly IIoService _io;
+    private readonly ConveyorSettings _settings;
     private readonly OperationCancellation _operations;
     private readonly StationWork _placementWork;
     private readonly StationWork _boltFasteningWork;
@@ -31,6 +32,7 @@ public sealed class MainConveyor : AutoUnit
 
     public MainConveyor(
         IIoService io,
+        ConveyorSettings settings,
         OperationCancellation operations,
         StationWork placementWork,
         StationWork boltFasteningWork,
@@ -38,6 +40,7 @@ public sealed class MainConveyor : AutoUnit
         Func<bool> routeInspectionToNg)
     {
         _io = io;
+        _settings = settings;
         _operations = operations;
         _placementWork = placementWork;
         _boltFasteningWork = boltFasteningWork;
@@ -497,6 +500,9 @@ public sealed class MainConveyor : AutoUnit
 
                     _io.SetOutput(OutputIo.MainConveyorReadyToFront2, false);
                     await _placement.WaitForCarrierAsync(cancellationToken);
+                    await Task.Delay(
+                        TimeSpan.FromSeconds(_settings.CarrierStopDelaySeconds),
+                        cancellationToken);
                 }
                 finally
                 {
@@ -529,6 +535,9 @@ public sealed class MainConveyor : AutoUnit
             {
                 StartMotor(cancellationToken);
                 await destination.WaitForCarrierAsync(cancellationToken);
+                await Task.Delay(
+                    TimeSpan.FromSeconds(_settings.CarrierStopDelaySeconds),
+                    cancellationToken);
             }
             finally
             {
@@ -621,8 +630,7 @@ public sealed class MainConveyor : AutoUnit
     private void StartMotor(CancellationToken cancellationToken, bool reverse = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _io.SetOutput(OutputIo.MainConveyorReverse, reverse);
-        _io.SetOutput(OutputIo.MainConveyorNormalSpeed, true);
+        _io.SetOutput(OutputIo.MainConveyorForward, !reverse);
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(OutputIo.MainConveyorRun, true);
     }

@@ -15,7 +15,7 @@ public sealed class VirtualIoService(
     private const int FeedbackDelayMilliseconds = 200;
 
     private readonly bool[] _inputs = CreateInitialInputs();
-    private readonly bool[] _outputs = new bool[Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
+    private readonly bool[] _outputs = CreateInitialOutputs();
     private readonly int[] _feedbackVersions = new int[Enum.GetValues<OutputIo>().Max(
         output => (int)output) + 1];
     private readonly Lock _responseGate = new();
@@ -58,7 +58,20 @@ public sealed class VirtualIoService(
         inputs[(int)InputIo.Door5Open] = true;
         inputs[(int)InputIo.Door6Open] = true;
         inputs[(int)InputIo.AirPressureHigh] = true;
+        // Virtual equipment starts raised with an open NG gripper.
+        inputs[(int)InputIo.NgCarrierPickupUp] = true;
+        inputs[(int)InputIo.NgCarrierGripperOpen] = true;
+        inputs[(int)InputIo.NgShuttleUp] = true;
         return inputs;
+    }
+
+    private static bool[] CreateInitialOutputs()
+    {
+        var values = new bool[Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
+        values[(int)OutputIo.NgCarrierPickupUp] = true;
+        values[(int)OutputIo.NgCarrierGripperOpen] = true;
+        values[(int)OutputIo.NgShuttleUp] = true;
+        return values;
     }
 
     public bool AutoResponseEnabled

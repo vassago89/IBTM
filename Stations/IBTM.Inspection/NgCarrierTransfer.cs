@@ -96,17 +96,17 @@ public sealed class NgCarrierTransfer : INgCarrierTransferFeedback
 
     public Task RaiseAsync(CancellationToken cancellationToken = default)
     {
-        return SetLiftDownAsync(false, cancellationToken);
+        return SetLiftUpAsync(true, cancellationToken);
     }
 
-    public Task SetLiftDownAsync(bool down, CancellationToken cancellationToken = default)
+    public Task SetLiftUpAsync(bool up, CancellationToken cancellationToken = default)
     {
-        return _io.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, down, cancellationToken);
+        return _io.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupUp, up, cancellationToken);
     }
 
-    public Task SetGripperClosedAsync(bool closed, CancellationToken cancellationToken = default)
+    public Task SetGripperOpenAsync(bool open, CancellationToken cancellationToken = default)
     {
-        return _io.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperClose, closed, cancellationToken);
+        return _io.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperOpen, open, cancellationToken);
     }
 
     internal Task WaitForCarrierGripAsync(CancellationToken cancellationToken = default)

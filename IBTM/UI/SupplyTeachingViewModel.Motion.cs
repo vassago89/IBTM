@@ -8,6 +8,16 @@ namespace IBTM.UI;
 
 public partial class SupplyTeachingViewModel
 {
+    public override HardwareArea ActiveTeachingUnit
+    {
+        get
+        {
+            return ActiveMotionGroup == MotionGroup.PcbSupply
+                ? HardwareArea.PcbSupply
+                : HardwareArea.PcbPlacementHandler;
+        }
+    }
+
     public override MotionGroup ActiveMotionGroup
     {
         get
@@ -94,14 +104,10 @@ public partial class SupplyTeachingViewModel
             ViewCancellation);
     }
 
-    partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
+    protected override void OnTeachingPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
     {
-        CancelTeaching();
-        NotifyPointSelectionCommands();
-
         OnPropertyChanged(nameof(ActiveMotionGroup));
         OnPropertyChanged(nameof(HorizontalZ));
-        OnPropertyChanged(nameof(SaveBehavior));
         NotifyManualTeachingCommands();
         OnPropertyChanged(nameof(Motion));
     }

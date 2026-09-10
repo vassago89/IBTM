@@ -213,6 +213,7 @@ public partial class SettingsViewModel : ObservableObject
                 "Settings saved to {0}. Restart required for hardware changes.",
                 _store.DatabaseFile);
             _state.Refresh();
+            _state.UpdateMachineIndicators();
         }
         catch (OperationCanceledException)
         {

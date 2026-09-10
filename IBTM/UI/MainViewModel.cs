@@ -341,8 +341,6 @@ public partial class MainViewModel : ObservableObject
                 return _supplyTeachingViewModel.ShutdownAsync();
             case AppPage.StationTeaching:
                 return _stationTeachingViewModel.ShutdownAsync();
-            case AppPage.ManualHardware:
-                return _manualHardwareViewModel.ShutdownAsync();
             case AppPage.BoltTraining:
                 return _boltTrainingViewModel.ShutdownAsync();
             case AppPage.Settings:

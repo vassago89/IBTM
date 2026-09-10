@@ -25,12 +25,6 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
     [ObservableProperty]
     private IReadOnlyList<TeachingPoint> _points = [];
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(TeachingIoGroups))]
-    [NotifyCanExecuteChangedFor(nameof(TeachCurrentPositionCommand))]
-    [NotifyCanExecuteChangedFor(nameof(MoveToPointCommand))]
-    private TeachingPoint? _selectedPoint;
-
     public SupplyTeachingViewModel(
         PcbSupplyHandler supplyHandler,
         PcbPlacementHandler placementHandler,
@@ -42,8 +36,8 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         RecipeEditor recipeEditor,
         UnitSettings units,
         MachineStore store,
-        IReadOnlyDictionary<MotionGroup, IoStatus[]> ioGroups,
-        IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : base(
+        IReadOnlyDictionary<HardwareArea, IoStatus[]> ioGroups,
+        IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : base(
             state,
             machine,
             store,
@@ -75,19 +69,6 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         }
     }
 
-    protected override TeachingPoint? CurrentPoint
-    {
-        get
-        {
-            return SelectedPoint;
-        }
-
-        set
-        {
-            SelectedPoint = value;
-        }
-    }
-
     public bool SupplyEnabled
     {
         get
@@ -104,7 +85,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         }
     }
 
-    public TeachingSaveBehavior SaveBehavior
+    public override TeachingSaveBehavior SaveBehavior
     {
         get
         {
@@ -159,6 +140,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
             Deactivate,
             StepCommand,
             JogCommand,
+            HomeAxisCommand,
             MoveToHorizontalZCommand,
             MoveToPointCommand,
             SetOutputOnCommand,

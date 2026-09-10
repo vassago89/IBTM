@@ -166,10 +166,10 @@ public sealed class NgCarrierMove(
         return state switch
         {
             NgTransferState.Raising => pickup.RaiseAsync(cancellationToken),
-            NgTransferState.Opening => pickup.SetGripperClosedAsync(false, cancellationToken),
-            NgTransferState.Closing => pickup.SetGripperClosedAsync(true, cancellationToken),
+            NgTransferState.Opening => pickup.SetGripperOpenAsync(true, cancellationToken),
+            NgTransferState.Closing => pickup.SetGripperOpenAsync(false, cancellationToken),
             NgTransferState.LoweringToCarrier or NgTransferState.LoweringAtDestination
-                => pickup.SetLiftDownAsync(true, cancellationToken),
+                => pickup.SetLiftUpAsync(false, cancellationToken),
             NgTransferState.MovingToCarrier
                 => gantry.MoveToAsync(Position(Opposite(destination)), settings.Speed, cancellationToken),
             NgTransferState.MovingToDestination

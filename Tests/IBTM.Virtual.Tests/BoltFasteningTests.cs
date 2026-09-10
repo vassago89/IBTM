@@ -645,6 +645,7 @@ public sealed class BoltFasteningTests
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
         io.SetInput(InputIo.BoltFasteningStopperDown, true);
+        io.SetInput(InputIo.BoltFasteningStopperUp, false);
         io.SetInput(InputIo.ShootingHeadUp, true);
         io.SetInput(InputIo.PickupHeadDown, true);
         io.SetInput(InputIo.PickupHeadVacuumDetected, true);
@@ -841,7 +842,7 @@ public sealed class BoltFasteningTests
         bus.SetNextFasteningResult(2, AdcEventStatus.FasteningNg);
         io.SetInput(InputIo.ShootingFeederBoltDetected, true);
         io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
-        io.SetOutput(OutputIo.BoltFasteningBackupPlateUp, true);
+        io.SetOutput(OutputIo.BoltFasteningBackupPlateDown, false);
         io.SetInput(InputIo.BoltFasteningBackupPlateDown, false);
         io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
@@ -1010,6 +1011,7 @@ public sealed class BoltFasteningTests
         io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
         io.SetInput(InputIo.BoltFasteningStopperDown, true);
+        io.SetInput(InputIo.BoltFasteningStopperUp, false);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         Assert.Equal(
             head == FasteningHead.Pickup

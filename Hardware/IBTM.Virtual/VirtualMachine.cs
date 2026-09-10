@@ -521,7 +521,7 @@ public sealed class VirtualMachine
                     return;
                 }
 
-                if (_io.GetOutput(OutputIo.MainConveyorReverse))
+                if (!_io.GetOutput(OutputIo.MainConveyorForward))
                 {
                     ReturnMainCarrier(version);
                     return;
@@ -803,14 +803,14 @@ public sealed class VirtualMachine
                     case OutputIo.ShootingEscapeForward when value:
                         _io.SetInput(InputIo.ShootingFeederBoltDetected, false);
                         break;
-                    case OutputIo.NgCarrierPickupDown when _ngCarrierHeld:
+                    case OutputIo.NgCarrierPickupUp when _ngCarrierHeld:
                         if (_inspectionAtNgShuttle)
-                            _io.SetInput(InputIo.NgShuttleCarrierDetected, value);
+                            _io.SetInput(InputIo.NgShuttleCarrierDetected, !value);
                         else if (_inspectionAtNgPickup)
-                            _io.SetInput(InputIo.InspectionCarrierPresent, value);
+                            _io.SetInput(InputIo.InspectionCarrierPresent, !value);
                         break;
-                    case OutputIo.NgCarrierGripperClose:
-                        if (value
+                    case OutputIo.NgCarrierGripperOpen:
+                        if (!value
                             && !_ngCarrierHeld
                             && _inspectionAtNgPickup
                             && _io.GetInput(InputIo.NgCarrierPickupDown)
@@ -825,7 +825,7 @@ public sealed class VirtualMachine
                             _io.SetInput(InputIo.InspectionHeatSink1Present, false);
                             _io.SetInput(InputIo.InspectionHeatSink2Present, false);
                         }
-                        else if (value
+                        else if (!value
                             && !_ngCarrierHeld
                             && _inspectionAtNgShuttle
                             && _io.GetInput(InputIo.NgCarrierPickupDown)
@@ -836,7 +836,7 @@ public sealed class VirtualMachine
                             _io.SetInput(InputIo.NgCarrierDetected, true);
                             _io.SetInput(InputIo.NgShuttleCarrierDetected, false);
                         }
-                        else if (!value
+                        else if (value
                             && _ngCarrierHeld
                             && _inspectionAtNgShuttle
                             && _io.GetInput(InputIo.NgCarrierPickupDown)
@@ -846,7 +846,7 @@ public sealed class VirtualMachine
                             _io.SetInput(InputIo.NgCarrierDetected, false);
                             _io.SetInput(InputIo.NgShuttleCarrierDetected, true);
                         }
-                        else if (!value
+                        else if (value
                             && _ngCarrierHeld
                             && _inspectionAtNgPickup
                             && _io.GetInput(InputIo.NgCarrierPickupDown)

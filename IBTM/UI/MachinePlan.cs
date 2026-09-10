@@ -272,8 +272,8 @@ public static class MachinePlan
         get
         {
             return (
-                PlacementCarrierLeft + CarrierContentInset + (CarrierWidth - CarrierContentInset * 2 - HeatSinkGap) / 4,
-                MainTop + CarrierTop + CarrierHeight / 2);
+                PlacementCarrierLeft + CarrierWidth - (PlacementHeatSink2.X - PlacementCarrierLeft),
+                PlacementHeatSink2.Y);
         }
     }
 
@@ -282,8 +282,8 @@ public static class MachinePlan
         get
         {
             return (
-                PlacementCarrierLeft + CarrierWidth - (PlacementHeatSink1.X - PlacementCarrierLeft),
-                PlacementHeatSink1.Y);
+                PlacementCarrierLeft + CarrierContentInset + (CarrierWidth - CarrierContentInset * 2 - HeatSinkGap) / 4,
+                MainTop + CarrierTop + CarrierHeight / 2);
         }
     }
 

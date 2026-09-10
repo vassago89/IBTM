@@ -83,7 +83,7 @@ public sealed class OutputWindowThreadingTests
         var inspection = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(
             MotionGroup.InspectionGantry);
         await inspection.HomeHorizontalAsync(1000);
-        teaching.SelectedMotionGroup = MotionGroup.InspectionGantry;
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         try
         {
             units.PcbSupply = true;
@@ -257,18 +257,18 @@ public sealed class OutputWindowThreadingTests
                     () => io.SetOutput(OutputIo.MachineLight, !io.GetOutput(OutputIo.MachineLight)));
                 var feedback = BindOutputRow(
                     window,
-                    window.Rows.Single(candidate => candidate.Io.Signal == OutputIo.NgConveyorStopperUp)).Feedback;
+                    window.Rows.Single(candidate => candidate.Io.Signal == OutputIo.PcbPlacementStopperDown)).Feedback;
                 await Task.Run(
                     () =>
                     {
-                        io.SetInput(InputIo.NgConveyorStopperUp, true);
-                        io.SetInput(InputIo.NgConveyorStopperDown, true);
+                        io.SetInput(InputIo.PcbPlacementStopperUp, true);
+                        io.SetInput(InputIo.PcbPlacementStopperDown, true);
                     });
                 Assert.True(
                     await VirtualTest.WaitUntilAsync(
                         () => feedback.Text == "Input conflict",
                         TimeSpan.FromSeconds(2)));
-                await Task.Run(() => io.SetInput(InputIo.NgConveyorStopperUp, false));
+                await Task.Run(() => io.SetInput(InputIo.PcbPlacementStopperUp, false));
                 var previous = state.Display;
                 state.RequestDisplayRefresh();
                 Assert.True(
@@ -282,9 +282,27 @@ public sealed class OutputWindowThreadingTests
                 Assert.True(io.GetOutput(output));
                 window.Close();
                 Assert.True(closed.Task.IsCompleted);
-                Assert.False(io.GetOutput(output));
+                Assert.True(io.GetOutput(output)); // Closing the view is not a STOP command.
                 window = null;
+                manualStop.Command.Execute(null);
+                Assert.False(io.GetOutput(output));
             }
+
+            await main.NavigateCommand.ExecuteAsync(AppPage.ManualHardware);
+            Assert.Equal(AppPage.ManualHardware, main.SelectedPage);
+            var conveyor = manual.Conveyors.Single(row => row.Io.Signal == output);
+            var manualRun = conveyor.RunCommand.ExecuteAsync(null);
+            Assert.True(io.GetOutput(output));
+            await main.NavigateCommand.ExecuteAsync(AppPage.Operation);
+            Assert.Equal(AppPage.Operation, main.SelectedPage);
+            Assert.True(io.GetOutput(output));
+            Assert.False(manualRun.IsCompleted);
+            await main.NavigateCommand.ExecuteAsync(AppPage.ManualHardware);
+            Assert.Equal(AppPage.ManualHardware, main.SelectedPage);
+            Assert.True(io.GetOutput(output));
+            conveyor.StopCommand.Execute(null);
+            await manualRun.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(io.GetOutput(output));
 
             Assert.All(notifications, id => Assert.Equal(uiThread, id));
             Assert.DoesNotContain(
@@ -295,7 +313,6 @@ public sealed class OutputWindowThreadingTests
         {
             if (window is not null)
             {
-                window.Shutdown();
                 window.Close();
             }
 
@@ -421,7 +438,7 @@ public sealed class OutputWindowThreadingTests
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
         var main = services.GetRequiredService<MainViewModel>();
         await main.NavigateCommand.ExecuteAsync(AppPage.StationTeaching);
-        teaching.SelectedMotionGroup = MotionGroup.InspectionGantry;
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         var page = new Border();
         page.SetBinding(
             UIElement.IsEnabledProperty,
@@ -740,18 +757,18 @@ public sealed class OutputWindowThreadingTests
 
         Assert.Equal(0, notifications);
 
-        var stopper = new OutputWindowRow(signals.Outputs[OutputIo.NgConveyorStopperUp], machine);
+        var stopper = new OutputWindowRow(signals.Outputs[OutputIo.PcbPlacementStopperDown], machine);
         var feedback = BindOutputRow(window, stopper).Feedback;
         await Task.Run(
             () =>
             {
-                io.SetOutput(OutputIo.NgConveyorStopperUp, false);
-                io.SetInput(InputIo.NgConveyorStopperUp, false);
-                io.SetInput(InputIo.NgConveyorStopperDown, true);
+                io.SetOutput(OutputIo.PcbPlacementStopperDown, false);
+                io.SetInput(InputIo.PcbPlacementStopperUp, true);
+                io.SetInput(InputIo.PcbPlacementStopperDown, false);
             });
         Assert.True(
             await VirtualTest.WaitUntilAsync(() => feedback.Text == "Matched", TimeSpan.FromSeconds(2)));
-        await Task.Run(() => io.SetInput(InputIo.NgConveyorStopperDown, false));
+        await Task.Run(() => io.SetInput(InputIo.PcbPlacementStopperUp, false));
         Assert.True(
             await VirtualTest.WaitUntilAsync(
                 () => feedback.Text == "Not matched",

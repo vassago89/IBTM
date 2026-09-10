@@ -3,72 +3,121 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:ui="clr-namespace:IBTM.UI"
-             mc:Ignorable="d"
+             xmlns:ui="clr-namespace:IBTM.UI" mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:StationTeachingViewModel, IsDesignTimeCreatable=False}"
-             Foreground="{StaticResource TextPrimaryBrush}"
-             Background="{StaticResource AppBgBrush}">
-
-    <UserControl.Resources>
-        <SolidColorBrush x:Key="TeachingOverlayBrush" Color="#D820252A"/>
-    </UserControl.Resources>
-
-    <Grid Margin="24,20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-
-        <TextBlock Grid.Row="0"
-                   Text="Station Teaching"
-                   Style="{StaticResource TitleStyle}"
-                   Margin="0,0,0,10"/>
-
+             Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource AppBgBrush}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <TextBlock Text="Station Teaching" Style="{StaticResource TitleStyle}" Margin="0,0,0,10"/>
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="320"/>
-                <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="12"/>
-                <ColumnDefinition Width="390"/>
+                <ColumnDefinition Width="1.15*" MinWidth="330" MaxWidth="420"/>
+                <ColumnDefinition Width="10"/><ColumnDefinition Width="2*" MinWidth="280"/>
+                <ColumnDefinition Width="10"/><ColumnDefinition Width="*" MinWidth="270"/>
             </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="12"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-
-            <Border Grid.Column="4" Padding="14,12">
-                <Border.Style>
-                    <Style TargetType="Border" BasedOn="{StaticResource CardStyle}">
-                        <Setter Property="Grid.RowSpan" Value="3"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsInspectionSelected}" Value="True">
-                                <Setter Property="Grid.Row" Value="2"/>
-                                <Setter Property="Grid.RowSpan" Value="1"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IoStatusTemplate}"/>
-            </Border>
-            <GridSplitter Grid.Column="4" Grid.Row="1" Height="6"
-                          HorizontalAlignment="Stretch" VerticalAlignment="Center"
-                          ResizeDirection="Rows" ResizeBehavior="PreviousAndNext"
-                          Background="{StaticResource DividerBrush}"
-                          Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}"/>
-
-            <Border Grid.Column="2" Grid.RowSpan="3" Background="{StaticResource EquipBgBrush}"
-                    BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1"
-                    CornerRadius="3" ClipToBounds="True"
-                    Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
+            <Border Style="{StaticResource CardStyle}" Padding="12">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="260"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*" MinHeight="80" MaxHeight="260"/>
+                        <RowDefinition Height="3*" MinHeight="270"/>
                     </Grid.RowDefinitions>
-                    <ui:ImageTeachingView x:Name="ImageMap"
+                    <StackPanel Margin="0,0,0,8">
+                        <TextBlock Text="Teaching Unit" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,6"/>
+                        <ComboBox ItemsSource="{Binding TeachingUnits}" SelectedItem="{Binding SelectedTeachingUnit}"/>
+                        <TextBlock Text="{Binding ActiveMotionGroup, Converter={StaticResource EnumDescriptionConverter}, StringFormat=Axes · {0}}"
+                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                        <ComboBox ItemsSource="{Binding HeatSinkSlots}" SelectedItem="{Binding SelectedPcb}" Margin="0,6,0,0"
+                                  Visibility="{Binding BoltPointEditorVisible, Converter={StaticResource BoolToVis}}"/>
+                    </StackPanel>
+                    <ui:TeachingPointList Grid.Row="1" ItemsSource="{Binding FilteredPoints}" SelectedItem="{Binding SelectedPoint}"
+                                          Background="{StaticResource EquipBgBrush}" BorderThickness="1" BorderBrush="{StaticResource DividerBrush}"
+                                          ItemContainerStyle="{StaticResource FlatListItemStyle}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type ui:TeachingPoint}">
+                                <StackPanel Margin="4,4">
+                                    <TextBlock Text="{Binding Name}" TextWrapping="Wrap" FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding PositionLabel}" FontFamily="Consolas" FontSize="12"
+                                               Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ui:TeachingPointList>
+                    <ScrollViewer Grid.Row="2" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="0,0,12,0">
+                        <TextBlock Text="{Binding SelectedPoint.Name}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                        <ui:TeachingMotionView/>
+                        <Button Content="Return from Pickup" Command="{Binding ReturnFromPickupCommand}" Margin="0,6,0,0"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                ToolTip="Raise Z to Safe Z, then raise Head 1. XY and vacuum remain unchanged."
+                                Visibility="{Binding BoltPresetEditorVisible, Converter={StaticResource BoolToVis}}"/>
+                    </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
+            <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="8"
+                    Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
+                <Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <TabControl SelectedIndex="{Binding SelectedCameraTab}">
+                        <TabItem Header="Live / Inspect">
+                            <Grid Margin="0,8,0,0">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <WrapPanel Margin="0,0,0,6">
+                                    <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,6,6" MinWidth="70">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Setter Property="Content" Value="Live"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Inspector.IsLiveView}" Value="True">
+                                                        <Setter Property="Content" Value="Stop Live"/>
+                                                        <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
+                                                        <Setter Property="Foreground" Value="{StaticResource EquipBgBrush}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="Move &amp; Inspect" Command="{Binding CaptureInspectionCommand}"
+                                            Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"/>
+                                    <Button Content="Reinspect" Command="{Binding ReinspectImageCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"/>
+                                    <Button Content="Collect Bolt Images" Command="{Binding CollectBoltImagesCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"/>
+                                </WrapPanel>
+                                <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
+                                    <ui:ImageTeachingView SourceRegion="{Binding Preview.Region}" SourceOverlay="{Binding Preview.Overlay}">
+                                        <ui:ImageTeachingView.Style>
+                                            <Style TargetType="ui:ImageTeachingView">
+                                                <Setter Property="Source" Value="{Binding Preview.Image}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Inspector.IsLiveView}" Value="True">
+                                                        <Setter Property="Source" Value="{Binding LiveImage}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ui:ImageTeachingView.Style>
+                                    </ui:ImageTeachingView>
+                                </Border>
+                                <TextBlock Grid.Row="2" Text="{Binding Preview.Result}" TextWrapping="Wrap"
+                                           Margin="0,8,0,0" FontSize="16" FontWeight="SemiBold"/>
+                            </Grid>
+                        </TabItem>
+                        <TabItem Header="Carrier Map">
+                            <Grid Margin="0,8,0,0">
+                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <WrapPanel Margin="0,0,0,6">
+                                    <Button Content="Scan Carrier" Command="{Binding CaptureCarrierImagesCommand}" Margin="0,0,8,6"
+                                            Style="{StaticResource PrimaryButtonStyle}"/>
+                                    <TextBlock Text="mm/px" VerticalAlignment="Center" Margin="0,0,4,6"/>
+                                    <TextBox Text="{Binding MillimetersPerPixel, UpdateSourceTrigger=LostFocus}" Width="60" Margin="0,0,8,6"
+                                             IsEnabled="{Binding CanEditInspectionRecipe}"/>
+                                    <TextBlock Text="Overlap (mm)" VerticalAlignment="Center" Margin="0,0,4,6"/>
+                                    <TextBox Text="{Binding ScanOverlap, UpdateSourceTrigger=LostFocus}" Width="50" Margin="0,0,0,6"
+                                             IsEnabled="{Binding CanEditInspectionRecipe}"/>
+                                </WrapPanel>
+                                <Grid Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
+                                    <ui:ImageTeachingView x:Name="ImageMap"
                                           Tiles="{Binding CarrierImages}"
                                           MillimetersPerPixel="{Binding MillimetersPerPixel}"
                                           Markers="{Binding ImageMarkers}"
@@ -80,142 +129,36 @@
                                           Cursor="Cross"
                                           ToolTip="Teach PCB 1 bounds, then click the matching upper-left corner on PCB 2. Bolts and barcode share one PCB pattern. Esc: cancel. Wheel: zoom. Right drag: pan."
                                           RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                    <Border HorizontalAlignment="Left" VerticalAlignment="Top"
-                            Margin="8" Padding="8,5"
-                            Background="{StaticResource TeachingOverlayBrush}"
-                            CornerRadius="2"
-                            IsHitTestVisible="False">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HoverPositionText, ElementName=ImageMap}"
-                                                 Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock Text="{Binding HoverPositionText, ElementName=ImageMap}"
-                                   FontFamily="Cascadia Mono, Consolas"
-                                   Foreground="White"/>
-                    </Border>
-                    <TextBlock Text="NO IMAGE" FontSize="14" FontFamily="Cascadia Mono, Consolas"
-                               Foreground="{StaticResource TextMutedBrush}" FontWeight="SemiBold"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               IsHitTestVisible="False">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasCarrierImages}" Value="False">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                    <Grid Grid.Row="1" Margin="8" Background="{StaticResource AppBgBrush}">
-                        <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="190"/></Grid.ColumnDefinitions>
-                        <ui:ImageTeachingView SourceRegion="{Binding Preview.Region}" SourceOverlay="{Binding Preview.Overlay}">
-                            <ui:ImageTeachingView.Style>
-                                <Style TargetType="ui:ImageTeachingView">
-                                    <Setter Property="Source" Value="{Binding Preview.Image}"/>
-                                    <Style.Triggers><DataTrigger Binding="{Binding Inspector.IsLiveView}" Value="True">
-                                        <Setter Property="Source" Value="{Binding LiveImage}"/>
-                                    </DataTrigger></Style.Triggers>
-                                </Style>
-                            </ui:ImageTeachingView.Style>
-                        </ui:ImageTeachingView>
-                        <StackPanel Grid.Column="1" Margin="12,8,8,0">
-                            <TextBlock Text="{Binding SelectedPoint.Name}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,0,0,12"/>
-                            <Button Content="Move &amp; Inspect" Command="{Binding CaptureInspectionCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,0,8"/>
-                            <Button Content="Reinspect Image" Command="{Binding ReinspectImageCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,8"/>
-                            <Button Content="Collect Bolt Images" Command="{Binding CollectBoltImagesCommand}"
-                                    ToolTip="Capture taught bolt points on present heat sinks and save originals to the training database."
-                                    Style="{StaticResource SecondaryButtonStyle}"/>
-                        </StackPanel>
-                        <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Preview.Result}" TextWrapping="Wrap"
-                                   Margin="8" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"/>
-                    </Grid>
-                    <WrapPanel Grid.Row="2" Margin="8">
-                    <Button Content="Live"
-                            Command="{Binding ToggleLiveViewCommand}"
-                            Margin="0,0,8,0" MinWidth="70"
-                            Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
-                        <Button.Style>
-                            <Style TargetType="Button"
-                                   BasedOn="{StaticResource SecondaryButtonStyle}">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Inspector.IsLiveView}" Value="True">
-                                        <Setter Property="Background"
-                                                Value="{StaticResource AccentBrush}"/>
-                                        <Setter Property="Foreground"
-                                                Value="{StaticResource AppBgBrush}"/>
-                                        <Setter Property="BorderBrush"
-                                                Value="{StaticResource AccentBlueBrush}"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Button.Style>
-                    </Button>
-                    <Button Content="Scan Carrier"
-                            Command="{Binding CaptureCarrierImagesCommand}"
-                            Margin="0,0,12,0"
-                            Style="{StaticResource PrimaryButtonStyle}"
-                            MinWidth="112"
-                            Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}"/>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" IsEnabled="{Binding CanEditInspectionRecipe}">
-                            <TextBlock Text="mm/px" VerticalAlignment="Center"
-                                       Foreground="{StaticResource TextMutedBrush}" Margin="0,0,6,0"/>
-                            <TextBox Text="{Binding MillimetersPerPixel, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="72" Margin="0,0,10,0"/>
-                            <TextBlock Text="Overlap" VerticalAlignment="Center"
-                                       Foreground="{StaticResource TextMutedBrush}" Margin="0,0,6,0"/>
-                            <TextBox Text="{Binding ScanOverlap, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="58"/>
-                        </StackPanel>
-                    </WrapPanel>
-                    <TextBlock Grid.RowSpan="3" Text="{Binding CameraError}" TextWrapping="Wrap"
-                               VerticalAlignment="Bottom" Margin="8,0,8,48" Padding="8"
-                               Background="{StaticResource TeachingOverlayBrush}"
-                               Foreground="{StaticResource AccentRedBrush}">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding CameraError}" Value="{x:Null}">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Grid>
-            </Border>
-
-            <Border Grid.Column="0" Grid.RowSpan="3" Style="{StaticResource CardStyle}" Padding="16">
-              <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-              <!-- Fluent scrollbars overlay the viewport; reserve a gutter beside the controls. -->
-              <StackPanel Margin="0,0,20,8">
-                <Border Style="{StaticResource SectionStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Motion"
-                                   Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,10"/>
-                        <ComboBox ItemsSource="{Binding MotionGroups}"
-                                  SelectedItem="{Binding SelectedMotionGroup, Mode=TwoWay}"
-                                  Padding="8,5"/>
-                    </StackPanel>
-                </Border>
-
-                <ui:TeachingMotionView/>
-                <Button Content="Return from Pickup" Command="{Binding ReturnFromPickupCommand}"
-                        ToolTip="Raise Z to Safe Z, then raise Head 1. XY and vacuum remain unchanged."
-                        Margin="0,12,0,0" Style="{StaticResource SecondaryButtonStyle}"
-                        Visibility="{Binding BoltPresetEditorVisible, Converter={StaticResource BoolToVis}}"/>
-                <Expander Header="Camera / Inspection" Margin="0,16,0,0" IsExpanded="True"
-                          Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}"
-                          ToolTip="Inspection conditions for the current product. Use the recipe Save button to keep changes.">
-                    <Grid Margin="0,12,0,0" IsEnabled="{Binding CanEditInspectionRecipe}">
+                                    <TextBlock Text="Scan Carrier to create a teaching map." TextWrapping="Wrap" Margin="12"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
+                                               Foreground="{StaticResource TextMutedBrush}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasCarrierImages}" Value="False">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding HoverPositionText, ElementName=ImageMap}" Margin="8" Padding="6"
+                                               HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False"
+                                               Background="{StaticResource EquipBgBrush}" FontFamily="Consolas"/>
+                                </Grid>
+                                <WrapPanel Grid.Row="2" Margin="0,8,0,0">
+                                    <ComboBox ItemsSource="{Binding FasteningHeads}" SelectedItem="{Binding NewFasteningHead}" MinWidth="145" Margin="0,0,6,6"/>
+                                    <Button Content="Add Bolt" Command="{Binding AddBoltPointCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"/>
+                                    <Button Content="Remove Bolt" Command="{Binding RemoveBoltPointCommand}" Style="{StaticResource DangerButtonStyle}" Margin="0,0,0,6"/>
+                                </WrapPanel>
+                            </Grid>
+                        </TabItem>
+                        <TabItem Header="Camera Settings">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="4">
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Text="Camera / Inspection" Style="{StaticResource PanelTitleStyle}" Margin="0,12,0,0"/>
+                                    <Grid Margin="0,12,0,0" IsEnabled="{Binding CanEditInspectionRecipe}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="0.7*"/>
@@ -260,106 +203,33 @@
                                  Text="{Binding InspectionRecipe.LightLevel, UpdateSourceTrigger=PropertyChanged}"
                                  ToolTip="0 to 255. Applies on the next capture or live preview start."/>
                     </Grid>
-                </Expander>
-              </StackPanel>
-              </ScrollViewer>
+                                    <TextBlock Text="Exposure, gain and light apply on the next capture or Live start. Save Recipe to keep changes."
+                                               TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
+                    <TextBlock Grid.Row="1" Text="{Binding CameraError}" TextWrapping="Wrap"
+                               Foreground="{StaticResource AccentRedBrush}" Margin="4"/>
+                </Grid>
             </Border>
-
-            <Border>
+            <Border Padding="12">
                 <Border.Style>
-                    <Style TargetType="Border"
-                           BasedOn="{StaticResource CardStyle}">
-                        <Setter Property="Grid.Column" Value="2"/>
-                        <Setter Property="Grid.RowSpan" Value="3"/>
-                        <Setter Property="Padding" Value="14,12"/>
+                    <Style TargetType="Border" BasedOn="{StaticResource CardStyle}">
+                        <Setter Property="Grid.Column" Value="2"/><Setter Property="Grid.ColumnSpan" Value="3"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsInspectionSelected}"
-                                         Value="True">
-                                <Setter Property="Grid.Column" Value="4"/>
-                                <Setter Property="Grid.RowSpan" Value="1"/>
+                            <DataTrigger Binding="{Binding IsInspectionSelected}" Value="True">
+                                <Setter Property="Grid.Column" Value="4"/><Setter Property="Grid.ColumnSpan" Value="1"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
                 <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <StackPanel Grid.Row="0" Margin="0,0,0,10">
-                        <TextBlock Text="Teaching points" Style="{StaticResource PanelTitleStyle}"/>
-                        <StackPanel Margin="0,8,0,0" Visibility="{Binding BoltPointEditorVisible, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="PCB location · shared pattern" Margin="0,0,0,5" Foreground="{StaticResource TextMutedBrush}"/>
-                            <ComboBox ItemsSource="{Binding HeatSinkSlots}" SelectedItem="{Binding SelectedPcb}"
-                                      IsEnabled="{Binding CanEditInspectionRecipe}"/>
-                        </StackPanel>
-                    </StackPanel>
-
-                    <ui:TeachingPointList Grid.Row="1" ItemsSource="{Binding FilteredPoints}"
-                              SelectedItem="{Binding SelectedPoint}"
-                              Background="Transparent"
-                              BorderThickness="0"
-                              ItemContainerStyle="{StaticResource FlatListItemStyle}">
-                        <ListBox.ItemTemplate>
-                            <DataTemplate DataType="{x:Type ui:TeachingPoint}">
-                                <StackPanel Margin="4,6">
-                                    <TextBlock Text="{Binding Name}"
-                                               ToolTip="{Binding Name}"
-                                               TextTrimming="CharacterEllipsis"
-                                               FontSize="14"
-                                               Foreground="{StaticResource TextPrimaryBrush}"/>
-                                    <TextBlock Text="{Binding PositionLabel}"
-                                               Margin="0,3,0,0"
-                                               FontFamily="Consolas"
-                                               FontSize="13"
-                                               Foreground="{StaticResource TextSecondaryBrush}">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding PositionLabel}" Value="">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
-                                        <StackPanel.Style>
-                                            <Style TargetType="StackPanel">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Position.Bolt}" Value="{x:Null}">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </StackPanel.Style>
-                                        <TextBlock Text="{Binding Position.Bolt.HeatSink, Converter={StaticResource EnumDescriptionConverter}}"
-                                                   Foreground="{StaticResource TextMutedBrush}"/>
-                                        <TextBlock Text="{Binding Position.Bolt.Head, Converter={StaticResource EnumDescriptionConverter}}"
-                                                   Margin="12,0,0,0"
-                                                   Foreground="{StaticResource TextMutedBrush}"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ui:TeachingPointList>
-
-                    <StackPanel Grid.Row="2" Margin="0,8,0,0" IsEnabled="{Binding CanEditInspectionRecipe}">
-                        <Grid Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/><ColumnDefinition Width="6"/><ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/><RowDefinition Height="6"/><RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <ComboBox Grid.ColumnSpan="3" ItemsSource="{Binding FasteningHeads}" SelectedItem="{Binding NewFasteningHead}" FontSize="11"/>
-                            <Button Grid.Row="2" Content="Add Bolt" Command="{Binding AddBoltPointCommand}"
-                                    Style="{StaticResource SecondaryButtonStyle}"/>
-                            <Button Grid.Row="2" Grid.Column="2" Content="Remove" Command="{Binding RemoveBoltPointCommand}"
-                                    Style="{StaticResource DangerButtonStyle}"/>
-                        </Grid>
+                    <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IoStatusTemplate}"/>
+                    <StackPanel Grid.Row="1" Visibility="{Binding BoltPresetEditorVisible, Converter={StaticResource BoolToVis}}"
+                                IsEnabled="{Binding CanEditInspectionRecipe}">
+                        <TextBlock Text="Bolt presets" FontWeight="SemiBold" Margin="0,12,0,4"/>
                         <StackPanel Orientation="Horizontal"
                                     Margin="0,6,0,0"
                                     Visibility="{Binding BoltPresetEditorVisible,
@@ -381,6 +251,5 @@
                 </Grid>
             </Border>
         </Grid>
-
     </Grid>
 </UserControl>

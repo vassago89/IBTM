@@ -184,9 +184,9 @@ public sealed class IoStartupTests
         var station = services.GetRequiredService<StationTeachingViewModel>();
         var supply = services.GetRequiredService<SupplyTeachingViewModel>();
 
-        foreach (var group in new[] { MotionGroup.InspectionGantry, MotionGroup.PcbPlacementHandler })
+        foreach (var group in station.TeachingUnits)
         {
-            station.SelectedMotionGroup = group;
+            station.SelectedTeachingUnit = group;
             Assert.Equal(TeachingMotionHint.None, station.MotionHint);
             Assert.False(station.CaptureCarrierImagesCommand.CanExecute(null));
             Assert.False(station.CollectBoltImagesCommand.CanExecute(null));

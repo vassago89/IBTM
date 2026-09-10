@@ -88,15 +88,15 @@ public sealed class NgShuttle : AutoUnit
     {
         return State switch
         {
-            NgShuttleState.Lowering => SetDownAsync(true, cancellationToken),
-            NgShuttleState.Raising => SetDownAsync(false, cancellationToken),
+            NgShuttleState.Lowering => SetUpAsync(false, cancellationToken),
+            NgShuttleState.Raising => SetUpAsync(true, cancellationToken),
             _ => WaitForChangeAsync(cancellationToken),
         };
     }
 
-    public Task SetDownAsync(bool down, CancellationToken cancellationToken = default)
+    public Task SetUpAsync(bool up, CancellationToken cancellationToken = default)
     {
-        return _io.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, down, cancellationToken);
+        return _io.SetOutputAndWaitAsync(OutputIo.NgShuttleUp, up, cancellationToken);
     }
 
     public Task WaitForCarrierAsync(bool detected, CancellationToken cancellationToken = default)

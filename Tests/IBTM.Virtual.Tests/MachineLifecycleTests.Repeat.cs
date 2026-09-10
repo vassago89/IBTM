@@ -96,7 +96,7 @@ public sealed partial class MachineLifecycleTests
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.MainConveyorRun && on
-                && io.GetOutput(OutputIo.MainConveyorReverse))
+                && !io.GetOutput(OutputIo.MainConveyorForward))
             {
                 returned = true;
                 io.SetInput(InputIo.NgCarrierPickupUp, false);
@@ -142,8 +142,9 @@ public sealed partial class MachineLifecycleTests
         void StopOnReverse(OutputIo output, bool on)
         {
             if (on && output == stopOutput
-                && io.GetOutput(output == OutputIo.NgConveyorRun
-                    ? OutputIo.NgConveyorReverse : OutputIo.MainConveyorReverse))
+                && (output == OutputIo.NgConveyorRun
+                    ? io.GetOutput(OutputIo.NgConveyorReverse)
+                    : !io.GetOutput(OutputIo.MainConveyorForward)))
                 machine.Stop();
         }
 
@@ -223,11 +224,15 @@ public sealed partial class MachineLifecycleTests
         };
         io.OutputChanged += (output, on) =>
         {
+            if (output == OutputIo.PcbPlacementBackupPlateDown && !on)
+            {
+                forbidden.Enqueue(output);
+            }
+
             if (!on)
                 return;
             if (output is OutputIo.MainConveyorReadyToFront2
                 or OutputIo.MainConveyorAvailableToRear
-                or OutputIo.PcbPlacementBackupPlateUp
                 or OutputIo.ShootBolt
                 or OutputIo.ShootingFeederRunSignal)
                 forbidden.Enqueue(output);
@@ -236,7 +241,7 @@ public sealed partial class MachineLifecycleTests
                 Assert.True(io.GetInput(InputIo.NgShuttleDown));
                 Interlocked.Increment(ref ngReverse);
             }
-            if (output == OutputIo.MainConveyorRun && io.GetOutput(OutputIo.MainConveyorReverse))
+            if (output == OutputIo.MainConveyorRun && !io.GetOutput(OutputIo.MainConveyorForward))
             {
                 Assert.True(io.GetInput(InputIo.NgCarrierPickupUp));
                 Interlocked.Increment(ref mainReverse);

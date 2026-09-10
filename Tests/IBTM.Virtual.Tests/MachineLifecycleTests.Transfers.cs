@@ -135,7 +135,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleUp, true);
         await services.GetRequiredService<InspectionGantry>()
             .MoveToAsync(
                 destination == NgTransferDestination.Station

@@ -134,7 +134,7 @@ public sealed partial class MachineController
             {
                 StopWhenUnavailable();
                 operation.Token.ThrowIfCancellationRequested();
-                _log?.Write($"Manual conveyor {signal}: ON, forward, normal speed; alarm={_state.Alarm}.");
+                _log?.Write($"Manual conveyor {signal}: ON, forward; alarm={_state.Alarm}.");
                 if (signal == OutputIo.MainConveyorRun)
                 {
                     motorRun = _conveyor.RunMotorAsync(operation.Token);
@@ -253,11 +253,12 @@ public sealed partial class MachineController
                 OutputIo.ShootingHeadVacuumPump
                     => _fasteningGantry.SetVacuumAsync(FasteningHead.Shooting, value, token),
                 OutputIo.ShootBolt => _fasteningGantry.SetManualShootingAsync(value, token),
-                OutputIo.NgCarrierPickupDown => _ngTransfer.SetLiftDownAsync(value, token),
-                OutputIo.NgCarrierGripperClose => _ngTransfer.SetGripperClosedAsync(value, token),
-                OutputIo.PcbPlacementBackupPlateUp
-                    or OutputIo.BoltFasteningBackupPlateUp
-                    or OutputIo.InspectionBackupPlateUp
+                OutputIo.NgCarrierPickupUp => _ngTransfer.SetLiftUpAsync(value, token),
+                OutputIo.NgCarrierGripperOpen => _ngTransfer.SetGripperOpenAsync(value, token),
+                OutputIo.NgShuttleUp => _ngShuttle.SetUpAsync(value, token),
+                OutputIo.PcbPlacementBackupPlateDown
+                    or OutputIo.BoltFasteningBackupPlateDown
+                    or OutputIo.InspectionBackupPlateDown
                     => _io.SetOutputAndWaitAsync(output.Signal, value, token),
                 _ => throw new ArgumentOutOfRangeException(nameof(output)),
             };
@@ -272,6 +273,7 @@ public sealed partial class MachineController
                 HardwareArea.PcbPlacementHandler => MachineAlarm.PcbPlacement,
                 HardwareArea.BoltFastening => MachineAlarm.BoltFastening,
                 HardwareArea.NgCarrierTransfer => MachineAlarm.NgCarrierTransfer,
+                HardwareArea.NgShuttle => MachineAlarm.NgShuttle,
                 _ => throw new ArgumentOutOfRangeException(nameof(output)),
             },
             () => CanSetTeachingOutput(output),
