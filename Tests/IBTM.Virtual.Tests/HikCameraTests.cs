@@ -27,6 +27,7 @@ public sealed class HikCameraTests
         using var camera = sdk.CreateCamera();
         byte[] expected = [33, 22, 11, 255, 0, 0, 0, 255, 0, 0, 0, 255];
         var captured = camera.Capture(500, 0);
+        Assert.Equal(1, sdk.ConnectionChecks);
         Assert.Equal((2, 2, 6), (captured.Width, captured.Height, captured.Stride));
         Assert.Equal(expected, captured.Pixels);
 
@@ -38,6 +39,7 @@ public sealed class HikCameraTests
             received.Set();
         };
         camera.StartLiveView(500, 0);
+        Assert.Equal(2, sdk.ConnectionChecks);
         try
         {
             Assert.True(received.Wait(TimeSpan.FromSeconds(2)));
@@ -280,6 +282,7 @@ public sealed class HikCameraTests
         public bool CloseFails;
         public bool DisposeFails;
         public bool Disposed;
+        public int ConnectionChecks;
         public uint Width = 1;
         public uint Height = 1;
         public byte[] RgbPixels = [0, 0, 0];
@@ -369,6 +372,12 @@ public sealed class HikCameraTests
             var device = Stub<IDevice>(
                 (method, _) =>
                 {
+                    if (method.Name == "get_IsConnected")
+                    {
+                        ConnectionChecks++;
+                        return true;
+                    }
+
                     if (method.Name == "Dispose")
                     {
                         Disposed = true;
@@ -381,7 +390,6 @@ public sealed class HikCameraTests
                     {
                         "get_Parameters" => parameters,
                         "get_PixelTypeConverter" => converter,
-                        "get_IsConnected" => true,
                         "Close" => CloseFails ? MvError.MV_E_CALLORDER : MvError.MV_OK,
                         _ => throw new NotSupportedException(method.Name)
                     };

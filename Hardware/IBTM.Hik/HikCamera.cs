@@ -111,8 +111,9 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
                 throw new InvalidOperationException("Stop Hik live view before single-frame capture.");
             }
 
-            StopLiveView();
-            var device = _device ?? throw new InvalidOperationException("Hik camera is not initialized.");
+            // Teaching may use the camera before machine-wide initialization reaches vision.
+            Initialize();
+            var device = _device!;
             var stream = _streamGrabber!;
             ApplyExposureAndGain(device, exposureMicroseconds, gain);
             StartGrabbing();
@@ -156,8 +157,8 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
                 return;
             }
 
-            StopLiveView();
-            var device = _device ?? throw new InvalidOperationException("Hik camera is not initialized.");
+            Initialize();
+            var device = _device!;
             var framesPerSecond = settings.LiveViewFramesPerSecond;
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(framesPerSecond);
             ApplyExposureAndGain(device, exposureMicroseconds, gain);

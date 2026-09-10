@@ -44,7 +44,8 @@ public partial class StationTeachingViewModel
     private async Task TeachFovRegionAsync(Rect bounds)
     {
         var fov = SelectedFov!;
-        var bolt = SelectedPoint!.Position.Bolt!;
+        var point = SelectedPoint!;
+        var bolt = point.Position.Bolt!;
         var left = (int)Math.Floor(bounds.Left);
         var top = (int)Math.Floor(bounds.Top);
         var region = new PixelRegion(left, top,
@@ -55,6 +56,12 @@ public partial class StationTeachingViewModel
         await Machine.RunTeachingEditAsync(
             async token =>
             {
+                var x = fov.Center.X
+                    + (region.X + region.Width / 2.0 - fov.Image.PixelWidth / 2.0) * MillimetersPerPixel;
+                var y = fov.Center.Y
+                    + (region.Y + region.Height / 2.0 - fov.Image.PixelHeight / 2.0) * MillimetersPerPixel;
+                point.Teach(x, y, 0);
+                point.Apply();
                 foreach (var tile in RecipeEditor.Recipe.CarrierImages)
                 {
                     if (tile.Number == fov.Number)
@@ -74,6 +81,7 @@ public partial class StationTeachingViewModel
                     var tile = RecipeEditor.Recipe.CarrierImages.Single(tile => tile.Number == image.Number);
                     return image with { Region = tile.Region, BoltNumber = tile.BoltNumber, HeatSink = tile.HeatSink };
                 }).ToArray();
+                RefreshPointPositions();
                 await RecipeEditor.SaveAsync(token);
                 NotifyManualTeachingCommands();
             },
@@ -86,7 +94,11 @@ public partial class StationTeachingViewModel
         return CanEditInspectionRecipe
             && RecipeEditor.CanSave
             && SelectedFov is not null
-            && SelectedPoint?.Position.Bolt is not null
+            && double.IsFinite(MillimetersPerPixel)
+            && MillimetersPerPixel > 0
+            && _carrierReference.IsDefined
+            && SelectedPoint?.Position.Bolt is { } bolt
+            && bolt.Layout.Origins.ContainsKey(bolt.HeatSink)
             && (bounds.IsEmpty || bounds.Width >= 1 && bounds.Height >= 1);
     }
 

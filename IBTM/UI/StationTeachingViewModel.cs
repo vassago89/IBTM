@@ -587,6 +587,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         CaptureCarrierImageCommand.NotifyCanExecuteChanged();
         CaptureInspectionCommand.NotifyCanExecuteChanged();
         TeachImageRegionCommand.NotifyCanExecuteChanged();
+        TeachFovRegionCommand.NotifyCanExecuteChanged();
         Preview.RefreshBarcodeRegion();
     }
 
