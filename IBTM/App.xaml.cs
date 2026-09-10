@@ -2,7 +2,6 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -79,9 +78,7 @@ public partial class App : System.Windows.Application
                 () =>
                 {
                     MachineStore.RestorePending();
-                    var value = new MachineStore();
-                    LegacyMachineImport.Run(value, System.AppContext.BaseDirectory);
-                    return value;
+                    return new MachineStore();
                 });
             store = new RecipeStore(database);
             if (DevelopmentProfile.IsEnabled)
@@ -139,14 +136,14 @@ public partial class App : System.Windows.Application
     {
         try
         {
-            Exception? failure = null;
             try
             {
                 _serviceProvider?.GetService<MachineController>()?.Stop();
             }
             catch (Exception exception)
             {
-                failure = exception;
+                _log?.Error("Final device STOP failed during application exit.", exception);
+                e.ApplicationExitCode = 1;
             }
 
             try
@@ -155,17 +152,13 @@ public partial class App : System.Windows.Application
             }
             catch (Exception exception)
             {
-                failure = failure is null ? exception : new AggregateException(failure, exception);
+                _log?.Error("Device disposal failed during application exit.", exception);
+                e.ApplicationExitCode = 1;
             }
 
-            if (failure is not null)
-                ExceptionDispatchInfo.Throw(failure);
-            _log?.Write("Application stopped.");
-        }
-        catch (Exception exception)
-        {
-            _log?.Error("Application shutdown failed.", exception);
-            throw;
+            _log?.Write(e.ApplicationExitCode == 0
+                ? "Application stopped."
+                : "Application exited with shutdown errors. See preceding errors for unconfirmed device cleanup.");
         }
         finally
         {

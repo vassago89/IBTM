@@ -146,7 +146,7 @@ IO 번호는 Settings의 매핑과 최종 배선표에서 확인한다. 이번 �
 | NG Shuttle | 상하, 캐리어 감지 |
 | NG 컨베이어 | 1·2·3 감지, 스토퍼 상하, 배출 요청·완료 버튼 |
 
-현재 소프트웨어는 E-stop Pressed·Door Open·Air Pressure Low의 ON을 이상으로, Servo Main Contactor On의 ON을 정상으로 해석한다.
+현재 소프트웨어는 E-stop Pressed의 ON을 이상으로, Door Closed·Air Pressure High·Servo Main Contactor On의 ON을 정상으로 해석한다.
 실배선 극성과 맞는지 확인해야 한다.
 
 통과 기준: 다른 유닛의 DI가 대신 켜지지 않고, 신호 의미·정상 극성이 일치한다.

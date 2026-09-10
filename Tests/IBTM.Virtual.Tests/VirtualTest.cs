@@ -9,7 +9,6 @@ using IBTM.Device;
 using IBTM.Virtual;
 using IBTM.Inspection;
 using IBTM.Storage;
-using Microsoft.EntityFrameworkCore;
 
 namespace IBTM.Virtual.Tests;
 
@@ -17,12 +16,8 @@ internal static class VirtualTest
 {
     public static MachineStore OpenMachineStore(string? file = null)
     {
-        var store = new MachineStore(
+        return new MachineStore(
             file ?? Path.Combine(Path.GetTempPath(), $"IBTM-test-{Guid.NewGuid():N}.db"));
-        // Schema setup belongs to the test fixture, not the application's startup policy.
-        using var db = new MachineDb(MachineDb.CreateOptions(store.DatabaseFile));
-        db.Database.Migrate();
-        return store;
     }
 
     public static LogEntry[] Snapshot(this ApplicationLog log)

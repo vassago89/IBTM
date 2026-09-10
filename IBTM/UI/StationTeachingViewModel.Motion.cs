@@ -13,6 +13,8 @@ public partial class StationTeachingViewModel
     {
         get
         {
+            if (!_state.Display.Available)
+                return TeachingMotionHint.None;
             return SelectedMotionGroup switch
             {
                 MotionGroup.PcbPlacementHandler when _state.Display.SupplyInBufferArea

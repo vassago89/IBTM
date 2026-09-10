@@ -70,9 +70,28 @@ preference, so failure to save that preference does not leave the UI on the old
 recipe. New/Save/Load use idle-Manual availability, not Home status; these are data
 operations and do not relax motion or output interlocks.
 
-Schema changes use EF migrations. JSON field/type renames still require an explicit
-data upgrade; EF cannot infer semantic changes inside JSON. Do not rename a section
-type without migrating its persisted key. Missing sections on a fresh installation
+### Renaming code without changing saved I/O mappings
+
+`InputIo`, `OutputIo` and `MachineAxis` declare fixed JSON keys with
+`JsonStringEnumMemberName`. Rename the C# member and its `Description` as needed,
+but keep the attribute's string unchanged. It is the DB identity, not a UI label
+or the physical channel/axis number. Do not replace it with `nameof(...)`.
+
+For example, `AirPressureHigh` keeps `[JsonStringEnumMemberName("AirPressureHigh")]`
+even if its C# name changes later. The input converter also accepts the earlier
+`AirPressureLow` name, including output-feedback references. Loading preserves
+the saved channel; the next save writes the fixed `AirPressureHigh` key. No DB
+migration or manual database edit is required for this compatibility conversion.
+
+Ordinary channel, axis-number, speed and teaching-value changes only require Save.
+Restart after hardware mapping changes so device objects use the saved mapping.
+Changing an input's physical meaning still requires checking its polarity and
+safety logic; stable DB keys only preserve the mapping.
+
+Schema changes use EF migrations. Other JSON field/type renames still require an
+explicit data upgrade or a preserved JSON name; EF cannot infer semantic changes
+inside JSON. Do not rename a section type without migrating its persisted key
+(`MachineStore` uses the section type name). Missing sections on a fresh installation
 use their declared defaults. Invalid saved JSON fails loading rather than resetting
 the machine silently. Startup storage errors are displayed before hardware is initialized.
 

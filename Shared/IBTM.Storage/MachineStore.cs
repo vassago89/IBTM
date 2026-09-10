@@ -11,7 +11,6 @@ using Microsoft.EntityFrameworkCore;
 namespace IBTM.Storage;
 
 public sealed record RecipeImage(int Number, byte[] Image);
-public sealed record StoredRecipe(string Name, string Value, IEnumerable<RecipeImage> Images);
 
 public sealed class SavedSettings(IReadOnlyDictionary<string, string> values)
 {
@@ -35,6 +34,9 @@ public sealed class MachineStore
         DatabaseFile = Path.GetFullPath(databaseFile ?? MachineDb.DefaultFile);
         Directory.CreateDirectory(Path.GetDirectoryName(DatabaseFile)!);
         _options = MachineDb.CreateOptions(DatabaseFile);
+        using var db = new MachineDb(_options);
+        // Settings and recipes evolve inside JSON, not as database columns.
+        db.Database.EnsureCreated();
     }
 
     public bool HasData
@@ -217,33 +219,4 @@ public sealed class MachineStore
             new SqliteConnectionStringBuilder { DataSource = Path.GetFullPath(path), Mode = mode, Pooling = false }.ToString());
     }
 
-    public void ImportLegacy(IEnumerable<Setting> settings, IEnumerable<StoredRecipe> recipes)
-    {
-        using var db = new MachineDb(_options);
-        using var transaction = db.Database.BeginTransaction();
-        foreach (var setting in settings)
-            db.Settings.Add(
-                new()
-                {
-                    Key = setting.GetType().Name,
-                    Value = JsonSerializer.Serialize(setting, setting.GetType())
-                });
-        db.SaveChanges();
-        db.ChangeTracker.Clear();
-        foreach (var recipe in recipes)
-        {
-            db.Recipes.Add(new() { Name = recipe.Name, Value = recipe.Value });
-            db.SaveChanges();
-            db.ChangeTracker.Clear();
-            foreach (var image in recipe.Images)
-            {
-                db.RecipeImages.Add(
-                    new() { RecipeName = recipe.Name, Number = image.Number, Image = image.Image });
-                db.SaveChanges();
-                db.ChangeTracker.Clear();
-            }
-        }
-
-        transaction.Commit();
-    }
 }

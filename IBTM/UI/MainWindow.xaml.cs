@@ -27,7 +27,7 @@ public partial class MainWindow : Window
     private readonly ApplicationLog _log;
     private LogWindow? _logWindow;
     private bool _closing;
-    private bool _shutdownCompleted;
+    private bool _closeApproved;
 
     public MainWindow(
         MainViewModel viewModel,
@@ -56,7 +56,7 @@ public partial class MainWindow : Window
 
     protected override async void OnClosing(CancelEventArgs e)
     {
-        if (_shutdownCompleted)
+        if (_closeApproved)
         {
             base.OnClosing(e);
             return;
@@ -87,19 +87,36 @@ public partial class MainWindow : Window
                 _adcProtocolWindow?.StopAsync() ?? Task.CompletedTask,
                 _motionWindow?.ShutdownAsync() ?? Task.CompletedTask,
                 _viewModel.ShutdownAsync());
-            _shutdownCompleted = true;
+            _closeApproved = true;
             _ = Dispatcher.BeginInvoke(Close);
         }
         catch (Exception exception)
         {
-            _closing = false;
             _log.Error("Main window shutdown failed.", exception);
-            MessageBox.Show(
+            var errors = exception is AggregateException aggregate
+                ? aggregate.Flatten().InnerExceptions.Select(error => error.Message).Distinct()
+                : [exception.Message];
+            var result = MessageBox.Show(
                 this,
-                exception.Message,
-                "Shutdown Failed",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                "Device stop or shutdown could not be confirmed.\n"
+                    + "Check that the equipment is safely stopped before exiting.\n\n"
+                    + string.Join("\n", errors)
+                    + "\n\nExit the application anyway? Full details are saved in the log.",
+                "Shutdown Incomplete",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No);
+            if (result == MessageBoxResult.Yes)
+            {
+                _log.Write("Operator approved application exit after shutdown failure; device stop is unconfirmed.");
+                _closeApproved = true;
+                _ = Dispatcher.BeginInvoke(Close);
+            }
+            else
+            {
+                _closing = false;
+                IsEnabled = true;
+            }
         }
     }
 

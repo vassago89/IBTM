@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
+using IBTM.UI;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -172,6 +173,25 @@ public sealed class IoStartupTests
             Assert.False(machine.CanReset);
         }
 
+        Assert.Equal(0, io.ReadsWhileUnavailable);
+    }
+
+    [Fact]
+    public void TeachingHintsAndCaptureAvailabilityBeforeInitializationDoNotReadInputs()
+    {
+        using var services = CreateServices();
+        var io = services.GetRequiredService<StartupIo>();
+        var station = services.GetRequiredService<StationTeachingViewModel>();
+        var supply = services.GetRequiredService<SupplyTeachingViewModel>();
+
+        foreach (var group in new[] { MotionGroup.InspectionGantry, MotionGroup.PcbPlacementHandler })
+        {
+            station.SelectedMotionGroup = group;
+            Assert.Equal(TeachingMotionHint.None, station.MotionHint);
+            Assert.False(station.CaptureCarrierImagesCommand.CanExecute(null));
+            Assert.False(station.CollectBoltImagesCommand.CanExecute(null));
+        }
+        Assert.Equal(TeachingMotionHint.None, supply.MotionHint);
         Assert.Equal(0, io.ReadsWhileUnavailable);
     }
 

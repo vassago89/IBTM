@@ -20,6 +20,8 @@ public partial class SupplyTeachingViewModel
     {
         get
         {
+            if (!_state.Display.Available)
+                return TeachingMotionHint.None;
             var block = HandlerBlock(ActiveMotionGroup);
             if (block != TeachingMotionHint.None)
                 return block;

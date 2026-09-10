@@ -15,10 +15,6 @@ internal sealed class MachineDb : DbContext
         }
     }
 
-    public MachineDb() : this(CreateOptions(DefaultFile))
-    {
-    }
-
     public MachineDb(DbContextOptions<MachineDb> options) : base(options)
     {
     }

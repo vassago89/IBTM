@@ -114,14 +114,14 @@ public partial class StationTeachingViewModel
     private bool CanCaptureCarrierImages()
     {
         return IsInspectionSelected
+            && Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
             && _inspectionGantry.CanMove
             && _carrierReference.IsDefined
             && MillimetersPerPixel > 0
             && ScanOverlap >= 0
             && ScanOverlap < Inspector.FieldOfView.Width
             && ScanOverlap < Inspector.FieldOfView.Height
-            && RecipeEditor.CanSave
-            && Machine.CanUseManualMotion(ActiveMotionGroup, live: false);
+            && RecipeEditor.CanSave;
     }
 
     [RelayCommand(CanExecute = nameof(CanTeachImagePoint))]
