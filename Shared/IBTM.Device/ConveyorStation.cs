@@ -175,9 +175,15 @@ public sealed class ConveyorStation
         await _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken);
     }
 
-    public Task WaitForCarrierAsync(CancellationToken cancellationToken)
+    public Task WaitForCarrierAsync(
+        CancellationToken cancellationToken,
+        int? timeoutMilliseconds = null)
     {
-        return _io.WaitForInputAsync(_carrier, true, cancellationToken);
+        return _io.WaitForInputAsync(
+            _carrier,
+            true,
+            timeoutMilliseconds ?? _io.TimeoutMilliseconds,
+            cancellationToken);
     }
 
     private StationCylinderState CylinderState(InputIo up, InputIo down)

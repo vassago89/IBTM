@@ -20,15 +20,20 @@ namespace IBTM.Virtual.Tests;
 public sealed class ConveyorTests
 {
     [Theory]
-    [InlineData(InputIo.PcbPlacementCarrierPresent, OutputIo.PcbPlacementBackupPlateDown)]
-    [InlineData(InputIo.BoltFasteningCarrierPresent, OutputIo.BoltFasteningBackupPlateDown)]
-    [InlineData(InputIo.InspectionCarrierPresent, OutputIo.InspectionBackupPlateDown)]
-    public async Task ForwardTransferStopsAfterConfiguredCarrierDetectionDelay(
+    [InlineData(InputIo.PcbPlacementCarrierPresent, OutputIo.PcbPlacementBackupPlateDown,
+        OutputIo.PcbPlacementStopperDown)]
+    [InlineData(InputIo.BoltFasteningCarrierPresent, OutputIo.BoltFasteningBackupPlateDown,
+        OutputIo.BoltFasteningStopperDown)]
+    [InlineData(InputIo.InspectionCarrierPresent, OutputIo.InspectionBackupPlateDown,
+        OutputIo.InspectionStopperDown)]
+    public async Task ForwardTransferWaitsForArrivalThenPushesAgainstStopperForConfiguredDelay(
         InputIo destination,
-        OutputIo backupPlate)
+        OutputIo backupPlate,
+        OutputIo stopper)
     {
-        var io = CreateIo();
+        var io = CreateIo(timeoutMilliseconds: 1_000);
         io.Initialize();
+        Assert.Equal(3.0, new ConveyorSettings().CarrierStopDelaySeconds);
         var settings = new ConveyorSettings { CarrierStopDelaySeconds = 0.2 };
         var conveyor = CreateConveyor(
             io,
@@ -55,12 +60,15 @@ public sealed class ConveyorTests
         var elapsed = new Stopwatch();
         var stopped = new TaskCompletionSource<TimeSpan>(TaskCreationOptions.RunContinuationsAsynchronously);
         var raisedWhileRunning = false;
+        var stopperLoweredWhileRunning = false;
         io.OutputChanged += (output, value) =>
         {
             if (output == OutputIo.MainConveyorRun && !value && elapsed.IsRunning)
                 stopped.TrySetResult(elapsed.Elapsed);
             if (output == backupPlate && !value && io.GetOutput(OutputIo.MainConveyorRun))
                 raisedWhileRunning = true;
+            if (output == stopper && value && io.GetOutput(OutputIo.MainConveyorRun))
+                stopperLoweredWhileRunning = true;
         };
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var run = conveyor.RunAsync(
@@ -69,8 +77,12 @@ public sealed class ConveyorTests
         try
         {
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            await Task.Delay(io.TimeoutMilliseconds + 100);
+            Assert.False(run.IsCompleted);
+            Assert.True(conveyor.RunCommandOn);
             Assert.True(io.GetOutput(OutputIo.MainConveyorForward));
             Assert.True(io.GetOutput(backupPlate));
+            Assert.False(io.GetOutput(stopper));
             elapsed.Start();
             io.SetInput(destination, true);
 
@@ -79,6 +91,7 @@ public sealed class ConveyorTests
             Assert.False(conveyor.RunCommandOn);
             await WaitForOutputAsync(io, backupPlate, false);
             Assert.False(raisedWhileRunning);
+            Assert.False(stopperLoweredWhileRunning);
         }
         finally
         {
@@ -87,8 +100,10 @@ public sealed class ConveyorTests
         }
     }
 
-    [Fact]
-    public async Task StopCancelsCarrierDetectionDelayWithoutRaisingThePlate()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StopCancelsCarrierArrivalOrSeatingDelayWithoutRaisingThePlate(bool arrived)
     {
         var io = CreateIo();
         io.Initialize();
@@ -101,7 +116,7 @@ public sealed class ConveyorTests
         try
         {
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
-            io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+            io.SetInput(InputIo.PcbPlacementCarrierPresent, arrived);
             await Task.Delay(50);
             Assert.True(conveyor.RunCommandOn);
 
@@ -878,11 +893,11 @@ public sealed class ConveyorTests
             routeInspectionToNg: () => false);
     }
 
-    private static VirtualIoService CreateIo()
+    private static VirtualIoService CreateIo(int timeoutMilliseconds = 3_000)
     {
         return new(
             Outputs(new ConveyorHardwareSettings(), new NgCarrierTransferHardwareSettings()),
-            new MachineOptions());
+            new MachineOptions { TimeoutMilliseconds = timeoutMilliseconds });
     }
 
     private static async Task SetSeatedCarrierAsync(

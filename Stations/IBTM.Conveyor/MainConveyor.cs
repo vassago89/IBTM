@@ -483,7 +483,8 @@ public sealed class MainConveyor : AutoUnit
                     }
 
                     _io.SetOutput(OutputIo.MainConveyorReadyToFront2, false);
-                    await _placement.WaitForCarrierAsync(cancellationToken);
+                    await _placement.WaitForCarrierAsync(cancellationToken, Timeout.Infinite);
+                    // Keep pushing against the raised stopper after carrier detection.
                     await Task.Delay(
                         TimeSpan.FromSeconds(_settings.CarrierStopDelaySeconds),
                         cancellationToken);
@@ -518,7 +519,8 @@ public sealed class MainConveyor : AutoUnit
             try
             {
                 StartMotor(cancellationToken);
-                await destination.WaitForCarrierAsync(cancellationToken);
+                await destination.WaitForCarrierAsync(cancellationToken, Timeout.Infinite);
+                // Arrival starts the seating delay; it is not a travel timeout.
                 await Task.Delay(
                     TimeSpan.FromSeconds(_settings.CarrierStopDelaySeconds),
                     cancellationToken);

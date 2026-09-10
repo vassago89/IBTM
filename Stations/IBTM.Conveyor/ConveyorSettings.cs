@@ -5,7 +5,7 @@ namespace IBTM.Conveyor;
 
 public sealed class ConveyorSettings : Setting
 {
-    private double _carrierStopDelaySeconds = 1.0;
+    private double _carrierStopDelaySeconds = 3.0;
 
     public double CarrierStopDelaySeconds
     {

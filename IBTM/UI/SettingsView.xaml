@@ -228,12 +228,12 @@
                 <Border Style="{StaticResource SettingCard}">
                     <StackPanel>
                         <TextBlock Text="Main Conveyor" Style="{StaticResource SettingSectionTitle}"/>
-                        <TextBlock Text="Carrier Detection Stop Delay (s)"
+                        <TextBlock Text="Run After Carrier Detection (s)"
                                    Style="{StaticResource SettingFieldLabel}"/>
                         <TextBox IsEnabled="{Binding CanEditSettings}"
                                  Text="{Binding Settings.Conveyor.CarrierStopDelaySeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                  MaxWidth="300" HorizontalAlignment="Left" MinWidth="180"/>
-                        <TextBlock Text="Forward transfer · Stations 1–3 · 0 = stop immediately"
+                        <TextBlock Text="Stations 1–3 · After sensor ON, keep running against the raised stopper, then stop and raise the backup plate."
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    TextWrapping="Wrap" Margin="0,6,0,0"/>
                     </StackPanel>
