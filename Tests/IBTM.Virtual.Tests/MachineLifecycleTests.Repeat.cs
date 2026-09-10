@@ -127,9 +127,12 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task RepeatAndProductionRequireOppositeModesAndStopOnSelectorChange(bool repeat)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task ProductionAllowsBothModesWhileRepeatRequiresManualAndSelectorChangeStops(
+        bool repeat,
+        bool manual)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
@@ -150,15 +153,22 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
 
             // The physical selector is ON in TEACHING/MANUAL, OFF in AUTO.
-            io.SetInput(InputIo.AutoMode, !repeat);
-            var blocked = repeat ? StartBlockReason.TeachingMode : StartBlockReason.AutoMode;
-            Assert.Equal(blocked, machine.StartBlock);
-            Assert.False(machine.CanStart);
-            await machine.StartAsync();
-            Assert.False(state.AutomaticRunning);
-            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            if (repeat)
+            {
+                io.SetInput(InputIo.AutoMode, false);
+                Assert.Equal(StartBlockReason.TeachingMode, machine.StartBlock);
+                Assert.False(machine.CanStart);
+                await machine.StartAsync();
+                Assert.False(state.AutomaticRunning);
+                Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            }
 
-            io.SetInput(InputIo.AutoMode, repeat);
+            io.SetInput(InputIo.AutoMode, manual);
+            if (manual)
+            {
+                io.SetInput(InputIo.Door1Open, false);
+                Assert.True(state.DoorInterlockReady);
+            }
             Assert.True(machine.CanStart, machine.StartBlock.ToString());
             await WaitUntilAsync(() => state.Display.CanStart);
             run = machine.StartAsync();
@@ -167,14 +177,22 @@ public sealed partial class MachineLifecycleTests
                 state.AlarmDetail);
             Assert.True(state.AutomaticRunning);
 
-            io.SetInput(InputIo.AutoMode, !repeat);
+            if (manual)
+            {
+                io.SetInput(InputIo.Door1Open, true);
+                io.SetInput(InputIo.Door1Open, false);
+                Assert.Equal(MachineAlarm.None, state.Alarm);
+                Assert.True(state.AutomaticRunning);
+                io.SetInput(InputIo.Door1Open, true);
+            }
+            io.SetInput(InputIo.AutoMode, !manual);
             await run.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.False(state.AutomaticRunning);
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
-            Assert.Equal(blocked, machine.StartBlock);
-            await WaitUntilAsync(() => !state.Display.CanStart);
+            Assert.Equal(repeat ? StartBlockReason.TeachingMode : StartBlockReason.None, machine.StartBlock);
+            await WaitUntilAsync(() => state.Display.CanStart == !repeat);
         }
         finally
         {

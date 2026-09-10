@@ -489,7 +489,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(teaching.HomeCommand.CanExecute(null));
 
         io.SetInput(InputIo.Door1Open, false);
-        Assert.False(services.GetRequiredService<MachineState>().DoorInterlockReady);
+        Assert.True(services.GetRequiredService<MachineState>().DoorInterlockReady);
         Assert.Equal(HomeBlockReason.None, teaching.HomeBlock);
         Assert.True(teaching.HomeCommand.CanExecute(null));
         io.SetInput(InputIo.Door1Open, true);

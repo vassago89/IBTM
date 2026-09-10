@@ -641,8 +641,11 @@ public sealed partial class MachineLifecycleTests
 
         io.SetInput(InputIo.AutoMode, false);
         Assert.True(machine.CanStart);
+        await WaitUntilAsync(() => state.Display.CanStart);
         var firstRun = machine.StartAsync();
-        await WaitUntilAsync(() => state.AutomaticRunning);
+        Assert.True(await VirtualTest.WaitUntilAsync(
+            () => state.AutomaticRunning, TimeSpan.FromSeconds(2)),
+            $"{state.Alarm}: {state.AlarmDetail}");
 
         io.SetInput(InputIo.Door1Open, false);
         await firstRun.WaitAsync(TimeSpan.FromSeconds(2));
@@ -661,6 +664,7 @@ public sealed partial class MachineLifecycleTests
 
         io.SetInput(InputIo.Door1Open, true);
         io.SetInput(InputIo.AutoMode, false);
+        await WaitUntilAsync(() => state.Display.CanStart);
         var secondRun = machine.StartAsync();
         await WaitUntilAsync(() => state.AutomaticRunning);
 

@@ -269,13 +269,8 @@ public sealed partial class MachineController
             return StartBlockReason.DoorOpen;
         if (!motion.Homed)
             return StartBlockReason.HomeRequired;
-        if (_state.RepeatEnabled)
-        {
-            if (!_state.ManualMode)
-                return StartBlockReason.TeachingMode;
-        }
-        else if (!_state.AutoMode)
-            return StartBlockReason.AutoMode;
+        if (_state.RepeatEnabled && !_state.ManualMode)
+            return StartBlockReason.TeachingMode;
         if (!TeachingReady)
             return StartBlockReason.TeachingIncomplete;
         if (_state.RepeatEnabled
@@ -1197,7 +1192,7 @@ public sealed partial class MachineController
             return MachineAlarm.EmergencyStop;
         }
 
-        if (_options.UseDoorInterlock && _state.AutoMode && !_state.DoorClosed)
+        if (!_state.DoorInterlockReady)
         {
             return MachineAlarm.DoorOpen;
         }
@@ -1215,6 +1210,7 @@ public sealed partial class MachineController
         }
 
         var repeat = _state.RepeatEnabled;
+        var startedInManual = _state.ManualMode;
         using var operation = _operations.Link(cancellationToken);
         void StopWhenOperationBecomesUnavailable()
         {
@@ -1226,7 +1222,7 @@ public sealed partial class MachineController
 
             try
             {
-                var modeReady = repeat ? _state.ManualMode : _state.AutoMode;
+                var modeReady = _state.ManualMode == startedInManual;
                 if (modeReady && _state.CanOperate && _state.DoorInterlockReady)
                 {
                     return;

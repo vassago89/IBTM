@@ -549,7 +549,7 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
     {
         get
         {
-            return !_options.UseDoorInterlock || DoorClosed;
+            return !_options.UseDoorInterlock || ManualMode || DoorClosed;
         }
     }
 

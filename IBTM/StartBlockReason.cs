@@ -31,9 +31,6 @@ public enum StartBlockReason
     [Description("Close doors, then press RESET")]
     DoorOpen,
 
-    [Description("Select AUTO mode")]
-    AutoMode,
-
     [Description("Select TEACHING (MANUAL) mode for REPEAT")]
     TeachingMode,
 
