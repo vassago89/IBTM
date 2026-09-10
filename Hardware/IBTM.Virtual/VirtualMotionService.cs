@@ -14,7 +14,7 @@ public sealed class VirtualMotionService(
     (double Minimum, double Maximum)? xRange = null,
     (double Minimum, double Maximum)? yRange = null,
     (double Minimum, double Maximum)? zRange = null,
-    double resolutionMillimeters = MotionHardwareSettings.DefaultMillimetersPerPulse,
+    double resolutionMillimeters = MotionHardwareSettings.DefaultMillimetersPerUnit,
     Func<double>? horizontalZ = null,
     Func<bool>? servoPowerOn = null,
     (double X, double Y, double Z)? axisResolutionMillimeters = null) : MotionService(

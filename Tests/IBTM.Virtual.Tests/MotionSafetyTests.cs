@@ -72,7 +72,7 @@ public sealed class MotionSafetyTests
     [Fact]
     public async Task SlowJogAccumulatesSubPulseDistanceAndStopsOnCancellation()
     {
-        const double pulseLength = MotionHardwareSettings.DefaultMillimetersPerPulse;
+        const double pulseLength = MotionHardwareSettings.DefaultMillimetersPerUnit;
         const double velocity = pulseLength * 20;
         using var motion = new VirtualMotionService(
             new MotionSettings(),

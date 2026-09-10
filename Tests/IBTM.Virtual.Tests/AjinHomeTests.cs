@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,11 +12,11 @@ namespace IBTM.Virtual.Tests;
 public sealed class AjinHomeTests
 {
     [Fact]
-    public void AxisPulseLengthConvertsCommandsAndFeedbackIndependently()
+    public void AxisSdkUnitAndPulseAreNotAppliedTwiceToCommandsOrFeedback()
     {
         var x = new AxisHardware { Number = 5 };
-        var y = new AxisHardware { Number = 4, MillimetersPerPulse = 0.01 };
-        var z = new AxisHardware { Number = 3, MillimetersPerPulse = 0.0001 };
+        var y = new AxisHardware { Number = 4, MoveUnit = 0.1 };
+        var z = new AxisHardware { Number = 3, MovePulse = 10 };
         var motion = new AjinMotionService(
             new AjinController(new AjinSettings()),
             x, y, z, 0.001,
@@ -23,18 +24,27 @@ public sealed class AjinHomeTests
         // Exercise conversion without loading the native driver or issuing hardware commands.
         var toUnits = typeof(AjinMotionService).GetMethod("ToUnits", BindingFlags.Instance | BindingFlags.NonPublic)!;
         var fromUnits = typeof(AjinMotionService).GetMethod("FromUnits", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        foreach (var (axis, pulses) in new[] { (5, 1_000d), (4, 100d), (3, 10_000d) })
+        var scales = (Dictionary<int, (double Unit, int Pulse)>)typeof(AjinMotionService)
+            .GetField("_axisScales", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(motion)!;
+        Assert.Equal((1d, 1), scales[5]);
+        Assert.Equal((0.1, 1), scales[4]);
+        Assert.Equal((1d, 10), scales[3]);
+        foreach (var (axis, scale) in scales)
         {
-            Assert.Equal(pulses, (double)toUnits.Invoke(motion, [axis, 1d])!, 6);
-            Assert.Equal(1d, (double)fromUnits.Invoke(motion, [axis, pulses, 1d, 1])!, 6);
-            Assert.Equal(1d, (double)fromUnits.Invoke(motion, [axis, pulses / 100, 0.1, 10])!, 6);
+            var command = (double)toUnits.Invoke(motion, [1d])!;
+            Assert.Equal(1_000d, command);
+            Assert.Equal(1d, (double)fromUnits.Invoke(motion, [axis, command, scale.Unit, scale.Pulse])!, 6);
+
+            // Monitoring remains correct even before our SDK scale is applied.
+            var rawPulses = command * scale.Pulse / scale.Unit;
+            Assert.Equal(1d, (double)fromUnits.Invoke(motion, [axis, rawPulses, 1d, 1])!, 6);
         }
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => y.MillimetersPerPulse = 0);
-        y.MillimetersPerPulse = null;
-        Assert.Null(y.MillimetersPerPulse);
+        Assert.Throws<ArgumentOutOfRangeException>(() => y.MoveUnit = 0);
+        Assert.Throws<ArgumentOutOfRangeException>(() => y.MovePulse = 0);
         // Edits take effect after restart, not halfway through a move.
-        Assert.Equal(100d, toUnits.Invoke(motion, [4, 1d]));
+        y.MoveUnit = 10;
+        Assert.Equal((0.1, 1), scales[4]);
     }
 
     [Fact]
@@ -180,7 +190,7 @@ public sealed class AjinHomeTests
         new AxisHardware { Number = 0 },
         hasY ? new AxisHardware { Number = 1 } : null,
         axisZ: null,
-        millimetersPerPulse: 0.01,
+        millimetersPerUnit: 0.01,
         new MotionSettings(),
         new MachineOptions(),
         new OperationCancellation(),

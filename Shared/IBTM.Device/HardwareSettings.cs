@@ -21,17 +21,38 @@ public sealed class OutputHardware
 
 public sealed class AxisHardware
 {
+    private double _moveUnit = 1;
+    private int _movePulse = 1;
+
     public int Number { get; set; }
-    public double? MillimetersPerPulse
+    public double MoveUnit
     {
-        get;
+        get
+        {
+            return _moveUnit;
+        }
         set
         {
-            if (value is { } length && (!double.IsFinite(length) || length <= 0))
-                throw new ArgumentOutOfRangeException(nameof(value), "Pulse length must be a positive finite value in mm/pulse.");
-            field = value;
+            if (!double.IsFinite(value) || value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(value), "SDK Unit must be a positive finite value.");
+            _moveUnit = value;
         }
     }
+
+    public int MovePulse
+    {
+        get
+        {
+            return _movePulse;
+        }
+        set
+        {
+            if (value <= 0)
+                throw new ArgumentOutOfRangeException(nameof(value), "SDK Pulse must be a positive integer.");
+            _movePulse = value;
+        }
+    }
+
     public double Minimum { get; set; }
     public double Maximum { get; set; }
 }
@@ -96,7 +117,7 @@ public abstract class MotionHardwareSettings(
     MotionGroup group,
     params (MotionAxis Axis, MachineAxis Signal, int Number, double Maximum)[] axes) : IoHardwareSettings
 {
-    public const double DefaultMillimetersPerPulse = 0.001;
+    public const double DefaultMillimetersPerUnit = 0.001;
 
     [JsonIgnore]
     public MotionGroup Group { get; } = group;
@@ -108,7 +129,8 @@ public abstract class MotionHardwareSettings(
     public Dictionary<MachineAxis, AxisHardware> Axes { get; set; } = axes.ToDictionary(
         axis => axis.Signal,
         axis => new AxisHardware { Number = axis.Number, Maximum = axis.Maximum });
-    public double MillimetersPerPulse { get; set; } = DefaultMillimetersPerPulse;
+    [JsonPropertyName("MillimetersPerPulse")]
+    public double MillimetersPerUnit { get; set; } = DefaultMillimetersPerUnit;
 
     public AxisHardware? GetAxis(MotionAxis axis)
     {

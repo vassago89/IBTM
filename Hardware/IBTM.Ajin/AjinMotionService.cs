@@ -13,7 +13,7 @@ public class AjinMotionService(
     AxisHardware axisX,
     AxisHardware? axisY,
     AxisHardware? axisZ,
-    double millimetersPerPulse,
+    double millimetersPerUnit,
     MotionSettings settings,
     MachineOptions options,
     OperationCancellation operationCancellation,
@@ -48,9 +48,10 @@ public class AjinMotionService(
     private readonly int _axisX = axisX.Number;
     private readonly int? _axisY = axisY?.Number;
     private readonly int? _axisZ = axisZ?.Number;
-    private readonly Dictionary<int, double> _millimetersPerPulse = new[] { axisX, axisY, axisZ }
+    private readonly double _millimetersPerUnit = millimetersPerUnit;
+    private readonly Dictionary<int, (double Unit, int Pulse)> _axisScales = new[] { axisX, axisY, axisZ }
         .OfType<AxisHardware>()
-        .ToDictionary(axis => axis.Number, axis => axis.MillimetersPerPulse ?? millimetersPerPulse);
+        .ToDictionary(axis => axis.Number, axis => (axis.MoveUnit, axis.MovePulse));
     private readonly int[] _axes = new[] { axisX, axisY, axisZ }.OfType<AxisHardware>().Select(
         axis => axis.Number).ToArray();
     public override bool IsReady
@@ -92,9 +93,9 @@ public class AjinMotionService(
                 continue;
             }
 
-            // mm conversion belongs here, not in the .mot file's SDK scaling.
+            var scale = _axisScales[axis];
             AjinController.Check(
-                CAXM.AxmMotSetMoveUnitPerPulse(axis, 1, 1),
+                CAXM.AxmMotSetMoveUnitPerPulse(axis, scale.Unit, scale.Pulse),
                 nameof(CAXM.AxmMotSetMoveUnitPerPulse));
             AjinController.Check(
                 CAXM.AxmMotSetAccelUnit(axis, AccelerationInUnitsPerSecondSquared),
@@ -134,15 +135,15 @@ public class AjinMotionService(
         }
 
         var totalDistance = Math.Sqrt(distanceX * distanceX + distanceY * distanceY);
-        var velocityX = ToUnits(_axisX, velocity * distanceX / totalDistance);
-        var velocityY = ToUnits(axisYNumber, velocity * distanceY / totalDistance);
+        var velocityX = ToUnits(velocity * distanceX / totalDistance);
+        var velocityY = ToUnits(velocity * distanceY / totalDistance);
         var axes = new[] { _axisX, axisYNumber };
 
         return RunMoveAsync(
             () => CAXM.AxmMoveMultiPos(
                 axes.Length,
                 axes,
-                [ToUnits(_axisX, x), ToUnits(axisYNumber, y)],
+                [ToUnits(x), ToUnits(y)],
                 [velocityX, velocityY],
                 [velocityX / Settings.AccelerationSeconds, velocityY / Settings.AccelerationSeconds],
                 [velocityX / Settings.DecelerationSeconds, velocityY / Settings.DecelerationSeconds]),
@@ -162,7 +163,7 @@ public class AjinMotionService(
             CAXM.AxmSignalGetLimit(_axisZ!.Value, ref stopMode, ref positiveLevel, ref negativeLevel),
             nameof(CAXM.AxmSignalGetLimit));
 
-        var velocityInUnits = ToUnits(_axisZ.Value, velocity);
+        var velocityInUnits = ToUnits(velocity);
         var acceleration = velocityInUnits / Settings.AccelerationSeconds;
 
         await RunMoveAsync(
@@ -189,7 +190,7 @@ public class AjinMotionService(
         CancellationToken cancellationToken)
     {
         var axisNumber = GetAxis(axis);
-        var velocityInUnits = ToUnits(axisNumber, velocity);
+        var velocityInUnits = ToUnits(velocity);
         var acceleration = Math.Abs(velocityInUnits) / Settings.AccelerationSeconds;
         var deceleration = Math.Abs(velocityInUnits) / Settings.DecelerationSeconds;
         return RunMoveAsync(
@@ -279,7 +280,7 @@ public class AjinMotionService(
         cancellationToken.ThrowIfCancellationRequested();
         var axisNumber = GetAxis(axis);
         EnsureAxisParameters(axisNumber);
-        var velocityInUnits = ToUnits(axisNumber, velocity);
+        var velocityInUnits = ToUnits(velocity);
 
         var home = Settings.Home(axis);
 
@@ -290,11 +291,11 @@ public class AjinMotionService(
             CAXM.AxmHomeSetVel(
                 axisNumber,
                 velocityInUnits,
-                ToUnits(axisNumber, home.DetectionSpeed),
-                ToUnits(axisNumber, home.ApproachSpeed),
-                ToUnits(axisNumber, home.FineSpeed),
+                ToUnits(home.DetectionSpeed),
+                ToUnits(home.ApproachSpeed),
+                ToUnits(home.FineSpeed),
                 velocityInUnits / home.SearchAccelerationSeconds,
-                ToUnits(axisNumber, home.DetectionSpeed) / home.DetectionAccelerationSeconds),
+                ToUnits(home.DetectionSpeed) / home.DetectionAccelerationSeconds),
             nameof(CAXM.AxmHomeSetVel));
         using var cancellationRegistration = cancellationToken.Register(
             () =>
@@ -401,14 +402,14 @@ public class AjinMotionService(
         CancellationToken cancellationToken)
     {
         var axisNumber = GetAxis(axis);
-        var velocityInUnits = ToUnits(axisNumber, velocity);
+        var velocityInUnits = ToUnits(velocity);
         var acceleration = velocityInUnits / Settings.AccelerationSeconds;
         var deceleration = velocityInUnits / Settings.DecelerationSeconds;
 
         return RunMoveAsync(
             () => CAXM.AxmMovePos(
                 axisNumber,
-                ToUnits(axisNumber, position),
+                ToUnits(position),
                 velocityInUnits,
                 acceleration,
                 deceleration),
@@ -601,7 +602,7 @@ public class AjinMotionService(
             $"{operation} (axis={axis}) failed with Ajin result {(AXT_FUNC_RESULT)result} (0x{result:X8}).");
     }
 
-    private static bool AxisParametersMatch(int axis)
+    private bool AxisParametersMatch(int axis)
     {
         var unit = 0.0;
         var pulse = 0;
@@ -612,12 +613,13 @@ public class AjinMotionService(
         AjinController.Check(
             CAXM.AxmMotGetAccelUnit(axis, ref accelerationUnit),
             $"{nameof(CAXM.AxmMotGetAccelUnit)} (axis={axis})");
-        return unit == 1
-            && pulse == 1
+        var expected = _axisScales[axis];
+        return unit == expected.Unit
+            && pulse == expected.Pulse
             && accelerationUnit == AccelerationInUnitsPerSecondSquared;
     }
 
-    private static void EnsureAxisParameters(int axis)
+    private void EnsureAxisParameters(int axis)
     {
         if (!AxisParametersMatch(axis))
         {
@@ -626,14 +628,17 @@ public class AjinMotionService(
         }
     }
 
-    private double ToUnits(int axis, double millimeters)
+    private double ToUnits(double millimeters)
     {
-        return millimeters / _millimetersPerPulse[axis];
+        return millimeters / _millimetersPerUnit;
     }
 
     private double FromUnits(int axis, double position, double unit, int pulse)
     {
-        return position * pulse / unit * _millimetersPerPulse[axis];
+        var expected = _axisScales[axis];
+        // With the configured SDK scale this is just position * mm/unit.
+        // A different live scale is converted through raw pulses for monitoring.
+        return position * pulse / unit * expected.Unit / expected.Pulse * _millimetersPerUnit;
     }
 
     private int GetAxis(MotionAxis axis)
