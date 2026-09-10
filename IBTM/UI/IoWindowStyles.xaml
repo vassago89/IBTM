@@ -131,20 +131,6 @@
         </Style.Triggers>
     </Style>
 
-    <Style x:Key="OutputControlButtonStyle" TargetType="Button"
-           BasedOn="{StaticResource OutputToggleButtonStyle}">
-        <Style.Triggers>
-            <!-- An owned operation can be cancelled before ON feedback arrives. -->
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding IsMaintainedOutput}" Value="True"/>
-                    <Condition Binding="{Binding ToggleCommand.IsRunning}" Value="True"/>
-                </MultiDataTrigger.Conditions>
-                <Setter Property="Content" Value="OFF"/>
-            </MultiDataTrigger>
-        </Style.Triggers>
-    </Style>
-
     <Style x:Key="OutputFeedbackTextStyle" TargetType="TextBlock">
         <Setter Property="Text" Value="Not matched"/>
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>

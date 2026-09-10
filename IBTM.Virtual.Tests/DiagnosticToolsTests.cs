@@ -320,7 +320,7 @@ public sealed class DiagnosticToolsTests
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var context = new PausedSynchronizationContext();
-        OutputControlRow? row = null;
+        ManualConveyorRow? row = null;
         Task? test = null;
         await machine.InitializeAsync();
         try
@@ -329,14 +329,14 @@ public sealed class DiagnosticToolsTests
             io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
             io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
             io.SetInput(InputIo.MainConveyorReadyFromRear, false);
-            row = new OutputControlRow(
+            row = new ManualConveyorRow(
                 services.GetRequiredService<IoSignals>().Outputs[OutputIo.MainConveyorRun],
                 machine);
             var previous = SynchronizationContext.Current;
             try
             {
                 SynchronizationContext.SetSynchronizationContext(context);
-                test = row.ToggleCommand.ExecuteAsync(null);
+                test = row.RunCommand.ExecuteAsync(null);
             }
             finally
             {
@@ -344,7 +344,7 @@ public sealed class DiagnosticToolsTests
             }
 
             Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
-            row.StopOutputTestCommand.Execute(null);
+            row.StopCommand.Execute(null);
             // No queued UI callback is allowed to run before OFF is observed.
             Assert.True(
                 await VirtualTest.WaitUntilAsync(
@@ -354,7 +354,7 @@ public sealed class DiagnosticToolsTests
         }
         finally
         {
-            row?.ToggleCommand.Cancel();
+            row?.RunCommand.Cancel();
             context.Release();
             if (test is not null)
                 await test.WaitAsync(TimeSpan.FromSeconds(2));

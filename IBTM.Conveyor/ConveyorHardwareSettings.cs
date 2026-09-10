@@ -26,7 +26,6 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
                 or OutputIo.MainConveyorRun
                 or OutputIo.MainConveyorReverse
                 or OutputIo.MainConveyorNormalSpeed
-
                 => IoSection.MainConveyorInterfaceDrive,
             InputIo.PcbPlacementCarrierPresent
                 or InputIo.PcbPlacementStopperUp
@@ -35,7 +34,6 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
                 or InputIo.PcbPlacementBackupPlateDown
                 or OutputIo.PcbPlacementStopperUp
                 or OutputIo.PcbPlacementBackupPlateUp
-
                 => IoSection.MainConveyorStation1,
             InputIo.BoltFasteningCarrierPresent
                 or InputIo.BoltFasteningStopperUp
@@ -44,7 +42,6 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
                 or InputIo.BoltFasteningBackupPlateDown
                 or OutputIo.BoltFasteningStopperUp
                 or OutputIo.BoltFasteningBackupPlateUp
-
                 => IoSection.MainConveyorStation2,
             InputIo.InspectionCarrierPresent
                 or InputIo.InspectionStopperUp
@@ -53,7 +50,6 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
                 or InputIo.InspectionBackupPlateDown
                 or OutputIo.InspectionStopperUp
                 or OutputIo.InspectionBackupPlateUp
-
                 => IoSection.MainConveyorStation3,
             _ => null,
         };

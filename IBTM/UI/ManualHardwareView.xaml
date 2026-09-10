@@ -13,7 +13,7 @@
             <TextBlock Text="Manual" Style="{StaticResource TitleStyle}" Margin="0,0,0,12"/>
             <ItemsControl ItemsSource="{Binding Conveyors}">
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type ui:OutputControlRow}">
+                    <DataTemplate DataType="{x:Type ui:ManualConveyorRow}">
                         <Border Style="{StaticResource CardStyle}" Padding="12" Margin="0,0,0,8">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -26,10 +26,10 @@
                                                Style="{StaticResource PanelTitleStyle}" Margin="0,0,16,0"/>
                                     <TextBlock Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}" Style="{StaticResource IoOutputStateStyle}"/>
                                 </StackPanel>
-                                <Button Grid.Column="1" Content="Run" Command="{Binding ToggleCommand}"
-                                        ToolTip="{Binding ToggleHint}" ToolTipService.ShowOnDisabled="True"
+                                <Button Grid.Column="1" Content="Run" Command="{Binding RunCommand}"
+                                        ToolTip="{Binding ActionMessage}" ToolTipService.ShowOnDisabled="True"
                                         Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,8,0"/>
-                                <Button Grid.Column="2" Content="Stop" Command="{Binding StopOutputTestCommand}"
+                                <Button Grid.Column="2" Content="Stop" Command="{Binding StopCommand}"
                                         Style="{StaticResource SecondaryButtonStyle}" MinWidth="100"/>
                             </Grid>
                         </Border>
@@ -163,8 +163,8 @@
                                 </Style.Triggers>
                             </Style>
                         </StackPanel.Style>
-                        <TextBlock Text="{Binding DryRunHead, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
-                        <TextBlock Text="{Binding DryRunFasteningPass, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
+                        <TextBlock Text="{Binding State.Display.BoltRouteTarget.Head, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
+                        <TextBlock Text="{Binding State.Display.BoltRoutePass, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
                         <TextBlock Text="{Binding DryRunPcb, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
                         <TextBlock Text="{Binding DryRunBolt, StringFormat='Bolt {0}'}"/>
                     </StackPanel>
@@ -180,17 +180,17 @@
                         <TextBlock Text="{Binding DryRunPcb, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
                         <TextBlock Grid.Column="1" Text="{Binding DryRunBolt, StringFormat='Bolt {0}', TargetNullValue='Data Matrix'}" Margin="0,0,20,0"/>
                         <TextBlock Grid.Column="2" Text="Last barcode: " Foreground="{StaticResource TextSecondaryBrush}"/>
-                        <TextBlock Grid.Column="3" Text="{Binding DryRunBarcode, TargetNullValue='—'}" ToolTip="{Binding DryRunBarcode}" TextTrimming="CharacterEllipsis" Margin="0,0,20,0"/>
+                        <TextBlock Grid.Column="3" Text="{Binding State.Display.InspectionDryRunBarcode, TargetNullValue='—'}" ToolTip="{Binding State.Display.InspectionDryRunBarcode}" TextTrimming="CharacterEllipsis" Margin="0,0,20,0"/>
                         <TextBlock Grid.Column="4" Text="Last bolt: " Foreground="{StaticResource TextSecondaryBrush}"/>
                         <TextBlock Grid.Column="5">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Text" Value="—"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding DryRunBoltPresent}" Value="True">
+                                        <DataTrigger Binding="{Binding State.Display.InspectionDryRunBoltPresent}" Value="True">
                                             <Setter Property="Text" Value="Present"/>
                                         </DataTrigger>
-                                        <DataTrigger Binding="{Binding DryRunBoltPresent}" Value="False">
+                                        <DataTrigger Binding="{Binding State.Display.InspectionDryRunBoltPresent}" Value="False">
                                             <Setter Property="Text" Value="Missing"/>
                                         </DataTrigger>
                                     </Style.Triggers>

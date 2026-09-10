@@ -144,7 +144,7 @@ public sealed class AjinControllerTests
     public void InitializationUsesZeroSuccessAndLogsTheActualFiveModulesWithoutWritingOutputs()
     {
         using var log = new ApplicationLog();
-        using var controller = new AjinController(new() { MotionParameterFile = "missing.mot" }, log);
+        using var controller = new AjinController(new(), log);
 
         controller.Initialize();
         controller.Initialize();
@@ -404,7 +404,6 @@ public sealed class AjinControllerTests
         settings.RtexOutputModules[0] = 0;
         settings.RtexInputModules = [];
         settings.InterruptNumber = 99;
-        settings.MotionParameterFile = "changed.mot";
         Assert.Equal(3, controller.RtexInputWordCount);
         controller.Initialize();
         Assert.Equal(new AjinSdk.Call("AxlOpenNoReset", Offset: 7), AjinSdk.Calls[0]);

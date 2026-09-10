@@ -141,7 +141,11 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
     private BoltResult Complete(AdcFasteningResult result)
     {
         _fasteningEvent = null;
-        ThrowIfControllerError(result);
+        if (result.Status == AdcEventStatus.Error)
+        {
+            throw new InvalidOperationException($"ADC {slaveAddress} controller error: {result.Error}.");
+        }
+
         return new BoltResult(result.Status == AdcEventStatus.FasteningOk, result.Torque);
     }
 
@@ -152,11 +156,4 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
             && result.Status is AdcEventStatus.FasteningOk or AdcEventStatus.FasteningNg;
     }
 
-    private void ThrowIfControllerError(AdcFasteningResult result)
-    {
-        if (result.Status == AdcEventStatus.Error)
-        {
-            throw new InvalidOperationException($"ADC {slaveAddress} controller error: {result.Error}.");
-        }
-    }
 }

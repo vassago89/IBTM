@@ -49,12 +49,8 @@ public partial class OperationViewModel : ObservableObject
         nameof(MachineDisplayState),
         nameof(StartBlocked),
         nameof(StartBlock),
-        nameof(HomeBlock),
-        nameof(ConveyorRunning),
-        nameof(MainConveyorState),
         nameof(CarrierBetweenPlacementAndBolt),
         nameof(CarrierBetweenBoltAndInspection),
-        nameof(ModeKnown),
         nameof(ModeText),
         nameof(HasAlarm),
         nameof(Alarm),
@@ -104,8 +100,6 @@ public partial class OperationViewModel : ObservableObject
         nameof(PcbPlacementCarrierPresent),
         nameof(PcbPlacementHeatSink1Completed),
         nameof(PcbPlacementHeatSink2Completed),
-        nameof(PlacementState),
-        nameof(PcbPlacementTargetHeatSink),
         nameof(PlacementDisplayState),
         nameof(PcbPlacementRecoveryAvailable),
     ];
@@ -130,7 +124,6 @@ public partial class OperationViewModel : ObservableObject
         nameof(Fastening),
         nameof(PickupFeederBoltDetected),
         nameof(ShootingFeederBoltDetected),
-        nameof(FasteningState),
         nameof(BoltFasteningActiveBolt),
         nameof(BoltTargets),
         nameof(FasteningStateVisible),
@@ -146,7 +139,6 @@ public partial class OperationViewModel : ObservableObject
         nameof(InspectionCarrierPresent),
         nameof(InspectionStopperUp),
         nameof(InspectionBackupPlateUp),
-        nameof(InspectionState),
         nameof(InspectionActiveBolt),
         nameof(InspectionActivePcb),
         nameof(InspectionPcb1Barcode),
@@ -167,9 +159,7 @@ public partial class OperationViewModel : ObservableObject
         nameof(NgConveyorPosition1Occupied),
         nameof(NgConveyorPosition2Occupied),
         nameof(NgAlarmRequired),
-        nameof(NgConveyorRunCommandOn),
         nameof(NgShuttleLift),
-        nameof(NgConveyorState),
     ];
 
     private static readonly string[] ActivationPropertyNames = [
@@ -708,43 +698,11 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public bool NgConveyorRunCommandOn
-    {
-        get
-        {
-            return _state.Display.NgConveyorRunning;
-        }
-    }
-
     public NgShuttleLiftState NgShuttleLift
     {
         get
         {
             return _ngShuttle.Feedback.Lift;
-        }
-    }
-
-    public NgConveyorState NgConveyorState
-    {
-        get
-        {
-            return _state.Display.NgConveyorState;
-        }
-    }
-
-    public bool ConveyorRunning
-    {
-        get
-        {
-            return _state.Display.ConveyorRunning;
-        }
-    }
-
-    public MainConveyorState MainConveyorState
-    {
-        get
-        {
-            return _state.Display.ConveyorState;
         }
     }
 
@@ -754,7 +712,7 @@ public partial class OperationViewModel : ObservableObject
         {
             return !PcbPlacementCarrierPresent
                 && !BoltFasteningCarrierPresent
-                && MainConveyorState == MainConveyorState.MovingPcbPlacementToBoltFastening;
+                && _state.Display.ConveyorState == MainConveyorState.MovingPcbPlacementToBoltFastening;
         }
     }
 
@@ -764,7 +722,7 @@ public partial class OperationViewModel : ObservableObject
         {
             return !BoltFasteningCarrierPresent
                 && !InspectionCarrierPresent
-                && MainConveyorState == MainConveyorState.MovingBoltFasteningToInspection;
+                && _state.Display.ConveyorState == MainConveyorState.MovingBoltFasteningToInspection;
         }
     }
 
@@ -835,38 +793,6 @@ public partial class OperationViewModel : ObservableObject
                 && PcbPlacementCarrierPresent
                 && PcbPlacementHeatSink2Present
                 && HasAssembly(_pcbPlacementWork, HeatSinkSlot.HeatSink2);
-        }
-    }
-
-    public PcbPlacementState PlacementState
-    {
-        get
-        {
-            return _state.Display.PlacementState;
-        }
-    }
-
-    public HeatSinkSlot? PcbPlacementTargetHeatSink
-    {
-        get
-        {
-            return _state.Display.PlacementTarget;
-        }
-    }
-
-    public BoltFasteningState FasteningState
-    {
-        get
-        {
-            return _state.Display.FasteningState;
-        }
-    }
-
-    public InspectionStationState InspectionState
-    {
-        get
-        {
-            return _state.Display.InspectionState;
         }
     }
 
@@ -965,19 +891,11 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public bool ModeKnown
-    {
-        get
-        {
-            return _state.Display.Available;
-        }
-    }
-
     public string ModeText
     {
         get
         {
-            return ModeKnown ? (_state.Display.AutoMode ? "AUTO" : "MANUAL") : "UNKNOWN";
+            return _state.Display.Available ? (_state.Display.AutoMode ? "AUTO" : "MANUAL") : "UNKNOWN";
         }
     }
 
@@ -1078,13 +996,13 @@ public partial class OperationViewModel : ObservableObject
             RaiseCylindersCommand);
     }
 
-    [RelayCommand(CanExecute = nameof(CanOpenPcbPlacementRecovery))]
+    [RelayCommand(CanExecute = nameof(PcbPlacementRecoveryAvailable))]
     private void OpenPcbPlacementRecovery()
     {
         _pcbPlacementRecovery.Open(Application.Current.MainWindow);
     }
 
-    [RelayCommand(CanExecute = nameof(CanOpenBoltFasteningRecovery))]
+    [RelayCommand(CanExecute = nameof(BoltFasteningRecoveryAvailable))]
     private void OpenBoltFasteningRecovery()
     {
         _boltFasteningRecovery.Open(Application.Current.MainWindow);
@@ -1141,16 +1059,6 @@ public partial class OperationViewModel : ObservableObject
     private bool CanRaiseCylinders()
     {
         return _state.Display.CanRaiseCylinders;
-    }
-
-    private bool CanOpenBoltFasteningRecovery()
-    {
-        return BoltFasteningRecoveryAvailable;
-    }
-
-    private bool CanOpenPcbPlacementRecovery()
-    {
-        return PcbPlacementRecoveryAvailable;
     }
 
     private void NotifyCanExecuteChanged()
@@ -1396,16 +1304,6 @@ public partial class OperationViewModel : ObservableObject
         NotifyDisplayProperties(DisplayRefresh.NgConveyor);
     }
 
-    private void NotifyDisplayProperties(DisplayRefresh refresh)
-    {
-        if (!_active)
-            refresh &= DisplayRefresh.Machine;
-
-        NotifyProperties(refresh);
-        if ((refresh & DisplayRefresh.Machine) != 0)
-            QueueCommandRefresh();
-    }
-
     private void QueueCommandRefresh()
     {
         // CanExecuteChanged reaches WPF command subscribers directly, unlike bindings.
@@ -1422,8 +1320,13 @@ public partial class OperationViewModel : ObservableObject
                 }));
     }
 
-    private void NotifyProperties(DisplayRefresh refresh)
+    private void NotifyDisplayProperties(DisplayRefresh refresh)
     {
+        if (!_active)
+        {
+            refresh &= DisplayRefresh.Machine;
+        }
+
         if ((refresh & DisplayRefresh.Machine) != 0)
         {
             NotifyProperties(MachinePropertyNames);
@@ -1457,6 +1360,11 @@ public partial class OperationViewModel : ObservableObject
         if ((refresh & DisplayRefresh.NgConveyor) != 0)
         {
             NotifyProperties(NgConveyorPropertyNames);
+        }
+
+        if ((refresh & DisplayRefresh.Machine) != 0)
+        {
+            QueueCommandRefresh();
         }
     }
 

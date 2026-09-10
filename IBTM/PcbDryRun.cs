@@ -57,13 +57,11 @@ public sealed class PcbDryRun : AutoUnit
                 PcbDryRunDirection.Ready => PcbDryRunDirection.Ready,
                 PcbDryRunDirection.Return => _return.State,
                 _
-
                     => _supply.TransferState switch
                     {
                         PcbSupplyState.WaitingForPlacement
                             or PcbSupplyState.WaitingForBuffer
                             or PcbSupplyState.WaitingForCarrierExit
-
                             => _placement.State(_recipe.PcbPlacement, HeatSink),
                         var state => state,
                     },

@@ -25,13 +25,11 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings
                 or OutputIo.NgConveyorRun
                 or OutputIo.NgConveyorReverse
                 or OutputIo.NgConveyorNormalSpeed
-
                 => IoSection.NgConveyorStorage,
             InputIo.NgCarrierEjectButton
                 or InputIo.NgCarrierEjectCompleteButton
                 or OutputIo.NgCarrierEjectLamp
                 or OutputIo.NgCarrierEjectCompleteLamp
-
                 => IoSection.NgConveyorOperatorEject,
             _ => null,
         };

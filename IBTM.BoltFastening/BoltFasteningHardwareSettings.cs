@@ -22,7 +22,6 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
                 or InputIo.PickupHeadVacuumDetected
                 or OutputIo.PickupHeadDown
                 or OutputIo.PickupHeadVacuumPump
-
                 => IoSection.BoltFasteningPickupHead,
             InputIo.ShootingHeadDown
                 or InputIo.ShootingHeadUp
@@ -34,7 +33,6 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
                 or OutputIo.ShootingHeadVacuumPump
                 or OutputIo.ShootingEscapeForward
                 or OutputIo.ShootBolt
-
                 => IoSection.BoltFasteningShootingHead,
             _ => null,
         };

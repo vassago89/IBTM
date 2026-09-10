@@ -301,7 +301,6 @@ public sealed class BoltFasteningGantry
         {
             FasteningHead.Pickup => SetPickupHeadDownAsync(down, cancellationToken),
             FasteningHead.Shooting
-
                 => _io.SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, down, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(head)),
         };

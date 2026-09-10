@@ -106,21 +106,13 @@ public abstract partial class TeachingMotionViewModel(
 
     public abstract TeachingMotionHint MotionHint { get; }
 
-    public IReadOnlyList<IoStatus> IoGroups
-    {
-        get
-        {
-            return ioGroups[CurrentMotionGroup];
-        }
-    }
-
     public IReadOnlyList<TeachingIoGroup> TeachingIoGroups
     {
         get
         {
             if (!_teachingIoGroups.TryGetValue(CurrentMotionGroup, out var groups))
             {
-                groups = IoGroups.Select(
+                groups = ioGroups[CurrentMotionGroup].Select(
                     io =>
                         new TeachingIoGroup(
                             io,
@@ -141,22 +133,6 @@ public abstract partial class TeachingMotionViewModel(
         get
         {
             return teachingOutputs[CurrentMotionGroup];
-        }
-    }
-
-    public bool HasY
-    {
-        get
-        {
-            return Motion.Feedback.HasY;
-        }
-    }
-
-    public bool HasZ
-    {
-        get
-        {
-            return Motion.Feedback.HasZ;
         }
     }
 

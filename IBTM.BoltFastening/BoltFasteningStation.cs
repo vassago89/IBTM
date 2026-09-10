@@ -103,50 +103,37 @@ public sealed class BoltFasteningStation(
         {
             BoltFasteningState.FasteningPcb => FastenAsync(recipe, FasteningPass.Pcb, cancellationToken),
             BoltFasteningState.MovingToPcbBolt
-
                 => MoveToBoltAsync(PendingPcbBolts().First(), cancellationToken),
             BoltFasteningState.LoweringForPcb => LowerShootingHeadAsync(cancellationToken),
             BoltFasteningState.ShootingBolt => gantry.ShootBoltAsync(cancellationToken),
             BoltFasteningState.AdvancingShootingEscape
-
                 => gantry.AdvanceShootingEscapeAsync(cancellationToken),
             BoltFasteningState.WaitingForShootingTubeClear
-
                 => gantry.WaitForShootingTubeClearAsync(cancellationToken),
             BoltFasteningState.RetractingShootingEscape
-
                 => gantry.RetractShootingEscapeAsync(cancellationToken),
             BoltFasteningState.ClearingShootingHead
-
                 => ClearHeadAsync(FasteningHead.Shooting, cancellationToken),
             BoltFasteningState.MovingToPickupXY => gantry.MoveToPickupXYAsync(cancellationToken),
             BoltFasteningState.LoweringForBoltPickup
-
                 => gantry.SetPickupHeadDownAsync(true, cancellationToken),
             BoltFasteningState.MovingToPickupZ => gantry.MoveToPickupZAsync(cancellationToken),
             BoltFasteningState.PickingUpBolt => gantry.PickUpBoltAsync(cancellationToken),
             BoltFasteningState.RaisingPickedBolt => gantry.MoveToSafeZAsync(cancellationToken),
             BoltFasteningState.RaisingPickupHead
-
                 => gantry.SetPickupHeadDownAsync(false, cancellationToken),
             BoltFasteningState.MovingToIpmSeatingBolt
-
                 => MoveToBoltAsync(PendingIpmSeatingBolts().First(), cancellationToken),
             BoltFasteningState.LoweringForIpmSeating
                 or BoltFasteningState.LoweringForIpmFinal
-
                 => gantry.SetPickupHeadDownAsync(true, cancellationToken),
             BoltFasteningState.SeatingIpm
-
                 => FastenAsync(recipe, FasteningPass.IpmSeating, cancellationToken),
             BoltFasteningState.MovingToIpmFinalBolt
-
                 => MoveToBoltAsync(PendingIpmFinalBolts().First(), cancellationToken),
             BoltFasteningState.FinalizingIpm
-
                 => FastenAsync(recipe, FasteningPass.IpmFinal, cancellationToken),
             BoltFasteningState.ClearingPickupHead
-
                 => ClearHeadAsync(FasteningHead.Pickup, cancellationToken),
             BoltFasteningState.CompletingCarrier => CompleteAsync(cancellationToken),
             _ => WaitForChangeAsync(cancellationToken),
@@ -185,17 +172,14 @@ public sealed class BoltFasteningStation(
                 or BoltFasteningState.WaitingForShootingTubeClear
                 or BoltFasteningState.RetractingShootingEscape
                 or BoltFasteningState.FasteningPcb
-
                 => PendingPcbBolts().FirstOrDefault(),
             BoltFasteningState.MovingToIpmSeatingBolt
                 or BoltFasteningState.LoweringForIpmSeating
                 or BoltFasteningState.SeatingIpm
-
                 => PendingIpmSeatingBolts().FirstOrDefault(),
             BoltFasteningState.MovingToIpmFinalBolt
                 or BoltFasteningState.LoweringForIpmFinal
                 or BoltFasteningState.FinalizingIpm
-
                 => PendingIpmFinalBolts().FirstOrDefault(),
             _ => null,
         };
@@ -236,7 +220,6 @@ public sealed class BoltFasteningStation(
             {
                 BoltEscapeState.Forward => BoltFasteningState.ShootingBolt,
                 BoltEscapeState.Backward when shootingFeeder.State != BoltFeederState.BoltReady
-
                     => BoltFasteningState.WaitingForShootingFeeder,
                 _ => BoltFasteningState.AdvancingShootingEscape,
             };

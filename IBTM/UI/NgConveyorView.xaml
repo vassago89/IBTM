@@ -30,20 +30,20 @@
                     Canvas.Top="{x:Static ui:MachinePlan.StatusTop}" Width="170">
             <TextBlock Text="NG Conveyor" TextAlignment="Left"
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
-            <TextBlock Text="{Binding NgConveyorState, Converter={StaticResource EnumDescriptionConverter}}"
+            <TextBlock Text="{Binding State.Display.NgConveyorState, Converter={StaticResource EnumDescriptionConverter}}"
                        TextWrapping="Wrap" Margin="0,6,0,0" FontSize="13">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Visibility" Value="Visible"/>
                         <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding NgConveyorState}" Value="{x:Static ng:NgConveyorState.WaitingForCarrier}">
+                            <DataTrigger Binding="{Binding State.Display.NgConveyorState}" Value="{x:Static ng:NgConveyorState.WaitingForCarrier}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
-                            <DataTrigger Binding="{Binding NgConveyorState}" Value="{x:Static ng:NgConveyorState.ReadyToEject}">
+                            <DataTrigger Binding="{Binding State.Display.NgConveyorState}" Value="{x:Static ng:NgConveyorState.ReadyToEject}">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
-                            <DataTrigger Binding="{Binding NgConveyorState}" Value="{x:Static ng:NgConveyorState.Full}">
+                            <DataTrigger Binding="{Binding State.Display.NgConveyorState}" Value="{x:Static ng:NgConveyorState.Full}">
                                 <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                             </DataTrigger>
                             <DataTrigger Binding="{Binding NgAlarmRequired}" Value="True">
@@ -69,7 +69,7 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <Border Grid.RowSpan="5" Width="{x:Static ui:MachinePlan.NgConveyorWidth}"
-                    Tag="{Binding NgConveyorRunCommandOn}" Style="{StaticResource ConveyorBedStyle}"/>
+                    Tag="{Binding State.Display.NgConveyorRunning}" Style="{StaticResource ConveyorBedStyle}"/>
             <Border Grid.Column="1" Grid.RowSpan="5" Width="{x:Static ui:MachinePlan.PositionLabelGap}"/>
             <Border Height="{x:Static ui:MachinePlan.PlatePadding}"/>
             <Border Grid.Row="4" Height="{x:Static ui:MachinePlan.PlatePadding}"/>

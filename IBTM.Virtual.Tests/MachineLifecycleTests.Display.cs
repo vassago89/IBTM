@@ -97,8 +97,8 @@ public sealed partial class MachineLifecycleTests
             Assert.False(light.IsOn);
             io.SetOutput(light.Signal, true);
             Assert.False(light.IsOn); // Display acquisition is still blocked.
-            var row = new OutputControlRow(light, machine);
-            await row.ToggleCommand.ExecuteAsync(null);
+            var row = new OutputWindowRow(light, machine);
+            row.ToggleCommand.Execute(null);
             Assert.False(io.GetOutput(light.Signal)); // Toggle the real ON, not the displayed OFF.
 
             released.Set();

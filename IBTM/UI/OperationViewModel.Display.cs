@@ -55,7 +55,7 @@ public partial class OperationViewModel
         get
         {
             return PlacementDisplayState is HandlerDisplayState.Working or HandlerDisplayState.Moving
-                ? PlacementState
+                ? _state.Display.PlacementState
                 : PlacementDisplayState;
         }
     }
@@ -66,9 +66,9 @@ public partial class OperationViewModel
         {
             return !MainConveyorEnabled
                 ? HandlerDisplayState.Disabled
-                : !_state.Display.AutomaticRunning && !ConveyorRunning
+                : !_state.Display.AutomaticRunning && !_state.Display.ConveyorRunning
                     ? HandlerDisplayState.Stopped
-                    : MainConveyorState;
+                    : _state.Display.ConveyorState;
         }
     }
 
@@ -106,7 +106,7 @@ public partial class OperationViewModel
         get
         {
             return _state.Display.AutomaticRunning
-                && FasteningState != BoltFasteningState.Waiting;
+                && _state.Display.FasteningState != BoltFasteningState.Waiting;
         }
     }
 
@@ -115,15 +115,7 @@ public partial class OperationViewModel
         get
         {
             return _state.Display.AutomaticRunning
-                && InspectionState != InspectionStationState.Waiting;
-        }
-    }
-
-    public HomeBlockReason HomeBlock
-    {
-        get
-        {
-            return _state.Display.HomeBlock;
+                && _state.Display.InspectionState != InspectionStationState.Waiting;
         }
     }
 
@@ -132,8 +124,8 @@ public partial class OperationViewModel
         get
         {
             return _state.Display.StartBlock == StartBlockReason.HomeRequired
-                && HomeBlock != HomeBlockReason.None
-                ? HomeBlock
+                && _state.Display.HomeBlock != HomeBlockReason.None
+                ? _state.Display.HomeBlock
                 : _state.Display.StartBlock;
         }
     }
@@ -204,7 +196,7 @@ public partial class OperationViewModel
             if (!_state.Display.AutomaticRunning)
                 return HandlerDisplayState.Stopped;
 
-            return PlacementState switch
+            return _state.Display.PlacementState switch
             {
                 PcbPlacementState.WaitingForBufferPcb => HandlerDisplayState.WaitingForBufferPcb,
                 PcbPlacementState.WaitingForCarrier => HandlerDisplayState.WaitingForMainCarrier,
@@ -265,18 +257,14 @@ public partial class OperationViewModel
         {
             return InspectionDisplayState switch
             {
-                StationDisplayState.Working when InspectionStateVisible => InspectionState,
+                StationDisplayState.Working when InspectionStateVisible => _state.Display.InspectionState,
                 StationDisplayState.WaitingForTransfer
-
                     when _units.NgCarrierTransfer && _inspectionWork.RouteToNg
-
                     => InspectionStationState.WaitingForShuttleReady,
                 StationDisplayState.WaitingForTransfer
-
                     when _units.MainConveyor
-                        && MainConveyorState == MainConveyorState.WaitingForRearEquipment
-
-                    => MainConveyorState,
+                        && _state.Display.ConveyorState == MainConveyorState.WaitingForRearEquipment
+                    => _state.Display.ConveyorState,
                 _ => InspectionDisplayState,
             };
         }
@@ -334,7 +322,7 @@ public partial class OperationViewModel
     {
         get
         {
-            return InspectionState is InspectionStationState.MovingTransferToCarrier
+            return _state.Display.InspectionState is InspectionStationState.MovingTransferToCarrier
                 or InspectionStationState.LoweringTransferAtCarrier
                 or InspectionStationState.ClosingTransferGripper
                 or InspectionStationState.WaitingForCarrierGrip

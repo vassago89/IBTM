@@ -73,7 +73,7 @@
                         Command="{Binding StepCommand}" CommandParameter="{x:Static ui:TeachingDirection.XPlus}"
                         ToolTip="Move by the selected step distance."/>
             </Grid>
-            <Grid Grid.Row="1" Grid.ColumnSpan="3" Visibility="{Binding HasY, Converter={StaticResource BoolToVis}}">
+            <Grid Grid.Row="1" Grid.ColumnSpan="3" Visibility="{Binding Motion.Feedback.HasY, Converter={StaticResource BoolToVis}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/><ColumnDefinition Width="68"/><ColumnDefinition Width="68"/>
                 </Grid.ColumnDefinitions>
@@ -98,7 +98,7 @@
                             ToolTip="Move by the selected step distance."/>
                 </Grid>
             </Grid>
-            <Grid Grid.Row="2" Grid.ColumnSpan="3" Visibility="{Binding HasZ, Converter={StaticResource BoolToVis}}">
+            <Grid Grid.Row="2" Grid.ColumnSpan="3" Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/><ColumnDefinition Width="68"/><ColumnDefinition Width="68"/>
                 </Grid.ColumnDefinitions>
@@ -168,7 +168,7 @@
             <Button Content="STOP" Command="{Binding JogStopCommand}" Style="{StaticResource JogStopButtonStyle}" Margin="0,0,4,0"/>
             <Button Content="{Binding Source={x:Static device:TeachingTarget.SafeZ}, Converter={StaticResource EnumDescriptionConverter}}"
                     Command="{Binding MoveToHorizontalZCommand}" Style="{StaticResource SecondaryButtonStyle}"
-                    Visibility="{Binding HasZ, Converter={StaticResource BoolToVis}}" Margin="4,0,0,0"/>
+                    Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}" Margin="4,0,0,0"/>
         </UniformGrid>
         <TextBlock Text="{Binding SelectedPoint.Name}" TextWrapping="Wrap"
                    Foreground="{StaticResource TextPrimaryBrush}" Margin="0,16,0,6"/>

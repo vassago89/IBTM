@@ -159,17 +159,13 @@ public sealed class NgCarrierMove(
             NgTransferState.Opening => pickup.SetGripperClosedAsync(false, cancellationToken),
             NgTransferState.Closing => pickup.SetGripperClosedAsync(true, cancellationToken),
             NgTransferState.LoweringToCarrier or NgTransferState.LoweringAtDestination
-
                 => pickup.SetLiftDownAsync(true, cancellationToken),
             NgTransferState.MovingToCarrier
-
                 => gantry.MoveToAsync(Position(Opposite(destination)), settings.Speed, cancellationToken),
             NgTransferState.MovingToDestination
-
                 => gantry.MoveToAsync(Position(destination), settings.Speed, cancellationToken),
             NgTransferState.WaitingForGrip => pickup.WaitForCarrierGripAsync(cancellationToken),
             NgTransferState.WaitingForPlacement
-
                 => destination == NgTransferDestination.Shuttle
                     ? shuttle.WaitForCarrierAsync(true, cancellationToken)
                     : station.Station.WaitForCarrierAsync(cancellationToken),

@@ -94,7 +94,6 @@ public partial class TeachingPoint : ObservableObject
             return TeachMode switch
             {
                 TeachMode.Image
-
                     => Position.HasPosition
                         ? $"{X - (origin?.X ?? 0):F3}, {Y - (origin?.Y ?? 0):F3}"
                         : "—",

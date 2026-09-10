@@ -123,20 +123,6 @@
         <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
     </Style>
 
-    <Style x:Key="StatLabelStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Margin" Value="0,0,0,2"/>
-    </Style>
-
-    <Style x:Key="StatValueStyle" TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-        <Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
-        <Setter Property="FontSize" Value="18"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
-    </Style>
-
     <Style x:Key="FieldTextBoxStyle" TargetType="TextBox">
         <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
@@ -401,10 +387,6 @@
             </Trigger>
         </Style.Triggers>
     </Style>
-
-    <Style x:Key="FlatListViewItemStyle"
-           TargetType="ListViewItem"
-           BasedOn="{StaticResource FlatListItemStyle}"/>
 
     <Style x:Key="PanelListStyle" TargetType="ListBox">
         <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>

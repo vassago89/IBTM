@@ -29,7 +29,7 @@
                             <Style.Triggers>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding MainConveyorState}"
+                                        <Condition Binding="{Binding State.Display.ConveyorState}"
                                                    Value="{x:Static conveyor:MainConveyorState.Idle}"/>
                                         <Condition Binding="{Binding MainConveyorEnabled}"
                                                    Value="True"/>
@@ -53,7 +53,7 @@
                                         <DataTrigger Binding="{Binding MainConveyorEnabled}" Value="False">
                                             <Setter Property="Opacity" Value="0.55"/>
                                         </DataTrigger>
-                                        <DataTrigger Binding="{Binding ConveyorRunning}" Value="True">
+                                        <DataTrigger Binding="{Binding State.Display.ConveyorRunning}" Value="True">
                                             <Setter Property="Foreground"
                                                     Value="{StaticResource AccentBlueBrush}"/>
                                         </DataTrigger>
@@ -67,7 +67,7 @@
 
             <Border Canvas.Left="18" Canvas.Top="64"
                     Width="1516" Height="112"
-                    Tag="{Binding ConveyorRunning}"
+                    Tag="{Binding State.Display.ConveyorRunning}"
                     Style="{StaticResource ConveyorBedStyle}"/>
 
             <TextBlock Canvas.Left="{x:Static ui:MachinePlan.FirstPlateLeft}" Canvas.Top="{x:Static ui:MachinePlan.StationLabelTop}"
@@ -105,7 +105,7 @@
                             Pcb1Placed="{Binding PcbPlacementHeatSink1Completed}"
                             Pcb2Placed="{Binding PcbPlacementHeatSink2Completed}"
                             ShowPcbSlots="True"
-                            ActiveHeatSink="{Binding PcbPlacementTargetHeatSink}"
+                            ActiveHeatSink="{Binding State.Display.PlacementTarget}"
                             Visibility="{Binding PcbPlacementCarrierPresent, Converter={StaticResource BoolToVis}}"/>
             <Border Canvas.Left="{x:Static ui:MachinePlan.PlacementStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
                      Tag="{Binding PcbPlacementStopperUp}"

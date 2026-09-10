@@ -53,7 +53,7 @@
 
             <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.DetailTop}"
                        Width="340"
-                       Text="{Binding FasteningState,
+                       Text="{Binding State.Display.FasteningState,
                                       Converter={StaticResource EnumDescriptionConverter}}"
                        TextAlignment="Left"
                        Style="{StaticResource MapLabelStyle}"

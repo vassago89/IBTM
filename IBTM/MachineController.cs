@@ -502,11 +502,9 @@ public sealed partial class MachineController
             {
                 DryRunTarget.NgTransfer => _units.NgCarrierTransfer,
                 DryRunTarget.BoltRoute
-
                     => _units.BoltFastening
                         && (live ? _boltRoute.Ready : _state.Display.BoltRouteReady),
                 DryRunTarget.PcbReturn
-
                     => _units.PcbSupply
                         && _units.PcbPlacement
                         && (!(live
@@ -516,16 +514,13 @@ public sealed partial class MachineController
                             && (live ? MainConveyorPathClear : _state.Display.MainConveyorPathClear)),
                 DryRunTarget.PcbRoundTrip => _units.PcbSupply && _units.PcbPlacement,
                 DryRunTarget.NgConveyor
-
                     => _units.NgConveyor
                         && _units.NgShuttle
                         && (live ? _ngConveyorDryRun.Ready : _state.Display.NgConveyorDryRunReady),
                 DryRunTarget.Inspection
-
                     => _units.Inspection
                         && (live ? _inspectionDryRun.Ready : _state.Display.InspectionDryRunReady),
                 DryRunTarget.MainConveyor
-
                     => _units.MainConveyor
                         && (live ? MainConveyorPathClear : _state.Display.MainConveyorPathClear),
                 _ => false,

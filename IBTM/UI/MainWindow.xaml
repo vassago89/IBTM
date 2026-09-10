@@ -270,7 +270,7 @@
                                             <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
                                             <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
                                         </DataTrigger>
-                                        <DataTrigger Binding="{Binding Operation.ModeKnown}" Value="False">
+                                        <DataTrigger Binding="{Binding Operation.State.Display.Available}" Value="False">
                                             <Setter Property="Background" Value="{StaticResource ControlBgBrush}"/>
                                             <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
                                             <Setter Property="ToolTip" Value="Mode is unknown: waiting for a valid machine status update."/>
@@ -285,7 +285,7 @@
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Foreground" Value="{StaticResource AppBgBrush}"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.ModeKnown}" Value="False">
+                                            <DataTrigger Binding="{Binding Operation.State.Display.Available}" Value="False">
                                                 <Setter Property="Foreground"
                                                         Value="{StaticResource TextMutedBrush}"/>
                                             </DataTrigger>
@@ -566,7 +566,7 @@
                             </Button>
                             <Button Content="HOME ALL"
                                     Command="{Binding Operation.HomeCommand}"
-                                    ToolTip="{Binding Operation.HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
+                                    ToolTip="{Binding Operation.State.Display.HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
                                     ToolTipService.ShowOnDisabled="True"
                                     MinWidth="104"
                                     Height="40"

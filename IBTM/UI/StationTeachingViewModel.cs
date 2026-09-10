@@ -35,9 +35,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     private Task _recipeImageUpdate = Task.CompletedTask;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInspectionSelected))]
-    [NotifyPropertyChangedFor(nameof(IoGroups))]
     [NotifyPropertyChangedFor(nameof(TeachingIoGroups))]
-    [NotifyPropertyChangedFor(nameof(TeachingOutputs))]
     [NotifyCanExecuteChangedFor(nameof(ToggleLiveViewCommand))]
     [NotifyCanExecuteChangedFor(nameof(CaptureCarrierImagesCommand))]
     [NotifyCanExecuteChangedFor(nameof(TeachImagePointCommand))]
@@ -271,7 +269,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 { Target: TeachingTarget.BoltPickup } => TeachingSaveBehavior.BoltPickup,
                 { Position.CanTeach: false } => TeachingSaveBehavior.BoltPosition,
                 { Target: TeachingTarget.PcbRegion }
-
                     => SelectedPcb == HeatSinkSlot.HeatSink1
                         ? TeachingSaveBehavior.PcbRegion
                         : TeachingSaveBehavior.PcbOrigin,
@@ -280,7 +277,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                     Target: TeachingTarget.CarrierUpperLeftLocatingPin
                         or TeachingTarget.CarrierLowerRightLocatingPin
                 }
-
                     => TeachingSaveBehavior.CameraCenter,
                 { TeachMode: TeachMode.Image } => TeachingSaveBehavior.Image,
                 { Storage: TeachingStorage.Machine } => TeachingSaveBehavior.Machine,
@@ -388,8 +384,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         ShowRecipeImages();
         OnPropertyChanged(nameof(Motion));
         OnPropertyChanged(nameof(CameraFieldOfView));
-        OnPropertyChanged(nameof(HasY));
-        OnPropertyChanged(nameof(HasZ));
         OnPropertyChanged(nameof(BoltPointEditorVisible));
         OnPropertyChanged(nameof(BoltPresetEditorVisible));
         NotifyMotionCommands();
@@ -507,19 +501,16 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         TeachingPosition[] positions = SelectedMotionGroup switch
         {
             MotionGroup.PcbPlacementHandler
-
                 => [
                 .. _placementSettings.GetTeachingPositions(),
                 .. RecipeEditor.Recipe.PcbPlacement.GetTeachingPositions(),
             ],
             MotionGroup.BoltFastening
-
                 => _fasteningSettings.GetTeachingPositions(
                     RecipeEditor.Recipe.Pcb,
                     SelectedPcb,
                     _carrierReference),
             MotionGroup.InspectionGantry
-
                 => [
                 .. _inspectionGantrySettings.GetTeachingPositions(_carrierReference),
                 .. _inspectionGantrySettings.GetPcbTeachingPositions(

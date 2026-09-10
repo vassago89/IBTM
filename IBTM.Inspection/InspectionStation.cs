@@ -113,7 +113,6 @@ public sealed class InspectionStation : AutoUnit
             NgTransferState.StationNotReady
                 or NgTransferState.ShuttleNotReady
                 or NgTransferState.WaitingForDestination
-
                 => InspectionStationState.WaitingForShuttleReady,
             NgTransferState.LoweringAtDestination => InspectionStationState.LoweringTransferAtShuttle,
             NgTransferState.Opening => InspectionStationState.OpeningTransferGripper,

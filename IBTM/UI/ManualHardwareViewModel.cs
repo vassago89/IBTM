@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
 
@@ -13,7 +12,6 @@ namespace IBTM.UI;
 
 public partial class ManualHardwareViewModel : ObservableObject
 {
-    private readonly MachineState _state;
     private readonly MachineController _machine;
     private volatile bool _active;
     private int _commandRefreshQueued;
@@ -24,7 +22,7 @@ public partial class ManualHardwareViewModel : ObservableObject
 
     public ManualHardwareViewModel(IoSignals signals, MachineState state, MachineController machine)
     {
-        _state = state;
+        State = state;
         _machine = machine;
         Conveyors = [
             new(signals.Outputs[OutputIo.MainConveyorRun], machine),
@@ -34,7 +32,8 @@ public partial class ManualHardwareViewModel : ObservableObject
         state.DisplayChanged += OnMachineStateChanged;
     }
 
-    public OutputControlRow[] Conveyors { get; }
+    public MachineState State { get; }
+    public ManualConveyorRow[] Conveyors { get; }
     public DryRunTarget[] DryRunTargets { get; } = Enum.GetValues<DryRunTarget>();
     public HeatSinkSlot[] DryRunHeatSinks { get; } = Enum.GetValues<HeatSinkSlot>();
 
@@ -52,13 +51,13 @@ public partial class ManualHardwareViewModel : ObservableObject
         {
             return SelectedDryRun switch
             {
-                DryRunTarget.MainConveyor => _state.Display.MainConveyorDryRunState,
-                DryRunTarget.Inspection => _state.Display.InspectionDryRunState,
-                DryRunTarget.PcbReturn => _state.Display.PcbReturnState,
-                DryRunTarget.PcbRoundTrip => _state.Display.PcbDryRunState,
-                DryRunTarget.NgConveyor => _state.Display.NgConveyorDryRunState,
-                DryRunTarget.BoltRoute => _state.Display.BoltRouteState,
-                _ => _state.Display.NgTransferDryRunState,
+                DryRunTarget.MainConveyor => State.Display.MainConveyorDryRunState,
+                DryRunTarget.Inspection => State.Display.InspectionDryRunState,
+                DryRunTarget.PcbReturn => State.Display.PcbReturnState,
+                DryRunTarget.PcbRoundTrip => State.Display.PcbDryRunState,
+                DryRunTarget.NgConveyor => State.Display.NgConveyorDryRunState,
+                DryRunTarget.BoltRoute => State.Display.BoltRouteState,
+                _ => State.Display.NgTransferDryRunState,
             };
         }
     }
@@ -69,13 +68,13 @@ public partial class ManualHardwareViewModel : ObservableObject
         {
             return SelectedDryRun switch
             {
-                DryRunTarget.MainConveyor => _state.Display.MainConveyorDestination,
-                DryRunTarget.Inspection => _state.Display.InspectionDryRunDirection,
-                DryRunTarget.PcbReturn => _state.Display.PcbReturnDestination,
-                DryRunTarget.PcbRoundTrip => _state.Display.PcbDryRunDirection,
-                DryRunTarget.NgConveyor => _state.Display.NgConveyorDestination,
-                DryRunTarget.BoltRoute => _state.Display.BoltRouteDirection,
-                _ => _state.Display.NgTransferDestination,
+                DryRunTarget.MainConveyor => State.Display.MainConveyorDestination,
+                DryRunTarget.Inspection => State.Display.InspectionDryRunDirection,
+                DryRunTarget.PcbReturn => State.Display.PcbReturnDestination,
+                DryRunTarget.PcbRoundTrip => State.Display.PcbDryRunDirection,
+                DryRunTarget.NgConveyor => State.Display.NgConveyorDestination,
+                DryRunTarget.BoltRoute => State.Display.BoltRouteDirection,
+                _ => State.Display.NgTransferDestination,
             };
         }
     }
@@ -86,13 +85,13 @@ public partial class ManualHardwareViewModel : ObservableObject
         {
             return SelectedDryRun switch
             {
-                DryRunTarget.MainConveyor => _state.Display.MainConveyorDryRunPasses,
-                DryRunTarget.Inspection => _state.Display.InspectionDryRunPasses,
-                DryRunTarget.PcbReturn => _state.Display.PcbReturnCount,
-                DryRunTarget.PcbRoundTrip => _state.Display.PcbDryRunCycles,
-                DryRunTarget.NgConveyor => _state.Display.NgConveyorDryRunPasses,
-                DryRunTarget.BoltRoute => _state.Display.BoltRoutePasses,
-                _ => _state.Display.NgTransferDryRunTransfers,
+                DryRunTarget.MainConveyor => State.Display.MainConveyorDryRunPasses,
+                DryRunTarget.Inspection => State.Display.InspectionDryRunPasses,
+                DryRunTarget.PcbReturn => State.Display.PcbReturnCount,
+                DryRunTarget.PcbRoundTrip => State.Display.PcbDryRunCycles,
+                DryRunTarget.NgConveyor => State.Display.NgConveyorDryRunPasses,
+                DryRunTarget.BoltRoute => State.Display.BoltRoutePasses,
+                _ => State.Display.NgTransferDryRunTransfers,
             };
         }
     }
@@ -103,14 +102,13 @@ public partial class ManualHardwareViewModel : ObservableObject
         {
             return SelectedDryRun switch
             {
-                DryRunTarget.PcbReturn => _state.Display.PcbReturnHeatSink,
+                DryRunTarget.PcbReturn => State.Display.PcbReturnHeatSink,
                 DryRunTarget.PcbRoundTrip
-
-                    => _state.Display.PcbDryRunDirection == PcbDryRunDirection.Ready
+                    => State.Display.PcbDryRunDirection == PcbDryRunDirection.Ready
                         ? null
-                        : _state.Display.PcbDryRunHeatSink,
-                DryRunTarget.BoltRoute => _state.Display.BoltRouteTarget?.HeatSink,
-                _ => _state.Display.InspectionDryRunPcb,
+                        : State.Display.PcbDryRunHeatSink,
+                DryRunTarget.BoltRoute => State.Display.BoltRouteTarget?.HeatSink,
+                _ => State.Display.InspectionDryRunPcb,
             };
         }
     }
@@ -120,40 +118,8 @@ public partial class ManualHardwareViewModel : ObservableObject
         get
         {
             return SelectedDryRun == DryRunTarget.BoltRoute
-                ? _state.Display.BoltRouteTarget?.Number
-                : _state.Display.InspectionDryRunBolt;
-        }
-    }
-
-    public FasteningHead? DryRunHead
-    {
-        get
-        {
-            return _state.Display.BoltRouteTarget?.Head;
-        }
-    }
-
-    public FasteningPass? DryRunFasteningPass
-    {
-        get
-        {
-            return _state.Display.BoltRoutePass;
-        }
-    }
-
-    public string? DryRunBarcode
-    {
-        get
-        {
-            return _state.Display.InspectionDryRunBarcode;
-        }
-    }
-
-    public bool? DryRunBoltPresent
-    {
-        get
-        {
-            return _state.Display.InspectionDryRunBoltPresent;
+                ? State.Display.BoltRouteTarget?.Number
+                : State.Display.InspectionDryRunBolt;
         }
     }
 
@@ -182,16 +148,12 @@ public partial class ManualHardwareViewModel : ObservableObject
         OnPropertyChanged(nameof(DryRunPasses));
         OnPropertyChanged(nameof(DryRunPcb));
         OnPropertyChanged(nameof(DryRunBolt));
-        OnPropertyChanged(nameof(DryRunHead));
-        OnPropertyChanged(nameof(DryRunFasteningPass));
-        OnPropertyChanged(nameof(DryRunBarcode));
-        OnPropertyChanged(nameof(DryRunBoltPresent));
     }
 
     public void Activate()
     {
         _active = true;
-        _state.RequestDisplayRefresh();
+        State.RequestDisplayRefresh();
         OnMachineStateChanged();
     }
 
@@ -199,7 +161,7 @@ public partial class ManualHardwareViewModel : ObservableObject
     {
         _active = false;
         foreach (var row in Conveyors)
-            row.ToggleCommand.Cancel();
+            row.RunCommand.Cancel();
         RunDryRunCommand.Cancel();
     }
 
@@ -207,7 +169,7 @@ public partial class ManualHardwareViewModel : ObservableObject
     {
         return CommandShutdown.StopAsync(
             Deactivate,
-            [.. Conveyors.Select(row => row.ToggleCommand), RunDryRunCommand]);
+            [.. Conveyors.Select(row => row.RunCommand), RunDryRunCommand]);
     }
 
     private void OnMachineStateChanged()

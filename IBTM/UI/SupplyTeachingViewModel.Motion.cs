@@ -78,22 +78,16 @@ public partial class SupplyTeachingViewModel
         return (ActiveMotionGroup, axis) switch
         {
             (MotionGroup.PcbSupply, MotionAxis.X)
-
                 => _supplyHandler.MoveXAsync(position, cancellationToken),
             (MotionGroup.PcbSupply, MotionAxis.Y)
-
                 => _supplyHandler.MoveYAsync(position, cancellationToken),
             (MotionGroup.PcbSupply, MotionAxis.Z)
-
                 => _supplyHandler.MoveTeachingZAsync(position, cancellationToken),
             (MotionGroup.PcbPlacementHandler, MotionAxis.X)
-
                 => _placementHandler.MoveXAsync(position, cancellationToken),
             (MotionGroup.PcbPlacementHandler, MotionAxis.Y)
-
                 => _placementHandler.MoveYAsync(position, cancellationToken),
             (MotionGroup.PcbPlacementHandler, MotionAxis.Z)
-
                 => _placementHandler.MoveZAsync(position, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(axis)),
         };
@@ -105,8 +99,6 @@ public partial class SupplyTeachingViewModel
         NotifyPointSelectionCommands();
 
         OnPropertyChanged(nameof(ActiveMotionGroup));
-        OnPropertyChanged(nameof(HasY));
-        OnPropertyChanged(nameof(HasZ));
         OnPropertyChanged(nameof(HorizontalZ));
         OnPropertyChanged(nameof(SaveBehavior));
         NotifyManualTeachingCommands();
@@ -147,10 +139,8 @@ public partial class SupplyTeachingViewModel
             MotionGroup.PcbSupply when !SupplyEnabled => TeachingMotionHint.UnitDisabled,
             MotionGroup.PcbPlacementHandler when !PlacementEnabled => TeachingMotionHint.UnitDisabled,
             MotionGroup.PcbSupply when _state.Display.PlacementInBufferArea
-
                 => TeachingMotionHint.PlacementInBuffer,
             MotionGroup.PcbPlacementHandler when _state.Display.SupplyInBufferArea
-
                 => TeachingMotionHint.SupplyInBuffer,
             MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler => TeachingMotionHint.None,
             _ => throw new ArgumentOutOfRangeException(nameof(motionGroup)),

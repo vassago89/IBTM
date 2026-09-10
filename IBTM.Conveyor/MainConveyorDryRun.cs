@@ -111,14 +111,12 @@ public sealed class MainConveyorDryRun : AutoUnit
             {
                 MainConveyorDestination.None => MainConveyorDryRunState.WaitingForCarrier,
                 MainConveyorDestination.Entry
-
                     => _conveyor.EntryCarrierDetected
                         ? MainConveyorDryRunState.Arrived
                         : _stations.All(Released)
                             ? MainConveyorDryRunState.Returning
                             : MainConveyorDryRunState.ClearingReturnPath,
                 _
-
                     => Target.CarrierPresent
                         ? Target.BackupPlate == StationCylinderState.Up
                             && Target.Stopper == StationCylinderState.Down

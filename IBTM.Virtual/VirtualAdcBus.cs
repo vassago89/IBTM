@@ -224,7 +224,6 @@ public sealed class VirtualAdcBus : IAdcBus
         {
             AdcStatusRegister.Preset => controller.Preset,
             AdcStatusRegister.Ready
-
                 => (ushort)(!controller.Running && controller.Status != AdcEventStatus.Error ? 1 : 0),
             AdcStatusRegister.MotorRun => (ushort)(controller.Running ? 1 : 0),
             AdcStatusRegister.Alarm => (ushort)(controller.Status == AdcEventStatus.Error ? 1 : 0),

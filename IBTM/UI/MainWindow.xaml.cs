@@ -82,9 +82,9 @@ public partial class MainWindow : Window
 
         try
         {
+            _outputWindow?.Shutdown();
             await CommandShutdown.WaitAsync(
                 _adcProtocolWindow?.StopAsync() ?? Task.CompletedTask,
-                _outputWindow?.ShutdownAsync() ?? Task.CompletedTask,
                 _motionWindow?.ShutdownAsync() ?? Task.CompletedTask,
                 _viewModel.ShutdownAsync(),
                 _machine.ShutdownAsync());
@@ -200,11 +200,6 @@ public partial class MainWindow : Window
         if (_closing || sender is not MainViewModel viewModel)
         {
             return;
-        }
-
-        if (e.PropertyName == nameof(MainViewModel.ManualControlsEnabled))
-        {
-            _adcProtocolWindow?.RefreshControls();
         }
 
         if (e.PropertyName == nameof(MainViewModel.OutputsWindowEnabled)

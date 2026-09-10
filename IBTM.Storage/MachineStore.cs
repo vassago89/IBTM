@@ -35,8 +35,6 @@ public sealed class MachineStore
         DatabaseFile = Path.GetFullPath(databaseFile ?? MachineDb.DefaultFile);
         Directory.CreateDirectory(Path.GetDirectoryName(DatabaseFile)!);
         _options = MachineDb.CreateOptions(DatabaseFile);
-        //using var db = new MachineDb(_options);
-        //db.Database.Migrate();
     }
 
     public bool HasData

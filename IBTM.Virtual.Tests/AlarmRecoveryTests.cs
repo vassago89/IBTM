@@ -126,14 +126,14 @@ public sealed class AlarmRecoveryTests
         try
         {
             services.GetRequiredService<MachineSettings>().Units.MainConveyor = false;
-            foreach (var output in new[] { OutputIo.MainConveyorRun, OutputIo.MainConveyorReadyToFront2 })
+            foreach (var output in new[] { OutputIo.MainConveyorRun, OutputIo.NgConveyorRun })
             {
-                var row = new OutputControlRow(signals.Outputs[output], machine);
+                var row = new ManualConveyorRow(signals.Outputs[output], machine);
                 io.SetOutput(output, true);
                 signals.RefreshOutputs();
-                Assert.False(row.ToggleCommand.IsRunning);
-                Assert.True(row.SwitchCommand.CanExecute(null));
-                row.SwitchCommand.Execute(null);
+                Assert.False(row.RunCommand.IsRunning);
+                Assert.True(row.StopCommand.CanExecute(null));
+                row.StopCommand.Execute(null);
                 Assert.False(io.GetOutput(output));
             }
         }
@@ -159,21 +159,21 @@ public sealed class AlarmRecoveryTests
                 await VirtualTest.WaitUntilAsync(
                     () => state.Display.Alarm == MachineAlarm.MotionUnavailable,
                     TimeSpan.FromSeconds(2)));
-            var row = new OutputControlRow(
+            var row = new ManualConveyorRow(
                 services.GetRequiredService<IoSignals>().Outputs[OutputIo.MainConveyorRun],
                 machine);
 
             foreach (var stop in new Action[]
             {
-                () => row.StopOutputTestCommand.Execute(null), // STOP remains available while busy.
+                () => row.StopCommand.Execute(null), // STOP remains available while busy.
                 machine.Stop,
                 () => io.SetInput(InputIo.AutoMode, false),
-                row.ToggleCommand.Cancel, // OutputWindow.ShutdownAsync uses this cancellation.
+                row.RunCommand.Cancel, // Leaving Manual uses this cancellation.
             })
             {
                 io.SetInput(InputIo.AutoMode, true);
-                Assert.False(row.ToggleCommand.IsRunning);
-                var run = row.ToggleCommand.ExecuteAsync(null);
+                Assert.False(row.RunCommand.IsRunning);
+                var run = row.RunCommand.ExecuteAsync(null);
                 Assert.True(
                     await VirtualTest.WaitUntilAsync(
                         () => io.GetOutput(OutputIo.MainConveyorRun),
@@ -183,7 +183,7 @@ public sealed class AlarmRecoveryTests
                 Assert.True(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
                 Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
                 Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
-                Assert.True(row.StopOutputTestCommand.CanExecute(null));
+                Assert.True(row.StopCommand.CanExecute(null));
                 stop();
                 await run.WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
@@ -218,32 +218,24 @@ public sealed class AlarmRecoveryTests
                 new[] { OutputIo.MainConveyorRun, OutputIo.NgConveyorRun },
                 manual.Conveyors.Select(row => row.Io.Signal));
             var manualRow = manual.Conveyors.Single(row => row.Io.Signal == output);
-            var outputRow = new OutputControlRow(signals.Outputs[output], machine);
-            foreach (var (start, stop) in new[] { (manualRow, outputRow), (outputRow, manualRow) })
-            {
-                Assert.True(
-                    await VirtualTest.WaitUntilAsync(
-                        () => start.BlockReason == OutputBlockReason.None,
-                        TimeSpan.FromSeconds(2)));
-                Assert.Equal(start.BlockReason, stop.BlockReason);
-                var run = start.ToggleCommand.ExecuteAsync(null);
-                Assert.True(
-                    await VirtualTest.WaitUntilAsync(() => io.GetOutput(output), TimeSpan.FromSeconds(2)));
-                signals.RefreshOutputs();
-                if (start == outputRow)
-                {
-                    manual.Deactivate(); // Leaving Manual must not cancel OUTPUTS' operation.
-                    Assert.True(io.GetOutput(output));
-                }
+            var outputRow = new OutputWindowRow(signals.Outputs[output], machine);
 
-                Assert.True(stop.StopOutputTestCommand.CanExecute(null));
-                stop.StopOutputTestCommand.Execute(null);
-                await run.WaitAsync(TimeSpan.FromSeconds(2));
-                Assert.False(io.GetOutput(output));
-                Assert.False(state.IsRunning);
-            }
+            var run = manualRow.RunCommand.ExecuteAsync(null);
+            Assert.True(io.GetOutput(output));
+            outputRow.ToggleCommand.Execute(null);
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(io.GetOutput(output));
+            Assert.False(state.IsRunning);
 
-            var ownedRun = manualRow.ToggleCommand.ExecuteAsync(null);
+            outputRow.ToggleCommand.Execute(null);
+            manual.Deactivate(); // Manual does not own an output started by OUTPUTS.
+            Assert.True(io.GetOutput(output));
+            Assert.True(manualRow.StopCommand.CanExecute(null));
+            manualRow.StopCommand.Execute(null);
+            Assert.False(io.GetOutput(output));
+            Assert.False(state.IsRunning);
+
+            var ownedRun = manualRow.RunCommand.ExecuteAsync(null);
             Assert.True(io.GetOutput(output));
             manual.Deactivate();
             await ownedRun.WaitAsync(TimeSpan.FromSeconds(2));
@@ -269,7 +261,7 @@ public sealed class AlarmRecoveryTests
         try
         {
             io.AutoResponseEnabled = false;
-            var row = new OutputControlRow(
+            var row = new ManualConveyorRow(
                 services.GetRequiredService<IoSignals>().Outputs[OutputIo.NgConveyorRun],
                 machine);
             var shuttle = io.GetOutput(OutputIo.NgShuttleDown);
@@ -278,7 +270,7 @@ public sealed class AlarmRecoveryTests
             {
                 io.SetInput(InputIo.NgShuttleUp, up);
                 io.SetInput(InputIo.NgShuttleDown, !up);
-                var run = row.ToggleCommand.ExecuteAsync(null);
+                var run = row.RunCommand.ExecuteAsync(null);
                 Assert.True(
                     await VirtualTest.WaitUntilAsync(
                         () => io.GetOutput(OutputIo.NgConveyorRun),
@@ -300,19 +292,19 @@ public sealed class AlarmRecoveryTests
                         TimeSpan.FromSeconds(2)));
                 Assert.True(io.GetOutput(OutputIo.NgConveyorRun));
                 Assert.False(run.IsCompleted);
-                row.ToggleCommand.Cancel();
+                row.RunCommand.Cancel();
                 await run.WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
             }
 
-            var active = row.ToggleCommand.ExecuteAsync(null);
+            var active = row.RunCommand.ExecuteAsync(null);
             Assert.True(io.GetOutput(OutputIo.NgConveyorRun));
             // Removing occupancy admission does not remove the MANUAL-only gate.
             io.SetInput(InputIo.AutoMode, false);
             await active.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
-            await row.ToggleCommand.ExecuteAsync(null);
-            Assert.Equal(OutputBlockReason.AutoMode, row.BlockReason);
+            await row.RunCommand.ExecuteAsync(null);
+            Assert.Contains("[AutoMode]", row.ActionMessage);
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
             Assert.False(state.IsRunning);
         }

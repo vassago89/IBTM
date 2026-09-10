@@ -77,7 +77,7 @@ public partial class BoltTrainingViewModel : ObservableObject, IProgress<BoltTra
     public BoltImageCollector ImageCollector { get; }
     public InspectionImageCollection[] ImageCollectionModes { get; } = Enum.GetValues<InspectionImageCollection>();
 
-    public void Report(BoltTrainingProgress progress)
+    void IProgress<BoltTrainingProgress>.Report(BoltTrainingProgress progress)
     {
         Epoch = progress.Epoch;
         BestEpoch = progress.BestEpoch;

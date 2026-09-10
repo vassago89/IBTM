@@ -121,6 +121,7 @@ public sealed class OutputWindowThreadingTests
         {
             io.AutoResponseEnabled = false;
             await VerifyDirectBindingsAsync(services);
+            await VerifyBackgroundDisplayBindingsAsync(services);
             manual.Activate();
             const OutputIo output = OutputIo.MainConveyorRun;
             for (var reopen = 0; reopen < 2; reopen++)
@@ -134,7 +135,7 @@ public sealed class OutputWindowThreadingTests
                 var manualStop = new Button { DataContext = manualRow };
                 manualStop.SetBinding(
                     Button.CommandProperty,
-                    new Binding(nameof(OutputControlRow.StopOutputTestCommand)));
+                    new Binding(nameof(ManualConveyorRow.StopCommand)));
                 row.ToggleCommand.CanExecuteChanged += (_, _) => notifications.Add(
                     Environment.CurrentManagedThreadId);
                 row.PropertyChanged += (_, _) => notifications.Add(Environment.CurrentManagedThreadId);
@@ -195,7 +196,7 @@ public sealed class OutputWindowThreadingTests
                 row.ToggleCommand.Execute(null);
                 Assert.True(io.GetOutput(output));
                 window.Close();
-                await closed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                Assert.True(closed.Task.IsCompleted);
                 Assert.False(io.GetOutput(output));
                 window = null;
             }
@@ -209,7 +210,7 @@ public sealed class OutputWindowThreadingTests
         {
             if (window is not null)
             {
-                await window.ShutdownAsync();
+                window.Shutdown();
                 window.Close();
             }
 
@@ -217,6 +218,94 @@ public sealed class OutputWindowThreadingTests
             await machine.ShutdownAsync();
         }
     }
+
+    private static async Task VerifyBackgroundDisplayBindingsAsync(ServiceProvider services)
+    {
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var input = new InputWindow(io, services.GetRequiredService<IoSignals>());
+        var response = new CheckBox();
+        response.SetBinding(
+            System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
+            new Binding(nameof(InputWindow.AutoResponseEnabled)) { Source = input });
+        try
+        {
+            await Task.Run(() => io.AutoResponseEnabled = true);
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => response.IsChecked == true,
+                TimeSpan.FromSeconds(2)));
+            await Task.Run(() => io.AutoResponseEnabled = false);
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => response.IsChecked == false,
+                TimeSpan.FromSeconds(2)));
+        }
+        finally
+        {
+            input.Close();
+        }
+
+        var operation = services.GetRequiredService<OperationViewModel>();
+        operation.Activate();
+        var running = new CheckBox();
+        running.SetBinding(
+            System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
+            new Binding("State.Display.ConveyorRunning") { Source = operation, Mode = BindingMode.OneWay });
+        foreach (var on in new[] { true, false })
+        {
+            await Task.Run(() => io.SetOutput(OutputIo.MainConveyorRun, on));
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => running.IsChecked == on,
+                TimeSpan.FromSeconds(2)));
+        }
+
+        var bus = new VirtualAdcBus();
+        bus.Open("Virtual", 19200);
+        var adc = new AdcProtocolWindow(bus, new IBTM.Hantas.HantasSettings(), machine);
+        var frames = (ListBox)adc.FindName("FrameLogList");
+        var uiThread = Environment.CurrentManagedThreadId;
+        var updates = new List<int>();
+        ((INotifyCollectionChanged)frames.Items).CollectionChanged += (_, _) =>
+            updates.Add(Environment.CurrentManagedThreadId);
+        try
+        {
+            Assert.True(BindingOperations.IsDataBound(frames, ItemsControl.ItemsSourceProperty));
+            await Task.Run(() => bus.ReadDeviceInformationAsync(0));
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => frames.Items.Count == 2,
+                TimeSpan.FromSeconds(2)));
+            Assert.Contains("RX RAW", (string)frames.Items[0]);
+            Assert.Contains("TX", (string)frames.Items[1]);
+            Assert.All(updates, thread => Assert.Equal(uiThread, thread));
+        }
+        finally
+        {
+            adc.Close();
+            bus.Close();
+        }
+
+        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        teaching.SelectedMotionGroup = MotionGroup.InspectionGantry;
+        var preview = new Image();
+        preview.SetBinding(
+            Image.SourceProperty,
+            new Binding(nameof(StationTeachingViewModel.LiveImage)) { Source = teaching });
+        try
+        {
+            teaching.ToggleLiveViewCommand.Execute(null);
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => preview.Source is System.Windows.Media.Imaging.BitmapSource { IsFrozen: true },
+                TimeSpan.FromSeconds(2)));
+            teaching.ToggleLiveViewCommand.Execute(null);
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => preview.Source is null,
+                TimeSpan.FromSeconds(2)));
+        }
+        finally
+        {
+            teaching.Deactivate();
+        }
+    }
+
 
     private static Button BoundButton(OutputWindowRow row)
     {

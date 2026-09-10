@@ -23,7 +23,6 @@ public sealed class MachineHardwareSettings : IoHardwareSettings
                 or InputIo.Door5Open
                 or InputIo.Door6Open
                 or InputIo.AirPressureHigh
-
                 => IoSection.MachineSafety,
             InputIo.ResetButton
                 or InputIo.AutoMode
@@ -33,7 +32,6 @@ public sealed class MachineHardwareSettings : IoHardwareSettings
                 or OutputIo.TowerLampRed
                 or OutputIo.Buzzer
                 or OutputIo.MachineLight
-
                 => IoSection.MachineModeUtility,
             _ => null,
         };

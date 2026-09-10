@@ -1,7 +1,6 @@
 using System;
 using System.ComponentModel;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Windows;
 using IBTM.Core;
 using IBTM.Device;
@@ -10,8 +9,6 @@ namespace IBTM.UI;
 
 public partial class OutputWindow : Window
 {
-    private bool _closing;
-    private bool _shutdownCompleted;
     private readonly MachineState _state;
     private readonly MachineController _machine;
 
@@ -32,35 +29,27 @@ public partial class OutputWindow : Window
     public OutputWindowRow[] Rows { get; }
     public IoList<OutputWindowRow, OutputIo> Filter { get; }
 
-    public Task ShutdownAsync()
+    public void Shutdown()
     {
         IsEnabled = false;
         _machine.StopRunOutputs();
-        return Task.CompletedTask;
     }
 
-    protected override async void OnClosing(CancelEventArgs e)
+    protected override void OnClosing(CancelEventArgs e)
     {
-        if (_shutdownCompleted)
+        base.OnClosing(e);
+        if (e.Cancel)
         {
-            base.OnClosing(e);
             return;
         }
 
-        e.Cancel = true;
-        base.OnClosing(e);
-        if (_closing)
-            return;
-        _closing = true;
         try
         {
-            await ShutdownAsync();
-            _shutdownCompleted = true;
-            _ = Dispatcher.BeginInvoke(Close);
+            Shutdown();
         }
         catch (Exception exception)
         {
-            _closing = false;
+            e.Cancel = true;
             IsEnabled = true;
             System.Diagnostics.Trace.TraceError("Output window shutdown failed. {0}", exception);
             MessageBox.Show(

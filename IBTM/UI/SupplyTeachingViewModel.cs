@@ -26,9 +26,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
     private IReadOnlyList<TeachingPoint> _points = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IoGroups))]
     [NotifyPropertyChangedFor(nameof(TeachingIoGroups))]
-    [NotifyPropertyChangedFor(nameof(TeachingOutputs))]
     [NotifyCanExecuteChangedFor(nameof(TeachCurrentPositionCommand))]
     [NotifyCanExecuteChangedFor(nameof(MoveToPointCommand))]
     private TeachingPoint? _selectedPoint;
@@ -125,7 +123,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         OnPropertyChanged(nameof(HorizontalZ));
     }
 
-    [RelayCommand(CanExecute = nameof(CanSaveBufferSetup))]
+    [RelayCommand(CanExecute = nameof(CanEditTeaching))]
     private Task SaveBufferSetupAsync(CancellationToken cancellationToken)
     {
         return Machine.RunTeachingEditAsync(
@@ -142,11 +140,6 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
             },
             cancellationToken,
             ViewCancellation);
-    }
-
-    private bool CanSaveBufferSetup()
-    {
-        return CanEditTeaching;
     }
 
     public void Activate()

@@ -1,5 +1,4 @@
 using System;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -36,7 +35,7 @@ public sealed partial class MachineController
         }
     }
 
-    // Shared minimum conditions for direct I/O and manual motor tests.
+    // Shared minimum conditions for direct I/O and manual conveyor runs.
     private OutputBlockReason GetManualOutputSafetyBlock()
     {
         if (_operations.IsShuttingDown)
@@ -50,30 +49,11 @@ public sealed partial class MachineController
         return OutputBlockReason.None;
     }
 
-    internal static bool IsInterfaceOutput(OutputIo signal)
-    {
-        return signal is OutputIo.PcbSupplyReadyToFront1
-            or OutputIo.MainConveyorReadyToFront2
-            or OutputIo.MainConveyorAvailableToRear;
-    }
-
-    internal static bool IsConveyorRunOutput(OutputIo signal)
-    {
-        return signal is OutputIo.MainConveyorRun or OutputIo.NgConveyorRun;
-    }
-
-    internal void StopManualOutput(OutputIo signal)
+    internal void StopManualConveyor(OutputIo signal)
     {
         try
         {
-            if (!_io.IsReady)
-                return;
-            if (IsConveyorRunOutput(signal))
-                StopConveyorMotor(signal);
-            else if (IsInterfaceOutput(signal))
-                _io.SetOutput(signal, false);
-            else
-                throw new ArgumentOutOfRangeException(nameof(signal));
+            StopConveyorMotor(signal);
         }
         catch (Exception exception)
         {
@@ -94,28 +74,24 @@ public sealed partial class MachineController
             throw new ArgumentOutOfRangeException(nameof(signal));
     }
 
-    internal async Task<OutputBlockReason> ToggleManualOutputAsync(
+    internal async Task<OutputBlockReason> RunManualConveyorAsync(
         OutputIo signal,
         CancellationToken cancellationToken)
     {
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            // Button state is not an interlock. Both views use this live admission check.
             var block = GetManualOutputSafetyBlock();
             if (block != OutputBlockReason.None)
             {
-                _log?.Write($"Manual output {signal} ignored: [{block}] {block.GetDescription()}");
+                _log?.Write($"Manual conveyor {signal} ignored: [{block}] {block.GetDescription()}");
                 return block;
             }
 
             using var operation = _operations.Link(cancellationToken);
-            var startingAlarm = _state.Alarm;
-            var conveyorTest = IsConveyorRunOutput(signal);
-            var interfaceTest = IsInterfaceOutput(signal);
-            var maintainedOutput = conveyorTest || interfaceTest;
             var outputStarted = false;
             var stopReason = OutputBlockReason.None;
+
             void StopWhenUnavailable()
             {
                 if (operation.IsCancellationRequested)
@@ -127,81 +103,59 @@ public sealed partial class MachineController
                     {
                         stopReason = reason;
                         operation.Cancel();
-                        _log?.Write(
-                            $"Manual output {signal} stopped: [{reason}] {reason.GetDescription()}");
+                        _log?.Write($"Manual conveyor {signal} stopped: [{reason}] {reason.GetDescription()}");
                     }
                 }
                 catch (Exception exception)
                 {
-                    // State notifications can run on the I/O worker; stop this
-                    // operation without propagating a callback failure to that worker.
-                    _log?.Error(
-                        $"Manual output {signal} stopped: interlock feedback could not be read.",
-                        exception);
+                    // This callback runs on the I/O worker. Cancel without stopping its scan.
+                    _log?.Error($"Manual conveyor {signal}: interlock feedback could not be read.", exception);
                     operation.Cancel();
                 }
             }
 
-            void OnDiagnosticOutputChanged(OutputIo output, bool on)
+            void OnOutputChanged(OutputIo output, bool on)
             {
-                // STOP from another window must also release this operation's lifetime.
+                // OFF from OUTPUTS must release the Manual operation too.
                 if (outputStarted && output == signal && !on)
                     operation.Cancel();
             }
 
             _state.Changed += StopWhenUnavailable;
-            if (maintainedOutput)
-                _io.OutputChanged += OnDiagnosticOutputChanged;
+            _io.OutputChanged += OnOutputChanged;
             try
             {
                 StopWhenUnavailable();
                 operation.Token.ThrowIfCancellationRequested();
-                if (maintainedOutput)
+                try
                 {
-                    try
+                    _log?.Write($"Manual conveyor {signal}: ON, forward, normal speed; alarm={_state.Alarm}.");
+                    Task motorRun;
+                    if (signal == OutputIo.MainConveyorRun)
                     {
-                        Task? motorRun = null;
-                        if (conveyorTest)
-                        {
-                            _log?.Write(
-                                $"Manual conveyor {signal}: ON, forward, normal speed; alarm={startingAlarm}.");
-                            if (signal == OutputIo.MainConveyorRun)
-                                _conveyor.RunMotor(operation.Token);
-                            else
-                                motorRun = _ngConveyor.RunMotorAsync(operation.Token);
-                        }
-                        else
-                        {
-                            _log?.Write(
-                                $"Manual interface output {signal}: ON until OFF or cancellation. Connected equipment must be stopped.");
-                            _io.SetOutput(signal, true);
-                        }
-
-                        outputStarted = true;
-                        if (!_io.GetOutput(signal))
-                            operation.Cancel();
-                        // Own ON until cancellation; OFF must not wait for the UI dispatcher.
-                        await (motorRun ?? Task.Delay(Timeout.Infinite, operation.Token)).ConfigureAwait(false);
+                        _conveyor.RunMotor(operation.Token);
+                        motorRun = Task.Delay(Timeout.Infinite, operation.Token);
                     }
-                    finally
+                    else if (signal == OutputIo.NgConveyorRun)
                     {
-                        if (conveyorTest)
-                            StopConveyorMotor(signal);
-                        else
-                            _io.SetOutput(signal, false);
-                        _log?.Write($"Manual output {signal}: OFF.");
+                        motorRun = _ngConveyor.RunMotorAsync(operation.Token);
+                    }
+                    else
+                    {
+                        throw new ArgumentOutOfRangeException(nameof(signal));
                     }
 
-                    return OutputBlockReason.None;
+                    outputStarted = true;
+                    if (!_io.GetOutput(signal))
+                        operation.Cancel();
+                    await motorRun.ConfigureAwait(false);
                 }
-
-                var value = !_io.GetOutput(signal);
-                // This window never moves an axis as a side effect of a toggle.
-                _log?.Write($"Manual output {signal}: {(value ? "ON" : "OFF")}; alarm={startingAlarm}.");
-                operation.Token.ThrowIfCancellationRequested();
-                _io.SetOutput(signal, value);
-                if (_io.GetOutputFeedback(signal) is not null)
-                    await _io.WaitForOutputFeedbackAsync(signal, value, operation.Token);
+                finally
+                {
+                    // OFF must not wait for the UI command continuation.
+                    StopConveyorMotor(signal);
+                    _log?.Write($"Manual conveyor {signal}: OFF.");
+                }
             }
             catch (OperationCanceledException) when (operation.IsCancellationRequested)
             {
@@ -210,17 +164,11 @@ public sealed partial class MachineController
             finally
             {
                 _state.Changed -= StopWhenUnavailable;
-                if (maintainedOutput)
-                    _io.OutputChanged -= OnDiagnosticOutputChanged;
+                _io.OutputChanged -= OnOutputChanged;
             }
         }
         catch (OperationCanceledException)
         {
-            throw;
-        }
-        catch (IoTimeoutException exception)
-        {
-            _log?.Error($"Manual output {signal}: feedback timed out. {exception.Message}", exception);
             throw;
         }
         catch (Exception exception)
@@ -248,7 +196,6 @@ public sealed partial class MachineController
         {
             OutputIo.PcbSupplyRotate => !_supplyHandler.IsInsideBuffer(live),
             OutputIo.PcbPlacementHandlerRotate
-
                 => _placementHandler.IsAtHorizontalZ(live)
                     && _placementHandler.CanMoveHorizontal,
             _ => true,
@@ -271,19 +218,15 @@ public sealed partial class MachineController
                 OutputIo.PcbPlacementHandlerDown => _placementHandler.SetLiftDownAsync(value, token),
                 OutputIo.PcbPlacementIpmDown => _placementHandler.SetIpmLiftDownAsync(value, token),
                 OutputIo.PcbPlacementIpmGripperClose
-
                     => _placementHandler.SetIpmGripperAsync(value, token),
                 OutputIo.PcbPlacementVacuumEjector => _placementHandler.SetVacuumAsync(value, token),
                 OutputIo.PcbPlacementHandlerRotate => _placementHandler.SetRotatedAsync(value, token),
                 OutputIo.PickupHeadDown => _fasteningGantry.SetPickupHeadDownAsync(value, token),
                 OutputIo.ShootingHeadDown
-
                     => _fasteningGantry.SetHeadDownAsync(FasteningHead.Shooting, value, token),
                 OutputIo.PickupHeadVacuumPump
-
                     => _fasteningGantry.SetVacuumAsync(FasteningHead.Pickup, value, token),
                 OutputIo.ShootingHeadVacuumPump
-
                     => _fasteningGantry.SetVacuumAsync(FasteningHead.Shooting, value, token),
                 OutputIo.ShootBolt => _fasteningGantry.SetManualShootingAsync(value, token),
                 OutputIo.NgCarrierPickupDown => _ngTransfer.SetLiftDownAsync(value, token),
@@ -291,7 +234,6 @@ public sealed partial class MachineController
                 OutputIo.PcbPlacementBackupPlateUp
                     or OutputIo.BoltFasteningBackupPlateUp
                     or OutputIo.InspectionBackupPlateUp
-
                     => _io.SetOutputAndWaitAsync(output.Signal, value, token),
                 _ => throw new ArgumentOutOfRangeException(nameof(output)),
             };

@@ -16,17 +16,13 @@ public partial class StationTeachingViewModel
             return SelectedMotionGroup switch
             {
                 MotionGroup.PcbPlacementHandler when _state.Display.SupplyInBufferArea
-
                     => TeachingMotionHint.SupplyInBuffer,
                 MotionGroup.PcbPlacementHandler when !_placementHandler.CanMoveHorizontal
-
                     => TeachingMotionHint.RaisePlacementCylinders,
                 MotionGroup.BoltFastening => TeachingMotionHint.BoltAdjustment,
                 MotionGroup.InspectionGantry when !_inspectionGantry.CanMove
-
                     => TeachingMotionHint.RaiseNgPickup,
                 MotionGroup.PcbPlacementHandler when !Motion.IsAtZ(_placementSettings.BufferEntryZ)
-
                     => TeachingMotionHint.SafeZRequired,
                 _ => TeachingMotionHint.None,
             };
@@ -61,7 +57,6 @@ public partial class StationTeachingViewModel
         return SelectedMotionGroup switch
         {
             MotionGroup.PcbPlacementHandler
-
                 => _placementHandler.JogAsync(axis, velocity, cancellationToken),
             MotionGroup.BoltFastening => _fasteningGantry.JogAsync(axis, velocity, cancellationToken),
             MotionGroup.InspectionGantry => _inspectionGantry.JogAsync(axis, velocity, cancellationToken),
@@ -74,7 +69,6 @@ public partial class StationTeachingViewModel
         return SelectedMotionGroup switch
         {
             MotionGroup.PcbPlacementHandler
-
                 => _placementHandler.MoveToHorizontalZAsync(cancellationToken),
             MotionGroup.BoltFastening => _fasteningGantry.MoveToSafeZAsync(cancellationToken),
             MotionGroup.InspectionGantry => Task.CompletedTask,
@@ -90,19 +84,14 @@ public partial class StationTeachingViewModel
         return (SelectedMotionGroup, axis) switch
         {
             (MotionGroup.PcbPlacementHandler, MotionAxis.X)
-
                 => _placementHandler.MoveXAsync(position, cancellationToken),
             (MotionGroup.PcbPlacementHandler, MotionAxis.Y)
-
                 => _placementHandler.MoveYAsync(position, cancellationToken),
             (MotionGroup.PcbPlacementHandler, MotionAxis.Z)
-
                 => _placementHandler.MoveZAsync(position, cancellationToken),
             (MotionGroup.BoltFastening, _)
-
                 => _fasteningGantry.AdjustAxisAsync(axis, position, JogSpeed, cancellationToken),
             (MotionGroup.InspectionGantry, _)
-
                 => _inspectionGantry.MoveAxisAsync(
                     axis,
                     position,
@@ -133,19 +122,16 @@ public partial class StationTeachingViewModel
         return point.MotionGroup switch
         {
             MotionGroup.PcbPlacementHandler
-
                 => _placementHandler.MoveToTeachingPositionAsync(
                     point.Position,
                     point.Read(),
                     cancellationToken),
             MotionGroup.BoltFastening
-
                 => _fasteningGantry.MoveToTeachingPositionAsync(
                     point.Position,
                     point.Read(),
                     cancellationToken),
             MotionGroup.InspectionGantry
-
                 => _inspectionGantry.MoveToAsync(
                     new AxisPosition { X = point.X, Y = point.Y },
                     _inspectionGantrySettings.Motion.HorizontalSpeed,

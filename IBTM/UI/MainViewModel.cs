@@ -46,7 +46,6 @@ public enum MachineEnvironmentDisplay
 
 public partial class MainViewModel : ObservableObject
 {
-    private readonly OperationViewModel _operationViewModel;
     private readonly SupplyTeachingViewModel _supplyTeachingViewModel;
     private readonly StationTeachingViewModel _stationTeachingViewModel;
     private readonly BoltTrainingViewModel _boltTrainingViewModel;
@@ -82,7 +81,7 @@ public partial class MainViewModel : ObservableObject
         DriverSettings drivers,
         MachineController machine)
     {
-        _operationViewModel = operationViewModel;
+        Operation = operationViewModel;
         _supplyTeachingViewModel = supplyTeachingViewModel;
         _stationTeachingViewModel = stationTeachingViewModel;
         _boltTrainingViewModel = boltTrainingViewModel;
@@ -130,14 +129,7 @@ public partial class MainViewModel : ObservableObject
         ActivateCurrentPage();
     }
 
-    public OperationViewModel Operation
-    {
-        get
-        {
-            return _operationViewModel;
-        }
-    }
-
+    public OperationViewModel Operation { get; }
     public RecipeEditor RecipeEditor { get; }
     public BoltImageCollector ImageCollector { get; }
     public MachineEnvironmentDisplay Environment { get; }
@@ -174,7 +166,7 @@ public partial class MainViewModel : ObservableObject
         {
             return SelectedPage switch
             {
-                AppPage.Operation => _operationViewModel,
+                AppPage.Operation => Operation,
                 AppPage.SupplyTeaching => _supplyTeachingViewModel,
                 AppPage.StationTeaching => _stationTeachingViewModel,
                 AppPage.BoltTraining => _boltTrainingViewModel,
@@ -182,14 +174,6 @@ public partial class MainViewModel : ObservableObject
                 AppPage.ManualHardware => _manualHardwareViewModel,
                 _ => throw new ArgumentOutOfRangeException(nameof(SelectedPage)),
             };
-        }
-    }
-
-    public bool ManualControlsEnabled
-    {
-        get
-        {
-            return _state.Display.ManualControlsEnabled;
         }
     }
 
@@ -231,7 +215,7 @@ public partial class MainViewModel : ObservableObject
 
         return Task.WhenAll(
             CommandShutdown.WaitAsync(CommandShutdown.Capture(ResetCommand)),
-            _operationViewModel.ShutdownAsync(),
+            Operation.ShutdownAsync(),
             _supplyTeachingViewModel.ShutdownAsync(),
             _stationTeachingViewModel.ShutdownAsync(),
             _manualHardwareViewModel.ShutdownAsync(),
@@ -310,7 +294,7 @@ public partial class MainViewModel : ObservableObject
         switch (SelectedPage)
         {
             case AppPage.Operation:
-                _operationViewModel.Activate();
+                Operation.Activate();
                 break;
             case AppPage.SupplyTeaching:
                 _supplyTeachingViewModel.Activate();
@@ -335,7 +319,7 @@ public partial class MainViewModel : ObservableObject
         switch (SelectedPage)
         {
             case AppPage.Operation:
-                _operationViewModel.Deactivate();
+                Operation.Deactivate();
                 break;
             case AppPage.SupplyTeaching:
                 _supplyTeachingViewModel.Deactivate();
@@ -380,7 +364,6 @@ public partial class MainViewModel : ObservableObject
                     return;
                 }
 
-                OnPropertyChanged(nameof(ManualControlsEnabled));
                 OnPropertyChanged(nameof(OutputsWindowEnabled));
                 OnPropertyChanged(nameof(AdcProtocolEnabled));
                 OnPropertyChanged(nameof(CurrentPageEnabled));

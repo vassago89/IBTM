@@ -201,7 +201,6 @@ public sealed class PcbSupplyHandler
             {
                 TeachingTarget.SupplyBufferHandoff => Rotation == PcbSupplyRotationState.Rotated,
                 TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick
-
                     => Rotation == PcbSupplyRotationState.Unrotated,
                 _ => true,
             };
@@ -426,11 +425,6 @@ public sealed class PcbSupplyHandler
     private bool AtRotationZ(bool live)
     {
         return live ? IsAtRotationZ : Motion.IsAtZ(_settings.RotationZ);
-    }
-
-    public bool CanRotateInPlace(bool live = true)
-    {
-        return !IsInsideBuffer(live) && AtRotationZ(live);
     }
 
     public Task MoveToRotationZAsync(CancellationToken cancellationToken = default)
