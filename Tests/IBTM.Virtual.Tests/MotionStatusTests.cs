@@ -50,7 +50,7 @@ public sealed class MotionStatusTests
 
         motion.Failure = new IOException("Axis feedback unavailable.");
         status.RefreshMonitorFeedback();
-        Assert.Same(motion.Failure, Assert.Throws<IOException>(() => status.RefreshControlFeedback()));
+        status.RefreshControlFeedback();
         var reads = motion.Reads;
         Assert.Equal(AxisCondition.Unavailable, first.Condition);
         Assert.Null(second.State);
@@ -60,6 +60,7 @@ public sealed class MotionStatusTests
 
         motion.Failure = null;
         motion.State = motion.State with { Homed = false };
+        status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
         Assert.Equal(AxisCondition.HomeRequired, first.Condition);
         Assert.Equal(first.Condition, second.Condition);
@@ -134,14 +135,16 @@ public sealed class MotionStatusTests
             return Failure is { } failure ? throw failure : State;
         }
 
-        AxisState IMotionDiagnostics.ReadDiagnosticState(MotionAxis axis)
+        (AxisState? State, Exception? Error) IMotionDiagnostics.ReadDiagnosticState(MotionAxis axis)
         {
-            return GetAxisState(axis);
+            Reads++;
+            return Failure is { } failure ? (null, failure) : (State, null);
         }
 
-        double IMotionDiagnostics.ReadDiagnosticPosition(MotionAxis axis)
+        (double? Position, Exception? Error) IMotionDiagnostics.ReadDiagnosticPosition(MotionAxis axis)
         {
-            return GetPosition().X;
+            PositionReads++;
+            return Failure is { } failure ? (null, failure) : (Position.X, null);
         }
 
         protected override Task MoveAxisCoreAsync(

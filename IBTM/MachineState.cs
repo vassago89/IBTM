@@ -321,6 +321,23 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
             _ioSignals.RefreshOutputs();
             foreach (var (group, motion) in _motions)
                 motion.RefreshControlFeedback(_io.IsReady && _units.IsMotionEnabled(group));
+
+            // An enabled drive's failed sample is already an explicit read failure.
+            // Do not rediscover it by calling throwing live getters while building the display.
+            foreach (var (group, motion) in _motions)
+            {
+                if (!_io.IsReady || !_units.IsMotionEnabled(group))
+                    continue;
+                foreach (var axis in motion.MonitorAxes.Values)
+                {
+                    if (axis.Snapshot.ReadError is not { } error)
+                        continue;
+                    if (Display.ReadError?.Message != error.Message)
+                        Display = new() { ReadError = error };
+                    return;
+                }
+            }
+
             Display = read();
         }
         catch (IOException exception)
@@ -329,7 +346,8 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
                 _log?.Error("Display refresh failed.", exception);
             if (_io.IsReady)
             {
-                Display = new() { ReadError = exception };
+                if (Display.ReadError?.Message != exception.Message)
+                    Display = new() { ReadError = exception };
             }
             else
             {
@@ -381,7 +399,7 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         var faulted = false;
         void Read(MotionStatus motion)
         {
-            if (!motion.Feedback.IsReady)
+            if (live && !motion.Feedback.IsReady)
             {
                 homed = servosOn = false;
                 faulted = true;

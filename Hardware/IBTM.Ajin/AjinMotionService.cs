@@ -216,32 +216,43 @@ public class AjinMotionService(
 
     public override AxisState GetAxisState(MotionAxis axis)
     {
-        return ReadDiagnosticState(axis);
+        var read = ReadDiagnosticState(axis);
+        if (read.Error is { } error)
+            throw error;
+        return read.State!.Value;
     }
 
     // These getters never initialize the motion, change parameters, reset alarms or enable servos.
     // Disabled groups can therefore be monitored through the already-open AXL connection.
-    public AxisState ReadDiagnosticState(MotionAxis axis)
+    public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
     {
         var axisNumber = GetAxis(axis);
         var mechanical = 0U;
         var homeResult = 0U;
         var servoOn = 0U;
         var inMotion = 0U;
-        AjinController.Check(
+        var error = ReadError(
             CAXM.AxmStatusReadMechanical(axisNumber, ref mechanical),
-            $"{nameof(CAXM.AxmStatusReadMechanical)} (axis={axisNumber})");
-        AjinController.Check(
+            nameof(CAXM.AxmStatusReadMechanical), axisNumber);
+        if (error is not null)
+            return (null, error);
+        error = ReadError(
             CAXM.AxmHomeGetResult(axisNumber, ref homeResult),
-            $"{nameof(CAXM.AxmHomeGetResult)} (axis={axisNumber})");
-        AjinController.Check(
+            nameof(CAXM.AxmHomeGetResult), axisNumber);
+        if (error is not null)
+            return (null, error);
+        error = ReadError(
             CAXM.AxmSignalIsServoOn(axisNumber, ref servoOn),
-            $"{nameof(CAXM.AxmSignalIsServoOn)} (axis={axisNumber})");
-        AjinController.Check(
+            nameof(CAXM.AxmSignalIsServoOn), axisNumber);
+        if (error is not null)
+            return (null, error);
+        error = ReadError(
             CAXM.AxmStatusReadInMotion(axisNumber, ref inMotion),
-            $"{nameof(CAXM.AxmStatusReadInMotion)} (axis={axisNumber})");
+            nameof(CAXM.AxmStatusReadInMotion), axisNumber);
+        if (error is not null)
+            return (null, error);
 
-        return new AxisState(
+        return (new AxisState(
             Homed: homeResult == HomeSuccess,
             ServoOn: servoOn != 0,
             Alarm: Bit(mechanical, AlarmBit),
@@ -250,12 +261,12 @@ public class AjinMotionService(
             HomeSensor: Bit(mechanical, HomeSensorBit),
             PositiveLimit: Bit(mechanical, PositiveLimitBit),
             NegativeLimit: Bit(mechanical, NegativeLimitBit),
-            InMotion: inMotion != 0);
+            InMotion: inMotion != 0), null);
     }
 
-    public double ReadDiagnosticPosition(MotionAxis axis)
+    public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
     {
-        return ReadPosition(GetAxis(axis));
+        return ReadPositionFeedback(GetAxis(axis));
     }
 
     protected override async Task<bool> HomeCoreAsync(
@@ -550,22 +561,42 @@ public class AjinMotionService(
 
     private double ReadPosition(int axis)
     {
+        var read = ReadPositionFeedback(axis);
+        if (read.Error is { } error)
+            throw error;
+        return read.Position!.Value;
+    }
+
+    private (double? Position, Exception? Error) ReadPositionFeedback(int axis)
+    {
         var position = 0.0;
-        AjinController.Check(
+        var error = ReadError(
             CAXM.AxmStatusGetActPos(axis, ref position),
-            $"{nameof(CAXM.AxmStatusGetActPos)} (axis={axis})");
+            nameof(CAXM.AxmStatusGetActPos), axis);
+        if (error is not null)
+            return (null, error);
         var unit = 0.0;
         var pulse = 0;
-        AjinController.Check(
+        error = ReadError(
             CAXM.AxmMotGetMoveUnitPerPulse(axis, ref unit, ref pulse),
-            $"{nameof(CAXM.AxmMotGetMoveUnitPerPulse)} (axis={axis})");
+            nameof(CAXM.AxmMotGetMoveUnitPerPulse), axis);
+        if (error is not null)
+            return (null, error);
         if (!double.IsFinite(unit) || unit <= 0 || pulse <= 0)
         {
-            throw new System.IO.IOException(
-                $"Invalid AJIN position scale (axis={axis}, unit={unit}, pulse={pulse}).");
+            return (null, new System.IO.IOException(
+                $"Invalid AJIN position scale (axis={axis}, unit={unit}, pulse={pulse})."));
         }
 
-        return position * pulse / unit * _millimetersPerPulse;
+        return (position * pulse / unit * _millimetersPerPulse, null);
+    }
+
+    private static Exception? ReadError(uint result, string operation, int axis)
+    {
+        if (result == (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS)
+            return null;
+        return new System.IO.IOException(
+            $"{operation} (axis={axis}) failed with Ajin result {(AXT_FUNC_RESULT)result} (0x{result:X8}).");
     }
 
     private static bool AxisParametersMatch(int axis)

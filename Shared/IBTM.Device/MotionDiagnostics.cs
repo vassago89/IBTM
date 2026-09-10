@@ -6,8 +6,8 @@ namespace IBTM.Device;
 // Read-only monitoring, independent of motion initialization and command admission.
 public interface IMotionDiagnostics
 {
-    AxisState ReadDiagnosticState(MotionAxis axis);
-    double ReadDiagnosticPosition(MotionAxis axis);
+    (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis);
+    (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis);
 }
 
 public sealed record MotionDiagnosticSnapshot(AxisState? State, double? Position, Exception? ReadError)
@@ -49,7 +49,11 @@ public sealed class MotionDiagnostics : INotifyPropertyChanged
 
     private void Update(MotionDiagnosticSnapshot snapshot)
     {
-        if (Snapshot == snapshot)
+        var previous = Snapshot;
+        if (previous.State == snapshot.State
+            && previous.Position == snapshot.Position
+            && previous.ReadError?.GetType() == snapshot.ReadError?.GetType()
+            && previous.ReadError?.Message == snapshot.ReadError?.Message)
             return;
         System.Threading.Volatile.Write(ref _snapshot, snapshot);
         PropertyChanged?.Invoke(this, new(nameof(Snapshot)));
@@ -62,7 +66,7 @@ public sealed class MotionDiagnostics : INotifyPropertyChanged
         Exception? error = null;
         try
         {
-            state = feedback.ReadDiagnosticState(axis);
+            (state, error) = feedback.ReadDiagnosticState(axis);
         }
         catch (Exception exception) when (IsReadFailure(exception))
         {
@@ -72,7 +76,10 @@ public sealed class MotionDiagnostics : INotifyPropertyChanged
         // A status-query failure must not hide a readable position (or another axis).
         try
         {
-            position = feedback.ReadDiagnosticPosition(axis);
+            var read = feedback.ReadDiagnosticPosition(axis);
+            position = read.Position;
+            if (read.Error is { } positionError)
+                error = error is null ? positionError : new AggregateException(error, positionError);
         }
         catch (Exception exception) when (IsReadFailure(exception))
         {

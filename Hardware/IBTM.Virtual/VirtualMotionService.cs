@@ -114,14 +114,14 @@ public sealed class VirtualMotionService(
         return (_x, _y, _z);
     }
 
-    public AxisState ReadDiagnosticState(MotionAxis axis)
+    public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
     {
-        return GetAxisState(axis);
+        return (GetAxisState(axis), null);
     }
 
-    public double ReadDiagnosticPosition(MotionAxis axis)
+    public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
     {
-        return GetCoordinate(axis);
+        return (GetCoordinate(axis), null);
     }
 
     public override AxisState GetAxisState(MotionAxis axis)

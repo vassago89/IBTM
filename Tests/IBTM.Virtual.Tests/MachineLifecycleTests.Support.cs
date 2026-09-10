@@ -200,12 +200,12 @@ public sealed partial class MachineLifecycleTests
         public Action? BeforePositionRead;
         public MotionAxis? LastMovedAxis { get; private set; }
 
-        public AxisState ReadDiagnosticState(MotionAxis axis)
+        public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
         {
             return ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
         }
 
-        public double ReadDiagnosticPosition(MotionAxis axis)
+        public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
         {
             return ((IMotionDiagnostics)Motion).ReadDiagnosticPosition(axis);
         }
@@ -298,18 +298,18 @@ public sealed partial class MachineLifecycleTests
         public int ResetCalls;
         public Func<AxisState, AxisState>? OverrideState;
 
-        public AxisState ReadDiagnosticState(MotionAxis axis)
+        public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
         {
             if (FailHardwareCalls)
-                throw new IOException("Unavailable diagnostic state.");
-            var state = ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
-            return OverrideState?.Invoke(state) ?? state;
+                return (null, new IOException("Unavailable diagnostic state."));
+            var read = ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
+            return (read.State is { } state ? OverrideState?.Invoke(state) ?? state : null, read.Error);
         }
 
-        public double ReadDiagnosticPosition(MotionAxis axis)
+        public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
         {
             if (FailHardwareCalls)
-                throw new IOException("Unavailable diagnostic position.");
+                return (null, new IOException("Unavailable diagnostic position."));
             return ((IMotionDiagnostics)Motion).ReadDiagnosticPosition(axis);
         }
 

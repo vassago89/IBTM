@@ -82,7 +82,13 @@ travel speed and pulse resolution, not the AJIN acceleration or home-search prof
 Operation의 `REPEAT (DRY RUN)`을 켜면 기존 Auto 정방향을 실행한 뒤 캐리어 하나를 복귀시킨다.
 
 Station 1 → Station 2 → Station 3 → NG Transfer → 셔틀 → NG 끝단(P1)
-→ 셔틀 → NG Transfer → Station 3 → 메인 앞 센서 → Station 1 → 반복
+→ 셔틀 → NG Transfer → Station 3 → Station 1 감지 → 반복
+
+현재는 메인 앞단 센서가 없어 **Repeat에만 임시 경로**를 적용한다.
+역이송은 1번 스테이션 센서에서 멈추고, 1번 백업 플레이트는 내린 채 통과하여
+2번 스테이션부터 백업 플레이트를 올린다. 이때 PCB Supply와 PCB Placement는 실행하지 않는다.
+센서 설치 확인 후 `MainConveyor.RepeatUsesStation1ReturnSensor`를 `false`로 되돌리면
+기존 앞단 센서 복귀·1번 안착 경로를 사용한다. 일반 Auto 동작은 바꾸지 않는다.
 
 - Manual에서 Main Conveyor, NG Carrier Transfer, NG Shuttle, NG Conveyor를 ON으로 설정한다.
 - 공정 없이 순환만 확인하려면 PCB Supply, PCB Placement(1번), Bolt Fastening(2번),
@@ -91,6 +97,7 @@ Station 1 → Station 2 → Station 3 → NG Transfer → 셔틀 → NG 끝단(P
 - 첫 번째 백업 플레이트 구간에 캐리어 한 개를 놓고 `REPEAT (DRY RUN)`을 체크한다.
 - AUTO 스위치로 전환하고 기존 START를 누른다. STOP으로 정지한다.
 - 미사용 스테이션도 캐리어 감지와 백업 플레이트 UP을 확인한 뒤 완료/통과한다.
+  단, 현재 임시 Repeat에서는 1번을 안착 없이 통과한다.
 - 정방향은 별도 시험 시퀀스가 아닌 Auto다. 켜둔 공정은 실제 작업을 수행하므로,
   체결하지 않을 시험에서는 Bolt Fastening을 OFF로 둔다. 가짜 체결/검사 결과를 만들지 않는다.
 - Repeat 중에는 외부 캐리어를 추가 요청하거나 후방 SMEMA로 배출하지 않는다.
@@ -100,7 +107,8 @@ Station 1 → Station 2 → Station 3 → NG Transfer → 셔틀 → NG 끝단(P
 - STOP 후에는 미완료 복귀 방향을 유지하고 현재 IO로 이어간다.
   센서 사이에 정지하여 위치를 확인할 수 없다면 임의로 움직이지 않고 위치 확인을 요구한다.
   프로그램 재시작은 복귀 이력을 보존하지 않으므로 첫 번째 플레이트 또는 확인 가능한 구간에 다시 준비한다.
-- Cycles는 Station 1 복귀·안착 완료 횟수다. Repeat 선택과 횟수는 실행 세션 동안만 유지한다.
+- Cycles는 Station 1 복귀 완료 횟수다. 임시 경로에서는 센서 감지 후 정지까지를 센다.
+  Repeat 선택과 횟수는 실행 세션 동안만 유지한다.
 
 예전 Manual의 개별 Dry Run 선택 및 별도 PCB/검사/체결 포인트 왕복 시퀀스는 제거했다.
 이 모드는 요청한 전체 NG 순환이며, PCB를 Supply로 회수하는 별도 시험 모드는 포함하지 않는다.

@@ -280,6 +280,11 @@ public sealed class DiagnosticToolsTests
             Assert.True(x.Enabled);
             Assert.True(x.RefreshEnabled());
             Assert.False(x.RefreshEnabled());
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => state.Display.MotionFaulted && !view.ToggleServoCommand.CanExecute(y),
+                TimeSpan.FromSeconds(2)));
+            Assert.NotNull(state.Display.ReadError); // Explicit failure without another throwing control read.
+            diagnostics.FailX = false;
             diagnostics.FailControl = true;
             Assert.True(
                 await VirtualTest.WaitUntilAsync(() => !state.Display.Available, TimeSpan.FromSeconds(2)));
@@ -326,19 +331,19 @@ public sealed class DiagnosticToolsTests
         public volatile bool InMotion;
         public int Position;
         public int Reads;
-        public AxisState ReadDiagnosticState(MotionAxis axis)
+        public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
         {
             Interlocked.Increment(ref Reads);
             if (FailX && axis == MotionAxis.X)
-                throw new IOException("Diagnostic X read failed.");
-            return new(false, false, Alarmed, true, false, true, false, false, InMotion);
+                return (null, new IOException("Diagnostic X read failed."));
+            return (new(false, false, Alarmed, true, false, true, false, false, InMotion), null);
         }
 
-        public double ReadDiagnosticPosition(MotionAxis axis)
+        public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
         {
             if (FailPosition && axis == MotionAxis.X)
-                throw new IOException("Diagnostic X position read failed.");
-            return Volatile.Read(ref Position);
+                return (null, new IOException("Diagnostic X position read failed."));
+            return (Volatile.Read(ref Position), null);
         }
 
         protected override object? Invoke(System.Reflection.MethodInfo? method, object?[]? arguments)

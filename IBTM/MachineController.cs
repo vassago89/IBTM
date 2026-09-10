@@ -389,7 +389,7 @@ public sealed partial class MachineController
             return false;
 
         var motion = _state.GetMotionStatus(group);
-        return motion.Feedback.IsReady
+        return (!live || motion.Feedback.IsReady)
             && motion.Feedback.Axes.All(
                 axis =>
                     (live ? motion.Feedback.GetAxisState(axis) : motion.Axes[axis].State)
@@ -593,7 +593,9 @@ public sealed partial class MachineController
                     && !_state.Display.AutoMode
                     && _state.Display.SafetyReady
                     && !_state.Display.IsRunning)
-            && _state.GetMotionStatus(group).Feedback.IsReady;
+            && (live
+                ? _state.GetMotionStatus(group).Feedback.IsReady
+                : _state.GetMotionStatus(group).Axes.Values.All(axis => axis.State is not null));
     }
 
     internal void ToggleServo(MotionGroup group, MotionAxis axis)

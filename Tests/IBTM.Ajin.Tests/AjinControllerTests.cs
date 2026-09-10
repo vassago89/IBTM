@@ -186,8 +186,34 @@ public sealed class AjinControllerTests
 
         AjinSdk.Results[stateRead] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
         AjinSdk.Results[positionRead] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
-        status.RefreshMonitorFeedback(ReportError);
-        status.RefreshMonitorFeedback(ReportError);
+        var notifications = 0;
+        var exceptions = 0;
+        foreach (var axis in status.MonitorAxes.Values)
+            axis.PropertyChanged += (_, _) => notifications++;
+        var pollingThread = Environment.CurrentManagedThreadId;
+        void OnException(object? sender, System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs args)
+        {
+            if (Environment.CurrentManagedThreadId == pollingThread && args.Exception is IOException)
+                exceptions++;
+        }
+
+        AppDomain.CurrentDomain.FirstChanceException += OnException;
+        try
+        {
+            for (var scan = 0; scan < 20; scan++)
+            {
+                status.RefreshMonitorFeedback(ReportError);
+                status.RefreshControlFeedback();
+            }
+        }
+        finally
+        {
+            AppDomain.CurrentDomain.FirstChanceException -= OnException;
+        }
+
+        Assert.Equal(0, exceptions);
+        Assert.Equal(2, notifications); // A repeated SDK failure is not a new UI state.
+        Assert.All(status.Axes.Values, axis => Assert.Null(axis.State));
         Assert.Equal(2, reportedErrors); // Unchanged errors are reported only once.
         Assert.Null(status.MonitorAxes[MotionAxis.X].Snapshot.State);
         Assert.Equal(12.34, status.MonitorAxes[MotionAxis.X].Snapshot.Position);
@@ -196,9 +222,12 @@ public sealed class AjinControllerTests
         Assert.Null(status.MonitorAxes[MotionAxis.Y].Snapshot.Position);
         Assert.Equal(new MotionPosition(12.34, null, null), status.Position);
 
+        Assert.Throws<IOException>(() => motion.GetAxisState(MotionAxis.X)); // Command reads still fail explicitly.
+
         AjinSdk.Results.Clear();
         AjinSdk.MotionAxes[10] = AjinSdk.MotionAxes[10] with { Position = -5.67, Unit = 1, Pulse = 100 };
         status.RefreshMonitorFeedback(ReportError);
+        Assert.Equal(4, notifications); // Recovery publishes fresh state for both axes.
         Assert.Equal(-5.67, status.MonitorAxes[MotionAxis.Y].Snapshot.Position!.Value, 8);
         Assert.All(status.MonitorAxes.Values, axis => Assert.Null(axis.Snapshot.ReadError));
         AjinSdk.Results[stateRead] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;

@@ -163,7 +163,10 @@ public sealed class MotionStatus : INotifyPropertyChanged
         var wasMoving = IsMoving;
         try
         {
-            var ready = available && Feedback.IsReady;
+            // A failed monitor sample already establishes unavailable feedback.
+            // Do not query the same disconnected driver again through throwing command getters.
+            var readable = MonitorAxes.Values.All(axis => axis.Snapshot.ReadError is null);
+            var ready = available && readable && Feedback.IsReady;
             foreach (var (axis, status) in Axes)
                 status.Update(ready ? Feedback.GetAxisState(axis) : null);
         }
