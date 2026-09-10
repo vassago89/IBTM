@@ -25,6 +25,8 @@ public sealed class MachineStoreTests
         settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementBackupPlateDown].OffNumber = 26;
         settings.NgConveyorHardware.Outputs[OutputIo.NgConveyorStopperDown].Number = 77;
         settings.NgConveyorHardware.Outputs[OutputIo.NgConveyorStopperDown].OffNumber = 78;
+        settings.BoltFasteningHardware.Outputs[OutputIo.PickupHeadUp].Number = 139;
+        settings.BoltFasteningHardware.Outputs[OutputIo.PickupHeadUp].OffNumber = 140;
         await settings.SaveAsync(store);
         store.SaveRecipe("Part", new Recipe { Name = "Part" }, []);
 
@@ -78,6 +80,8 @@ public sealed class MachineStoreTests
                 ("NgCarrierTransferHardwareSettings", "NgCarrierPickupDown", "NgCarrierPickupUp"),
                 ("NgCarrierTransferHardwareSettings", "NgCarrierGripperClose", "NgCarrierGripperOpen"),
                 ("NgShuttleHardwareSettings", "NgShuttleDown", "NgShuttleUp"),
+                ("BoltFasteningHardwareSettings", "PickupHeadDown", "PickupHeadUp"),
+                ("BoltFasteningHardwareSettings", "ShootingHeadDown", "ShootingHeadUp"),
             })
             {
                 command.CommandText = """
@@ -155,6 +159,16 @@ public sealed class MachineStoreTests
         }
 
         Assert.Equal(settings.ConveyorHardware.Outputs.Count, loaded.ConveyorHardware.Outputs.Count);
+        foreach (var output in new[] { OutputIo.PickupHeadUp, OutputIo.ShootingHeadUp })
+        {
+            var expected = settings.BoltFasteningHardware.Outputs[output];
+            var actual = loaded.BoltFasteningHardware.Outputs[output];
+            Assert.Equal(expected.Number, actual.Number);
+            Assert.Equal(expected.OffNumber, actual.OffNumber);
+            Assert.Equal(expected.Feedback!.OnInput, actual.Feedback!.OnInput);
+            Assert.Equal(expected.Feedback.OffInput, actual.Feedback.OffInput);
+        }
+
         Assert.Equal(settings.NgConveyorHardware.Outputs.Count, loaded.NgConveyorHardware.Outputs.Count);
         Assert.Equal(17, loaded.PcbSupply.RotationZ);
         Assert.NotNull(loaded.PcbSupply.Motion);

@@ -300,12 +300,14 @@ public sealed partial class MachineLifecycleTests
         OutputIo[] cylinders = [
             OutputIo.PcbPlacementHandlerDown,
             OutputIo.PcbPlacementIpmDown,
-            OutputIo.PickupHeadDown,
-            OutputIo.ShootingHeadDown,
+            OutputIo.PickupHeadUp,
+            OutputIo.ShootingHeadUp,
             OutputIo.NgCarrierPickupUp,
         ];
         await Task.WhenAll(cylinders.Select(
-            output => signals.SetOutputAndWaitAsync(output, output != OutputIo.NgCarrierPickupUp)));
+            output => signals.SetOutputAndWaitAsync(
+                output,
+                output is OutputIo.PcbPlacementHandlerDown or OutputIo.PcbPlacementIpmDown)));
         var motions = new[]
         {
             services.GetRequiredService<PcbSupplyHandler>().Feedback,
@@ -337,7 +339,9 @@ public sealed partial class MachineLifecycleTests
         Assert.False(state.Homed);
         Assert.False(moved);
         Assert.Equal(cylinders.Order(), outputChanges.Order());
-        Assert.All(cylinders, output => Assert.Equal(output == OutputIo.NgCarrierPickupUp, io.GetOutput(output)));
+        Assert.All(cylinders, output => Assert.Equal(
+            output is OutputIo.PickupHeadUp or OutputIo.ShootingHeadUp or OutputIo.NgCarrierPickupUp,
+            io.GetOutput(output)));
         Assert.True(io.GetInput(InputIo.PcbPlacementIpmUp));
         Assert.False(io.GetInput(InputIo.PcbPlacementIpmDown));
         await machine.RaiseCylindersAsync(CancellationToken.None);
@@ -571,7 +575,7 @@ public sealed partial class MachineLifecycleTests
         {
             if (output is OutputIo.PickupHeadVacuumPump or OutputIo.ShootingHeadVacuumPump)
                 vacuumChanged = true;
-            if (output == OutputIo.PickupHeadDown && value)
+            if (output == OutputIo.PickupHeadUp && !value)
                 loweredAt.Enqueue(gantry.Feedback.GetPosition());
         };
         gantry.Feedback.PositionChanged += (_, _, _) =>
@@ -579,7 +583,7 @@ public sealed partial class MachineLifecycleTests
                 && !gantry.CanMoveHorizontal;
 
         var move = teaching.MoveToPointCommand.ExecuteAsync(null);
-        await WaitUntilAsync(() => io.GetOutput(OutputIo.PickupHeadDown));
+        await WaitUntilAsync(() => !io.GetOutput(OutputIo.PickupHeadUp));
         Assert.Equal((40, 30, 5), gantry.Feedback.GetPosition());
         Assert.False(move.IsCompleted);
         Assert.False(io.GetInput(InputIo.PickupHeadDown));
@@ -587,10 +591,10 @@ public sealed partial class MachineLifecycleTests
         await move.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Equal((40, 30, 5), gantry.Feedback.GetPosition());
         Assert.False(gantry.Feedback.IsMoving);
-        Assert.True(io.GetOutput(OutputIo.PickupHeadDown)); // Stop keeps pneumatic outputs.
+        Assert.False(io.GetOutput(OutputIo.PickupHeadUp)); // Stop keeps pneumatic outputs.
 
         var retry = teaching.MoveToPointCommand.ExecuteAsync(null);
-        await WaitUntilAsync(() => io.GetOutput(OutputIo.PickupHeadDown));
+        await WaitUntilAsync(() => !io.GetOutput(OutputIo.PickupHeadUp));
         Assert.False(retry.IsCompleted);
         io.SetInput(InputIo.PickupHeadUp, false);
         io.SetInput(InputIo.PickupHeadDown, true);
@@ -612,11 +616,11 @@ public sealed partial class MachineLifecycleTests
         await teaching.ReturnFromPickupCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(stopAtSafeZ);
         Assert.Equal((40, 30, 5), gantry.Feedback.GetPosition());
-        Assert.True(io.GetOutput(OutputIo.PickupHeadDown)); // Cancellation must not advance to Head Up.
+        Assert.False(io.GetOutput(OutputIo.PickupHeadUp)); // Cancellation must not advance to Head Up.
         Assert.False(gantry.Feedback.IsMoving);
 
         var returning = teaching.ReturnFromPickupCommand.ExecuteAsync(null);
-        await WaitUntilAsync(() => !io.GetOutput(OutputIo.PickupHeadDown));
+        await WaitUntilAsync(() => io.GetOutput(OutputIo.PickupHeadUp));
         Assert.Equal((40, 30, 5), gantry.Feedback.GetPosition());
         Assert.False(returning.IsCompleted); // Up DO alone is not completion.
         io.SetInput(InputIo.PickupHeadDown, false);
@@ -677,7 +681,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await gantry.MoveZAsync(10);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadUp, false);
         var jog = gantry.JogAsync(MotionAxis.X, 1);
         await WaitUntilAsync(() => gantry.Feedback.GetPosition().X > 0);
         if (autoMode)

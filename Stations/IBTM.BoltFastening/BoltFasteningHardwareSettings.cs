@@ -20,7 +20,7 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
             InputIo.PickupHeadDown
                 or InputIo.PickupHeadUp
                 or InputIo.PickupHeadVacuumDetected
-                or OutputIo.PickupHeadDown
+                or OutputIo.PickupHeadUp
                 or OutputIo.PickupHeadVacuumPump
                 => IoSection.BoltFasteningPickupHead,
             InputIo.ShootingHeadDown
@@ -29,7 +29,7 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
                 or InputIo.ShootingTubeBoltDetected
                 or InputIo.ShootingEscapeForward
                 or InputIo.ShootingEscapeBackward
-                or OutputIo.ShootingHeadDown
+                or OutputIo.ShootingHeadUp
                 or OutputIo.ShootingHeadVacuumPump
                 or OutputIo.ShootingEscapeForward
                 or OutputIo.ShootBolt
@@ -70,12 +70,12 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
         };
         Outputs = new()
         {
-            [OutputIo.PickupHeadDown] = Output(39, 40, InputIo.PickupHeadDown, InputIo.PickupHeadUp),
-            [OutputIo.ShootingHeadDown] = Output(
+            [OutputIo.PickupHeadUp] = Output(39, 40, InputIo.PickupHeadUp, InputIo.PickupHeadDown),
+            [OutputIo.ShootingHeadUp] = Output(
                 41,
                 42,
-                InputIo.ShootingHeadDown,
-                InputIo.ShootingHeadUp),
+                InputIo.ShootingHeadUp,
+                InputIo.ShootingHeadDown),
             [OutputIo.PickupHeadVacuumPump] = Output(43),
             [OutputIo.ShootingHeadVacuumPump] = Output(44),
             [OutputIo.ShootingEscapeForward] = Output(

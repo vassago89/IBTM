@@ -295,11 +295,11 @@ public enum OutputIo
     [Description("Placement Vacuum Ejector")]
     PcbPlacementVacuumEjector,
 
-    [Description("Pickup Head Down (Head 1)")]
-    PickupHeadDown,
+    [Description("Pickup Head Up (Head 1)")]
+    PickupHeadUp,
 
-    [Description("Shooting Head Down (Head 2)")]
-    ShootingHeadDown,
+    [Description("Shooting Head Up (Head 2)")]
+    ShootingHeadUp,
 
     [Description("Pickup Head Vacuum Pump (Head 1)")]
     PickupHeadVacuumPump,

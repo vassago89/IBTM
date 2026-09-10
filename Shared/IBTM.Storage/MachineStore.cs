@@ -68,6 +68,8 @@ public sealed class MachineStore
             ("NgCarrierTransferHardwareSettings", "NgCarrierPickupDown", "NgCarrierPickupUp"),
             ("NgCarrierTransferHardwareSettings", "NgCarrierGripperClose", "NgCarrierGripperOpen"),
             ("NgShuttleHardwareSettings", "NgShuttleDown", "NgShuttleUp"),
+            ("BoltFasteningHardwareSettings", "PickupHeadDown", "PickupHeadUp"),
+            ("BoltFasteningHardwareSettings", "ShootingHeadDown", "ShootingHeadUp"),
         })
         {
             var oldPath = $"$.Outputs.{oldSignal}";

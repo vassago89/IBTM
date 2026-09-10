@@ -1066,7 +1066,7 @@ public sealed class BoltFasteningTests
         await gantry.MoveToXYAsync(10, 10);
         if (head == FasteningHead.Pickup)
         {
-            io.SetOutput(OutputIo.PickupHeadDown, true);
+            io.SetOutput(OutputIo.PickupHeadUp, false);
             io.SetInput(InputIo.PickupHeadUp, false);
             io.SetInput(InputIo.PickupHeadDown, true);
             await gantry.MoveZAsync(settings.PickupPosition.Z);
@@ -1093,7 +1093,7 @@ public sealed class BoltFasteningTests
         io.OutputChanged += (output, value) =>
         {
             if (head == FasteningHead.Pickup
-                ? output == OutputIo.PickupHeadDown && !value
+                ? output == OutputIo.PickupHeadUp && value
                 : output == OutputIo.ShootBolt && value)
             {
                 continued = true;

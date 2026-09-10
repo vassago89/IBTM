@@ -444,11 +444,17 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         Assert.Contains(OutputIo.ShootBolt, teaching.TeachingOutputs.Keys);
         Assert.DoesNotContain(OutputIo.ShootingEscapeForward, teaching.TeachingOutputs.Keys);
-        var pickup = teaching.TeachingOutputs[OutputIo.PickupHeadDown];
-        await teaching.SetOutputOnCommand.ExecuteAsync(pickup);
-        Assert.False(services.GetRequiredService<BoltFasteningGantry>().CanMoveHorizontal);
-        await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
-        await teaching.SetOutputOffCommand.ExecuteAsync(pickup);
+        foreach (var output in new[] { OutputIo.PickupHeadUp, OutputIo.ShootingHeadUp })
+        {
+            var head = teaching.TeachingOutputs[output];
+            await teaching.SetOutputOffCommand.ExecuteAsync(head);
+            Assert.False(io.GetOutput(output));
+            Assert.False(services.GetRequiredService<BoltFasteningGantry>().CanMoveHorizontal);
+            await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+            await teaching.SetOutputOnCommand.ExecuteAsync(head);
+            Assert.True(io.GetOutput(output));
+            Assert.True(services.GetRequiredService<BoltFasteningGantry>().CanMoveHorizontal);
+        }
 
         teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
         var ngLift = teaching.TeachingOutputs[OutputIo.NgCarrierPickupUp];
@@ -788,8 +794,8 @@ public sealed partial class MachineLifecycleTests
         await gantry.MoveToXYAsync(20, 20);
         await gantry.MoveZAsync(10);
         await Task.WhenAll(
-            ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupHeadDown, true),
-            ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, true));
+            ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupHeadUp, false),
+            ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadUp, false));
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.BoltPickup);

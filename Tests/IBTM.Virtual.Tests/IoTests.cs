@@ -48,6 +48,18 @@ public sealed class IoTests
                     : new[] { pair.Value.Number })
             .ToArray();
         Assert.Equal(channels.Length, channels.Distinct().Count());
+        foreach (var (output, up, down, channel) in new[]
+        {
+            (OutputIo.PickupHeadUp, InputIo.PickupHeadUp, InputIo.PickupHeadDown, 39),
+            (OutputIo.ShootingHeadUp, InputIo.ShootingHeadUp, InputIo.ShootingHeadDown, 41),
+        })
+        {
+            var head = settings.BoltFasteningHardware.Outputs[output];
+            Assert.Equal(channel, head.Number);
+            Assert.Equal(channel + 1, head.OffNumber);
+            Assert.Equal(up, head.Feedback!.OnInput);
+            Assert.Equal(down, head.Feedback.OffInput);
+        }
     }
 
     [Fact]

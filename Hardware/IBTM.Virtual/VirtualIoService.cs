@@ -59,6 +59,8 @@ public sealed class VirtualIoService(
         inputs[(int)InputIo.Door6Open] = true;
         inputs[(int)InputIo.AirPressureHigh] = true;
         // Virtual equipment starts raised with an open NG gripper.
+        inputs[(int)InputIo.PickupHeadUp] = true;
+        inputs[(int)InputIo.ShootingHeadUp] = true;
         inputs[(int)InputIo.NgCarrierPickupUp] = true;
         inputs[(int)InputIo.NgCarrierGripperOpen] = true;
         inputs[(int)InputIo.NgShuttleUp] = true;
@@ -68,6 +70,8 @@ public sealed class VirtualIoService(
     private static bool[] CreateInitialOutputs()
     {
         var values = new bool[Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
+        values[(int)OutputIo.PickupHeadUp] = true;
+        values[(int)OutputIo.ShootingHeadUp] = true;
         values[(int)OutputIo.NgCarrierPickupUp] = true;
         values[(int)OutputIo.NgCarrierGripperOpen] = true;
         values[(int)OutputIo.NgShuttleUp] = true;

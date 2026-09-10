@@ -252,9 +252,9 @@ public sealed partial class MachineController
                     => _placementHandler.SetIpmGripperAsync(value, token),
                 OutputIo.PcbPlacementVacuumEjector => _placementHandler.SetVacuumAsync(value, token),
                 OutputIo.PcbPlacementHandlerRotate => _placementHandler.SetRotatedAsync(value, token),
-                OutputIo.PickupHeadDown => _fasteningGantry.SetPickupHeadDownAsync(value, token),
-                OutputIo.ShootingHeadDown
-                    => _fasteningGantry.SetHeadDownAsync(FasteningHead.Shooting, value, token),
+                OutputIo.PickupHeadUp => _fasteningGantry.SetPickupHeadDownAsync(!value, token),
+                OutputIo.ShootingHeadUp
+                    => _fasteningGantry.SetHeadDownAsync(FasteningHead.Shooting, !value, token),
                 OutputIo.PickupHeadVacuumPump
                     => _fasteningGantry.SetVacuumAsync(FasteningHead.Pickup, value, token),
                 OutputIo.ShootingHeadVacuumPump

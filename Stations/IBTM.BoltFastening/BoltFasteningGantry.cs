@@ -335,14 +335,14 @@ public sealed class BoltFasteningGantry
         {
             FasteningHead.Pickup => SetPickupHeadDownAsync(down, cancellationToken),
             FasteningHead.Shooting
-                => _io.SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, down, cancellationToken),
+                => _io.SetOutputAndWaitAsync(OutputIo.ShootingHeadUp, !down, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(head)),
         };
     }
 
     internal Task RaiseShootingHeadAsync(CancellationToken cancellationToken = default)
     {
-        return _io.SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, false, cancellationToken);
+        return _io.SetOutputAndWaitAsync(OutputIo.ShootingHeadUp, true, cancellationToken);
     }
 
     public Task RaiseCylindersAsync(CancellationToken cancellationToken = default)
@@ -375,7 +375,7 @@ public sealed class BoltFasteningGantry
 
     public Task SetPickupHeadDownAsync(bool down, CancellationToken cancellationToken = default)
     {
-        return _io.SetOutputAndWaitAsync(OutputIo.PickupHeadDown, down, cancellationToken);
+        return _io.SetOutputAndWaitAsync(OutputIo.PickupHeadUp, !down, cancellationToken);
     }
 
     internal Task AdvanceShootingEscapeAsync(CancellationToken cancellationToken = default)

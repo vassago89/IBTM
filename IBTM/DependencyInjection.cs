@@ -96,8 +96,8 @@ public static class DependencyInjection
                     new(OutputIo.PcbPlacementBackupPlateDown, HardwareArea.MainConveyor),
                 ],
                 [HardwareArea.BoltFastening] = [
-                    new(OutputIo.PickupHeadDown, HardwareArea.BoltFastening),
-                    new(OutputIo.ShootingHeadDown, HardwareArea.BoltFastening),
+                    new(OutputIo.PickupHeadUp, HardwareArea.BoltFastening),
+                    new(OutputIo.ShootingHeadUp, HardwareArea.BoltFastening),
                     new(OutputIo.PickupHeadVacuumPump, HardwareArea.BoltFastening),
                     new(OutputIo.ShootingHeadVacuumPump, HardwareArea.BoltFastening),
                     new(OutputIo.ShootBolt, HardwareArea.BoltFastening),
