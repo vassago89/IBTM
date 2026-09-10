@@ -192,7 +192,7 @@ public abstract partial class TeachingMotionViewModel(
     {
         return CurrentPoint is { Position.Mode: not TeachMode.Image, Position.CanTeach: true }
             && CanEditTeaching
-            && Motion.Feedback.IsReady;
+            && Motion.Axes.Values.All(axis => axis.State is not null);
     }
 
     protected abstract void RefreshPointPositions();

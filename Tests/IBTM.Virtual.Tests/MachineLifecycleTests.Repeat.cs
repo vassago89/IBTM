@@ -16,6 +16,63 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RepeatAndProductionRequireOppositeModesAndStopOnSelectorChange(bool repeat)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.MainConveyor);
+        settings.Units.NgCarrierTransfer = true;
+        settings.Units.NgShuttle = true;
+        settings.Units.NgConveyor = true;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        Task run = Task.CompletedTask;
+        try
+        {
+            await machine.InitializeAsync();
+            await machine.HomeAsync(CancellationToken.None);
+            state.RepeatEnabled = repeat;
+            Assert.Equal(repeat, state.RepeatEnabled);
+            io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+
+            // The physical selector is ON in TEACHING/MANUAL, OFF in AUTO.
+            io.SetInput(InputIo.AutoMode, !repeat);
+            var blocked = repeat ? StartBlockReason.TeachingMode : StartBlockReason.AutoMode;
+            Assert.Equal(blocked, machine.StartBlock);
+            Assert.False(machine.CanStart);
+            await machine.StartAsync();
+            Assert.False(state.AutomaticRunning);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+
+            io.SetInput(InputIo.AutoMode, repeat);
+            Assert.True(machine.CanStart, machine.StartBlock.ToString());
+            await WaitUntilAsync(() => state.Display.CanStart);
+            run = machine.StartAsync();
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => io.GetOutput(OutputIo.MainConveyorRun), TimeSpan.FromSeconds(3)),
+                state.AlarmDetail);
+            Assert.True(state.AutomaticRunning);
+
+            io.SetInput(InputIo.AutoMode, !repeat);
+            await run.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.False(state.AutomaticRunning);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            Assert.Equal(blocked, machine.StartBlock);
+            await WaitUntilAsync(() => !state.Display.CanStart);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(3));
+            await machine.ShutdownAsync();
+        }
+    }
 
     [Fact]
     [Trait("Category", "MachineFlow")]
@@ -34,7 +91,7 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         state.RepeatEnabled = true;
         io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
-        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.AutoMode, true);
         var returned = false;
         io.OutputChanged += (output, on) =>
         {
@@ -80,7 +137,7 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         state.RepeatEnabled = true;
         io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
-        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.AutoMode, true);
         var stopOutput = OutputIo.NgConveyorRun;
         void StopOnReverse(OutputIo output, bool on)
         {
@@ -188,7 +245,7 @@ public sealed partial class MachineLifecycleTests
 
         state.RepeatEnabled = true;
         Assert.True(state.RepeatEnabled);
-        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.AutoMode, true);
         Assert.True(machine.CanStart, machine.StartBlock.ToString());
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
         var run = machine.StartAsync(timeout.Token);

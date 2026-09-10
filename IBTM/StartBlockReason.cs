@@ -34,6 +34,9 @@ public enum StartBlockReason
     [Description("Select AUTO mode")]
     AutoMode,
 
+    [Description("Select TEACHING (MANUAL) mode for REPEAT")]
+    TeachingMode,
+
     [Description("Enable a unit in Settings")]
     NoUnitEnabled,
 

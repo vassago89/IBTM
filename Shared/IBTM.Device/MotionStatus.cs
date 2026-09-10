@@ -168,7 +168,19 @@ public sealed class MotionStatus : INotifyPropertyChanged
             var readable = MonitorAxes.Values.All(axis => axis.Snapshot.ReadError is null);
             var ready = available && readable && Feedback.IsReady;
             foreach (var (axis, status) in Axes)
-                status.Update(ready ? Feedback.GetAxisState(axis) : null);
+            {
+                // The monitor owns acquisition. Control displays reuse its sample;
+                // actual motion commands still read the hardware before acting.
+                AxisState? state = null;
+                if (ready)
+                {
+                    state = Feedback is IMotionDiagnostics
+                        ? MonitorAxes[axis].Snapshot.State
+                        : Feedback.GetAxisState(axis);
+                }
+
+                status.Update(state);
+            }
         }
         catch (IOException)
         {

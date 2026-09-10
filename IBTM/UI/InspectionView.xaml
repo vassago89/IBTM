@@ -40,9 +40,9 @@
                 </TextBlock>
             </StackPanel>
 
-            <StackPanel Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}"
+            <StackPanel Canvas.Left="{x:Static ui:MachinePlan.InspectionResultsLeft}"
                         Canvas.Top="{x:Static ui:MachinePlan.InspectionResultsTop}"
-                        Width="{x:Static ui:MachinePlan.PlateWidth}">
+                        Width="214">
                 <StackPanel>
                     <StackPanel.Style>
                         <Style TargetType="StackPanel">

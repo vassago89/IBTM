@@ -55,12 +55,14 @@ public sealed class MotionSafetyTests
 
         Assert.True(completed);
         Assert.True(homed);
+        display.RefreshMonitorFeedback();
         display.RefreshControlFeedback();
         Assert.True(display.Axes[MotionAxis.X].State!.Value.Homed);
         Assert.Equal(horizontal, display.Axes[MotionAxis.Y].State!.Value.Homed);
         Assert.Equal(horizontal, display.XyHomed);
 
         motion.SetServo(MotionAxis.X, false);
+        display.RefreshMonitorFeedback();
         display.RefreshControlFeedback();
         Assert.False(display.Axes[MotionAxis.X].ServoOn);
         Assert.Equal(AxisCondition.ServoOff, display.Axes[MotionAxis.X].Condition);

@@ -8,7 +8,7 @@
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
              Width="1552"
-             Height="244">
+             Height="460">
     <UserControl.Resources>
         <Style x:Key="MainConveyorSensorStyle"
                TargetType="Ellipse"
@@ -87,12 +87,12 @@
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
 
             <Ellipse Canvas.Left="160" Canvas.Top="108"
-                     Tag="{Binding Conveyor.EntryCarrierDetected}"
+                     Tag="{Binding Signals.Inputs[MainConveyorEntryCarrierDetected].IsOn}"
                      ToolTip="Entry carrier sensor"
                      Style="{StaticResource MainConveyorSensorStyle}"/>
-            <TextBlock Canvas.Left="150" Canvas.Top="137"
-                       Width="40"
-                       Text="In"
+            <TextBlock Canvas.Left="112" Canvas.Top="137"
+                       Width="80"
+                       Text="{Binding Signals.Inputs[MainConveyorEntryCarrierDetected].Address, StringFormat='IN · DI {0}'}"
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
 
             <Border Canvas.Left="{x:Static ui:MachinePlan.FirstPlateLeft}" Canvas.Top="{x:Static ui:MachinePlan.PlateTop}"
@@ -106,7 +106,7 @@
                             Pcb2Placed="{Binding PcbPlacementHeatSink2Completed}"
                             ShowPcbSlots="True"
                             ActiveHeatSink="{Binding State.Display.PlacementTarget}"
-                            Visibility="{Binding PcbPlacementWork.CarrierPresent, Converter={StaticResource BoolToVis}}"/>
+                            Visibility="{Binding Signals.Inputs[PcbPlacementCarrierPresent].IsOn, Converter={StaticResource BoolToVis}}"/>
             <Border Canvas.Left="{x:Static ui:MachinePlan.PlacementStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
                      Tag="{Binding PcbPlacementStopperUp}"
                      ToolTip="Placement stopper"
@@ -121,7 +121,7 @@
                             HeatSink1Result="{Binding BoltFasteningHeatSink1Result}"
                             HeatSink2Result="{Binding BoltFasteningHeatSink2Result}"
                             BoltTargets="{Binding BoltTargets}"
-                            Visibility="{Binding BoltFasteningWork.CarrierPresent, Converter={StaticResource BoolToVis}}"/>
+                            Visibility="{Binding Signals.Inputs[BoltFasteningCarrierPresent].IsOn, Converter={StaticResource BoolToVis}}"/>
             <Border Canvas.Left="{x:Static ui:MachinePlan.FasteningStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
                      Tag="{Binding BoltFasteningStopperUp}"
                      ToolTip="Bolt fastening stopper"
@@ -139,25 +139,232 @@
                             HeatSink2Result="{Binding InspectionHeatSink2Result}"
                             ActiveHeatSink="{Binding InspectionActivePcb}"
                             BoltTargets="{Binding InspectionTargets}"
-                            Visibility="{Binding InspectionWork.CarrierPresent, Converter={StaticResource BoolToVis}}"/>
+                            Visibility="{Binding Signals.Inputs[InspectionCarrierPresent].IsOn, Converter={StaticResource BoolToVis}}"/>
             <Border Canvas.Left="{x:Static ui:MachinePlan.InspectionStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
                      Tag="{Binding InspectionStopperUp}"
                      ToolTip="Inspection stopper"
                      Style="{StaticResource StopperVisualStyle}"/>
             <Ellipse Canvas.Left="1368" Canvas.Top="108"
-                     Tag="{Binding Conveyor.ExitCarrierDetected}"
+                     Tag="{Binding Signals.Inputs[MainConveyorExitCarrierDetected].IsOn}"
                      ToolTip="Exit carrier sensor"
                      Style="{StaticResource MainConveyorSensorStyle}"/>
             <TextBlock Canvas.Left="1358" Canvas.Top="137"
-                       Width="40"
-                       Text="Out"
+                       Width="80"
+                       Text="{Binding Signals.Inputs[MainConveyorExitCarrierDetected].Address, StringFormat='OUT · DI {0}'}"
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
-            <ui:CarrierView Canvas.Left="{x:Static ui:MachinePlan.FirstTransferLeft}" Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}"
-                            Panel.ZIndex="2"
-                            Visibility="{Binding CarrierBetweenPlacementAndBolt, Converter={StaticResource BoolToVis}}"/>
-            <ui:CarrierView Canvas.Left="{x:Static ui:MachinePlan.SecondTransferLeft}" Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}"
-                            Panel.ZIndex="2"
-                            Visibility="{Binding CarrierBetweenBoltAndInspection, Converter={StaticResource BoolToVis}}"/>
+            <Border Canvas.Left="18" Canvas.Top="228" Width="172" Style="{StaticResource MapIoCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="FRONT 2 · SMEMA" Style="{StaticResource MapIoTitleStyle}"/>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[MainConveyorAvailableFromFront2].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[MainConveyorAvailableFromFront2].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[MainConveyorAvailableFromFront2].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Available" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Outputs[MainConveyorReadyToFront2].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorReadyToFront2].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoOutputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorReadyToFront2].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DO Ready" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Canvas.Left="194" Canvas.Top="228" Width="284" Style="{StaticResource MapIoCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="STATION 1 · PCB PLACEMENT" Style="{StaticResource MapIoTitleStyle}"/>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[PcbPlacementCarrierPresent].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementCarrierPresent].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementCarrierPresent].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Carrier" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[PcbPlacementStopperUp].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementStopperUp].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementStopperUp].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Stopper up" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[PcbPlacementStopperDown].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementStopperDown].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementStopperDown].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Stopper down" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[PcbPlacementBackupPlateUp].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementBackupPlateUp].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementBackupPlateUp].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Plate up" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[PcbPlacementBackupPlateDown].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementBackupPlateDown].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementBackupPlateDown].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Plate down" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[PcbPlacementHeatSink1Present].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementHeatSink1Present].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementHeatSink1Present].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Heat sink 1" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[PcbPlacementHeatSink2Present].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementHeatSink2Present].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementHeatSink2Present].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Heat sink 2" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Canvas.Left="604" Canvas.Top="228" Width="284" Style="{StaticResource MapIoCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="STATION 2 · FASTENING" Style="{StaticResource MapIoTitleStyle}"/>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[BoltFasteningCarrierPresent].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningCarrierPresent].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningCarrierPresent].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Carrier" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[BoltFasteningStopperUp].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningStopperUp].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningStopperUp].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Stopper up" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[BoltFasteningStopperDown].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningStopperDown].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningStopperDown].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Stopper down" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[BoltFasteningBackupPlateUp].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningBackupPlateUp].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningBackupPlateUp].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Plate up" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[BoltFasteningBackupPlateDown].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningBackupPlateDown].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningBackupPlateDown].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Plate down" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[BoltFasteningHeatSink1Present].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningHeatSink1Present].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningHeatSink1Present].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Heat sink 1" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[BoltFasteningHeatSink2Present].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningHeatSink2Present].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningHeatSink2Present].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Heat sink 2" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Canvas.Left="1014" Canvas.Top="228" Width="284" Style="{StaticResource MapIoCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="STATION 3 · INSPECTION" Style="{StaticResource MapIoTitleStyle}"/>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[InspectionCarrierPresent].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[InspectionCarrierPresent].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[InspectionCarrierPresent].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Carrier" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[InspectionStopperUp].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[InspectionStopperUp].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[InspectionStopperUp].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Stopper up" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[InspectionStopperDown].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[InspectionStopperDown].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[InspectionStopperDown].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Stopper down" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[InspectionBackupPlateUp].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[InspectionBackupPlateUp].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[InspectionBackupPlateUp].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Plate up" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[InspectionBackupPlateDown].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[InspectionBackupPlateDown].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[InspectionBackupPlateDown].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Plate down" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[InspectionHeatSink1Present].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[InspectionHeatSink1Present].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[InspectionHeatSink1Present].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Heat sink 1" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[InspectionHeatSink2Present].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[InspectionHeatSink2Present].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[InspectionHeatSink2Present].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Heat sink 2" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Canvas.Left="{x:Static ui:MachinePlan.RearInterfaceLeft}" Canvas.Top="228" Width="214" Style="{StaticResource MapIoCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="REAR · SMEMA →" Style="{StaticResource MapIoTitleStyle}"/>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[MainConveyorReadyFromRear].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[MainConveyorReadyFromRear].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[MainConveyorReadyFromRear].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Ready from rear" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Outputs[MainConveyorAvailableToRear].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorAvailableToRear].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoOutputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorAvailableToRear].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DO Available to rear" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Canvas.Left="18" Canvas.Top="324" Width="172" Style="{StaticResource MapIoCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="MAIN BELT" Style="{StaticResource MapIoTitleStyle}"/>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[MainConveyorAutoMode].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[MainConveyorAutoMode].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[MainConveyorAutoMode].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Auto input" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Outputs[MainConveyorRun].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorRun].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoOutputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorRun].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DO Run" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Outputs[MainConveyorReverse].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorReverse].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoOutputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorReverse].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DO Reverse" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Outputs[MainConveyorNormalSpeed].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorNormalSpeed].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoOutputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Outputs[MainConveyorNormalSpeed].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DO Normal spd" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Canvas.Left="494" Canvas.Top="438"
+                       Text="DI blue · DO amber · OFF gray · — no feedback"
+                       Style="{StaticResource MapIoLabelStyle}"/>
 
         </Canvas>
     </Grid>

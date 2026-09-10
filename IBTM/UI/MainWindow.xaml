@@ -549,6 +549,7 @@
                                                          Converter={StaticResource BoolToVis}}">
                             <StackPanel Margin="0,0,18,0" VerticalAlignment="Center">
                                 <CheckBox x:Name="RepeatMode" Content="REPEAT (DRY RUN)"
+                                          ToolTip="Run repeat in TEACHING (MANUAL) mode. Normal production requires AUTO."
                                           IsChecked="{Binding Operation.State.RepeatEnabled}"
                                           IsEnabled="{Binding Operation.State.Display.SetupEditingEnabled}"/>
                                 <TextBlock Text="{Binding Operation.State.Display.RepeatCycles, StringFormat='Cycles: {0}'}"
@@ -631,7 +632,7 @@
                         </StackPanel>
                         <Button x:Name="AlarmResetButton"
                                 Command="{Binding ResetCommand}"
-                                ToolTip="Same recovery as hardware RESET. Rechecks hardware and may enable servos; does not home axes or start automatic operation. Stop the machine and resolve safety faults before resetting."
+                                ToolTip="Silences the buzzer even while an alarm remains. Hardware recovery runs only when stopped and safety conditions allow; it may enable servos but does not home axes or start automatic operation."
                                 ToolTipService.ShowOnDisabled="True"
                                 MinWidth="120" Height="48" Margin="0,0,8,0">
                             <Button.Style>

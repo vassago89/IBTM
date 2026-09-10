@@ -350,8 +350,8 @@ public sealed class DiagnosticToolsTests
         {
             if (method!.Name == "get_IsMoving")
                 throw new IOException("Command availability must use the independent monitor snapshot.");
-            if (FailControl && method!.Name == nameof(IMotionFeedback.GetAxisState))
-                throw new IOException("Control feedback read failed.");
+            if (FailControl && method!.Name == "get_" + nameof(IMotionFeedback.IsReady))
+                throw new IOException("Control readiness read failed.");
             return method!.Invoke(_motion, arguments);
         }
     }

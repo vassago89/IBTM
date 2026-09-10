@@ -42,6 +42,12 @@ public sealed class AlarmRecoveryTests
             await AssertIndicatorsAsync(OutputIo.TowerLampRed, true);
             ngConveyor.Stop();
             Assert.True(io.GetOutput(OutputIo.Buzzer));
+            Assert.False(machine.CanReset); // Auto Run blocks recovery, not acknowledgement.
+            await machine.ResetAsync();
+            await AssertIndicatorsAsync(OutputIo.TowerLampRed, false);
+            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+            state.UpdateMachineIndicators();
+            Assert.False(io.GetOutput(OutputIo.Buzzer));
             state.ClearError();
             await AssertIndicatorsAsync(OutputIo.TowerLampGreen, false);
 
@@ -50,10 +56,16 @@ public sealed class AlarmRecoveryTests
             io.SetInput(InputIo.NgShuttleCarrierDetected, true);
             Assert.True(ngConveyor.Full);
             await AssertIndicatorsAsync(OutputIo.TowerLampRed, true);
+            io.SetInput(InputIo.ResetButton, true);
+            await AssertIndicatorsAsync(OutputIo.TowerLampRed, false);
+            io.SetInput(InputIo.ResetButton, false);
+            Assert.True(ngConveyor.Full);
             state.SetAutomaticRunning(false);
-            await AssertIndicatorsAsync(OutputIo.TowerLampRed, true);
+            await AssertIndicatorsAsync(OutputIo.TowerLampRed, false);
             io.SetInput(InputIo.NgShuttleCarrierDetected, false);
             await AssertIndicatorsAsync(OutputIo.TowerLampYellow, false);
+            io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+            await AssertIndicatorsAsync(OutputIo.TowerLampRed, true);
         }
         finally
         {

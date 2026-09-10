@@ -245,4 +245,45 @@
             </ScrollViewer>
         </DockPanel>
     </DataTemplate>
+    <!-- Compact raw feedback for the machine plan. The view binds directly to IoSignals. -->
+    <Style x:Key="MapIoCardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="3"/>
+        <Setter Property="Padding" Value="8"/>
+    </Style>
+    <Style x:Key="MapIoTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="Margin" Value="0,0,0,6"/>
+    </Style>
+    <Style x:Key="MapIoLabelStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style x:Key="MapIoAddressStyle" TargetType="TextBlock" BasedOn="{StaticResource MapIoLabelStyle}">
+        <Setter Property="DockPanel.Dock" Value="Right"/>
+        <Setter Property="FontFamily" Value="Consolas"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="Width" Value="26"/>
+        <Setter Property="TextAlignment" Value="Right"/>
+    </Style>
+    <Style x:Key="MapIoInputStyle" TargetType="TextBlock" BasedOn="{StaticResource IoInputStateStyle}">
+        <Setter Property="DockPanel.Dock" Value="Right"/>
+        <Setter Property="MinWidth" Value="36"/>
+        <Setter Property="Height" Value="20"/>
+        <Setter Property="Padding" Value="3,2"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="Margin" Value="5,0,0,0"/>
+    </Style>
+    <Style x:Key="MapIoOutputStyle" TargetType="TextBlock" BasedOn="{StaticResource MapIoInputStyle}">
+        <Style.Triggers>
+            <Trigger Property="Text" Value="ON">
+                <Setter Property="Background" Value="{StaticResource IoOutputOnBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
 </ResourceDictionary>

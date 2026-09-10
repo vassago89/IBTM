@@ -69,6 +69,7 @@ public partial class StationTeachingViewModel
     [RelayCommand(CanExecute = nameof(CanCaptureCarrierImages))]
     private async Task CaptureCarrierImagesAsync(CancellationToken cancellationToken)
     {
+        var selectedPoint = SelectedPoint;
         var completed = false;
         try
         {
@@ -93,11 +94,11 @@ public partial class StationTeachingViewModel
                     token.ThrowIfCancellationRequested();
                     CarrierImages = images;
                     completed = await RecipeEditor.SaveCarrierImagesAsync(images, token);
-                    if (!completed)
-                        return;
-                    token.ThrowIfCancellationRequested();
-                    SelectedPoint = NextTeachingPoint() ?? FilteredPoints.FirstOrDefault(
-                        point => point.Position.Target == TeachingTarget.BoltReference);
+                    if (completed && SelectedPoint == selectedPoint)
+                    {
+                        SelectedPoint = NextTeachingPoint() ?? FilteredPoints.FirstOrDefault(
+                            point => point.Position.Target == TeachingTarget.BoltReference);
+                    }
                 },
                 cancellationToken);
         }
@@ -312,15 +313,7 @@ public partial class StationTeachingViewModel
                 async ct =>
                 {
                     activeCancellation = ct;
-                    try
-                    {
-                        await StopCameraLiveAsync();
-                    }
-                    catch (Exception exception)
-                    {
-                        System.Diagnostics.Trace.TraceError("Camera live view stop failed. {0}", exception);
-                        return;
-                    }
+                    await StopCameraLiveAsync();
                     ct.ThrowIfCancellationRequested();
                     CameraError = null;
                     await action(ct);

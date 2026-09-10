@@ -104,6 +104,8 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
     private Task? _displayUpdates;
     private MachineDisplay _display = new();
     private bool _repeatEnabled;
+    // Operator acknowledgement, not a cached hardware state.
+    private volatile bool _buzzerSilenced;
     private readonly IReadOnlyDictionary<MotionGroup, MotionStatus> _motions;
     private readonly MachineOptions _options;
     private readonly UnitSettings _units;
@@ -285,6 +287,12 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         }
     }
 
+    internal void SilenceBuzzer()
+    {
+        _buzzerSilenced = true;
+        RequestDisplayRefresh();
+    }
+
     internal void UpdateMachineIndicators()
     {
         if (!_io.IsReady)
@@ -294,11 +302,13 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         {
             // Common machine indicators are independent of individual unit stop/cleanup.
             var attention = IsError || _ngConveyor.AlarmRequired;
+            if (!attention)
+                _buzzerSilenced = false;
             (OutputIo Signal, bool On)[] indicators = [
                 (OutputIo.TowerLampGreen, AutomaticRunning && !attention),
                 (OutputIo.TowerLampYellow, !AutomaticRunning && !attention),
                 (OutputIo.TowerLampRed, attention),
-                (OutputIo.Buzzer, attention),
+                (OutputIo.Buzzer, attention && !_buzzerSilenced),
             ];
             foreach (var (signal, on) in indicators)
             {
@@ -397,13 +407,16 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         var homed = true;
         var servosOn = true;
         var faulted = false;
-        void Read(MotionStatus motion)
+        foreach (var (group, motion) in _motions)
         {
+            if (!_units.IsMotionEnabled(group))
+                continue;
+
             if (live && !motion.Feedback.IsReady)
             {
                 homed = servosOn = false;
                 faulted = true;
-                return;
+                continue;
             }
 
             foreach (var axis in motion.Feedback.Axes)
@@ -421,10 +434,6 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
                 faulted |= IsFaulted(state);
             }
         }
-
-        foreach (var (group, motion) in _motions)
-            if (_units.IsMotionEnabled(group))
-                Read(motion);
 
         return new(homed, servosOn, faulted);
     }
@@ -636,14 +645,6 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         get
         {
             return !IsError && Ready && SafetyReady && !BufferConflict;
-        }
-    }
-
-    public bool CanAutomaticOperate
-    {
-        get
-        {
-            return CanOperate && AutoMode && DoorInterlockReady;
         }
     }
 

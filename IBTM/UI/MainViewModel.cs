@@ -232,10 +232,10 @@ public partial class MainViewModel : ObservableObject
             RecipeEditor.ShutdownAsync());
     }
 
-    [RelayCommand(CanExecute = nameof(CanReset))]
+    [RelayCommand(CanExecute = nameof(CanReset), AllowConcurrentExecutions = true)]
     private async Task ResetAsync()
     {
-        // The controller rechecks the same conditions as the physical RESET input.
+        // Acknowledge even when hardware recovery is blocked; the controller owns admission.
         if (!CanReset())
             return;
         ResetError = null;
@@ -253,15 +253,11 @@ public partial class MainViewModel : ObservableObject
             ResetError = $"RESET failed: {exception.Message}";
             Trace.TraceError("On-screen RESET failed. {0}", exception);
         }
-        finally
-        {
-            ResetCommand.NotifyCanExecuteChanged();
-        }
     }
 
     private bool CanReset()
     {
-        return !_shuttingDown && _machine.CanReset;
+        return !_shuttingDown;
     }
 
     [RelayCommand(CanExecute = nameof(CanNavigate))]
@@ -386,7 +382,6 @@ public partial class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(CurrentPageEnabled));
                 OnPropertyChanged(nameof(RecipeEditingEnabled));
                 NavigateCommand.NotifyCanExecuteChanged();
-                ResetCommand.NotifyCanExecuteChanged();
                 var showOperation = _state.AutomaticRunning && SelectedPage != AppPage.Operation
                     || !_state.ManualMode
                         && (SelectedPage is AppPage.SupplyTeaching or AppPage.StationTeaching

@@ -55,6 +55,8 @@ public sealed partial class MachineController
     private readonly InspectionWork _inspectionWork;
     private readonly BoltInspector _boltInspector;
     private readonly ApplicationLog? _log;
+    private readonly Lock _resetGate = new();
+    private Task _resetTask = Task.CompletedTask;
 
     public MachineController(
         MachineState state,
@@ -140,8 +142,8 @@ public sealed partial class MachineController
                 return false;
             }
 
-            // RESET availability is also evaluated by the UI. Never issue a native
-            // read here: a failed feedback scan must leave the recovery command usable.
+            // Hardware recovery admission, not permission to acknowledge the buzzer.
+            // A failed feedback scan must leave recovery usable without another native read.
             if (_state.IsError || _state.Display.ReadError is not null)
                 return true;
             var motion = _state.DisplayMotionReadiness;
@@ -263,7 +265,12 @@ public sealed partial class MachineController
             return StartBlockReason.DoorOpen;
         if (!motion.Homed)
             return StartBlockReason.HomeRequired;
-        if (!_state.AutoMode)
+        if (_state.RepeatEnabled)
+        {
+            if (!_state.ManualMode)
+                return StartBlockReason.TeachingMode;
+        }
+        else if (!_state.AutoMode)
             return StartBlockReason.AutoMode;
         if (!TeachingReady)
             return StartBlockReason.TeachingIncomplete;
@@ -683,14 +690,26 @@ public sealed partial class MachineController
         }
     }
 
-    public async Task ResetAsync()
+    public Task ResetAsync()
     {
-        if (!CanReset)
+        _state.SilenceBuzzer();
+        lock (_resetGate)
         {
-            _log?.Write("Machine RESET ignored: reset conditions are not satisfied.");
-            return;
-        }
+            // Repeated clicks acknowledge the buzzer, but share the current recovery.
+            if (!_resetTask.IsCompleted)
+                return _resetTask;
+            if (!CanReset)
+            {
+                _log?.Write("Machine RESET: buzzer silenced; hardware recovery conditions are not satisfied.");
+                return Task.CompletedTask;
+            }
 
+            return _resetTask = ResetHardwareAsync();
+        }
+    }
+
+    private async Task ResetHardwareAsync()
+    {
         _log?.Write("Machine RESET started.");
         using var operation = _operations.Link();
         var (alarm, error) = await InitializeIoAsync(operation.Token);
@@ -1053,7 +1072,7 @@ public sealed partial class MachineController
         if (input == InputIo.ServoMainContactorOn || MachineState.IsSafetyInput(input))
             _state.RequestDisplayRefresh();
 
-        if (input == InputIo.ResetButton && value && _options.UseResetButton && CanReset)
+        if (input == InputIo.ResetButton && value && _options.UseResetButton)
         {
             _ = ResetAsync();
         }
@@ -1124,6 +1143,7 @@ public sealed partial class MachineController
             return;
         }
 
+        var repeat = _state.RepeatEnabled;
         using var operation = _operations.Link(cancellationToken);
         void StopWhenOperationBecomesUnavailable()
         {
@@ -1135,12 +1155,13 @@ public sealed partial class MachineController
 
             try
             {
-                if (_state.CanAutomaticOperate)
+                var modeReady = repeat ? _state.ManualMode : _state.AutoMode;
+                if (modeReady && _state.CanOperate && _state.DoorInterlockReady)
                 {
                     return;
                 }
 
-                if (_state.AutoMode
+                if (modeReady
                     && _state.SafetyReady
                     && _state.DoorInterlockReady
                     && !_state.Ready)
@@ -1219,7 +1240,7 @@ public sealed partial class MachineController
             }
 
             _state.SetAutomaticRunning(true);
-            if (_state.RepeatEnabled)
+            if (repeat)
             {
                 await RunRepeatAsync(operation.Token);
             }

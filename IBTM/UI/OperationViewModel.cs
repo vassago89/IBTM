@@ -61,6 +61,7 @@ public partial class OperationViewModel : ObservableObject
         InspectionGantry inspectionGantry)
     {
         State = state;
+        Signals = signals;
         MainConveyorRun = signals.Outputs[OutputIo.MainConveyorRun];
         NgConveyorRun = signals.Outputs[OutputIo.NgConveyorRun];
         _machine = machine;
@@ -106,6 +107,7 @@ public partial class OperationViewModel : ObservableObject
     }
 
     public MachineState State { get; }
+    public IoSignals Signals { get; }
     public IoOutputStatus MainConveyorRun { get; }
     public IoOutputStatus NgConveyorRun { get; }
     public UnitSettings Units { get; }
@@ -441,26 +443,6 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return NgTransfer.Lift == NgTransferLiftState.Down;
-        }
-    }
-
-    public bool CarrierBetweenPlacementAndBolt
-    {
-        get
-        {
-            return !PcbPlacementWork.CarrierPresent
-                && !BoltFasteningWork.CarrierPresent
-                && State.Display.ConveyorState == MainConveyorState.MovingPcbPlacementToBoltFastening;
-        }
-    }
-
-    public bool CarrierBetweenBoltAndInspection
-    {
-        get
-        {
-            return !BoltFasteningWork.CarrierPresent
-                && !InspectionWork.CarrierPresent
-                && State.Display.ConveyorState == MainConveyorState.MovingBoltFasteningToInspection;
         }
     }
 
@@ -937,8 +919,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(MachineDisplayState));
         OnPropertyChanged(nameof(StartBlocked));
         OnPropertyChanged(nameof(StartBlock));
-        OnPropertyChanged(nameof(CarrierBetweenPlacementAndBolt));
-        OnPropertyChanged(nameof(CarrierBetweenBoltAndInspection));
         OnPropertyChanged(nameof(ModeText));
         OnPropertyChanged(nameof(HasAlarm));
         OnPropertyChanged(nameof(Alarm));
@@ -1013,8 +993,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(Conveyor));
         OnPropertyChanged(nameof(ConveyorStatus));
         OnPropertyChanged(nameof(InspectionStatus));
-        OnPropertyChanged(nameof(CarrierBetweenPlacementAndBolt));
-        OnPropertyChanged(nameof(CarrierBetweenBoltAndInspection));
     }
 
     private void OnBoltFasteningChanged()

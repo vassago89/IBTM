@@ -18,6 +18,7 @@ public static class MachinePlan
     public const double StationPitch = 410;
     public const double MainLeft = 24;
     public const double MainTop = 360;
+    public const double RearInterfaceLeft = 1320;
     public const double FirstPlateLeft = 194;
     public const double PlateTop = 70;
     public const double HeaderInset = 20;
@@ -166,22 +167,6 @@ public static class MachinePlan
         get
         {
             return PlateTop + (PlateHeight - 28) / 2 - 1;
-        }
-    }
-
-    public static double FirstTransferLeft
-    {
-        get
-        {
-            return PlacementCarrierLeft + StationPitch / 2;
-        }
-    }
-
-    public static double SecondTransferLeft
-    {
-        get
-        {
-            return FirstTransferLeft + StationPitch;
         }
     }
 
@@ -466,7 +451,15 @@ public static class MachinePlan
     {
         get
         {
-            return MainTop + StationLabelTop + 40;
+            return MainTop + 340;
+        }
+    }
+
+    public static double InspectionResultsLeft
+    {
+        get
+        {
+            return MainLeft + RearInterfaceLeft - InspectionLeft;
         }
     }
 

@@ -26,8 +26,8 @@ public sealed class AjinControllerTests
         Assert.True(motion.IsMoving);
         Assert.True(motion.IsMovingHorizontal);
         Assert.Equal(MotionCommand.None, motion.Command); // External motion, not an application command.
-        feedback.RefreshControlFeedback();
         feedback.RefreshMonitorFeedback();
+        feedback.RefreshControlFeedback();
         Assert.True(feedback.IsMoving);
         Assert.Equal(AxisCondition.Moving, feedback.Axes[MotionAxis.X].Condition);
         Assert.Equal(1.2, motion.GetPosition().X);
@@ -36,8 +36,8 @@ public sealed class AjinControllerTests
         {
             InMotion = 0, Mechanical = 0, Position = 240
         };
-        feedback.RefreshControlFeedback();
         feedback.RefreshMonitorFeedback();
+        feedback.RefreshControlFeedback();
         Assert.False(motion.IsMoving);
         Assert.False(feedback.IsMoving);
         Assert.Equal(AxisCondition.NotInPosition, feedback.Axes[MotionAxis.X].Condition);
@@ -298,6 +298,7 @@ public sealed class AjinControllerTests
         Assert.Equal(AxisCondition.Alarm, status.Axes[MotionAxis.X].Condition);
         AjinSdk.Results.Remove(reset);
         motion.Reset(); // Explicit RESET can now reach alarm reset before requesting Servo ON.
+        status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
         Assert.False(status.Axes[MotionAxis.X].State!.Value.Alarm);
         Assert.True(status.Axes[MotionAxis.X].ServoOn);

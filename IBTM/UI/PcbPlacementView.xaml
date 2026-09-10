@@ -272,6 +272,29 @@
                 </Grid>
             </Grid>
 
+            <Border Canvas.Left="20" Canvas.Top="292" Width="230" Style="{StaticResource MapIoCardStyle}">
+                <StackPanel>
+                    <TextBlock Text="FRONT 1 · PCB SMEMA" Style="{StaticResource MapIoTitleStyle}"/>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI Available from front" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Outputs[PcbSupplyReadyToFront1].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Outputs[PcbSupplyReadyToFront1].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoOutputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Outputs[PcbSupplyReadyToFront1].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DO Ready to front" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[PcbSupplyPcbDetected].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock Text="{Binding Signals.Inputs[PcbSupplyPcbDetected].IsOn, Converter={StaticResource SignalTextConverter}}"
+                                   Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[PcbSupplyPcbDetected].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI PCB detected" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
         </Canvas>
     </Grid>
 </UserControl>

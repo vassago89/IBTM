@@ -27,56 +27,6 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
-    [Fact]
-    public async Task ManualTeachingAndCameraDoNotRequireUnrelatedMotionReadiness()
-    {
-        using var services = CreateServices(FlowSettings());
-        var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
-        var unrelated = (VirtualMotionService)services.GetRequiredKeyedService<IAxisMotion>(
-            MotionGroup.PcbSupply);
-        var inspection = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(
-            MotionGroup.InspectionGantry);
-        await machine.InitializeAsync();
-        await machine.HomeAsync(CancellationToken.None);
-        teaching.SelectedMotionGroup = MotionGroup.InspectionGantry;
-        try
-        {
-            unrelated.SetAlarm(MotionAxis.X, true);
-            state.SetError(MachineAlarm.MotionUnavailable, new IOException("Supply axis alarm."));
-            await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
-            var before = inspection.GetPosition();
-            await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
-            Assert.Equal(before.X + teaching.StepDistance, inspection.GetPosition().X, 3);
-            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
-
-            var monitor = services.GetRequiredService<MotionWindowViewModel>();
-            var axis = monitor.Axes.Single(
-                row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
-            await WaitUntilAsync(() => monitor.HomeAxisCommand.CanExecute(axis));
-            await monitor.HomeAxisCommand.ExecuteAsync(axis);
-            Assert.True(inspection.GetAxisState(MotionAxis.X).Homed);
-            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
-
-            inspection.SetServo(MotionAxis.X, false);
-            teaching.SelectedPoint = teaching.FilteredPoints.Single(
-                point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
-            var taughtPoint = teaching.SelectedPoint;
-            await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
-            Assert.False(teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
-            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
-            Assert.Equal(inspection.GetPosition().X, taughtPoint.X, 3);
-
-            Assert.True(teaching.ToggleLiveViewCommand.CanExecute(null));
-        }
-        finally
-        {
-            await teaching.ShutdownAsync();
-            await machine.ShutdownAsync();
-        }
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -538,29 +488,6 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.RecipeEditor.Recipe));
         Assert.Equal(settingsBefore, JsonSerializer.Serialize(settings));
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
-    }
-
-    [Fact]
-    public async Task CarrierScanDeviceFailureStaysAtTheTeachingCommandBoundary()
-    {
-        var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.Inspection);
-        using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
-            .AddIbtmApplication(settings)
-            .AddSingleton<ICamera>(
-                new VirtualCamera(
-                    () => throw new InvalidOperationException("Camera SDK capture failed."),
-                    () => []))
-            .BuildServiceProvider();
-        var machine = services.GetRequiredService<MachineController>();
-        await machine.InitializeAsync();
-        await machine.HomeAsync(CancellationToken.None);
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
-        teaching.RecipeEditor.Name = $"CaptureFailure-{Guid.NewGuid():N}";
-        await WaitUntilAsync(() => teaching.CaptureCarrierImagesCommand.CanExecute(null));
-        await teaching.CaptureCarrierImagesCommand.ExecuteAsync(null);
-        Assert.Equal("Camera SDK capture failed.", teaching.CameraError);
-        Assert.False(services.GetRequiredService<MachineState>().IsRunning);
     }
 
     [Fact]

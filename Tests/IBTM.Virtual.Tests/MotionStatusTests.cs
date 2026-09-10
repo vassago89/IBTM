@@ -45,8 +45,10 @@ public sealed class MotionStatusTests
         Assert.Equal(status.MonitorAxes[MotionAxis.X].Snapshot.Position, status.Position.X);
         Assert.Equal(AxisCondition.Ready, first.Condition);
         Assert.True(status.XyHomed);
-        Assert.Equal(2, motion.Reads);
+        Assert.Equal(1, motion.Reads);
         Assert.Equal(1, motion.PositionReads); // Control refresh and bindings do not read coordinates again.
+        status.RefreshControlFeedback();
+        Assert.Equal(1, motion.Reads); // Nor do they acquire a second axis-state sample.
 
         motion.Failure = new IOException("Axis feedback unavailable.");
         status.RefreshMonitorFeedback();
@@ -86,6 +88,7 @@ public sealed class MotionStatusTests
         var reads = motion.Reads;
         var positionReads = motion.PositionReads;
         motion.Failure = new IOException("AXL connection closed.");
+        motion.ReadinessFailure = motion.Failure;
 
         status.RefreshControlFeedback(available: false);
 
@@ -112,6 +115,7 @@ public sealed class MotionStatusTests
     {
         public AxisState State = new(true, true, false, true, false, false, false, false);
         public Exception? Failure;
+        public Exception? ReadinessFailure;
         public int Reads;
         public int PositionReads;
         public (double X, double Y, double Z) Position = (12, 0, 0);
@@ -119,7 +123,7 @@ public sealed class MotionStatusTests
         {
             get
             {
-                return true;
+                return ReadinessFailure is { } failure ? throw failure : true;
             }
         }
 

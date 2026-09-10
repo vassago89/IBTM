@@ -73,6 +73,63 @@ public sealed class OutputWindowThreadingTests
         await finished.Task.WaitAsync(TimeSpan.FromSeconds(20));
     }
 
+    private static async Task VerifyIndependentTeachingAsync(IServiceProvider services)
+    {
+        var units = services.GetRequiredService<UnitSettings>();
+        var state = services.GetRequiredService<MachineState>();
+        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var unrelated = (VirtualMotionService)services.GetRequiredKeyedService<IAxisMotion>(
+            MotionGroup.PcbSupply);
+        var inspection = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(
+            MotionGroup.InspectionGantry);
+        await inspection.HomeHorizontalAsync(1000);
+        teaching.SelectedMotionGroup = MotionGroup.InspectionGantry;
+        try
+        {
+            units.PcbSupply = true;
+            unrelated.SetAlarm(MotionAxis.X, true);
+            state.SetError(MachineAlarm.MotionUnavailable, new IOException("Supply axis alarm."));
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => teaching.StepCommand.CanExecute(TeachingDirection.XPlus),
+                TimeSpan.FromSeconds(2)));
+            var before = inspection.GetPosition();
+            await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
+            Assert.Equal(before.X + teaching.StepDistance, inspection.GetPosition().X, 3);
+            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+
+            var monitor = services.GetRequiredService<MotionWindowViewModel>();
+            var axis = monitor.Axes.Single(
+                row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => monitor.HomeAxisCommand.CanExecute(axis), TimeSpan.FromSeconds(2)));
+            await monitor.HomeAxisCommand.ExecuteAsync(axis);
+            Assert.True(inspection.GetAxisState(MotionAxis.X).Homed);
+            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+
+            inspection.SetServo(MotionAxis.X, false);
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(
+                point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
+            var taughtPoint = teaching.SelectedPoint;
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => !teaching.StepCommand.CanExecute(TeachingDirection.XPlus),
+                TimeSpan.FromSeconds(2)));
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => teaching.TeachCurrentPositionCommand.CanExecute(null),
+                TimeSpan.FromSeconds(2)));
+            Assert.False(teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Equal(inspection.GetPosition().X, taughtPoint.X, 3);
+            Assert.True(teaching.ToggleLiveViewCommand.CanExecute(null));
+        }
+        finally
+        {
+            units.PcbSupply = false;
+            unrelated.SetAlarm(MotionAxis.X, false);
+            inspection.SetServo(MotionAxis.X, true);
+            state.ClearError();
+        }
+    }
+
     private static async Task VerifyWindowsAsync(Application app)
     {
         foreach (var resource in new[] { "AppStyles", "IoWindowStyles" })
@@ -121,6 +178,31 @@ public sealed class OutputWindowThreadingTests
         OutputWindow? window = null;
         try
         {
+            var resetButton = new Button { Command = main.ResetCommand };
+            io.SetInput(InputIo.EmergencyStop1Pressed, true);
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => io.GetOutput(OutputIo.Buzzer), TimeSpan.FromSeconds(2)));
+            Assert.False(machine.CanReset);
+            Assert.True(resetButton.IsEnabled);
+            await main.ResetCommand.ExecuteAsync(null);
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => !io.GetOutput(OutputIo.Buzzer), TimeSpan.FromSeconds(2)));
+            Assert.Equal(MachineAlarm.EmergencyStop, state.Alarm);
+            Assert.True(io.GetOutput(OutputIo.TowerLampRed));
+            io.SetInput(InputIo.EmergencyStop1Pressed, false);
+            // The virtual safety relay, like the equipment, restores contactor power on hardware RESET.
+            io.SetInput(InputIo.ResetButton, true);
+            Assert.True(resetButton.IsEnabled);
+            await main.ResetCommand.ExecuteAsync(null);
+            io.SetInput(InputIo.ResetButton, false);
+            using (services.GetRequiredService<OperationCancellation>().Link())
+            {
+                Assert.False(machine.CanReset);
+                Assert.True(resetButton.IsEnabled);
+                await main.ResetCommand.ExecuteAsync(null);
+            }
+
+            await VerifyIndependentTeachingAsync(services);
             io.AutoResponseEnabled = false;
             await VerifyBackgroundDisplayBindingsAsync(services);
             const OutputIo output = OutputIo.MainConveyorRun;
@@ -451,6 +533,13 @@ public sealed class OutputWindowThreadingTests
             await services.GetRequiredService<InspectionGantry>().HomeHorizontalAsync();
             teaching.RecipeEditor.Name = "ThreadingScan";
             teaching.ScanOverlap = 0;
+            // Device failures are reported at the teaching command boundary.
+            light.BeforeOn = () => throw new InvalidOperationException("Scan light ON failed.");
+            await teaching.CaptureCarrierImagesCommand.ExecuteAsync(null);
+            Assert.Equal("Scan light ON failed.", teaching.CameraError);
+            Assert.False(state.IsRunning);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+
             var liveButton = new Button { Command = teaching.ToggleLiveViewCommand };
             var scanStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             releaseStop.Reset();
@@ -476,6 +565,8 @@ public sealed class OutputWindowThreadingTests
 
             // Selection changes after the image commit must not undo the successful save.
             light.BeforeOn = null;
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(
+                point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
             var next = teaching.FilteredPoints.Single(
                 point => point.Position.Target == TeachingTarget.CarrierLowerRightLocatingPin);
             teaching.RecipeEditor.PropertyChanged += (_, args) =>
