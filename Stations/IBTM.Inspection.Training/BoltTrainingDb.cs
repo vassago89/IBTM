@@ -15,11 +15,6 @@ internal sealed class BoltTrainingDb : DbContext
         }
     }
 
-    // The parameterless constructor is used by the EF migration tools.
-    public BoltTrainingDb() : this(CreateOptions(DefaultFile))
-    {
-    }
-
     public BoltTrainingDb(DbContextOptions<BoltTrainingDb> options) : base(options)
     {
     }

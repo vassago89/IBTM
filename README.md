@@ -447,9 +447,8 @@ not supplied by the C# declarations. Initialization does not issue reset,
 filter-setting or output-write commands.
 AJIN currently uses `AxlOpenNoReset` for user-operated field testing, without
 loading a `.mot` file or falling back to `AxlOpen` if opening fails. The raw open
-result is logged. The saved `MotionParameterFile` value is retained for compatibility
-but is ignored and disabled in the settings UI. Existing home/signal settings must
-already be valid; preservation across a power cycle has not been verified.
+result is logged. There is no motion-parameter-file setting. Existing home/signal
+settings must already be valid; preservation across a power cycle has not been verified.
 Motion startup still applies the application's pulse scaling and acceleration units
 and enables the configured servos; homing still applies the configured speeds.
 Motion coordinates exposed to units are

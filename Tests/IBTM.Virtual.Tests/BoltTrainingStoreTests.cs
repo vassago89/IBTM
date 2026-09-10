@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Windows;
 using IBTM.Core;
 using IBTM.Inspection;
 using IBTM.Inspection.Training;
@@ -12,94 +11,32 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class BoltTrainingStoreTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ExistingDatabaseIsAdoptedWithoutReplacingTrainingData(bool hasSettings)
+    [Fact]
+    public void SettingsAndSamplesPersistWhenReopened()
     {
-        var file = Path.Combine(Path.GetTempPath(), $"IBTM-training-migration-{Guid.NewGuid():N}.db");
-        var connection = new SqliteConnection(
-            new SqliteConnectionStringBuilder { DataSource = file }.ToString());
-        try
-        {
-            connection.Open();
-            using (var command = connection.CreateCommand())
-            {
-                command.CommandText = """
-                    CREATE TABLE Samples (Id INTEGER PRIMARY KEY, Name TEXT NOT NULL, Image BLOB NOT NULL,
-                        RegionSize INTEGER NOT NULL, Label INTEGER NOT NULL DEFAULT 0,
-                        SampleUse INTEGER NOT NULL DEFAULT 0, Included INTEGER NOT NULL DEFAULT 1,
-                        Polygon TEXT NOT NULL DEFAULT '[]');
-                    CREATE TABLE Model (Id INTEGER PRIMARY KEY CHECK (Id = 1), Weights BLOB NOT NULL,
-                        Epochs INTEGER NOT NULL, ValidationLoss REAL NOT NULL, TrainedAt TEXT NOT NULL);
-                    INSERT INTO Samples VALUES (17, 'Existing capture', X'01020304', 192, 2, 1, 0,
-                        '[{"X":12,"Y":24},{"X":64,"Y":24},{"X":64,"Y":80}]');
-                    INSERT INTO Model VALUES (1, X'05060708', 23, 0.125, '2026-09-01T00:00:00.0000000+00:00');
-                    """;
-                command.ExecuteNonQuery();
-                if (hasSettings)
-                {
-                    command.CommandText = """
-                        CREATE TABLE TrainingSettings (Id INTEGER PRIMARY KEY CHECK (Id = 1), Value TEXT NOT NULL);
-                        INSERT INTO TrainingSettings VALUES (1,
-                            '{"MaxEpochs":70,"BatchSize":4,"LearningRate":0.0002,"Patience":6}');
-                        """;
-                    command.ExecuteNonQuery();
-                }
-            }
+        var file = Path.Combine(Path.GetTempPath(), $"IBTM-training-{Guid.NewGuid():N}.db");
+        var store = new BoltTrainingStore(file);
+        store.SaveSettings(new() { MaxEpochs = 9, BatchSize = 3, MaskThreshold = 0.7f });
+        var id = store.AddImage("Capture", new ImageFrame(1, 1, 3, [20, 40, 60]), 1);
+        store.SetIncluded(id, false);
 
-            var store = new BoltTrainingStore(file);
-            var sample = Assert.Single(store.GetSamples());
-            Assert.Equal(17, sample.Id);
-            Assert.Equal("Existing capture", sample.Name);
-            Assert.Equal(192, sample.RegionSize);
-            Assert.Equal(BoltLabel.Bolt, sample.Label);
-            Assert.Equal(BoltSampleUse.Validation, sample.Use);
-            Assert.False(sample.Included);
-            Assert.Equal(
-                new[] { new Point(12, 24), new Point(64, 24), new Point(64, 80) },
-                sample.Polygon);
-            Assert.Equal(hasSettings ? 70 : 50, store.LoadSettings().MaxEpochs);
-            Assert.Equal(hasSettings ? 4 : 8, store.LoadSettings().BatchSize);
-            Assert.Equal(0.5f, store.LoadSettings().MaskThreshold);
+        var reopened = new BoltTrainingStore(file);
+        var settings = reopened.LoadSettings();
+        Assert.Equal(9, settings.MaxEpochs);
+        Assert.Equal(3, settings.BatchSize);
+        Assert.Equal(0.7f, settings.MaskThreshold);
+        var sample = Assert.Single(reopened.GetSamples());
+        Assert.Equal(id, sample.Id);
+        Assert.Equal("Capture", sample.Name);
+        Assert.Equal(1, sample.RegionSize);
+        Assert.Equal(BoltLabel.Unlabeled, sample.Label);
+        Assert.False(sample.Included);
 
-            store.SaveSettings(
-                new() { MaxEpochs = 9, BatchSize = 3, LearningRate = 0.0005, Patience = 2, MaskThreshold = 0.7f });
-            store.SetIncluded(17, true);
-            var pixels = new byte[] { 20, 40, 60 };
-            var id = store.AddImage("New capture", new ImageFrame(1, 1, 3, pixels), 1);
-            Assert.True(id > 17);
-
-            var reopened = new BoltTrainingStore(file);
-            Assert.Equal(2, reopened.GetSamples().Count);
-            Assert.True(reopened.GetSamples().Single(value => value.Id == 17).Included);
-            Assert.Equal(9, reopened.LoadSettings().MaxEpochs);
-            Assert.Equal(0.0005, reopened.LoadSettings().LearningRate);
-            Assert.Equal(0.7f, reopened.LoadSettings().MaskThreshold);
-            using var check = connection.CreateCommand();
-            check.CommandText = "SELECT hex(Image) FROM Samples WHERE Id = 17";
-            Assert.Equal("01020304", check.ExecuteScalar());
-            check.CommandText = "SELECT hex(Weights) FROM Model WHERE Id = 1";
-            Assert.Equal("05060708", check.ExecuteScalar());
-            check.CommandText = "SELECT Epochs FROM Model WHERE Id = 1";
-            Assert.Equal(23L, check.ExecuteScalar());
-            check.CommandText = "SELECT ValidationLoss FROM Model WHERE Id = 1";
-            Assert.Equal(0.125, check.ExecuteScalar());
-            check.CommandText = "SELECT TrainedAt FROM Model WHERE Id = 1";
-            Assert.Equal("2026-09-01T00:00:00.0000000+00:00", check.ExecuteScalar());
-            check.CommandText = "SELECT COUNT(*) FROM __EFMigrationsHistory";
-            Assert.Equal(2L, check.ExecuteScalar());
-            check.CommandText = "SELECT Image FROM Samples WHERE Id = $id";
-            check.Parameters.AddWithValue("$id", id);
-            Assert.Equal(pixels, BoltTrainingImages.Decode((byte[])check.ExecuteScalar()!).Pixels);
-        }
-        finally
-        {
-            connection.Dispose();
-            SqliteConnection.ClearPool(connection);
-            foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" })
-                File.Delete(file + suffix);
-        }
+        using var connection = new SqliteConnection($"Data Source={file}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT count(*) FROM sqlite_master WHERE name = '__EFMigrationsHistory'";
+        Assert.Equal(0L, command.ExecuteScalar());
     }
 
     [Fact]

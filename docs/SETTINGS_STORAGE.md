@@ -105,9 +105,8 @@ work. Backup uses SQLite's backup API, not a copy of an open DB file. It contain
 saved settings/recipes/images, not unsaved edits or the separate training database.
 
 AJIN now opens with `AxlOpenNoReset`; startup does not load a `.mot` file.
-`AjinSettings.MotionParameterFile` remains persisted only for compatibility with
-older settings, and has no editing command or field in the current UI. Any existing
-vendor file is neither rewritten nor embedded. Back it up separately if still needed.
+There is no motion-parameter-file setting. Any existing vendor file is neither
+rewritten nor embedded. Back it up separately if still needed.
 Do not delete the old Settings directory indiscriminately; it may contain this file.
 
 Restore validates the selected machine database, prepares `Machine.db.restore`,

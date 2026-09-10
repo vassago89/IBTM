@@ -22,24 +22,11 @@ Label, split and inclusion updates do not load image BLOBs. Saving a model check
 only whether the active row exists, then writes its replacement without reading
 the previous weights. Settings remain JSON in their existing database row.
 
-The store applies committed EF migrations when opened. `InitialTraining` creates
-a new database or adopts the previous direct-SQL tables without rewriting their
-data. Its `IF NOT EXISTS` SQL is intentional and limited to that baseline; normal
-queries and writes use LINQ. Later column changes require a new migration, not an
-edit to the baseline. Never mix `EnsureCreated` with this migration path.
-
-To generate the next migration, use the training project as both target and
-startup project. The EF tool constructs the context without starting the machine:
-
-```powershell
-dotnet tool install dotnet-ef --version 10.0.10 --tool-path artifacts/ef-tools
-artifacts/ef-tools/dotnet-ef migrations add ChangeName --project IBTM.Inspection.Training --startup-project IBTM.Inspection.Training --context BoltTrainingDb
-```
-
-Review the generated migration before deployment. The model snapshot describes
-the database schema for migration generation; it is not a copy of training images
-or operational machine state. Downgrading to before the initial migration drops
-the training tables, so it must not be used as a way to undo an application update.
+The store uses `EnsureCreated` to create a fresh database automatically. Settings
+are whole-class JSON, so adding a training setting does not change table columns.
+There are no migration files, model snapshots or old-schema adoption paths.
+Opening an existing database does not erase its images or model. An incompatible
+old schema requires a fresh database; archive the old file before replacing it.
 
 ## Capture and browse
 
@@ -82,8 +69,7 @@ ground-truth Empty label. Only user-labeled, included samples enter training.
 Each automatically collected sample also stores recipe name, bolt number, heat
 sink, capture time, original inspection ROI and OK/NG result in nullable inspection
 metadata. Later annotation ROI/polygon edits leave that inspection evidence intact.
-The new EF migration adds the metadata column without changing existing images,
-labels or model weights. Older manual samples simply have no inspection metadata.
+Manual samples have no inspection metadata.
 The selector shows inspection result/ROI separately from the label.
 
 A storage/encoding failure stops further collection for the current session and

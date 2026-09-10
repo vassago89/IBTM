@@ -52,7 +52,7 @@ public sealed class BoltTrainingStore
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(databaseFile))!);
         _options = BoltTrainingDb.CreateOptions(databaseFile);
         using var db = new BoltTrainingDb(_options);
-        db.Database.Migrate();
+        db.Database.EnsureCreated();
     }
 
     public BoltTrainingSettings LoadSettings()
@@ -103,9 +103,7 @@ public sealed class BoltTrainingStore
             .Select(
                 sample =>
                     new
-
                     {
-
                         sample.Id,
                         sample.Name,
                         sample.Label,
@@ -114,7 +112,6 @@ public sealed class BoltTrainingStore
                         sample.RegionSize,
                         sample.Polygon,
                         sample.Inspection
-
                     })
             .AsEnumerable()
             .Select(

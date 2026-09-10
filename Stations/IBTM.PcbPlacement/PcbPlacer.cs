@@ -59,14 +59,6 @@ public sealed class PcbPlacer(BufferStage buffer, PcbPlacementHandler handler, P
             cancellationToken);
     }
 
-    public bool PlacementComplete(HeatSinkSlot heatSink)
-    {
-        return HeatSinkCompleted(heatSink)
-            && handler.Pcb == PlacementPcbState.None
-            && handler.Lift == PlacementCylinderState.Up
-            && handler.AtHorizontalZ;
-    }
-
     // Execute one production action for the requested heat sink; null means waiting.
     public Task? PlaceStepAsync(
         PcbPlacementRecipe recipe,
