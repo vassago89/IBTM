@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
 
 namespace IBTM.Device;
 
-public sealed class IoSignals
+public sealed class IoSignals : INotifyPropertyChanged
 {
     private readonly IIoService _io;
     private int _inputsAvailable;
@@ -19,27 +20,27 @@ public sealed class IoSignals
         Inputs = sections.OfType<InputHardwareSettings>()
             .SelectMany(
                 section =>
-                    section.Inputs.Keys.Select(
+                    section.Inputs.Select(
                         input => new IoInputStatus(
-                            input,
+                            input.Key,
                             section.Area,
-                            section.GetSection(input),
+                            section.GetSection(input.Key),
                             io,
-                            section.Inputs[input])))
+                            input.Value)))
             .ToDictionary(row => row.Signal);
         Outputs = sections.OfType<IoHardwareSettings>()
             .SelectMany(
                 section =>
-                    section.Outputs.Keys.Select(
+                    section.Outputs.Select(
                         output =>
                             new IoOutputStatus(
-                                output,
+                                output.Key,
                                 section.Area,
-                                section.GetSection(output),
+                                section.GetSection(output.Key),
                                 io,
                                 Inputs,
-                                section.Outputs[output].Number,
-                                section.Outputs[output].OffNumber)))
+                                output.Value.Number,
+                                output.Value.OffNumber)))
             .ToDictionary(row => row.Signal);
 
         io.InputChanged += (input, _) =>
@@ -58,7 +59,7 @@ public sealed class IoSignals
         }
     }
 
-    public event Action? InputAvailabilityChanged;
+    public event PropertyChangedEventHandler? PropertyChanged;
     // On reconnection the initial scan can replace the cache without DI change events.
     public void RefreshInputs()
     {
@@ -67,7 +68,7 @@ public sealed class IoSignals
             return;
         foreach (var row in Inputs.Values)
             row.Refresh();
-        InputAvailabilityChanged?.Invoke();
+        PropertyChanged?.Invoke(this, new(nameof(InputsAvailable)));
     }
 
     public IReadOnlyDictionary<InputIo, IoInputStatus> Inputs { get; }

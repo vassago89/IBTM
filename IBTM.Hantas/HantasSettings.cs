@@ -6,8 +6,8 @@ public sealed class HantasSettings : Setting
 {
     public string PortName { get; set; } = string.Empty;
     public int BaudRate { get; set; } = 115_200;
-    public byte PickupSlaveAddress { get; set; } = 1;
-    public byte ShootingSlaveAddress { get; set; } = 2;
+    public byte PickupSlaveAddress { get; set; } = 0;
+    public byte ShootingSlaveAddress { get; set; } = 1;
     public int ResponseTimeoutMilliseconds { get; set; } = 1_000;
     public int FasteningTimeoutMilliseconds { get; set; } = 15_000;
 }

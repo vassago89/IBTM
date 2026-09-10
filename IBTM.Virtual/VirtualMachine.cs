@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -44,7 +45,7 @@ public sealed class VirtualMachine
         io.InputChanged += OnInputChanged;
         io.OutputChanged += OnOutputChanged;
         io.OutputApplied += ApplyPhysicalOutput;
-        io.AutoResponseChanged += SynchronizeGrip;
+        io.PropertyChanged += OnIoPropertyChanged;
         io.FeedbackSynchronized += SynchronizeGrip;
         io.SetInput(InputIo.ServoMainContactorOn, true);
         io.ApplyAutoResponse(
@@ -59,6 +60,12 @@ public sealed class VirtualMachine
         {
             DropServoPower();
         }
+    }
+
+    private void OnIoPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(VirtualIoService.AutoResponseEnabled))
+            SynchronizeGrip();
     }
 
     private bool AutoMode

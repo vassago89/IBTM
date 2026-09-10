@@ -13,7 +13,7 @@
     <UserControl.Resources>
         <CollectionViewSource x:Key="GroupedPoints" Source="{Binding Points}">
             <CollectionViewSource.GroupDescriptions>
-                <PropertyGroupDescription PropertyName="MotionGroup"/>
+                <PropertyGroupDescription PropertyName="Position.MotionGroup"/>
             </CollectionViewSource.GroupDescriptions>
         </CollectionViewSource>
     </UserControl.Resources>

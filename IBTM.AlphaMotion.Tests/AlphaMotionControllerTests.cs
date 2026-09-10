@@ -44,12 +44,12 @@ public sealed class AlphaMotionControllerTests
             NativeCalls().Select(call => call.Operation));
         Assert.All(NativeCalls().Skip(1), call => Assert.Equal((ushort)0, call.Card));
         Assert.Contains(
-            log.ReadAfter(0),
+            log.Entries,
             entry =>
                 entry.Message.Contains("card=0, DI=16, DO=16")
                     && entry.Message.Contains("initial DI=0x00000008, DO=0x00000000"));
         Assert.Contains(
-            log.ReadAfter(0),
+            log.Entries,
             entry =>
                 entry.Message.Contains(
                     $"AIO_BoardInfo (card=0): result={result}, ERR_SUCCESS (0); model=0x{model:X}, communication=0x{communication:X}, DI=16, DO=16"));
@@ -461,7 +461,7 @@ public sealed class AlphaMotionControllerTests
         Assert.Contains("AIO_BoardInfo", error.Message);
         Assert.Contains("ERR_INVALID_BOARD_ID (-400)", error.Message);
         Assert.Contains("ERR_UNKNOWN", Assert.IsType<string>(error.Data["AlphaMotionUnloadError"]));
-        Assert.Contains(log.ReadAfter(0), entry => entry.Level == "ERROR");
+        Assert.Contains(log.Entries, entry => entry.Level == "ERROR");
     }
 
     [Fact]
@@ -510,7 +510,7 @@ public sealed class AlphaMotionControllerTests
         TMCAEDLL.Inputs = 8;
         for (var index = 0; index < 100; index++)
             controller.ReadInputs();
-        Assert.Contains("DI=0x00000008", Assert.Single(log.ReadAfter(sequence)).Message);
+        Assert.Contains("DI=0x00000008", Assert.Single(log.Entries, entry => entry.Sequence > sequence).Message);
     }
 
     [Fact]

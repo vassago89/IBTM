@@ -97,8 +97,11 @@ public sealed class MotionSafetyTests
         Assert.False(motion.IsMoving);
     }
 
-    [Fact]
-    public async Task MotionRetractsZBeforeXyMovement()
+    [Theory]
+    [InlineData(null)]
+    [InlineData(MotionAxis.X)]
+    [InlineData(MotionAxis.Y)]
+    public async Task MotionRetractsZBeforeXyMovement(MotionAxis? axis)
     {
         var settings = new MotionSettings { ZSpeed = 100 };
         using var motion = new VirtualMotionService(
@@ -107,7 +110,7 @@ public sealed class MotionSafetyTests
             horizontalZ: () => -5);
         motion.Initialize();
         await HomeAsync(motion, 1_000);
-        await motion.MoveZAsync(8, 100);
+        await motion.MoveAxisAsync(MotionAxis.Z, 8, 100);
         var movedXyBeforeZClear = false;
         motion.PositionChanged += (x, y, z) =>
         {
@@ -118,9 +121,18 @@ public sealed class MotionSafetyTests
             }
         };
 
-        await motion.MoveToXYAsync(10, 20, 100);
+        if (axis is { } singleAxis)
+            await motion.MoveAxisAsync(singleAxis, 10, 100);
+        else
+            await motion.MoveToXYAsync(10, 20, 100);
 
-        Assert.Equal((10, 20, -5), motion.GetPosition());
+        var expected = axis switch
+        {
+            MotionAxis.X => (10, 0, -5),
+            MotionAxis.Y => (0, 10, -5),
+            _ => (10, 20, -5),
+        };
+        Assert.Equal(expected, motion.GetPosition());
         Assert.False(movedXyBeforeZClear);
     }
 
@@ -248,7 +260,7 @@ public sealed class MotionSafetyTests
 
         await placement.MoveToAsync(10, 10, 0);
         Assert.True(buffer.CanSupplyEnter);
-        await placement.MoveZAsync(8, settings.ZSpeed);
+        await placement.MoveAxisAsync(MotionAxis.Z, 8, settings.ZSpeed);
         Assert.False(buffer.CanSupplyEnter);
         Assert.False(buffer.CanSupplyLower);
         await placement.MoveToAsync(0, 0, 0);

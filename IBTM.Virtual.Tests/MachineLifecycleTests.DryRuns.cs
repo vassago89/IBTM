@@ -4,7 +4,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -256,7 +255,7 @@ public sealed partial class MachineLifecycleTests
         Assert.DoesNotContain(
             placer.State(recipe),
             new[] { PcbPlacementState.PressingPcb, PcbPlacementState.RecordingPlacement });
-        await handler.MoveZAsync(10);
+        await handler.MoveAxisAsync(MotionAxis.Z, 10);
         Assert.DoesNotContain(
             placer.State(recipe),
             new[] { PcbPlacementState.PressingPcb, PcbPlacementState.RecordingPlacement });

@@ -1148,18 +1148,22 @@ public sealed partial class MachineController
         var fasteningBlocked = _fasteningGantry.Feedback.Command == MotionCommand.Positioning
             && _fasteningGantry.Feedback.IsMovingHorizontal
             && !_fasteningGantry.CanMoveHorizontal;
-        var alarm = _placementHandler.Feedback.IsMovingHorizontal
-            && !_placementHandler.CanMoveHorizontal
-            ? MachineAlarm.PcbPlacement
-            : fasteningBlocked
-                ? MachineAlarm.BoltFastening
-                : _inspectionGantry.Feedback.IsMoving
-                    && !_inspectionGantry.CanMove
-                    || InspectionGantryEnabled
-                    && _state.IsHoming
-                    && !_inspectionGantry.CanHome
-                    ? MachineAlarm.NgCarrierTransfer
-                    : MachineAlarm.None;
+        var alarm = MachineAlarm.None;
+        if (_placementHandler.Feedback.IsMovingHorizontal
+            && !_placementHandler.CanMoveHorizontal)
+        {
+            alarm = MachineAlarm.PcbPlacement;
+        }
+        else if (fasteningBlocked)
+        {
+            alarm = MachineAlarm.BoltFastening;
+        }
+        else if ((_inspectionGantry.Feedback.IsMoving && !_inspectionGantry.CanMove)
+            || (InspectionGantryEnabled && _state.IsHoming && !_inspectionGantry.CanHome))
+        {
+            alarm = MachineAlarm.NgCarrierTransfer;
+        }
+
         if (alarm != MachineAlarm.None)
         {
             _state.SetError(alarm);

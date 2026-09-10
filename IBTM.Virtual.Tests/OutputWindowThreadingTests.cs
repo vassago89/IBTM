@@ -120,7 +120,6 @@ public sealed class OutputWindowThreadingTests
         try
         {
             io.AutoResponseEnabled = false;
-            await VerifyDirectBindingsAsync(services);
             await VerifyBackgroundDisplayBindingsAsync(services);
             manual.Activate();
             const OutputIo output = OutputIo.MainConveyorRun;
@@ -128,10 +127,12 @@ public sealed class OutputWindowThreadingTests
             {
                 Assert.True(openButton.IsEnabled);
                 window = new OutputWindow(signals, machine, state);
+                if (reopen == 0)
+                    await VerifyDirectBindingsAsync(services, window);
                 var row = window.Rows.Single(candidate => candidate.Io.Signal == output);
                 var manualRow = manual.Conveyors.Single(candidate => candidate.Io.Signal == output);
                 // These are real WPF command subscribers with the production bindings.
-                var outputButton = BoundButton(row);
+                var outputButton = BindOutputRow(window, row).Button;
                 var manualStop = new Button { DataContext = manualRow };
                 manualStop.SetBinding(
                     Button.CommandProperty,
@@ -171,8 +172,9 @@ public sealed class OutputWindowThreadingTests
                 // invoke a command subscriber or stop the common display worker.
                 await Task.Run(
                     () => io.SetOutput(OutputIo.MachineLight, !io.GetOutput(OutputIo.MachineLight)));
-                var feedback = BoundFeedback(
-                    window.Rows.Single(candidate => candidate.Io.Signal == OutputIo.NgConveyorStopperUp));
+                var feedback = BindOutputRow(
+                    window,
+                    window.Rows.Single(candidate => candidate.Io.Signal == OutputIo.NgConveyorStopperUp)).Feedback;
                 await Task.Run(
                     () =>
                     {
@@ -203,7 +205,7 @@ public sealed class OutputWindowThreadingTests
 
             Assert.All(notifications, id => Assert.Equal(uiThread, id));
             Assert.DoesNotContain(
-                log.ReadAfter(0),
+                log.Snapshot(),
                 entry => entry.Message.Contains("Display worker stopped"));
         }
         finally
@@ -227,7 +229,7 @@ public sealed class OutputWindowThreadingTests
         var response = new CheckBox();
         response.SetBinding(
             System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
-            new Binding(nameof(InputWindow.AutoResponseEnabled)) { Source = input });
+            new Binding("VirtualIo.AutoResponseEnabled") { Source = input });
         try
         {
             await Task.Run(() => io.AutoResponseEnabled = true);
@@ -307,12 +309,14 @@ public sealed class OutputWindowThreadingTests
     }
 
 
-    private static Button BoundButton(OutputWindowRow row)
+    private static (Button Button, TextBlock Feedback) BindOutputRow(OutputWindow window, OutputWindowRow row)
     {
-        var button = new Button { DataContext = row };
-        button.Style = (Style)Application.Current.FindResource("OutputToggleButtonStyle");
-        button.SetBinding(Button.CommandProperty, new Binding(nameof(OutputWindowRow.ToggleCommand)));
-        return button;
+        var list = ((Grid)window.Content).Children.OfType<ListBox>().Single();
+        var presenter = new ContentPresenter { Content = row, ContentTemplate = list.ItemTemplate };
+        presenter.ApplyTemplate();
+        return (
+            (Button)list.ItemTemplate.FindName("ToggleOutput", presenter),
+            (TextBlock)list.ItemTemplate.FindName("FeedbackStatus", presenter));
     }
 
     private static async Task VerifyLogBindingsAsync()
@@ -367,7 +371,7 @@ public sealed class OutputWindowThreadingTests
                 () => list.Items.Count == 1,
                 TimeSpan.FromSeconds(2)));
             Assert.Equal("Entry after clear", ((LogEntry)list.Items[0]).Message);
-            Assert.Contains(log.ReadAfter(0), entry => entry.Message == "Before opening logs");
+            Assert.Contains(log.Snapshot(), entry => entry.Message == "Before opening logs");
             Assert.All(updateThreads, thread => Assert.Equal(uiThread, thread));
         }
         finally
@@ -394,24 +398,15 @@ public sealed class OutputWindowThreadingTests
         }
     }
 
-    private static TextBlock BoundFeedback(OutputWindowRow row)
-    {
-        return new()
-        {
-            DataContext = row,
-            Style = (Style)Application.Current.FindResource("OutputFeedbackTextStyle"),
-        };
-    }
-
-    private static async Task VerifyDirectBindingsAsync(ServiceProvider services)
+    private static async Task VerifyDirectBindingsAsync(ServiceProvider services, OutputWindow window)
     {
         var io = services.GetRequiredService<VirtualIoService>();
         var machine = services.GetRequiredService<MachineController>();
         var signals = services.GetRequiredService<IoSignals>();
-        // These rows have no owning view refreshing commands. Production styles
+        // These rows have no owning view refreshing commands. The production template
         // must follow their nested IO objects without relayed row notifications.
         var light = new OutputWindowRow(signals.Outputs[OutputIo.MachineLight], machine);
-        var button = BoundButton(light);
+        var button = BindOutputRow(window, light).Button;
         var notifications = 0;
         light.PropertyChanged += (_, _) => notifications++;
         foreach (var on in new[] { true, false })
@@ -426,7 +421,7 @@ public sealed class OutputWindowThreadingTests
         Assert.Equal(0, notifications);
 
         var stopper = new OutputWindowRow(signals.Outputs[OutputIo.NgConveyorStopperUp], machine);
-        var feedback = BoundFeedback(stopper);
+        var feedback = BindOutputRow(window, stopper).Feedback;
         await Task.Run(
             () =>
             {
@@ -452,7 +447,7 @@ public sealed class OutputWindowThreadingTests
         var pending = new OutputWindowRow(
             new IoOutputStatus(signal.Signal, signal.Area, signal.Section, io, signals.Inputs),
             machine);
-        var pendingButton = BoundButton(pending);
+        var pendingButton = BindOutputRow(window, pending).Button;
         pending.ToggleCommand.Execute(null);
         Assert.Null(pending.Io.IsOn);
         Assert.True(io.GetOutput(signal.Signal));

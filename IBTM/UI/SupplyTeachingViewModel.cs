@@ -108,11 +108,12 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
     {
         get
         {
-            return SelectedPoint is { } point && IsBuffer(point)
-                ? TeachingSaveBehavior.Buffer
-                : SelectedPoint?.Storage == TeachingStorage.Machine
-                    ? TeachingSaveBehavior.Machine
-                    : TeachingSaveBehavior.Recipe;
+            return SelectedPoint?.Position.Storage switch
+            {
+                TeachingStorage.Buffer => TeachingSaveBehavior.Buffer,
+                TeachingStorage.Machine => TeachingSaveBehavior.Machine,
+                _ => TeachingSaveBehavior.Recipe,
+            };
         }
     }
 
@@ -182,7 +183,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
 
     private static bool IsBuffer(TeachingPoint point)
     {
-        return point.Storage == TeachingStorage.Buffer;
+        return point.Position.Storage == TeachingStorage.Buffer;
     }
 
 }

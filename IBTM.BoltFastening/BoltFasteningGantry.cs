@@ -196,7 +196,7 @@ public sealed class BoltFasteningGantry
 
     public Task MoveZAsync(double z, CancellationToken cancellationToken = default)
     {
-        return _motion.MoveZAsync(z, _settings.Motion.ZSpeed, cancellationToken);
+        return _motion.MoveAxisAsync(MotionAxis.Z, z, _settings.Motion.ZSpeed, cancellationToken);
     }
 
     public async Task MoveToPickupPositionAsync(CancellationToken cancellationToken = default)
@@ -331,7 +331,7 @@ public sealed class BoltFasteningGantry
 
     internal Task MoveToPickupZAsync(CancellationToken cancellationToken = default)
     {
-        return _motion.MoveZAsync(_settings.PickupPosition.Z, _settings.Motion.ZSpeed, cancellationToken);
+        return _motion.MoveAxisAsync(MotionAxis.Z, _settings.PickupPosition.Z, _settings.Motion.ZSpeed, cancellationToken);
     }
 
     internal Task PickUpBoltAsync(CancellationToken cancellationToken = default)

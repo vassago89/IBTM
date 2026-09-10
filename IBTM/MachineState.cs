@@ -153,7 +153,7 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         {
             // Feedback badges also use the shared UI refresh, not I/O-thread commands.
             RequestDisplayRefresh();
-            if (AffectsMachineState(input))
+            if (input == InputIo.ServoMainContactorOn || IsSafetyInput(input))
             {
                 NotifyChanged();
             }
@@ -719,11 +719,6 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
             or InputIo.Door5Open
             or InputIo.Door6Open
             or InputIo.AirPressureHigh;
-    }
-
-    private static bool AffectsMachineState(InputIo input)
-    {
-        return input == InputIo.ServoMainContactorOn || IsSafetyInput(input);
     }
 
     private static bool IsFaulted(AxisState state)

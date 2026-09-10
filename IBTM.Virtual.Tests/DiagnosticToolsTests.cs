@@ -36,12 +36,7 @@ public sealed class DiagnosticToolsTests
             Assert.True(state.IsRunning);
             Assert.False(settings.CanEditSettings);
             Assert.False(machine.CanStart);
-            typeof(MachineState).GetMethod(
-                "SetError",
-                System.Reflection.BindingFlags.Instance
-                    | System.Reflection.BindingFlags.NonPublic)!.Invoke(
-                        state,
-                        [MachineAlarm.MotionUnavailable, new IOException("Unrelated motion alarm.")]);
+            state.SetError(MachineAlarm.MotionUnavailable, new IOException("Unrelated motion alarm."));
             Assert.True(settings.LightTestOn);
             Assert.False(test.IsCompleted);
             await settings.OffTestLightCommand.ExecuteAsync(null);
@@ -123,12 +118,7 @@ public sealed class DiagnosticToolsTests
         {
             motion.SetAlarm(MotionAxis.X, true);
             motion.SetServo(MotionAxis.Y, false);
-            typeof(MachineState).GetMethod(
-                "SetError",
-                System.Reflection.BindingFlags.Instance
-                    | System.Reflection.BindingFlags.NonPublic)!.Invoke(
-                        state,
-                        [MachineAlarm.MotionUnavailable, new IOException("Axis alarm is latched.")]);
+            state.SetError(MachineAlarm.MotionUnavailable, new IOException("Axis alarm is latched."));
             state.RequestDisplayRefresh();
             Assert.True(
                 await VirtualTest.WaitUntilAsync(
@@ -224,6 +214,9 @@ public sealed class DiagnosticToolsTests
             // A failed enabled control scan must not hide the independent monitor cache
             // or throw while WPF evaluates the RESET button.
             settings.Units.NgCarrierTransfer = true;
+            Assert.True(x.Enabled);
+            Assert.True(x.RefreshEnabled());
+            Assert.False(x.RefreshEnabled());
             diagnostics.FailControl = true;
             Assert.True(
                 await VirtualTest.WaitUntilAsync(() => !state.Display.Available, TimeSpan.FromSeconds(2)));
@@ -233,6 +226,8 @@ public sealed class DiagnosticToolsTests
             Assert.False(view.ToggleServoCommand.CanExecute(y));
             diagnostics.FailControl = false;
             settings.Units.NgCarrierTransfer = false;
+            Assert.True(x.RefreshEnabled());
+            Assert.False(x.Enabled);
             // Control-I/O loss does not stop independent motion diagnostics or allow control.
             io.SetConnected(false);
             diagnostics.FailX = false;

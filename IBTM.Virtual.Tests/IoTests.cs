@@ -24,10 +24,7 @@ public sealed class IoTests
     public void ConfirmedIoMapHasOneSignalPerInputAndNoSeparateP3Sensor()
     {
         var settings = new MachineSettings();
-        var hardware = typeof(MachineSettings).GetProperties()
-            .Select(property => property.GetValue(settings))
-            .OfType<InputHardwareSettings>()
-            .ToArray();
+        var hardware = settings.HardwareSections.OfType<InputHardwareSettings>().ToArray();
         var inputs = hardware.SelectMany(section => section.Inputs)
             .ToDictionary(pair => pair.Key, pair => pair.Value);
         Assert.Equal(Enum.GetValues<InputIo>().Order(), inputs.Keys.Order());
@@ -66,6 +63,12 @@ public sealed class IoTests
         var probe = (OutputReadProbe)observedIo;
         probe.Io = io;
         var signals = new IoSignals([hardware], observedIo);
+        var availabilityChanges = 0;
+        signals.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(IoSignals.InputsAvailable))
+                availabilityChanges++;
+        };
         var status = hardware.CreateIoStatus(signals);
         Assert.Equal(hardware.Area, status.Area);
         Assert.Equal(hardware.Inputs.Keys.Order(), status.Inputs.Select(row => row.Signal));
@@ -146,12 +149,16 @@ public sealed class IoTests
         Assert.Null(output.IsOn);
         Assert.Null(sensor.IsOn);
         Assert.False(signals.InputsAvailable);
+        Assert.Equal(1, availabilityChanges);
         var beforeReconnect = changes;
         io.SetConnected(true);
         signals.RefreshInputs();
         Assert.False(sensor.IsOn);
         Assert.True(signals.InputsAvailable);
         Assert.True(changes > beforeReconnect);
+        Assert.Equal(2, availabilityChanges);
+        signals.RefreshInputs();
+        Assert.Equal(2, availabilityChanges);
     }
 
     public class OutputReadProbe : DispatchProxy

@@ -72,7 +72,7 @@ public sealed partial class MachineLifecycleTests
 
         var actual = jog
             ? await Assert.ThrowsAsync<InvalidOperationException>(() => motion.JogAsync(MotionAxis.X, 1))
-            : await Assert.ThrowsAsync<InvalidOperationException>(() => motion.MoveXAsync(100, 1));
+            : await Assert.ThrowsAsync<InvalidOperationException>(() => motion.MoveAxisAsync(MotionAxis.X, 100, 1));
 
         Assert.Same(failure, actual);
         await operations.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(1));
@@ -103,7 +103,7 @@ public sealed partial class MachineLifecycleTests
             }
         };
 
-        var moving = jog ? motion.JogAsync(MotionAxis.X, 1) : motion.MoveXAsync(100, 1);
+        var moving = jog ? motion.JogAsync(MotionAxis.X, 1) : motion.MoveAxisAsync(MotionAxis.X, 100, 1);
 
         var shutdown = Task.Run(() => operations.ShutdownAsync());
         try
@@ -450,7 +450,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(up, false);
         io.SetInput(down, true);
         if (isPlacement)
-            await placement.MoveZAsync(1);
+            await placement.MoveAxisAsync(MotionAxis.Z, 1);
         else
             await fastening.MoveZAsync(1);
         Assert.Equal(1, feedback.GetPosition().Z);
@@ -523,7 +523,7 @@ public sealed partial class MachineLifecycleTests
         await gantry.MoveZAsync(14);
         teaching.SelectedMotionGroup = MotionGroup.BoltFastening;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
-            point => point.Target == TeachingTarget.BoltPickup);
+            point => point.Position.Target == TeachingTarget.BoltPickup);
         Assert.Equal(TeachingSaveBehavior.BoltPickup, teaching.SaveBehavior);
         await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
 
@@ -615,7 +615,7 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         teaching.SelectedMotionGroup = MotionGroup.BoltFastening;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
-            point => point.Target == TeachingTarget.BoltPickup);
+            point => point.Position.Target == TeachingTarget.BoltPickup);
         if (returning)
             await gantry.MoveToPickupPositionAsync();
         io.AutoResponseEnabled = false;
@@ -810,7 +810,7 @@ public sealed partial class MachineLifecycleTests
         var placement = services.GetRequiredService<PcbPlacementHandler>();
         var fastening = services.GetRequiredService<BoltFasteningGantry>();
         await machine.InitializeAsync();
-        await Task.WhenAll(placement.MoveZAsync(50), fastening.MoveZAsync(50));
+        await Task.WhenAll(placement.MoveAxisAsync(MotionAxis.Z, 50), fastening.MoveZAsync(50));
         var homing = machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => placement.Feedback.IsMoving && fastening.Feedback.IsMoving);
         Assert.False(state.ManualSetupEnabled);
@@ -843,7 +843,9 @@ public sealed partial class MachineLifecycleTests
         await machine.ResetAsync();
         Assert.True(machine.CanHome);
 
-        await Task.WhenAll(placement.MoveZAsync(50, 10_000), fastening.MoveZAsync(50, 10_000));
+        await Task.WhenAll(
+            placement.MoveAxisAsync(MotionAxis.Z, 50, 10_000),
+            fastening.MoveAxisAsync(MotionAxis.Z, 50, 10_000));
         var homing = machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => placement.IsMoving && fastening.IsMoving);
         fastening.SetAlarm(MotionAxis.X, true);
@@ -890,7 +892,7 @@ public sealed partial class MachineLifecycleTests
         var supply = services.GetRequiredKeyedService<IAxisMotion>(MotionGroup.PcbSupply);
         var manual = services.GetRequiredService<MotionWindowViewModel>();
         await machine.InitializeAsync();
-        await placement.MoveZAsync(50, 10_000);
+        await placement.MoveAxisAsync(MotionAxis.Z, 50, 10_000);
 
         var axisRow = manual.Axes.Single(
             row => row.Group == MotionGroup.BoltFastening && row.Axis == MotionAxis.Z);

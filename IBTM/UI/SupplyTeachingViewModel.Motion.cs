@@ -12,7 +12,7 @@ public partial class SupplyTeachingViewModel
     {
         get
         {
-            return SelectedPoint?.MotionGroup ?? MotionGroup.PcbSupply;
+            return SelectedPoint?.Position.MotionGroup ?? MotionGroup.PcbSupply;
         }
     }
 
@@ -83,12 +83,8 @@ public partial class SupplyTeachingViewModel
                 => _supplyHandler.MoveYAsync(position, cancellationToken),
             (MotionGroup.PcbSupply, MotionAxis.Z)
                 => _supplyHandler.MoveTeachingZAsync(position, cancellationToken),
-            (MotionGroup.PcbPlacementHandler, MotionAxis.X)
-                => _placementHandler.MoveXAsync(position, cancellationToken),
-            (MotionGroup.PcbPlacementHandler, MotionAxis.Y)
-                => _placementHandler.MoveYAsync(position, cancellationToken),
-            (MotionGroup.PcbPlacementHandler, MotionAxis.Z)
-                => _placementHandler.MoveZAsync(position, cancellationToken),
+            (MotionGroup.PcbPlacementHandler, _)
+                => _placementHandler.MoveAxisAsync(axis, position, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(axis)),
         };
     }
@@ -115,7 +111,7 @@ public partial class SupplyTeachingViewModel
 
     protected override Task MovePointAsync(TeachingPoint point, CancellationToken cancellationToken)
     {
-        return point.MotionGroup == MotionGroup.PcbSupply
+        return point.Position.MotionGroup == MotionGroup.PcbSupply
             ? _supplyHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), cancellationToken)
             : _placementHandler.MoveToTeachingPositionAsync(
                 point.Position,
@@ -127,8 +123,8 @@ public partial class SupplyTeachingViewModel
     {
         return Machine.CanUseManualMotion(CurrentMotionGroup, live: false)
             && SelectedPoint is { } point
-            && (point.MotionGroup != MotionGroup.PcbSupply
-                ? point.TeachMode == TeachMode.ZOnly || _placementHandler.CanMoveHorizontal
+            && (point.Position.MotionGroup != MotionGroup.PcbSupply
+                ? point.Position.Mode == TeachMode.ZOnly || _placementHandler.CanMoveHorizontal
                 : _supplyHandler.CanMoveToTeachingPosition(point.Position, live: false));
     }
 

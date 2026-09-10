@@ -98,19 +98,19 @@ public sealed class RecipeTests
         ];
         var points = definitions.Select(p => new TeachingPoint(p)).ToArray();
         Assert.Equal(12, points.Length);
-        var staged = points.Where(p => p.Storage == TeachingStorage.Buffer).ToArray();
+        var staged = points.Where(p => p.Position.Storage == TeachingStorage.Buffer).ToArray();
         foreach (var point in staged)
             point.Teach(10, 20, 30);
         Assert.Equal(0, supply.BufferHandoffPosition.X);
         Assert.Equal(0, placement.BufferHandoffPosition.X);
         Assert.Equal(0, buffer.SupplyBoundary1);
 
-        var carrierY = points.Single(p => p.Target == TeachingTarget.SupplyCarrierY);
+        var carrierY = points.Single(p => p.Position.Target == TeachingTarget.SupplyCarrierY);
         carrierY.Teach(0, 45, 0);
         carrierY.Apply();
-        foreach (var point in points.Where(p => p.Storage != TeachingStorage.Buffer))
+        foreach (var point in points.Where(p => p.Position.Storage != TeachingStorage.Buffer))
             point.Refresh();
-        var picks = points.Where(p => p.Storage == TeachingStorage.Recipe).ToArray();
+        var picks = points.Where(p => p.Position.Storage == TeachingStorage.Recipe).ToArray();
         Assert.All(picks, p => Assert.Equal(45, p.Y));
         Assert.Equal(10, staged[0].X);
         Assert.Equal(0, supply.BufferHandoffPosition.X);
@@ -169,7 +169,7 @@ public sealed class RecipeTests
         Assert.Equal("—", image.PositionLabel);
         Assert.False(position.Position.HasPosition);
         Assert.False(position.Position.CanTeach);
-        Assert.Equal(TeachMode.XYOnly, position.TeachMode);
+        Assert.Equal(TeachMode.XYOnly, position.Position.Mode);
         image.Teach(110, 220, 0);
         image.Apply();
         image.Refresh();

@@ -78,7 +78,7 @@ public partial class StationTeachingViewModel
                         return;
                     token.ThrowIfCancellationRequested();
                     SelectedPoint = NextTeachingPoint() ?? FilteredPoints.FirstOrDefault(
-                        point => point.Target == TeachingTarget.BoltReference);
+                        point => point.Position.Target == TeachingTarget.BoltReference);
                 },
                 cancellationToken);
         }
@@ -110,7 +110,7 @@ public partial class StationTeachingViewModel
     {
         if (!CanEditRecipe())
             return;
-        if (SelectedPoint!.Target == TeachingTarget.BoltReference)
+        if (SelectedPoint!.Position.Target == TeachingTarget.BoltReference)
             SelectedPcb = FindPcb(new Rect(imagePoint, new Size()))!.Value;
         var point = SelectedPoint!;
         point.Teach(imagePoint.X, imagePoint.Y, 0);
@@ -127,9 +127,9 @@ public partial class StationTeachingViewModel
             && HasCarrierImages
             && !IsCameraLive
             && _carrierReference.IsDefined
-            && (SelectedPoint?.Target == TeachingTarget.BoltReference
+            && (SelectedPoint?.Position.Target == TeachingTarget.BoltReference
                 && FindPcb(new Rect(point, new Size())) is not null
-                || SelectedPoint?.Target == TeachingTarget.PcbRegion
+                || SelectedPoint?.Position.Target == TeachingTarget.PcbRegion
                 && SelectedPcb == HeatSinkSlot.HeatSink2
                 && RecipeEditor.Recipe.Pcb.GetRegion(HeatSinkSlot.HeatSink1) is not null);
     }
@@ -142,7 +142,7 @@ public partial class StationTeachingViewModel
         CameraError = null;
         var pin = _carrierReference.UpperLeftLocatingPin!;
         var layout = RecipeEditor.Recipe.Pcb;
-        if (SelectedPoint!.Target == TeachingTarget.PcbRegion)
+        if (SelectedPoint!.Position.Target == TeachingTarget.PcbRegion)
         {
             layout.Width = bounds.Width;
             layout.Height = bounds.Height;
@@ -178,7 +178,7 @@ public partial class StationTeachingViewModel
             && HasCarrierImages
             && !IsCameraLive
             && _carrierReference.IsDefined
-            && (SelectedPoint?.Target == TeachingTarget.PcbRegion
+            && (SelectedPoint?.Position.Target == TeachingTarget.PcbRegion
                 && SelectedPcb == HeatSinkSlot.HeatSink1
                 || SelectedBarcode is not null
                 && (bounds.IsEmpty
@@ -220,7 +220,7 @@ public partial class StationTeachingViewModel
             && CanMoveToPoint()
             && (SelectedBarcode is { } pcb
                 ? _boltInspector.HasBarcodeRegion(pcb)
-                : SelectedPoint?.Target == TeachingTarget.BoltReference);
+                : SelectedPoint?.Position.Target == TeachingTarget.BoltReference);
     }
 
     [RelayCommand(CanExecute = nameof(CanReinspectImage))]

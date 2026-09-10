@@ -3,7 +3,6 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.BoltFastening;
@@ -20,6 +19,26 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class BoltFasteningTests
 {
+    [Fact]
+    public async Task AdcDisconnectedRequestsFailClearlyAndCancelledReadinessDoesNotOpenTheBus()
+    {
+        var settings = new HantasSettings();
+        Assert.Equal((byte)0, settings.PickupSlaveAddress);
+        Assert.Equal((byte)1, settings.ShootingSlaveAddress);
+        using var bus = new AdcBus(settings);
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => bus.ReadDeviceInformationAsync(0));
+        Assert.Contains("ADC is not connected", error.Message);
+
+        var virtualBus = new VirtualAdcBus();
+        var head = new AdcBoltHead(virtualBus, settings, 0);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => head.CheckReadyAsync(cancellation.Token));
+        Assert.False(virtualBus.IsOpen);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -72,16 +91,12 @@ public sealed class BoltFasteningTests
         }
 
         Assert.Equal(
-            new[] { (
-                (byte)2,
-                (ushort)AdcRemoteRegister.Direction,
-                (ushort)AdcDirection.Loosening), (
-                    (byte)2,
-                    (ushort)AdcRemoteRegister.RemoteStart,
-                    (ushort)1), (
-                        (byte)2,
-                        (ushort)AdcRemoteRegister.RemoteStart,
-                        (ushort)0), },
+            new (byte Slave, ushort Address, ushort Value)[]
+            {
+                (2, (ushort)AdcRemoteRegister.Direction, (ushort)AdcDirection.Loosening),
+                (2, (ushort)AdcRemoteRegister.RemoteStart, 1),
+                (2, (ushort)AdcRemoteRegister.RemoteStart, 0),
+            },
             writes);
         Assert.Equal(1, stops);
         Assert.False((await bus.ReadControllerStatusAsync(2)).Running);
@@ -92,38 +107,50 @@ public sealed class BoltFasteningTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task SerialCancellationAbortsAndDrainsTheNativeOperation(bool timeout)
+    public async Task SerialCancellationDrainsTheNativeOperationEvenWhenAbortFails(bool abortFails)
     {
         using var cancellation = new CancellationTokenSource();
         var nativeIo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var abortCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        Action abort = () => abortCalled.SetResult();
-        var wait = (Task)typeof(AdcBus).GetMethod(
-            "AwaitSerialIoAsync",
-            BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(
-                null,
-                [nativeIo.Task, abort, cancellation.Token])!;
-        if (timeout)
-            cancellation.CancelAfter(20);
-        else
-            cancellation.Cancel();
+        var abortFailure = new IOException("Native serial abort failed.");
+        Action abort = () =>
+        {
+            abortCalled.SetResult();
+            if (abortFails)
+                throw abortFailure;
+        };
+        var wait = AdcBus.AwaitSerialIoAsync(nativeIo.Task, abort, cancellation.Token);
+        cancellation.Cancel();
         await abortCalled.Task.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(wait.IsCompleted); // A following bus request must not overlap the aborted native IO.
         nativeIo.SetException(new IOException("Native serial IO aborted."));
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wait);
+        if (abortFails)
+            Assert.Same(abortFailure, await Assert.ThrowsAsync<IOException>(() => wait));
+        else
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wait);
     }
 
     [Theory]
     [InlineData("valid")]
     [InlineData("crc")]
     [InlineData("address")]
+    [InlineData("write-response")]
     [InlineData("controller-error")]
     public async Task AdcRawReceiveLogsBytesBeforeResponseValidation(string responseKind)
     {
-        var frame = AdcRtuFrame.Build(
-            (byte)(responseKind == "address" ? 1 : 0),
-            (AdcFunctionCode)(responseKind == "controller-error" ? 0x84 : 0x04),
-            responseKind == "controller-error" ? [0x02] : [0x02, 0x12, 0x34]);
+        var function = responseKind switch
+        {
+            "controller-error" => (AdcFunctionCode)0x84,
+            "write-response" => AdcFunctionCode.WriteSingleRegister,
+            _ => AdcFunctionCode.ReadInputRegisters,
+        };
+        byte[] data = responseKind switch
+        {
+            "controller-error" => [0x02],
+            "write-response" => [0x0F, 0xA3, 0x00, 0x00],
+            _ => [0x02, 0x12, 0x34],
+        };
+        var frame = AdcRtuFrame.Build((byte)(responseKind == "address" ? 1 : 0), function, data);
         if (responseKind == "crc")
             frame[^1] ^= 0xFF;
         using var stream = new AdcResponseStream(frame);
@@ -137,7 +164,8 @@ public sealed class BoltFasteningTests
                 "IllegalAddress",
                 (await Assert.ThrowsAsync<IOException>(() => reading)).Message);
         else
-            await Assert.ThrowsAsync<InvalidDataException>(() => reading);
+            await Assert.ThrowsAsync<InvalidDataException>(
+                () => reading.WaitAsync(TimeSpan.FromSeconds(2)));
 
         Assert.Equal(frame, chunks.SelectMany(chunk => chunk).ToArray());
         Assert.All(chunks, chunk => Assert.Single(chunk));
@@ -169,18 +197,13 @@ public sealed class BoltFasteningTests
         Action<byte[]> received,
         CancellationToken cancellationToken)
     {
-        return (Task<byte[]>)typeof(AdcBus).GetMethod(
-            "ReadResponseAsync",
-            BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(
-                null,
-                [
+        return AdcBus.ReadResponseAsync(
             stream,
-            (Action)stream.Abort,
+            stream.Abort,
             received,
-            (byte)0,
+            0,
             AdcFunctionCode.ReadInputRegisters,
-            cancellationToken
-        ])!;
+            cancellationToken);
     }
 
     private sealed class AdcResponseStream(byte[] bytes) : MemoryStream(bytes)
@@ -335,6 +358,7 @@ public sealed class BoltFasteningTests
 
         await Assert.ThrowsAsync<IOException>(() => head.TightenAsync());
         Assert.Equal(1, stops);
+        Assert.Equal(BoltHeadState.Ready, head.State);
         Assert.Equal(0, (await bus.ReadFasteningResultAsync(1)).EventCount);
         Assert.True((await head.TightenAsync()).Success);
         Assert.Equal(2, stops);

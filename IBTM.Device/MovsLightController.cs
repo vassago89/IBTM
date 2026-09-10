@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO.Ports;
 using System.Threading;
 
@@ -57,17 +58,19 @@ public sealed class MovsLightController(LightingSettings settings) : ILightContr
 
     public void SetLevel(int channel, int level)
     {
-        Write($":L{channel}{level:000}\r\n");
+        ArgumentOutOfRangeException.ThrowIfNegative(level);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(level, 255);
+        Write(channel, string.Create(CultureInfo.InvariantCulture, $":L{channel}{level:000}\r\n"));
     }
 
     public void TurnOn(int channel)
     {
-        Write($":O{channel}\r\n");
+        Write(channel, $":O{channel}\r\n");
     }
 
     public void TurnOff(int channel)
     {
-        Write($":F{channel}\r\n");
+        Write(channel, $":F{channel}\r\n");
     }
 
     public void TurnOffAll()
@@ -95,8 +98,11 @@ public sealed class MovsLightController(LightingSettings settings) : ILightContr
         }
     }
 
-    private void Write(string command)
+    private void Write(int channel, string command)
     {
+        // The protocol uses one channel digit; zero addresses all channels.
+        ArgumentOutOfRangeException.ThrowIfNegative(channel);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(channel, 9);
         lock (_writeLock)
         {
             if (_port?.IsOpen != true)

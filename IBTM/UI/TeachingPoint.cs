@@ -15,59 +15,11 @@ public partial class TeachingPoint : ObservableObject
 
     public TeachingPosition Position { get; }
 
-    public TeachingTarget Target
-    {
-        get
-        {
-            return Position.Target;
-        }
-    }
-
-    public MotionGroup MotionGroup
-    {
-        get
-        {
-            return Position.MotionGroup;
-        }
-    }
-
-    public TeachMode TeachMode
-    {
-        get
-        {
-            return Position.Mode;
-        }
-    }
-
-    public TeachingStorage Storage
-    {
-        get
-        {
-            return Position.Storage;
-        }
-    }
-
     public int BoltNumber
     {
         get
         {
             return Position.Bolt?.Number ?? 0;
-        }
-    }
-
-    public HeatSinkSlot? HeatSink
-    {
-        get
-        {
-            return Position.Bolt?.HeatSink;
-        }
-    }
-
-    public FasteningHead? Head
-    {
-        get
-        {
-            return Position.Bolt?.Head;
         }
     }
 
@@ -82,7 +34,7 @@ public partial class TeachingPoint : ObservableObject
     {
         get
         {
-            return Position.Bolt is { } bolt ? $"B{bolt.Number}" : Target.GetDescription();
+            return Position.Bolt is { } bolt ? $"B{bolt.Number}" : Position.Target.GetDescription();
         }
     }
 
@@ -91,7 +43,7 @@ public partial class TeachingPoint : ObservableObject
         get
         {
             var origin = Position.HasPosition ? Position.CoordinateOrigin?.Invoke() : null;
-            return TeachMode switch
+            return Position.Mode switch
             {
                 TeachMode.Image
                     => Position.HasPosition
@@ -109,7 +61,7 @@ public partial class TeachingPoint : ObservableObject
 
     public void Teach(double x, double y, double z)
     {
-        if (TeachMode is TeachMode.Image
+        if (Position.Mode is TeachMode.Image
             or TeachMode.XYOnly
             or TeachMode.Full
             or TeachMode.XZOnly
@@ -118,12 +70,12 @@ public partial class TeachingPoint : ObservableObject
             X = x;
         }
 
-        if (TeachMode is TeachMode.Image or TeachMode.XYOnly or TeachMode.Full or TeachMode.YOnly)
+        if (Position.Mode is TeachMode.Image or TeachMode.XYOnly or TeachMode.Full or TeachMode.YOnly)
         {
             Y = y;
         }
 
-        if (TeachMode is TeachMode.Full or TeachMode.XZOnly or TeachMode.ZOnly)
+        if (Position.Mode is TeachMode.Full or TeachMode.XZOnly or TeachMode.ZOnly)
         {
             Z = z;
         }
@@ -135,7 +87,7 @@ public partial class TeachingPoint : ObservableObject
         {
             X = X,
             Y = Y,
-            Z = TeachMode == TeachMode.Image ? 0 : Z!.Value,
+            Z = Position.Mode == TeachMode.Image ? 0 : Z!.Value,
         };
     }
 

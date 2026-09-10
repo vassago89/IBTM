@@ -31,7 +31,7 @@
                       ToolTip="Turn off to change sensors manually. Outputs and motion still run."
                       HorizontalAlignment="Right"
                       VerticalAlignment="Center"
-                      IsChecked="{Binding AutoResponseEnabled, Mode=TwoWay}"
+                      IsChecked="{Binding VirtualIo.AutoResponseEnabled, Mode=TwoWay}"
                       Visibility="{Binding IsVirtual, Converter={StaticResource BoolToVis}}"/>
         </Grid>
 
@@ -47,7 +47,7 @@
                             <Setter Property="Text"
                                     Value="Virtual mode · blue = energized · toggle inputs to simulate the machine"/>
                         </DataTrigger>
-                        <DataTrigger Binding="{Binding InputsAvailable}" Value="False">
+                        <DataTrigger Binding="{Binding Signals.InputsAvailable}" Value="False">
                             <Setter Property="Text" Value="I/O disconnected · UNKNOWN (—). Input states are unavailable, not OFF."/>
                             <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
                         </DataTrigger>
@@ -94,7 +94,7 @@
         <ListBox Grid.Row="4"
                  ItemsSource="{Binding Filter.FilteredRows}"
                  Style="{StaticResource IoListStyle}"
-                 ItemContainerStyle="{StaticResource IoInputListItemStyle}">
+                 ItemContainerStyle="{StaticResource IoListItemStyle}">
             <ListBox.GroupStyle>
                 <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
                             HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
@@ -103,43 +103,46 @@
             </ListBox.GroupStyle>
             <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type ui:InputControlRow}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="64"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="110"/>
-                            <ColumnDefinition Width="90"/>
-                        </Grid.ColumnDefinitions>
+                    <Border x:Name="Row" Padding="11,7"
+                            BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="64"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="110"/>
+                                <ColumnDefinition Width="90"/>
+                            </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="{Binding Io.Address}" Style="{StaticResource IoAddressStyle}"/>
-                        <StackPanel Grid.Column="1" Margin="0,0,12,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Io.Signal,
-                                                 Converter={StaticResource EnumDescriptionConverter}}"
-                                       Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
-                            <TextBlock Text="ON = MANUAL / OFF = AUTO" FontSize="11"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       TextWrapping="Wrap" Margin="0,2,0,0">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Io.Signal}" Value="{x:Static device:InputIo.AutoMode}">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </StackPanel>
-                        <TextBlock Grid.Column="2"
-                                        Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
-                                        Style="{StaticResource IoInputStateStyle}"/>
-                        <Button Grid.Column="3"
-                                Content="Toggle"
-                                Style="{StaticResource IoToggleButtonStyle}"
-                                Visibility="{Binding IsVirtual, Converter={StaticResource BoolToVis}}"
-                                Command="{Binding ToggleCommand}"/>
-                    </Grid>
+                            <TextBlock Text="{Binding Io.Address}" Style="{StaticResource IoAddressStyle}"/>
+                            <StackPanel Grid.Column="1" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                                           Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="SelectorHint" Text="ON = MANUAL / OFF = AUTO" FontSize="11"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           TextWrapping="Wrap" Margin="0,2,0,0" Visibility="Collapsed"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
+                                       Style="{StaticResource IoInputStateStyle}"/>
+                            <Button Grid.Column="3"
+                                    Content="Toggle"
+                                    Style="{StaticResource IoToggleButtonStyle}"
+                                    Visibility="{Binding IsVirtual, Converter={StaticResource BoolToVis}}"
+                                    Command="{Binding ToggleCommand}"/>
+                        </Grid>
+                    </Border>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Io.IsOn}" Value="True">
+                            <Setter TargetName="Row" Property="Background" Value="#173B50"/>
+                            <Setter TargetName="Row" Property="BorderBrush" Value="{StaticResource IoInputOnBrush}"/>
+                            <Setter TargetName="Row" Property="BorderThickness" Value="3,0,0,1"/>
+                            <Setter TargetName="Row" Property="Padding" Value="8,7,11,7"/>
+                            <Setter TargetName="Row" Property="TextElement.FontWeight" Value="SemiBold"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Io.Signal}" Value="{x:Static device:InputIo.AutoMode}">
+                            <Setter TargetName="SelectorHint" Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>

@@ -4,7 +4,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -49,7 +48,7 @@ public sealed partial class MachineLifecycleTests
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
         teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
-            point => point.Target == TeachingTarget.DataMatrix);
+            point => point.Position.Target == TeachingTarget.DataMatrix);
         await WaitUntilAsync(() => teaching.CaptureInspectionCommand.CanExecute(null));
         await teaching.CaptureInspectionCommand.ExecuteAsync(null);
         Assert.Null(teaching.CameraError);
@@ -153,7 +152,7 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         teaching.RecipeEditor.Name = $"SelectionAfterSave-{Guid.NewGuid():N}";
         var next = teaching.FilteredPoints.Single(
-            point => point.Target == TeachingTarget.CarrierLowerRightLocatingPin);
+            point => point.Position.Target == TeachingTarget.CarrierLowerRightLocatingPin);
         teaching.RecipeEditor.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(RecipeEditor.ActiveName))
@@ -638,7 +637,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.AirPressureLow, state.Alarm);
         Assert.False(state.IsRunning);
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
-        var entry = Assert.Single(log.ReadAfter(0), entry => entry.Detail == failure.ToString());
+        var entry = Assert.Single(log.Snapshot(), entry => entry.Detail == failure.ToString());
         Assert.Contains("Automatic unit MainConveyor", entry.Message);
         Assert.Contains("AirPressureLow", entry.Message);
     }

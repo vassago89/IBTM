@@ -165,7 +165,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         get
         {
-            return SelectedPoint?.Target == TeachingTarget.DataMatrix ? SelectedPcb : null;
+            return SelectedPoint?.Position.Target == TeachingTarget.DataMatrix ? SelectedPcb : null;
         }
     }
 
@@ -199,7 +199,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                                                 item.Region.Y + pin.Y,
                                                 item.Region.Width,
                                                 item.Region.Height),
-                                            pcb == SelectedPcb && SelectedPoint?.Target == item.Target,
+                                            pcb == SelectedPcb && SelectedPoint?.Position.Target == item.Target,
                                             item.Label));
                         })
                     .ToArray();
@@ -264,10 +264,10 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         get
         {
-            return SelectedPoint switch
+            return SelectedPoint?.Position switch
             {
                 { Target: TeachingTarget.BoltPickup } => TeachingSaveBehavior.BoltPickup,
-                { Position.CanTeach: false } => TeachingSaveBehavior.BoltPosition,
+                { CanTeach: false } => TeachingSaveBehavior.BoltPosition,
                 { Target: TeachingTarget.PcbRegion }
                     => SelectedPcb == HeatSinkSlot.HeatSink1
                         ? TeachingSaveBehavior.PcbRegion
@@ -278,7 +278,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                         or TeachingTarget.CarrierLowerRightLocatingPin
                 }
                     => TeachingSaveBehavior.CameraCenter,
-                { TeachMode: TeachMode.Image } => TeachingSaveBehavior.Image,
+                { Mode: TeachMode.Image } => TeachingSaveBehavior.Image,
                 { Storage: TeachingStorage.Machine } => TeachingSaveBehavior.Machine,
                 _ => TeachingSaveBehavior.Recipe,
             };
@@ -327,7 +327,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             }
 
             var origin = _carrierReference.UpperLeftLocatingPin!;
-            var pcb = SelectedPoint?.Target is TeachingTarget.BoltReference or TeachingTarget.DataMatrix
+            var pcb = SelectedPoint?.Position.Target is TeachingTarget.BoltReference or TeachingTarget.DataMatrix
                 ? RecipeEditor.Recipe.Pcb.Origins.GetValueOrDefault(SelectedPcb)
                 : null;
             return new Point(origin.X + (pcb?.X ?? 0), origin.Y + (pcb?.Y ?? 0));
@@ -391,10 +391,10 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     protected override void OnPointTaught(TeachingPoint point)
     {
-        if (point.Target == TeachingTarget.CarrierUpperLeftLocatingPin)
+        if (point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin)
         {
             SelectedPoint = FilteredPoints.First(
-                candidate => candidate.Target == TeachingTarget.CarrierLowerRightLocatingPin);
+                candidate => candidate.Position.Target == TeachingTarget.CarrierLowerRightLocatingPin);
         }
     }
 
@@ -412,7 +412,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         RecipeEditor.Recipe.Pcb.BoltPoints.Add(bolt);
         RefreshTeachingPoints();
         SelectedPoint = FilteredPoints.First(
-            point => point.BoltNumber == number && point.Target == TeachingTarget.BoltReference);
+            point => point.BoltNumber == number && point.Position.Target == TeachingTarget.BoltReference);
     }
 
     private bool CanAddBoltPoint()
@@ -434,7 +434,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         return CanEditInspectionRecipe
             && IsInspectionSelected
-            && SelectedPoint?.Target == TeachingTarget.BoltReference;
+            && SelectedPoint?.Position.Target == TeachingTarget.BoltReference;
     }
 
     public void Activate()
@@ -496,7 +496,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     private void RefreshTeachingPoints()
     {
-        var selectedTarget = SelectedPoint?.Target;
+        var selectedTarget = SelectedPoint?.Position.Target;
         var selectedBolt = SelectedPoint?.BoltNumber;
         TeachingPosition[] positions = SelectedMotionGroup switch
         {
@@ -526,7 +526,9 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         };
         FilteredPoints = positions.Select(position => new TeachingPoint(position)).ToArray();
         SelectedPoint = FilteredPoints.FirstOrDefault(
-            point => point.Target == selectedTarget && point.BoltNumber == selectedBolt) ?? NextTeachingPoint() ?? FilteredPoints.FirstOrDefault();
+            point => point.Position.Target == selectedTarget && point.BoltNumber == selectedBolt)
+            ?? NextTeachingPoint()
+            ?? FilteredPoints.FirstOrDefault();
     }
 
     private TeachingPoint? NextTeachingPoint()
@@ -539,22 +541,22 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         if (_carrierReference.UpperLeftLocatingPin is null)
         {
             return FilteredPoints.FirstOrDefault(
-                point => point.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
+                point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
         }
 
         if (_carrierReference.LowerRightLocatingPin is null)
         {
             return FilteredPoints.FirstOrDefault(
-                point => point.Target == TeachingTarget.CarrierLowerRightLocatingPin);
+                point => point.Position.Target == TeachingTarget.CarrierLowerRightLocatingPin);
         }
 
         if (RecipeEditor.Recipe.Pcb.GetRegion(SelectedPcb) is null)
-            return FilteredPoints.FirstOrDefault(point => point.Target == TeachingTarget.PcbRegion);
+            return FilteredPoints.FirstOrDefault(point => point.Position.Target == TeachingTarget.PcbRegion);
 
         return RecipeEditor.Recipe.CarrierImages.Count == 0
             ? null
             : FilteredPoints.FirstOrDefault(
-                point => point.Target == TeachingTarget.BoltReference && !point.Position.HasPosition);
+                point => point.Position.Target == TeachingTarget.BoltReference && !point.Position.HasPosition);
     }
 
     partial void OnSelectedPointChanged(TeachingPoint? value)
@@ -658,8 +660,8 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
         ImageMarkers = FilteredPoints.Where(
             point =>
-                point.Target != TeachingTarget.BoltReference
-                    && point.Target != TeachingTarget.PcbRegion)
+                point.Position.Target != TeachingTarget.BoltReference
+                    && point.Position.Target != TeachingTarget.PcbRegion)
             .Concat(
                 _inspectionGantrySettings.GetBoltTeachingPositions(
                     RecipeEditor.Recipe.Pcb.GetBolts(),
@@ -667,8 +669,8 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                     .Select(position => new TeachingPoint(position)))
             .Where(
                 point =>
-                    point.TeachMode == TeachMode.Image
-                        || point.Target is TeachingTarget.CarrierUpperLeftLocatingPin
+                    point.Position.Mode == TeachMode.Image
+                        || point.Position.Target is TeachingTarget.CarrierUpperLeftLocatingPin
                             or TeachingTarget.CarrierLowerRightLocatingPin)
             .Where(point => point.Position.HasPosition)
             .Select(
@@ -676,11 +678,14 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                     new ImageMarker(
                         point.X,
                         point.Y,
-                        point.Target == TeachingTarget.BoltReference
-                            ? $"{point.HeatSink!.Value.GetDescription()} {point.Name}"
-                            : point.Target == TeachingTarget.CarrierUpperLeftLocatingPin
-                                ? "UL"
-                                : point.Target == TeachingTarget.CarrierLowerRightLocatingPin ? "LR" : point.Name,
+                        point.Position.Target switch
+                        {
+                            TeachingTarget.BoltReference
+                                => $"{point.Position.Bolt!.HeatSink.GetDescription()} {point.Name}",
+                            TeachingTarget.CarrierUpperLeftLocatingPin => "UL",
+                            TeachingTarget.CarrierLowerRightLocatingPin => "LR",
+                            _ => point.Name,
+                        },
                         point.Position.Bolt is { } bolt
                             ? bolt == SelectedPoint?.Position.Bolt
                             : point == SelectedPoint))

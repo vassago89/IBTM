@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
 using IBTM.AlphaMotion;
 using IBTM.Core;
@@ -388,7 +387,17 @@ public sealed class AlarmRecoveryTests
             Assert.False(machine.CanHome);
 
             view.Settings.AlphaMotion.ControllerNumber = 3;
+            var motion = view.Settings.InspectionGantry.Motion;
+            var speed = motion.HorizontalSpeed;
+            motion.HorizontalSpeed = double.NaN;
             await view.SaveSettingsCommand.ExecuteAsync(null);
+            Assert.StartsWith("Settings not saved:", view.DatabaseMessage);
+            Assert.False(services.GetRequiredService<MachineStore>().HasData);
+            Assert.True(view.CanEditSettings);
+
+            motion.HorizontalSpeed = speed;
+            await view.SaveSettingsCommand.ExecuteAsync(null);
+            Assert.StartsWith("Settings saved.", view.DatabaseMessage);
             Assert.Equal(
                 3,
                 services.GetRequiredService<MachineStore>()
@@ -535,9 +544,7 @@ public sealed class AlarmRecoveryTests
 
     private static void SetAlarm(MachineState state, MachineAlarm alarm)
     {
-        typeof(MachineState).GetMethod("SetError", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(
-            state,
-            [alarm, new IOException("Simulated commissioning alarm.")]);
+        state.SetError(alarm, new IOException("Simulated commissioning alarm."));
     }
 
     private static ServiceProvider CreateServices()

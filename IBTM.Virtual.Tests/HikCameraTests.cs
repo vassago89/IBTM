@@ -77,11 +77,61 @@ public sealed class HikCameraTests
         Assert.Equal(["Start", "Read", "Free", "Stop"], sdk.Calls.ToArray());
     }
 
+    [Fact]
+    public void LiveFailureStopsAcquisitionBeforeReportingAndAllowsRestart()
+    {
+        var sdk = new CameraSdk { ConversionFails = true };
+        using var camera = sdk.CreateCamera();
+        using var failed = new ManualResetEventSlim();
+        using var received = new ManualResetEventSlim();
+        camera.LiveViewFailed += _ =>
+        {
+            camera.StopLiveView();
+            failed.Set();
+        };
+        camera.FrameReady += _ => received.Set();
+
+        camera.StartLiveView(500, 0);
+        Assert.True(failed.Wait(TimeSpan.FromSeconds(2)));
+        Assert.Equal(["Start", "Read", "Free", "Stop"], sdk.Calls.ToArray());
+
+        sdk.ConversionFails = false;
+        camera.StartLiveView(500, 0);
+        Assert.True(received.Wait(TimeSpan.FromSeconds(2)));
+        camera.StopLiveView();
+        Assert.Equal(1, camera.Capture(500, 0).Width);
+    }
+
+    [Fact]
+    public void FailedStopIsRetriedBeforeStartingAnotherCapture()
+    {
+        var sdk = new CameraSdk { StopFailures = 1 };
+        using var camera = sdk.CreateCamera();
+        Assert.Throws<InvalidOperationException>(() => camera.Capture(500, 0));
+        Assert.Equal(1, camera.Capture(500, 0).Width);
+        Assert.Equal(
+            ["Start", "Read", "Free", "Stop", "Stop", "Start", "Read", "Free", "Stop"],
+            sdk.Calls.ToArray());
+    }
+
+    [Fact]
+    public void DisposeReleasesDeviceEvenWhenCloseFails()
+    {
+        var sdk = new CameraSdk { CloseFails = true };
+        var camera = sdk.CreateCamera();
+        Assert.Throws<InvalidOperationException>(camera.Dispose);
+        Assert.True(sdk.Disposed);
+        camera.Dispose();
+    }
+
     private sealed class CameraSdk
     {
         public readonly ConcurrentQueue<string> Calls = new();
         public bool NoData;
         public bool ConversionFails;
+        public int StopFailures;
+        public bool CloseFails;
+        public bool Disposed;
         private bool _grabbing;
         private bool _bufferHeld;
 
@@ -146,8 +196,13 @@ public sealed class HikCameraTests
                         case "StopGrabbing":
                             Assert.True(_grabbing);
                             Assert.False(_bufferHeld);
-                            _grabbing = false;
                             Calls.Enqueue("Stop");
+                            if (StopFailures > 0)
+                            {
+                                StopFailures--;
+                                return MvError.MV_E_CALLORDER;
+                            }
+                            _grabbing = false;
                             break;
                         default:
                             throw new NotSupportedException(method.Name);
@@ -156,15 +211,23 @@ public sealed class HikCameraTests
                     return MvError.MV_OK;
                 });
             var device = Stub<IDevice>(
-                (method, _) => method.Name switch
-            {
-                "get_Parameters" => parameters,
-                "get_PixelTypeConverter" => converter,
-                "get_IsConnected" => true,
-                "Close" => MvError.MV_OK,
-                "Dispose" => null,
-                _ => throw new NotSupportedException(method.Name)
-            });
+                (method, _) =>
+                {
+                    if (method.Name == "Dispose")
+                    {
+                        Disposed = true;
+                        return null;
+                    }
+
+                    return method.Name switch
+                    {
+                        "get_Parameters" => parameters,
+                        "get_PixelTypeConverter" => converter,
+                        "get_IsConnected" => true,
+                        "Close" => CloseFails ? MvError.MV_E_CALLORDER : MvError.MV_OK,
+                        _ => throw new NotSupportedException(method.Name)
+                    };
+                });
             var camera = new HikCamera(new InspectionCameraSettings());
             // Inject SDK interfaces without opening physical hardware or initializing the native SDK.
             typeof(HikCamera).GetField("_device", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(

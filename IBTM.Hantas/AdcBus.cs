@@ -61,7 +61,15 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
             ReadTimeout = settings.ResponseTimeoutMilliseconds,
             WriteTimeout = settings.ResponseTimeoutMilliseconds,
         };
-        _port.Open();
+        try
+        {
+            _port.Open();
+        }
+        catch
+        {
+            Close();
+            throw;
+        }
     }
 
     public void Close()
@@ -178,7 +186,9 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         await _exchange.WaitAsync(cancellationToken);
         try
         {
-            var port = _port!;
+            var port = _port;
+            if (port?.IsOpen != true)
+                throw new InvalidOperationException("Hantas ADC is not connected. Open the configured COM port first.");
             port.DiscardInBuffer();
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(settings.ResponseTimeoutMilliseconds);
@@ -202,7 +212,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 throw new TimeoutException(
-                    $"ADC response timed out after " + $"{settings.ResponseTimeoutMilliseconds} ms.");
+                    $"ADC {slaveAddress} response timed out after {settings.ResponseTimeoutMilliseconds} ms.");
             }
 
             return response;
@@ -213,7 +223,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         }
     }
 
-    private static async Task<byte[]> ReadResponseAsync(
+    internal static async Task<byte[]> ReadResponseAsync(
         Stream stream,
         Action abortRead,
         Action<byte[]> received,
@@ -254,7 +264,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         }
 
         byte[] response;
-        if (function == AdcFunctionCode.WriteSingleRegister)
+        if (header[1] == (byte)AdcFunctionCode.WriteSingleRegister)
         {
             var tail = new byte[6];
             await ReadAsync(tail);
@@ -274,7 +284,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         return response;
     }
 
-    private static async Task AwaitSerialIoAsync(
+    internal static async Task AwaitSerialIoAsync(
         Task operation,
         Action abort,
         CancellationToken cancellationToken)
@@ -287,8 +297,14 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         {
             // Windows SerialStream ignores cancellation once native IO has started.
             // Purge aborts that IO; drain it before releasing the shared bus to Stop/the next request.
-            abort();
-            await operation.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            try
+            {
+                abort();
+            }
+            finally
+            {
+                await operation.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            }
             throw;
         }
     }
@@ -297,7 +313,9 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
     {
         if (frame[0] != slaveAddress || frame[1] != function)
         {
-            throw new InvalidDataException("ADC response address or function is invalid.");
+            throw new InvalidDataException(
+                $"ADC response address={frame[0]}, function=0x{frame[1]:X2}; " +
+                $"expected address={slaveAddress}, function=0x{function:X2}.");
         }
 
         var expected = BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(^2));

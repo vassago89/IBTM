@@ -329,15 +329,15 @@
                                         <StackPanel.Style>
                                             <Style TargetType="StackPanel">
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HeatSink}" Value="{x:Null}">
+                                                    <DataTrigger Binding="{Binding Position.Bolt}" Value="{x:Null}">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </StackPanel.Style>
-                                        <TextBlock Text="{Binding HeatSink, Converter={StaticResource EnumDescriptionConverter}}"
+                                        <TextBlock Text="{Binding Position.Bolt.HeatSink, Converter={StaticResource EnumDescriptionConverter}}"
                                                    Foreground="{StaticResource TextMutedBrush}"/>
-                                        <TextBlock Text="{Binding Head, Converter={StaticResource EnumDescriptionConverter}}"
+                                        <TextBlock Text="{Binding Position.Bolt.Head, Converter={StaticResource EnumDescriptionConverter}}"
                                                    Margin="12,0,0,0"
                                                    Foreground="{StaticResource TextMutedBrush}"/>
                                     </StackPanel>

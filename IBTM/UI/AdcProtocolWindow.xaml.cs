@@ -290,7 +290,12 @@ public partial class AdcProtocolWindow : Window
             {
                 var result = await _bus.ReadFasteningResultAsync(SlaveAddress, cancellationToken);
                 var current = await _bus.ReadControllerStatusAsync(SlaveAddress, cancellationToken);
-                ResultMessage = $"Current: Ready {current.Ready}  Run {current.Running}  Alarm {current.Alarm}  Preset {current.Preset}\n" + $"Direction: {current.Direction.GetDescription()}\n" + $"Last result: {result.Status.GetDescription()}  Event {result.EventCount}\n" + $"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n" + $"Time {result.FasteningTimeMilliseconds} ms  Error {result.Error}";
+                ResultMessage =
+                    $"Current: Ready {current.Ready}  Run {current.Running}  Alarm {current.Alarm}  Preset {current.Preset}\n"
+                    + $"Direction: {current.Direction.GetDescription()}\n"
+                    + $"Last result: {result.Status.GetDescription()}  Event {result.EventCount}\n"
+                    + $"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n"
+                    + $"Time {result.FasteningTimeMilliseconds} ms  Error {result.Error}";
             });
     }
 

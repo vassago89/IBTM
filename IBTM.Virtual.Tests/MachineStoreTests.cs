@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
@@ -300,16 +299,11 @@ public sealed class MachineStoreTests
             Path.Combine(directory, "Recipes", "Part", "Recipe.json"),
             "{\"Name\":\"Part\",\"BoltInspection\":{\"MinimumMaskRatio\":0.03},\"CarrierImages\":[{\"Number\":1,\"Center\":{\"X\":12,\"Y\":34}}]}");
         var store = VirtualTest.OpenMachineStore(Path.Combine(directory, "Machine.db"));
-        var import = typeof(Recipe).Assembly.GetType("IBTM.LegacyMachineImport")!.GetMethod(
-            "Run",
-            BindingFlags.NonPublic | BindingFlags.Static)!;
-        Assert.IsType<FileNotFoundException>(
-            Assert.Throws<TargetInvocationException>(() => import.Invoke(null, [store, directory]))
-                .InnerException);
+        Assert.Throws<FileNotFoundException>(() => LegacyMachineImport.Run(store, directory));
         Assert.False(store.HasData);
         var imagePath = Path.Combine(carrierPath, "0001.png");
         File.WriteAllBytes(imagePath, [10, 20, 30]);
-        import.Invoke(null, [store, directory]);
+        LegacyMachineImport.Run(store, directory);
         var settings = await MachineSettings.LoadAsync(store);
         var recipe = store.LoadRecipe<Recipe>("Part");
         Assert.Equal(17, settings.PcbSupply.RotationZ);
@@ -325,7 +319,7 @@ public sealed class MachineStoreTests
         Assert.Equal(12, recipe.CarrierImages.Single().Center.X);
         Assert.Equal(File.ReadAllBytes(imagePath), store.LoadRecipeImage("Part", 1));
         File.WriteAllText(Path.Combine(settingsPath, "PcbSupplySettings.json"), "{\"RotationZ\":99}");
-        import.Invoke(null, [store, directory]);
+        LegacyMachineImport.Run(store, directory);
         Assert.Equal(17, (await MachineSettings.LoadAsync(store)).PcbSupply.RotationZ);
         Assert.True(File.Exists(imagePath));
     }

@@ -221,24 +221,18 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
 
     internal Task LowerToAsync(AxisPosition position, CancellationToken cancellationToken = default)
     {
-        return _motion.MoveZAsync(position.Z, _settings.Motion.ZSpeed, cancellationToken);
+        return MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
     }
 
-    public Task MoveXAsync(double x, CancellationToken cancellationToken = default)
+    public Task MoveAxisAsync(
+        MotionAxis axis,
+        double position,
+        CancellationToken cancellationToken = default)
     {
-        EnsureCanMoveHorizontal(cancellationToken);
-        return _motion.MoveXAsync(x, _settings.Motion.HorizontalSpeed, cancellationToken);
-    }
-
-    public Task MoveYAsync(double y, CancellationToken cancellationToken = default)
-    {
-        EnsureCanMoveHorizontal(cancellationToken);
-        return _motion.MoveYAsync(y, _settings.Motion.HorizontalSpeed, cancellationToken);
-    }
-
-    public Task MoveZAsync(double z, CancellationToken cancellationToken = default)
-    {
-        return _motion.MoveZAsync(z, _settings.Motion.ZSpeed, cancellationToken);
+        if (axis is MotionAxis.X or MotionAxis.Y)
+            EnsureCanMoveHorizontal(cancellationToken);
+        var speed = axis == MotionAxis.Z ? _settings.Motion.ZSpeed : _settings.Motion.HorizontalSpeed;
+        return _motion.MoveAxisAsync(axis, position, speed, cancellationToken);
     }
 
     public Task MoveToXYAsync(double x, double y, CancellationToken cancellationToken = default)
@@ -260,7 +254,7 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
     {
         return point.Mode switch
         {
-            TeachMode.ZOnly => MoveZAsync(position.Z, cancellationToken),
+            TeachMode.ZOnly => MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken),
             TeachMode.XYOnly => MoveToXYAsync(position.X, position.Y, cancellationToken),
             TeachMode.Full => MoveToAsync(position.X, position.Y, position.Z, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(point)),

@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -12,25 +10,6 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class ApplicationLogTests
 {
-    [Fact]
-    public void KeepsEarlierMessagesAndReadsOnlyNewEntries()
-    {
-        using var log = new ApplicationLog();
-        var changes = new List<NotifyCollectionChangedAction>();
-        ((INotifyCollectionChanged)log.Entries).CollectionChanged += (_, args) => changes.Add(args.Action);
-        log.Write("Before opening the window");
-        var first = Assert.Single(log.ReadAfter(0));
-        log.Write("Newest message");
-
-        Assert.Equal("Before opening the window", first.Message);
-        Assert.Equal("Newest message", Assert.Single(log.ReadAfter(first.Sequence)).Message);
-        Assert.Equal(2, log.LatestSequence);
-        Assert.Empty(log.ReadAfter(log.LatestSequence));
-        Assert.Equal(
-            new[] { NotifyCollectionChangedAction.Add, NotifyCollectionChangedAction.Add },
-            changes);
-    }
-
     [Fact]
     public void RetainsFullExceptionDetails()
     {
@@ -47,7 +26,7 @@ public sealed class ApplicationLogTests
 
         log.Error("AJIN input read", error);
 
-        var entry = Assert.Single(log.ReadAfter(0));
+        var entry = Assert.Single(log.Snapshot());
         Assert.Equal("ERROR", entry.Level);
         Assert.Equal(error.ToString(), entry.Detail);
         Assert.Contains(nameof(RetainsFullExceptionDetails), entry.Text);
@@ -59,8 +38,7 @@ public sealed class ApplicationLogTests
     public void TraceListenerKeepsEachFormattedEventTogetherWithItsSeverity()
     {
         using var log = new ApplicationLog();
-        var type = typeof(MachineController).Assembly.GetType("IBTM.ApplicationTraceListener")!;
-        using var listener = (TraceListener)Activator.CreateInstance(type, log)!;
+        using var listener = new ApplicationTraceListener(log);
 
         listener.TraceEvent(
             null,
@@ -71,7 +49,7 @@ public sealed class ApplicationLogTests
             "test failure");
         listener.TraceEvent(null, "IBTM", TraceEventType.Information, 0, "Settings saved");
 
-        var entries = log.ReadAfter(0);
+        var entries = log.Snapshot();
         Assert.Equal(2, entries.Length);
         Assert.Equal("ERROR", entries[0].Level);
         Assert.Equal("Settings failed: test failure", entries[0].Message);
@@ -86,7 +64,7 @@ public sealed class ApplicationLogTests
         const int count = ApplicationLog.RecentEntryLimit + 1000;
         Parallel.For(0, count, index => log.Write($"Message {index}"));
 
-        var entries = log.ReadAfter(0);
+        var entries = log.Snapshot();
         Assert.Equal(ApplicationLog.RecentEntryLimit, entries.Length);
         Assert.Equal(
             Enumerable.Range(1001, ApplicationLog.RecentEntryLimit).Select(value => (long)value),
@@ -106,7 +84,7 @@ public sealed class ApplicationLogTests
             {
                 for (var index = 0; index < count; index++)
                     log.Write($"Message {index}");
-                Assert.Equal(ApplicationLog.RecentEntryLimit, log.ReadAfter(0).Length);
+                Assert.Equal(ApplicationLog.RecentEntryLimit, log.Snapshot().Length);
             }
 
             var lines = File.ReadAllLines(path);
@@ -134,9 +112,9 @@ public sealed class ApplicationLogTests
             log.Write("Original machine error");
             log.Dispose();
             Assert.NotNull(log.FileError);
-            Assert.Contains(log.ReadAfter(0), entry => entry.Message == "Original machine error");
+            Assert.Contains(log.Snapshot(), entry => entry.Message == "Original machine error");
             Assert.Contains(
-                log.ReadAfter(0),
+                log.Snapshot(),
                 entry =>
                     entry.Level == "ERROR"
                         && entry.Message.StartsWith("Log file could not be written", StringComparison.Ordinal));

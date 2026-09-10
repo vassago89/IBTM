@@ -87,7 +87,7 @@ public sealed class IoStartupTests
 
         AssertUnavailable(state, error);
         Assert.Contains(
-            services.GetRequiredService<ApplicationLog>().ReadAfter(0),
+            services.GetRequiredService<ApplicationLog>().Snapshot(),
             entry => entry.Level == "ERROR" && entry.Detail?.Contains(error.Message) == true);
         Assert.True(machine.CanReset);
         Assert.False(machine.CanStart);
@@ -124,7 +124,7 @@ public sealed class IoStartupTests
 
         AssertUnavailable(state, error);
         Assert.Contains(
-            services.GetRequiredService<ApplicationLog>().ReadAfter(0),
+            services.GetRequiredService<ApplicationLog>().Snapshot(),
             entry => entry.Level == "ERROR" && entry.Detail?.Contains(error.Message) == true);
         Assert.True(machine.CanReset);
         Assert.All(

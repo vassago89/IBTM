@@ -82,12 +82,11 @@ public partial class MainWindow : Window
 
         try
         {
-            _outputWindow?.Shutdown();
             await CommandShutdown.WaitAsync(
+                _machine.ShutdownAsync(),
                 _adcProtocolWindow?.StopAsync() ?? Task.CompletedTask,
                 _motionWindow?.ShutdownAsync() ?? Task.CompletedTask,
-                _viewModel.ShutdownAsync(),
-                _machine.ShutdownAsync());
+                _viewModel.ShutdownAsync());
             _shutdownCompleted = true;
             _ = Dispatcher.BeginInvoke(Close);
         }

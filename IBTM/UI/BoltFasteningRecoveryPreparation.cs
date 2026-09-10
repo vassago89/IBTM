@@ -56,27 +56,11 @@ public sealed class BoltFasteningRecoveryPreparation : StartPreparation
         }
 
         _fastening.PrepareRecovery(
-            orderedItems.Select(
-                item => (
-                    item.HeatSink,
-                    item.Number,
-                    item.Pass,
-                    item.Completed)));
+            orderedItems.Select(item => (item.HeatSink, item.Number, item.Pass, item.Completed)));
         return true;
     }
 
     private BoltFasteningRecoveryItem CreateItem(BoltTarget bolt, FasteningPass pass)
-    {
-        return new()
-        {
-            HeatSink = bolt.HeatSink,
-            Number = bolt.Number,
-            Pass = pass,
-            Completed = IsCompleted(bolt, pass),
-        };
-    }
-
-    private bool IsCompleted(BoltTarget bolt, FasteningPass pass)
     {
         var assembly = _work.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
         var results = pass switch
@@ -86,7 +70,13 @@ public sealed class BoltFasteningRecoveryPreparation : StartPreparation
             FasteningPass.IpmFinal => assembly?.IpmFinalResults,
             _ => null,
         };
-        return results?.ContainsKey(bolt.Number) == true;
+        return new()
+        {
+            HeatSink = bolt.HeatSink,
+            Number = bolt.Number,
+            Pass = pass,
+            Completed = results?.ContainsKey(bolt.Number) == true,
+        };
     }
 
 }

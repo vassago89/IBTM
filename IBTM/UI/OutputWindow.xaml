@@ -81,7 +81,7 @@
         <ListBox Grid.Row="4"
                  ItemsSource="{Binding Filter.FilteredRows}"
                  Style="{StaticResource IoListStyle}"
-                 ItemContainerStyle="{StaticResource IoOutputListItemStyle}">
+                 ItemContainerStyle="{StaticResource IoListItemStyle}">
             <ListBox.GroupStyle>
                 <GroupStyle ContainerStyle="{StaticResource IoGroupItemStyle}"
                             HeaderTemplate="{StaticResource IoGroupHeaderTemplate}"/>
@@ -90,40 +90,63 @@
             </ListBox.GroupStyle>
             <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type ui:OutputWindowRow}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="96"/>
-                            <ColumnDefinition Width="2*"/>
-                            <ColumnDefinition Width="90"/>
-                            <ColumnDefinition Width="3*"/>
-                            <ColumnDefinition Width="100"/>
-                            <ColumnDefinition Width="90"/>
-                        </Grid.ColumnDefinitions>
+                    <Border x:Name="Row" Padding="11,7"
+                            BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="96"/>
+                                <ColumnDefinition Width="2*"/>
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="3*"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="90"/>
+                            </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="{Binding Io.Address}" Style="{StaticResource IoAddressStyle}"/>
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
-                            <TextBlock Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                   TextWrapping="Wrap"/>
-                            <TextBlock Text="{Binding ActionMessage}" TextWrapping="Wrap"
-                                       Foreground="{StaticResource AccentAmberBrush}" FontSize="11"/>
-                        </StackPanel>
-                        <TextBlock Grid.Column="2"
-                                        Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
-                                        Style="{StaticResource IoOutputStateStyle}"/>
-                        <ItemsControl Grid.Column="3" Margin="0,0,12,0"
-                                      ItemsSource="{Binding Io.Feedback}"
-                                      ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
-                        <StackPanel Grid.Column="4"
-                                    Orientation="Horizontal"
-                                    VerticalAlignment="Center"
-                                    Visibility="{Binding Io.HasFeedback, Converter={StaticResource BoolToVis}}">
-                            <TextBlock Style="{StaticResource OutputFeedbackTextStyle}"/>
-                        </StackPanel>
-                        <Button Grid.Column="5" Command="{Binding ToggleCommand}"
-                                ToolTip="Switch this output only. Paired ON/OFF channels remain mutually exclusive."
-                                Style="{StaticResource OutputToggleButtonStyle}"/>
-                    </Grid>
+                            <TextBlock Text="{Binding Io.Address}" Style="{StaticResource IoAddressStyle}"/>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
+                                <TextBlock Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding ActionMessage}" TextWrapping="Wrap"
+                                           Foreground="{StaticResource AccentAmberBrush}" FontSize="11"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
+                                       Style="{StaticResource IoOutputStateStyle}"/>
+                            <ItemsControl Grid.Column="3" Margin="0,0,12,0"
+                                          ItemsSource="{Binding Io.Feedback}"
+                                          ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
+                            <TextBlock x:Name="FeedbackStatus" Grid.Column="4"
+                                       Text="Not matched" Foreground="{StaticResource TextSecondaryBrush}"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding Io.HasFeedback, Converter={StaticResource BoolToVis}}"/>
+                            <Button x:Name="ToggleOutput" Grid.Column="5" Content="ON" Command="{Binding ToggleCommand}"
+                                    ToolTip="Switch this output only. Paired ON/OFF channels remain mutually exclusive."
+                                    ToolTipService.ShowOnDisabled="True" Style="{StaticResource IoToggleButtonStyle}"/>
+                        </Grid>
+                    </Border>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Io.IsOn}" Value="True">
+                            <Setter TargetName="ToggleOutput" Property="Content" Value="OFF"/>
+                            <Setter TargetName="Row" Property="Background" Value="#493B21"/>
+                            <Setter TargetName="Row" Property="BorderBrush" Value="{StaticResource IoOutputOnBrush}"/>
+                            <Setter TargetName="Row" Property="BorderThickness" Value="3,0,0,1"/>
+                            <Setter TargetName="Row" Property="Padding" Value="8,7,11,7"/>
+                            <Setter TargetName="Row" Property="TextElement.FontWeight" Value="SemiBold"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Io.IsMatched}" Value="True">
+                            <Setter TargetName="FeedbackStatus" Property="Text" Value="Matched"/>
+                            <Setter TargetName="FeedbackStatus" Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Io.IsOn}" Value="{x:Null}">
+                            <Setter TargetName="FeedbackStatus" Property="Text" Value="Unknown"/>
+                            <Setter TargetName="FeedbackStatus" Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Io.HasConflict}" Value="True">
+                            <Setter TargetName="FeedbackStatus" Property="Text" Value="Input conflict"/>
+                            <Setter TargetName="FeedbackStatus" Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>

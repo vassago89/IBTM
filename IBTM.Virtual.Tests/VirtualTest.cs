@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -21,13 +20,17 @@ internal static class VirtualTest
         var store = new MachineStore(
             file ?? Path.Combine(Path.GetTempPath(), $"IBTM-test-{Guid.NewGuid():N}.db"));
         // Schema setup belongs to the test fixture, not the application's startup policy.
-        var type = typeof(MachineStore).Assembly.GetType("IBTM.Storage.MachineDb", throwOnError: true)!;
-        var options = typeof(MachineStore).GetField(
-            "_options",
-            BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(store);
-        using var db = (DbContext)Activator.CreateInstance(type, options)!;
+        using var db = new MachineDb(MachineDb.CreateOptions(store.DatabaseFile));
         db.Database.Migrate();
         return store;
+    }
+
+    public static LogEntry[] Snapshot(this ApplicationLog log)
+    {
+        lock (log.SyncRoot)
+        {
+            return log.Entries.ToArray();
+        }
     }
 
     public static PcbLayout TaughtPcbLayout()

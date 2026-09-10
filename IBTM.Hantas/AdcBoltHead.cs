@@ -21,6 +21,7 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
 
     public async Task CheckReadyAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         bus.Open(connection.PortName, connection.BaudRate);
         await bus.ReadDeviceInformationAsync(slaveAddress, cancellationToken);
         var status = await bus.ReadControllerStatusAsync(slaveAddress, cancellationToken);
@@ -80,13 +81,14 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
             else
             {
                 var previousEvent = _fasteningEvent ?? current.EventCount;
-                _fasteningEvent = previousEvent;
                 await bus.SetDirectionAsync(slaveAddress, AdcDirection.Fastening, cancellationToken);
 
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(connection.FasteningTimeoutMilliseconds);
                 try
                 {
+                    timeout.Token.ThrowIfCancellationRequested();
+                    _fasteningEvent = previousEvent;
                     await bus.StartAsync(slaveAddress, timeout.Token);
                     while (true)
                     {
@@ -103,7 +105,7 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
                     throw new TimeoutException(
-                        $"ADC fastening timed out after " + $"{connection.FasteningTimeoutMilliseconds} ms.");
+                        $"ADC {slaveAddress} fastening timed out after {connection.FasteningTimeoutMilliseconds} ms.");
                 }
             }
         }

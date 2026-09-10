@@ -178,7 +178,7 @@ public sealed partial class MachineLifecycleTests
 
         public Action? BeforeRead;
         public Action? BeforePositionRead;
-        public string? LastMove { get; private set; }
+        public MotionAxis? LastMovedAxis { get; private set; }
 
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
         {
@@ -186,10 +186,8 @@ public sealed partial class MachineLifecycleTests
                 BeforeRead?.Invoke();
             if (method.Name == nameof(IMotionFeedback.GetPosition))
                 BeforePositionRead?.Invoke();
-            if (method.Name is nameof(IAxisMotion.MoveXAsync)
-                or nameof(IAxisMotion.MoveYAsync)
-                or nameof(IXyMotion.MoveToXYAsync))
-                LastMove = method.Name;
+            if (method.Name == nameof(IAxisMotion.MoveAxisAsync))
+                LastMovedAxis = (MotionAxis)arguments![0]!;
             return method.Invoke(Motion, arguments);
         }
     }

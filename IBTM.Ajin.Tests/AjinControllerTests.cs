@@ -154,20 +154,20 @@ public sealed class AjinControllerTests
         Assert.Single(AjinSdk.Calls, call => call.Operation == "AxlOpenNoReset");
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation is "AxlOpen" or "AxmMotLoadParaAll");
         Assert.Contains(
-            log.ReadAfter(0),
+            log.Entries,
             entry =>
                 entry.Message.Contains("AxlOpenNoReset(interrupt=7)")
                     && entry.Message.Contains("AXT_RT_SUCCESS (0x00000000)"));
-        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains(".mot loading is skipped"));
+        Assert.Contains(log.Entries, entry => entry.Message.Contains(".mot loading is skipped"));
         Assert.Equal(
             new int?[] { 0, 1, 2, 3, 4 },
             AjinSdk.Calls.Where(call => call.Operation == "AxdInfoGetModule")
                 .Select(call => call.Module));
         Assert.Contains(
-            log.ReadAfter(0),
+            log.Entries,
             entry => entry.Message.Contains("input modules=[0,1,4], output modules=[2,3,4]"));
         Assert.Contains(
-            log.ReadAfter(0),
+            log.Entries,
             entry =>
                 entry.Message.Contains("module=4, board=0, position=4, type=AXT_SIO_RDB32RTEX (0x86), DI=16, DO=16"));
         Assert.DoesNotContain(
@@ -453,7 +453,7 @@ public sealed class AjinControllerTests
         Assert.Contains("AxlOpenNoReset", error.Message);
         Assert.Contains("AXT_RT_OPEN_ERROR", error.Message);
         Assert.Equal("AxlOpenNoReset", Assert.Single(AjinSdk.Calls).Operation);
-        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains("AXT_RT_OPEN_ERROR"));
+        Assert.Contains(log.Entries, entry => entry.Message.Contains("AXT_RT_OPEN_ERROR"));
         Assert.Throws<IOException>(() => controller.ReadRtexInput(0));
         Assert.Throws<IOException>(() => controller.WriteRtexOutput(0, true));
         Assert.Single(AjinSdk.Calls);
@@ -476,7 +476,7 @@ public sealed class AjinControllerTests
         var error = Assert.Throws<IOException>(controller.Initialize);
         Assert.Contains("AxdInfoIsDIOModule", error.Message);
         Assert.Contains("Test cleanup failure", Assert.IsType<string>(error.Data["AjinCloseError"]));
-        Assert.Contains(log.ReadAfter(0), entry => entry.Level == "ERROR");
+        Assert.Contains(log.Entries, entry => entry.Level == "ERROR");
         Assert.DoesNotContain(
             AjinSdk.Calls,
             call => call.Operation is "AxdInfoGetModule" or "AxlOpen" or "AxmMotLoadParaAll");

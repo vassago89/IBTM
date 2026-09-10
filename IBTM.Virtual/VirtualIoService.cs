@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -9,7 +10,7 @@ namespace IBTM.Virtual;
 
 public sealed class VirtualIoService(
     IReadOnlyDictionary<OutputIo, OutputHardware> outputs,
-    MachineOptions options) : IIoService
+    MachineOptions options) : IIoService, INotifyPropertyChanged
 {
     private const int FeedbackDelayMilliseconds = 200;
 
@@ -23,7 +24,7 @@ public sealed class VirtualIoService(
     private bool _connected = true;
     public event Action<InputIo, bool>? InputChanged;
     public event Action<OutputIo, bool>? OutputChanged;
-    public event Action? AutoResponseChanged;
+    public event PropertyChangedEventHandler? PropertyChanged;
     public event Action<Exception>? Faulted;
     public bool IsReady
     {
@@ -95,7 +96,7 @@ public sealed class VirtualIoService(
                     }
                 }
 
-                AutoResponseChanged?.Invoke();
+                PropertyChanged?.Invoke(this, new(nameof(AutoResponseEnabled)));
             }
         }
     }

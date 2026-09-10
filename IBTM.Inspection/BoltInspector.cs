@@ -21,6 +21,8 @@ public sealed class BoltInspector(
     Func<PcbLayout> getPcb,
     Func<double> getMillimetersPerPixel)
 {
+    private int? _liveLightChannel;
+
     public event Action<BoltInspectionImage>? Inspected;
 
     public event Action<ImageFrame>? FrameReady
@@ -128,9 +130,11 @@ public sealed class BoltInspector(
             (int)Math.Ceiling(region.Height / getMillimetersPerPixel()));
     }
 
-    public Task<ImageFrame> CaptureCurrentAsync(CancellationToken cancellationToken = default)
+    public async Task<ImageFrame> CaptureCurrentAsync(CancellationToken cancellationToken = default)
     {
-        return Task.Run(Capture, cancellationToken);
+        var frame = await Task.Run(Capture, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        return frame;
     }
 
     internal async Task<string> ReadBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken)
@@ -164,14 +168,15 @@ public sealed class BoltInspector(
 
     private ImageFrame Capture()
     {
+        var channel = lightingSettings.InspectionChannel;
         try
         {
-            TurnLightOn();
+            TurnLightOn(channel);
             return CaptureFrame();
         }
         finally
         {
-            TurnLightOff();
+            light.TurnOff(channel);
         }
     }
 
@@ -209,6 +214,7 @@ public sealed class BoltInspector(
     public async Task<IReadOnlyList<CarrierScanImage>> CaptureCarrierImagesAsync(
         CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var overlap = getRecipe().CarrierScanOverlapMillimeters;
         var (width, height) = FieldOfView;
         var xPositions = ScanPositions(
@@ -220,10 +226,11 @@ public sealed class BoltInspector(
             carrierReference.LowerRightLocatingPin.Y,
             height - overlap);
         var images = new List<CarrierScanImage>(xPositions.Count * yPositions.Count);
+        var channel = lightingSettings.InspectionChannel;
 
         try
         {
-            TurnLightOn();
+            TurnLightOn(channel);
             for (var row = 0; row < yPositions.Count; row++)
             {
                 for (var column = 0; column < xPositions.Count; column++)
@@ -236,13 +243,14 @@ public sealed class BoltInspector(
                     };
                     await MoveToAsync(center, cancellationToken).ConfigureAwait(false);
                     var frame = await Task.Run(CaptureFrame, cancellationToken).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
                     images.Add(new(center, frame));
                 }
             }
         }
         finally
         {
-            TurnLightOff();
+            light.TurnOff(channel);
         }
 
         return images;
@@ -250,15 +258,20 @@ public sealed class BoltInspector(
 
     public void StartLiveView()
     {
+        if (_liveLightChannel is not null)
+            StopLiveView();
+
+        var channel = lightingSettings.InspectionChannel;
+        _liveLightChannel = channel;
         try
         {
-            TurnLightOn();
+            TurnLightOn(channel);
             var recipe = getRecipe();
             camera.StartLiveView(recipe.ExposureMicroseconds, recipe.Gain);
         }
         catch
         {
-            TurnLightOff();
+            StopLiveView();
             throw;
         }
     }
@@ -271,7 +284,11 @@ public sealed class BoltInspector(
         }
         finally
         {
-            TurnLightOff();
+            if (_liveLightChannel is { } channel)
+            {
+                light.TurnOff(channel);
+                _liveLightChannel = null;
+            }
         }
     }
 
@@ -304,16 +321,10 @@ public sealed class BoltInspector(
         return positions;
     }
 
-    private void TurnLightOn()
+    private void TurnLightOn(int channel)
     {
-        var channel = lightingSettings.InspectionChannel;
         light.SetLevel(channel, getRecipe().LightLevel);
         light.TurnOn(channel);
-    }
-
-    private void TurnLightOff()
-    {
-        light.TurnOff(lightingSettings.InspectionChannel);
     }
 
     private ImageFrame CaptureFrame()

@@ -81,17 +81,13 @@ public partial class StationTeachingViewModel
         double position,
         CancellationToken cancellationToken)
     {
-        return (SelectedMotionGroup, axis) switch
+        return SelectedMotionGroup switch
         {
-            (MotionGroup.PcbPlacementHandler, MotionAxis.X)
-                => _placementHandler.MoveXAsync(position, cancellationToken),
-            (MotionGroup.PcbPlacementHandler, MotionAxis.Y)
-                => _placementHandler.MoveYAsync(position, cancellationToken),
-            (MotionGroup.PcbPlacementHandler, MotionAxis.Z)
-                => _placementHandler.MoveZAsync(position, cancellationToken),
-            (MotionGroup.BoltFastening, _)
+            MotionGroup.PcbPlacementHandler
+                => _placementHandler.MoveAxisAsync(axis, position, cancellationToken),
+            MotionGroup.BoltFastening
                 => _fasteningGantry.AdjustAxisAsync(axis, position, JogSpeed, cancellationToken),
-            (MotionGroup.InspectionGantry, _)
+            MotionGroup.InspectionGantry
                 => _inspectionGantry.MoveAxisAsync(
                     axis,
                     position,
@@ -119,7 +115,7 @@ public partial class StationTeachingViewModel
 
     protected override Task MovePointAsync(TeachingPoint point, CancellationToken cancellationToken)
     {
-        return point.MotionGroup switch
+        return point.Position.MotionGroup switch
         {
             MotionGroup.PcbPlacementHandler
                 => _placementHandler.MoveToTeachingPositionAsync(
@@ -144,7 +140,7 @@ public partial class StationTeachingViewModel
     {
         return SelectedPoint is not null
             && Machine.CanUseManualMotion(CurrentMotionGroup, live: false)
-            && (SelectedPoint.TeachMode == TeachMode.ZOnly || CanMoveHorizontal())
+            && (SelectedPoint.Position.Mode == TeachMode.ZOnly || CanMoveHorizontal())
             && SelectedPoint.Position.HasPosition;
     }
 

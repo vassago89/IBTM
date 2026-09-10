@@ -60,15 +60,9 @@ public sealed class MachineSettings
         {
             return [
                 (PcbSupply.Motion, PcbSupplyHardware),
-                (
-                    PcbPlacementHandler.Motion,
-                    PcbPlacementHandlerHardware),
-                (
-                    BoltFastening.Motion,
-                    BoltFasteningHardware),
-                (
-                    InspectionGantry.Motion,
-                    InspectionGantryHardware),
+                (PcbPlacementHandler.Motion, PcbPlacementHandlerHardware),
+                (BoltFastening.Motion, BoltFasteningHardware),
+                (InspectionGantry.Motion, InspectionGantryHardware),
             ];
         }
     }

@@ -202,14 +202,26 @@ public partial class SettingsViewModel : ObservableObject
             return;
         }
 
-        using var operation = _operations.Link();
-        ApplyHardwareMappings();
-        await Settings.SaveAsync(_store, operation.Token);
-        DatabaseMessage = "Settings saved. Restart to apply driver, connection, pulse length and mapping changes.";
-        Trace.TraceInformation(
-            "Settings saved to {0}. Restart required for hardware changes.",
-            _store.DatabaseFile);
-        _state.Refresh();
+        DatabaseMessage = null;
+        try
+        {
+            using var operation = _operations.Link();
+            ApplyHardwareMappings();
+            await Settings.SaveAsync(_store, operation.Token);
+            DatabaseMessage = "Settings saved. Restart to apply driver, connection, pulse length and mapping changes.";
+            Trace.TraceInformation(
+                "Settings saved to {0}. Restart required for hardware changes.",
+                _store.DatabaseFile);
+            _state.Refresh();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceError("Machine settings save failed. {0}", exception);
+            DatabaseMessage = $"Settings not saved: {exception.Message}";
+        }
     }
 
     public bool CanEditSettings
@@ -224,15 +236,24 @@ public partial class SettingsViewModel : ObservableObject
     {
         get
         {
-            return _operations.IsShuttingDown
-                ? "Settings are locked while the application is closing."
-                : _state.IsRunning
-                    ? "Settings are locked while the machine is busy. Stop the operation before editing."
-                    : _state.AutoMode
-                        ? "Settings are locked in AUTO, including during an alarm. Switch the machine to MANUAL before editing."
-                        : _state.IsError
-                            ? "Stopped in MANUAL with an alarm: settings can be edited without resetting. Motion and teaching remain interlocked."
-                            : "Settings can be edited while stopped in MANUAL.";
+            if (_operations.IsShuttingDown)
+            {
+                return "Settings are locked while the application is closing.";
+            }
+
+            if (_state.IsRunning)
+            {
+                return "Settings are locked while the machine is busy. Stop the operation before editing.";
+            }
+
+            if (_state.AutoMode)
+            {
+                return "Settings are locked in AUTO, including during an alarm. Switch the machine to MANUAL before editing.";
+            }
+
+            return _state.IsError
+                ? "Stopped in MANUAL with an alarm: settings can be edited without resetting. Motion and teaching remain interlocked."
+                : "Settings can be edited while stopped in MANUAL.";
         }
     }
 

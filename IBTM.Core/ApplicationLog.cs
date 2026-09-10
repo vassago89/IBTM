@@ -2,7 +2,6 @@ using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -78,12 +77,6 @@ public sealed class ApplicationLog : IDisposable, INotifyPropertyChanged
             lock (_gate)
                 return _sequence;
         }
-    }
-
-    public LogEntry[] ReadAfter(long sequence)
-    {
-        lock (_gate)
-            return _entries.Where(entry => entry.Sequence > sequence).ToArray();
     }
 
     public void Write(string message)

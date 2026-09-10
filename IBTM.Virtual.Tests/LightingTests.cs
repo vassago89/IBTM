@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
@@ -13,10 +14,11 @@ namespace IBTM.Virtual.Tests;
 public sealed class LightingTests
 {
     [Fact]
-    public async Task InspectionAlwaysTurnsLightOffAfterPartialOnFailure()
+    public async Task InspectionCleansUpTheOriginalLightChannelBeforeCompletionOrCancellation()
     {
-        var light = new PartialOnFailureLight();
+        var light = new RecordingLight();
         var settings = new MachineSettings();
+        light.OnStarted = () => settings.Lighting.InspectionChannel++;
         settings.Drivers.Inspection = InspectionAlgorithm.Virtual;
         using var services = new ServiceCollection().AddSingleton(
             VirtualTest.OpenMachineStore(
@@ -45,19 +47,49 @@ public sealed class LightingTests
             },
         })
         {
+            var channel = settings.Lighting.InspectionChannel;
             var error = await Assert.ThrowsAsync<IOException>(action);
             Assert.Same(light.Failure, error);
             Assert.False(light.IsOn);
+            Assert.Equal(channel, light.LastOffChannel);
         }
 
         Assert.Equal(3, light.OffCalls);
+
+        light.FailOn = false;
+        var liveChannel = settings.Lighting.InspectionChannel;
+        inspector.StartLiveView();
+        Assert.True(light.IsOn);
+        inspector.StopLiveView();
+        Assert.False(light.IsOn);
+        Assert.Equal(liveChannel, light.LastOffChannel);
+        inspector.StopLiveView();
+        Assert.Equal(4, light.OffCalls);
+
+        using var cancellation = new CancellationTokenSource();
+        light.OnStarted = cancellation.Cancel;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => inspector.CaptureCurrentAsync(cancellation.Token));
+        Assert.False(light.IsOn);
+        Assert.Equal(5, light.OffCalls);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => inspector.CaptureCarrierImagesAsync(cancellation.Token));
+        Assert.Equal(5, light.OffCalls); // An already-cancelled scan must not touch the light.
+
+        light.OnStarted = null;
+        Assert.NotEmpty((await inspector.CaptureCurrentAsync()).Pixels);
+        Assert.Equal(6, light.OffCalls);
     }
 
-    private sealed class PartialOnFailureLight : ILightController
+    private sealed class RecordingLight : ILightController
     {
         public IOException Failure { get; } = new("ON failed after the output was sent.");
         public bool IsOn { get; private set; }
         public int OffCalls { get; private set; }
+        public int LastOffChannel { get; private set; }
+        public bool FailOn { get; set; } = true;
+        public Action? OnStarted { get; set; }
 
         public void Initialize()
         {
@@ -70,12 +102,15 @@ public sealed class LightingTests
         public void TurnOn(int channel)
         {
             IsOn = true;
-            throw Failure;
+            OnStarted?.Invoke();
+            if (FailOn)
+                throw Failure;
         }
 
         public void TurnOff(int channel)
         {
             IsOn = false;
+            LastOffChannel = channel;
             OffCalls++;
         }
 
@@ -90,9 +125,7 @@ public sealed class LightingTests
     {
         var settings = new MachineSettings();
         settings.Drivers.Light = LightDriver.Movs;
-        typeof(MachineSettings).Assembly.GetType("IBTM.DevelopmentProfile")!.GetMethod("UseVirtualHardware")!.Invoke(
-            null,
-            [settings]);
+        DevelopmentProfile.UseVirtualHardware(settings);
         Assert.Equal(LightDriver.Virtual, settings.Drivers.Light);
     }
 
@@ -131,6 +164,17 @@ public sealed class LightingTests
             "COM port is empty",
             Assert.Throws<InvalidOperationException>(controller.Initialize).Message);
         controller.TurnOffAll();
+    }
+
+    [Fact]
+    public void MovsRejectsValuesThatDoNotFitTheCommandBeforeWriting()
+    {
+        using var controller = new MovsLightController(new LightingSettings());
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.SetLevel(2, -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.SetLevel(2, 256));
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.TurnOn(10));
+        Assert.Throws<ArgumentOutOfRangeException>(() => controller.TurnOff(-1));
+        Assert.Throws<InvalidOperationException>(() => controller.TurnOff(0));
     }
 
     [Theory]

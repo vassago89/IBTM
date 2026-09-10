@@ -170,7 +170,8 @@ public sealed class PcbSupplyHandler
     {
         return Rotation != PcbSupplyRotationState.Rotated
             ? throw new InvalidOperationException("Supply must be rotated before lowering into the buffer.")
-            : _motion.MoveZAsync(
+            : _motion.MoveAxisAsync(
+                MotionAxis.Z,
                 z ?? _settings.BufferHandoffPosition.Z,
                 _settings.Motion.ZSpeed,
                 cancellationToken);
@@ -181,7 +182,7 @@ public sealed class PcbSupplyHandler
         CancellationToken cancellationToken = default)
     {
         await MoveHorizontalAsync(position.X, _settings.CarrierY, cancellationToken);
-        await _motion.MoveZAsync(position.Z, _settings.Motion.ZSpeed, cancellationToken);
+        await _motion.MoveAxisAsync(MotionAxis.Z, position.Z, _settings.Motion.ZSpeed, cancellationToken);
         if (Pcb == PcbSupplyPcbState.None)
         {
             await _motion.MoveToHorizontalZAsync(cancellationToken);
@@ -260,7 +261,7 @@ public sealed class PcbSupplyHandler
 
     internal async Task MoveClearAsync(CancellationToken cancellationToken = default)
     {
-        await _motion.MoveZAsync(_settings.BufferClearZ, _settings.Motion.ZSpeed, cancellationToken);
+        await _motion.MoveAxisAsync(MotionAxis.Z, _settings.BufferClearZ, _settings.Motion.ZSpeed, cancellationToken);
         await _motion.MoveXAtClearZAsync(
             XHome,
             _settings.BufferClearZ,
@@ -374,21 +375,21 @@ public sealed class PcbSupplyHandler
 
     public Task MoveXAsync(double x, CancellationToken cancellationToken = default)
     {
-        return _motion.MoveXAsync(x, _settings.Motion.HorizontalSpeed, cancellationToken);
+        return _motion.MoveAxisAsync(MotionAxis.X, x, _settings.Motion.HorizontalSpeed, cancellationToken);
     }
 
     public Task MoveYAsync(double y, CancellationToken cancellationToken = default)
     {
         return InsideBuffer
             ? throw new InvalidOperationException("Supply Y cannot move inside the buffer.")
-            : _motion.MoveYAsync(y, _settings.Motion.HorizontalSpeed, cancellationToken);
+            : _motion.MoveAxisAsync(MotionAxis.Y, y, _settings.Motion.HorizontalSpeed, cancellationToken);
     }
 
     public Task MoveTeachingZAsync(double z, CancellationToken cancellationToken = default)
     {
         return InsideBuffer
             ? throw new InvalidOperationException("Supply Z cannot move inside the buffer.")
-            : _motion.MoveZAsync(z, _settings.Motion.ZSpeed, cancellationToken);
+            : _motion.MoveAxisAsync(MotionAxis.Z, z, _settings.Motion.ZSpeed, cancellationToken);
     }
 
     public bool CanJog(MotionAxis axis, bool live = true)

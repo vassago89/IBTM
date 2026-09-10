@@ -74,6 +74,7 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
                 throw new InvalidOperationException("Stop Hik live view before single-frame capture.");
             }
 
+            StopLiveView();
             var device = _device ?? throw new InvalidOperationException("Hik camera is not initialized.");
             var stream = _streamGrabber!;
             ApplyExposureAndGain(device, exposureMicroseconds, gain);
@@ -110,9 +111,17 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
                 return;
             }
 
+            StopLiveView();
             var device = _device ?? throw new InvalidOperationException("Hik camera is not initialized.");
+            var framesPerSecond = settings.LiveViewFramesPerSecond;
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(framesPerSecond);
             ApplyExposureAndGain(device, exposureMicroseconds, gain);
-            var liveThread = new Thread(ReceiveLiveFrames) { IsBackground = true, Name = "Hik live view" };
+            var frameInterval = Stopwatch.Frequency / framesPerSecond;
+            var liveThread = new Thread(() => ReceiveLiveFrames(frameInterval))
+            {
+                IsBackground = true,
+                Name = "Hik live view",
+            };
             StartGrabbing();
             _liveThread = liveThread;
             _liveView = true;
@@ -132,27 +141,29 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
 
     public void StopLiveView()
     {
+        // A frame/error subscriber can request STOP on the receive thread itself.
+        if (Thread.CurrentThread == _liveThread)
+        {
+            _liveView = false;
+            return;
+        }
+
         lock (_grabGate)
         {
-            if (!_liveView)
-            {
-                return;
-            }
-
             _liveView = false;
-            _liveThread!.Join();
+            _liveThread?.Join();
             _liveThread = null;
             StopGrabbing();
         }
     }
 
-    private void ReceiveLiveFrames()
+    private void ReceiveLiveFrames(long frameInterval)
     {
         var device = _device!;
         var stream = _streamGrabber!;
+        Exception? failure = null;
         try
         {
-            var frameInterval = Stopwatch.Frequency / settings.LiveViewFramesPerSecond;
             var nextFrame = 0L;
             while (_liveView)
             {
@@ -181,8 +192,26 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
         }
         catch (Exception exception)
         {
-            LiveViewFailed?.Invoke(exception);
+            failure = exception;
         }
+        finally
+        {
+            try
+            {
+                StopGrabbing();
+            }
+            catch (Exception exception)
+            {
+                failure = failure is null
+                    ? exception
+                    : new AggregateException(failure, exception);
+            }
+
+            _liveView = false;
+        }
+
+        if (failure is not null)
+            LiveViewFailed?.Invoke(failure);
     }
 
     private void StartGrabbing()
@@ -267,7 +296,7 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
         if (frameOut.LostPacket != 0)
         {
             throw new InvalidOperationException(
-                $"Hik frame {frameOut.FrameNum} lost " + $"{frameOut.LostPacket} packet(s).");
+                $"Hik frame {frameOut.FrameNum} lost {frameOut.LostPacket} packet(s).");
         }
 
         var image = frameOut.Image;
@@ -293,39 +322,27 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
 
     private void Disconnect()
     {
-        lock (_grabGate)
+        var device = _device;
+        try
         {
-            var device = _device;
+            StopLiveView();
+        }
+        finally
+        {
+            _grabbing = false;
+            _liveView = false;
+            _liveThread = null;
+            _streamGrabber = null;
+            _device = null;
+            FrameSize = default;
             try
             {
-                StopLiveView();
-                StopGrabbing();
+                if (device?.IsConnected == true)
+                    Check(device.Close(), "Close Hik camera");
             }
             finally
             {
-                try
-                {
-                    if (device?.IsConnected == true)
-                    {
-                        Check(device.Close(), "Close Hik camera");
-                    }
-                }
-                finally
-                {
-                    try
-                    {
-                        device?.Dispose();
-                    }
-                    finally
-                    {
-                        _grabbing = false;
-                        _liveView = false;
-                        _liveThread = null;
-                        _streamGrabber = null;
-                        _device = null;
-                        FrameSize = default;
-                    }
-                }
+                device?.Dispose();
             }
         }
     }

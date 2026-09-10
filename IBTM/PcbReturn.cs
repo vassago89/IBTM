@@ -321,7 +321,7 @@ public sealed class PcbReturn(
             case PcbReturnState.MovingToPcb:
                 return placement.MoveToXYAsync(PcbPosition.X, PcbPosition.Y, token);
             case PcbReturnState.LoweringToPcb:
-                return placement.MoveZAsync(PcbPosition.Z, token);
+                return placement.MoveAxisAsync(MotionAxis.Z, PcbPosition.Z, token);
             case PcbReturnState.LoweringHandler:
                 return placement.SetLiftDownAsync(true, token);
             case PcbReturnState.WaitingForPcb:

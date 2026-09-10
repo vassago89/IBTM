@@ -173,17 +173,17 @@ public abstract partial class TeachingMotionViewModel(
         return Machine.RunTeachingEditAsync(
             async token =>
             {
-                if (CurrentPoint is not { TeachMode: not TeachMode.Image, Position.CanTeach: true } point
+                if (CurrentPoint is not { Position.Mode: not TeachMode.Image, Position.CanTeach: true } point
                     || !Motion.Feedback.IsReady)
                     return;
                 var current = Motion.Feedback.GetPosition();
                 point.Teach(current.X, current.Y, current.Z);
-                if (point.Storage == TeachingStorage.Buffer)
+                if (point.Position.Storage == TeachingStorage.Buffer)
                     return;
 
                 point.Apply();
                 RefreshPointPositions();
-                if (point.Storage == TeachingStorage.Machine
+                if (point.Position.Storage == TeachingStorage.Machine
                     && !await SaveSettingsAsync(token, point.Position.Setting!))
                     return;
 
@@ -197,7 +197,7 @@ public abstract partial class TeachingMotionViewModel(
 
     private bool CanTeachCurrentPosition()
     {
-        return CurrentPoint is { TeachMode: not TeachMode.Image, Position.CanTeach: true }
+        return CurrentPoint is { Position.Mode: not TeachMode.Image, Position.CanTeach: true }
             && CanEditTeaching
             && Motion.Feedback.IsReady;
     }

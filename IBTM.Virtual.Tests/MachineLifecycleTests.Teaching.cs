@@ -4,7 +4,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -45,9 +44,7 @@ public sealed partial class MachineLifecycleTests
         try
         {
             unrelated.SetAlarm(MotionAxis.X, true);
-            typeof(MachineState).GetMethod("SetError", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(
-                state,
-                [MachineAlarm.MotionUnavailable, new IOException("Supply axis alarm.")]);
+            state.SetError(MachineAlarm.MotionUnavailable, new IOException("Supply axis alarm."));
             await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
             var before = inspection.GetPosition();
             await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
@@ -64,7 +61,7 @@ public sealed partial class MachineLifecycleTests
 
             inspection.SetServo(MotionAxis.X, false);
             teaching.SelectedPoint = teaching.FilteredPoints.Single(
-                point => point.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
+                point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
             var taughtPoint = teaching.SelectedPoint;
             await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
             Assert.False(teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
@@ -91,7 +88,7 @@ public sealed partial class MachineLifecycleTests
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
         teaching.SelectedMotionGroup = MotionGroup.InspectionGantry;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
-            point => point.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
+            point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
@@ -117,11 +114,11 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(TeachingDirection.XPlus, nameof(IAxisMotion.MoveXAsync), 10.1, 20)]
-    [InlineData(TeachingDirection.YPlus, nameof(IAxisMotion.MoveYAsync), 10, 20.1)]
+    [InlineData(TeachingDirection.XPlus, MotionAxis.X, 10.1, 20)]
+    [InlineData(TeachingDirection.YPlus, MotionAxis.Y, 10, 20.1)]
     public async Task InspectionTeachingStepMovesOnlyTheSelectedAxis(
         TeachingDirection direction,
-        string expectedMove,
+        MotionAxis expectedAxis,
         double x,
         double y)
     {
@@ -137,7 +134,7 @@ public sealed partial class MachineLifecycleTests
 
         await teaching.StepCommand.ExecuteAsync(direction);
 
-        Assert.Equal(expectedMove, feedback.LastMove);
+        Assert.Equal(expectedAxis, feedback.LastMovedAxis);
         Assert.Equal((x, y, 0), gantry.Feedback.GetPosition());
 
         await services.GetRequiredService<IIoService>()
@@ -227,7 +224,7 @@ public sealed partial class MachineLifecycleTests
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
         teaching.RecipeEditor.Name = $"CancelledScan-{Guid.NewGuid():N}";
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
-            point => point.Target == TeachingTarget.DataMatrix);
+            point => point.Position.Target == TeachingTarget.DataMatrix);
         var selected = teaching.SelectedPoint;
         var command = scanCarrier ? teaching.CaptureCarrierImagesCommand : teaching.CaptureInspectionCommand;
         await WaitUntilAsync(() => command.CanExecute(null));
@@ -312,13 +309,13 @@ public sealed partial class MachineLifecycleTests
         await teaching.SetOutputOnCommand.ExecuteAsync(gripper); // ON again is allowed.
 
         teaching.SelectedPoint = teaching.Points.Last(
-            point => point.MotionGroup == MotionGroup.PcbSupply);
+            point => point.Position.MotionGroup == MotionGroup.PcbSupply);
         var beforeSelection = handler.Feedback.GetPosition();
         var releasing = teaching.SetOutputOffCommand.ExecuteAsync(gripper);
         Assert.False(releasing.IsCompleted);
         teaching.SelectNextPointCommand.Execute(null);
         await releasing.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.Equal(MotionGroup.PcbPlacementHandler, teaching.SelectedPoint!.MotionGroup);
+        Assert.Equal(MotionGroup.PcbPlacementHandler, teaching.SelectedPoint!.Position.MotionGroup);
         Assert.Equal(beforeSelection, handler.Feedback.GetPosition());
         Assert.False(io.GetOutput(gripper.Signal));
         Assert.True(io.GetInput(feedback.OnInput));
@@ -417,7 +414,7 @@ public sealed partial class MachineLifecycleTests
         foreach (var (group, target, up, down, output) in stations)
         {
             teaching.SelectedMotionGroup = group;
-            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Target == target);
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == target);
             var plate = teaching.TeachingOutputs[output];
             await WaitUntilAsync(() => !teaching.TeachCurrentPositionCommand.CanExecute(null));
             await WaitUntilAsync(() => !teaching.MoveToPointCommand.CanExecute(null));
@@ -439,7 +436,7 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         var supply = services.GetRequiredKeyedService<IAxisMotion>(MotionGroup.PcbSupply);
         var state = services.GetRequiredService<MachineState>();
-        await supply.MoveXAsync(settings.PcbSupply.BufferHandoffPosition.X, 1_000);
+        await supply.MoveAxisAsync(MotionAxis.X, settings.PcbSupply.BufferHandoffPosition.X, 1_000);
         teaching.SelectedMotionGroup = MotionGroup.PcbPlacementHandler;
         Assert.True(state.SupplyInBufferArea);
         await WaitUntilAsync(
@@ -496,10 +493,10 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
-            point => point.Target == TeachingTarget.DataMatrix);
+            point => point.Position.Target == TeachingTarget.DataMatrix);
         await WaitUntilAsync(() => teaching.CaptureInspectionCommand.CanExecute(null));
         var next = teaching.FilteredPoints.Single(
-            point => point.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
+            point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
         var recipeBefore = JsonSerializer.Serialize(teaching.RecipeEditor.Recipe);
         var settingsBefore = JsonSerializer.Serialize(settings);
         using var trace = new StringWriter();
@@ -575,9 +572,9 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => teaching.SaveBufferSetupCommand.CanExecute(null));
-        teaching.Points.Single(point => point.Target == TeachingTarget.SupplyBufferBoundary1)
+        teaching.Points.Single(point => point.Position.Target == TeachingTarget.SupplyBufferBoundary1)
             .Teach(70, 0, 0);
-        teaching.Points.Single(point => point.Target == TeachingTarget.PlacementBufferBoundary1)
+        teaching.Points.Single(point => point.Position.Target == TeachingTarget.PlacementBufferBoundary1)
             .Teach(75, 25, 0);
 
         using (services.GetRequiredService<OperationCancellation>().Link())
@@ -621,7 +618,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => teaching.SaveBufferSetupCommand.CanExecute(null));
-        teaching.Points.Single(point => point.Target == TeachingTarget.SupplyBufferBoundary1)
+        teaching.Points.Single(point => point.Position.Target == TeachingTarget.SupplyBufferBoundary1)
             .Teach(70, 0, 0);
 
         void CancelWhenStarted()
@@ -661,7 +658,7 @@ public sealed partial class MachineLifecycleTests
             ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, true));
         teaching.SelectedMotionGroup = MotionGroup.BoltFastening;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
-            point => point.Target == TeachingTarget.BoltPickup);
+            point => point.Position.Target == TeachingTarget.BoltPickup);
         teaching.JogSpeed = 1;
         teaching.StepDistance = 0.1;
         await WaitUntilAsync(() => !teaching.MoveToPointCommand.CanExecute(null));

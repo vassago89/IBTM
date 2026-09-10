@@ -21,6 +21,8 @@ public sealed class MotionMonitorAxis(
     IRelayCommand<MotionMonitorAxis> toggleServoCommand,
     IAsyncRelayCommand<MotionMonitorAxis> homeAxisCommand) : ObservableObject
 {
+    private bool _lastEnabled = units.IsMotionEnabled(group);
+
     public IRelayCommand<MotionMonitorAxis> ToggleServoCommand { get; } = toggleServoCommand;
     public IAsyncRelayCommand<MotionMonitorAxis> HomeAxisCommand { get; } = homeAxisCommand;
     public MotionGroup Group { get; } = group;
@@ -55,9 +57,9 @@ public sealed class MotionMonitorAxis(
         }
     }
 
-    internal void RefreshEnabled()
+    internal bool RefreshEnabled()
     {
-        OnPropertyChanged(nameof(Enabled));
+        return SetProperty(ref _lastEnabled, Enabled, nameof(Enabled));
     }
 }
 
@@ -65,7 +67,6 @@ public partial class MotionWindowViewModel : ObservableObject
 {
     private readonly MachineController _machine;
     private readonly MachineState _state;
-    private readonly bool[] _enabledStates;
     [ObservableProperty]
     private string _search = string.Empty;
     [ObservableProperty]
@@ -89,7 +90,6 @@ public partial class MotionWindowViewModel : ObservableObject
                             ToggleServoCommand,
                             HomeAxisCommand)))
             .ToArray();
-        _enabledStates = Axes.Select(row => row.Enabled).ToArray();
         View = new ListCollectionView(Axes);
         View.GroupDescriptions.Add(new PropertyGroupDescription(nameof(MotionMonitorAxis.Group)));
         View.Filter = item =>
@@ -162,14 +162,9 @@ public partial class MotionWindowViewModel : ObservableObject
     public void Refresh()
     {
         var enabledChanged = false;
-        for (var index = 0; index < Axes.Length; index++)
+        foreach (var row in Axes)
         {
-            var row = Axes[index];
-            if (_enabledStates[index] == row.Enabled)
-                continue;
-            enabledChanged = true;
-            _enabledStates[index] = row.Enabled;
-            row.RefreshEnabled();
+            enabledChanged |= row.RefreshEnabled();
         }
 
         // Do not reset the list/scroll position on every feedback scan.
