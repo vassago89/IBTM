@@ -89,7 +89,8 @@ public sealed partial class MachineLifecycleTests
         while (stops.Count > 0)
         {
             var count = stops.Count;
-            await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+            await WaitUntilAsync(
+                () => manual.CanRunDryRun && manual.RunDryRunCommand.CanExecute(null));
             await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(5));
             Assert.Equal(count - 1, stops.Count);
             Assert.False(gantry.Feedback.IsMoving);
@@ -101,7 +102,8 @@ public sealed partial class MachineLifecycleTests
             if (route.CompletedPasses == 2)
                 manual.RunDryRunCommand.Cancel();
         };
-        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await WaitUntilAsync(
+            () => manual.CanRunDryRun && manual.RunDryRunCommand.CanExecute(null));
         await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
         Assert.Equal(2, route.CompletedPasses);
         Assert.True(gantry.AtSafeZ);
@@ -157,7 +159,8 @@ public sealed partial class MachineLifecycleTests
             if (lowerPickup)
                 io.SetInput(InputIo.NgCarrierPickupUp, false);
         };
-        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await WaitUntilAsync(
+            () => manual.CanRunDryRun && manual.RunDryRunCommand.CanExecute(null));
         await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
         Assert.Equal(1, route.CompletedPasses);
         Assert.Equal(NgConveyorDestination.Shuttle, route.Destination);
@@ -166,7 +169,8 @@ public sealed partial class MachineLifecycleTests
         io.AutoResponseEnabled = false;
         io.SetInput(InputIo.NgConveyorPosition1Occupied, false);
         Assert.Equal(0, conveyor.CarrierCount);
-        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await WaitUntilAsync(
+            () => manual.CanRunDryRun && manual.RunDryRunCommand.CanExecute(null));
         var resumed = manual.RunDryRunCommand.ExecuteAsync(null);
         try
         {
@@ -191,7 +195,8 @@ public sealed partial class MachineLifecycleTests
 
         io.AutoResponseEnabled = true;
         stopAtPass = 4;
-        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await WaitUntilAsync(
+            () => manual.CanRunDryRun && manual.RunDryRunCommand.CanExecute(null));
         await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
         Assert.Equal(4, route.CompletedPasses);
         Assert.True(io.GetInput(InputIo.NgShuttleCarrierDetected));
@@ -202,7 +207,8 @@ public sealed partial class MachineLifecycleTests
 
         stopAtPass = -1;
         lowerPickup = true;
-        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await WaitUntilAsync(
+            () => manual.CanRunDryRun && manual.RunDryRunCommand.CanExecute(null));
         await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(5));
         Assert.False(conveyor.RunCommandOn);
         Assert.Equal(NgConveyorDryRunState.WaitingForPickup, route.State);
@@ -340,7 +346,7 @@ public sealed partial class MachineLifecycleTests
         manual.SelectedDryRun = DryRunTarget.PcbReturn;
         manual.SelectedDryRunHeatSink = heatSink;
         await machine.InitializeAsync();
-        Assert.False(manual.RunDryRunCommand.CanExecute(null));
+        Assert.False(manual.CanRunDryRun);
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
         io.SetInput(InputIo.PcbPlacementHeatSink1Present, heatSink == HeatSinkSlot.HeatSink1);
@@ -443,7 +449,8 @@ public sealed partial class MachineLifecycleTests
             }
         };
 
-        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await WaitUntilAsync(
+            () => manual.CanRunDryRun && manual.RunDryRunCommand.CanExecute(null));
         await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
         Assert.True(stoppedAtPickup);
         Assert.True(placement.VacuumDetected);
@@ -456,7 +463,8 @@ public sealed partial class MachineLifecycleTests
 
         for (var pass = 0; pass < 4; pass++)
         {
-            await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+            await WaitUntilAsync(
+                () => manual.CanRunDryRun && manual.RunDryRunCommand.CanExecute(null));
             var run = manual.RunDryRunCommand.ExecuteAsync(null);
             try
             {
@@ -520,7 +528,8 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.InspectionCarrierPresent, true);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
-        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await WaitUntilAsync(
+            () => manual.CanRunDryRun && manual.RunDryRunCommand.CanExecute(null));
         var stopAfter = 2;
         dryRun.Changed += () =>
         {
@@ -534,7 +543,8 @@ public sealed partial class MachineLifecycleTests
         Assert.False(state.IsError);
         // A second start continues forward from the front sensor, not back to Station 3.
         stopAfter = -1;
-        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await WaitUntilAsync(
+            () => manual.CanRunDryRun && manual.RunDryRunCommand.CanExecute(null));
         io.OutputChanged += (output, value) =>
         {
             if (output != OutputIo.MainConveyorRun || !value)
@@ -551,7 +561,8 @@ public sealed partial class MachineLifecycleTests
         Assert.False(state.IsError);
         if (transferEnabled)
         {
-            await WaitUntilAsync(() => !manual.RunDryRunCommand.CanExecute(null));
+            await WaitUntilAsync(
+                () => !manual.CanRunDryRun || !manual.RunDryRunCommand.CanExecute(null));
             Assert.Equal(MainConveyorDryRunState.Unavailable, manual.DryRunState);
         }
     }
@@ -584,7 +595,8 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.InspectionCarrierPresent, true);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
-        await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
+        await WaitUntilAsync(
+            () => manual.CanRunDryRun && manual.RunDryRunCommand.CanExecute(null));
         await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(3));
         Assert.Equal(MachineAlarm.Inspection, state.Alarm);
         Assert.Contains(missingTeaching ? "Teach" : "Data Matrix could not be read", state.AlarmMessage);

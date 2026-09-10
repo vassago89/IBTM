@@ -26,6 +26,7 @@
             <Button Canvas.Right="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
                     Content="RESUME WORK"
                     Command="{Binding OpenPcbPlacementRecoveryCommand}"
+                    IsEnabled="{Binding PcbPlacementRecoveryAvailable}"
                     Style="{StaticResource SecondaryButtonStyle}"
                     MinWidth="92"
                     Height="30"

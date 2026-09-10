@@ -38,6 +38,7 @@
             <Button Canvas.Right="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
                     Content="RESUME WORK"
                     Command="{Binding OpenBoltFasteningRecoveryCommand}"
+                    IsEnabled="{Binding BoltFasteningRecoveryAvailable}"
                     Style="{StaticResource SecondaryButtonStyle}"
                     MinWidth="92"
                     Height="30"
@@ -62,7 +63,7 @@
                                             Converter={StaticResource BoolToVis}}"/>
 
             <Grid Width="100" Height="86"
-                  Tag="{Binding PickupFeederEnabled}"
+                  Tag="{Binding Units.PickupBoltFeeder}"
                   Style="{StaticResource FeederDeviceStyle}"
                   Visibility="{Binding BoltFeederPositionKnown, Converter={StaticResource BoolToVis}}">
                 <Grid.RenderTransform>

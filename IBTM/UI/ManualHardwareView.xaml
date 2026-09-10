@@ -200,7 +200,9 @@
                     </Grid>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Run" Command="{Binding RunDryRunCommand}" Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,8,0"/>
+                    <Button Content="Run" Command="{Binding RunDryRunCommand}"
+                            IsEnabled="{Binding CanRunDryRun}"
+                            Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,8,0"/>
                     <Button Content="Stop" Command="{Binding RunDryRunCancelCommand}" Style="{StaticResource DangerButtonStyle}" MinWidth="100"/>
                 </StackPanel>
             </Grid>

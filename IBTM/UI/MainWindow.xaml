@@ -548,6 +548,7 @@
                                     Visibility="{Binding OperationPageSelected,
                                                          Converter={StaticResource BoolToVis}}">
                             <Button Command="{Binding Operation.RaiseCylindersCommand}"
+                                    IsEnabled="{Binding Operation.State.Display.CanRaiseCylinders}"
                                     ToolTip="Raise cylinders for the homing units only. Does not move or home axes."
                                     MinWidth="156" Height="40" Margin="0,0,6,0">
                                 <Button.Style>
@@ -563,6 +564,7 @@
                             </Button>
                             <Button Content="HOME ALL"
                                     Command="{Binding Operation.HomeCommand}"
+                                    IsEnabled="{Binding Operation.State.Display.CanHome}"
                                     ToolTip="{Binding Operation.State.Display.HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
                                     ToolTipService.ShowOnDisabled="True"
                                     MinWidth="104"
@@ -591,6 +593,7 @@
                                                          Converter={StaticResource BoolToVis}}"/>
                             <Button Content="START"
                                     Command="{Binding Operation.StartCommand}"
+                                    IsEnabled="{Binding Operation.State.Display.CanStart}"
                                     ToolTip="{Binding Operation.StartBlock,
                                                       Converter={StaticResource EnumDescriptionConverter}}"
                                     MinWidth="144"

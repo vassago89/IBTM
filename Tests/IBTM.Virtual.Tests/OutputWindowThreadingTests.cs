@@ -250,6 +250,19 @@ public sealed class OutputWindowThreadingTests
 
         var operation = services.GetRequiredService<OperationViewModel>();
         operation.Activate();
+        var conveyorEnabled = new CheckBox();
+        conveyorEnabled.SetBinding(
+            System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
+            new Binding("Units.MainConveyor") { Source = operation, Mode = BindingMode.OneWay });
+        foreach (var enabled in new[] { false, true })
+        {
+            operation.Units.MainConveyor = enabled;
+            operation.Activate();
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => conveyorEnabled.IsChecked == enabled,
+                TimeSpan.FromSeconds(2)));
+        }
+
         var running = new CheckBox();
         running.SetBinding(
             System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,

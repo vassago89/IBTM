@@ -31,7 +31,7 @@
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding State.Display.ConveyorState}"
                                                    Value="{x:Static conveyor:MainConveyorState.Idle}"/>
-                                        <Condition Binding="{Binding MainConveyorEnabled}"
+                                        <Condition Binding="{Binding Units.MainConveyor}"
                                                    Value="True"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -50,7 +50,7 @@
                                 <Style TargetType="TextBlock"
                                        BasedOn="{StaticResource MapHintStyle}">
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding MainConveyorEnabled}" Value="False">
+                                        <DataTrigger Binding="{Binding Units.MainConveyor}" Value="False">
                                             <Setter Property="Opacity" Value="0.55"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding State.Display.ConveyorRunning}" Value="True">

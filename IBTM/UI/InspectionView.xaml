@@ -50,7 +50,7 @@
                             <Style.Triggers>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding InspectionEnabled}" Value="True"/>
+                                        <Condition Binding="{Binding Units.Inspection}" Value="True"/>
                                         <Condition Binding="{Binding InspectionCarrierPresent}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>

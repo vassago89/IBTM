@@ -1,3 +1,9 @@
+# Development priority
+
+- Optimize for a short implement / equipment-check / fix cycle. Readability and structure serve development speed, not architectural completeness.
+- Keep device calls and sequence steps explicit. Allow small local repetition when a new abstraction would make debugging or changes slower.
+- Simplify code in the affected path; do not add speculative frameworks, duplicate state or repeated cleanup passes without a concrete benefit.
+
 # Verification workflow
 
 The user performs physical-equipment testing and prefers short edit/verify cycles.

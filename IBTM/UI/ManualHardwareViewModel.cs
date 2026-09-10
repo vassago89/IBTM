@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -14,7 +13,6 @@ public partial class ManualHardwareViewModel : ObservableObject
 {
     private readonly MachineController _machine;
     private volatile bool _active;
-    private int _commandRefreshQueued;
     [ObservableProperty]
     private DryRunTarget _selectedDryRun;
     [ObservableProperty]
@@ -123,26 +121,29 @@ public partial class ManualHardwareViewModel : ObservableObject
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanRunDryRun), IncludeCancelCommand = true)]
+    [RelayCommand(IncludeCancelCommand = true)]
     private Task RunDryRunAsync(CancellationToken cancellationToken)
     {
         return _machine.RunDryRunAsync(SelectedDryRun, cancellationToken, SelectedDryRunHeatSink);
     }
 
-    private bool CanRunDryRun()
+    public bool CanRunDryRun
     {
-        return _machine.CanRunDryRun(SelectedDryRun);
+        get
+        {
+            return _machine.CanRunDryRun(SelectedDryRun);
+        }
     }
 
     partial void OnSelectedDryRunChanged(DryRunTarget value)
     {
         OnPropertyChanged(nameof(IsInspectionDryRun));
         RefreshDryRun();
-        RunDryRunCommand.NotifyCanExecuteChanged();
     }
 
     private void RefreshDryRun()
     {
+        OnPropertyChanged(nameof(CanRunDryRun));
         OnPropertyChanged(nameof(DryRunState));
         OnPropertyChanged(nameof(DryRunDestination));
         OnPropertyChanged(nameof(DryRunPasses));
@@ -174,28 +175,7 @@ public partial class ManualHardwareViewModel : ObservableObject
 
     private void OnMachineStateChanged()
     {
-        if (!_active)
-        {
-            return;
-        }
-
-        RefreshDryRun();
-        if (Interlocked.Exchange(ref _commandRefreshQueued, 1) != 0)
-        {
-            return;
-        }
-
-        Application.Current.Dispatcher.BeginInvoke(
-            () =>
-            {
-                Interlocked.Exchange(ref _commandRefreshQueued, 0);
-                if (!_active)
-                {
-                    return;
-                }
-
-                RunDryRunCommand.NotifyCanExecuteChanged();
-            });
+        if (_active)
+            RefreshDryRun();
     }
-
 }
