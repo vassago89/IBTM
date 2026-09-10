@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Ajin;
@@ -9,6 +10,33 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class AjinHomeTests
 {
+    [Fact]
+    public void AxisPulseLengthConvertsCommandsAndFeedbackIndependently()
+    {
+        var x = new AxisHardware { Number = 5 };
+        var y = new AxisHardware { Number = 4, MillimetersPerPulse = 0.01 };
+        var z = new AxisHardware { Number = 3, MillimetersPerPulse = 0.0001 };
+        var motion = new AjinMotionService(
+            new AjinController(new AjinSettings()),
+            x, y, z, 0.001,
+            new MotionSettings(), new MachineOptions(), new OperationCancellation(), null);
+        // Exercise conversion without loading the native driver or issuing hardware commands.
+        var toUnits = typeof(AjinMotionService).GetMethod("ToUnits", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var fromUnits = typeof(AjinMotionService).GetMethod("FromUnits", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        foreach (var (axis, pulses) in new[] { (5, 1_000d), (4, 100d), (3, 10_000d) })
+        {
+            Assert.Equal(pulses, (double)toUnits.Invoke(motion, [axis, 1d])!, 6);
+            Assert.Equal(1d, (double)fromUnits.Invoke(motion, [axis, pulses, 1d, 1])!, 6);
+            Assert.Equal(1d, (double)fromUnits.Invoke(motion, [axis, pulses / 100, 0.1, 10])!, 6);
+        }
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => y.MillimetersPerPulse = 0);
+        y.MillimetersPerPulse = null;
+        Assert.Null(y.MillimetersPerPulse);
+        // Edits take effect after restart, not halfway through a move.
+        Assert.Equal(100d, toUnits.Invoke(motion, [4, 1d]));
+    }
+
     [Fact]
     public async Task MoveWaitsForSettledInPositionAndRemainsCancellable()
     {

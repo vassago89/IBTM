@@ -18,6 +18,7 @@ public sealed class MachineStoreTests
         var store = new MachineStore(Path.Combine(CreateDirectory(), "Machine.db"));
         Assert.False(store.HasData);
         var settings = new MachineSettings();
+        settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.MillimetersPerPulse = 0.01;
         settings.Conveyor.CarrierStopDelaySeconds = 0.75;
         settings.MachineHardware.Inputs[InputIo.AirPressureHigh] = 37;
         settings.ConveyorHardware.Outputs[OutputIo.MainConveyorForward].Number = 60;
@@ -108,6 +109,8 @@ public sealed class MachineStoreTests
         var reopened = new MachineStore(store.DatabaseFile);
         // Opening again must not reverse the corrected input pairs.
         var loaded = await MachineSettings.LoadAsync(new MachineStore(reopened.DatabaseFile));
+        Assert.Equal(0.01, loaded.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.MillimetersPerPulse);
+        Assert.Null(loaded.PcbPlacementHandlerHardware.GetAxis(MotionAxis.X)!.MillimetersPerPulse);
         Assert.Equal(0.75, loaded.Conveyor.CarrierStopDelaySeconds);
         Assert.Equal(37, loaded.MachineHardware.Inputs[InputIo.AirPressureHigh]);
         Assert.Equal(57, loaded.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperDown]);

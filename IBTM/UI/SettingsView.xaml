@@ -143,6 +143,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="110"/>
+                    <ColumnDefinition Width="170"/>
                     <ColumnDefinition Width="140"/>
                     <ColumnDefinition Width="140"/>
                 </Grid.ColumnDefinitions>
@@ -150,8 +151,12 @@
                                                            ToolTip="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
                                                            Style="{StaticResource HardwareSignalText}"/>
                 <TextBox Grid.Column="1" Text="{Binding Axis.Number, UpdateSourceTrigger=PropertyChanged}" Margin="4,0"/>
-                <TextBox Grid.Column="2" Text="{Binding Axis.Minimum, UpdateSourceTrigger=LostFocus}" Margin="4,0"/>
-                <TextBox Grid.Column="3" Text="{Binding Axis.Maximum, UpdateSourceTrigger=LostFocus}" Margin="4,0"/>
+                <TextBox Grid.Column="2"
+                         Text="{Binding Axis.MillimetersPerPulse, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True, TargetNullValue=''}"
+                         ToolTip="Travel per pulse in mm. Blank = group default. 10 pulses/mm = 0.1 mm/pulse. Save and restart."
+                         Margin="4,0"/>
+                <TextBox Grid.Column="3" Text="{Binding Axis.Minimum, UpdateSourceTrigger=LostFocus}" Margin="4,0"/>
+                <TextBox Grid.Column="4" Text="{Binding Axis.Maximum, UpdateSourceTrigger=LostFocus}" Margin="4,0"/>
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
@@ -268,9 +273,9 @@
                                               SelectedItem="{Binding SelectedMotionGroup, Mode=TwoWay}"/>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1">
-                                    <TextBlock Text="Pulse Length (mm/pulse)" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Text="Default Pulse Length (mm/pulse)" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBox IsEnabled="{Binding CanEditSettings}" Text="{Binding CurrentMotionHardwareSettings.MillimetersPerPulse, UpdateSourceTrigger=LostFocus}"
-                                             ToolTip="1 µm/pulse = 0.001 mm/pulse. Applies to this group only; save and restart."/>
+                                             ToolTip="1 µm/pulse = 0.001 mm/pulse. Used by axes with no override below; save and restart."/>
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -323,17 +328,21 @@
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
                                 <TextBlock Text="Axes" Style="{StaticResource SettingSectionTitle}"/>
+                                <TextBlock Text="Pulse Length: distance per pulse in mm. Blank = group default. Save and restart after changing it."
+                                           Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                 <Grid Margin="6,0,6,4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="110"/>
+                                        <ColumnDefinition Width="170"/>
                                         <ColumnDefinition Width="140"/>
                                         <ColumnDefinition Width="140"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="Axis" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBlock Grid.Column="1" Text="Axis Number" Style="{StaticResource SettingFieldLabel}"/>
-                                    <TextBlock Grid.Column="2" Text="Minimum (mm)" Style="{StaticResource SettingFieldLabel}"/>
-                                    <TextBlock Grid.Column="3" Text="Maximum (mm)" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Grid.Column="2" Text="Pulse Length (mm/pulse)" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Grid.Column="3" Text="Minimum (mm)" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Grid.Column="4" Text="Maximum (mm)" Style="{StaticResource SettingFieldLabel}"/>
                                 </Grid>
                                 <ListBox IsEnabled="{Binding CanEditSettings}" ItemsSource="{Binding CurrentAxisMappings}" Style="{StaticResource PanelListStyle}"
                                          ItemContainerStyle="{StaticResource HardwareListItem}"

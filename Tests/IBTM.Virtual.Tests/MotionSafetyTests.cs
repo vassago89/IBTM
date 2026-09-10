@@ -99,6 +99,21 @@ public sealed class MotionSafetyTests
         Assert.False(motion.IsMoving);
     }
 
+    [Fact]
+    public async Task VirtualMotionUsesEachAxisPulseLength()
+    {
+        using var motion = new VirtualMotionService(
+            new MotionSettings(),
+            new OperationCancellation(),
+            hasZ: false,
+            axisResolutionMillimeters: (0.001, 0.01, 0.001));
+        motion.Initialize();
+        await motion.HomeHorizontalAsync(100);
+        await motion.MoveToXYAsync(1.234, 1.234, 100);
+        Assert.Equal(1.234, motion.GetPosition().X, 6);
+        Assert.Equal(1.23, motion.GetPosition().Y, 6);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData(MotionAxis.X)]

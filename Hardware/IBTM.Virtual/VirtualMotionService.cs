@@ -16,7 +16,8 @@ public sealed class VirtualMotionService(
     (double Minimum, double Maximum)? zRange = null,
     double resolutionMillimeters = MotionHardwareSettings.DefaultMillimetersPerPulse,
     Func<double>? horizontalZ = null,
-    Func<bool>? servoPowerOn = null) : MotionService(
+    Func<bool>? servoPowerOn = null,
+    (double X, double Y, double Z)? axisResolutionMillimeters = null) : MotionService(
         settings,
         operationCancellation,
         hasY,
@@ -28,6 +29,8 @@ public sealed class VirtualMotionService(
 {
     private static readonly TimeSpan UpdateInterval = TimeSpan.FromMilliseconds(10);
     private static readonly int AxisCount = Enum.GetValues<MotionAxis>().Length;
+    private readonly (double X, double Y, double Z) _resolution = axisResolutionMillimeters
+        ?? (resolutionMillimeters, resolutionMillimeters, resolutionMillimeters);
 
     private readonly bool[] _servoOn = new bool[AxisCount];
     private readonly bool[] _homed = new bool[AxisCount];
@@ -207,9 +210,9 @@ public sealed class VirtualMotionService(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        x = Quantize(x);
-        y = Quantize(y);
-        z = Quantize(z);
+        x = Quantize(x, _resolution.X);
+        y = Quantize(y, _resolution.Y);
+        z = Quantize(z, _resolution.Z);
         using var movement = BeginMovement(horizontal, cancellationToken);
         var startX = _x;
         var startY = _y;
@@ -302,19 +305,19 @@ public sealed class VirtualMotionService(
 
     private void SetPosition(double x, double y, double z)
     {
-        _x = Quantize(x);
-        _y = Quantize(y);
-        _z = Quantize(z);
+        _x = Quantize(x, _resolution.X);
+        _y = Quantize(y, _resolution.Y);
+        _z = Quantize(z, _resolution.Z);
         var zMaximum = GetRange(MotionAxis.Z)?.Maximum;
         if (_seekingZPositiveLimit
             && zMaximum is not null
-            && Math.Abs(_z - zMaximum.Value) <= resolutionMillimeters / 2)
+            && Math.Abs(_z - zMaximum.Value) <= _resolution.Z / 2)
         {
             _zPositiveLimit = true;
         }
         else if (_zPositiveLimit
             && zMaximum is not null
-            && _z < zMaximum.Value - resolutionMillimeters / 2)
+            && _z < zMaximum.Value - _resolution.Z / 2)
         {
             _zPositiveLimit = false;
         }
@@ -322,7 +325,7 @@ public sealed class VirtualMotionService(
         PublishPositionChanged(_x, _y, _z);
     }
 
-    private double Quantize(double position)
+    private static double Quantize(double position, double resolutionMillimeters)
     {
         return Math.Round(position / resolutionMillimeters) * resolutionMillimeters;
     }

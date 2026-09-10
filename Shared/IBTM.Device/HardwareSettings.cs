@@ -22,6 +22,16 @@ public sealed class OutputHardware
 public sealed class AxisHardware
 {
     public int Number { get; set; }
+    public double? MillimetersPerPulse
+    {
+        get;
+        set
+        {
+            if (value is { } length && (!double.IsFinite(length) || length <= 0))
+                throw new ArgumentOutOfRangeException(nameof(value), "Pulse length must be a positive finite value in mm/pulse.");
+            field = value;
+        }
+    }
     public double Minimum { get; set; }
     public double Maximum { get; set; }
 }

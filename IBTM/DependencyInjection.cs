@@ -569,6 +569,10 @@ public static class DependencyInjection
                 z.Maximum),
             resolutionMillimeters: hardware.MillimetersPerPulse,
             horizontalZ: horizontalZ,
-            servoPowerOn: () => io.GetInput(InputIo.ServoMainContactorOn));
+            servoPowerOn: () => io.GetInput(InputIo.ServoMainContactorOn),
+            axisResolutionMillimeters: (
+                x.MillimetersPerPulse ?? hardware.MillimetersPerPulse,
+                y?.MillimetersPerPulse ?? hardware.MillimetersPerPulse,
+                z?.MillimetersPerPulse ?? hardware.MillimetersPerPulse));
     }
 }

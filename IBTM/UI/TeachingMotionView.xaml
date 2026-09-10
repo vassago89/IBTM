@@ -15,7 +15,11 @@
             <sys:Double>0.1</sys:Double><sys:Double>1</sys:Double><sys:Double>10</sys:Double><sys:Double>50</sys:Double>
         </x:Array>
         <x:Array x:Key="StepDistances" Type="{x:Type sys:Double}">
-            <sys:Double>0.01</sys:Double><sys:Double>0.1</sys:Double><sys:Double>1</sys:Double>
+            <sys:Double>0.01</sys:Double>
+            <sys:Double>0.1</sys:Double>
+            <sys:Double>1</sys:Double>
+            <sys:Double>10</sys:Double>
+            <sys:Double>50</sys:Double>
         </x:Array>
         <Style x:Key="JogDirectionStyle" TargetType="ui:HoldButton" BasedOn="{StaticResource JogButtonStyle}">
             <Setter Property="MinHeight" Value="28"/>
