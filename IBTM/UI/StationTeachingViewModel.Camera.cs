@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
@@ -13,6 +14,82 @@ namespace IBTM.UI;
 
 public partial class StationTeachingViewModel
 {
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FovRegion))]
+    [NotifyPropertyChangedFor(nameof(FovRoiLabel))]
+    [NotifyCanExecuteChangedFor(nameof(TeachFovRegionCommand))]
+    private CarrierImageTileView? _selectedFov;
+
+    public Rect? FovRegion
+    {
+        get
+        {
+            return SelectedFov?.Region is { } region
+                ? new Rect(region.X, region.Y, region.Width, region.Height)
+                : null;
+        }
+    }
+
+    public string FovRoiLabel
+    {
+        get
+        {
+            return SelectedFov?.BoltNumber is { } number
+                ? $"{SelectedFov.HeatSink.GetDescription()} · Bolt {number} · Drag to replace ROI"
+                : "Select a bolt on the left, then drag one ROI in this FOV.";
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanTeachFovRegion))]
+    private async Task TeachFovRegionAsync(Rect bounds)
+    {
+        var fov = SelectedFov!;
+        var bolt = SelectedPoint!.Position.Bolt!;
+        var left = (int)Math.Floor(bounds.Left);
+        var top = (int)Math.Floor(bounds.Top);
+        var region = new PixelRegion(left, top,
+            (int)Math.Ceiling(bounds.Right) - left, (int)Math.Ceiling(bounds.Bottom) - top);
+        if (!region.IsInside(fov.Image.PixelWidth, fov.Image.PixelHeight))
+            return;
+
+        await Machine.RunTeachingEditAsync(
+            async token =>
+            {
+                foreach (var tile in RecipeEditor.Recipe.CarrierImages)
+                {
+                    if (tile.Number == fov.Number)
+                    {
+                        tile.Region = region;
+                        tile.BoltNumber = bolt.Number;
+                        tile.HeatSink = bolt.HeatSink;
+                    }
+                    else if (tile.BoltNumber == bolt.Number && tile.HeatSink == bolt.HeatSink)
+                    {
+                        tile.Region = null;
+                        tile.BoltNumber = null;
+                    }
+                }
+                CarrierImages = CarrierImages.Select(image =>
+                {
+                    var tile = RecipeEditor.Recipe.CarrierImages.Single(tile => tile.Number == image.Number);
+                    return image with { Region = tile.Region, BoltNumber = tile.BoltNumber, HeatSink = tile.HeatSink };
+                }).ToArray();
+                await RecipeEditor.SaveAsync(token);
+                NotifyManualTeachingCommands();
+            },
+            CancellationToken.None,
+            ViewCancellation);
+    }
+
+    private bool CanTeachFovRegion(Rect bounds)
+    {
+        return CanEditInspectionRecipe
+            && RecipeEditor.CanSave
+            && SelectedFov is not null
+            && SelectedPoint?.Position.Bolt is not null
+            && (bounds.IsEmpty || bounds.Width >= 1 && bounds.Height >= 1);
+    }
+
     private readonly object _liveImageGate = new();
     private ImageFrame? _pendingLiveFrame;
     private bool _liveImageUpdateQueued;
@@ -85,7 +162,11 @@ public partial class StationTeachingViewModel
                 var number = CarrierImages.Count == 0 ? 1 : CarrierImages.Max(tile => tile.Number) + 1;
                 CarrierImageTileView[] images = [.. CarrierImages, new(number, captured.Center, image)];
                 if (await RecipeEditor.SaveCarrierImagesAsync(images, token))
+                {
                     CarrierImages = images;
+                    SelectedFov = images[^1];
+                    SelectedCameraTab = 2;
+                }
             },
             cancellationToken);
     }
@@ -218,11 +299,14 @@ public partial class StationTeachingViewModel
         return RunInspectionAsync(
             async ct =>
             {
-                Preview.Clear(SelectedBarcode);
-                var frame = SelectedBarcode is { } pcb
-                    ? await Inspector.CaptureBarcodeAsync(pcb, ct)
-                    : await Inspector.CaptureAsync(SelectedPoint!.Position.Bolt!, ct);
-                await Preview.SetImageAsync(frame, ct);
+                var pcb = SelectedBarcode;
+                var bolt = SelectedPoint!.Position.Bolt;
+                var region = pcb is null ? Inspector.GetFov(bolt!).Region : null;
+                Preview.Clear(pcb);
+                var frame = pcb is { } barcode
+                    ? await Inspector.CaptureBarcodeAsync(barcode, ct)
+                    : await Inspector.CaptureAsync(bolt!, ct);
+                await Preview.SetImageAsync(frame, ct, region);
                 await Preview.InspectAsync(ct);
             },
             token);
@@ -234,7 +318,7 @@ public partial class StationTeachingViewModel
             && CanMoveToPoint()
             && (SelectedBarcode is { } pcb
                 ? Inspector.HasBarcodeRegion(pcb)
-                : SelectedPoint?.Position.Target == TeachingTarget.BoltReference);
+                : SelectedPoint?.Position.Bolt is { } bolt && Inspector.HasPosition(bolt));
     }
 
     [RelayCommand(CanExecute = nameof(CanReinspectImage))]
@@ -277,8 +361,8 @@ public partial class StationTeachingViewModel
                     await Task.Run(
                         () => _trainingStore.AddImage(
                             $"{point.HeatSink.GetDescription()} · Bolt {point.Number}",
-                            frame,
-                            InspectionRecipe.RegionSizePixels),
+                            BoltImageInput.Create(frame, Inspector.GetFov(point).Region!),
+                            IBoltRecessSegmenter.InputSize),
                         ct);
                 }
             },

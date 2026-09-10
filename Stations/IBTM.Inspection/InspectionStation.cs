@@ -92,6 +92,7 @@ public sealed class InspectionStation : AutoUnit
 
         return NextInspectionState(NextBolt(bolts)) is InspectionStationState.Waiting
             or InspectionStationState.BarcodeTeachingRequired
+            or InspectionStationState.FovTeachingRequired
             ? WaitForChangeAsync(cancellationToken)
             : ExecuteInspectionAsync(bolts, cancellationToken);
     }
@@ -228,6 +229,8 @@ public sealed class InspectionStation : AutoUnit
             return InspectionStationState.CompletingInspection;
         }
 
+        if (!_inspector.HasPosition(bolt))
+            return InspectionStationState.FovTeachingRequired;
         return _inspector.IsAt(bolt)
             ? InspectionStationState.InspectingBolt
             : InspectionStationState.MovingToBolt;

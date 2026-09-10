@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Threading;
@@ -22,6 +24,7 @@ public sealed class BoltInspector
     private readonly Func<BoltInspectionRecipe> getRecipe;
     private readonly Func<PcbLayout> getPcb;
     private readonly Func<double> getMillimetersPerPixel;
+    private readonly Func<IReadOnlyList<CarrierImageTile>> getFovs;
     private readonly SemaphoreSlim _visionGate = new(1, 1);
     private int? _lightChannel;
 
@@ -35,7 +38,8 @@ public sealed class BoltInspector
         LightingSettings lightingSettings,
         Func<BoltInspectionRecipe> getRecipe,
         Func<PcbLayout> getPcb,
-        Func<double> getMillimetersPerPixel)
+        Func<double> getMillimetersPerPixel,
+        Func<IReadOnlyList<CarrierImageTile>> getFovs)
     {
         this.gantry = gantry;
         this.camera = camera;
@@ -47,6 +51,7 @@ public sealed class BoltInspector
         this.getRecipe = getRecipe;
         this.getPcb = getPcb;
         this.getMillimetersPerPixel = getMillimetersPerPixel;
+        this.getFovs = getFovs;
         camera.LiveViewFailed += OnCameraLiveViewFailed;
     }
 
@@ -124,9 +129,9 @@ public sealed class BoltInspector
         presenceDetector.CheckReady();
     }
 
-    public BoltPrediction Predict(ImageFrame image)
+    public BoltPrediction Predict(ImageFrame image, PixelRegion region)
     {
-        return presenceDetector.Predict(image);
+        return presenceDetector.Predict(image, region);
     }
 
     public (double Width, double Height) FieldOfView
@@ -219,20 +224,30 @@ public sealed class BoltInspector
 
     public bool HasPosition(BoltTarget point)
     {
-        return CarrierCoordinates.IsDefined(
-            carrierReference.UpperLeftLocatingPin,
-            carrierReference.LowerRightLocatingPin)
-            && point is { X: not null, Y: not null };
+        return getFovs().Count(fov =>
+            fov.BoltNumber == point.Number
+            && fov.HeatSink == point.HeatSink
+            && fov.Region is not null) == 1;
+    }
+
+    public CarrierImageTile GetFov(BoltTarget point)
+    {
+        return getFovs().SingleOrDefault(fov =>
+            fov.BoltNumber == point.Number
+            && fov.HeatSink == point.HeatSink
+            && fov.Region is not null)
+            ?? throw new InvalidOperationException(
+                $"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Number}.");
     }
 
     internal bool IsAt(BoltTarget point)
     {
-        return gantry.IsAt(gantrySettings.GetBoltPosition(point, carrierReference));
+        return gantry.IsAt(GetFov(point).Center);
     }
 
     public Task MoveToAsync(BoltTarget point, CancellationToken cancellationToken = default)
     {
-        return MoveToAsync(gantrySettings.GetBoltPosition(point, carrierReference), cancellationToken);
+        return MoveToAsync(GetFov(point).Center, cancellationToken);
     }
 
     private ImageFrame Capture()
@@ -266,22 +281,24 @@ public sealed class BoltInspector
 
     internal async Task<bool> InspectAsync(BoltTarget point, CancellationToken cancellationToken = default)
     {
+        var region = GetFov(point).Region!;
         var image = await CaptureCurrentAsync(cancellationToken).ConfigureAwait(false);
         return await Task.Run(
             () =>
             {
                 var capturedAt = DateTimeOffset.UtcNow;
                 cancellationToken.ThrowIfCancellationRequested();
-                var present = presenceDetector.IsPresent(image);
+                var present = presenceDetector.IsPresent(image, region);
                 cancellationToken.ThrowIfCancellationRequested();
                 Inspected?.Invoke(
                     new(
                         image,
                         point.Number,
                         point.HeatSink,
-                        getRecipe().RegionSizePixels,
+                        IBoltRecessSegmenter.InputSize,
                         present,
-                        capturedAt));
+                        capturedAt,
+                        region));
                 return present;
             },
             cancellationToken);

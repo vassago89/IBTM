@@ -624,6 +624,27 @@ public sealed class OutputWindowThreadingTests
                 services.GetRequiredService<MachineStore>()
                     .LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
             Assert.Null(teaching.CameraError);
+            teaching.AddBoltPointCommand.Execute(null);
+            var roiBolt = teaching.SelectedPoint!;
+            var fov = teaching.SelectedFov!;
+            Assert.True(teaching.TeachFovRegionCommand.CanExecute(Rect.Empty));
+            await teaching.TeachFovRegionCommand.ExecuteAsync(new Rect(200, 30, 60, 80));
+            Assert.Equal(new PixelRegion(200, 30, 60, 80), teaching.SelectedFov!.Region);
+            Assert.Equal(fov.Center, teaching.SelectedFov.Center);
+            teaching.SelectedPoint = roiBolt;
+            await teaching.TeachFovRegionCommand.ExecuteAsync(new Rect(210, 40, 50, 60));
+            saved = await services.GetRequiredService<RecipeStore>()
+                .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
+            var roiFov = Assert.Single(saved.CarrierImages, image => image.Region is not null);
+            Assert.Equal(new PixelRegion(210, 40, 50, 60), roiFov.Region);
+            Assert.Equal(roiBolt.BoltNumber, roiFov.BoltNumber);
+            Assert.Equal(fov.Center.X, roiFov.Center.X);
+            Assert.Equal(fov.Center.Y, roiFov.Center.Y);
+            Assert.True(teaching.Inspector.HasPosition(roiBolt.Position.Bolt!));
+            teaching.SelectedPoint = roiBolt;
+            teaching.RemoveBoltPointCommand.Execute(null);
+            Assert.All(teaching.CarrierImages, image => Assert.Null(image.Region));
+            Assert.False(teaching.Inspector.HasPosition(roiBolt.Position.Bolt!));
             foreach (var closeTeaching in new[] { false, true })
             {
                 var captureStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

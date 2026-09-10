@@ -93,8 +93,10 @@ public sealed class NgCarrierMove(
         bool holdAtDestination = false)
     {
         var source = Opposite(destination);
-        var atDestination = gantry.IsAt(Position(destination));
-        var atSource = gantry.IsAt(Position(source));
+        var destinationPosition = Position(destination);
+        var sourcePosition = Position(source);
+        var atDestination = destinationPosition is not null && gantry.IsAt(destinationPosition);
+        var atSource = sourcePosition is not null && gantry.IsAt(sourcePosition);
         var destinationPresent = CarrierPresent(destination);
         var sourcePresent = CarrierPresent(source);
         var down = pickup.Lift == NgTransferLiftState.Down;
@@ -209,7 +211,11 @@ public sealed class NgCarrierMove(
             NgTransferState.MovingToCarrier
                 => MoveToCarrierAsync(Opposite(destination), cancellationToken),
             NgTransferState.MovingToDestination
-                => gantry.MoveToAsync(Position(destination), settings.Speed, cancellationToken),
+                => gantry.MoveToAsync(
+                    Position(destination)
+                        ?? throw new InvalidOperationException("Teach NG Pickup Safe X before returning to Station 3."),
+                    settings.Speed,
+                    cancellationToken),
             NgTransferState.WaitingForGrip => pickup.WaitForCarrierGripAsync(cancellationToken),
             NgTransferState.WaitingForPlacement
                 => destination == NgTransferDestination.Shuttle
@@ -231,20 +237,22 @@ public sealed class NgCarrierMove(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var position = Position(source);
+        var position = Position(source)
+            ?? throw new InvalidOperationException("Teach NG Pickup Safe X before moving to a carrier.");
         if (gantry.IsAt(position))
             return;
         var safeX = settings.PickupSafeX
             ?? throw new InvalidOperationException("Teach NG Pickup Safe X before moving to a carrier.");
         await gantry.MoveAxisAsync(MotionAxis.X, safeX, settings.Speed, cancellationToken);
         await gantry.MoveAxisAsync(MotionAxis.Y, position.Y, settings.Speed, cancellationToken);
-        await gantry.MoveAxisAsync(MotionAxis.X, position.X, settings.Speed, cancellationToken);
+        if (source == NgTransferDestination.Shuttle)
+            await gantry.MoveAxisAsync(MotionAxis.X, position.X, settings.Speed, cancellationToken);
     }
 
-    private AxisPosition Position(NgTransferDestination location)
+    private AxisPosition? Position(NgTransferDestination location)
     {
         return location == NgTransferDestination.Station
-            ? settings.CarrierPickupPosition
+            ? settings.GetCarrierPickupPosition()
             : settings.ShuttlePlacePosition;
     }
 

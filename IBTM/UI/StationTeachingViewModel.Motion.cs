@@ -196,6 +196,8 @@ public partial class StationTeachingViewModel
                     => _inspectionGantry.MoveAxisAsync(MotionAxis.X, point.X, TeachingXySpeed, token),
                 MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgCarrierPickup
                     => _ngCarrierMove.MoveToCarrierAsync(NgTransferDestination.Station, token),
+                MotionGroup.InspectionGantry when point.Position.Bolt is { } bolt
+                    => Inspector.MoveToAsync(bolt, token),
                 MotionGroup.InspectionGantry => _inspectionGantry.MoveToAsync(
                     new AxisPosition { X = point.X, Y = point.Y },
                     TeachingXySpeed,
@@ -213,7 +215,9 @@ public partial class StationTeachingViewModel
             && (SelectedPoint.Position.Mode == TeachMode.ZOnly || CanMoveHorizontal())
             && (SelectedPoint.Position.Target != TeachingTarget.NgCarrierPickup
                 || _ngTransferSettings.PickupSafeX is not null)
-            && SelectedPoint.Position.HasPosition;
+            && (IsInspectionSelected && SelectedPoint.Position.Bolt is { } bolt
+                ? Inspector.HasPosition(bolt)
+                : SelectedPoint.Position.HasPosition);
     }
 
     private bool CanMoveHorizontal()
@@ -241,6 +245,7 @@ public partial class StationTeachingViewModel
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
         CaptureCarrierImageCommand.NotifyCanExecuteChanged();
         ClearCarrierImagesCommand.NotifyCanExecuteChanged();
+        TeachFovRegionCommand.NotifyCanExecuteChanged();
         CaptureInspectionCommand.NotifyCanExecuteChanged();
         ReinspectImageCommand.NotifyCanExecuteChanged();
         CollectBoltImagesCommand.NotifyCanExecuteChanged();

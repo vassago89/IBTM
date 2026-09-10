@@ -107,5 +107,15 @@ public sealed class BoltTrainingStoreTests
         Assert.Equal(
             InspectionImageCollection.Off,
             new BoltTrainingStore(file).LoadSettings().ImageCollection);
+
+        settings.ImageCollection = InspectionImageCollection.All;
+        var roi = new PixelRegion(20, 40, 80, 120);
+        collector.Collect(ng with { Region = roi });
+        var cropped = store.GetSamples()[^1];
+        Assert.Equal(128, cropped.RegionSize);
+        command.CommandText = "SELECT Image FROM Samples WHERE Id = $id";
+        command.Parameters["$id"].Value = cropped.Id;
+        var croppedImage = BoltTrainingImages.Decode((byte[])command.ExecuteScalar()!);
+        Assert.Equal(BoltImageInput.Create(original, roi).Pixels, croppedImage.Pixels);
     }
 }

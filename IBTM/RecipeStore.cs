@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 using IBTM.Storage;
+using IBTM.Inspection;
 using IBTM.UI;
 
 namespace IBTM;
@@ -69,7 +70,14 @@ public sealed class RecipeStore(MachineStore database)
             () =>
             {
                 var tiles = images.Select(
-                    (image, index) => new CarrierImageTile { Number = index + 1, Center = image.Center })
+                    (image, index) => new CarrierImageTile
+                    {
+                        Number = index + 1,
+                        Center = image.Center,
+                        Region = image.Region,
+                        BoltNumber = image.BoltNumber,
+                        HeatSink = image.HeatSink,
+                    })
                     .ToList();
                 var encoded = images.Select(
                     (image, index) =>

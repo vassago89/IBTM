@@ -32,9 +32,3 @@ public sealed class Recipe
         CarrierImages = recipe.CarrierImages;
     }
 }
-
-public sealed class CarrierImageTile
-{
-    public int Number { get; set; }
-    public AxisPosition Center { get; set; } = new();
-}

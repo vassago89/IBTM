@@ -12,7 +12,7 @@ namespace IBTM.Hik;
 
 public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDisposable
 {
-    private static readonly MvGvspPixelType OutputPixelType = MvGvspPixelType.PixelType_Gvsp_BGR8_Packed;
+    private static readonly MvGvspPixelType ConversionPixelType = MvGvspPixelType.PixelType_Gvsp_RGB8_Packed;
 
     // Device selection changes apply after restart, not during connection recovery.
     private readonly string _deviceId = settings.DeviceId;
@@ -372,15 +372,17 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
                     image,
                     pixels,
                     out var convertedSize,
-                    OutputPixelType),
-                "Convert Hik frame to BGR8");
+                    ConversionPixelType),
+                "Convert Hik frame to RGB8");
 
             if (convertedSize != checked((ulong)pixels.Length))
             {
                 throw new InvalidOperationException(
-                    $"Hik BGR frame size is {convertedSize}; expected {pixels.Length}.");
+                    $"Hik RGB frame size is {convertedSize}; expected {pixels.Length}.");
             }
 
+            // Packed RGB has no row padding. Reversing all bytes flips X/Y and converts RGB to BGR.
+            Array.Reverse(pixels);
             return new ImageFrame(width, height, width * ImageFrame.ColorChannelCount, pixels);
         }
         catch (Exception exception)

@@ -77,6 +77,29 @@ public sealed class InspectionTests
     }
 
     [Fact]
+    public void ModelInputUsesTheDrawnOffCenterRectangle()
+    {
+        const int width = 400;
+        const int height = 300;
+        const int stride = width * 3 + 4;
+        var pixels = Enumerable.Repeat((byte)255, stride * height).ToArray();
+        var region = new PixelRegion(20, 170, 64, 96);
+        for (var y = region.Y; y < region.Y + region.Height; y++)
+            for (var x = region.X; x < region.X + region.Width; x++)
+                for (var channel = 0; channel < 3; channel++)
+                    pixels[y * stride + x * 3 + channel] = (byte)(10 + channel);
+        var image = new ImageFrame(width, height, stride, pixels);
+
+        var input = BoltImageInput.Create(image, region);
+
+        Assert.Equal((128, 128, 384), (input.Width, input.Height, input.Stride));
+        for (var index = 0; index < input.Pixels.Length; index++)
+            Assert.Equal((byte)(10 + index % 3), input.Pixels[index]);
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => BoltImageInput.Create(image, region with { X = 390 }));
+    }
+
+    [Fact]
     public async Task CarrierMapCaptureUsesCurrentPositionWithoutMoving()
     {
         var reference = new CarrierReferenceSettings
@@ -107,6 +130,14 @@ public sealed class InspectionTests
         var scale = 0.05;
         var recipe = new BoltInspectionRecipe();
         var pcb = TaughtPcbLayout();
+        var fov = new CarrierImageTile
+        {
+            Number = 1,
+            Center = new() { X = 12, Y = 9 },
+            Region = new(200, 30, 60, 80),
+            BoltNumber = 1,
+            HeatSink = HeatSinkSlot.HeatSink1,
+        };
         var inspector = new BoltInspector(
             gantry,
             new VirtualCamera(motion.GetPosition, () => []),
@@ -117,7 +148,8 @@ public sealed class InspectionTests
             new LightingSettings(),
             () => recipe,
             () => pcb,
-            () => scale);
+            () => scale,
+            () => [fov]);
         var inspections = new List<BoltInspectionImage>();
         inspector.Inspected += inspections.Add;
 
@@ -134,6 +166,16 @@ public sealed class InspectionTests
             Assert.NotEmpty(image.Frame.Pixels);
         }
         Assert.Empty(inspections); // Carrier teaching images are not automatic bolt inspections.
+
+        var bolt = new BoltTarget(new() { Number = 1, X = 999, Y = 999 }, HeatSinkSlot.HeatSink1, pcb);
+        var capturedFov = await inspector.CaptureAsync(bolt);
+        Assert.True(gantry.IsAt(fov.Center)); // Never move the camera center to the bolt / ROI center.
+        Assert.Equal(128, inspector.Predict(capturedFov, fov.Region!).Input.Width);
+        fov.Region = null;
+        Assert.False(inspector.HasPosition(bolt));
+        movements = 0;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.CaptureAsync(bolt));
+        Assert.Equal(0, movements);
 
         pcb.DataMatrix = new(0, 0, 10, 4);
         Assert.Equal((16, 12), inspector.FieldOfView);
@@ -202,7 +244,15 @@ public sealed class InspectionTests
             new LightingSettings(),
             () => new(),
             TaughtPcbLayout,
-            () => 0.05);
+            () => 0.05,
+            () => bolts.Select((bolt, index) => new CarrierImageTile
+            {
+                Number = index + 1,
+                Center = gantrySettings.GetBoltPosition(bolt, carrierReference),
+                Region = new(96, 56, 128, 128),
+                BoltNumber = bolt.Number,
+                HeatSink = bolt.HeatSink,
+            }).ToArray());
         var inspections = new List<BoltInspectionImage>();
         inspector.Inspected += inspections.Add;
         var shuttleFeedback = new NgShuttleFeedback(io);

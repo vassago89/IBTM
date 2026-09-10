@@ -217,7 +217,7 @@ public static class DependencyInjection
                     gantry.Feedback.PositionChanged += (x, y, _) => machine.UpdateInspectionPosition(
                         x,
                         y,
-                        settings.NgCarrierTransfer.CarrierPickupPosition,
+                        settings.NgCarrierTransfer.GetCarrierPickupPosition(),
                         settings.NgCarrierTransfer.ShuttlePlacePosition);
                 }
 
@@ -284,7 +284,8 @@ public static class DependencyInjection
                     settings.Lighting,
                     () => currentRecipe.BoltInspection,
                     () => currentRecipe.Pcb,
-                    () => currentRecipe.CarrierImageMillimetersPerPixel);
+                    () => currentRecipe.CarrierImageMillimetersPerPixel,
+                    () => currentRecipe.CarrierImages);
                 inspector.Inspected += provider.GetRequiredService<BoltImageCollector>().Collect;
                 return inspector;
             });

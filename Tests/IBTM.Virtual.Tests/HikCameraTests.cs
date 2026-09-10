@@ -15,6 +15,42 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class HikCameraTests
 {
+    [Fact]
+    public void CaptureAndLiveFlipBothAxesAndKeepBgrColors()
+    {
+        var sdk = new CameraSdk
+        {
+            Width = 2,
+            Height = 2,
+            RgbPixels = [255, 0, 0, 0, 255, 0, 0, 0, 255, 11, 22, 33],
+        };
+        using var camera = sdk.CreateCamera();
+        byte[] expected = [33, 22, 11, 255, 0, 0, 0, 255, 0, 0, 0, 255];
+        var captured = camera.Capture(500, 0);
+        Assert.Equal((2, 2, 6), (captured.Width, captured.Height, captured.Stride));
+        Assert.Equal(expected, captured.Pixels);
+
+        using var received = new ManualResetEventSlim();
+        ImageFrame? live = null;
+        camera.FrameReady += frame =>
+        {
+            live = frame;
+            received.Set();
+        };
+        camera.StartLiveView(500, 0);
+        try
+        {
+            Assert.True(received.Wait(TimeSpan.FromSeconds(2)));
+        }
+        finally
+        {
+            camera.StopLiveView();
+        }
+        Assert.Equal((2, 2, 6), (live!.Width, live.Height, live.Stride));
+        Assert.Equal(expected, live.Pixels);
+        Assert.Equal(new byte[] { 255, 0, 0, 0, 255, 0, 0, 0, 255, 11, 22, 33 }, sdk.RgbPixels);
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
@@ -244,6 +280,9 @@ public sealed class HikCameraTests
         public bool CloseFails;
         public bool DisposeFails;
         public bool Disposed;
+        public uint Width = 1;
+        public uint Height = 1;
+        public byte[] RgbPixels = [0, 0, 0];
         private bool _grabbing;
         private bool _bufferHeld;
 
@@ -252,7 +291,8 @@ public sealed class HikCameraTests
             var image = Stub<IImage>(
                 (method, _) => method.Name switch
             {
-                "get_Width" or "get_Height" => 1u,
+                "get_Width" => Width,
+                "get_Height" => Height,
                 _ => throw new NotSupportedException(method.Name)
             });
             var frame = Stub<IFrameOut>(
@@ -266,7 +306,9 @@ public sealed class HikCameraTests
                 (method, args) =>
                 {
                     Assert.Equal("ConvertPixelType", method.Name);
-                    args[2] = 3ul;
+                    Assert.Equal(MvGvspPixelType.PixelType_Gvsp_RGB8_Packed, args[3]);
+                    RgbPixels.CopyTo((byte[])args[1]!, 0);
+                    args[2] = (ulong)RgbPixels.Length;
                     return ConversionFails ? MvError.MV_E_PARAMETER : MvError.MV_OK;
                 });
             var parameters = Stub<IParameters>(

@@ -33,19 +33,23 @@ public sealed partial class BoltImageCollector(
             && inspection.Present)
             return;
 
+        var image = inspection.Region is { } region
+            ? BoltImageInput.Create(inspection.Image, region)
+            : inspection.Image;
+        var regionSize = inspection.Region is null ? inspection.RegionSize : IBoltRecessSegmenter.InputSize;
         var source = new BoltImageInspection(
             recipeName(),
             inspection.BoltNumber,
             inspection.HeatSink,
-            inspection.RegionSize,
+            regionSize,
             inspection.Present ? AssemblyResult.Ok : AssemblyResult.Ng,
             inspection.CapturedAt);
         try
         {
             store.AddImage(
                 $"{source.RecipeName} · {source.HeatSink.GetDescription()} · Bolt {source.BoltNumber}",
-                inspection.Image,
-                inspection.RegionSize,
+                image,
+                regionSize,
                 source);
         }
         catch (Exception exception)

@@ -204,7 +204,10 @@ public partial class RecipeEditor(
                     return new CarrierImageTileView(
                         tile.Number,
                         tile.Center,
-                        store.LoadRecipeImage(name, tile.Number));
+                        store.LoadRecipeImage(name, tile.Number),
+                        tile.Region,
+                        tile.BoltNumber,
+                        tile.HeatSink);
                 })
                 .ToArray(),
             cancellationToken);

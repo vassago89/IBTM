@@ -134,10 +134,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             ReinspectImageCommand.NotifyCanExecuteChanged();
             if (e.PropertyName == nameof(InspectionPreview.Image))
                 OnPropertyChanged(nameof(CameraFieldOfView));
-            if (e.PropertyName == nameof(InspectionPreview.RegionSize)
-                && Preview.IsBolt
-                && ReinspectImageCommand.CanExecute(null))
-                ReinspectImageCommand.Execute(null);
         };
         inspectionWork.Changed += QueueManualCommandRefresh;
 
@@ -159,6 +155,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             ClearCarrierImagesCommand.NotifyCanExecuteChanged();
             TeachImagePointCommand.NotifyCanExecuteChanged();
             TeachImageRegionCommand.NotifyCanExecuteChanged();
+            TeachFovRegionCommand.NotifyCanExecuteChanged();
         };
 
         RefreshTeachingPoints();
@@ -427,6 +424,14 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             return;
         var number = SelectedPoint!.BoltNumber;
         RecipeEditor.Recipe.Pcb.BoltPoints.RemoveAll(bolt => bolt.Number == number);
+        foreach (var fov in RecipeEditor.Recipe.CarrierImages.Where(fov => fov.BoltNumber == number))
+        {
+            fov.BoltNumber = null;
+            fov.Region = null;
+        }
+        CarrierImages = CarrierImages.Select(image => image.BoltNumber == number
+            ? image with { BoltNumber = null, Region = null }
+            : image).ToArray();
         RefreshTeachingPoints();
     }
 
@@ -561,7 +566,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     protected override void OnTeachingPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
     {
-        if (IsInspectionSelected)
+        if (IsInspectionSelected && SelectedCameraTab != 2)
             SelectedCameraTab = newValue?.Position.Mode == TeachMode.Image ? 1 : 0;
         Preview.Clear(SelectedBarcode);
         OnPropertyChanged(nameof(SelectedBarcode));
@@ -571,6 +576,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         TeachImageRegionCommand.NotifyCanExecuteChanged();
         TeachImagePointCommand.NotifyCanExecuteChanged();
         RemoveBoltPointCommand.NotifyCanExecuteChanged();
+        TeachFovRegionCommand.NotifyCanExecuteChanged();
         RefreshImageMarkers();
     }
 
@@ -586,6 +592,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     partial void OnCarrierImagesChanged(IReadOnlyList<CarrierImageTileView> value)
     {
+        SelectedFov = value.FirstOrDefault(image => image.Number == SelectedFov?.Number) ?? value.FirstOrDefault();
         OnPropertyChanged(nameof(CameraFieldOfView));
     }
 

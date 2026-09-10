@@ -9,4 +9,5 @@ public sealed record BoltInspectionImage(
     HeatSinkSlot HeatSink,
     int RegionSize,
     bool Present,
-    DateTimeOffset CapturedAt);
+    DateTimeOffset CapturedAt,
+    PixelRegion? Region = null);

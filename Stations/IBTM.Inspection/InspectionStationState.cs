@@ -57,4 +57,6 @@ public enum InspectionStationState
 
     [Description("Holding Carrier at Shuttle")]
     HoldingCarrierAtShuttle,
+    [Description("Teach inspection FOV / ROI")]
+    FovTeachingRequired,
 }

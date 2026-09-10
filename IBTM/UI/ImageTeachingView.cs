@@ -9,7 +9,13 @@ using IBTM.Core;
 
 namespace IBTM.UI;
 
-public sealed record CarrierImageTileView(int Number, AxisPosition Center, BitmapSource Image);
+public sealed record CarrierImageTileView(
+    int Number,
+    AxisPosition Center,
+    BitmapSource Image,
+    PixelRegion? Region = null,
+    int? BoltNumber = null,
+    HeatSinkSlot HeatSink = HeatSinkSlot.HeatSink1);
 
 public sealed record ImageMarker(double X, double Y, string Label, bool Selected = false);
 
@@ -29,6 +35,8 @@ public sealed class ImageTeachingView : FrameworkElement
     private static readonly Pen CameraPen = FrozenPen(CameraStroke, 2, DashStyles.Dash);
     private static readonly Pen MarkerPen = FrozenPen(MarkerStroke, 1.5);
     private static readonly Pen SelectedMarkerPen = FrozenPen(SelectedMarkerStroke, 2.5);
+    private static readonly Pen CrosshairOutlinePen = FrozenPen(Brushes.Black, 3);
+    private static readonly Pen CrosshairPen = FrozenPen(CameraStroke, 1);
     private static readonly Typeface MarkerTypeface = new("Segoe UI");
 
     private readonly DrawingVisual _mapVisual = new();
@@ -324,6 +332,20 @@ public sealed class ImageTeachingView : FrameworkElement
     private void DrawMarkers()
     {
         using var drawingContext = _markerVisual.RenderOpen();
+        if (Source is not null)
+        {
+            if (_draftRegion is { } sourceDraft)
+            {
+                var fitted = Fit(Source.PixelWidth, Source.PixelHeight);
+                var scale = fitted.Width / Source.PixelWidth;
+                drawingContext.DrawRectangle(
+                    null,
+                    SelectedMarkerPen,
+                    new Rect(fitted.X + sourceDraft.X * scale, fitted.Y + sourceDraft.Y * scale,
+                        sourceDraft.Width * scale, sourceDraft.Height * scale));
+            }
+            return;
+        }
         if (_layout is not { } layout)
         {
             return;
@@ -368,6 +390,21 @@ public sealed class ImageTeachingView : FrameworkElement
     private void DrawCamera()
     {
         using var drawingContext = _cameraVisual.RenderOpen();
+        if (Source is { } source)
+        {
+            var fitted = Fit(source.PixelWidth, source.PixelHeight);
+            var center = new Point(fitted.X + fitted.Width / 2, fitted.Y + fitted.Height / 2);
+            var arm = Math.Min(24, Math.Min(fitted.Width, fitted.Height) / 2);
+            var left = new Point(center.X - arm, center.Y);
+            var right = new Point(center.X + arm, center.Y);
+            var top = new Point(center.X, center.Y - arm);
+            var bottom = new Point(center.X, center.Y + arm);
+            drawingContext.DrawLine(CrosshairOutlinePen, left, right);
+            drawingContext.DrawLine(CrosshairOutlinePen, top, bottom);
+            drawingContext.DrawLine(CrosshairPen, left, right);
+            drawingContext.DrawLine(CrosshairPen, top, bottom);
+            return;
+        }
         if (_layout is not { } layout || CameraFieldOfView is not { } camera)
         {
             return;
@@ -381,6 +418,19 @@ public sealed class ImageTeachingView : FrameworkElement
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
+        if (Source is not null)
+        {
+            var fitted = Fit(Source.PixelWidth, Source.PixelHeight);
+            if (fitted.Contains(e.GetPosition(this)) && RegionCommand?.CanExecute(Rect.Empty) == true)
+            {
+                Focus();
+                _regionStart = SourcePoint(e.GetPosition(this));
+                _draftRegion = new Rect(_regionStart.Value, _regionStart.Value);
+                CaptureMouse();
+                e.Handled = true;
+            }
+            return;
+        }
         if (_layout is not { } layout)
         {
             return;
@@ -471,7 +521,12 @@ public sealed class ImageTeachingView : FrameworkElement
     {
         base.OnMouseMove(e);
         var current = e.GetPosition(this);
-        if (_regionStart is { } start && _layout is { } regionLayout)
+        if (_regionStart is { } sourceStart && Source is not null)
+        {
+            _draftRegion = new Rect(sourceStart, SourcePoint(current));
+            DrawMarkers();
+        }
+        else if (_regionStart is { } start && _layout is { } regionLayout)
         {
             _draftRegion = new Rect(start, ScreenToWorld(current, regionLayout));
             DrawMarkers();
@@ -539,6 +594,16 @@ public sealed class ImageTeachingView : FrameworkElement
         if (_panStart is null)
             ReleaseMouseCapture();
         DrawMarkers();
+    }
+
+    private Point SourcePoint(Point screen)
+    {
+        var source = Source!;
+        var fitted = Fit(source.PixelWidth, source.PixelHeight);
+        var scale = fitted.Width / source.PixelWidth;
+        return new Point(
+            Math.Clamp((screen.X - fitted.X) / scale, 0, source.PixelWidth),
+            Math.Clamp((screen.Y - fitted.Y) / scale, 0, source.PixelHeight));
     }
 
     private void RebuildMap()

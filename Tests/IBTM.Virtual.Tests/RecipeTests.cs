@@ -220,7 +220,7 @@ public sealed class RecipeTests
         var recipe = new Recipe
         {
             Name = $"RecipeActivity-{Guid.NewGuid():N}",
-            BoltInspection = new() { RegionSizePixels = 192, MinimumMaskRatio = 0.02 },
+            BoltInspection = new() { LightLevel = 192, MinimumMaskRatio = 0.02 },
         };
         var savedName = recipe.Name;
         var operations = new OperationCancellation();
@@ -274,14 +274,14 @@ public sealed class RecipeTests
 
         editor.NewCommand.Execute(null);
         var defaults = new BoltInspectionRecipe();
-        Assert.Equal(defaults.RegionSizePixels, recipe.BoltInspection.RegionSizePixels);
+        Assert.Equal(defaults.LightLevel, recipe.BoltInspection.LightLevel);
         Assert.Equal(defaults.MinimumMaskRatio, recipe.BoltInspection.MinimumMaskRatio);
 
         activeAtChange = null;
         await editor.LoadCommand.ExecuteAsync(savedName);
         Assert.True(activeAtChange);
         Assert.False(operations.HasActiveOperations);
-        Assert.Equal(192, recipe.BoltInspection.RegionSizePixels);
+        Assert.Equal(192, recipe.BoltInspection.LightLevel);
         Assert.Equal(0.02, recipe.BoltInspection.MinimumMaskRatio);
 
         editor.Name = "Other";
@@ -299,7 +299,7 @@ public sealed class RecipeTests
         Assert.False(changed);
         Assert.Equal("New", editor.ActiveName);
         Assert.Equal("New", editor.Name);
-        Assert.Equal(defaults.RegionSizePixels, recipe.BoltInspection.RegionSizePixels);
+        Assert.Equal(defaults.LightLevel, recipe.BoltInspection.LightLevel);
         Assert.Equal("Other", selection.LastRecipeName);
         Assert.Equal("Other", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
         Assert.False(operations.HasActiveOperations);
@@ -313,7 +313,7 @@ public sealed class RecipeTests
         Assert.Equal(savedName, selectedAtChange);
         Assert.Equal(savedName, editor.ActiveName);
         Assert.Equal(savedName, selection.LastRecipeName);
-        Assert.Equal(192, recipe.BoltInspection.RegionSizePixels);
+        Assert.Equal(192, recipe.BoltInspection.LightLevel);
         Assert.False(operations.HasActiveOperations);
     }
 
@@ -328,7 +328,8 @@ public sealed class RecipeTests
         var targetEditor = new RecipeEditor(store, targetSelection, target, new());
         CarrierImageTileView[] Images(double x, byte value)
         {
-            return [new(1, new() { X = x }, Image(value)), new(2, new() { X = x + 1 }, Image(value)),];
+            return [new(1, new() { X = x }, Image(value), new(0, 0, 1, 1), 3, HeatSinkSlot.HeatSink2),
+                new(2, new() { X = x + 1 }, Image(value))];
         }
 
         static BitmapSource Image(byte value)
@@ -347,6 +348,11 @@ public sealed class RecipeTests
         }
 
         Assert.True(await sourceEditor.SaveCarrierImagesAsync(Images(1, 10)));
+        var savedFov = (await store.LoadRecipeAsync("Source")).CarrierImages[0];
+        Assert.Equal(new PixelRegion(0, 0, 1, 1), savedFov.Region);
+        Assert.Equal(3, savedFov.BoltNumber);
+        Assert.Equal(HeatSinkSlot.HeatSink2, savedFov.HeatSink);
+        Assert.Equal(savedFov.Region, (await sourceEditor.LoadCarrierImagesAsync())[0].Region);
         Assert.Equal("Source", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
         Assert.True(await targetEditor.SaveCarrierImagesAsync(Images(10, 100)));
         Assert.Equal("Target", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);

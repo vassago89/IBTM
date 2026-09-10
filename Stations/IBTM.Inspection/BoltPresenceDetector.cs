@@ -13,15 +13,14 @@ public sealed class BoltPresenceDetector(
         segmenter.CheckReady();
     }
 
-    public BoltPrediction Predict(ImageFrame image)
+    public BoltPrediction Predict(ImageFrame image, PixelRegion region)
     {
-        var recipe = getRecipe();
-        var input = BoltImageInput.Create(image, recipe.RegionSizePixels);
+        var input = BoltImageInput.Create(image, region);
         return new(input, segmenter.Segment(input));
     }
 
-    internal bool IsPresent(ImageFrame image)
+    internal bool IsPresent(ImageFrame image, PixelRegion region)
     {
-        return Predict(image).IsPresent(getMaskThreshold(), getRecipe().MinimumMaskRatio);
+        return Predict(image, region).IsPresent(getMaskThreshold(), getRecipe().MinimumMaskRatio);
     }
 }

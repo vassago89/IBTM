@@ -7,8 +7,16 @@ public sealed class NgCarrierTransferSettings : Setting
 {
     public double Speed { get; set; } = 100.0;
     public double? PickupSafeX { get; set; }
+    // Only Y is taught here. The pickup X is always PickupSafeX.
     public AxisPosition CarrierPickupPosition { get; set; } = new();
     public AxisPosition ShuttlePlacePosition { get; set; } = new();
+
+    public AxisPosition? GetCarrierPickupPosition()
+    {
+        if (PickupSafeX is not { } x)
+            return null;
+        return new() { X = x, Y = CarrierPickupPosition.Y };
+    }
 
     public TeachingPosition[] GetTeachingPositions()
     {
@@ -24,9 +32,9 @@ public sealed class NgCarrierTransferSettings : Setting
             new(
                 TeachingTarget.NgCarrierPickup,
                 MotionGroup.InspectionGantry,
-                TeachMode.XYOnly,
+                TeachMode.YOnly,
                 () => CarrierPickupPosition,
-                p => CarrierPickupPosition = p,
+                p => CarrierPickupPosition.Y = p.Y,
                 this),
             new(
                 TeachingTarget.NgShuttlePlace,

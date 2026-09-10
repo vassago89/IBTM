@@ -156,6 +156,32 @@
                                 </WrapPanel>
                             </Grid>
                         </TabItem>
+                        <TabItem Header="FOV / ROI">
+                            <Grid Margin="0,8,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <ComboBox ItemsSource="{Binding CarrierImages}" SelectedItem="{Binding SelectedFov}" Margin="0,0,0,8">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type ui:CarrierImageTileView}">
+                                            <TextBlock Text="{Binding Number, StringFormat=FOV {0}}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <ui:ImageTeachingView Grid.Row="1" Source="{Binding SelectedFov.Image}"
+                                                      SourceRegion="{Binding FovRegion}" RegionCommand="{Binding TeachFovRegionCommand}"
+                                                      Cursor="Cross" ToolTip="Drag one ROI. Drawing again replaces it. Capture XY does not change. Esc cancels."/>
+                                <StackPanel Grid.Row="2" Margin="0,8,0,0">
+                                    <TextBlock Text="{Binding SelectedPoint.Name, StringFormat=Draw ROI for · {0}}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="{Binding FovRoiLabel}" TextWrapping="Wrap"/>
+                                    <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMutedBrush}">
+                                        <Run Text="Capture XY · "/><Run Text="{Binding SelectedFov.Center.X, StringFormat={}{0:F3}}"/>
+                                        <Run Text=", "/><Run Text="{Binding SelectedFov.Center.Y, StringFormat={}{0:F3}}"/>
+                                        <Run Text=" mm · ROI saves automatically"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Grid>
+                        </TabItem>
                         <TabItem Header="Camera Settings">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="4">
                                 <StackPanel Margin="0,0,12,0">
@@ -183,11 +209,7 @@
                                 <Setter Property="Margin" Value="0,0,0,8"/>
                             </Style>
                         </Grid.Resources>
-                        <TextBlock Text="Central ROI Size (px)" Grid.Row="0"/>
-                        <TextBox x:Name="InspectionRoiInput" Grid.Row="0" Grid.Column="1"
-                                 IsEnabled="{Binding Preview.IsBolt}"
-                                 Text="{Binding Preview.RegionSize, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                 ToolTip="Central square in camera pixels. Leaving the field reinspects the captured image; no motion or new capture."/>
+                        <TextBlock Text="Draw one ROI per image in FOV / ROI." Grid.Row="0" Grid.ColumnSpan="2"/>
                         <TextBlock Text="Minimum Mask (%)" Grid.Row="1"/>
                         <TextBox x:Name="InspectionMaskRatioInput" Grid.Row="1" Grid.Column="1"
                                  IsEnabled="{Binding Preview.IsBolt}"

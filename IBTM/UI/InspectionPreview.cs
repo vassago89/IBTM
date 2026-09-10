@@ -20,6 +20,7 @@ public partial class InspectionPreview(
     private BoltPrediction? _prediction;
     private BitmapSource? _input;
     private HeatSinkSlot? _pcb;
+    private PixelRegion? _boltRegion;
     [ObservableProperty]
     private BitmapSource? _image;
     [ObservableProperty]
@@ -44,26 +45,6 @@ public partial class InspectionPreview(
         }
     }
 
-    public int RegionSize
-    {
-        get
-        {
-            return recipe.BoltInspection.RegionSizePixels;
-        }
-
-        set
-        {
-            if (value < 1)
-                throw new ArgumentOutOfRangeException(nameof(value), "ROI size must be positive.");
-            if (value == RegionSize)
-                return;
-            recipe.BoltInspection.RegionSizePixels = value;
-            ClearPrediction();
-            RefreshRegion();
-            OnPropertyChanged();
-        }
-    }
-
     public double MinimumMaskPercent
     {
         get
@@ -84,21 +65,22 @@ public partial class InspectionPreview(
     public void Clear(HeatSinkSlot? pcb = null)
     {
         _pcb = pcb;
+        _boltRegion = null;
         _frame = null;
         Image = null;
         Region = null;
         ClearPrediction();
         OnPropertyChanged(nameof(HasImage));
         OnPropertyChanged(nameof(IsBolt));
-        OnPropertyChanged(nameof(RegionSize));
         OnPropertyChanged(nameof(MinimumMaskPercent));
     }
 
-    public async Task SetImageAsync(ImageFrame frame, CancellationToken token)
+    public async Task SetImageAsync(ImageFrame frame, CancellationToken token, PixelRegion? region = null)
     {
         var image = await Task.Run(() => CreateBitmap(frame), token);
         token.ThrowIfCancellationRequested();
         _frame = frame;
+        _boltRegion = region;
         Image = image;
         ClearPrediction();
         RefreshRegion();
@@ -117,7 +99,8 @@ public partial class InspectionPreview(
             return;
         }
 
-        var prediction = await Task.Run(() => inspector.Predict(frame), token);
+        var region = _boltRegion ?? throw new InvalidOperationException("Draw the FOV ROI before inspecting.");
+        var prediction = await Task.Run(() => inspector.Predict(frame, region), token);
         var input = await Task.Run(() => CreateBitmap(prediction.Input), token);
         token.ThrowIfCancellationRequested();
         _prediction = prediction;
@@ -169,7 +152,14 @@ public partial class InspectionPreview(
             return;
         }
 
-        var (width, height) = _pcb is not null ? inspector.BarcodePixelSize() : (RegionSize, RegionSize);
+        if (IsBolt)
+        {
+            Region = _boltRegion is { } region
+                ? new Rect(region.X, region.Y, region.Width, region.Height)
+                : null;
+            return;
+        }
+        var (width, height) = inspector.BarcodePixelSize();
         Region = new Rect((_frame.Width - width) / 2, (_frame.Height - height) / 2, width, height);
     }
 

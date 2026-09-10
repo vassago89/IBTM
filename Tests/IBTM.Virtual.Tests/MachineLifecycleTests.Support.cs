@@ -183,6 +183,13 @@ public sealed partial class MachineLifecycleTests
                 provider =>
                 {
                     probe.Motion = provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
+                    var machine = provider.GetRequiredService<VirtualMachine>();
+                    var transfer = provider.GetRequiredService<NgCarrierTransferSettings>();
+                    probe.Motion.PositionChanged += (x, y, _) => machine.UpdateInspectionPosition(
+                        x,
+                        y,
+                        transfer.GetCarrierPickupPosition(),
+                        transfer.ShuttlePlacePosition);
                     return new InspectionGantry(
                         motion,
                         provider.GetRequiredService<NgCarrierTransfer>(),
@@ -464,6 +471,19 @@ public sealed partial class MachineLifecycleTests
         recipe.Pcb = VirtualTest.TaughtPcbLayout();
         recipe.Pcb.BoltPoints.Add(
             new BoltPoint { Number = 1, Head = FasteningHead.Shooting, X = 10, Y = 10, });
+        TeachInspectionFovs(settings, recipe);
+    }
+
+    private static void TeachInspectionFovs(MachineSettings settings, Recipe recipe)
+    {
+        recipe.CarrierImages = recipe.Pcb.GetBolts().Select((bolt, index) => new CarrierImageTile
+        {
+            Number = index + 1,
+            Center = settings.InspectionGantry.GetBoltPosition(bolt, settings.CarrierReference),
+            Region = new(96, 56, 128, 128),
+            BoltNumber = bolt.Number,
+            HeatSink = bolt.HeatSink,
+        }).ToList();
     }
 
     public enum MachineUnit

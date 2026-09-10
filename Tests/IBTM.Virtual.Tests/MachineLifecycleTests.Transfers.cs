@@ -31,7 +31,6 @@ public sealed partial class MachineLifecycleTests
         await gantry.MoveToAsync(settings.ShuttlePlacePosition, 10_000);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleUp, true);
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        settings.PickupSafeX = null;
         var gripped = false;
         var movedBeforeGrip = false;
         io.InputChanged += (input, value) =>
@@ -54,29 +53,30 @@ public sealed partial class MachineLifecycleTests
         Assert.False(io.GetInput(InputIo.NgShuttleCarrierDetected));
         Assert.True(pickup.IsRaised);
         Assert.Equal(NgTransferGripperState.Open, pickup.Gripper);
-        Assert.True(gantry.IsAt(settings.CarrierPickupPosition));
+        Assert.True(gantry.IsAt(settings.GetCarrierPickupPosition()!));
         if (!hasFov)
         {
+            var position = settings.GetCarrierPickupPosition()!;
+            settings.PickupSafeX = null;
             await move.ClearStationAsync(null, CancellationToken.None);
             Assert.Empty(feedback.AxisMoves);
-            Assert.True(gantry.IsAt(settings.CarrierPickupPosition));
+            Assert.True(gantry.IsAt(position));
             return;
         }
 
         var firstFov = new AxisPosition { X = 30, Y = 40 };
-        settings.PickupSafeX = 5;
         using var cancellation = new CancellationTokenSource();
-        void StopAtSafeX(double x, double y, double z)
+        void StopAtFovY(double x, double y, double z)
         {
-            if (x == settings.PickupSafeX)
+            if (y == firstFov.Y)
                 cancellation.Cancel();
         }
-        gantry.Feedback.PositionChanged += StopAtSafeX;
+        gantry.Feedback.PositionChanged += StopAtFovY;
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => move.ClearStationAsync(firstFov, cancellation.Token));
-        gantry.Feedback.PositionChanged -= StopAtSafeX;
-        Assert.Equal(new[] { (MotionAxis.X, 5d) }, feedback.AxisMoves);
-        Assert.Equal(settings.CarrierPickupPosition.Y, gantry.Feedback.GetPosition().Y);
+        gantry.Feedback.PositionChanged -= StopAtFovY;
+        Assert.Equal(new[] { (MotionAxis.X, 5d), (MotionAxis.Y, 40d) }, feedback.AxisMoves);
+        Assert.Equal(5, gantry.Feedback.GetPosition().X);
 
         feedback.AxisMoves.Clear();
         await move.ClearStationAsync(firstFov, CancellationToken.None);
@@ -89,13 +89,14 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task NgPickupApproachUsesSafeXThenYThenXAndCancelsBetweenAxes()
+    public async Task NgPickupApproachUsesSafeXThenYAndGripsWithoutAnotherXMove()
     {
         using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
         var move = services.GetRequiredService<NgCarrierMove>();
         var settings = services.GetRequiredService<NgCarrierTransferSettings>();
         var gantry = services.GetRequiredService<InspectionGantry>();
+        var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await gantry.MoveToAsync(new() { X = 50, Y = 60 }, 10_000);
@@ -123,8 +124,21 @@ public sealed partial class MachineLifecycleTests
         feedback.AxisMoves.Clear();
         await move.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.MovingToCarrier, CancellationToken.None)!;
         Assert.Equal(
-            new[] { (MotionAxis.X, 5d), (MotionAxis.Y, settings.CarrierPickupPosition.Y), (MotionAxis.X, settings.CarrierPickupPosition.X) },
+            new[] { (MotionAxis.X, 5d), (MotionAxis.Y, settings.CarrierPickupPosition.Y) },
             feedback.AxisMoves);
+        Assert.NotEqual(settings.CarrierPickupPosition.X, gantry.Feedback.GetPosition().X);
+
+        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleUp, true);
+        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        Assert.Equal(NgTransferState.LoweringToCarrier, move.State(NgTransferDestination.Shuttle, canPickUp: true));
+        await move.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.LoweringToCarrier, CancellationToken.None)!;
+        Assert.Equal(NgTransferState.Closing, move.State(NgTransferDestination.Shuttle, canPickUp: true));
+        await move.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.Closing, CancellationToken.None)!;
+        Assert.True(io.GetInput(InputIo.NgCarrierDetected));
+        Assert.Equal(5, gantry.Feedback.GetPosition().X);
+        Assert.Equal(2, feedback.AxisMoves.Count);
+        await move.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.Raising, CancellationToken.None)!;
 
         feedback.AxisMoves.Clear();
         await move.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.MovingToDestination, CancellationToken.None)!;
@@ -257,7 +271,7 @@ public sealed partial class MachineLifecycleTests
         await services.GetRequiredService<InspectionGantry>()
             .MoveToAsync(
                 destination == NgTransferDestination.Station
-                    ? settings.NgCarrierTransfer.CarrierPickupPosition
+                    ? settings.NgCarrierTransfer.GetCarrierPickupPosition()!
                     : settings.NgCarrierTransfer.ShuttlePlacePosition,
                 1_000);
         io.AutoResponseEnabled = false;

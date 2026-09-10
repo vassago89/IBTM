@@ -227,9 +227,9 @@ public sealed class MachineMap(
         var lowerRight = carrier.LowerRightLocatingPin!;
         var first = (upperLeft.X, upperLeft.Y);
         var second = (lowerRight.X, lowerRight.Y);
-        var pickup = transfer.CarrierPickupPosition;
+        var pickup = transfer.GetCarrierPickupPosition();
         var shuttle = transfer.ShuttlePlacePosition;
-        var pickupSide = MachinePlan.Side((pickup.X, pickup.Y), first, second);
+        var pickupSide = pickup is null ? 0 : MachinePlan.Side((pickup.X, pickup.Y), first, second);
         var shuttleSide = MachinePlan.Side((shuttle.X, shuttle.Y), first, second);
         var cameraUpperLeft = MachinePlan.Offset(
             MachinePlan.InspectionUpperLeft,
@@ -238,7 +238,7 @@ public sealed class MachineMap(
             MachinePlan.InspectionLowerRight,
             MachinePlan.CameraCenter);
 
-        if (pickupSide * shuttleSide < 0)
+        if (pickup is not null && pickupSide * shuttleSide < 0)
         {
             var towardPickup = MachinePlan.Side((x, y), first, second) * pickupSide >= 0;
             return FromThreePoints(

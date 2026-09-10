@@ -273,10 +273,10 @@ public sealed class VirtualMachine
     public void UpdateInspectionPosition(
         double x,
         double y,
-        AxisPosition pickupPosition,
+        AxisPosition? pickupPosition,
         AxisPosition shuttlePosition)
     {
-        _inspectionAtNgPickup = IsAt(x, y, pickupPosition);
+        _inspectionAtNgPickup = pickupPosition is not null && IsAt(x, y, pickupPosition);
         _inspectionAtNgShuttle = IsAt(x, y, shuttlePosition);
     }
 

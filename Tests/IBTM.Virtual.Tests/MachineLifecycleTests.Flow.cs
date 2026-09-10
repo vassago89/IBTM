@@ -61,6 +61,7 @@ public sealed partial class MachineLifecycleTests
         using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<Recipe>();
         recipe.Pcb.BoltPoints = [new() { Number = 1, X = 10, Y = 10 },];
+        TeachInspectionFovs(settings, recipe);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
