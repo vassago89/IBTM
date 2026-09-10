@@ -77,7 +77,7 @@ public partial class SupplyTeachingViewModel
     }
 
     protected override bool CanJog(MotionAxis axis) =>
-        CanUseCurrentHandler()
+        Machine.CanUseManualMotion(CurrentMotionGroup, live: false)
         && (ActiveMotionGroup == MotionGroup.PcbSupply
             ? _supplyHandler.CanJog(axis, live: false)
             : _placementHandler.CanJog(axis, live: false));
@@ -88,7 +88,7 @@ public partial class SupplyTeachingViewModel
             : _placementHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), cancellationToken);
 
     protected override bool CanMoveToPoint() =>
-        CanUseCurrentHandler()
+        Machine.CanUseManualMotion(CurrentMotionGroup, live: false)
         && SelectedPoint is { } point
         && (point.MotionGroup != MotionGroup.PcbSupply
             ? point.TeachMode == TeachMode.ZOnly

@@ -12,6 +12,7 @@ namespace IBTM.UI;
 
 public partial class MainWindow : Window
 {
+    private readonly MainViewModel _viewModel;
     private readonly IIoService _io;
     private readonly IoSignals _signals;
     private readonly IAdcBus _adcBus;
@@ -39,6 +40,7 @@ public partial class MainWindow : Window
         MotionWindowViewModel motionViewModel,
         ApplicationLog? log = null)
     {
+        _viewModel = viewModel;
         _io = io;
         _signals = signals;
         _adcBus = adcBus;
@@ -84,7 +86,7 @@ public partial class MainWindow : Window
                 _adcProtocolWindow?.StopAsync() ?? Task.CompletedTask,
                 _outputWindow?.ShutdownAsync() ?? Task.CompletedTask,
                 _motionWindow?.ShutdownAsync() ?? Task.CompletedTask,
-                ((MainViewModel)DataContext).ShutdownAsync(),
+                _viewModel.ShutdownAsync(),
                 _machine.ShutdownAsync());
             _shutdownCompleted = true;
             _ = Dispatcher.BeginInvoke(Close);
@@ -130,7 +132,7 @@ public partial class MainWindow : Window
     {
         // Recheck the selector when clicked, before the next display update arrives.
         if (_closing || !_state.ManualMode
-            || DataContext is not MainViewModel { OutputsWindowEnabled: true }) return;
+            || !_viewModel.OutputsWindowEnabled) return;
 
         if (_outputWindow is not null)
         {
@@ -183,10 +185,9 @@ public partial class MainWindow : Window
         object sender,
         SelectionChangedEventArgs e)
     {
-        if (((ComboBox)sender).SelectedItem is string recipeName
-            && DataContext is MainViewModel viewModel)
+        if (((ComboBox)sender).SelectedItem is string recipeName)
         {
-            viewModel.RecipeEditor.LoadCommand.Execute(recipeName);
+            _viewModel.RecipeEditor.LoadCommand.Execute(recipeName);
         }
     }
 

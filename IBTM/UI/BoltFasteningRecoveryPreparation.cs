@@ -25,9 +25,6 @@ public sealed class BoltFasteningRecoveryPreparation
         _recipe = recipe;
     }
 
-    public override StartPreparationType Type =>
-        StartPreparationType.BoltFasteningRecovery;
-
     protected override bool Show(Window owner)
     {
         var items = new List<BoltFasteningRecoveryItem>();

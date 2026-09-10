@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
                     xmlns:ui="clr-namespace:IBTM.UI"
                     xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core">
 
@@ -37,11 +38,11 @@
         <Setter Property="BorderThickness" Value="2"/>
         <Setter Property="CornerRadius" Value="3"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                 <Setter Property="Background" Value="{StaticResource HeatSinkBodyBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource HeatSinkBrush}"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -55,7 +56,7 @@
         <Setter Property="Panel.ZIndex" Value="3"/>
     </Style>
 
-    <Style x:Key="CarrierPcbSlotStyle" TargetType="ContentControl">
+    <Style x:Key="CarrierPcbSlotStyle" TargetType="Border">
         <Setter Property="Width" Value="80"/>
         <Setter Property="Height" Value="60"/>
         <Setter Property="HorizontalAlignment" Value="Center"/>
@@ -63,20 +64,38 @@
         <Setter Property="Visibility" Value="Collapsed"/>
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderBrush" Value="Transparent"/>
-        <Setter Property="Template">
+        <Setter Property="BorderThickness" Value="2"/>
+        <Setter Property="CornerRadius" Value="3"/>
+    </Style>
+
+    <DataTemplate x:Key="BoltTargetTemplate" DataType="{x:Type ui:BoltTargetView}">
+        <Border Tag="{Binding State}"
+                Style="{StaticResource BoltTargetStyle}"
+                ToolTip="{Binding Head, Converter={StaticResource EnumDescriptionConverter}}">
+            <TextBlock Text="{Binding Number}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       FontSize="11"
+                       FontWeight="SemiBold"/>
+        </Border>
+    </DataTemplate>
+    <Style x:Key="BoltTargetItemsStyle" TargetType="ItemsControl">
+        <Setter Property="Panel.ZIndex" Value="2"/>
+        <Setter Property="ItemTemplate" Value="{StaticResource BoltTargetTemplate}"/>
+        <Setter Property="ItemsPanel">
             <Setter.Value>
-                <ControlTemplate TargetType="ContentControl">
-                    <Border Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="2" CornerRadius="3">
-                        <Grid>
-                            <Border Style="{StaticResource PcbSlotStyle}"/>
-                            <Border Style="{StaticResource PcbFootprintStyle}"
-                                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                                    Visibility="{Binding Content, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}"/>
-                        </Grid>
-                    </Border>
-                </ControlTemplate>
+                <ItemsPanelTemplate>
+                    <Canvas/>
+                </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="ItemContainerStyle">
+            <Setter.Value>
+                <Style TargetType="ContentPresenter">
+                    <Setter Property="Canvas.Left" Value="{Binding Left}"/>
+                    <Setter Property="Canvas.Top" Value="{Binding Top}"/>
+                </Style>
             </Setter.Value>
         </Setter>
     </Style>
@@ -84,8 +103,6 @@
     <Style x:Key="CarrierStyle" TargetType="{x:Type ui:CarrierView}">
         <Setter Property="Width" Value="{StaticResource CarrierWidth}"/>
         <Setter Property="Height" Value="{StaticResource CarrierHeight}"/>
-        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type ui:CarrierView}">
@@ -100,31 +117,70 @@
                             <Border x:Name="HeatSink1" Tag="{TemplateBinding HeatSink1Present}" Style="{StaticResource HeatSinkPocketStyle}">
                                 <Grid>
                                     <TextBlock Text="HS1" Style="{StaticResource HeatSinkPocketLabelStyle}"
-                                               Visibility="{Binding HeatSink1Present, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}"/>
-                                    <ContentControl x:Name="Pcb1" Content="{TemplateBinding Pcb1Placed}"
-                                                    Style="{StaticResource CarrierPcbSlotStyle}"/>
-                                    <TextBlock Text="{Binding HeatSink1Result, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource EnumDescriptionConverter}}"
-                                               Tag="{Binding HeatSink1Result, RelativeSource={RelativeSource TemplatedParent}}"
+                                               Visibility="{TemplateBinding HeatSink1Present, Converter={StaticResource BoolToVis}}"/>
+                                    <Border x:Name="Pcb1" Style="{StaticResource CarrierPcbSlotStyle}">
+                                        <Grid>
+                                            <Border Style="{StaticResource PcbSlotStyle}"/>
+                                            <Border Style="{StaticResource PcbFootprintStyle}"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                    Visibility="{TemplateBinding Pcb1Placed, Converter={StaticResource BoolToVis}}"/>
+                                        </Grid>
+                                    </Border>
+                                    <TextBlock x:Name="Result1" Text="{TemplateBinding HeatSink1Result, Converter={StaticResource EnumDescriptionConverter}}"
+                                               Tag="{TemplateBinding HeatSink1Result}"
                                                Style="{StaticResource ResultTextStyle}"/>
                                 </Grid>
                             </Border>
                             <Border x:Name="HeatSink2" Grid.Column="2" Tag="{TemplateBinding HeatSink2Present}" Style="{StaticResource HeatSinkPocketStyle}">
                                 <Grid>
                                     <TextBlock Text="HS2" Style="{StaticResource HeatSinkPocketLabelStyle}"
-                                               Visibility="{Binding HeatSink2Present, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource BoolToVis}}"/>
-                                    <ContentControl x:Name="Pcb2" Content="{TemplateBinding Pcb2Placed}"
-                                                    Style="{StaticResource CarrierPcbSlotStyle}"/>
-                                    <TextBlock Text="{Binding HeatSink2Result, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource EnumDescriptionConverter}}"
-                                               Tag="{Binding HeatSink2Result, RelativeSource={RelativeSource TemplatedParent}}"
+                                               Visibility="{TemplateBinding HeatSink2Present, Converter={StaticResource BoolToVis}}"/>
+                                    <Border x:Name="Pcb2" Style="{StaticResource CarrierPcbSlotStyle}">
+                                        <Grid>
+                                            <Border Style="{StaticResource PcbSlotStyle}"/>
+                                            <Border Style="{StaticResource PcbFootprintStyle}"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                    Visibility="{TemplateBinding Pcb2Placed, Converter={StaticResource BoolToVis}}"/>
+                                        </Grid>
+                                    </Border>
+                                    <TextBlock x:Name="Result2" Text="{TemplateBinding HeatSink2Result, Converter={StaticResource EnumDescriptionConverter}}"
+                                               Tag="{TemplateBinding HeatSink2Result}"
                                                Style="{StaticResource ResultTextStyle}"/>
                                 </Grid>
                             </Border>
-                            <ContentPresenter Grid.ColumnSpan="3"
-                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                            <ItemsControl Grid.ColumnSpan="3" ItemsSource="{TemplateBinding BoltTargets}"
+                                          Style="{StaticResource BoltTargetItemsStyle}"/>
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="HeatSink1Present" Value="True"/>
+                                <Condition Property="HeatSink1Result" Value="{x:Static core:AssemblyResult.Ok}"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Result1" Property="Visibility" Value="Visible"/>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="HeatSink1Present" Value="True"/>
+                                <Condition Property="HeatSink1Result" Value="{x:Static core:AssemblyResult.Ng}"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Result1" Property="Visibility" Value="Visible"/>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="HeatSink2Present" Value="True"/>
+                                <Condition Property="HeatSink2Result" Value="{x:Static core:AssemblyResult.Ok}"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Result2" Property="Visibility" Value="Visible"/>
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="HeatSink2Present" Value="True"/>
+                                <Condition Property="HeatSink2Result" Value="{x:Static core:AssemblyResult.Ng}"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Result2" Property="Visibility" Value="Visible"/>
+                        </MultiTrigger>
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
                                 <Condition Property="ShowPcbSlots" Value="True"/>

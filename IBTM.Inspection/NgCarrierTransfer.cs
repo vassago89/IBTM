@@ -63,16 +63,10 @@ public sealed class NgCarrierTransfer : INgCarrierTransferFeedback
     public bool IsRaised => Lift == NgTransferLiftState.Up;
     public bool IsClear => IsRaised && !CarrierDetected;
 
-    public TeachingOutput[] GetTeachingOutputs(Func<bool, bool> canSet) =>
-    [
-        new(OutputIo.NgCarrierPickupDown, HardwareArea.NgCarrierTransfer, SetLiftDownAsync, canSet),
-        new(OutputIo.NgCarrierGripperClose, HardwareArea.NgCarrierTransfer, SetGripperClosedAsync, canSet),
-    ];
-
     public Task RaiseAsync(CancellationToken cancellationToken = default) =>
         SetLiftDownAsync(false, cancellationToken);
 
-    internal Task SetLiftDownAsync(
+    public Task SetLiftDownAsync(
         bool down,
         CancellationToken cancellationToken = default) =>
         _io.SetOutputAndWaitAsync(
@@ -80,7 +74,7 @@ public sealed class NgCarrierTransfer : INgCarrierTransferFeedback
             down,
             cancellationToken);
 
-    internal Task SetGripperClosedAsync(
+    public Task SetGripperClosedAsync(
         bool closed,
         CancellationToken cancellationToken = default) =>
         _io.SetOutputAndWaitAsync(

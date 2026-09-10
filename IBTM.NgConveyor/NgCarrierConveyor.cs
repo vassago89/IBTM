@@ -239,7 +239,7 @@ public sealed class NgCarrierConveyor : AutoUnit
     {
         _movement = movement;
         await SetStopperUpAsync(true, cancellationToken);
-        await RunUntilAsync(destination, true, cancellationToken);
+        await RunUntilAsync(PositionInput(destination), true, false, cancellationToken);
 
         _movement = Movement.WaitingForShuttleRaise;
         Changed?.Invoke();
@@ -254,7 +254,7 @@ public sealed class NgCarrierConveyor : AutoUnit
         if (Position1Occupied)
         {
             await SetStopperUpAsync(false, cancellationToken);
-            await RunUntilAsync(NgConveyorPosition.Position1, false, cancellationToken);
+            await RunUntilAsync(InputIo.NgConveyorPosition1Occupied, false, false, cancellationToken);
         }
 
         _ejectionPhase = EjectionPhase.WaitingForConfirmation;
@@ -267,7 +267,7 @@ public sealed class NgCarrierConveyor : AutoUnit
         CancellationToken cancellationToken)
     {
         _movement = Movement.Compacting;
-        await RunUntilAsync(NgConveyorPosition.Position1, true, cancellationToken);
+        await RunUntilAsync(InputIo.NgConveyorPosition1Occupied, true, false, cancellationToken);
         _movement = Movement.None;
         Changed?.Invoke();
     }
@@ -296,12 +296,6 @@ public sealed class NgCarrierConveyor : AutoUnit
             OutputIo.NgConveyorStopperUp,
             up,
             cancellationToken);
-
-    private Task RunUntilAsync(
-        NgConveyorPosition position,
-        bool occupied,
-        CancellationToken cancellationToken) =>
-        RunUntilAsync(PositionInput(position), occupied, false, cancellationToken);
 
     internal async Task RunUntilAsync(InputIo destination, bool occupied, bool reverse,
         CancellationToken cancellationToken)

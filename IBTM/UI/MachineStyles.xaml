@@ -1,6 +1,7 @@
 <ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:ui="clr-namespace:IBTM.UI"
     xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core">
 
@@ -93,10 +94,10 @@
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="Fill" Value="{StaticResource AccentRedBrush}"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                 <Setter Property="Fill" Value="{StaticResource AccentGreenBrush}"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -122,26 +123,12 @@
         <Setter Property="Margin" Value="0,0,6,4"/>
         <Setter Property="Visibility" Value="Collapsed"/>
         <Style.Triggers>
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                               Value="{x:Static core:AssemblyResult.Ok}"/>
-                    <Condition Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=Border}}"
-                               Value="True"/>
-                </MultiDataTrigger.Conditions>
-                <Setter Property="Visibility" Value="Visible"/>
+            <Trigger Property="Tag" Value="{x:Static core:AssemblyResult.Ok}">
                 <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-            </MultiDataTrigger>
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                               Value="{x:Static core:AssemblyResult.Ng}"/>
-                    <Condition Binding="{Binding Tag, RelativeSource={RelativeSource AncestorType=Border}}"
-                               Value="True"/>
-                </MultiDataTrigger.Conditions>
-                <Setter Property="Visibility" Value="Visible"/>
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static core:AssemblyResult.Ng}">
                 <Setter Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
-            </MultiDataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -157,44 +144,36 @@
            TargetType="Border"
            BasedOn="{StaticResource StateBadgeStyle}">
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:MachineDisplayState.Ready}">
+            <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.Ready}">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:MachineDisplayState.HomeRequired}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.HomeRequired}">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:MachineDisplayState.ServoOff}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.ServoOff}">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:MachineDisplayState.Running}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.Running}">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:MachineDisplayState.Homing}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.Homing}">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:MachineDisplayState.MotionFault}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.MotionFault}">
                 <Setter Property="Background"
                         Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:MachineDisplayState.SafetyStop}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.SafetyStop}">
                 <Setter Property="Background"
                         Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:MachineDisplayState.Alarm}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:MachineDisplayState.Alarm}">
                 <Setter Property="Background"
                         Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -205,34 +184,29 @@
         <Setter Property="MinHeight" Value="42"/>
         <Setter Property="Padding" Value="10,7"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:HandlerDisplayState.Disabled}">
+            <Trigger Property="Tag" Value="{x:Static ui:HandlerDisplayState.Disabled}">
                 <Setter Property="Opacity" Value="0.65"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:HandlerDisplayState.CarrierAvailable}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:HandlerDisplayState.CarrierAvailable}">
                 <Setter Property="Background"
                         Value="{StaticResource ConfirmedStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:HandlerDisplayState.Working}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:HandlerDisplayState.Working}">
                 <Setter Property="Background"
                         Value="{StaticResource ActiveStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:HandlerDisplayState.Moving}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:HandlerDisplayState.Moving}">
                 <Setter Property="Background"
                         Value="{StaticResource ActiveStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:HandlerDisplayState.IoAlarm}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:HandlerDisplayState.IoAlarm}">
                 <Setter Property="Background"
                         Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -243,34 +217,29 @@
         <Setter Property="MinHeight" Value="54"/>
         <Setter Property="Padding" Value="10,7"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:StationDisplayState.Disabled}">
+            <Trigger Property="Tag" Value="{x:Static ui:StationDisplayState.Disabled}">
                 <Setter Property="Opacity" Value="0.65"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:StationDisplayState.HeatSinkDetected}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:StationDisplayState.HeatSinkDetected}">
                 <Setter Property="Background"
                         Value="{StaticResource ConfirmedStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:StationDisplayState.WaitingForTransfer}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:StationDisplayState.WaitingForTransfer}">
                 <Setter Property="Background"
                         Value="{StaticResource ConfirmedStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:StationDisplayState.Working}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:StationDisplayState.Working}">
                 <Setter Property="Background"
                         Value="{StaticResource ActiveStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:StationDisplayState.IoAlarm}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:StationDisplayState.IoAlarm}">
                 <Setter Property="Background"
                         Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -288,10 +257,10 @@
         <Setter Property="BorderThickness" Value="2"/>
         <Setter Property="CornerRadius" Value="4"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -301,10 +270,10 @@
         <Setter Property="Background" Value="{StaticResource MachineOverlayBrush}"/>
         <Setter Property="Opacity" Value="0.82"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                 <Setter Property="Opacity" Value="1"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -316,13 +285,13 @@
         <Setter Property="BorderThickness" Value="3"/>
         <Setter Property="CornerRadius" Value="17"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                 <Setter Property="Background"
                         Value="{StaticResource ActiveStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                 <Setter Property="BorderThickness" Value="4"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -359,22 +328,19 @@
         <Setter Property="BorderBrush" Value="{StaticResource MachineStructureBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:BoltTargetState.Active}">
+            <Trigger Property="Tag" Value="{x:Static ui:BoltTargetState.Active}">
                 <Setter Property="Background" Value="{StaticResource ActiveStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                 <Setter Property="BorderThickness" Value="2"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:BoltTargetState.Ok}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:BoltTargetState.Ok}">
                 <Setter Property="Background" Value="{StaticResource ConfirmedStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentGreenBrush}"/>
-            </DataTrigger>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="{x:Static ui:BoltTargetState.Ng}">
+            </Trigger>
+            <Trigger Property="Tag" Value="{x:Static ui:BoltTargetState.Ng}">
                 <Setter Property="Background" Value="{StaticResource AlarmStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -384,10 +350,10 @@
         <Setter Property="BorderThickness" Value="2"/>
         <Setter Property="CornerRadius" Value="2"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -412,11 +378,11 @@
         <Setter Property="Background" Value="{StaticResource TextMutedBrush}"/>
         <Setter Property="CornerRadius" Value="1"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                 <Setter Property="Margin" Value="11,0,0,4"/>
                 <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -426,10 +392,10 @@
         <Setter Property="HorizontalAlignment" Value="Right"/>
         <Setter Property="Margin" Value="0,0,5,4"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                 <Setter Property="Margin" Value="0,0,11,4"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -440,11 +406,11 @@
         <Setter Property="Background" Value="{StaticResource TextMutedBrush}"/>
         <Setter Property="CornerRadius" Value="1"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                 <Setter Property="Margin" Value="-2,8,0,8"/>
                 <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -454,10 +420,10 @@
         <Setter Property="HorizontalAlignment" Value="Right"/>
         <Setter Property="Margin" Value="0,8,-6,8"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                 <Setter Property="Margin" Value="0,8,-2,8"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -470,11 +436,11 @@
         <Setter Property="CornerRadius" Value="4"/>
         <Setter Property="Panel.ZIndex" Value="1"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                 <Setter Property="BorderThickness" Value="2"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -488,13 +454,13 @@
         <Setter Property="Opacity" Value="0.3"/>
         <Setter Property="Panel.ZIndex" Value="3"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                 <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                 <Setter Property="BorderThickness" Value="2"/>
                 <Setter Property="Opacity" Value="1"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -504,10 +470,10 @@
         <Setter Property="BorderThickness" Value="2"/>
         <Setter Property="CornerRadius" Value="5"/>
         <Style.Triggers>
-            <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                         Value="True">
+            <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
-            </DataTrigger>
+            </Trigger>
         </Style.Triggers>
     </Style>
 

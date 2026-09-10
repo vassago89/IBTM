@@ -8,29 +8,6 @@
              d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
              Width="{x:Static ui:MachinePlan.InspectionWidth}"
              Height="{x:Static ui:MachinePlan.PlanHeight}">
-    <UserControl.Resources>
-        <Style x:Key="PcbBarcodeStyle" TargetType="HeaderedContentControl">
-            <Setter Property="Margin" Value="0,0,0,8"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="HeaderedContentControl">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="64"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{TemplateBinding Header}" FontSize="14"
-                                       Foreground="{StaticResource TextMutedBrush}"/>
-                            <TextBlock Grid.Column="1" FontSize="14" TextTrimming="CharacterEllipsis"
-                                       Foreground="{StaticResource TextPrimaryBrush}"
-                                       Text="{Binding Content, RelativeSource={RelativeSource TemplatedParent}, TargetNullValue='Not Read'}"
-                                       ToolTip="{TemplateBinding Content}"/>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </UserControl.Resources>
     <Grid>
         <Canvas>
             <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
@@ -81,12 +58,28 @@
                             </Style.Triggers>
                         </Style>
                     </StackPanel.Style>
-                    <HeaderedContentControl x:Name="Pcb1Barcode" Header="PCB 1" Content="{Binding InspectionPcb1Barcode}"
-                                            Visibility="{Binding InspectionHeatSink1Present, Converter={StaticResource BoolToVis}}"
-                                            Style="{StaticResource PcbBarcodeStyle}"/>
-                    <HeaderedContentControl x:Name="Pcb2Barcode" Header="PCB 2" Content="{Binding InspectionPcb2Barcode}"
-                                            Visibility="{Binding InspectionHeatSink2Present, Converter={StaticResource BoolToVis}}"
-                                            Style="{StaticResource PcbBarcodeStyle}"/>
+                    <Grid x:Name="Pcb1Barcode" Margin="0,0,0,8"
+                          Visibility="{Binding InspectionHeatSink1Present, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64"/><ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="PCB 1" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
+                        <TextBlock Grid.Column="1" FontSize="14" TextTrimming="CharacterEllipsis"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Text="{Binding InspectionPcb1Barcode, TargetNullValue='Not Read'}"
+                                   ToolTip="{Binding InspectionPcb1Barcode}"/>
+                    </Grid>
+                    <Grid x:Name="Pcb2Barcode" Margin="0,0,0,8"
+                          Visibility="{Binding InspectionHeatSink2Present, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64"/><ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="PCB 2" FontSize="14" Foreground="{StaticResource TextMutedBrush}"/>
+                        <TextBlock Grid.Column="1" FontSize="14" TextTrimming="CharacterEllipsis"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Text="{Binding InspectionPcb2Barcode, TargetNullValue='Not Read'}"
+                                   ToolTip="{Binding InspectionPcb2Barcode}"/>
+                    </Grid>
                 </StackPanel>
                 <TextBlock x:Name="InspectionAlarmDetail" Text="{Binding AlarmMessage}" ToolTip="{Binding AlarmDetail}" TextWrapping="Wrap"
                            FontSize="14" Foreground="{StaticResource AccentRedBrush}">

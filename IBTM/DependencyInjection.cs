@@ -80,24 +80,38 @@ public static class DependencyInjection
         services.AddSingleton(currentRecipe);
 
         AddControlHardware(services, settings);
-        services.AddSingleton<IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>>>(provider =>
+        services.AddSingleton<IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>>>(
             new Dictionary<MotionGroup, TeachingOutput[]>
             {
-                [MotionGroup.PcbSupply] = provider.GetRequiredService<PcbSupplyHandler>().GetTeachingOutputs(),
+                [MotionGroup.PcbSupply] =
+                [
+                    new(OutputIo.PcbSupplyGripperClosed, HardwareArea.PcbSupply),
+                    new(OutputIo.PcbSupplyIpmFixerForward, HardwareArea.PcbSupply),
+                    new(OutputIo.PcbSupplyRotate, HardwareArea.PcbSupply),
+                ],
                 [MotionGroup.PcbPlacementHandler] =
                 [
-                    .. provider.GetRequiredService<PcbPlacementHandler>().GetTeachingOutputs(),
-                    .. provider.GetRequiredService<PcbPlacementWork>().Station.GetTeachingOutputs(),
+                    new(OutputIo.PcbPlacementHandlerDown, HardwareArea.PcbPlacementHandler),
+                    new(OutputIo.PcbPlacementIpmDown, HardwareArea.PcbPlacementHandler),
+                    new(OutputIo.PcbPlacementIpmGripperClose, HardwareArea.PcbPlacementHandler),
+                    new(OutputIo.PcbPlacementVacuumEjector, HardwareArea.PcbPlacementHandler),
+                    new(OutputIo.PcbPlacementHandlerRotate, HardwareArea.PcbPlacementHandler),
+                    new(OutputIo.PcbPlacementBackupPlateUp, HardwareArea.MainConveyor, RequiresHandler: false),
                 ],
                 [MotionGroup.BoltFastening] =
                 [
-                    .. provider.GetRequiredService<BoltFasteningGantry>().GetTeachingOutputs(),
-                    .. provider.GetRequiredService<BoltFasteningWork>().Station.GetTeachingOutputs(),
+                    new(OutputIo.PickupHeadDown, HardwareArea.BoltFastening),
+                    new(OutputIo.ShootingHeadDown, HardwareArea.BoltFastening),
+                    new(OutputIo.PickupHeadVacuumPump, HardwareArea.BoltFastening),
+                    new(OutputIo.ShootingHeadVacuumPump, HardwareArea.BoltFastening),
+                    new(OutputIo.ShootBolt, HardwareArea.BoltFastening, RequiresHandler: false, HoldToRun: true),
+                    new(OutputIo.BoltFasteningBackupPlateUp, HardwareArea.MainConveyor, RequiresHandler: false),
                 ],
                 [MotionGroup.InspectionGantry] =
                 [
-                    .. provider.GetRequiredService<NgCarrierTransfer>().GetTeachingOutputs(_ => settings.Units.NgCarrierTransfer),
-                    .. provider.GetRequiredService<InspectionWork>().Station.GetTeachingOutputs(),
+                    new(OutputIo.NgCarrierPickupDown, HardwareArea.NgCarrierTransfer),
+                    new(OutputIo.NgCarrierGripperClose, HardwareArea.NgCarrierTransfer),
+                    new(OutputIo.InspectionBackupPlateUp, HardwareArea.MainConveyor, RequiresHandler: false),
                 ],
             }.ToDictionary(pair => pair.Key,
                 pair => (IReadOnlyDictionary<OutputIo, TeachingOutput>)pair.Value.ToDictionary(output => output.Signal)));
@@ -327,11 +341,8 @@ public static class DependencyInjection
                 () => units.NgCarrierTransfer);
         });
         services.AddSingleton<RecipeEditor>();
-        services.AddSingleton<StartPreparation,
-            PcbPlacementRecoveryPreparation>();
-        services.AddSingleton<StartPreparation,
-            BoltFasteningRecoveryPreparation>();
-        services.AddSingleton<StartPreparationPlan>();
+        services.AddSingleton<PcbPlacementRecoveryPreparation>();
+        services.AddSingleton<BoltFasteningRecoveryPreparation>();
         services.AddSingleton<MachineMap>();
         services.AddSingleton<OperationViewModel>();
         services.AddSingleton<SupplyTeachingViewModel>();

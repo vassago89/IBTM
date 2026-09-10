@@ -1,17 +1,33 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Virtual;
 using IBTM.Inspection;
+using IBTM.Storage;
+using Microsoft.EntityFrameworkCore;
 
 namespace IBTM.Virtual.Tests;
 
 internal static class VirtualTest
 {
+    public static MachineStore OpenMachineStore(string? file = null)
+    {
+        var store = new MachineStore(file ?? Path.Combine(Path.GetTempPath(), $"IBTM-test-{Guid.NewGuid():N}.db"));
+        // Schema setup belongs to the test fixture, not the application's startup policy.
+        var type = typeof(MachineStore).Assembly.GetType("IBTM.Storage.MachineDb", throwOnError: true)!;
+        var options = typeof(MachineStore).GetField("_options", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(store);
+        using var db = (DbContext)Activator.CreateInstance(type, options)!;
+        db.Database.Migrate();
+        return store;
+    }
+
     public static PcbLayout TaughtPcbLayout() => new()
     {
         Width = 18, Height = 26,

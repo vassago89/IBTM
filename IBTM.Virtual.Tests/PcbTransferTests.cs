@@ -47,6 +47,7 @@ public sealed class PcbTransferTests
         Assert.Same(hidden, Assert.Single(work.Assemblies));
     }
 
+    [Trait("Category", "MachineFlow")]
     [Fact]
     public async Task PlacementKeepsStartedTargetsAndReselectsAfterStop()
     {
@@ -269,6 +270,7 @@ public sealed class PcbTransferTests
         Assert.False(placementMotion.IsMoving);
     }
 
+    [Trait("Category", "MachineFlow")]
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -393,6 +395,7 @@ public sealed class PcbTransferTests
         Assert.False(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
     }
 
+    [Trait("Category", "MachineFlow")]
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

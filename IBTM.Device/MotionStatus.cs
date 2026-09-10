@@ -122,9 +122,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
 
     private void OnMovingChanged(bool moving) => IsMoving = moving;
 
-    public void RefreshControlFeedback() => RefreshControlFeedback(available: true);
-
-    public void RefreshControlFeedback(bool available)
+    public void RefreshControlFeedback(bool available = true)
     {
         var wasHomed = XyHomed;
         try

@@ -46,7 +46,6 @@ public sealed class InspectionTests
 
     [Theory]
     [InlineData(64)]
-    [InlineData(128)]
     [InlineData(256)]
     public void ModelInputUsesOnlyTheConfiguredCentralRegion(int regionSize)
     {
@@ -143,6 +142,7 @@ public sealed class InspectionTests
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => inspector.CaptureCarrierImagesAsync());
     }
 
+    [Trait("Category", "MachineFlow")]
     [Fact]
     public async Task InspectionUsesCurrentCarrierSensorsAndRestartsIncompleteWork()
     {

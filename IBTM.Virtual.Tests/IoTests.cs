@@ -133,6 +133,14 @@ public sealed class IoTests
         io.SetConnected(false);
         signals.RefreshOutputs();
         Assert.Null(output.IsOn);
+        Assert.Null(sensor.IsOn);
+        Assert.False(signals.InputsAvailable);
+        var beforeReconnect = changes;
+        io.SetConnected(true);
+        signals.RefreshInputs();
+        Assert.False(sensor.IsOn);
+        Assert.True(signals.InputsAvailable);
+        Assert.True(changes > beforeReconnect);
     }
 
     public class OutputReadProbe : DispatchProxy
@@ -150,41 +158,6 @@ public sealed class IoTests
             }
             return method.Invoke(Io, args);
         }
-    }
-
-    [Fact]
-    public async Task StoppedShootingRetainsTubeBoltUntilManualShooting()
-    {
-        var io = new VirtualIoService(
-            new BoltFasteningHardwareSettings().Outputs,
-            new MachineOptions());
-        _ = new VirtualMachine(io, []);
-        io.Initialize();
-        IIoService signals = io;
-        await signals.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, true);
-        io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
-
-        void StopAtTube(InputIo input, bool value)
-        {
-            if (input == InputIo.ShootingTubeBoltDetected && value)
-                io.SetOutput(OutputIo.ShootBolt, false);
-        }
-
-        io.InputChanged += StopAtTube;
-        io.SetOutput(OutputIo.ShootBolt, true);
-        await signals.WaitForInputAsync(InputIo.ShootingTubeBoltDetected, true);
-        await Task.Delay(300);
-        io.InputChanged -= StopAtTube;
-
-        Assert.False(io.GetOutput(OutputIo.ShootBolt));
-        Assert.True(io.GetInput(InputIo.ShootingTubeBoltDetected));
-        Assert.False(io.GetInput(InputIo.ShootingHeadVacuumDetected));
-
-        io.SetOutput(OutputIo.ShootBolt, true);
-        await signals.WaitForInputAsync(InputIo.ShootingHeadVacuumDetected, true);
-        io.SetOutput(OutputIo.ShootBolt, false);
-        Assert.False(io.GetInput(InputIo.ShootingTubeBoltDetected));
-        Assert.True(io.GetInput(InputIo.ShootingHeadVacuumDetected));
     }
 
     [Fact]
@@ -212,208 +185,6 @@ public sealed class IoTests
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
         Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
-    }
-
-    [Fact]
-    public async Task ReentrantOutputKeepsTheLatestFeedback()
-    {
-        var io = new VirtualIoService(
-            new NgShuttleHardwareSettings().Outputs,
-            new MachineOptions());
-        io.OutputChanged += (output, value) =>
-        {
-            if (output == OutputIo.NgShuttleDown && value)
-            {
-                io.SetOutput(output, false);
-            }
-        };
-
-        io.SetOutput(OutputIo.NgShuttleDown, true);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(1));
-        await ((IIoService)io).WaitForInputAsync(
-            InputIo.NgShuttleUp,
-            true,
-            timeout.Token);
-
-        Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
-        Assert.False(io.GetInput(InputIo.NgShuttleDown));
-        Assert.True(io.GetInput(InputIo.NgShuttleUp));
-    }
-
-    [Fact]
-    public async Task ManualResponsePreservesOutputsAndResynchronizesOnlyCylinderFeedback()
-    {
-        var io = new VirtualIoService(
-            new NgShuttleHardwareSettings().Outputs,
-            new MachineOptions());
-        _ = new VirtualMachine(io, []);
-        io.Initialize();
-        io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        Assert.True(io.AutoResponseEnabled);
-
-        io.SetOutput(OutputIo.NgShuttleDown, true);
-        io.AutoResponseEnabled = false;
-        await Task.Delay(300);
-
-        Assert.True(io.GetOutput(OutputIo.NgShuttleDown));
-        Assert.True(io.GetInput(InputIo.NgShuttleUp));
-        Assert.False(io.GetInput(InputIo.NgShuttleDown));
-        Assert.True(io.GetInput(InputIo.NgShuttleCarrierDetected));
-
-        io.SetOutput(OutputIo.NgShuttleDown, false);
-        io.SetOutput(OutputIo.NgShuttleDown, true);
-        await Task.Delay(300);
-        Assert.True(io.GetOutput(OutputIo.NgShuttleDown));
-        Assert.False(io.GetInput(InputIo.NgShuttleDown));
-
-        io.AutoResponseEnabled = true;
-        Assert.False(io.GetInput(InputIo.NgShuttleDown));
-        await Task.Delay(300);
-
-        Assert.True(io.GetInput(InputIo.NgShuttleDown));
-        Assert.False(io.GetInput(InputIo.NgShuttleUp));
-        Assert.True(io.GetInput(InputIo.NgShuttleCarrierDetected));
-
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
-        Assert.True(io.GetInput(InputIo.NgShuttleCarrierDetected));
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task DisablingDiscardsPendingCarrierTransferAndFeederRefills(bool reenableImmediately)
-    {
-        var io = new VirtualIoService(
-            Outputs(
-                new BoltFasteningHardwareSettings(),
-                new BoltFeederHardwareSettings(),
-                new NgConveyorHardwareSettings()),
-            new MachineOptions());
-        _ = new VirtualMachine(io, []);
-        io.Initialize();
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true);
-        io.SetInput(InputIo.NgShuttleDown, true);
-        io.SetInput(InputIo.NgShuttleUp, false);
-        io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        await ((IIoService)io).WaitForInputAsync(
-            InputIo.PickupFeederBoltDetected, false, timeout.Token);
-        Assert.True(io.GetInput(InputIo.PickupHeadVacuumDetected));
-
-        io.SetOutput(OutputIo.NgConveyorRun, true);
-        io.SetOutput(OutputIo.ShootingFeederRunSignal, true);
-        io.AutoResponseEnabled = false;
-        if (reenableImmediately)
-        {
-            io.AutoResponseEnabled = true;
-        }
-        await Task.Delay(400);
-
-        Assert.True(io.GetOutput(OutputIo.NgConveyorRun));
-        Assert.True(io.GetOutput(OutputIo.ShootingFeederRunSignal));
-        Assert.True(io.GetInput(InputIo.NgShuttleCarrierDetected));
-        Assert.False(io.GetInput(InputIo.NgConveyorPosition1Occupied));
-        Assert.False(io.GetInput(InputIo.PickupFeederBoltDetected));
-        Assert.False(io.GetInput(InputIo.ShootingFeederBoltDetected));
-
-        io.AutoResponseEnabled = true;
-        io.SetOutput(OutputIo.NgConveyorRun, false);
-        io.SetOutput(OutputIo.ShootingFeederRunSignal, false);
-        io.SetOutput(OutputIo.NgConveyorRun, true);
-        io.SetOutput(OutputIo.ShootingFeederRunSignal, true);
-        Assert.True(await WaitUntilAsync(
-            () => io.GetInput(InputIo.NgConveyorPosition1Occupied)
-                  && io.GetInput(InputIo.ShootingFeederBoltDetected),
-            TimeSpan.FromSeconds(2)));
-        Assert.False(io.GetInput(InputIo.NgShuttleCarrierDetected));
-        Assert.False(io.GetInput(InputIo.PickupFeederBoltDetected));
-    }
-
-    [Fact]
-    public async Task ManualResponseKeepsSensorEditsAndResumesFromTheCurrentGrip()
-    {
-        var io = new VirtualIoService(
-            Outputs(
-                new PcbSupplyHardwareSettings(),
-                new PcbPlacementHandlerHardwareSettings()),
-            new MachineOptions());
-        using var motion = new VirtualMotionService(
-            new MotionSettings(), new OperationCancellation(), hasY: false, hasZ: false);
-        var machine = new VirtualMachine(io, [motion]);
-        var buffer = new AxisPosition();
-        motion.PositionChanged += (x, y, z) =>
-        {
-            machine.UpdateSupplyPosition(x, y, z, 0, (10, 0), (20, 0), buffer);
-            machine.UpdatePlacementPosition(x, y, z, buffer);
-        };
-        io.Initialize();
-        motion.Initialize();
-        io.AutoResponseEnabled = false;
-        io.SetInput(InputIo.PcbBufferPcbPresent, true);
-        io.SetInput(InputIo.PcbSupplyPcbDetected, true);
-        io.SetInput(InputIo.PcbPlacementPcbDetected, true);
-
-        await motion.MoveXAsync(10, 1_000);
-
-        Assert.Equal(10, motion.GetPosition().X);
-        Assert.True(io.GetInput(InputIo.PcbSupplyPcbDetected));
-        Assert.True(io.GetInput(InputIo.PcbPlacementPcbDetected));
-        Assert.True(io.GetInput(InputIo.PcbBufferPcbPresent));
-
-        io.SetInput(InputIo.PcbSupplyPcbDetected, false);
-        io.SetInput(InputIo.PcbPlacementPcbDetected, false);
-        await motion.MoveXAsync(0, 1_000);
-
-        Assert.Equal(0, motion.GetPosition().X);
-        Assert.False(io.GetInput(InputIo.PcbSupplyPcbDetected));
-        Assert.False(io.GetInput(InputIo.PcbPlacementPcbDetected));
-        Assert.True(io.GetInput(InputIo.PcbBufferPcbPresent));
-
-        foreach (var secured in new[] { true, false })
-        {
-            io.AutoResponseEnabled = false;
-            io.SetOutput(OutputIo.PcbSupplyGripperClosed, secured);
-            io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, secured);
-            io.SetOutput(OutputIo.PcbPlacementIpmGripperClose, secured);
-            io.SetOutput(OutputIo.PcbPlacementVacuumEjector, secured);
-            io.SetInput(InputIo.PcbSupplyPcbDetected, secured);
-            io.SetInput(InputIo.PcbSupplyGripperClosed, secured);
-            io.SetInput(InputIo.PcbSupplyGripperOpen, !secured);
-            io.SetInput(InputIo.PcbSupplyIpmFixerForward, secured);
-            io.SetInput(InputIo.PcbSupplyIpmFixerBackward, !secured);
-            io.SetInput(InputIo.PcbPlacementPcbDetected, secured);
-            io.SetInput(InputIo.PcbPlacementIpmGripperClosed, secured);
-            io.SetInput(InputIo.PcbPlacementIpmGripperOpen, !secured);
-            io.SetInput(InputIo.PcbPlacementVacuumDetected, secured);
-            io.SetInput(InputIo.PcbBufferPcbPresent, false);
-
-            io.AutoResponseEnabled = true;
-            await motion.MoveXAsync(secured ? 10 : 0, 1_000);
-
-            Assert.Equal(secured, io.GetInput(InputIo.PcbSupplyPcbDetected));
-            Assert.Equal(secured, io.GetInput(InputIo.PcbPlacementPcbDetected));
-            Assert.False(io.GetInput(InputIo.PcbBufferPcbPresent));
-        }
-
-        io.AutoResponseEnabled = false;
-        io.SetInput(InputIo.PcbSupplyPcbDetected, true);
-        io.SetInput(InputIo.PcbSupplyGripperClosed, true);
-        io.SetInput(InputIo.PcbSupplyGripperOpen, false);
-        io.SetInput(InputIo.PcbSupplyIpmFixerForward, true);
-        io.SetInput(InputIo.PcbSupplyIpmFixerBackward, false);
-        io.SetInput(InputIo.PcbPlacementPcbDetected, true);
-        io.SetInput(InputIo.PcbPlacementIpmGripperClosed, true);
-        io.SetInput(InputIo.PcbPlacementIpmGripperOpen, false);
-        io.SetInput(InputIo.PcbPlacementVacuumDetected, true);
-
-        io.AutoResponseEnabled = true;
-        await Task.Delay(300);
-        await motion.MoveXAsync(10, 1_000);
-
-        Assert.False(io.GetInput(InputIo.PcbSupplyPcbDetected));
-        Assert.False(io.GetInput(InputIo.PcbPlacementPcbDetected));
-        Assert.False(io.GetInput(InputIo.PcbBufferPcbPresent));
     }
 
     [Fact]

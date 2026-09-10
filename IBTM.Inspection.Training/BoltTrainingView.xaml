@@ -138,17 +138,7 @@
                         </ComboBox.ItemTemplate>
                     </ComboBox>
 
-                    <Grid Grid.Row="2" Margin="0,0,0,12">
-                        <Grid.Style>
-                            <Style TargetType="Grid">
-                                <Setter Property="IsEnabled" Value="{Binding ControlsEnabled}"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding OriginalImage}" Value="{x:Null}">
-                                        <Setter Property="IsEnabled" Value="False"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Grid.Style>
+                    <Grid Grid.Row="2" Margin="0,0,0,12" IsEnabled="{Binding CanEditRegion}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="80"/>

@@ -19,9 +19,6 @@ public sealed class PcbPlacementRecoveryPreparation
         _work = work;
     }
 
-    public override StartPreparationType Type =>
-        StartPreparationType.PcbPlacementRecovery;
-
     protected override bool Show(Window owner)
     {
         var items = Enum.GetValues<HeatSinkSlot>()

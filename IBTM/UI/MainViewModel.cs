@@ -162,7 +162,7 @@ public partial class MainViewModel : ObservableObject
     public bool ManualControlsEnabled => _state.Display.ManualControlsEnabled;
     // Window access follows selector mode only, not alarm/busy output admission.
     public bool OutputsWindowEnabled => !_shuttingDown
-        && _state.Display.Available && !_state.Display.AutoMode;
+        && !_state.Display.AutoMode;
     public bool AdcProtocolEnabled =>
         _virtualBolt || _machine.AdcProtocolAvailable;
     public bool CurrentPageEnabled =>
@@ -248,50 +248,50 @@ public partial class MainViewModel : ObservableObject
 
     private void ActivateCurrentPage()
     {
-        switch (CurrentPage)
+        switch (SelectedPage)
         {
-            case OperationViewModel operation:
-                operation.Activate();
+            case AppPage.Operation:
+                _operationViewModel.Activate();
                 break;
-            case SupplyTeachingViewModel supply:
-                supply.Activate();
+            case AppPage.SupplyTeaching:
+                _supplyTeachingViewModel.Activate();
                 break;
-            case StationTeachingViewModel stationTeaching:
-                stationTeaching.Activate();
+            case AppPage.StationTeaching:
+                _stationTeachingViewModel.Activate();
                 break;
-            case ManualHardwareViewModel manualHardware:
-                manualHardware.Activate();
+            case AppPage.ManualHardware:
+                _manualHardwareViewModel.Activate();
                 break;
-            case BoltTrainingViewModel training:
-                training.Activate();
+            case AppPage.BoltTraining:
+                _boltTrainingViewModel.Activate();
                 break;
-            case SettingsViewModel settings:
-                settings.RefreshCommands();
+            case AppPage.Settings:
+                _settingsViewModel.RefreshCommands();
                 break;
         }
     }
 
     private void DeactivateCurrentPage()
     {
-        switch (CurrentPage)
+        switch (SelectedPage)
         {
-            case OperationViewModel operation:
-                operation.Deactivate();
+            case AppPage.Operation:
+                _operationViewModel.Deactivate();
                 break;
-            case SupplyTeachingViewModel supply:
-                supply.Deactivate();
+            case AppPage.SupplyTeaching:
+                _supplyTeachingViewModel.Deactivate();
                 break;
-            case StationTeachingViewModel stationTeaching:
-                stationTeaching.Deactivate();
+            case AppPage.StationTeaching:
+                _stationTeachingViewModel.Deactivate();
                 break;
-            case ManualHardwareViewModel manualHardware:
-                manualHardware.Deactivate();
+            case AppPage.ManualHardware:
+                _manualHardwareViewModel.Deactivate();
                 break;
-            case BoltTrainingViewModel training:
-                training.Deactivate();
+            case AppPage.BoltTraining:
+                _boltTrainingViewModel.Deactivate();
                 break;
-            case SettingsViewModel settings:
-                settings.TestLightCommand.Cancel();
+            case AppPage.Settings:
+                _settingsViewModel.TestLightCommand.Cancel();
                 break;
         }
     }
@@ -334,20 +334,20 @@ public partial class MainViewModel : ObservableObject
                 Navigate(AppPage.Operation);
             }
             else if (!_state.ManualMode
-                && CurrentPage is SupplyTeachingViewModel
-                    or StationTeachingViewModel)
+                && SelectedPage is AppPage.SupplyTeaching
+                    or AppPage.StationTeaching)
             {
                 Navigate(AppPage.Operation);
             }
             else if ((!_state.SafetyReady || !_state.ManualMode)
-                      && CurrentPage is BoltTrainingViewModel
-                      { IsBusy: false })
+                      && SelectedPage == AppPage.BoltTraining
+                      && !_boltTrainingViewModel.IsBusy)
             {
                 Navigate(AppPage.Operation);
             }
 
-            if (CurrentPage is SettingsViewModel settings)
-                settings.RefreshCommands();
+            if (SelectedPage == AppPage.Settings)
+                _settingsViewModel.RefreshCommands();
         });
     }
 

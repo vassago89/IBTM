@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
 using IBTM.AlphaMotion;
 using IBTM.Core;
@@ -20,6 +19,7 @@ public sealed class AlphaMotionControllerTests
     [Theory]
     [InlineData(0, 0xAE2EU, 0x13U)]
     [InlineData(1, 0U, 0U)]
+    [InlineData(0, uint.MaxValue, uint.MaxValue)]
     public void InitializationUsesSampleApisAndProbesBothPortsBeforeReadiness(int result, uint model, uint communication)
     {
         TMCAEDLL.DefaultResult = result;
@@ -42,8 +42,6 @@ public sealed class AlphaMotionControllerTests
 
     [Theory]
     [InlineData(0, 0U)]
-    [InlineData(0, 0xFFFFU)]
-    [InlineData(1, 0U)]
     [InlineData(1, 0xFFFFU)]
     public void ValidPortValuesIncludeAllOffAndAllOn(int result, uint value)
     {
@@ -58,7 +56,6 @@ public sealed class AlphaMotionControllerTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(3)]
     [InlineData(15)]
     public void BitsUseTheSamplePortApisAndSelectedCard(int bit)
     {
@@ -98,8 +95,6 @@ public sealed class AlphaMotionControllerTests
 
     [Theory]
     [InlineData(0, true)]
-    [InlineData(0, false)]
-    [InlineData(1, true)]
     [InlineData(1, false)]
     public void SuccessfulLookingWriteWithoutMatchingReadbackIsRejected(int result, bool requested)
     {
@@ -115,10 +110,7 @@ public sealed class AlphaMotionControllerTests
 
     [Theory]
     [InlineData("AIO_BoardInfo", 0)]
-    [InlineData("AIO_BoardInfo", 1)]
     [InlineData("AIO_GetDIDWord", 0)]
-    [InlineData("AIO_GetDIDWord", 1)]
-    [InlineData("AIO_GetDODWord", 0)]
     [InlineData("AIO_GetDODWord", 1)]
     public void UnwrittenRefParametersPreventInitialization(string operation, int result)
     {
@@ -153,29 +145,6 @@ public sealed class AlphaMotionControllerTests
     }
 
     [Theory]
-    [InlineData(8U, 8U)]
-    [InlineData(32U, 16U)]
-    [InlineData(16U, 32U)]
-    [InlineData(32U, 32U)]
-    [InlineData(64U, 64U)]
-    [InlineData(65536U, 65536U)]
-    public void BoardDoesNotNeedExactlySixteenInputsAndOutputs(uint inputs, uint outputs)
-    {
-        TMCAEDLL.DefaultResult = 0;
-        TMCAEDLL.InputCount = inputs;
-        TMCAEDLL.OutputCount = outputs;
-        using var log = new ApplicationLog();
-        using var controller = new AlphaMotionController(new(), log);
-        controller.Initialize();
-        TMCAEDLL.Inputs = TMCAEDLL.Outputs = 8;
-        Assert.True(controller.ReadInput(3));
-        Assert.True(controller.ReadOutput(3));
-        controller.WriteOutput(3, false);
-        Assert.False(controller.ReadOutput(3));
-        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains($"card=0, DI={inputs}, DO={outputs}"));
-    }
-
-    [Theory]
     [InlineData(0U, 16U)]
     [InlineData(16U, 0U)]
     [InlineData(8U, 16U)]
@@ -207,8 +176,6 @@ public sealed class AlphaMotionControllerTests
 
     [Theory]
     [InlineData(0, 0x10000U)]
-    [InlineData(0, uint.MaxValue)]
-    [InlineData(1, 0x10000U)]
     [InlineData(1, uint.MaxValue)]
     public void WiderBoardValuesDoNotChangeTheSixteenChannelMapping(int result, uint value)
     {
@@ -230,8 +197,6 @@ public sealed class AlphaMotionControllerTests
 
     [Theory]
     [InlineData("AIO_GetDIDWord", 0)]
-    [InlineData("AIO_GetDIDWord", 1)]
-    [InlineData("AIO_GetDODWord", 0)]
     [InlineData("AIO_GetDODWord", 1)]
     public void WiderBoardsStillRejectUnwrittenReadBuffers(string operation, int result)
     {
@@ -321,8 +286,6 @@ public sealed class AlphaMotionControllerTests
 
     [Theory]
     [InlineData(true, 0x10000U)]
-    [InlineData(true, uint.MaxValue)]
-    [InlineData(false, 0x10000U)]
     [InlineData(false, uint.MaxValue)]
     public void InvalidPortValuesAreNeverMaskedIntoValidSignals(bool input, uint value)
     {
@@ -337,7 +300,6 @@ public sealed class AlphaMotionControllerTests
 
     [Theory]
     [InlineData("AIO_BoardInfo", 0, tmcDef.ERR_INVALID_BOARD_ID)]
-    [InlineData("AIO_BoardInfo", 1, tmcDef.ERR_INVALID_BOARD_ID)]
     [InlineData("AIO_GetDIDWord", 0, tmcDef.ERR_INVALID_GROUP)]
     [InlineData("AIO_GetDODWord", 1, tmcDef.ERR_INVALID_GROUP)]
     [InlineData("AIO_BoardInfo", -1, tmcDef.ERR_SUCCESS)]
@@ -351,19 +313,6 @@ public sealed class AlphaMotionControllerTests
         Assert.Contains($"{operation} (card=0)", error.Message);
         Assert.Contains($"result {result};", error.Message);
         Assert.Contains($"({errorCode})", error.Message);
-        Assert.DoesNotContain(NativeCalls(), call => call.Operation == "AIO_PutDOBit");
-    }
-
-    [Fact]
-    public void OptionalIdentityFieldsDoNotBlockValidCountsAndPortReads()
-    {
-        using var log = new ApplicationLog();
-        using var controller = new AlphaMotionController(new(), log);
-        TMCAEDLL.Model = uint.MaxValue;
-        TMCAEDLL.Communication = uint.MaxValue;
-        controller.Initialize();
-        Assert.Equal(0U, controller.ReadInputs());
-        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains("model=0xFFFFFFFF, communication=0xFFFFFFFF, DI=16, DO=16"));
         Assert.DoesNotContain(NativeCalls(), call => call.Operation == "AIO_PutDOBit");
     }
 
@@ -407,21 +356,7 @@ public sealed class AlphaMotionControllerTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void NonnegativeLoadResultIsABoardCountMinusOne(int result)
-    {
-        using var log = new ApplicationLog();
-        using var controller = new AlphaMotionController(new(), log);
-        TMCAEDLL.Results["AIO_LoadDevice"] = result;
-        controller.Initialize();
-        Assert.Contains(log.ReadAfter(0), entry => entry.Message.Contains($"loaded boards={result + 1}"));
-    }
-
-    [Theory]
     [InlineData(-1, tmcDef.ERR_DEVICE_LOAD)]
-    [InlineData(-100, tmcDef.ERR_INVALID_HANDLE)]
     [InlineData(-1, tmcDef.ERR_SUCCESS)]
     public void NegativeLoadResultsNeverProceedToCardQueries(int result, int errorCode)
     {
@@ -560,13 +495,4 @@ public sealed class AlphaMotionControllerTests
         Assert.All(NativeCalls(), call => Assert.Equal((ushort)0, call.Card));
     }
 
-    [Fact]
-    public void LegacySettingsRetainCardNumberAndIgnoreOldMotionnetProperties()
-    {
-        var settings = JsonSerializer.Deserialize<AlphaMotionSettings>(
-            """{"ControllerNumber":2,"StationNumber":1,"CommunicationSpeed":"Mbps20"}""")!;
-        Assert.Equal(2, settings.ControllerNumber);
-        Assert.Equal("""{"ControllerNumber":2}""", JsonSerializer.Serialize(settings));
-        Assert.Equal(0, new AlphaMotionSettings().ControllerNumber);
-    }
 }

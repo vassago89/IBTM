@@ -77,7 +77,7 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         _io.GetInput(InputIo.PcbPlacementVacuumDetected);
     public bool AtHorizontalZ => IsAtHorizontalZ(live: true);
 
-    private bool IsAtHorizontalZ(bool live) => live ?
+    public bool IsAtHorizontalZ(bool live) => live ?
         !_motion.IsMoving
         && _motion.GetAxisState(MotionAxis.Z).InPosition
         && _motion.IsAtHorizontalZ
@@ -232,19 +232,9 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
         double velocity,
         CancellationToken cancellationToken = default)
     {
-        switch (axis)
-        {
-            case MotionAxis.X:
-                EnsureCanMoveHorizontal(cancellationToken);
-                return _motion.JogXAsync(velocity, cancellationToken);
-            case MotionAxis.Y:
-                EnsureCanMoveHorizontal(cancellationToken);
-                return _motion.JogYAsync(velocity, cancellationToken);
-            case MotionAxis.Z:
-                return _motion.JogZAsync(velocity, cancellationToken);
-            default:
-                throw new ArgumentOutOfRangeException(nameof(axis));
-        }
+        if (axis is MotionAxis.X or MotionAxis.Y)
+            EnsureCanMoveHorizontal(cancellationToken);
+        return _motion.JogAsync(axis, velocity, cancellationToken);
     }
 
     public Task SetLiftDownAsync(
@@ -254,16 +244,6 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
             OutputIo.PcbPlacementHandlerDown,
             down,
             cancellationToken);
-
-    public TeachingOutput[] GetTeachingOutputs() =>
-    [
-        new(OutputIo.PcbPlacementHandlerDown, HardwareArea.PcbPlacementHandler, SetLiftDownAsync),
-        new(OutputIo.PcbPlacementIpmDown, HardwareArea.PcbPlacementHandler, SetIpmLiftDownAsync),
-        new(OutputIo.PcbPlacementIpmGripperClose, HardwareArea.PcbPlacementHandler, SetIpmGripperAsync),
-        new(OutputIo.PcbPlacementVacuumEjector, HardwareArea.PcbPlacementHandler, SetVacuumAsync),
-        new(OutputIo.PcbPlacementHandlerRotate, HardwareArea.PcbPlacementHandler, SetRotatedAsync,
-            live => IsAtHorizontalZ(live) && CanMoveHorizontal),
-    ];
 
     public Task RaiseAsync(CancellationToken cancellationToken = default) =>
         SetLiftDownAsync(false, cancellationToken);

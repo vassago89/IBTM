@@ -42,8 +42,7 @@ public partial class StationTeachingViewModel
     }
 
     private bool CanToggleLiveView() =>
-        IsInspectionSelected
-        && (IsCameraLive || _state.Display.ManualSetupEnabled);
+        IsCameraLive || IsInspectionSelected && _state.Display.ManualSetupEnabled;
 
     [RelayCommand(CanExecute = nameof(CanCaptureCarrierImages))]
     private async Task CaptureCarrierImagesAsync(
@@ -97,7 +96,7 @@ public partial class StationTeachingViewModel
         && ScanOverlap < _boltInspector.FieldOfView.Width
         && ScanOverlap < _boltInspector.FieldOfView.Height
         && RecipeEditor.CanSave
-        && CanUseCurrentHandler();
+        && Machine.CanUseManualMotion(CurrentMotionGroup, live: false);
 
     [RelayCommand(CanExecute = nameof(CanTeachImagePoint))]
     private async Task TeachImagePointAsync(Point imagePoint)
@@ -122,7 +121,7 @@ public partial class StationTeachingViewModel
         && (SelectedPoint?.Target == TeachingTarget.BoltReference
                 && FindPcb(new Rect(point, new Size())) is not null
             || SelectedPoint?.Target == TeachingTarget.PcbRegion && SelectedPcb == HeatSinkSlot.HeatSink2
-                && CurrentRecipe.Pcb.GetRegion(HeatSinkSlot.HeatSink1) is not null);
+                && RecipeEditor.Recipe.Pcb.GetRegion(HeatSinkSlot.HeatSink1) is not null);
 
     [RelayCommand(CanExecute = nameof(CanTeachImageRegion))]
     private async Task TeachImageRegionAsync(Rect bounds)
@@ -130,7 +129,7 @@ public partial class StationTeachingViewModel
         if (!CanEditRecipe()) return;
         CameraError = null;
         var pin = _carrierReference.UpperLeftLocatingPin!;
-        var layout = CurrentRecipe.Pcb;
+        var layout = RecipeEditor.Recipe.Pcb;
         if (SelectedPoint!.Target == TeachingTarget.PcbRegion)
         {
             layout.Width = bounds.Width;
@@ -159,14 +158,14 @@ public partial class StationTeachingViewModel
         CanEditInspectionRecipe && RecipeEditor.CanSave && HasCarrierImages && !IsCameraLive && _carrierReference.IsDefined
         && (SelectedPoint?.Target == TeachingTarget.PcbRegion && SelectedPcb == HeatSinkSlot.HeatSink1
             || SelectedBarcode is not null && (bounds.IsEmpty
-                ? Enum.GetValues<HeatSinkSlot>().Any(pcb => CurrentRecipe.Pcb.GetRegion(pcb) is not null)
+                ? Enum.GetValues<HeatSinkSlot>().Any(pcb => RecipeEditor.Recipe.Pcb.GetRegion(pcb) is not null)
                 : FindPcb(bounds) is not null));
 
     private HeatSinkSlot? FindPcb(Rect bounds)
     {
         var pin = _carrierReference.UpperLeftLocatingPin!;
         foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
-            if (CurrentRecipe.Pcb.GetRegion(pcb) is { } region
+            if (RecipeEditor.Recipe.Pcb.GetRegion(pcb) is { } region
                 && new Rect(region.X + pin.X, region.Y + pin.Y, region.Width, region.Height).Contains(bounds))
                 return pcb;
         return null;
@@ -195,7 +194,7 @@ public partial class StationTeachingViewModel
     [RelayCommand(CanExecute = nameof(CanCollectBoltImages))]
     private Task CollectBoltImagesAsync(CancellationToken token) => RunInspectionAsync(async ct =>
     {
-        foreach (var point in CurrentRecipe.Pcb.GetBolts()
+        foreach (var point in RecipeEditor.Recipe.Pcb.GetBolts()
             .Where(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
             .OrderBy(point => point.HeatSink).ThenBy(point => point.Number))
         {
@@ -205,9 +204,9 @@ public partial class StationTeachingViewModel
         }
     }, token);
 
-    private bool CanCollectBoltImages() => IsInspectionSelected && CanUseCurrentHandler() && _inspectionGantry.CanMove
-        && CurrentRecipe.Pcb.GetBolts().Any(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
-        && CurrentRecipe.Pcb.GetBolts().Where(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
+    private bool CanCollectBoltImages() => IsInspectionSelected && Machine.CanUseManualMotion(CurrentMotionGroup, live: false) && _inspectionGantry.CanMove
+        && RecipeEditor.Recipe.Pcb.GetBolts().Any(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
+        && RecipeEditor.Recipe.Pcb.GetBolts().Where(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
             .All(_boltInspector.HasPosition);
 
     private async Task RunInspectionAsync(Func<CancellationToken, Task> action, CancellationToken token)
@@ -215,14 +214,14 @@ public partial class StationTeachingViewModel
         var activeCancellation = token;
         try
         {
-            await RunMotionAsync(async ct =>
+            await Machine.RunManualMotionAsync(CurrentMotionGroup, async ct =>
             {
                 activeCancellation = ct;
                 CameraError = null;
                 if (IsCameraLive) StopCamera();
                 if (CameraError is not null) return;
                 await action(ct);
-            }, token);
+            }, token, ViewCancellation);
         }
         catch (OperationCanceledException) when (activeCancellation.IsCancellationRequested)
         {

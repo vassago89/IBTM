@@ -91,12 +91,9 @@ public sealed class InspectionGantry
         CancellationToken cancellationToken = default)
     {
         EnsureCanMove(cancellationToken);
-        return axis switch
-        {
-            MotionAxis.X => _motion.JogXAsync(velocity, cancellationToken),
-            MotionAxis.Y => _motion.JogYAsync(velocity, cancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
-        };
+        if (axis is not (MotionAxis.X or MotionAxis.Y))
+            throw new ArgumentOutOfRangeException(nameof(axis));
+        return _motion.JogAsync(axis, velocity, cancellationToken);
     }
 
     public bool IsAt(AxisPosition position)

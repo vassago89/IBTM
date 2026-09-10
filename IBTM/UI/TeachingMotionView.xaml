@@ -21,26 +21,21 @@
             <sys:Double>0.1</sys:Double>
             <sys:Double>1</sys:Double>
         </x:Array>
-        <DataTemplate x:Key="DirectionButton">
-            <Grid Margin="3,2">
-                <ui:HoldButton x:Name="Jog" Content="{Binding Converter={StaticResource EnumDescriptionConverter}}"
-                               Style="{StaticResource JogButtonStyle}"
-                               PressCommand="{Binding DataContext.JogCommand, RelativeSource={RelativeSource AncestorType=ui:TeachingMotionView}}"
-                               ReleaseCommand="{Binding DataContext.JogStopCommand, RelativeSource={RelativeSource AncestorType=ui:TeachingMotionView}}"
-                               CommandParameter="{Binding}" ToolTip="Hold to move; release to stop."/>
-                <Button x:Name="Step" Content="{Binding Converter={StaticResource EnumDescriptionConverter}}"
-                        Style="{StaticResource JogButtonStyle}" Visibility="Collapsed"
-                        Command="{Binding DataContext.StepCommand, RelativeSource={RelativeSource AncestorType=ui:TeachingMotionView}}"
-                        CommandParameter="{Binding}" ToolTip="Move by the selected step distance."/>
-            </Grid>
-            <DataTemplate.Triggers>
-                <DataTrigger Binding="{Binding DataContext.MoveMode, RelativeSource={RelativeSource AncestorType=ui:TeachingMotionView}}"
-                             Value="{x:Static ui:TeachingMoveMode.Step}">
-                    <Setter TargetName="Jog" Property="Visibility" Value="Collapsed"/>
-                    <Setter TargetName="Step" Property="Visibility" Value="Visible"/>
+        <Style x:Key="JogDirectionStyle" TargetType="ui:HoldButton" BasedOn="{StaticResource JogButtonStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding MoveMode}" Value="{x:Static ui:TeachingMoveMode.Step}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
                 </DataTrigger>
-            </DataTemplate.Triggers>
-        </DataTemplate>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="StepDirectionStyle" TargetType="Button" BasedOn="{StaticResource JogButtonStyle}">
+            <Setter Property="Visibility" Value="Collapsed"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding MoveMode}" Value="{x:Static ui:TeachingMoveMode.Step}">
+                    <Setter Property="Visibility" Value="Visible"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </UserControl.Resources>
     <StackPanel>
         <DockPanel Margin="0,0,0,10">
@@ -60,16 +55,48 @@
             </Grid.RowDefinitions>
             <TextBlock Text="{Binding Motion.Position.X, StringFormat=F3}" VerticalAlignment="Center"
                        FontFamily="Cascadia Mono, Consolas" FontSize="16"/>
-            <ContentControl Grid.Column="1" Content="{x:Static ui:TeachingDirection.XMinus}" ContentTemplate="{StaticResource DirectionButton}"/>
-            <ContentControl Grid.Column="2" Content="{x:Static ui:TeachingDirection.XPlus}" ContentTemplate="{StaticResource DirectionButton}"/>
+            <Grid Grid.Column="1" Margin="3,2">
+                <ui:HoldButton Content="X−" Style="{StaticResource JogDirectionStyle}"
+                               PressCommand="{Binding JogCommand}" ReleaseCommand="{Binding JogStopCommand}"
+                               CommandParameter="{x:Static ui:TeachingDirection.XMinus}"
+                               ToolTip="Hold to move; release to stop."/>
+                <Button Content="X−" Style="{StaticResource StepDirectionStyle}"
+                        Command="{Binding StepCommand}" CommandParameter="{x:Static ui:TeachingDirection.XMinus}"
+                        ToolTip="Move by the selected step distance."/>
+            </Grid>
+            <Grid Grid.Column="2" Margin="3,2">
+                <ui:HoldButton Content="X+" Style="{StaticResource JogDirectionStyle}"
+                               PressCommand="{Binding JogCommand}" ReleaseCommand="{Binding JogStopCommand}"
+                               CommandParameter="{x:Static ui:TeachingDirection.XPlus}"
+                               ToolTip="Hold to move; release to stop."/>
+                <Button Content="X+" Style="{StaticResource StepDirectionStyle}"
+                        Command="{Binding StepCommand}" CommandParameter="{x:Static ui:TeachingDirection.XPlus}"
+                        ToolTip="Move by the selected step distance."/>
+            </Grid>
             <Grid Grid.Row="1" Grid.ColumnSpan="3" Visibility="{Binding HasY, Converter={StaticResource BoolToVis}}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/><ColumnDefinition Width="68"/><ColumnDefinition Width="68"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding Motion.Position.Y, StringFormat=F3}" VerticalAlignment="Center"
                            FontFamily="Cascadia Mono, Consolas" FontSize="16"/>
-                <ContentControl Grid.Column="1" Content="{x:Static ui:TeachingDirection.YMinus}" ContentTemplate="{StaticResource DirectionButton}"/>
-                <ContentControl Grid.Column="2" Content="{x:Static ui:TeachingDirection.YPlus}" ContentTemplate="{StaticResource DirectionButton}"/>
+                <Grid Grid.Column="1" Margin="3,2">
+                    <ui:HoldButton Content="Y−" Style="{StaticResource JogDirectionStyle}"
+                                   PressCommand="{Binding JogCommand}" ReleaseCommand="{Binding JogStopCommand}"
+                                   CommandParameter="{x:Static ui:TeachingDirection.YMinus}"
+                                   ToolTip="Hold to move; release to stop."/>
+                    <Button Content="Y−" Style="{StaticResource StepDirectionStyle}"
+                            Command="{Binding StepCommand}" CommandParameter="{x:Static ui:TeachingDirection.YMinus}"
+                            ToolTip="Move by the selected step distance."/>
+                </Grid>
+                <Grid Grid.Column="2" Margin="3,2">
+                    <ui:HoldButton Content="Y+" Style="{StaticResource JogDirectionStyle}"
+                                   PressCommand="{Binding JogCommand}" ReleaseCommand="{Binding JogStopCommand}"
+                                   CommandParameter="{x:Static ui:TeachingDirection.YPlus}"
+                                   ToolTip="Hold to move; release to stop."/>
+                    <Button Content="Y+" Style="{StaticResource StepDirectionStyle}"
+                            Command="{Binding StepCommand}" CommandParameter="{x:Static ui:TeachingDirection.YPlus}"
+                            ToolTip="Move by the selected step distance."/>
+                </Grid>
             </Grid>
             <Grid Grid.Row="2" Grid.ColumnSpan="3" Visibility="{Binding HasZ, Converter={StaticResource BoolToVis}}">
                 <Grid.ColumnDefinitions>
@@ -77,8 +104,24 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding Motion.Position.Z, StringFormat=F3}" VerticalAlignment="Center"
                            FontFamily="Cascadia Mono, Consolas" FontSize="16"/>
-                <ContentControl Grid.Column="1" Content="{x:Static ui:TeachingDirection.ZMinus}" ContentTemplate="{StaticResource DirectionButton}"/>
-                <ContentControl Grid.Column="2" Content="{x:Static ui:TeachingDirection.ZPlus}" ContentTemplate="{StaticResource DirectionButton}"/>
+                <Grid Grid.Column="1" Margin="3,2">
+                    <ui:HoldButton Content="Z−" Style="{StaticResource JogDirectionStyle}"
+                                   PressCommand="{Binding JogCommand}" ReleaseCommand="{Binding JogStopCommand}"
+                                   CommandParameter="{x:Static ui:TeachingDirection.ZMinus}"
+                                   ToolTip="Hold to move; release to stop."/>
+                    <Button Content="Z−" Style="{StaticResource StepDirectionStyle}"
+                            Command="{Binding StepCommand}" CommandParameter="{x:Static ui:TeachingDirection.ZMinus}"
+                            ToolTip="Move by the selected step distance."/>
+                </Grid>
+                <Grid Grid.Column="2" Margin="3,2">
+                    <ui:HoldButton Content="Z+" Style="{StaticResource JogDirectionStyle}"
+                                   PressCommand="{Binding JogCommand}" ReleaseCommand="{Binding JogStopCommand}"
+                                   CommandParameter="{x:Static ui:TeachingDirection.ZPlus}"
+                                   ToolTip="Hold to move; release to stop."/>
+                    <Button Content="Z+" Style="{StaticResource StepDirectionStyle}"
+                            Command="{Binding StepCommand}" CommandParameter="{x:Static ui:TeachingDirection.ZPlus}"
+                            ToolTip="Move by the selected step distance."/>
+                </Grid>
             </Grid>
         </Grid>
         <ComboBox ItemsSource="{Binding MoveModes}" SelectedItem="{Binding MoveMode}" Margin="0,12,0,8"/>

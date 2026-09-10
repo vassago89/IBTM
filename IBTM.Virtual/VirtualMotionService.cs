@@ -59,23 +59,17 @@ public sealed class VirtualMotionService(
         CancellationToken cancellationToken = default) =>
         SimulateMoveAsync(x, y, _z, velocity, true, cancellationToken);
 
-    protected override Task MoveXCoreAsync(
-        double x,
+    protected override Task MoveAxisCoreAsync(
+        MotionAxis axis,
+        double position,
         double velocity,
-        CancellationToken cancellationToken) =>
-        SimulateMoveAsync(x, _y, _z, velocity, true, cancellationToken);
-
-    protected override Task MoveYCoreAsync(
-        double y,
-        double velocity,
-        CancellationToken cancellationToken) =>
-        SimulateMoveAsync(_x, y, _z, velocity, true, cancellationToken);
-
-    protected override Task MoveZCoreAsync(
-        double z,
-        double velocity,
-        CancellationToken cancellationToken = default) =>
-        SimulateMoveAsync(_x, _y, z, velocity, false, cancellationToken);
+        CancellationToken cancellationToken) => axis switch
+        {
+            MotionAxis.X => SimulateMoveAsync(position, _y, _z, velocity, true, cancellationToken),
+            MotionAxis.Y => SimulateMoveAsync(_x, position, _z, velocity, true, cancellationToken),
+            MotionAxis.Z => SimulateMoveAsync(_x, _y, position, velocity, false, cancellationToken),
+            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
+        };
 
     protected override async Task MoveZToPositiveLimitCoreAsync(
         double velocity,
@@ -273,7 +267,7 @@ public sealed class VirtualMotionService(
         bool horizontal,
         CancellationToken cancellationToken)
     {
-        var movement = _movement = LinkOperation(cancellationToken);
+        var movement = _movement = Operations.Link(cancellationToken);
         try
         {
             BeginMotion(horizontal);

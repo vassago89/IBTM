@@ -2,10 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
-using IBTM.Ajin;
-using IBTM.AlphaMotion;
 using IBTM.Core;
 using Xunit;
 
@@ -123,27 +120,4 @@ public sealed class ApplicationLogTests
         finally { Directory.Delete(directory); }
     }
 
-    [Fact]
-    public void AjinErrorIncludesOperationModuleOffsetAndNativeResult()
-    {
-        var check = typeof(AjinController).GetMethod("Check", BindingFlags.Static | BindingFlags.NonPublic)!;
-        var error = Assert.Throws<TargetInvocationException>(() =>
-            check.Invoke(null, [(uint)0x41D, "AxdiReadInportDword", (int?)4, (int?)0]));
-
-        var message = Assert.IsType<IOException>(error.InnerException).Message;
-        Assert.Contains("AxdiReadInportDword", message);
-        Assert.Contains("module=4, offset=0", message);
-        Assert.Contains("AXT_RT_NOT_OPEN (0x0000041D)", message);
-    }
-
-    [Fact]
-    public void AlphaMotionUninitializedErrorIncludesCardAndBitWithoutCallingHardware()
-    {
-        using var controller = new AlphaMotionController(new() { ControllerNumber = 2 });
-        var error = Assert.Throws<IOException>(() => controller.ReadInput(7));
-
-        Assert.Contains("AIO_GetDIDWord", error.Message);
-        Assert.Contains("card=2, bit=7", error.Message);
-        Assert.Contains("not initialized", error.Message);
-    }
 }

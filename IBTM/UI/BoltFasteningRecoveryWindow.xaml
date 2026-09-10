@@ -89,7 +89,7 @@
                               VerticalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding Items}">
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate DataType="{x:Type ui:BoltFasteningRecoveryItem}">
                                 <Border BorderBrush="{StaticResource DividerBrush}"
                                         BorderThickness="0,1,0,0">
                                     <Grid Height="44" Margin="14,0">

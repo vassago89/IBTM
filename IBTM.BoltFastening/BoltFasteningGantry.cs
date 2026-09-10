@@ -90,18 +90,6 @@ public sealed class BoltFasteningGantry
 
     internal bool AtPickupXY => IsAtXY(_settings.PickupPosition);
 
-    public TeachingOutput[] GetTeachingOutputs() =>
-    [
-        new(OutputIo.PickupHeadDown, HardwareArea.BoltFastening, SetPickupHeadDownAsync),
-        new(OutputIo.ShootingHeadDown, HardwareArea.BoltFastening,
-            (down, token) => SetHeadDownAsync(FasteningHead.Shooting, down, token)),
-        new(OutputIo.PickupHeadVacuumPump, HardwareArea.BoltFastening,
-            (on, token) => SetVacuumAsync(FasteningHead.Pickup, on, token)),
-        new(OutputIo.ShootingHeadVacuumPump, HardwareArea.BoltFastening,
-            (on, token) => SetVacuumAsync(FasteningHead.Shooting, on, token)),
-        new(OutputIo.ShootBolt, HardwareArea.BoltFastening, SetManualShootingAsync, RequiresHandler: false, HoldToRun: true),
-    ];
-
     public void InitializeMotion() => _motion.Initialize();
 
     public void ResetMotion() => _motion.Reset();
@@ -242,7 +230,7 @@ public sealed class BoltFasteningGantry
         await SetHeadDownAsync(head, false, cancellationToken);
     }
 
-    internal Task SetHeadDownAsync(
+    public Task SetHeadDownAsync(
         FasteningHead head,
         bool down,
         CancellationToken cancellationToken = default) => head switch
@@ -293,7 +281,7 @@ public sealed class BoltFasteningGantry
             true,
             cancellationToken);
 
-    internal Task SetPickupHeadDownAsync(
+    public Task SetPickupHeadDownAsync(
         bool down,
         CancellationToken cancellationToken = default) =>
         _io.SetOutputAndWaitAsync(
@@ -365,7 +353,7 @@ public sealed class BoltFasteningGantry
     public void StopShooting() =>
         _io.SetOutput(OutputIo.ShootBolt, false);
 
-    private async Task SetManualShootingAsync(bool on, CancellationToken cancellationToken)
+    public async Task SetManualShootingAsync(bool on, CancellationToken cancellationToken)
     {
         try
         {
@@ -430,7 +418,7 @@ public sealed class BoltFasteningGantry
             _ => BoltCylinderState.Between,
         };
 
-    private async Task SetVacuumAsync(
+    public async Task SetVacuumAsync(
         FasteningHead head,
         bool on,
         CancellationToken cancellationToken)

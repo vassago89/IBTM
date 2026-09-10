@@ -44,12 +44,6 @@
                TargetType="RadioButton"
                BasedOn="{StaticResource NavButtonStyle}">
             <Setter Property="GroupName" Value="Navigation"/>
-            <Setter Property="Content"
-                    Value="{Binding Tag, RelativeSource={RelativeSource Self},
-                                    Converter={StaticResource EnumDescriptionConverter}}"/>
-            <Setter Property="Command" Value="{Binding NavigateCommand}"/>
-            <Setter Property="CommandParameter"
-                    Value="{Binding Tag, RelativeSource={RelativeSource Self}}"/>
         </Style>
         <Style x:Key="SidebarToolButtonStyle"
                TargetType="Button"
@@ -97,7 +91,8 @@
                 </Border>
 
                 <StackPanel Grid.Row="1" Margin="0,8">
-                    <RadioButton Tag="{x:Static ui:AppPage.Operation}">
+                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.Operation}, Converter={StaticResource EnumDescriptionConverter}}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.Operation}">
                         <RadioButton.Style>
                             <Style TargetType="RadioButton"
                                    BasedOn="{StaticResource NavigationItemStyle}">
@@ -111,7 +106,8 @@
                         </RadioButton.Style>
                     </RadioButton>
 
-                    <RadioButton Tag="{x:Static ui:AppPage.SupplyTeaching}"
+                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.SupplyTeaching}, Converter={StaticResource EnumDescriptionConverter}}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.SupplyTeaching}"
                                  Margin="0,12,0,0">
                         <RadioButton.Style>
                             <Style TargetType="RadioButton"
@@ -126,7 +122,8 @@
                         </RadioButton.Style>
                     </RadioButton>
 
-                    <RadioButton Tag="{x:Static ui:AppPage.StationTeaching}">
+                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.StationTeaching}, Converter={StaticResource EnumDescriptionConverter}}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.StationTeaching}">
                         <RadioButton.Style>
                             <Style TargetType="RadioButton"
                                    BasedOn="{StaticResource NavigationItemStyle}">
@@ -140,7 +137,8 @@
                         </RadioButton.Style>
                     </RadioButton>
 
-                    <RadioButton Tag="{x:Static ui:AppPage.BoltTraining}">
+                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.BoltTraining}, Converter={StaticResource EnumDescriptionConverter}}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.BoltTraining}">
                         <RadioButton.Style>
                             <Style TargetType="RadioButton"
                                    BasedOn="{StaticResource NavigationItemStyle}">
@@ -154,7 +152,8 @@
                         </RadioButton.Style>
                     </RadioButton>
 
-                    <RadioButton Tag="{x:Static ui:AppPage.Settings}">
+                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.Settings}, Converter={StaticResource EnumDescriptionConverter}}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.Settings}">
                         <RadioButton.Style>
                             <Style TargetType="RadioButton"
                                    BasedOn="{StaticResource NavigationItemStyle}">
@@ -168,7 +167,8 @@
                         </RadioButton.Style>
                     </RadioButton>
 
-                    <RadioButton Tag="{x:Static ui:AppPage.ManualHardware}"
+                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.ManualHardware}, Converter={StaticResource EnumDescriptionConverter}}"
+                                 Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.ManualHardware}"
                                  Margin="0,12,0,0">
                         <RadioButton.Style>
                             <Style TargetType="RadioButton"
@@ -502,11 +502,11 @@
                                Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentAmberBrush}"
                                ToolTip="Inspection continues. Resolve the storage problem, then Apply the collection mode in Bolt Training to resume."/>
                 </StackPanel>
-                <ContentControl Grid.Row="1"
-                            IsEnabled="{Binding CurrentPageEnabled}"
-                            HorizontalContentAlignment="Stretch"
-                            VerticalContentAlignment="Stretch"
+                <Grid Grid.Row="1"
+                            IsEnabled="{Binding CurrentPageEnabled}">
+                    <ContentPresenter
                             Content="{Binding CurrentPage}"/>
+                </Grid>
             </Grid>
 
             <Border Grid.Row="2"
@@ -590,7 +590,7 @@
                                     Height="40"
                                     Margin="0,0,6,0"
                                     Style="{StaticResource SecondaryButtonStyle}"
-                                    Visibility="{Binding Operation.State.Display.IsHoming,
+                                    Visibility="{Binding Operation.HomeCommand.IsRunning,
                                                          Converter={StaticResource BoolToVis}}"/>
                             <Button Content="START"
                                     Command="{Binding Operation.StartCommand}"

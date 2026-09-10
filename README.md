@@ -144,18 +144,14 @@ share that registry. `MotionStatus.MonitorAxes` and `RefreshMonitorFeedback` are
 independent raw monitor path. `Axes` and `RefreshControlFeedback` are the
 enabled/initialized control-display path; commands still recheck live feedback.
 `MachineController.Display.cs` assembles UI snapshots, while
-`MachineController.Outputs.cs` owns output admission and cancellation. OUTPUTS uses
-`GetManualOutputBlock`; teaching/camera preparation uses `ManualSetupEnabled` and
-`RunTeachingOutputAsync`. `MainConveyorPathClear` means collision clearance only,
-not whole-machine readiness. `OutputControlRow` derives its waiting state from its
-command instead of maintaining another operation flag.
-
-OUTPUTS admission returns `OutputBlockReason`, with `None` meaning unblocked.
-The first failed condition is preserved in the display snapshot, tooltip and
-rejected/stopped-command log. Reasons distinguish unit enable, safety, handler
-readiness, conveyor clearance (including `NgPickupNotRaised`), material and peer
-handshakes. Text comes from enum descriptions; changing wording cannot change
-admission. These reasons neither replace nor reset `MachineAlarm`.
+OUTPUTS calls `MachineController.ToggleDiagnosticOutput` directly through
+`OutputWindowRow.ToggleCommand`. It reads the current DO value and writes its
+opposite, without a feedback wait or asynchronous operation scope.
+`OutputControlRow` remains the separate coordinated Manual Control path;
+teaching uses `ManualSetupEnabled` and `RunTeachingOutputAsync`.
+`MainConveyorPathClear` means collision clearance, not whole-machine readiness.
+Rejections and hardware errors are logged and shown on the row without clearing
+the existing machine alarm.
 
 `MachineController` owns the run lifetime. Startup hardware checks and automatic
 units share the same cancellation token. A unit fault cancels the other units.
@@ -183,48 +179,29 @@ height. After the inputs confirm Up, use **HOME ALL** separately. STOP cancels t
 feedback waits while retaining pneumatic outputs; a timeout alarms the affected
 unit. Repeating the button with cylinders already Up is allowed.
 If a required cylinder loses its raised state or a carrier is detected during Home,
-the existing cancellation path stops homing. OUTPUTS remains available before
-homing for status viewing in MANUAL. The OUTPUTS window can only open in MANUAL
-and closes on AUTO selection (or unavailable mode feedback). Alarm and busy status
-alone do not close it; individual controls become read-only when unavailable. Diagnostic toggles require
-idle MANUAL, working I/O, released emergency stops and normal air pressure. Motion
-unavailable, home-failed and inspection alarms do not alone block diagnostic outputs;
-safety, I/O and other process alarms still do. Existing alarms are not cleared.
-Handler outputs reuse local enabled/home/servo and teaching-output interlocks;
-Supply rotation additionally requires rotation Z already reached and never moves an
-axis implicitly. Stopper toggles require their owning conveyor enabled, an empty
-station and the applicable backup-plate/path-clear feedback. All OUTPUTS action
-buttons consistently use **ON / OFF**, including ordinary toggles and the conveyor test.
-Inter-machine ready/available tests do not require whole-machine homing, Servo ON
-or fault-free unrelated axes. They still require the owning unit enabled, no buffer
-conflict, clearance of the enabled handlers, and the common diagnostic safety gates.
-Material sensors and peer ready/available inputs must be OFF,
-and the operator must confirm connected equipment is stopped. While ON the test
-continues owning an operation; its OFF button remains available while the machine
-is busy. OFF, STOP, AUTO selection, closing OUTPUTS or interlock/peer feedback
-changes end the test and send OFF. This OFF cleanup
-runs independently of the UI dispatcher, including when UI command completion is
-delayed. Shuttle and hold-to-run shooting outputs retain their dedicated controls.
-Main and NG Conveyor Run provide owned **ON / OFF** motor tests in OUTPUTS.
-Manual Control uses the same commands for its two conveyor Run/Stop rows;
-axis controls are in MOTION and transfer sequences remain in Dry Run.
-Motor tests require idle MANUAL, working I/O, the conveyor enabled,
-and the diagnostic emergency-stop/air/alarm checks. Main conveyor retains its
-empty-conveyor and enabled-handler clearance checks. NG manual RUN does not
-require an empty conveyor/shuttle or a particular shuttle height; carrier
-detection does not stop this motor-only operation. Automatic transfer is unchanged.
-RUN selects forward/normal speed without starting a transfer sequence or
-asserting interface requests. OFF, machine STOP, AUTO, applicable interlock loss
-or closing the owning view stops the test. Either control can stop a
-motor started from the other; leaving Manual does not cancel an OUTPUTS-owned run.
-Reverse and normal-speed outputs can be toggled both ON and OFF while idle,
-without starting the motor. They cannot be changed during a running operation.
-The window shows
-why each action is blocked and cancels feedback waits on mode/safety changes or
-STOP without reversing a valve. Feedback timeouts log the output and missing
-feedback details; the row's timeout tooltip also shows those details.
-Teaching and axis movement keep their existing alarm/home restrictions. The Supply rotation/limit-search
-home sequence is unchanged.
+the existing cancellation path stops homing.
+
+OUTPUTS is direct manual I/O control. Every mapped output uses **ON / OFF**,
+including stoppers, shuttle, shooting, conveyors and interface signals. Unit
+Enable, homing, servo state, latched alarms, busy status, carrier/peer sensors and
+handler positions do not gate these toggles. DI feedback is displayed only;
+missing or conflicting feedback does not delay another click.
+RUN changes the RUN output only: it does not select direction/speed, assert other
+outputs or start a transfer sequence. Paired valve outputs still use the configured
+complementary ON/OFF channel mapping.
+
+The window is MANUAL-only. Each command rechecks MANUAL mode, emergency-stop
+release, available I/O and application shutdown. Machine STOP and the existing
+safety-stop path remain active. AUTO selection or closing OUTPUTS stops conveyor,
+feeder, shooting and interface run outputs; it does not reset alarms or reverse
+pneumatic valves. OFF does not close the window, and a missing display snapshot
+does not prevent opening it.
+
+Manual Control's conveyor Run/Stop rows retain their coordinated motor-test
+admission, forward/normal-speed setup and cancellation lifetime. They can stop a
+motor started from OUTPUTS. Teaching, homing, axis movement and automatic transfer
+keep their existing interlocks.
+
 The sidebar **MOTION** button opens a separate Motion Monitor that stays open in
 AUTO, during motion and during alarms. It groups axes by mechanism and shows the
 active controller axis number, position, servo, homed/home sensor, limits and alarm
@@ -605,24 +582,27 @@ For UI/layout/text-only changes, skip tests and compile only when needed. For
 control logic, run only the directly affected safety/regression tests in one configuration.
 `dotnet test` already builds its dependencies; do not repeat a solution build or
 the same tests in Debug and Release for every edit. Manufacturer SDK stand-in tests
-are fast; full virtual route/lifecycle runs are retained but run only when the user
-explicitly requests integration/release verification.
+are fast. The remaining long route simulations have `Category=MachineFlow` and
+are excluded by default in `IBTM.Virtual.Tests`. An explicit filter overrides
+that default. Run only the affected tests during development.
+
+`MachineLifecycleTests` is split into DryRuns, Teaching, Motion, Display, Flow
+and Support partial files. It remains one xUnit class, so splitting the source
+does not introduce concurrent machine scenarios or a new fixture hierarchy.
 
 ```powershell
 # Choose the command relevant to the change, rather than running all three.
-dotnet test IBTM.Ajin.Tests/IBTM.Ajin.Tests.csproj -c Debug --no-restore
-dotnet test IBTM.AlphaMotion.Tests/IBTM.AlphaMotion.Tests.csproj -c Debug --no-restore
+dotnet test IBTM.Ajin.Tests/IBTM.Ajin.Tests.csproj -c Virtual --no-restore
+dotnet test IBTM.AlphaMotion.Tests/IBTM.AlphaMotion.Tests.csproj -c Virtual --no-restore
 dotnet test IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj -c Virtual --no-restore --filter "FullyQualifiedName~AlarmRecoveryTests"
 ```
 
-Full integration/release validation (when needed):
+Long machine-flow checks, only when requested:
 
 ```powershell
-dotnet build IBTM.slnx --configuration Release
-dotnet test IBTM.Ajin.Tests/IBTM.Ajin.Tests.csproj --configuration Release
-dotnet test IBTM.AlphaMotion.Tests/IBTM.AlphaMotion.Tests.csproj --configuration Release
-dotnet test IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj --configuration Release
-dotnet run --project IBTM/IBTM.csproj
+dotnet test IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj -c Virtual --no-restore --filter "Category=MachineFlow"
+# Explicitly include every virtual test only for a requested full verification.
+dotnet test IBTM.Virtual.Tests/IBTM.Virtual.Tests.csproj -c Virtual --no-restore --filter "FullyQualifiedName~IBTM.Virtual.Tests"
 ```
 
 ### Offline development

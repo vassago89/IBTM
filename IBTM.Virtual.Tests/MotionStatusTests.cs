@@ -30,7 +30,7 @@ public sealed class MotionStatusTests
         Assert.Equal(1, motion.Reads);
 
         motion.Failure = new IOException("Axis feedback unavailable.");
-        Assert.Same(motion.Failure, Assert.Throws<IOException>(status.RefreshControlFeedback));
+        Assert.Same(motion.Failure, Assert.Throws<IOException>(() => status.RefreshControlFeedback()));
         var reads = motion.Reads;
         Assert.Equal(AxisCondition.Unavailable, first.Condition);
         Assert.Null(second.State);
@@ -71,7 +71,7 @@ public sealed class MotionStatusTests
         Assert.False(status.XyHomed);
         Assert.All(status.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
-        Assert.Same(motion.Failure, Assert.Throws<IOException>(status.RefreshControlFeedback));
+        Assert.Same(motion.Failure, Assert.Throws<IOException>(() => status.RefreshControlFeedback()));
     }
 
     private sealed class StatusMotion() : AjinMotionService(

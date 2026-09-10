@@ -1,11 +1,21 @@
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using IBTM.Core;
 
 namespace IBTM.UI;
 
-public sealed class CarrierView : ContentControl
+public sealed class CarrierView : Control
 {
+    public static readonly DependencyProperty BoltTargetsProperty =
+        DependencyProperty.Register(nameof(BoltTargets), typeof(IReadOnlyList<BoltTargetView>), typeof(CarrierView));
+
+    public IReadOnlyList<BoltTargetView>? BoltTargets
+    {
+        get => (IReadOnlyList<BoltTargetView>?)GetValue(BoltTargetsProperty);
+        set => SetValue(BoltTargetsProperty, value);
+    }
+
     public static readonly DependencyProperty HeatSink1PresentProperty =
         DependencyProperty.Register(nameof(HeatSink1Present), typeof(bool), typeof(CarrierView));
     public static readonly DependencyProperty HeatSink2PresentProperty =

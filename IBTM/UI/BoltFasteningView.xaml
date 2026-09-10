@@ -1,6 +1,7 @@
 <UserControl x:Class="IBTM.UI.BoltFasteningView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:ui="clr-namespace:IBTM.UI"
@@ -12,19 +13,19 @@
     <UserControl.Resources>
         <Style x:Key="FeederDeviceStyle" TargetType="Grid">
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                             Value="False">
+                <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>False</sys:Boolean></Trigger.Value>
                     <Setter Property="Opacity" Value="0.5"/>
-                </DataTrigger>
+                </Trigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="FeederLabelStyle" TargetType="TextBlock"
                BasedOn="{StaticResource EquipmentRoleLabelStyle}">
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                             Value="True">
+                <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                     <Setter Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
-                </DataTrigger>
+                </Trigger>
             </Style.Triggers>
         </Style>
     </UserControl.Resources>

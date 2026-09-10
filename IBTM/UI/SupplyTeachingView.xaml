@@ -38,8 +38,7 @@
             </Grid.ColumnDefinitions>
 
             <Border Grid.Column="4" Style="{StaticResource CardStyle}" Padding="14,12">
-                <ContentControl Content="{Binding}" ContentTemplate="{StaticResource IoStatusTemplate}"
-                                HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IoStatusTemplate}"/>
             </Border>
 
             <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="16">
@@ -84,7 +83,7 @@
                         <ListBox.GroupStyle>
                             <GroupStyle>
                                 <GroupStyle.HeaderTemplate>
-                                    <DataTemplate>
+                                    <DataTemplate DataType="{x:Type CollectionViewGroup}">
                                         <TextBlock Text="{Binding Name, Converter={StaticResource EnumDescriptionConverter}}"
                                                    Style="{StaticResource SectionHeaderStyle}"
                                                    Margin="2,14,0,8"/>
@@ -93,7 +92,7 @@
                             </GroupStyle>
                         </ListBox.GroupStyle>
                         <ListBox.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate DataType="{x:Type ui:TeachingPoint}">
                                 <Border BorderBrush="{StaticResource DividerBrush}"
                                         BorderThickness="0,0,0,1"
                                         Padding="10,7">

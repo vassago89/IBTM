@@ -50,8 +50,7 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <ContentControl Content="{Binding}" ContentTemplate="{StaticResource IoStatusTemplate}"
-                                HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"/>
+                <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IoStatusTemplate}"/>
             </Border>
             <GridSplitter Grid.Column="4" Grid.Row="1" Height="6"
                           HorizontalAlignment="Stretch" VerticalAlignment="Center"
@@ -304,7 +303,7 @@
                               BorderThickness="0"
                               ItemContainerStyle="{StaticResource FlatListItemStyle}">
                         <ListBox.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate DataType="{x:Type ui:TeachingPoint}">
                                 <StackPanel Margin="4,6">
                                     <TextBlock Text="{Binding Name}"
                                                ToolTip="{Binding Name}"

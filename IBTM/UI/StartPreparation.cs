@@ -1,20 +1,8 @@
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
 using System.Windows;
 using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.UI;
-
-public enum StartPreparationType
-{
-    [Description("PCB Placement Recovery")]
-    PcbPlacementRecovery,
-
-    [Description("Bolt Fastening Recovery")]
-    BoltFasteningRecovery,
-}
 
 public abstract class StartPreparation
 {
@@ -34,7 +22,6 @@ public abstract class StartPreparation
         work.Changed += Invalidate;
     }
 
-    public abstract StartPreparationType Type { get; }
     public bool Required =>
         _work.Enabled
         && !_state.AutomaticRunning
@@ -68,23 +55,4 @@ public abstract class StartPreparation
 
         _automaticRunning = _state.AutomaticRunning;
     }
-}
-
-public sealed class StartPreparationPlan(
-    IEnumerable<StartPreparation> preparations)
-{
-    private readonly StartPreparation[] _preparations =
-        [.. preparations.OrderBy(preparation => preparation.Type)];
-
-    public bool Prepare(Window owner) =>
-        _preparations.All(preparation => preparation.Prepare(owner));
-
-    public bool CanOpen(StartPreparationType type) =>
-        Find(type).Required;
-
-    public bool Open(StartPreparationType type, Window owner) =>
-        Find(type).Open(owner);
-
-    private StartPreparation Find(StartPreparationType type) =>
-        _preparations.Single(preparation => preparation.Type == type);
 }

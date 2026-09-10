@@ -36,28 +36,48 @@ public partial class RecipeEditor(
     public void Refresh()
     {
         Name = recipe.Name;
-        RefreshRecipes();
+        Recipes = store.GetRecipeNames();
     }
 
     public Task ShutdownAsync() =>
         CommandShutdown.WaitAsync(CommandShutdown.Capture(SaveCommand, LoadCommand));
 
     [RelayCommand(CanExecute = nameof(CanSave))]
-    public Task SaveAsync(CancellationToken cancellationToken = default) => SaveAsync((name, token) =>
-        store.SaveRecipeAsync(recipe, name, _imageRecipeName, token), cancellationToken);
+    public async Task SaveAsync(CancellationToken cancellationToken = default)
+    {
+        if (!ValidateName()) return;
+        Error = null;
+        var name = Name.Trim();
+        try
+        {
+            using var operation = operations.Link(cancellationToken);
+            await store.SaveRecipeAsync(recipe, name, _imageRecipeName, operation.Token);
+            await SavedAsync(name);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception) { ReportError(exception); }
+    }
 
     [RelayCommand]
-    private Task LoadAsync(string recipeName) => RunAsync(async token =>
+    private async Task LoadAsync(string recipeName)
     {
-        var loaded = await store.LoadRecipeAsync(recipeName, token);
-        token.ThrowIfCancellationRequested();
-        recipe.ReplaceWith(loaded);
-        _imageRecipeName = recipe.Name;
-        Name = recipe.Name;
-        OnPropertyChanged(nameof(ActiveName));
-        Changed?.Invoke();
-        await SelectAsync(recipe.Name);
-    });
+        Error = null;
+        try
+        {
+            using var operation = operations.Link();
+            var loaded = await store.LoadRecipeAsync(recipeName, operation.Token);
+            operation.Token.ThrowIfCancellationRequested();
+            recipe.ReplaceWith(loaded);
+            _imageRecipeName = recipe.Name;
+            Name = recipe.Name;
+            OnPropertyChanged(nameof(ActiveName));
+            Changed?.Invoke();
+            selection.LastRecipeName = recipe.Name;
+            await Task.Run(() => store.Database.SaveSettings([selection]));
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception) { ReportError(exception); }
+    }
 
     [RelayCommand]
     private void New()
@@ -70,62 +90,49 @@ public partial class RecipeEditor(
         Changed?.Invoke();
     }
 
-    private void RefreshRecipes() => Recipes = store.GetRecipeNames();
-
-    private Task SelectAsync(string recipeName)
-    {
-        selection.LastRecipeName = recipeName;
-        return Task.Run(() => store.Database.SaveSettings([selection]));
-    }
-
     private async Task SavedAsync(string name)
     {
         recipe.Name = name;
         _imageRecipeName = name;
         Name = name;
         OnPropertyChanged(nameof(ActiveName));
-        await SelectAsync(name);
-        RefreshRecipes();
+        selection.LastRecipeName = name;
+        await Task.Run(() => store.Database.SaveSettings([selection]));
+        Recipes = store.GetRecipeNames();
     }
 
-    public Task<bool> SaveCarrierImagesAsync(
-        IReadOnlyList<CarrierImageTileView> images, CancellationToken cancellationToken = default) =>
-        SaveAsync(async (name, token) =>
-            recipe.CarrierImages = await store.SaveRecipeImagesAsync(recipe, name, images, token), cancellationToken);
-
-    private Task<bool> SaveAsync(
-        Func<string, CancellationToken, Task> save, CancellationToken cancellationToken = default)
+    public async Task<bool> SaveCarrierImagesAsync(
+        IReadOnlyList<CarrierImageTileView> images, CancellationToken cancellationToken = default)
     {
-        if (!CanSave)
-        {
-            Error = "Enter a recipe name before saving.";
-            return Task.FromResult(false);
-        }
-        var name = Name.Trim();
-        return RunAsync(async token =>
-        {
-            await save(name, token);
-            await SavedAsync(name);
-        }, cancellationToken);
-    }
-
-    private async Task<bool> RunAsync(
-        Func<CancellationToken, Task> action, CancellationToken cancellationToken = default)
-    {
+        if (!ValidateName()) return false;
         Error = null;
+        var name = Name.Trim();
         try
         {
             using var operation = operations.Link(cancellationToken);
-            await action(operation.Token);
+            recipe.CarrierImages = await store.SaveRecipeImagesAsync(recipe, name, images, operation.Token);
+            await SavedAsync(name);
             return true;
         }
         catch (OperationCanceledException) { return false; }
         catch (Exception exception)
         {
-            System.Diagnostics.Trace.TraceError("Recipe operation failed. {0}", exception);
-            Error = $"Recipe operation failed: {exception.GetBaseException().Message}";
+            ReportError(exception);
             return false;
         }
+    }
+
+    private bool ValidateName()
+    {
+        if (CanSave) return true;
+        Error = "Enter a recipe name before saving.";
+        return false;
+    }
+
+    private void ReportError(Exception exception)
+    {
+        System.Diagnostics.Trace.TraceError("Recipe operation failed. {0}", exception);
+        Error = $"Recipe operation failed: {exception.GetBaseException().Message}";
     }
 
     public Task<CarrierImageTileView[]> LoadCarrierImagesAsync(CancellationToken cancellationToken = default)

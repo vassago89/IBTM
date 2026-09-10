@@ -1,6 +1,8 @@
 <UserControl x:Class="IBTM.UI.OperationView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core"
@@ -14,10 +16,10 @@
             <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
             <Setter Property="BorderThickness" Value="0,0,1,0"/>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                             Value="False">
+                <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>False</sys:Boolean></Trigger.Value>
                     <Setter Property="Opacity" Value="0.5"/>
-                </DataTrigger>
+                </Trigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="SideCarriageStyle" TargetType="Border">
@@ -27,13 +29,13 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="2"/>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}"
-                             Value="True">
+                <Trigger Property="Tag">
+                <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
                     <Setter Property="Background"
                             Value="{StaticResource MapActiveBackgroundBrush}"/>
                     <Setter Property="BorderBrush"
                             Value="{StaticResource AccentBlueBrush}"/>
-                </DataTrigger>
+                </Trigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="SideScaleTextStyle" TargetType="TextBlock">
@@ -47,7 +49,7 @@
             <Setter Property="HorizontalAlignment" Value="Left"/>
             <Setter Property="TextAlignment" Value="Left"/>
         </Style>
-        <DataTemplate x:Key="ZAxisScaleTemplate">
+        <DataTemplate x:Key="ZAxisScaleTemplate" DataType="{x:Type device:MotionStatus}">
             <Grid Height="62">
                 <Border Height="3" Margin="18,5,18,0" VerticalAlignment="Top"
                         Background="{StaticResource CardBorderBrush}"/>

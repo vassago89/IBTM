@@ -97,10 +97,12 @@ public partial class BoltTrainingViewModel : ObservableObject
     [NotifyCanExecuteChangedFor(nameof(InspectSampleCommand))]
     [NotifyCanExecuteChangedFor(nameof(SaveSettingsCommand))]
     [NotifyPropertyChangedFor(nameof(ControlsEnabled))]
+    [NotifyPropertyChangedFor(nameof(CanEditRegion))]
     private bool _isBusy;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MaximumRegionSize))]
+    [NotifyPropertyChangedFor(nameof(CanEditRegion))]
     private BitmapSource? _originalImage;
     private int _regionSize = IBoltRecessSegmenter.InputSize;
     [ObservableProperty] private Point[] _labelPolygon = [];
@@ -116,6 +118,7 @@ public partial class BoltTrainingViewModel : ObservableObject
     [ObservableProperty] private string? _error;
 
     public bool ControlsEnabled => !IsBusy;
+    public bool CanEditRegion => ControlsEnabled && OriginalImage is not null;
     public int MaximumRegionSize => OriginalImage is { } image ? Math.Min(image.PixelWidth, image.PixelHeight) : 1;
     public int RegionSize
     {

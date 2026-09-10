@@ -17,8 +17,8 @@ public sealed class IoSignals
         _inputsAvailable = io.IsReady ? 1 : 0;
         var sections = hardware.ToArray();
         Inputs = sections.OfType<InputHardwareSettings>()
-            .SelectMany(section => section.Inputs.Keys.Select(input => new IoSignal<InputIo>(
-                input, section.Area, section.GetSection(input), io.GetInput, section.Inputs[input], () => io.IsReady)))
+            .SelectMany(section => section.Inputs.Keys.Select(input => new IoInputStatus(
+                input, section.Area, section.GetSection(input), io, section.Inputs[input])))
             .ToDictionary(row => row.Signal);
         Outputs = sections.OfType<IoHardwareSettings>()
             .SelectMany(section => section.Outputs.Keys.Select(output => new IoOutputStatus(
@@ -45,7 +45,7 @@ public sealed class IoSignals
         InputAvailabilityChanged?.Invoke();
     }
 
-    public IReadOnlyDictionary<InputIo, IoSignal<InputIo>> Inputs { get; }
+    public IReadOnlyDictionary<InputIo, IoInputStatus> Inputs { get; }
     public IReadOnlyDictionary<OutputIo, IoOutputStatus> Outputs { get; }
 
     // Called by the shared display worker, never by a binding getter.

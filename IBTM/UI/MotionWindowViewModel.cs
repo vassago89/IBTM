@@ -14,8 +14,11 @@ namespace IBTM.UI;
 
 public sealed class MotionMonitorAxis(
     MotionGroup group, MotionAxis axis, int number, MotionStatus motion,
-    UnitSettings units) : ObservableObject
+    UnitSettings units, IRelayCommand<MotionMonitorAxis> toggleServoCommand,
+    IAsyncRelayCommand<MotionMonitorAxis> homeAxisCommand) : ObservableObject
 {
+    public IRelayCommand<MotionMonitorAxis> ToggleServoCommand { get; } = toggleServoCommand;
+    public IAsyncRelayCommand<MotionMonitorAxis> HomeAxisCommand { get; } = homeAxisCommand;
     public MotionGroup Group { get; } = group;
     public MotionAxis Axis { get; } = axis;
     public int Number { get; } = number;
@@ -44,7 +47,7 @@ public partial class MotionWindowViewModel : ObservableObject
         Axes = settings.MotionSections.SelectMany(section => section.Hardware.AxisSignals.Select(axis =>
             new MotionMonitorAxis(section.Hardware.Group, axis.Key,
                 section.Hardware.Axes[axis.Value].Number,
-                state.GetMotionStatus(section.Hardware.Group), settings.Units))).ToArray();
+                state.GetMotionStatus(section.Hardware.Group), settings.Units, ToggleServoCommand, HomeAxisCommand))).ToArray();
         _enabledStates = Axes.Select(row => row.Enabled).ToArray();
         View = new ListCollectionView(Axes);
         View.GroupDescriptions.Add(new PropertyGroupDescription(nameof(MotionMonitorAxis.Group)));
@@ -65,9 +68,8 @@ public partial class MotionWindowViewModel : ObservableObject
 
     [RelayCommand(CanExecute = nameof(CanToggleServo))]
     private void ToggleServo(MotionMonitorAxis row) => _machine.ToggleServo(row.Group, row.Axis);
-    private bool CanToggleServo(MotionMonitorAxis? row) => row is { Enabled: true, Diagnostics.Snapshot.State: not null }
-        && _state.Display.Available && !_state.Display.AutoMode
-        && _state.Display.SafetyReady && !_state.Display.IsRunning;
+    private bool CanToggleServo(MotionMonitorAxis? row) => row is { Diagnostics.Snapshot.State: not null }
+        && _machine.CanSetServo(row.Group, live: false);
 
     [RelayCommand(CanExecute = nameof(CanHomeAxis), IncludeCancelCommand = true)]
     private Task HomeAxisAsync(MotionMonitorAxis row, CancellationToken cancellationToken) =>

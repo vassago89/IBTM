@@ -13,7 +13,7 @@ namespace IBTM.UI;
 
 // One captured frame, shared by ROI edits and reinspection. Never moves hardware.
 public partial class InspectionPreview(
-    BoltInspector inspector, Func<BoltInspectionRecipe> getRecipe, Func<float> getMaskThreshold) : ObservableObject
+    BoltInspector inspector, Recipe recipe, BoltTrainingSettings training) : ObservableObject
 {
     private ImageFrame? _frame;
     private BoltPrediction? _prediction;
@@ -28,12 +28,12 @@ public partial class InspectionPreview(
 
     public int RegionSize
     {
-        get => getRecipe().RegionSizePixels;
+        get => recipe.BoltInspection.RegionSizePixels;
         set
         {
             if (value < 1) throw new ArgumentOutOfRangeException(nameof(value), "ROI size must be positive.");
             if (value == RegionSize) return;
-            getRecipe().RegionSizePixels = value;
+            recipe.BoltInspection.RegionSizePixels = value;
             ClearPrediction();
             RefreshRegion();
             OnPropertyChanged();
@@ -42,11 +42,11 @@ public partial class InspectionPreview(
 
     public double MinimumMaskPercent
     {
-        get => getRecipe().MinimumMaskRatio * 100;
+        get => recipe.BoltInspection.MinimumMaskRatio * 100;
         set
         {
             if (!(value >= 0 && value <= 100)) throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 100 percent.");
-            getRecipe().MinimumMaskRatio = value / 100;
+            recipe.BoltInspection.MinimumMaskRatio = value / 100;
             RefreshResult();
             OnPropertyChanged();
         }
@@ -107,14 +107,14 @@ public partial class InspectionPreview(
     private void RefreshResult()
     {
         if (_prediction is null) return;
-        var ratio = _prediction.MaskRatio(getMaskThreshold());
-        Result = $"{(ratio >= getRecipe().MinimumMaskRatio ? "OK" : "NG")} · Mask {ratio * 100:0.###}%";
+        var ratio = _prediction.MaskRatio(training.MaskThreshold);
+        Result = $"{(ratio >= recipe.BoltInspection.MinimumMaskRatio ? "OK" : "NG")} · Mask {ratio * 100:0.###}%";
     }
 
     private void RefreshOverlay()
     {
         if (_prediction is not null)
-            Overlay = BoltTrainingImages.CreateOverlay(_input!, _prediction.Probabilities, getMaskThreshold());
+            Overlay = BoltTrainingImages.CreateOverlay(_input!, _prediction.Probabilities, training.MaskThreshold);
     }
 
     public void RefreshBarcodeRegion()

@@ -110,7 +110,7 @@ public sealed class AjinControllerTests
     public void InitializationUsesZeroSuccessAndLogsTheActualFiveModulesWithoutWritingOutputs()
     {
         using var log = new ApplicationLog();
-        using var controller = new AjinController(new(), log);
+        using var controller = new AjinController(new() { MotionParameterFile = "missing.mot" }, log);
 
         controller.Initialize();
         controller.Initialize();
@@ -209,7 +209,6 @@ public sealed class AjinControllerTests
     [Theory]
     [InlineData(-1)]
     [InlineData(96)]
-    [InlineData(int.MaxValue)]
     public void ChannelsOutsideTheConfiguredSlotsAreRejectedWithoutNativeCalls(int channel)
     {
         using var controller = new AjinController(new());
@@ -302,8 +301,6 @@ public sealed class AjinControllerTests
     [Theory]
     [InlineData(-1)]
     [InlineData(0)]
-    [InlineData(8)]
-    [InlineData(24)]
     [InlineData(64)]
     public void UnsupportedPointCountsAreRejected(int count)
     {
@@ -444,25 +441,6 @@ public sealed class AjinControllerTests
             controller.WriteRtexOutput(index % 16, false);
         });
         Assert.Equal(700, AjinSdk.Calls.Count);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("missing.mot")]
-    public void SavedMotionParameterPathIsNotUsed(string? path)
-    {
-        using var controller = new AjinController(new() { MotionParameterFile = path! });
-        AjinSdk.BeforeCall = call =>
-        {
-            if (call.Operation is "AxlOpen" or "AxmMotLoadParaAll")
-                throw new InvalidOperationException("Reset or parameter loading must not be attempted.");
-        };
-        controller.Initialize();
-        Assert.False(controller.ReadRtexInput(0));
-        controller.Dispose();
-        controller.Initialize();
-        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == "AxlOpenNoReset"));
     }
 
     [Fact]

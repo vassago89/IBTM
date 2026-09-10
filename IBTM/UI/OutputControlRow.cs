@@ -12,13 +12,13 @@ namespace IBTM.UI;
 public sealed partial class OutputControlRow : ObservableObject
 {
     private readonly MachineController _machine;
-    private readonly bool _ignoreManualBlock;
     [ObservableProperty, NotifyPropertyChangedFor(nameof(HasFeedbackError))] private string? _feedbackError;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ToggleHint))] private string? _actionMessage;
+    [ObservableProperty] private OutputBlockReason _blockReason;
 
-    public OutputControlRow(IoOutputStatus status, MachineController machine, bool ignoreManualBlock = false)
+    public OutputControlRow(IoOutputStatus status, MachineController machine)
     {
         _machine = machine;
-        _ignoreManualBlock = ignoreManualBlock;
         Io = status;
         ToggleCommand.PropertyChanged += OnToggleCommandChanged;
     }
@@ -29,33 +29,34 @@ public sealed partial class OutputControlRow : ObservableObject
     public bool IsConveyorRun => MachineController.IsConveyorRunOutput(Io.Signal);
     public bool IsMaintainedOutput => IsConveyorRun
         || MachineController.IsInterfaceOutput(Io.Signal);
-    private bool CanStopOutputTest => IsMaintainedOutput && ToggleCommand.IsRunning
-        || IsConveyorRun && Io.IsOn == true;
-    public OutputBlockReason BlockReason => _machine.GetManualOutputBlock(Io.Signal);
-    public string ToggleHint
+    public string ToggleHint => ActionMessage ?? (IsMaintainedOutput
+        ? "ON starts this output. OFF or closing this window stops it."
+        : "Toggle this output.");
+
+    // The button always calls this method. XAML only displays the observed IO state.
+    [RelayCommand(CanExecute = nameof(CanSwitch))]
+    private void Switch()
     {
-        get
-        {
-            var reason = BlockReason;
-            if (reason != OutputBlockReason.None) return $"[{reason}] {reason.GetDescription()}";
-            return IsConveyorRun
-                ? "Turn ON to run the conveyor motor forward at normal speed. OFF or closing this window stops the motor."
-                : MachineController.IsInterfaceOutput(Io.Signal)
-                    ? "Confirm connected equipment is stopped. Keep ON until OFF, STOP, window close or an interlock change."
-                    : "Toggle this output after rechecking live safety conditions.";
-        }
+        if (IsMaintainedOutput && (ToggleCommand.IsRunning || Io.IsOn == true))
+            StopOutputTest();
+        else if (ToggleCommand.CanExecute(null))
+            ToggleCommand.Execute(null);
     }
-    [RelayCommand(CanExecute = nameof(CanStopOutputTest))]
+
+    // Only prevents overlapping feedback waits; safety is checked by the controller.
+    private bool CanSwitch() => IsMaintainedOutput || !ToggleCommand.IsRunning;
+
+    [RelayCommand]
     private void StopOutputTest()
     {
         ToggleCommand.Cancel();
-        if (IsConveyorRun) _machine.StopManualConveyor(Io.Signal);
+        if (IsMaintainedOutput) _machine.StopManualOutput(Io.Signal);
     }
 
     private void OnToggleCommandChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName != nameof(IAsyncRelayCommand.IsRunning)) return;
-        StopOutputTestCommand.NotifyCanExecuteChanged();
+        SwitchCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
@@ -65,30 +66,29 @@ public sealed partial class OutputControlRow : ObservableObject
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await _machine.ToggleManualOutputAsync(Io.Signal, cancellationToken, _ignoreManualBlock);
+            BlockReason = await _machine.ToggleManualOutputAsync(Io.Signal, cancellationToken);
+            if (BlockReason != OutputBlockReason.None)
+                ActionMessage = $"[{BlockReason}] {BlockReason.GetDescription()}";
         }
         catch (IoTimeoutException exception)
         {
             FeedbackError = $"{Io.Signal} [{Io.Address}]: {exception.Message}";
+            ActionMessage = FeedbackError;
         }
         catch (OperationCanceledException)
         {
+        }
+        catch (Exception exception)
+        {
+            // The controller logs the hardware failure; the view only presents it.
+            ActionMessage = exception.Message;
         }
     }
 
     public void Refresh()
     {
         FeedbackError = null;
-        RefreshAccess();
-    }
-
-    // Only command admission is refreshed by the owning view's UI callback.
-    // Output and feedback presentation bind directly to Io and ToggleCommand.
-    public void RefreshAccess()
-    {
-        ToggleCommand.NotifyCanExecuteChanged();
-        StopOutputTestCommand.NotifyCanExecuteChanged();
-        OnPropertyChanged(nameof(BlockReason));
-        OnPropertyChanged(nameof(ToggleHint));
+        ActionMessage = null;
+        BlockReason = OutputBlockReason.None;
     }
 }

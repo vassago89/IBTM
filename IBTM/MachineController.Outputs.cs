@@ -9,7 +9,38 @@ namespace IBTM;
 
 public sealed partial class MachineController
 {
-    // OUTPUTS is manual I/O diagnostics, not automatic operation or teaching.
+    // OUTPUTS writes just the selected logical output. Feedback is display-only;
+    // it does not start a conveyor sequence, move an axis, or wait for a cylinder.
+    internal OutputBlockReason ToggleDiagnosticOutput(OutputIo signal)
+    {
+        var block = _operations.IsShuttingDown ? OutputBlockReason.ShuttingDown
+            : !_io.IsReady ? OutputBlockReason.IoUnavailable
+            : !_state.ManualMode ? OutputBlockReason.AutoMode
+            : !_state.EmergencyStopReleased ? OutputBlockReason.EmergencyStop
+            : OutputBlockReason.None;
+        if (block != OutputBlockReason.None)
+        {
+            _log?.Write($"Direct output {signal} ignored: [{block}] {block.GetDescription()}");
+            return block;
+        }
+
+        try
+        {
+            var value = !_io.GetOutput(signal);
+            _io.SetOutput(signal, value);
+            _log?.Write($"Direct output {signal}: {(value ? "ON" : "OFF")}; alarm={_state.Alarm}.");
+            _state.RequestDisplayRefresh();
+            return OutputBlockReason.None;
+        }
+        catch (Exception exception)
+        {
+            _state.SetError(MachineAlarm.IoCommunication, exception);
+            _operations.Cancel();
+            throw;
+        }
+    }
+
+    // Coordinated manual controls retain their own admission and stop conditions.
     private OutputBlockReason GetManualOutputSafetyBlock()
     {
         if (_operations.IsShuttingDown) return OutputBlockReason.ShuttingDown;
@@ -22,13 +53,12 @@ public sealed partial class MachineController
             ? OutputBlockReason.None : OutputBlockReason.MachineAlarm;
     }
 
-    internal OutputBlockReason GetManualOutputBlock(OutputIo signal, bool live = false)
+    private OutputBlockReason GetManualOutputBlock(OutputIo signal)
     {
-        var block = live ? GetManualOutputSafetyBlock() : _state.Display.ManualOutputBlock;
+        var block = GetManualOutputSafetyBlock();
         if (block != OutputBlockReason.None) return block;
-        if (live && _state.IsRunning) return OutputBlockReason.Busy;
 
-        if (signal == OutputIo.MainConveyorRun) return GetConveyorOutputBlock(live);
+        if (signal == OutputIo.MainConveyorRun) return GetConveyorOutputBlock();
         if (signal == OutputIo.NgConveyorRun) return GetNgConveyorOutputBlock();
 
         // Direction/speed selection does not start the motor. The common idle
@@ -42,11 +72,11 @@ public sealed partial class MachineController
             or OutputIo.NgCarrierEjectLamp or OutputIo.NgCarrierEjectCompleteLamp)
             return OutputBlockReason.None;
 
-        if (IsInterfaceOutput(signal)) return GetInterfaceOutputBlock(signal, live);
+        if (IsInterfaceOutput(signal)) return GetInterfaceOutputBlock(signal);
 
         if (signal is OutputIo.PcbPlacementStopperUp or OutputIo.BoltFasteningStopperUp
             or OutputIo.InspectionStopperUp or OutputIo.NgConveyorStopperUp)
-            return GetStopperOutputBlock(signal, live);
+            return GetStopperOutputBlock(signal);
 
         // Motor, shuttle and shooting outputs need their dedicated
         // sequences/hold-to-run controls, not an unrestricted latched toggle.
@@ -61,22 +91,21 @@ public sealed partial class MachineController
             if (!_state.ServoMainContactorOn) return OutputBlockReason.ServoPowerOff;
             foreach (var axis in motion.Feedback.Axes)
             {
-                var feedback = live ? motion.Feedback.GetAxisState(axis) : motion.Axes[axis].State;
-                if (feedback is not { } state) return OutputBlockReason.HandlerUnavailable;
+                var state = motion.Feedback.GetAxisState(axis);
                 if (!state.Homed) return OutputBlockReason.HandlerNotHomed;
                 if (!state.ServoOn) return OutputBlockReason.HandlerServoOff;
                 if (state.Alarm || state.Emergency) return OutputBlockReason.HandlerMotionFault;
             }
 
             if (entry.Group == MotionGroup.PcbSupply
-                    && (live ? _state.PlacementInBufferArea : _state.Display.PlacementInBufferArea)
+                    && _state.PlacementInBufferArea
                 || entry.Group == MotionGroup.PcbPlacementHandler
-                    && (live ? _state.SupplyInBufferArea : _state.Display.SupplyInBufferArea))
+                    && _state.SupplyInBufferArea)
                 return OutputBlockReason.OtherHandlerInBuffer;
         }
 
-        if (entry.Output.CanSet?.Invoke(live) == false
-            || signal == OutputIo.PcbSupplyRotate && !_supplyHandler.CanRotateInPlace(live))
+        if (!TeachingOutputInterlockReady(signal, live: true)
+            || signal == OutputIo.PcbSupplyRotate && !_supplyHandler.CanRotateInPlace())
             return OutputBlockReason.OutputInterlock;
         return OutputBlockReason.None;
     }
@@ -87,8 +116,21 @@ public sealed partial class MachineController
     internal static bool IsConveyorRunOutput(OutputIo signal) => signal is
         OutputIo.MainConveyorRun or OutputIo.NgConveyorRun;
 
-    internal void StopManualConveyor(OutputIo signal) =>
-        TryRunManual(() => StopConveyorMotor(signal), () => _io.IsReady, MachineAlarm.IoCommunication);
+    internal void StopManualOutput(OutputIo signal)
+    {
+        try
+        {
+            if (!_io.IsReady) return;
+            if (IsConveyorRunOutput(signal)) StopConveyorMotor(signal);
+            else if (IsInterfaceOutput(signal)) _io.SetOutput(signal, false);
+            else throw new ArgumentOutOfRangeException(nameof(signal));
+        }
+        catch (Exception exception)
+        {
+            _state.SetError(MachineAlarm.IoCommunication, exception);
+            _operations.Cancel();
+        }
+    }
 
     private void StopConveyorMotor(OutputIo signal)
     {
@@ -101,10 +143,10 @@ public sealed partial class MachineController
     private OutputBlockReason GetNgConveyorOutputBlock() =>
         _units.NgConveyor ? OutputBlockReason.None : OutputBlockReason.NgConveyorDisabled;
 
-    private OutputBlockReason GetConveyorOutputBlock(bool live)
+    private OutputBlockReason GetConveyorOutputBlock()
     {
         if (!_units.MainConveyor) return OutputBlockReason.MainConveyorDisabled;
-        var path = live ? GetMainConveyorPathBlock() : _state.Display.MainConveyorPathBlock;
+        var path = GetMainConveyorPathBlock();
         if (path != OutputBlockReason.None) return path;
         if (_io.GetInput(InputIo.MainConveyorEntryCarrierDetected)
             || _io.GetInput(InputIo.PcbPlacementCarrierPresent)
@@ -115,7 +157,7 @@ public sealed partial class MachineController
         return OutputBlockReason.None;
     }
 
-    private OutputBlockReason GetStopperOutputBlock(OutputIo signal, bool live)
+    private OutputBlockReason GetStopperOutputBlock(OutputIo signal)
     {
         if (signal == OutputIo.NgConveyorStopperUp)
             return !_units.NgConveyor ? OutputBlockReason.NgConveyorDisabled
@@ -125,7 +167,7 @@ public sealed partial class MachineController
                     ? OutputBlockReason.NgConveyorOccupied : OutputBlockReason.None;
 
         if (!_units.MainConveyor) return OutputBlockReason.MainConveyorDisabled;
-        var path = live ? GetMainConveyorPathBlock() : _state.Display.MainConveyorPathBlock;
+        var path = GetMainConveyorPathBlock();
         if (path != OutputBlockReason.None) return path;
         var (carrier, plateUp, plateDown) = signal switch
         {
@@ -140,7 +182,7 @@ public sealed partial class MachineController
             ? OutputBlockReason.BackupPlateNotDown : OutputBlockReason.None;
     }
 
-    private OutputBlockReason GetInterfaceOutputBlock(OutputIo signal, bool live)
+    private OutputBlockReason GetInterfaceOutputBlock(OutputIo signal)
     {
         if (signal == OutputIo.PcbSupplyReadyToFront1)
         {
@@ -149,7 +191,7 @@ public sealed partial class MachineController
         else if (!_units.MainConveyor) return OutputBlockReason.MainConveyorDisabled;
         // A manual interface signal does not command a servo axis. Keep actual
         // transfer/collision interlocks, not whole-machine homing/servo readiness.
-        if (live ? _state.BufferConflict : _state.Display.BufferConflict)
+        if (_state.BufferConflict)
             return OutputBlockReason.BufferConflict;
         if (Array.Exists(CarrierInputs, _io.GetInput) || _io.GetInput(InputIo.PcbSupplyPcbDetected)
             || _io.GetInput(InputIo.PcbPlacementPcbDetected) || _io.GetInput(InputIo.PcbBufferPcbPresent))
@@ -158,24 +200,23 @@ public sealed partial class MachineController
             || _io.GetInput(InputIo.MainConveyorAvailableFromFront2)
             || _io.GetInput(InputIo.MainConveyorReadyFromRear))
             return OutputBlockReason.PeerHandshakeActive;
-        return live ? GetMainConveyorPathBlock() : _state.Display.MainConveyorPathBlock;
+        return GetMainConveyorPathBlock();
     }
 
-    internal async Task ToggleManualOutputAsync(
+    internal async Task<OutputBlockReason> ToggleManualOutputAsync(
         OutputIo signal,
-        CancellationToken cancellationToken,
-        bool ignoreManualOutputBlock = false)
+        CancellationToken cancellationToken)
     {
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            // The display controls button availability only. Recheck live state
-            // before any write, including direct invocation of a disabled command.
-            var block = ignoreManualOutputBlock ? OutputBlockReason.None : GetManualOutputBlock(signal, live: true);
+            // Button state is not an interlock. Both views use this live admission check.
+            var block = GetManualOutputBlock(signal);
+            if (block == OutputBlockReason.None && _state.IsRunning) block = OutputBlockReason.Busy;
             if (block != OutputBlockReason.None)
             {
                 _log?.Write($"Manual output {signal} ignored: [{block}] {block.GetDescription()}");
-                return;
+                return block;
             }
 
             using var operation = _operations.Link(cancellationToken);
@@ -184,21 +225,18 @@ public sealed partial class MachineController
             var interfaceTest = IsInterfaceOutput(signal);
             var maintainedOutput = conveyorTest || interfaceTest;
             var outputStarted = false;
+            var stopReason = OutputBlockReason.None;
             void StopWhenUnavailable()
             {
                 if (operation.IsCancellationRequested) return;
                 try
                 {
-                    var reason = GetManualOutputSafetyBlock();
+                    var reason = maintainedOutput ? GetManualOutputBlock(signal) : GetManualOutputSafetyBlock();
                     if (reason == OutputBlockReason.None && _state.Alarm != startingAlarm)
                         reason = OutputBlockReason.AlarmChanged;
-                    if (reason == OutputBlockReason.None && interfaceTest)
-                        reason = GetInterfaceOutputBlock(signal, live: true);
-                    if (reason == OutputBlockReason.None && conveyorTest)
-                        reason = signal == OutputIo.MainConveyorRun
-                            ? GetConveyorOutputBlock(live: true) : GetNgConveyorOutputBlock();
                     if (reason != OutputBlockReason.None)
                     {
+                        stopReason = reason;
                         operation.Cancel();
                         _log?.Write($"Manual output {signal} stopped: [{reason}] {reason.GetDescription()}");
                     }
@@ -213,6 +251,7 @@ public sealed partial class MachineController
             }
 
             void OnDiagnosticInputChanged(InputIo _, bool __) => StopWhenUnavailable();
+            void OnMotionPositionChanged(double _, double __, double ___) => StopWhenUnavailable();
             void OnDiagnosticOutputChanged(OutputIo output, bool on)
             {
                 // STOP from another window must also release this operation's lifetime.
@@ -221,7 +260,12 @@ public sealed partial class MachineController
             _state.Changed += StopWhenUnavailable;
             if (maintainedOutput) _io.InputChanged += OnDiagnosticInputChanged;
             if (maintainedOutput) _io.OutputChanged += OnDiagnosticOutputChanged;
-            if (maintainedOutput) _state.DisplayChanged += StopWhenUnavailable;
+            if (maintainedOutput)
+            {
+                _placementHandler.Feedback.PositionChanged += OnMotionPositionChanged;
+                _fasteningGantry.Feedback.PositionChanged += OnMotionPositionChanged;
+                _inspectionGantry.Feedback.PositionChanged += OnMotionPositionChanged;
+            }
             try
             {
                 StopWhenUnavailable();
@@ -253,7 +297,7 @@ public sealed partial class MachineController
                         else _io.SetOutput(signal, false);
                         _log?.Write($"Manual output {signal}: OFF.");
                     }
-                    return;
+                    return OutputBlockReason.None;
                 }
                 var value = !_io.GetOutput(signal);
                 // This window never moves an axis as a side effect of a toggle.
@@ -263,12 +307,21 @@ public sealed partial class MachineController
                 if (_io.GetOutputFeedback(signal) is not null)
                     await _io.WaitForOutputFeedbackAsync(signal, value, operation.Token);
             }
+            catch (OperationCanceledException) when (operation.IsCancellationRequested)
+            {
+                return stopReason;
+            }
             finally
             {
                 _state.Changed -= StopWhenUnavailable;
                 if (maintainedOutput) _io.InputChanged -= OnDiagnosticInputChanged;
                 if (maintainedOutput) _io.OutputChanged -= OnDiagnosticOutputChanged;
-                if (maintainedOutput) _state.DisplayChanged -= StopWhenUnavailable;
+                if (maintainedOutput)
+                {
+                    _placementHandler.Feedback.PositionChanged -= OnMotionPositionChanged;
+                    _fasteningGantry.Feedback.PositionChanged -= OnMotionPositionChanged;
+                    _inspectionGantry.Feedback.PositionChanged -= OnMotionPositionChanged;
+                }
             }
         }
         catch (OperationCanceledException) { throw; }
@@ -281,16 +334,61 @@ public sealed partial class MachineController
         {
             _state.SetError(MachineAlarm.IoCommunication, exception);
             _operations.Cancel();
+            throw;
         }
+        return OutputBlockReason.None;
     }
 
     // Teaching may coordinate a handler as well as its cylinder output.
+    internal bool CanSetTeachingOutput(TeachingOutput output, bool live = true) =>
+        (live ? _state.ManualSetupEnabled : _state.Display.ManualSetupEnabled)
+        && TeachingOutputInterlockReady(output.Signal, live)
+        && (!output.RequiresHandler || CanUseManualMotion(output.Owner switch
+        {
+            HardwareArea.PcbSupply => MotionGroup.PcbSupply,
+            HardwareArea.PcbPlacementHandler => MotionGroup.PcbPlacementHandler,
+            HardwareArea.BoltFastening => MotionGroup.BoltFastening,
+            HardwareArea.NgCarrierTransfer => MotionGroup.InspectionGantry,
+            _ => throw new ArgumentOutOfRangeException(nameof(output)),
+        }, live));
+
+    private bool TeachingOutputInterlockReady(OutputIo signal, bool live) => signal switch
+    {
+        OutputIo.PcbSupplyRotate => !_supplyHandler.IsInsideBuffer(live),
+        OutputIo.PcbPlacementHandlerRotate => _placementHandler.IsAtHorizontalZ(live)
+            && _placementHandler.CanMoveHorizontal,
+        OutputIo.NgCarrierPickupDown or OutputIo.NgCarrierGripperClose => _units.NgCarrierTransfer,
+        _ => true,
+    };
+
     internal Task RunTeachingOutputAsync(
         TeachingOutput output,
         bool value,
         CancellationToken cancellationToken,
-        CancellationToken viewCancellation) =>
-        RunManualAsync(token => output.SetAsync(value, token), output.Owner switch
+        CancellationToken viewCancellation)
+    {
+        Task SetOutput(CancellationToken token) => output.Signal switch
+        {
+            OutputIo.PcbSupplyGripperClosed => _supplyHandler.SetGripperClosedAsync(value, token),
+            OutputIo.PcbSupplyIpmFixerForward => _supplyHandler.SetIpmFixerAsync(value, token),
+            OutputIo.PcbSupplyRotate => _supplyHandler.SetRotatedAsync(value, token),
+            OutputIo.PcbPlacementHandlerDown => _placementHandler.SetLiftDownAsync(value, token),
+            OutputIo.PcbPlacementIpmDown => _placementHandler.SetIpmLiftDownAsync(value, token),
+            OutputIo.PcbPlacementIpmGripperClose => _placementHandler.SetIpmGripperAsync(value, token),
+            OutputIo.PcbPlacementVacuumEjector => _placementHandler.SetVacuumAsync(value, token),
+            OutputIo.PcbPlacementHandlerRotate => _placementHandler.SetRotatedAsync(value, token),
+            OutputIo.PickupHeadDown => _fasteningGantry.SetPickupHeadDownAsync(value, token),
+            OutputIo.ShootingHeadDown => _fasteningGantry.SetHeadDownAsync(FasteningHead.Shooting, value, token),
+            OutputIo.PickupHeadVacuumPump => _fasteningGantry.SetVacuumAsync(FasteningHead.Pickup, value, token),
+            OutputIo.ShootingHeadVacuumPump => _fasteningGantry.SetVacuumAsync(FasteningHead.Shooting, value, token),
+            OutputIo.ShootBolt => _fasteningGantry.SetManualShootingAsync(value, token),
+            OutputIo.NgCarrierPickupDown => _ngTransfer.SetLiftDownAsync(value, token),
+            OutputIo.NgCarrierGripperClose => _ngTransfer.SetGripperClosedAsync(value, token),
+            OutputIo.PcbPlacementBackupPlateUp or OutputIo.BoltFasteningBackupPlateUp or OutputIo.InspectionBackupPlateUp
+                => _io.SetOutputAndWaitAsync(output.Signal, value, token),
+            _ => throw new ArgumentOutOfRangeException(nameof(output)),
+        };
+        return RunManualAsync(SetOutput, output.Owner switch
         {
             HardwareArea.MainConveyor => MachineAlarm.MainConveyor,
             HardwareArea.PcbSupply => MachineAlarm.PcbSupply,
@@ -298,14 +396,6 @@ public sealed partial class MachineController
             HardwareArea.BoltFastening => MachineAlarm.BoltFastening,
             HardwareArea.NgCarrierTransfer => MachineAlarm.NgCarrierTransfer,
             _ => throw new ArgumentOutOfRangeException(nameof(output)),
-        }, () => _state.ManualSetupEnabled
-            && (output.CanSet?.Invoke(true) ?? true)
-            && (!output.RequiresHandler || CanUseManualMotion(output.Owner switch
-            {
-                HardwareArea.PcbSupply => MotionGroup.PcbSupply,
-                HardwareArea.PcbPlacementHandler => MotionGroup.PcbPlacementHandler,
-                HardwareArea.BoltFastening => MotionGroup.BoltFastening,
-                HardwareArea.NgCarrierTransfer => MotionGroup.InspectionGantry,
-                _ => throw new ArgumentOutOfRangeException(nameof(output)),
-            })), cancellationToken, viewCancellation);
+        }, () => CanSetTeachingOutput(output), cancellationToken, viewCancellation);
+    }
 }

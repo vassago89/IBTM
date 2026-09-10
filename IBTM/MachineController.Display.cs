@@ -45,7 +45,6 @@ public sealed partial class MachineController
         var automatic = _state.AutomaticRunning;
         var conveyorPathBlock = GetMainConveyorPathBlock();
         var outputBlock = GetManualOutputSafetyBlock();
-        if (outputBlock == OutputBlockReason.None && running) outputBlock = OutputBlockReason.Busy;
 
         return new()
         {
@@ -79,7 +78,7 @@ public sealed partial class MachineController
             CanHome = IsHomeAllowed(motion),
             CanRaiseCylinders = CanRaiseCylinders,
             HomeableAxes = Enum.GetValues<MotionGroup>()
-                .SelectMany(group => GetMotionFeedback(group).Axes.Select(axis => (group, axis)))
+                .SelectMany(group => _state.GetMotionStatus(group).Feedback.Axes.Select(axis => (group, axis)))
                 .Where(item => CanHomeAxis(item.group, item.axis, live: false)).ToHashSet(),
             ManualBlock = _state.GetManualBlock(motion),
             ManualSetupEnabled = _state.ManualSetupEnabled,

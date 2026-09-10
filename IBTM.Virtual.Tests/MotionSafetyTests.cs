@@ -15,6 +15,23 @@ namespace IBTM.Virtual.Tests;
 public sealed class MotionSafetyTests
 {
     [Theory]
+    [InlineData(MotionAxis.X, 2, 0, 0)]
+    [InlineData(MotionAxis.Y, 0, 2, 0)]
+    [InlineData(MotionAxis.Z, 0, 0, 2)]
+    public async Task SingleAxisAdjustmentMovesOnlyTheRequestedAxis(
+        MotionAxis axis, double x, double y, double z)
+    {
+        using var motion = new VirtualMotionService(new MotionSettings(), new OperationCancellation());
+        motion.Initialize();
+
+        await motion.AdjustAxisAsync(axis, 2, 1_000);
+
+        Assert.Equal((x, y, z), motion.GetPosition());
+        Assert.False(motion.IsMoving);
+        Assert.Equal(MotionCommand.None, motion.Command);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task HomePublishesTheCompletedState(bool horizontal)
@@ -61,7 +78,7 @@ public sealed class MotionSafetyTests
         motion.Initialize();
         using var stop = new CancellationTokenSource();
 
-        var jog = motion.JogXAsync(velocity, stop.Token);
+        var jog = motion.JogAsync(MotionAxis.X, velocity, stop.Token);
         Assert.False(jog.IsCompleted);
         Assert.True(await WaitUntilAsync(
             () => motion.GetPosition().X >= pulseLength,
@@ -74,7 +91,7 @@ public sealed class MotionSafetyTests
         await Task.Delay(30);
         Assert.Equal(stoppedPosition, motion.GetPosition());
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            motion.JogXAsync(velocity, stop.Token));
+            motion.JogAsync(MotionAxis.X, velocity, stop.Token));
         Assert.False(motion.IsMoving);
     }
 

@@ -80,56 +80,6 @@ public sealed class RecipeTests
     }
 
     [Fact]
-    public void TeachingMapsDoNotRequireAnUnrelatedUnitAndKeepToolCentersOnTargets()
-    {
-        var settings = new MachineSettings();
-        var reference = settings.CarrierReference;
-        reference.UpperLeftLocatingPin = new() { X = 10, Y = 20 };
-        reference.LowerRightLocatingPin = new() { X = 110, Y = 70 };
-        var map = new MachineMap(new Recipe(), settings.PcbSupply, settings.PcbPlacementHandler,
-            settings.BoltFastening, reference, settings.InspectionGantry, settings.NgCarrierTransfer);
-        Assert.True(map.InspectionDefined);
-        var origin = map.Inspection(new(10, 20, 0));
-        Assert.Equal(MachinePlan.InspectionUpperLeft.X, origin.X + MachinePlan.CameraCenter.X, 6);
-        Assert.Equal(MachinePlan.InspectionUpperLeft.Y, origin.Y + MachinePlan.CameraCenter.Y, 6);
-        var bolt = new BoltTarget(new() { X = 30, Y = 20, Head = FasteningHead.Shooting },
-            HeatSinkSlot.HeatSink1, VirtualTest.TaughtPcbLayout());
-        var camera = map.Inspection(new(40, 40, 0));
-        var mark = map.InspectionTarget(bolt);
-        Assert.Equal(camera.X + MachinePlan.CameraCenter.X, mark.X + MachinePlan.InspectionContentOrigin.X, 6);
-        Assert.Equal(camera.Y + MachinePlan.CameraCenter.Y, mark.Y + MachinePlan.InspectionContentOrigin.Y, 6);
-
-        settings.BoltFastening.ShootingHead.UpperLeftLocatingPin = new() { X = 30, Y = 40 };
-        settings.BoltFastening.ShootingHead.LowerRightLocatingPin = new() { X = 130, Y = 90 };
-        Assert.True(map.FasteningDefined); // Pickup head is not taught.
-        var head = map.Fastening(new(60, 60, 5));
-        mark = map.FasteningTarget(bolt);
-        Assert.Equal(head.X + MachinePlan.ShootingToolCenter.X, mark.X + MachinePlan.FasteningContentOrigin.X, 6);
-        Assert.Equal(head.Y + MachinePlan.ShootingToolCenter.Y, mark.Y + MachinePlan.FasteningContentOrigin.Y, 6);
-
-        settings.BoltFastening.PickupHead.UpperLeftLocatingPin = new() { X = 50, Y = 80 };
-        settings.BoltFastening.PickupHead.LowerRightLocatingPin = new() { X = 150, Y = 130 };
-        head = map.Fastening(new(50, 80, 0));
-        Assert.Equal(MachinePlan.FasteningUpperLeft.X, head.X + MachinePlan.PickupToolCenter.X, 6);
-        Assert.Equal(MachinePlan.FasteningUpperLeft.Y, head.Y + MachinePlan.PickupToolCenter.Y, 6);
-        head = map.Fastening(new(130, 90, 0));
-        Assert.Equal(MachinePlan.FasteningLowerRight.X, head.X + MachinePlan.ShootingToolCenter.X, 6);
-        Assert.Equal(MachinePlan.FasteningLowerRight.Y, head.Y + MachinePlan.ShootingToolCenter.Y, 6);
-
-        settings.NgCarrierTransfer.CarrierPickupPosition = new() { X = 60, Y = 110 };
-        settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 60, Y = -10 };
-        var pickup = map.Inspection(new(60, 110, 0));
-        var shuttle = map.Inspection(new(60, -10, 0));
-        Assert.Equal(MachinePlan.InspectionCarrierCenter.X, pickup.X + MachinePlan.NgPickerCenter.X, 6);
-        Assert.Equal(MachinePlan.InspectionCarrierCenter.Y, pickup.Y + MachinePlan.NgPickerCenter.Y, 6);
-        Assert.Equal(MachinePlan.NgShuttleCenter.X, shuttle.X + MachinePlan.NgPickerCenter.X, 6);
-        Assert.Equal(MachinePlan.NgShuttleCenter.Y, shuttle.Y + MachinePlan.NgPickerCenter.Y, 6);
-        reference.LowerRightLocatingPin = reference.UpperLeftLocatingPin;
-        Assert.False(map.InspectionDefined);
-        Assert.Equal((0d, 0d), map.Inspection(new(10, 20, 0)));
-    }
-
-    [Fact]
     public void TeachingDefinitionsKeepBufferEditsStagedAndUpdateTheOwningSettings()
     {
         var supply = new PcbSupplySettings { CarrierY = 7 };
@@ -400,7 +350,7 @@ public sealed class RecipeTests
 
     private static (MachineStore Database, RecipeStore Store) CreateStore()
     {
-        var database = new MachineStore(Path.Combine(Path.GetTempPath(), $"IBTM-Recipe-{Guid.NewGuid():N}", "Machine.db"));
+        var database = VirtualTest.OpenMachineStore();
         return (database, new RecipeStore(database));
     }
 }

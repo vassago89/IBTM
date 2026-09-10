@@ -372,10 +372,9 @@ public partial class AdcProtocolWindow : Window
         OperationPanel.IsEnabled = protocolEnabled && connected;
         RegisterPanel.IsEnabled = protocolEnabled && connected;
         StartButton.IsEnabled = protocolEnabled && connected && _machine.CanTestBoltHead;
-        ReverseButton.IsEnabled = connected && !_closing && _machine.AdcProtocolAvailable;
         ReverseCommand.NotifyCanExecuteChanged();
-        StopButton.IsEnabled = connected && !_closing
-            && (busy ? _machine.AdcProtocolAvailable : _machine.CanUseAdcProtocol);
+        StopButton.IsEnabled = !_closing
+            && (!_operation.IsCompleted || connected && _machine.CanUseAdcProtocol);
         VirtualResultPanel.IsEnabled = !_closing;
     }
 

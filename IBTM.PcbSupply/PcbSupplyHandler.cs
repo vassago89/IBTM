@@ -240,13 +240,6 @@ public sealed class PcbSupplyHandler
             cancellationToken);
     }
 
-    public TeachingOutput[] GetTeachingOutputs() =>
-    [
-        new(OutputIo.PcbSupplyGripperClosed, HardwareArea.PcbSupply, SetGripperClosedAsync),
-        new(OutputIo.PcbSupplyIpmFixerForward, HardwareArea.PcbSupply, SetIpmFixerAsync),
-        new(OutputIo.PcbSupplyRotate, HardwareArea.PcbSupply, SetRotatedAsync, live => !IsInsideBuffer(live)),
-    ];
-
     public Task SetIpmFixerAsync(
         bool forward,
         CancellationToken cancellationToken = default) =>
@@ -255,7 +248,7 @@ public sealed class PcbSupplyHandler
             forward,
             cancellationToken);
 
-    internal Task SetGripperClosedAsync(
+    public Task SetGripperClosedAsync(
         bool closed,
         CancellationToken cancellationToken = default) =>
         _io.SetOutputAndWaitAsync(
@@ -397,32 +390,14 @@ public sealed class PcbSupplyHandler
         double velocity,
         CancellationToken cancellationToken = default)
     {
-        switch (axis)
-        {
-            case MotionAxis.X:
-                return _motion.JogXAsync(velocity, cancellationToken);
-            case MotionAxis.Y:
-                if (InsideBuffer)
-                {
-                    throw new InvalidOperationException(
-                        "Supply Y cannot jog inside the buffer.");
-                }
-                return _motion.JogYAsync(velocity, cancellationToken);
-            case MotionAxis.Z:
-                if (InsideBuffer)
-                {
-                    throw new InvalidOperationException(
-                        "Supply Z cannot jog inside the buffer.");
-                }
-                return _motion.JogZAsync(velocity, cancellationToken);
-            default:
-                throw new ArgumentOutOfRangeException(nameof(axis));
-        }
+        if (axis is MotionAxis.Y or MotionAxis.Z && InsideBuffer)
+            throw new InvalidOperationException($"Supply {axis} cannot jog inside the buffer.");
+        return _motion.JogAsync(axis, velocity, cancellationToken);
     }
 
     private bool InsideBuffer => IsInsideBuffer(live: true);
 
-    private bool IsInsideBuffer(bool live) =>
+    public bool IsInsideBuffer(bool live) =>
         _bufferSettings.ContainsSupplyX(live ? _motion.GetPosition().X : Motion.Position.X);
 
     private bool AtRotationZ(bool live) =>

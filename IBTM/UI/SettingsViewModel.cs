@@ -80,28 +80,26 @@ public partial class SettingsViewModel : ObservableObject
         InputMappings = hardware
             .OfType<InputHardwareSettings>()
             .SelectMany(section => section.Inputs.Select(mapping =>
-                CreateInputRow(section, mapping.Key, mapping.Value)))
+                new HardwareMappingRow(section, mapping.Key, mapping.Value)))
             .ToArray();
         OutputMappings = hardware
             .OfType<IoHardwareSettings>()
             .SelectMany(section => section.Outputs.Select(mapping =>
-                CreateOutputRow(section, mapping.Key, mapping.Value)))
+                new HardwareMappingRow(section, mapping.Key, mapping.Value.Number)
+                {
+                    OffNumber = mapping.Value.OffNumber,
+                    Feedback = mapping.Value.Feedback,
+                }))
             .ToArray();
         AxisMappings = hardware
             .OfType<MotionHardwareSettings>()
             .SelectMany(section => section.Axes.Select(mapping =>
-                CreateAxisRow(section, mapping.Key, mapping.Value)))
+                new HardwareMappingRow(section, mapping.Key, mapping.Value.Number,
+                    mapping.Value.Minimum, mapping.Value.Maximum)))
             .ToArray();
         InputMappingView = GroupMappings(InputMappings);
         OutputMappingView = GroupMappings(OutputMappings);
-        FeedbackMappings = hardware
-            .OfType<IoHardwareSettings>()
-            .SelectMany(section => section.Outputs
-                .Where(mapping => mapping.Value.Feedback is not null)
-                .Select(mapping => new KeyValuePair<OutputIo, OutputFeedback>(
-                    mapping.Key,
-                    mapping.Value.Feedback!)))
-            .ToArray();
+        FeedbackMappings = OutputMappings.Where(row => row.Feedback is not null).ToArray();
     }
 
     public MachineSettings Settings { get; }
@@ -127,8 +125,8 @@ public partial class SettingsViewModel : ObservableObject
     public HardwareMappingRow[] AxisMappings { get; }
     public ICollectionView InputMappingView { get; }
     public ICollectionView OutputMappingView { get; }
-    public KeyValuePair<OutputIo, OutputFeedback>[] FeedbackMappings { get; }
-    public InputIo[] InputSignals { get; } = Enum.GetValues<InputIo>();
+    public HardwareMappingRow[] FeedbackMappings { get; }
+    public static InputIo[] InputSignals { get; } = Enum.GetValues<InputIo>();
     public MotionGroup[] MotionGroups { get; }
     public MotionSettings CurrentMotionSettings => _motions[SelectedMotionGroup].Settings;
     public IEnumerable<HardwareMappingRow> CurrentAxisMappings =>
@@ -291,59 +289,27 @@ public partial class SettingsViewModel : ObservableObject
 
     private void ApplyHardwareMappings()
     {
-        foreach (var row in InputMappings
-                     .Concat(OutputMappings)
-                     .Concat(AxisMappings))
+        foreach (var row in InputMappings)
         {
-            row.Apply();
+            var hardware = (InputHardwareSettings)row.Hardware;
+            hardware.Inputs[(InputIo)row.Signal] = row.Number;
+        }
+
+        foreach (var row in OutputMappings)
+        {
+            var hardware = ((IoHardwareSettings)row.Hardware).Outputs[(OutputIo)row.Signal];
+            hardware.Number = row.Number;
+            hardware.OffNumber = row.OffNumber;
+        }
+
+        foreach (var row in AxisMappings)
+        {
+            var hardware = ((MotionHardwareSettings)row.Hardware).Axes[(MachineAxis)row.Signal];
+            hardware.Number = row.Number;
+            hardware.Minimum = row.Minimum;
+            hardware.Maximum = row.Maximum;
         }
     }
-
-    private static HardwareMappingRow CreateInputRow(
-        InputHardwareSettings section,
-        InputIo input,
-        int number) =>
-        new(
-            section,
-            input,
-            number,
-            row => section.Inputs[input] = row.Number);
-
-    private static HardwareMappingRow CreateOutputRow(
-        IoHardwareSettings section,
-        OutputIo output,
-        OutputHardware hardware)
-    {
-        var row = new HardwareMappingRow(
-            section,
-            output,
-            hardware.Number,
-            changed =>
-            {
-                hardware.Number = changed.Number;
-                hardware.OffNumber = changed.OffNumber;
-            });
-        row.OffNumber = hardware.OffNumber;
-
-        return row;
-    }
-
-    private static HardwareMappingRow CreateAxisRow(
-        MotionHardwareSettings section,
-        MachineAxis axis,
-        AxisHardware hardware) =>
-        new(
-            section,
-            axis,
-            hardware.Number,
-            row =>
-            {
-                hardware.Number = row.Number;
-                hardware.Minimum = row.Minimum;
-                hardware.Maximum = row.Maximum;
-            },
-            hardware.Minimum,
-            hardware.Maximum);
 
     private static ICollectionView GroupMappings(
         IEnumerable<HardwareMappingRow> mappings)

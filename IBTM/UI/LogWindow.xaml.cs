@@ -18,6 +18,7 @@ public partial class LogWindow : Window
     {
         _log = log;
         InitializeComponent();
+        DataContext = this;
         FilePathBox.Text = log.FilePath ?? "File logging is disabled in this session.";
         _refresh = new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background,
             (_, _) => RefreshLog(), Dispatcher);

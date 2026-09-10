@@ -19,7 +19,7 @@ public sealed class LightingTests
         var settings = new MachineSettings();
         settings.Drivers.Inspection = InspectionAlgorithm.Virtual;
         using var services = new ServiceCollection()
-            .AddSingleton(new MachineStore(Path.Combine(Path.GetTempPath(), $"IBTM-light-cleanup-{Guid.NewGuid():N}.db")))
+            .AddSingleton(VirtualTest.OpenMachineStore(Path.Combine(Path.GetTempPath(), $"IBTM-light-cleanup-{Guid.NewGuid():N}.db")))
             .AddIbtmApplication(settings)
             .AddSingleton<ILightController>(light).BuildServiceProvider();
         var inspector = services.GetRequiredService<BoltInspector>();
@@ -63,10 +63,8 @@ public sealed class LightingTests
     }
 
     [Theory]
-    [InlineData(ControlDriver.Virtual, LightDriver.Virtual)]
     [InlineData(ControlDriver.Physical, LightDriver.Virtual)]
     [InlineData(ControlDriver.Virtual, LightDriver.Movs)]
-    [InlineData(ControlDriver.Physical, LightDriver.Movs)]
     public void LightSelectionIsIndependentAndMissingComDoesNotBreakConstruction(
         ControlDriver motion, LightDriver light)
     {

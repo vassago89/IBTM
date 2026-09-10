@@ -311,8 +311,6 @@ public sealed partial class MachineController
         }
     }
 
-    private IMotionFeedback GetMotionFeedback(MotionGroup group) => _state.GetMotionStatus(group).Feedback;
-
     internal bool CanUseManualMotion(MotionGroup group, bool live = true)
     {
         return
@@ -409,7 +407,7 @@ public sealed partial class MachineController
         };
         Task Run(CancellationToken token) => target switch
         {
-            DryRunTarget.MainConveyor => RunMainConveyorDryRunAsync(token),
+            DryRunTarget.MainConveyor => RunConveyorDryRunAsync(_mainConveyorDryRun.RunAsync, token),
             DryRunTarget.BoltRoute => _boltRoute.RunAsync(token),
             DryRunTarget.Inspection => _inspectionDryRun.RunAsync(token),
             DryRunTarget.PcbReturn => RunPcbReturnAsync(pcb, token),
@@ -439,9 +437,6 @@ public sealed partial class MachineController
         await _pcbReturn.RunAsync(heatSink, cancellationToken);
     }
 
-    private Task RunMainConveyorDryRunAsync(CancellationToken cancellationToken) =>
-        RunConveyorDryRunAsync(_mainConveyorDryRun.RunAsync, cancellationToken);
-
     private async Task<bool> RunConveyorDryRunAsync(Func<CancellationToken, Task> run, CancellationToken cancellationToken)
     {
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -462,22 +457,6 @@ public sealed partial class MachineController
             _placementHandler.Changed -= CheckPath;
             _fasteningGantry.Changed -= CheckPath;
             _ngTransfer.Changed -= CheckPath;
-        }
-    }
-
-    private bool TryRunManual(Action execute, Func<bool> allowed, MachineAlarm alarm)
-    {
-        try
-        {
-            if (!allowed()) return false;
-            execute();
-            return true;
-        }
-        catch (Exception exception)
-        {
-            _state.SetError(alarm, exception);
-            _operations.Cancel();
-            return false;
         }
     }
 
@@ -581,22 +560,34 @@ public sealed partial class MachineController
         }, MachineAlarm.HomeFailed, () => CanHomeAxis(group, axis), cancellationToken,
             canContinue: () => HomeAxisConditionsReady(group, axis));
 
-    internal bool CanSetServo(MotionGroup group) =>
+    internal bool CanSetServo(MotionGroup group, bool live = true) =>
         _units.IsMotionEnabled(group)
-        && _state.ManualMode && _state.SafetyReady && !_state.IsRunning
-        && GetMotionFeedback(group).IsReady;
+        && (live
+            ? _state.ManualMode && _state.SafetyReady && !_state.IsRunning
+            : _state.Display.Available && !_state.Display.AutoMode
+                && _state.Display.SafetyReady && !_state.Display.IsRunning)
+        && _state.GetMotionStatus(group).Feedback.IsReady;
 
-    internal void ToggleServo(MotionGroup group, MotionAxis axis) => TryRunManual(() =>
+    internal void ToggleServo(MotionGroup group, MotionAxis axis)
     {
-        var on = !GetMotionFeedback(group).GetAxisState(axis).ServoOn;
-        switch (group)
+        try
         {
-            case MotionGroup.PcbSupply: _supplyHandler.SetServo(axis, on); break;
-            case MotionGroup.PcbPlacementHandler: _placementHandler.SetServo(axis, on); break;
-            case MotionGroup.BoltFastening: _fasteningGantry.SetServo(axis, on); break;
-            case MotionGroup.InspectionGantry: _inspectionGantry.SetServo(axis, on); break;
+            if (!CanSetServo(group)) return;
+            var on = !_state.GetMotionStatus(group).Feedback.GetAxisState(axis).ServoOn;
+            switch (group)
+            {
+                case MotionGroup.PcbSupply: _supplyHandler.SetServo(axis, on); break;
+                case MotionGroup.PcbPlacementHandler: _placementHandler.SetServo(axis, on); break;
+                case MotionGroup.BoltFastening: _fasteningGantry.SetServo(axis, on); break;
+                case MotionGroup.InspectionGantry: _inspectionGantry.SetServo(axis, on); break;
+            }
         }
-    }, () => CanSetServo(group), MachineAlarm.MotionUnavailable);
+        catch (Exception exception)
+        {
+            _state.SetError(MachineAlarm.MotionUnavailable, exception);
+            _operations.Cancel();
+        }
+    }
 
     public async Task RunAdcProtocolAsync(
         Func<CancellationToken, Task> command,
@@ -936,7 +927,7 @@ public sealed partial class MachineController
     private void OnInputChanged(InputIo input, bool value)
     {
         if (input == InputIo.AutoMode && _state.AutoMode && !_state.AutomaticRunning)
-            _conveyor.Stop();
+            StopRunOutputs();
 
         if (input is InputIo.AutoMode
             or InputIo.PcbPlacementHandlerUp
@@ -1350,7 +1341,7 @@ public sealed partial class MachineController
     private bool InspectionGantryEnabled =>
         _units.IsMotionEnabled(MotionGroup.InspectionGantry);
 
-    private void StopRunOutputs()
+    internal void StopRunOutputs()
     {
         if (!_io.IsReady) return;
 

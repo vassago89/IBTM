@@ -43,6 +43,7 @@ public sealed class VirtualIoService(
         inputs[(int)InputIo.Door4Open] = true;
         inputs[(int)InputIo.Door5Open] = true;
         inputs[(int)InputIo.Door6Open] = true;
+        inputs[(int)InputIo.AirPressureHigh] = true;
         return inputs;
     }
 

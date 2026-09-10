@@ -55,7 +55,7 @@
 
                 <ItemsControl Grid.Row="1" ItemsSource="{Binding Items}">
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate>
+                        <DataTemplate DataType="{x:Type ui:PcbPlacementRecoveryItem}">
                             <Border BorderBrush="{StaticResource DividerBrush}"
                                     BorderThickness="0,1,0,0">
                                 <Grid Height="52" Margin="14,0">

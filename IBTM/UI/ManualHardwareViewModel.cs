@@ -146,7 +146,6 @@ public partial class ManualHardwareViewModel : ObservableObject
                 return;
             }
 
-            foreach (var row in Conveyors) row.RefreshAccess();
             RefreshDryRun();
         });
     }

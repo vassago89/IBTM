@@ -36,13 +36,30 @@
         <StackPanel Grid.Row="1" Margin="0,4,0,18">
             <TextBlock Text="Amber = output ON · blue = input ON · paired numbers = ON / OFF channels"
                        Style="{StaticResource PageSubtitleStyle}" TextWrapping="Wrap"/>
-            <TextBlock Text="{Binding ControlStatus}" Foreground="{StaticResource AccentAmberBrush}"
+            <TextBlock Text="MANUAL · Direct I/O · No sequence, position or feedback checks · E-STOP remains active"
+                       Foreground="{StaticResource AccentAmberBrush}"
                        Margin="0,6,0,0" TextWrapping="Wrap"/>
         </StackPanel>
 
-        <ContentControl Grid.Row="2" Margin="0,0,0,14"
-                        Content="{Binding Filter}" ContentTemplate="{StaticResource IoFilterTemplate}"
-                        HorizontalContentAlignment="Stretch"/>
+        <Grid Grid.Row="2" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="230"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+                <TextBlock Text="SEARCH" Style="{StaticResource SectionHeaderStyle}"/>
+                <TextBox Margin="0,6,0,0"
+                         ToolTip="Search by signal name or configured I/O number."
+                         Text="{Binding Filter.SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="UNIT" Style="{StaticResource SectionHeaderStyle}"/>
+                <ComboBox Margin="0,6,0,0" ItemsSource="{Binding Filter.Areas}"
+                          ItemTemplate="{x:Null}" DisplayMemberPath="Value"
+                          SelectedItem="{Binding Filter.SelectedArea, Mode=TwoWay}"/>
+            </StackPanel>
+        </Grid>
 
         <Grid Grid.Row="3"
               Margin="12,0,12,6">
@@ -72,7 +89,7 @@
                             HeaderTemplate="{StaticResource IoSectionGroupHeaderTemplate}"/>
             </ListBox.GroupStyle>
             <ListBox.ItemTemplate>
-                <DataTemplate>
+                <DataTemplate DataType="{x:Type ui:OutputWindowRow}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="96"/>
@@ -84,24 +101,28 @@
                         </Grid.ColumnDefinitions>
 
                         <TextBlock Text="{Binding Io.Address}" Style="{StaticResource IoAddressStyle}"/>
-                        <TextBlock Grid.Column="1" Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,12,0">
+                            <TextBlock Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                   TextWrapping="Wrap" Margin="0,0,12,0"
-                                   VerticalAlignment="Center"/>
-                        <ContentControl Grid.Column="2"
-                                        Tag="{Binding Io.IsOn}"
+                                   TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding ActionMessage}" TextWrapping="Wrap"
+                                       Foreground="{StaticResource AccentAmberBrush}" FontSize="11"/>
+                        </StackPanel>
+                        <TextBlock Grid.Column="2"
+                                        Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
                                         Style="{StaticResource IoOutputStateStyle}"/>
                         <ItemsControl Grid.Column="3" Margin="0,0,12,0"
                                       ItemsSource="{Binding Io.Feedback}"
                                       ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
                         <StackPanel Grid.Column="4"
-                                    ToolTip="{Binding FeedbackError}"
                                     Orientation="Horizontal"
                                     VerticalAlignment="Center"
                                     Visibility="{Binding Io.HasFeedback, Converter={StaticResource BoolToVis}}">
                             <TextBlock Style="{StaticResource OutputFeedbackTextStyle}"/>
                         </StackPanel>
-                        <Button Grid.Column="5" Style="{StaticResource OutputControlButtonStyle}"/>
+                        <Button Grid.Column="5" Command="{Binding ToggleCommand}"
+                                ToolTip="Switch this output only. Paired ON/OFF channels remain mutually exclusive."
+                                Style="{StaticResource OutputToggleButtonStyle}"/>
                     </Grid>
                 </DataTemplate>
             </ListBox.ItemTemplate>

@@ -13,7 +13,7 @@
             <TextBlock Text="Manual" Style="{StaticResource TitleStyle}" Margin="0,0,0,12"/>
             <ItemsControl ItemsSource="{Binding Conveyors}">
                 <ItemsControl.ItemTemplate>
-                    <DataTemplate>
+                    <DataTemplate DataType="{x:Type ui:OutputControlRow}">
                         <Border Style="{StaticResource CardStyle}" Padding="12" Margin="0,0,0,8">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -24,7 +24,7 @@
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
                                                Style="{StaticResource PanelTitleStyle}" Margin="0,0,16,0"/>
-                                    <ContentControl Tag="{Binding Io.IsOn}" Style="{StaticResource IoOutputStateStyle}"/>
+                                    <TextBlock Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}" Style="{StaticResource IoOutputStateStyle}"/>
                                 </StackPanel>
                                 <Button Grid.Column="1" Content="Run" Command="{Binding ToggleCommand}"
                                         ToolTip="{Binding ToggleHint}" ToolTipService.ShowOnDisabled="True"
@@ -109,28 +109,32 @@
                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
                         <TextBlock Text="{Binding DryRunDestination, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,16,0"/>
                         <TextBlock Margin="0,0,16,0">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Text" Value="{Binding DryRunState, Converter={StaticResource EnumDescriptionConverter}}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding RunDryRunCommand.IsRunning}" Value="False">
-                                            <Setter Property="Text" Value="{Binding DryRunState, Converter={StaticResource EnumDescriptionConverter}, StringFormat='Next: {0}'}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
+                            <Run>
+                                <Run.Style>
+                                    <Style TargetType="Run">
+                                        <Setter Property="Text" Value="Next: "/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding RunDryRunCommand.IsRunning}" Value="True">
+                                                <Setter Property="Text" Value=""/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Run.Style>
+                            </Run><Run Text="{Binding DryRunState, Mode=OneWay, Converter={StaticResource EnumDescriptionConverter}}"/>
                         </TextBlock>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Text" Value="{Binding DryRunPasses, StringFormat='Passes: {0}'}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedDryRun}" Value="{x:Static app:DryRunTarget.PcbRoundTrip}">
-                                            <Setter Property="Text" Value="{Binding DryRunPasses, StringFormat='Cycles: {0}'}"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
+                            <Run>
+                                <Run.Style>
+                                    <Style TargetType="Run">
+                                        <Setter Property="Text" Value="Passes: "/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedDryRun}" Value="{x:Static app:DryRunTarget.PcbRoundTrip}">
+                                                <Setter Property="Text" Value="Cycles: "/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Run.Style>
+                            </Run><Run Text="{Binding DryRunPasses, Mode=OneWay}"/>
                         </TextBlock>
                         <TextBlock Margin="16,0,0,0" Text="{Binding DryRunPcb, Converter={StaticResource EnumDescriptionConverter}, StringFormat='Active: {0}', TargetNullValue='Active: —'}">
                             <TextBlock.Style>

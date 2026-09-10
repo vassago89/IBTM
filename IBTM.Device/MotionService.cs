@@ -66,9 +66,7 @@ public interface IAxisMotion : IMotionFeedback
         MotionAxis axis,
         double velocity,
         CancellationToken cancellationToken = default);
-    Task JogXAsync(double velocity, CancellationToken cancellationToken = default);
-    Task JogYAsync(double velocity, CancellationToken cancellationToken = default);
-    Task JogZAsync(double velocity, CancellationToken cancellationToken = default);
+    Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default);
     void Reset();
     void SetServo(MotionAxis axis, bool on);
 }
@@ -115,7 +113,7 @@ public abstract class MotionService(
         (false, true) => [MotionAxis.X, MotionAxis.Z],
         _ => [MotionAxis.X],
     };
-    private readonly OperationCancellation _operationCancellation =
+    protected OperationCancellation Operations { get; } =
         operationCancellation;
     private int _activeMotions;
     private int _activeHorizontalMotions;
@@ -149,7 +147,7 @@ public abstract class MotionService(
         double velocity,
         CancellationToken cancellationToken = default)
     {
-        using var operation = LinkOperation(cancellationToken);
+        using var operation = Operations.Link(cancellationToken);
         EnsureStopped();
         if (axis == MotionAxis.Y) EnsureHasY();
         if (axis == MotionAxis.Z) EnsureHasZ();
@@ -157,13 +155,7 @@ public abstract class MotionService(
         _command = MotionCommand.Adjustment;
         try
         {
-            await (axis switch
-            {
-                MotionAxis.X => MoveXCoreAsync(position, velocity, operation.Token),
-                MotionAxis.Y => MoveYCoreAsync(position, velocity, operation.Token),
-                MotionAxis.Z => MoveZCoreAsync(position, velocity, operation.Token),
-                _ => throw new ArgumentOutOfRangeException(nameof(axis)),
-            });
+            await MoveAxisCoreAsync(axis, position, velocity, operation.Token);
         }
         finally
         {
@@ -177,7 +169,7 @@ public abstract class MotionService(
         double z,
         CancellationToken cancellationToken = default)
     {
-        using var operation = LinkOperation(cancellationToken);
+        using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         EnsureHasY();
         EnsureHasZ();
@@ -190,7 +182,7 @@ public abstract class MotionService(
             y,
             Settings.HorizontalSpeed,
             cancellationToken);
-        await MoveZCoreAsync(z, Settings.ZSpeed, cancellationToken);
+        await MoveAxisCoreAsync(MotionAxis.Z, z, Settings.ZSpeed, cancellationToken);
     }
 
     public async Task MoveXAsync(
@@ -198,7 +190,7 @@ public abstract class MotionService(
         double velocity,
         CancellationToken cancellationToken = default)
     {
-        using var operation = LinkOperation(cancellationToken);
+        using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         ValidateTarget(MotionAxis.X, x);
         if (hasZ)
@@ -210,7 +202,7 @@ public abstract class MotionService(
             EnsureStopped();
         }
 
-        await MoveXCoreAsync(x, velocity, cancellationToken);
+        await MoveAxisCoreAsync(MotionAxis.X, x, velocity, cancellationToken);
     }
 
     public async Task MoveYAsync(
@@ -218,7 +210,7 @@ public abstract class MotionService(
         double velocity,
         CancellationToken cancellationToken = default)
     {
-        using var operation = LinkOperation(cancellationToken);
+        using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         EnsureHasY();
         ValidateTarget(MotionAxis.Y, y);
@@ -231,7 +223,7 @@ public abstract class MotionService(
             EnsureStopped();
         }
 
-        await MoveYCoreAsync(y, velocity, cancellationToken);
+        await MoveAxisCoreAsync(MotionAxis.Y, y, velocity, cancellationToken);
     }
 
     public async Task MoveXAtClearZAsync(
@@ -240,7 +232,7 @@ public abstract class MotionService(
         double velocity,
         CancellationToken cancellationToken = default)
     {
-        using var operation = LinkOperation(cancellationToken);
+        using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         EnsureHasZ();
         ValidateTarget(MotionAxis.X, x);
@@ -254,7 +246,7 @@ public abstract class MotionService(
                 $"X movement requires Z at Clear Z ({clearZ:F3}).");
         }
 
-        await MoveXCoreAsync(x, velocity, cancellationToken);
+        await MoveAxisCoreAsync(MotionAxis.X, x, velocity, cancellationToken);
     }
 
     public async Task MoveToXYAsync(
@@ -263,7 +255,7 @@ public abstract class MotionService(
         double velocity,
         CancellationToken cancellationToken = default)
     {
-        using var operation = LinkOperation(cancellationToken);
+        using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         EnsureHasY();
         ValidateTarget(MotionAxis.X, x);
@@ -284,18 +276,18 @@ public abstract class MotionService(
         double velocity,
         CancellationToken cancellationToken = default)
     {
-        using var operation = LinkOperation(cancellationToken);
+        using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         EnsureHasZ();
         ValidateTarget(MotionAxis.Z, z);
         EnsureStopped();
-        await MoveZCoreAsync(z, velocity, cancellationToken);
+        await MoveAxisCoreAsync(MotionAxis.Z, z, velocity, cancellationToken);
     }
 
     public async Task MoveToHorizontalZAsync(
         CancellationToken cancellationToken = default)
     {
-        using var operation = LinkOperation(cancellationToken);
+        using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         EnsureHasZ();
         ValidateTarget(MotionAxis.Z, HorizontalZ);
@@ -308,7 +300,8 @@ public abstract class MotionService(
 
         if (!IsAtHorizontalZ)
         {
-            await MoveZCoreAsync(
+            await MoveAxisCoreAsync(
+                MotionAxis.Z,
                 HorizontalZ,
                 Settings.ZSpeed,
                 cancellationToken);
@@ -319,7 +312,7 @@ public abstract class MotionService(
         double velocity,
         CancellationToken cancellationToken = default)
     {
-        using var operation = LinkOperation(cancellationToken);
+        using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         EnsureHasZ();
         EnsureStopped();
@@ -333,7 +326,7 @@ public abstract class MotionService(
         double velocity,
         CancellationToken cancellationToken = default)
     {
-        using var operation = LinkOperation(cancellationToken);
+        using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         EnsureHasZ();
         EnsureStopped();
@@ -357,27 +350,14 @@ public abstract class MotionService(
             cancellationToken);
     }
 
-    public Task JogXAsync(
-        double velocity,
-        CancellationToken cancellationToken = default) =>
-        JogAsync(MotionAxis.X, velocity, cancellationToken);
-
-    public Task JogYAsync(
-        double velocity,
-        CancellationToken cancellationToken = default) =>
-        JogAsync(MotionAxis.Y, velocity, cancellationToken);
-
-    public Task JogZAsync(
-        double velocity,
-        CancellationToken cancellationToken = default) =>
-        JogAsync(MotionAxis.Z, velocity, cancellationToken);
-
-    private async Task JogAsync(
+    public async Task JogAsync(
         MotionAxis axis,
         double velocity,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
-        using var operation = LinkOperation(cancellationToken);
+        if (axis is not (MotionAxis.X or MotionAxis.Y or MotionAxis.Z))
+            throw new ArgumentOutOfRangeException(nameof(axis));
+        using var operation = Operations.Link(cancellationToken);
         if (axis == MotionAxis.Y) EnsureHasY();
         if (axis == MotionAxis.Z) EnsureHasZ();
         EnsureStopped();
@@ -394,7 +374,7 @@ public abstract class MotionService(
         double velocity,
         CancellationToken cancellationToken = default)
     {
-        using var operation = LinkOperation(cancellationToken);
+        using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         if (!_axes.Contains(axis))
         {
@@ -426,7 +406,7 @@ public abstract class MotionService(
         double velocity,
         CancellationToken cancellationToken = default)
     {
-        using var operation = LinkOperation(cancellationToken);
+        using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         EnsureStopped();
         EnsureHorizontalZ();
@@ -450,18 +430,9 @@ public abstract class MotionService(
         double velocity,
         CancellationToken cancellationToken);
 
-    protected abstract Task MoveXCoreAsync(
-        double x,
-        double velocity,
-        CancellationToken cancellationToken);
-
-    protected abstract Task MoveYCoreAsync(
-        double y,
-        double velocity,
-        CancellationToken cancellationToken);
-
-    protected abstract Task MoveZCoreAsync(
-        double z,
+    protected abstract Task MoveAxisCoreAsync(
+        MotionAxis axis,
+        double position,
         double velocity,
         CancellationToken cancellationToken);
 
@@ -488,10 +459,6 @@ public abstract class MotionService(
 
     protected void PublishStateChanged() => StateChanged?.Invoke();
 
-
-    protected OperationCancellation.Operation LinkOperation(
-        CancellationToken cancellationToken = default) =>
-        _operationCancellation.Link(cancellationToken);
 
     protected void BeginMotion(bool horizontal)
     {

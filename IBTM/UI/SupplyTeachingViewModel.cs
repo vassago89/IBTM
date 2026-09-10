@@ -27,6 +27,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IoGroups))]
+    [NotifyPropertyChangedFor(nameof(TeachingIoGroups))]
     [NotifyPropertyChangedFor(nameof(TeachingOutputs))]
     [NotifyCanExecuteChangedFor(nameof(TeachCurrentPositionCommand))]
     [NotifyCanExecuteChangedFor(nameof(MoveToPointCommand))]
@@ -76,7 +77,6 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
         : SelectedPoint?.Storage == TeachingStorage.Machine
             ? TeachingSaveBehavior.Machine
             : TeachingSaveBehavior.Recipe;
-    private Recipe CurrentRecipe => RecipeEditor.Recipe;
 
     protected override void RefreshPointPositions()
     {
@@ -86,14 +86,14 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
 
     [RelayCommand(CanExecute = nameof(CanSaveBufferSetup))]
     private Task SaveBufferSetupAsync(CancellationToken cancellationToken) =>
-        RunTeachingEditAsync(async token =>
+        Machine.RunTeachingEditAsync(async token =>
         {
             var points = Points.Where(IsBuffer).ToArray();
             foreach (var point in points) point.Apply();
 
             await SaveSettingsAsync(token, points.Select(point => point.Position.Setting!).Distinct().ToArray());
             NotifyManualTeachingCommands();
-        }, cancellationToken);
+        }, cancellationToken, ViewCancellation);
 
     private bool CanSaveBufferSetup() => CanEditTeaching;
 
@@ -123,7 +123,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
     {
         TeachingPosition[] positions =
         [
-            .. _supplySettings.GetTeachingPositions(CurrentRecipe.PcbSupply),
+            .. _supplySettings.GetTeachingPositions(RecipeEditor.Recipe.PcbSupply),
             .. _placementSettings.GetTeachingPositions(),
             _placementSettings.GetBufferTeachingPosition(),
             .. _bufferSettings.GetTeachingPositions(),

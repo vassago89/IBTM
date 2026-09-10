@@ -217,7 +217,8 @@ public partial class OperationViewModel : ObservableObject
     private readonly NgCarrierConveyor _ngConveyor;
     private readonly NgShuttle _ngShuttle;
     private readonly NgCarrierTransfer _ngTransfer;
-    private readonly StartPreparationPlan _startPreparations;
+    private readonly PcbPlacementRecoveryPreparation _pcbPlacementRecovery;
+    private readonly BoltFasteningRecoveryPreparation _boltFasteningRecovery;
     private IReadOnlyList<BoltTargetView> _boltTargets = [];
     private IReadOnlyList<BoltTargetView> _inspectionTargets = [];
     private volatile bool _active;
@@ -243,7 +244,8 @@ public partial class OperationViewModel : ObservableObject
         NgCarrierConveyor ngConveyor,
         NgShuttle ngShuttle,
         NgCarrierTransfer ngTransfer,
-        StartPreparationPlan startPreparations,
+        PcbPlacementRecoveryPreparation pcbPlacementRecovery,
+        BoltFasteningRecoveryPreparation boltFasteningRecovery,
         PcbSupplyHandler supply,
         PcbPlacementHandler placement,
         BoltFasteningGantry fastening,
@@ -260,7 +262,8 @@ public partial class OperationViewModel : ObservableObject
         _map = map;
         _ngConveyor = ngConveyor;
         _ngShuttle = ngShuttle;
-        _startPreparations = startPreparations;
+        _pcbPlacementRecovery = pcbPlacementRecovery;
+        _boltFasteningRecovery = boltFasteningRecovery;
         _conveyor = conveyor;
         _buffer = buffer;
         _pickupFeeder = pickupFeeder;
@@ -464,11 +467,9 @@ public partial class OperationViewModel : ObservableObject
         || !_options.UseDoorInterlock
         || !_options.UseAirPressureInterlock;
     public bool PcbPlacementRecoveryAvailable =>
-        _startPreparations.CanOpen(
-            StartPreparationType.PcbPlacementRecovery);
+        _pcbPlacementRecovery.Required;
     public bool BoltFasteningRecoveryAvailable =>
-        _startPreparations.CanOpen(
-            StartPreparationType.BoltFasteningRecovery);
+        _boltFasteningRecovery.Required;
 
     public void Activate()
     {
@@ -503,20 +504,19 @@ public partial class OperationViewModel : ObservableObject
         RaiseCylindersCommand);
 
     [RelayCommand(CanExecute = nameof(CanOpenPcbPlacementRecovery))]
-    private void OpenPcbPlacementRecovery() => _startPreparations.Open(
-        StartPreparationType.PcbPlacementRecovery,
+    private void OpenPcbPlacementRecovery() => _pcbPlacementRecovery.Open(
         Application.Current.MainWindow);
 
     [RelayCommand(CanExecute = nameof(CanOpenBoltFasteningRecovery))]
-    private void OpenBoltFasteningRecovery() => _startPreparations.Open(
-        StartPreparationType.BoltFasteningRecovery,
+    private void OpenBoltFasteningRecovery() => _boltFasteningRecovery.Open(
         Application.Current.MainWindow);
 
     [RelayCommand(CanExecute = nameof(CanStart))]
     private async Task StartAsync(CancellationToken cancellationToken)
     {
-        if (!_startPreparations.Prepare(
-                Application.Current.MainWindow))
+        var owner = Application.Current.MainWindow;
+        if (!_pcbPlacementRecovery.Prepare(owner)
+            || !_boltFasteningRecovery.Prepare(owner))
         {
             return;
         }
@@ -546,13 +546,12 @@ public partial class OperationViewModel : ObservableObject
             () => _machine.HomeAsync(cancellationToken),
             cancellationToken);
 
-    [RelayCommand(CanExecute = nameof(CanStopHome))]
+    [RelayCommand]
     private void StopHome() => HomeCommand.Cancel();
 
     private bool CanStart() => _state.Display.CanStart;
     private bool CanHome() => _state.Display.CanHome;
     private bool CanRaiseCylinders() => _state.Display.CanRaiseCylinders;
-    private bool CanStopHome() => _state.Display.IsHoming;
     private bool CanOpenBoltFasteningRecovery() => BoltFasteningRecoveryAvailable;
     private bool CanOpenPcbPlacementRecovery() =>
         PcbPlacementRecoveryAvailable;
@@ -562,7 +561,6 @@ public partial class OperationViewModel : ObservableObject
         StartCommand.NotifyCanExecuteChanged();
         HomeCommand.NotifyCanExecuteChanged();
         RaiseCylindersCommand.NotifyCanExecuteChanged();
-        StopHomeCommand.NotifyCanExecuteChanged();
         OpenPcbPlacementRecoveryCommand.NotifyCanExecuteChanged();
         OpenBoltFasteningRecoveryCommand.NotifyCanExecuteChanged();
     }
@@ -771,7 +769,7 @@ public partial class OperationViewModel : ObservableObject
             return;
         }
 
-        RunOnUi(() =>
+        Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
         {
             Interlocked.Exchange(ref _positionRefreshQueued, 0);
             var pending = (PositionRefresh)Interlocked.Exchange(
@@ -804,7 +802,7 @@ public partial class OperationViewModel : ObservableObject
                 OnPropertyChanged(nameof(InspectionGantryMapLeft));
                 OnPropertyChanged(nameof(InspectionGantryMapTop));
             }
-        }, DispatcherPriority.Background);
+        }));
     }
 
     private void OnMachineDisplayChanged()
@@ -858,7 +856,7 @@ public partial class OperationViewModel : ObservableObject
             return;
         }
 
-        RunOnUi(() =>
+        Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.DataBind, new Action(() =>
         {
             Interlocked.Exchange(ref _displayRefreshQueued, 0);
             var pending = (DisplayRefresh)Interlocked.Exchange(
@@ -870,7 +868,7 @@ public partial class OperationViewModel : ObservableObject
             {
                 NotifyCanExecuteChanged();
             }
-        });
+        }));
     }
 
     private void NotifyProperties(DisplayRefresh refresh)
@@ -920,10 +918,4 @@ public partial class OperationViewModel : ObservableObject
             OnPropertyChanged(property);
         }
     }
-
-
-    private static void RunOnUi(
-        Action action,
-        DispatcherPriority priority = DispatcherPriority.DataBind) =>
-        Application.Current.Dispatcher.BeginInvoke(priority, action);
 }

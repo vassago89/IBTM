@@ -91,60 +91,6 @@ public sealed class DiagnosticToolsTests
     }
 
     [Fact]
-    public void MotionMonitorUsesMappedNumbersAndKeepsDisabledAxesReadOnly()
-    {
-        using var services = CreateServices(new RecordingLight());
-        var settings = services.GetRequiredService<MachineSettings>();
-        var hardware = settings.PcbSupplyHardware;
-        var axis = hardware.AxisSignals.First();
-        hardware.Axes[axis.Value].Number = 27;
-        var view = new MotionWindowViewModel(services.GetRequiredService<MachineController>(),
-            services.GetRequiredService<MachineState>(), settings);
-        var row = Assert.Single(view.Axes, item => item.Group == hardware.Group && item.Axis == axis.Key);
-        Assert.Equal("027", row.Address);
-        Assert.Equal(AxisCondition.Unavailable, row.Diagnostics.Snapshot.Condition);
-        Assert.False(row.Enabled);
-        Assert.Null(row.Diagnostics.Snapshot.Position);
-        Assert.Null(row.Diagnostics.Snapshot.Faulted);
-        Assert.False(view.ToggleServoCommand.CanExecute(row));
-        Assert.False(view.HomeAxisCommand.CanExecute(row));
-        Assert.Empty(view.View.Cast<MotionMonitorAxis>());
-        view.EnabledOnly = false;
-        view.Search = "027";
-        Assert.Same(row, Assert.Single(view.View.Cast<MotionMonitorAxis>()));
-        hardware.Axes[axis.Value].Number = 28; // Unsaved mapping is not the running driver map.
-        Assert.Equal("027", row.Address);
-    }
-
-    [Fact]
-    public async Task InputsBecomeUnknownOnDisconnectAndRefreshOnReconnect()
-    {
-        using var services = CreateServices(new RecordingLight());
-        var machine = services.GetRequiredService<MachineController>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        var signals = services.GetRequiredService<IoSignals>();
-        await machine.InitializeAsync();
-        try
-        {
-            var door = signals.Inputs[InputIo.Door1Open];
-            Assert.True(door.IsOn);
-            var changes = 0;
-            door.PropertyChanged += (_, _) => changes++;
-            io.SetConnected(false);
-            Assert.Null(door.IsOn);
-            Assert.False(signals.InputsAvailable);
-            Assert.True(changes > 0);
-            changes = 0;
-            io.SetConnected(true);
-            signals.RefreshInputs();
-            Assert.True(door.IsOn);
-            Assert.True(signals.InputsAvailable);
-            Assert.True(changes > 0);
-        }
-        finally { await machine.ShutdownAsync(); }
-    }
-
-    [Fact]
     public async Task MotionMonitorShowsFeedbackWithAxisAlarmServoOffAndLatchedMachineAlarm()
     {
         using var services = CreateServices(new RecordingLight());
@@ -437,7 +383,8 @@ public sealed class DiagnosticToolsTests
             Assert.True(await VirtualTest.WaitUntilAsync(() => io.GetOutput(OutputIo.MainConveyorReadyToFront2),
                 TimeSpan.FromSeconds(2)));
             probe.FailReads = true;
-            Assert.Null(Record.Exception(() => io.SetInput(InputIo.PcbSupplyGripperOpen, true)));
+            Assert.Null(Record.Exception(() => io.SetInput(InputIo.PcbSupplyGripperOpen,
+                !io.GetInput(InputIo.PcbSupplyGripperOpen))));
             await test.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
             Assert.True(io.IsReady);
@@ -486,7 +433,7 @@ public sealed class DiagnosticToolsTests
     {
         var collection = new ServiceCollection();
         collection
-        .AddSingleton(new MachineStore(Path.Combine(Path.GetTempPath(), $"IBTM-diagnostic-{Guid.NewGuid():N}.db")))
+        .AddSingleton(VirtualTest.OpenMachineStore(Path.Combine(Path.GetTempPath(), $"IBTM-diagnostic-{Guid.NewGuid():N}.db")))
         .AddIbtmApplication(new MachineSettings
         {
             Drivers = new() { Inspection = InspectionAlgorithm.Virtual, Light = LightDriver.Virtual },

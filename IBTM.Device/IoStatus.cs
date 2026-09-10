@@ -5,13 +5,11 @@ using System.Linq;
 
 namespace IBTM.Device;
 
-public class IoSignal<T>(
+public abstract class IoSignal<T>(
     T signal,
     HardwareArea area,
     IoSection? section,
-    Func<T, bool> read,
-    int? number = null,
-    Func<bool>? available = null) : INotifyPropertyChanged
+    int? number = null) : INotifyPropertyChanged
     where T : struct, Enum
 {
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -20,7 +18,7 @@ public class IoSignal<T>(
     public IoSection? Section { get; } = section;
     public int? Number { get; } = number;
     public virtual string Address => Number?.ToString("D3") ?? "—";
-    public virtual bool? IsOn => available?.Invoke() == false ? null : read(Signal);
+    public abstract bool? IsOn { get; }
 
     protected void Notify(string propertyName) =>
         PropertyChanged?.Invoke(this, new(propertyName));
@@ -28,8 +26,16 @@ public class IoSignal<T>(
     internal virtual void Refresh() => Notify(nameof(IsOn));
 }
 
+public sealed class IoInputStatus(
+    InputIo signal, HardwareArea area, IoSection? section, IIoService io, int? number = null)
+    : IoSignal<InputIo>(signal, area, section, number)
+{
+    public override bool? IsOn => io.IsReady ? io.GetInput(Signal) : null;
+}
+
 public sealed class IoOutputStatus : IoSignal<OutputIo>
 {
+    private readonly IIoService _io;
     private bool? _isOn;
 
     public IoOutputStatus(
@@ -37,11 +43,12 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
         HardwareArea area,
         IoSection? section,
         IIoService io,
-        IReadOnlyDictionary<InputIo, IoSignal<InputIo>> inputs,
+        IReadOnlyDictionary<InputIo, IoInputStatus> inputs,
         int? number = null,
         int? offNumber = null)
-        : base(signal, area, section, io.GetOutput, number)
+        : base(signal, area, section, number)
     {
+        _io = io;
         OffNumber = offNumber;
         Feedback = io.GetOutputFeedback(signal) is { } feedback
             ? [inputs[feedback.OnInput], inputs[feedback.OffInput]]
@@ -50,7 +57,7 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
             input.PropertyChanged += (_, _) => RefreshFeedback();
     }
 
-    public IoSignal<InputIo>[] Feedback { get; }
+    public IoInputStatus[] Feedback { get; }
     public int? OffNumber { get; }
     public override string Address => OffNumber is { } off ? $"{base.Address} / {off:D3}" : base.Address;
     public override bool? IsOn => _isOn;
@@ -59,7 +66,7 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
     public bool IsMatched => IsOn is { } on && HasFeedback && !HasConflict
         && Feedback[on ? 0 : 1].IsOn == true;
 
-    internal override void Refresh() => Update(base.IsOn);
+    internal override void Refresh() => Update(_io.GetOutput(Signal));
 
     internal void Update(bool? value)
     {
@@ -80,7 +87,7 @@ public sealed class IoStatus
 {
     public IoStatus(
         HardwareArea area,
-        IEnumerable<IoSignal<InputIo>> inputs,
+        IEnumerable<IoInputStatus> inputs,
         IEnumerable<IoOutputStatus> outputs)
     {
         Area = area;
@@ -91,7 +98,7 @@ public sealed class IoStatus
     }
 
     public HardwareArea Area { get; }
-    public IReadOnlyList<IoSignal<InputIo>> Inputs { get; }
-    public IReadOnlyList<IoSignal<InputIo>> Sensors { get; }
+    public IReadOnlyList<IoInputStatus> Inputs { get; }
+    public IReadOnlyList<IoInputStatus> Sensors { get; }
     public IReadOnlyList<IoOutputStatus> Outputs { get; }
 }

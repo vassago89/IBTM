@@ -416,7 +416,7 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
     };
     public bool ManualControlsEnabled => ManualBlock == ManualControlBlock.None;
     // Teaching, camera setup and coordinated cylinder preparation. OUTPUTS uses
-    // MachineController.GetManualOutputBlock so motion alarms do not block unrelated I/O.
+    // MachineController.ToggleDiagnosticOutput and does not require teaching readiness.
     public bool ManualSetupEnabled =>
         _io.IsReady
         && !_operations.IsShuttingDown

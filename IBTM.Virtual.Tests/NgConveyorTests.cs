@@ -70,6 +70,7 @@ public sealed class NgConveyorTests
         Assert.False(system.Conveyor.RunCommandOn);
     }
 
+    [Trait("Category", "MachineFlow")]
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

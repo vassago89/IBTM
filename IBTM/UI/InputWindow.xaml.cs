@@ -2,7 +2,6 @@ using System;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
-using System.Windows.Controls;
 using IBTM.Device;
 using IBTM.Virtual;
 
@@ -19,7 +18,7 @@ public partial class InputWindow : Window, INotifyPropertyChanged
         _virtualIo = io as VirtualIoService;
         _signals = signals;
         signals.InputAvailabilityChanged += OnInputAvailabilityChanged;
-        Filter = new(signals.Inputs.Values.ToArray(), row => row);
+        Filter = new(signals.Inputs.Values.Select(signal => new InputControlRow(signal, _virtualIo)).ToArray(), row => row.Io, nameof(InputControlRow.Io));
         InitializeComponent();
         if (_virtualIo is not null)
             _virtualIo.AutoResponseChanged += OnAutoResponseChanged;
@@ -27,7 +26,7 @@ public partial class InputWindow : Window, INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
-    public IoList<IoSignal<InputIo>, InputIo> Filter { get; }
+    public IoList<InputControlRow, InputIo> Filter { get; }
     public bool IsVirtual => _virtualIo is not null;
     public bool InputsAvailable => _signals.InputsAvailable;
     public bool AutoResponseEnabled
@@ -52,12 +51,6 @@ public partial class InputWindow : Window, INotifyPropertyChanged
     {
         if (!_closed) PropertyChanged?.Invoke(this, new(nameof(InputsAvailable)));
     });
-
-    private void OnToggleInput(object sender, RoutedEventArgs e)
-    {
-        var row = (IoSignal<InputIo>)((Button)sender).DataContext;
-        _virtualIo!.SetInput(row.Signal, row.IsOn != true);
-    }
 
     private void OnAutoResponseChanged() =>
         Dispatcher.BeginInvoke((Action)(() =>

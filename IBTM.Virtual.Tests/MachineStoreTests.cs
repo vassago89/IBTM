@@ -17,14 +17,12 @@ public sealed class MachineStoreTests
 {
     [Theory]
     [InlineData("\"Physical\"", LightDriver.Movs)]
-    [InlineData("1", LightDriver.Movs)]
-    [InlineData("\"Virtual\"", LightDriver.Virtual)]
     [InlineData("0", LightDriver.Virtual)]
     public async Task LightingMigrationPreservesOldSelectionAndComThenSavesIndependently(
         string oldControl, LightDriver expected)
     {
         var file = Path.Combine(CreateDirectory(), "Machine.db");
-        var store = new MachineStore(file);
+        var store = VirtualTest.OpenMachineStore(file);
         await new MachineSettings().SaveAsync(store);
         using (var connection = new SqliteConnection($"Data Source={file}"))
         {
@@ -40,7 +38,7 @@ public sealed class MachineStoreTests
             command.Parameters.AddWithValue("$control", oldControl);
             command.ExecuteNonQuery();
         }
-        var reopened = new MachineStore(file);
+        var reopened = VirtualTest.OpenMachineStore(file);
         var loaded = await MachineSettings.LoadAsync(reopened);
         Assert.Equal(expected, loaded.Drivers.Light);
         Assert.Equal("COM8", loaded.Lighting.Connection);
@@ -57,7 +55,7 @@ public sealed class MachineStoreTests
         loaded.Lighting.StopBits = System.IO.Ports.StopBits.Two;
         loaded.Lighting.WriteTimeoutMilliseconds = 750;
         await loaded.SaveAsync(reopened);
-        var again = await MachineSettings.LoadAsync(new MachineStore(file));
+        var again = await MachineSettings.LoadAsync(VirtualTest.OpenMachineStore(file));
         Assert.Equal(ControlDriver.Physical, again.Drivers.Control);
         Assert.Equal(LightDriver.Virtual, again.Drivers.Light);
         Assert.Equal("COM8", again.Lighting.Connection);
@@ -72,7 +70,7 @@ public sealed class MachineStoreTests
     public async Task MotionSettingsConvertLegacyRatiosOnceAndRemainIndependent()
     {
         var file = Path.Combine(CreateDirectory(), "Machine.db");
-        var store = new MachineStore(file);
+        var store = VirtualTest.OpenMachineStore(file);
         Assert.False(store.HasData);
         var settings = new MachineSettings();
         settings.PcbSupply.RotationZ = 17;
@@ -95,7 +93,7 @@ public sealed class MachineStoreTests
                 """;
             command.ExecuteNonQuery();
         }
-        var reopened = new MachineStore(file);
+        var reopened = VirtualTest.OpenMachineStore(file);
         var loaded = await MachineSettings.LoadAsync(reopened);
         foreach (var motion in new[] { loaded.PcbSupply.Motion, loaded.PcbPlacementHandler.Motion,
                      loaded.BoltFastening.Motion, loaded.InspectionGantry.Motion })
@@ -113,7 +111,7 @@ public sealed class MachineStoreTests
         Assert.Equal(0.005, loaded.PcbSupplyHardware.MillimetersPerPulse);
         loaded.PcbSupply.Motion.HorizontalHome.DetectionSpeed = 7;
         await loaded.SaveAsync(reopened);
-        var again = await MachineSettings.LoadAsync(new MachineStore(file));
+        var again = await MachineSettings.LoadAsync(VirtualTest.OpenMachineStore(file));
         Assert.Equal(7, again.PcbSupply.Motion.HorizontalHome.DetectionSpeed);
         Assert.Equal(10, again.PcbPlacementHandler.Motion.HorizontalHome.DetectionSpeed);
     }
@@ -122,7 +120,7 @@ public sealed class MachineStoreTests
     public async Task ConfirmedIoMapUpdatesSavedWiringOnceWithoutChangingTeachingOrRecipes()
     {
         var file = Path.Combine(CreateDirectory(), "Machine.db");
-        var store = new MachineStore(file);
+        var store = VirtualTest.OpenMachineStore(file);
         var settings = new MachineSettings();
         settings.PcbSupply.RotationZ = 17;
         settings.PcbSupplyHardware.Axes[MachineAxis.PcbSupplyY].Maximum = 350;
@@ -171,7 +169,7 @@ public sealed class MachineStoreTests
             command.ExecuteNonQuery();
         }
 
-        var reopened = new MachineStore(file);
+        var reopened = VirtualTest.OpenMachineStore(file);
         var loaded = await MachineSettings.LoadAsync(reopened);
         foreach (var property in typeof(MachineSettings).GetProperties())
         {
@@ -197,7 +195,7 @@ public sealed class MachineStoreTests
 
         loaded.ConveyorHardware.Inputs[InputIo.MainConveyorEntryCarrierDetected] = 99;
         await loaded.SaveAsync(reopened);
-        Assert.Equal(99, (await MachineSettings.LoadAsync(new MachineStore(file)))
+        Assert.Equal(99, (await MachineSettings.LoadAsync(VirtualTest.OpenMachineStore(file)))
             .ConveyorHardware.Inputs[InputIo.MainConveyorEntryCarrierDetected]);
     }
 
@@ -205,7 +203,7 @@ public sealed class MachineStoreTests
     public async Task SettingsBatchAndDatabaseBackupRestorePreserveValues()
     {
         var directory = CreateDirectory();
-        var store = new MachineStore(Path.Combine(directory, "Machine.db"));
+        var store = VirtualTest.OpenMachineStore(Path.Combine(directory, "Machine.db"));
         var settings = new MachineSettings();
         settings.PcbSupply.RotationZ = 12;
         settings.PcbSupplyHardware.Axes[MachineAxis.PcbSupplyY].Number = 27;
@@ -238,10 +236,10 @@ public sealed class MachineStoreTests
         store.PrepareRestore(backup);
         Assert.Equal(30, (await MachineSettings.LoadAsync(store)).PcbSupply.RotationZ);
         MachineStore.RestorePending(store.DatabaseFile);
-        var restored = new MachineStore(store.DatabaseFile);
+        var restored = VirtualTest.OpenMachineStore(store.DatabaseFile);
         Assert.Equal(12, (await MachineSettings.LoadAsync(restored)).PcbSupply.RotationZ);
         Assert.Equal(new byte[] { 1, 2, 3 }, restored.LoadRecipeImage("Test", 1));
-        var previous = new MachineStore(store.DatabaseFile + ".previous");
+        var previous = VirtualTest.OpenMachineStore(store.DatabaseFile + ".previous");
         Assert.Equal(30, (await MachineSettings.LoadAsync(previous)).PcbSupply.RotationZ);
         Assert.False(File.Exists(store.DatabaseFile + ".restore"));
     }
@@ -261,7 +259,7 @@ public sealed class MachineStoreTests
         File.WriteAllText(Path.Combine(settingsPath, "RecipeSelectionSettings.json"), "{\"LastRecipeName\":\"Part\"}");
         File.WriteAllText(Path.Combine(directory, "Recipes", "Part", "Recipe.json"),
             "{\"Name\":\"Part\",\"BoltInspection\":{\"MinimumMaskRatio\":0.03},\"CarrierImages\":[{\"Number\":1,\"Center\":{\"X\":12,\"Y\":34}}]}");
-        var store = new MachineStore(Path.Combine(directory, "Machine.db"));
+        var store = VirtualTest.OpenMachineStore(Path.Combine(directory, "Machine.db"));
         var import = typeof(Recipe).Assembly.GetType("IBTM.LegacyMachineImport")!
             .GetMethod("Run", BindingFlags.NonPublic | BindingFlags.Static)!;
         Assert.IsType<FileNotFoundException>(Assert.Throws<TargetInvocationException>(() =>

@@ -94,8 +94,8 @@ public class AjinMotionService(
 
         if (distanceX == 0)
         {
-            return MoveAxisAsync(
-                axisYNumber,
+            return MoveAxisCoreAsync(
+                MotionAxis.Y,
                 y,
                 velocity,
                 cancellationToken);
@@ -103,8 +103,8 @@ public class AjinMotionService(
 
         if (distanceY == 0)
         {
-            return MoveAxisAsync(
-                _axisX,
+            return MoveAxisCoreAsync(
+                MotionAxis.X,
                 x,
                 velocity,
                 cancellationToken);
@@ -130,36 +130,6 @@ public class AjinMotionService(
             axes,
             cancellationToken);
     }
-
-    protected override Task MoveXCoreAsync(
-        double x,
-        double velocity,
-        CancellationToken cancellationToken) =>
-        MoveAxisAsync(
-            _axisX,
-            x,
-            velocity,
-            cancellationToken);
-
-    protected override Task MoveYCoreAsync(
-        double y,
-        double velocity,
-        CancellationToken cancellationToken) =>
-        MoveAxisAsync(
-            _axisY!.Value,
-            y,
-            velocity,
-            cancellationToken);
-
-    protected override Task MoveZCoreAsync(
-        double z,
-        double velocity,
-        CancellationToken cancellationToken = default) =>
-        MoveAxisAsync(
-            _axisZ!.Value,
-            z,
-            velocity,
-            cancellationToken);
 
     protected override async Task MoveZToPositiveLimitCoreAsync(
         double velocity,
@@ -216,7 +186,10 @@ public class AjinMotionService(
 
     public override void SetServo(MotionAxis axis, bool on)
     {
-        SetServo(GetAxis(axis), on);
+        var axisNumber = GetAxis(axis);
+        AjinController.Check(
+            CAXM.AxmSignalServoOn(axisNumber, on ? 1U : 0U),
+            $"{nameof(CAXM.AxmSignalServoOn)} (axis={axisNumber}, on={on})");
         PublishStateChanged();
     }
 
@@ -420,25 +393,26 @@ public class AjinMotionService(
         PublishStateChanged();
     }
 
-    private Task MoveAxisAsync(
-        int axis,
+    protected override Task MoveAxisCoreAsync(
+        MotionAxis axis,
         double position,
         double velocity,
         CancellationToken cancellationToken)
     {
+        var axisNumber = GetAxis(axis);
         var velocityInUnits = ToUnits(velocity);
         var acceleration = velocityInUnits / Settings.AccelerationSeconds;
         var deceleration = velocityInUnits / Settings.DecelerationSeconds;
 
         return RunMoveAsync(
             () => CAXM.AxmMovePos(
-                axis,
+                axisNumber,
                 ToUnits(position),
                 velocityInUnits,
                 acceleration,
                 deceleration),
             nameof(CAXM.AxmMovePos),
-            [axis],
+            [axisNumber],
             cancellationToken);
     }
 
@@ -559,11 +533,6 @@ public class AjinMotionService(
             CAXM.AxmMoveSStop(axis);
         }
     }
-
-    private void SetServo(int axis, bool on) =>
-        AjinController.Check(
-            CAXM.AxmSignalServoOn(axis, on ? 1U : 0U),
-            $"{nameof(CAXM.AxmSignalServoOn)} (axis={axis}, on={on})");
 
     private double ReadPosition(int axis)
     {
