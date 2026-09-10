@@ -17,8 +17,7 @@ public sealed class Recipe
     public PcbLayout Pcb { get; set; } = new();
     public BoltFasteningRecipe BoltFastening { get; set; } = new();
     public BoltInspectionRecipe BoltInspection { get; set; } = new();
-    public double CarrierImageMillimetersPerPixel { get; set; } =
-        DefaultCarrierImageMillimetersPerPixel;
+    public double CarrierImageMillimetersPerPixel { get; set; } = DefaultCarrierImageMillimetersPerPixel;
     public List<CarrierImageTile> CarrierImages { get; set; } = [];
 
     public void ReplaceWith(Recipe recipe)
@@ -29,8 +28,7 @@ public sealed class Recipe
         Pcb = recipe.Pcb;
         BoltFastening = recipe.BoltFastening;
         BoltInspection = recipe.BoltInspection;
-        CarrierImageMillimetersPerPixel =
-            recipe.CarrierImageMillimetersPerPixel;
+        CarrierImageMillimetersPerPixel = recipe.CarrierImageMillimetersPerPixel;
         CarrierImages = recipe.CarrierImages;
     }
 }

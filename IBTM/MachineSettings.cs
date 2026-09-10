@@ -54,82 +54,124 @@ public sealed class MachineSettings
     public NgShuttleHardwareSettings NgShuttleHardware { get; set; } = new();
     public NgConveyorHardwareSettings NgConveyorHardware { get; set; } = new();
 
-    internal (MotionSettings Settings, MotionHardwareSettings Hardware)[] MotionSections =>
-    [
-        (PcbSupply.Motion, PcbSupplyHardware),
-        (PcbPlacementHandler.Motion, PcbPlacementHandlerHardware),
-        (BoltFastening.Motion, BoltFasteningHardware),
-        (InspectionGantry.Motion, InspectionGantryHardware),
-    ];
-
-    internal HardwareSettings[] HardwareSections =>
-    [
-        MachineHardware,
-        PcbSupplyHardware,
-        PcbBufferHardware,
-        PcbPlacementHandlerHardware,
-        PcbPlacementStationHardware,
-        BoltFeederHardware,
-        BoltFasteningHardware,
-        BoltFasteningStationHardware,
-        InspectionGantryHardware,
-        InspectionStationHardware,
-        ConveyorHardware,
-        NgCarrierTransferHardware,
-        NgShuttleHardware,
-        NgConveyorHardware,
-    ];
-
-    public Task SaveAsync(MachineStore store, CancellationToken cancellationToken = default) =>
-        Task.Run(() => store.SaveSettings(Sections, cancellationToken), cancellationToken);
-
-    internal Setting[] Sections =>
-    [
-        .. HardwareSections,
-        Drivers, Units, Options, RecipeSelection, CarrierReference,
-        Ajin, AlphaMotion, InspectionCamera, Lighting, Hantas,
-        NgCarrierTransfer, NgConveyor, PcbBuffer, PcbSupply,
-        PcbPlacementHandler, BoltFeeder, BoltFastening, InspectionGantry,
-    ];
-
-    public static Task<MachineSettings> LoadAsync(MachineStore store,
-        CancellationToken cancellationToken = default) =>
-        Task.Run(() => From(store.LoadSettings()), cancellationToken);
-
-    internal static MachineSettings From(SavedSettings values) => new()
+    internal (MotionSettings Settings, MotionHardwareSettings Hardware)[] MotionSections
     {
-        Drivers = values.Get<DriverSettings>(),
-        Units = values.Get<UnitSettings>(),
-        Options = values.Get<MachineOptions>(),
-        RecipeSelection = values.Get<RecipeSelectionSettings>(),
-        CarrierReference = values.Get<CarrierReferenceSettings>(),
-        MachineHardware = values.Get<MachineHardwareSettings>(),
-        ConveyorHardware = values.Get<ConveyorHardwareSettings>(),
-        Ajin = values.Get<AjinSettings>(),
-        AlphaMotion = values.Get<AlphaMotionSettings>(),
-        InspectionCamera = values.Get<InspectionCameraSettings>(),
-        Lighting = values.Get<LightingSettings>(),
-        Hantas = values.Get<HantasSettings>(),
-        NgCarrierTransfer = values.Get<NgCarrierTransferSettings>(),
-        NgConveyor = values.Get<NgConveyorSettings>(),
-        PcbBuffer = values.Get<PcbBufferSettings>(),
-        PcbBufferHardware = values.Get<PcbBufferHardwareSettings>(),
-        PcbSupply = values.Get<PcbSupplySettings>(),
-        PcbSupplyHardware = values.Get<PcbSupplyHardwareSettings>(),
-        PcbPlacementHandler = values.Get<PcbPlacementHandlerSettings>(),
-        PcbPlacementHandlerHardware = values.Get<PcbPlacementHandlerHardwareSettings>(),
-        PcbPlacementStationHardware = values.Get<PcbPlacementStationHardwareSettings>(),
-        BoltFeeder = values.Get<BoltFeederSettings>(),
-        BoltFeederHardware = values.Get<BoltFeederHardwareSettings>(),
-        BoltFastening = values.Get<BoltFasteningSettings>(),
-        BoltFasteningHardware = values.Get<BoltFasteningHardwareSettings>(),
-        BoltFasteningStationHardware = values.Get<BoltFasteningStationHardwareSettings>(),
-        InspectionGantry = values.Get<InspectionGantrySettings>(),
-        InspectionStationHardware = values.Get<InspectionStationHardwareSettings>(),
-        InspectionGantryHardware = values.Get<InspectionGantryHardwareSettings>(),
-        NgCarrierTransferHardware = values.Get<NgCarrierTransferHardwareSettings>(),
-        NgShuttleHardware = values.Get<NgShuttleHardwareSettings>(),
-        NgConveyorHardware = values.Get<NgConveyorHardwareSettings>(),
-    };
-}
+        get
+        {
+            return [
+                (PcbSupply.Motion, PcbSupplyHardware),
+                (
+                    PcbPlacementHandler.Motion,
+                    PcbPlacementHandlerHardware),
+                (
+                    BoltFastening.Motion,
+                    BoltFasteningHardware),
+                (
+                    InspectionGantry.Motion,
+                    InspectionGantryHardware),
+            ];
+        }
+    }
 
+    internal HardwareSettings[] HardwareSections
+    {
+        get
+        {
+            return [
+                MachineHardware,
+                PcbSupplyHardware,
+                PcbBufferHardware,
+                PcbPlacementHandlerHardware,
+                PcbPlacementStationHardware,
+                BoltFeederHardware,
+                BoltFasteningHardware,
+                BoltFasteningStationHardware,
+                InspectionGantryHardware,
+                InspectionStationHardware,
+                ConveyorHardware,
+                NgCarrierTransferHardware,
+                NgShuttleHardware,
+                NgConveyorHardware,
+            ];
+        }
+    }
+
+    public Task SaveAsync(MachineStore store, CancellationToken cancellationToken = default)
+    {
+        return Task.Run(() => store.SaveSettings(Sections, cancellationToken), cancellationToken);
+    }
+
+    internal Setting[] Sections
+    {
+        get
+        {
+            return [
+                .. HardwareSections,
+                Drivers,
+                Units,
+                Options,
+                RecipeSelection,
+                CarrierReference,
+                Ajin,
+                AlphaMotion,
+                InspectionCamera,
+                Lighting,
+                Hantas,
+                NgCarrierTransfer,
+                NgConveyor,
+                PcbBuffer,
+                PcbSupply,
+                PcbPlacementHandler,
+                BoltFeeder,
+                BoltFastening,
+                InspectionGantry,
+            ];
+        }
+    }
+
+    public static Task<MachineSettings> LoadAsync(
+        MachineStore store,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.Run(() => From(store.LoadSettings()), cancellationToken);
+    }
+
+    internal static MachineSettings From(SavedSettings values)
+    {
+        return new()
+        {
+            Drivers = values.Get<DriverSettings>(),
+            Units = values.Get<UnitSettings>(),
+            Options = values.Get<MachineOptions>(),
+            RecipeSelection = values.Get<RecipeSelectionSettings>(),
+            CarrierReference = values.Get<CarrierReferenceSettings>(),
+            MachineHardware = values.Get<MachineHardwareSettings>(),
+            ConveyorHardware = values.Get<ConveyorHardwareSettings>(),
+            Ajin = values.Get<AjinSettings>(),
+            AlphaMotion = values.Get<AlphaMotionSettings>(),
+            InspectionCamera = values.Get<InspectionCameraSettings>(),
+            Lighting = values.Get<LightingSettings>(),
+            Hantas = values.Get<HantasSettings>(),
+            NgCarrierTransfer = values.Get<NgCarrierTransferSettings>(),
+            NgConveyor = values.Get<NgConveyorSettings>(),
+            PcbBuffer = values.Get<PcbBufferSettings>(),
+            PcbBufferHardware = values.Get<PcbBufferHardwareSettings>(),
+            PcbSupply = values.Get<PcbSupplySettings>(),
+            PcbSupplyHardware = values.Get<PcbSupplyHardwareSettings>(),
+            PcbPlacementHandler = values.Get<PcbPlacementHandlerSettings>(),
+            PcbPlacementHandlerHardware = values.Get<PcbPlacementHandlerHardwareSettings>(),
+            PcbPlacementStationHardware = values.Get<PcbPlacementStationHardwareSettings>(),
+            BoltFeeder = values.Get<BoltFeederSettings>(),
+            BoltFeederHardware = values.Get<BoltFeederHardwareSettings>(),
+            BoltFastening = values.Get<BoltFasteningSettings>(),
+            BoltFasteningHardware = values.Get<BoltFasteningHardwareSettings>(),
+            BoltFasteningStationHardware = values.Get<BoltFasteningStationHardwareSettings>(),
+            InspectionGantry = values.Get<InspectionGantrySettings>(),
+            InspectionStationHardware = values.Get<InspectionStationHardwareSettings>(),
+            InspectionGantryHardware = values.Get<InspectionGantryHardwareSettings>(),
+            NgCarrierTransferHardware = values.Get<NgCarrierTransferHardwareSettings>(),
+            NgShuttleHardware = values.Get<NgShuttleHardwareSettings>(),
+            NgConveyorHardware = values.Get<NgConveyorHardwareSettings>(),
+        };
+    }
+}

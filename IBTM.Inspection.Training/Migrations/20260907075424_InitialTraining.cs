@@ -2,13 +2,12 @@
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
-
 namespace IBTM.Inspection.Training.Migrations
 {
-    /// <inheritdoc />
+    /// <inheritdoc/>
     public partial class InitialTraining : Migration
     {
-        /// <inheritdoc />
+        /// <inheritdoc/>
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             // Adopt the existing tables without rewriting source images or model weights.
@@ -37,17 +36,14 @@ namespace IBTM.Inspection.Training.Migrations
                 """);
         }
 
-        /// <inheritdoc />
+        /// <inheritdoc/>
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropTable(
-                name: "Model");
+            migrationBuilder.DropTable(name: "Model");
 
-            migrationBuilder.DropTable(
-                name: "Samples");
+            migrationBuilder.DropTable(name: "Samples");
 
-            migrationBuilder.DropTable(
-                name: "TrainingSettings");
+            migrationBuilder.DropTable(name: "TrainingSettings");
         }
     }
 }

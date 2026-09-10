@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -14,6 +16,8 @@ public sealed class ApplicationLogTests
     public void KeepsEarlierMessagesAndReadsOnlyNewEntries()
     {
         using var log = new ApplicationLog();
+        var changes = new List<NotifyCollectionChangedAction>();
+        ((INotifyCollectionChanged)log.Entries).CollectionChanged += (_, args) => changes.Add(args.Action);
         log.Write("Before opening the window");
         var first = Assert.Single(log.ReadAfter(0));
         log.Write("Newest message");
@@ -22,6 +26,9 @@ public sealed class ApplicationLogTests
         Assert.Equal("Newest message", Assert.Single(log.ReadAfter(first.Sequence)).Message);
         Assert.Equal(2, log.LatestSequence);
         Assert.Empty(log.ReadAfter(log.LatestSequence));
+        Assert.Equal(
+            new[] { NotifyCollectionChangedAction.Add, NotifyCollectionChangedAction.Add },
+            changes);
     }
 
     [Fact]
@@ -33,7 +40,10 @@ public sealed class ApplicationLogTests
         {
             throw new IOException("Input scan failed", new InvalidOperationException("Native error"));
         }
-        catch (Exception exception) { error = exception; }
+        catch (Exception exception)
+        {
+            error = exception;
+        }
 
         log.Error("AJIN input read", error);
 
@@ -52,7 +62,13 @@ public sealed class ApplicationLogTests
         var type = typeof(MachineController).Assembly.GetType("IBTM.ApplicationTraceListener")!;
         using var listener = (TraceListener)Activator.CreateInstance(type, log)!;
 
-        listener.TraceEvent(null, "IBTM", TraceEventType.Error, 0, "Settings failed: {0}", "test failure");
+        listener.TraceEvent(
+            null,
+            "IBTM",
+            TraceEventType.Error,
+            0,
+            "Settings failed: {0}",
+            "test failure");
         listener.TraceEvent(null, "IBTM", TraceEventType.Information, 0, "Settings saved");
 
         var entries = log.ReadAfter(0);
@@ -72,7 +88,8 @@ public sealed class ApplicationLogTests
 
         var entries = log.ReadAfter(0);
         Assert.Equal(ApplicationLog.RecentEntryLimit, entries.Length);
-        Assert.Equal(Enumerable.Range(1001, ApplicationLog.RecentEntryLimit).Select(value => (long)value),
+        Assert.Equal(
+            Enumerable.Range(1001, ApplicationLog.RecentEntryLimit).Select(value => (long)value),
             entries.Select(entry => entry.Sequence));
         Assert.Equal(count, log.LatestSequence);
     }
@@ -87,9 +104,11 @@ public sealed class ApplicationLogTests
         {
             using (var log = new ApplicationLog(path))
             {
-                for (var index = 0; index < count; index++) log.Write($"Message {index}");
+                for (var index = 0; index < count; index++)
+                    log.Write($"Message {index}");
                 Assert.Equal(ApplicationLog.RecentEntryLimit, log.ReadAfter(0).Length);
             }
+
             var lines = File.ReadAllLines(path);
             Assert.Equal(count, lines.Length);
             Assert.EndsWith("Message 0", lines[0]);
@@ -97,8 +116,10 @@ public sealed class ApplicationLogTests
         }
         finally
         {
-            if (File.Exists(path)) File.Delete(path);
-            if (Directory.Exists(directory)) Directory.Delete(directory);
+            if (File.Exists(path))
+                File.Delete(path);
+            if (Directory.Exists(directory))
+                Directory.Delete(directory);
         }
     }
 
@@ -114,10 +135,16 @@ public sealed class ApplicationLogTests
             log.Dispose();
             Assert.NotNull(log.FileError);
             Assert.Contains(log.ReadAfter(0), entry => entry.Message == "Original machine error");
-            Assert.Contains(log.ReadAfter(0), entry => entry.Level == "ERROR"
-                && entry.Message.StartsWith("Log file could not be written", StringComparison.Ordinal));
+            Assert.Contains(
+                log.ReadAfter(0),
+                entry =>
+                    entry.Level == "ERROR"
+                        && entry.Message.StartsWith("Log file could not be written", StringComparison.Ordinal));
         }
-        finally { Directory.Delete(directory); }
+        finally
+        {
+            Directory.Delete(directory);
+        }
     }
 
 }

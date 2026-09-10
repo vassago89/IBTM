@@ -6,15 +6,11 @@ using IBTM.PcbPlacement;
 
 namespace IBTM.UI;
 
-public sealed class PcbPlacementRecoveryPreparation
-    : StartPreparation
+public sealed class PcbPlacementRecoveryPreparation : StartPreparation
 {
     private readonly PcbPlacementWork _work;
 
-    public PcbPlacementRecoveryPreparation(
-        MachineState state,
-        PcbPlacementWork work)
-        : base(state, work)
+    public PcbPlacementRecoveryPreparation(MachineState state, PcbPlacementWork work) : base(state, work)
     {
         _work = work;
     }
@@ -23,15 +19,15 @@ public sealed class PcbPlacementRecoveryPreparation
     {
         var items = Enum.GetValues<HeatSinkSlot>()
             .Where(_work.HeatSinkPresent)
-            .Select(heatSink => new PcbPlacementRecoveryItem
-            {
-                HeatSink = heatSink,
-                Completed = _work.Assemblies.Any(assembly =>
-                    assembly.HeatSink == heatSink),
-            })
+            .Select(
+                heatSink =>
+                    new PcbPlacementRecoveryItem
+                    {
+                        HeatSink = heatSink,
+                        Completed = _work.Assemblies.Any(assembly => assembly.HeatSink == heatSink),
+                    })
             .ToArray();
-        var window = new PcbPlacementRecoveryWindow(
-            new PcbPlacementRecoveryViewModel(items))
+        var window = new PcbPlacementRecoveryWindow(new PcbPlacementRecoveryViewModel(items))
         {
             Owner = owner,
         };
@@ -40,8 +36,7 @@ public sealed class PcbPlacementRecoveryPreparation
             return false;
         }
 
-        _work.PrepareRecovery(items.Select(item =>
-            (item.HeatSink, item.Completed)));
+        _work.PrepareRecovery(items.Select(item => (item.HeatSink, item.Completed)));
         return true;
     }
 }

@@ -7,8 +7,7 @@ namespace IBTM.Inspection.Training;
 
 internal sealed class TinyUnet : Module<Tensor, Tensor>
 {
-    private readonly Module<Tensor, Tensor> _encoder1 =
-        Block(ImageFrame.ColorChannelCount, 8);
+    private readonly Module<Tensor, Tensor> _encoder1 = Block(ImageFrame.ColorChannelCount, 8);
     private readonly Module<Tensor, Tensor> _encoder2 = Block(8, 16);
     private readonly Module<Tensor, Tensor> _encoder3 = Block(16, 32);
     private readonly Module<Tensor, Tensor> _bridge = Block(32, 64);
@@ -39,10 +38,12 @@ internal sealed class TinyUnet : Module<Tensor, Tensor>
         return _output.call(decoder1).MoveToOuterDisposeScope();
     }
 
-    private static Module<Tensor, Tensor> Block(long input, long output) =>
-        Sequential(
+    private static Module<Tensor, Tensor> Block(long input, long output)
+    {
+        return Sequential(
             Conv2d(input, output, 3, padding: 1),
             ReLU(inplace: true),
             Conv2d(output, output, 3, padding: 1),
             ReLU(inplace: true));
+    }
 }

@@ -54,8 +54,7 @@ public sealed partial class MachineLifecycleTests
 
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
-        using var timeout = new CancellationTokenSource(
-            TimeSpan.FromSeconds(2));
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         while (!condition())
         {
             await Task.Delay(10, timeout.Token);
@@ -70,10 +69,28 @@ public sealed partial class MachineLifecycleTests
             TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Stopped { get; } = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        public BoltHeadState State => BoltHeadState.Ready;
-        public Task CheckReadyAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public void DiscardPendingResult() { }
+
+        public BoltHeadState State
+        {
+            get
+            {
+                return BoltHeadState.Ready;
+            }
+        }
+
+        public Task CheckReadyAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public void DiscardPendingResult()
+        {
+        }
 
         public async Task<BoltResult> TightenAsync(CancellationToken cancellationToken = default)
         {
@@ -99,7 +116,14 @@ public sealed partial class MachineLifecycleTests
             TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource ReadinessReleased { get; } = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        public BoltHeadState State => BoltHeadState.Ready;
+
+        public BoltHeadState State
+        {
+            get
+            {
+                return BoltHeadState.Ready;
+            }
+        }
 
         public Task CheckReadyAsync(CancellationToken cancellationToken = default)
         {
@@ -113,14 +137,15 @@ public sealed partial class MachineLifecycleTests
             return ReadinessReleased.Task.WaitAsync(cancellationToken);
         }
 
-        public Task SelectPresetAsync(
-            ushort preset,
-            CancellationToken cancellationToken = default) =>
+        public Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default)
+        {
             throw new NotSupportedException();
+        }
 
-        public Task<BoltResult> TightenAsync(
-            CancellationToken cancellationToken = default) =>
+        public Task<BoltResult> TightenAsync(CancellationToken cancellationToken = default)
+        {
             throw new NotSupportedException();
+        }
 
         public void DiscardPendingResult()
         {
@@ -132,51 +157,59 @@ public sealed partial class MachineLifecycleTests
         var motion = DispatchProxy.Create<IXyMotion, DisplayReadMotion>();
         var probe = (DisplayReadMotion)motion;
         feedback = probe;
-        return new ServiceCollection()
-            .AddSingleton(_ => VirtualTest.OpenMachineStore())
+        return new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(FlowSettings(), new Recipe { Pcb = VirtualTest.TaughtPcbLayout() })
-            .AddSingleton(provider =>
-            {
-                probe.Motion = provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
-                return new InspectionGantry(motion,
-                    provider.GetRequiredService<NgCarrierTransfer>(),
-                    provider.GetRequiredService<OperationCancellation>(),
-                    provider.GetRequiredService<InspectionGantrySettings>());
-            })
+            .AddSingleton(
+                provider =>
+                {
+                    probe.Motion = provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
+                    return new InspectionGantry(
+                        motion,
+                        provider.GetRequiredService<NgCarrierTransfer>(),
+                        provider.GetRequiredService<OperationCancellation>(),
+                        provider.GetRequiredService<InspectionGantrySettings>());
+                })
             .BuildServiceProvider();
     }
 
     public class DisplayReadMotion : DispatchProxy
     {
         public IXyMotion Motion { get; set; } = null!;
+
         public Action? BeforeRead;
+        public Action? BeforePositionRead;
         public string? LastMove { get; private set; }
 
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
         {
-            if (method!.Name == nameof(IMotionFeedback.GetAxisState)) BeforeRead?.Invoke();
-            if (method.Name is nameof(IAxisMotion.MoveXAsync) or nameof(IAxisMotion.MoveYAsync)
-                or nameof(IXyMotion.MoveToXYAsync)) LastMove = method.Name;
+            if (method!.Name == nameof(IMotionFeedback.GetAxisState))
+                BeforeRead?.Invoke();
+            if (method.Name == nameof(IMotionFeedback.GetPosition))
+                BeforePositionRead?.Invoke();
+            if (method.Name is nameof(IAxisMotion.MoveXAsync)
+                or nameof(IAxisMotion.MoveYAsync)
+                or nameof(IXyMotion.MoveToXYAsync))
+                LastMove = method.Name;
             return method.Invoke(Motion, arguments);
         }
     }
 
     private static ServiceProvider CreateServices(MachineSettings settings)
-        => new ServiceCollection()
-            .AddSingleton(_ => VirtualTest.OpenMachineStore())
+    {
+        return new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings, new Recipe { Pcb = VirtualTest.TaughtPcbLayout() })
-            .BuildServiceProvider(new ServiceProviderOptions
-            {
-                ValidateOnBuild = true,
-                ValidateScopes = true,
-            });
+            .BuildServiceProvider(
+                new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true, });
+    }
 
     private static ServiceProvider CreateMotionScopeServices(
-        MachineSettings settings, out Dictionary<MotionGroup, ScopedMotionProbe> probes)
+        MachineSettings settings,
+        out Dictionary<MotionGroup, ScopedMotionProbe> probes)
     {
         var captured = new Dictionary<MotionGroup, ScopedMotionProbe>();
         probes = captured;
-        T Wrap<T>(MotionGroup group, T motion) where T : class, IAxisMotion
+        T Wrap<T>(MotionGroup group, T motion)
+            where T : class, IAxisMotion
         {
             var wrapper = DispatchProxy.Create<T, ScopedMotionProbe>();
             var probe = (ScopedMotionProbe)(object)wrapper;
@@ -185,25 +218,45 @@ public sealed partial class MachineLifecycleTests
             return wrapper;
         }
 
-        return new ServiceCollection()
-            .AddSingleton(_ => VirtualTest.OpenMachineStore())
+        return new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings, new Recipe { Pcb = VirtualTest.TaughtPcbLayout() })
-            .AddSingleton(provider => new PcbSupplyHandler(
-                Wrap(MotionGroup.PcbSupply, provider.GetRequiredKeyedService<IAxisMotion>(MotionGroup.PcbSupply)),
-                provider.GetRequiredService<IIoService>(), settings.PcbSupply, settings.PcbBuffer))
-            .AddSingleton(provider => new PcbPlacementHandler(
-                Wrap(MotionGroup.PcbPlacementHandler, provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler)),
-                provider.GetRequiredService<IIoService>(), settings.PcbPlacementHandler))
-            .AddSingleton(provider => new BoltFasteningGantry(
-                provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
-                provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
-                provider.GetRequiredService<IIoService>(),
-                Wrap(MotionGroup.BoltFastening, provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening)),
-                settings.BoltFastening, settings.CarrierReference))
-            .AddSingleton(provider => new InspectionGantry(
-                Wrap(MotionGroup.InspectionGantry, provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry)),
-                provider.GetRequiredService<NgCarrierTransfer>(), provider.GetRequiredService<OperationCancellation>(),
-                settings.InspectionGantry))
+            .AddSingleton(
+                provider =>
+                    new PcbSupplyHandler(
+                        Wrap(
+                            MotionGroup.PcbSupply,
+                            provider.GetRequiredKeyedService<IAxisMotion>(MotionGroup.PcbSupply)),
+                        provider.GetRequiredService<IIoService>(),
+                        settings.PcbSupply,
+                        settings.PcbBuffer))
+            .AddSingleton(
+                provider =>
+                    new PcbPlacementHandler(
+                        Wrap(
+                            MotionGroup.PcbPlacementHandler,
+                            provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler)),
+                        provider.GetRequiredService<IIoService>(),
+                        settings.PcbPlacementHandler))
+            .AddSingleton(
+                provider =>
+                    new BoltFasteningGantry(
+                        provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
+                        provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
+                        provider.GetRequiredService<IIoService>(),
+                        Wrap(
+                            MotionGroup.BoltFastening,
+                            provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening)),
+                        settings.BoltFastening,
+                        settings.CarrierReference))
+            .AddSingleton(
+                provider =>
+                    new InspectionGantry(
+                        Wrap(
+                            MotionGroup.InspectionGantry,
+                            provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry)),
+                        provider.GetRequiredService<NgCarrierTransfer>(),
+                        provider.GetRequiredService<OperationCancellation>(),
+                        settings.InspectionGantry))
             .BuildServiceProvider();
     }
 
@@ -220,43 +273,59 @@ public sealed partial class MachineLifecycleTests
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
         {
             var name = method!.Name;
-            if (name == "get_IsReady") return ReportReady || _initialized;
+            if (name == "get_IsReady")
+                return ReportReady || _initialized;
             if ((!method.IsSpecialName && name != nameof(IMotionFeedback.GetRange))
                 || name == "get_IsAtHorizontalZ")
             {
                 Interlocked.Increment(ref HardwareCalls);
-                if (name == nameof(IAxisMotion.Reset)) Interlocked.Increment(ref ResetCalls);
-                if (FailHardwareCalls) throw new IOException($"Unavailable motion: {name}");
+                if (name == nameof(IAxisMotion.Reset))
+                    Interlocked.Increment(ref ResetCalls);
+                if (FailHardwareCalls)
+                    throw new IOException($"Unavailable motion: {name}");
             }
+
             var result = method.Invoke(Motion, arguments);
-            if (name == nameof(IAxisMotion.Initialize)) _initialized = true;
-            if (name == nameof(IMotionFeedback.GetAxisState) && OverrideState is { } transform)
+            if (name == nameof(IAxisMotion.Initialize))
+                _initialized = true;
+            if (name == nameof(IMotionFeedback.GetAxisState)
+                && OverrideState is { } transform)
                 return transform((AxisState)result!);
             return result;
         }
     }
 
-    private static UnitSettings EnableOnly(MachineUnit unit) => new()
+    private static UnitSettings EnableOnly(MachineUnit unit)
     {
-        MainConveyor = unit == MachineUnit.MainConveyor,
-        PcbSupply = unit == MachineUnit.PcbSupply,
-        PcbPlacement = unit == MachineUnit.PcbPlacement,
-        PickupBoltFeeder = unit == MachineUnit.PickupBoltFeeder,
-        ShootingBoltFeeder = unit == MachineUnit.ShootingBoltFeeder,
-        BoltFastening = unit == MachineUnit.BoltFastening,
-        Inspection = unit == MachineUnit.Inspection,
-        NgCarrierTransfer = unit == MachineUnit.NgCarrierTransfer,
-        NgShuttle = unit == MachineUnit.NgShuttle,
-        NgConveyor = unit == MachineUnit.NgConveyor,
-    };
+        return new()
+        {
+            MainConveyor = unit == MachineUnit.MainConveyor,
+            PcbSupply = unit == MachineUnit.PcbSupply,
+            PcbPlacement = unit == MachineUnit.PcbPlacement,
+            PickupBoltFeeder = unit == MachineUnit.PickupBoltFeeder,
+            ShootingBoltFeeder = unit == MachineUnit.ShootingBoltFeeder,
+            BoltFastening = unit == MachineUnit.BoltFastening,
+            Inspection = unit == MachineUnit.Inspection,
+            NgCarrierTransfer = unit == MachineUnit.NgCarrierTransfer,
+            NgShuttle = unit == MachineUnit.NgShuttle,
+            NgConveyor = unit == MachineUnit.NgConveyor,
+        };
+    }
 
-    private static HomeSettings FastHome() => new() { SearchSpeed = 10_000 };
+    private static HomeSettings FastHome()
+    {
+        return new() { SearchSpeed = 10_000 };
+    }
 
-    private static MotionSettings[] MotionSettingsOf(MachineSettings settings) =>
-    [
-        settings.PcbSupply.Motion, settings.PcbPlacementHandler.Motion,
-        settings.BoltFastening.Motion, settings.InspectionGantry.Motion,
-    ];
+    private static MotionSettings[] MotionSettingsOf(MachineSettings settings)
+    {
+        return [
+            settings.PcbSupply.Motion,
+            settings.PcbPlacementHandler.Motion,
+            settings.BoltFastening.Motion,
+            settings.InspectionGantry.Motion,
+        ];
+    }
 
     private static void FastHomes(MachineSettings settings)
     {
@@ -315,36 +384,35 @@ public sealed partial class MachineLifecycleTests
         return settings;
     }
 
-    private static MotionSettings FastMotion() => new()
+    private static MotionSettings FastMotion()
     {
-        HorizontalSpeed = 10_000,
-        ZSpeed = 10_000,
-        HorizontalHome = FastHome(),
-        ZHome = FastHome(),
-    };
+        return new()
+        {
+            HorizontalSpeed = 10_000,
+            ZSpeed = 10_000,
+            HorizontalHome = FastHome(),
+            ZHome = FastHome(),
+        };
+    }
 
-    private static BoltHeadSettings HeadSettings() => new()
+    private static BoltHeadSettings HeadSettings()
     {
-        UpperLeftLocatingPin = new() { X = 0, Y = 0 },
-        LowerRightLocatingPin = new() { X = 100, Y = 0 },
-    };
+        return new()
+        {
+            UpperLeftLocatingPin = new() { X = 0, Y = 0 },
+            LowerRightLocatingPin = new() { X = 100, Y = 0 },
+        };
+    }
 
-    private static void PrepareCarrierTeaching(
-        MachineSettings settings,
-        Recipe recipe)
+    private static void PrepareCarrierTeaching(MachineSettings settings, Recipe recipe)
     {
         settings.CarrierReference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
         settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 0 };
         settings.BoltFastening.PickupHead = HeadSettings();
         settings.BoltFastening.ShootingHead = HeadSettings();
         recipe.Pcb = VirtualTest.TaughtPcbLayout();
-        recipe.Pcb.BoltPoints.Add(new BoltPoint
-        {
-            Number = 1,
-            Head = FasteningHead.Shooting,
-            X = 10,
-            Y = 10,
-        });
+        recipe.Pcb.BoltPoints.Add(
+            new BoltPoint { Number = 1, Head = FasteningHead.Shooting, X = 10, Y = 10, });
     }
 
     public enum MachineUnit

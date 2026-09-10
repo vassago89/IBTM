@@ -9,8 +9,14 @@ public sealed class MotionSettings
     public HomeSettings HorizontalHome { get; set; } = new();
     public HomeSettings ZHome { get; set; } = new()
     {
-        SearchSpeed = 10, DetectionSpeed = 2, ApproachSpeed = 1, FineSpeed = 0.1,
+        SearchSpeed = 10,
+        DetectionSpeed = 2,
+        ApproachSpeed = 1,
+        FineSpeed = 0.1,
     };
 
-    public HomeSettings Home(MotionAxis axis) => axis == MotionAxis.Z ? ZHome : HorizontalHome;
+    public HomeSettings Home(MotionAxis axis)
+    {
+        return axis == MotionAxis.Z ? ZHome : HorizontalHome;
+    }
 }

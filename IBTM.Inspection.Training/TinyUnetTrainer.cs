@@ -59,13 +59,11 @@ internal sealed class TinyUnetTrainer
             }
 
             completedEpochs = epoch;
-            progress.Report(new BoltTrainingProgress(
-                epoch,
-                bestEpoch,
-                trainingLoss,
-                validationLoss));
-            if (epoch - bestEpoch >= settings.Patience) break;
+            progress.Report(new BoltTrainingProgress(epoch, bestEpoch, trainingLoss, validationLoss));
+            if (epoch - bestEpoch >= settings.Patience)
+                break;
         }
+
         cancellationToken.ThrowIfCancellationRequested();
         return new BoltTrainedModel(bestWeights, completedEpochs, bestLoss);
     }
@@ -95,12 +93,7 @@ internal sealed class TinyUnetTrainer
             cancellationToken.ThrowIfCancellationRequested();
             using var scope = NewDisposeScope();
             var count = Math.Min(batchSize, indices.Length - offset);
-            var (images, masks) = CreateBatch(
-                samples,
-                indices,
-                offset,
-                count,
-                cancellationToken);
+            var (images, masks) = CreateBatch(samples, indices, offset, count, cancellationToken);
             var input = tensor(images, dtype: ScalarType.Float32)
                 .reshape(
                     count,
@@ -108,16 +101,9 @@ internal sealed class TinyUnetTrainer
                     IBoltRecessSegmenter.InputSize,
                     IBoltRecessSegmenter.InputSize);
             var target = tensor(masks, dtype: ScalarType.Float32)
-                .reshape(
-                    count,
-                    1,
-                    IBoltRecessSegmenter.InputSize,
-                    IBoltRecessSegmenter.InputSize);
+                .reshape(count, 1, IBoltRecessSegmenter.InputSize, IBoltRecessSegmenter.InputSize);
             var logits = model.call(input);
-            var loss = binary_cross_entropy_with_logits(
-                logits,
-                target,
-                pos_weights: positiveWeight);
+            var loss = binary_cross_entropy_with_logits(logits, target, pos_weights: positiveWeight);
 
             if (optimizer is not null)
             {
@@ -139,10 +125,8 @@ internal sealed class TinyUnetTrainer
         int count,
         CancellationToken cancellationToken)
     {
-        var pixels =
-            IBoltRecessSegmenter.InputSize * IBoltRecessSegmenter.InputSize;
-        var images = new float[
-            count * ImageFrame.ColorChannelCount * pixels];
+        var pixels = IBoltRecessSegmenter.InputSize * IBoltRecessSegmenter.InputSize;
+        var images = new float[count * ImageFrame.ColorChannelCount * pixels];
         var masks = new float[count * pixels];
 
         for (var index = 0; index < count; index++)
@@ -151,12 +135,7 @@ internal sealed class TinyUnetTrainer
             var sample = samples[indices[offset + index]];
             var image = TorchBoltRecessSegmenter.CreateInput(sample.Image);
             var mask = sample.Mask;
-            Array.Copy(
-                image,
-                0,
-                images,
-                index * ImageFrame.ColorChannelCount * pixels,
-                image.Length);
+            Array.Copy(image, 0, images, index * ImageFrame.ColorChannelCount * pixels, image.Length);
             for (var pixel = 0; pixel < pixels; pixel++)
                 masks[index * pixels + pixel] = mask[pixel] / (float)byte.MaxValue;
         }

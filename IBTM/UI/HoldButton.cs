@@ -6,35 +6,46 @@ namespace IBTM.UI;
 
 public sealed class HoldButton : Button
 {
-    public static readonly DependencyProperty PressCommandProperty =
-        DependencyProperty.Register(
-            nameof(PressCommand),
-            typeof(ICommand),
-            typeof(HoldButton),
-            new PropertyMetadata(null, OnPressCommandChanged));
+    public static readonly DependencyProperty PressCommandProperty = DependencyProperty.Register(
+        nameof(PressCommand),
+        typeof(ICommand),
+        typeof(HoldButton),
+        new PropertyMetadata(null, OnPressCommandChanged));
 
-    public static readonly DependencyProperty ReleaseCommandProperty =
-        DependencyProperty.Register(
-            nameof(ReleaseCommand),
-            typeof(ICommand),
-            typeof(HoldButton));
+    public static readonly DependencyProperty ReleaseCommandProperty = DependencyProperty.Register(
+        nameof(ReleaseCommand),
+        typeof(ICommand),
+        typeof(HoldButton));
 
     private bool _holding;
 
     public ICommand? PressCommand
     {
-        get => (ICommand?)GetValue(PressCommandProperty);
-        set => SetValue(PressCommandProperty, value);
+        get
+        {
+            return (ICommand?)GetValue(PressCommandProperty);
+        }
+
+        set
+        {
+            SetValue(PressCommandProperty, value);
+        }
     }
 
     public ICommand? ReleaseCommand
     {
-        get => (ICommand?)GetValue(ReleaseCommandProperty);
-        set => SetValue(ReleaseCommandProperty, value);
+        get
+        {
+            return (ICommand?)GetValue(ReleaseCommandProperty);
+        }
+
+        set
+        {
+            SetValue(ReleaseCommandProperty, value);
+        }
     }
 
-    protected override void OnPreviewMouseLeftButtonDown(
-        MouseButtonEventArgs e)
+    protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnPreviewMouseLeftButtonDown(e);
         if (PressCommand?.CanExecute(CommandParameter) != true || !CaptureMouse())
@@ -49,8 +60,7 @@ public sealed class HoldButton : Button
         e.Handled = true;
     }
 
-    protected override void OnPreviewMouseLeftButtonUp(
-        MouseButtonEventArgs e)
+    protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnPreviewMouseLeftButtonUp(e);
         EndHold();
@@ -92,8 +102,10 @@ public sealed class HoldButton : Button
 
     private static void OnPressCommandChanged(
         DependencyObject sender,
-        DependencyPropertyChangedEventArgs e) =>
+        DependencyPropertyChangedEventArgs e)
+    {
         ((HoldButton)sender).Command = ((HoldButton)sender)._holding ? null : (ICommand?)e.NewValue;
+    }
 
     private void EndHold()
     {

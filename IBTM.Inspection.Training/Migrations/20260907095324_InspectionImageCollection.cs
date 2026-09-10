@@ -1,13 +1,12 @@
 ﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
-
 namespace IBTM.Inspection.Training.Migrations
 {
-    /// <inheritdoc />
+    /// <inheritdoc/>
     public partial class InspectionImageCollection : Migration
     {
-        /// <inheritdoc />
+        /// <inheritdoc/>
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<string>(
@@ -17,12 +16,10 @@ namespace IBTM.Inspection.Training.Migrations
                 nullable: true);
         }
 
-        /// <inheritdoc />
+        /// <inheritdoc/>
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "Inspection",
-                table: "Samples");
+            migrationBuilder.DropColumn(name: "Inspection", table: "Samples");
         }
     }
 }

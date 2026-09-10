@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
-
 namespace IBTM.Storage.Migrations
 {
     [DbContext(typeof(MachineDb))]
@@ -16,54 +15,50 @@ namespace IBTM.Storage.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
 
-            modelBuilder.Entity("IBTM.Storage.RecipeImageRow", b =>
+            modelBuilder.Entity(
+                "IBTM.Storage.RecipeImageRow",
+                b =>
                 {
-                    b.Property<string>("RecipeName")
-                        .HasColumnType("TEXT")
-                        .UseCollation("NOCASE");
+                    b.Property<string>("RecipeName").HasColumnType("TEXT").UseCollation("NOCASE");
 
-                    b.Property<int>("Number")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("Number").HasColumnType("INTEGER");
 
-                    b.Property<byte[]>("Image")
-                        .IsRequired()
-                        .HasColumnType("BLOB");
+                    b.Property<byte[]>("Image").IsRequired().HasColumnType("BLOB");
 
                     b.HasKey("RecipeName", "Number");
 
                     b.ToTable("RecipeImages");
                 });
 
-            modelBuilder.Entity("IBTM.Storage.RecipeRow", b =>
+            modelBuilder.Entity(
+                "IBTM.Storage.RecipeRow",
+                b =>
                 {
-                    b.Property<string>("Name")
-                        .HasColumnType("TEXT")
-                        .UseCollation("NOCASE");
+                    b.Property<string>("Name").HasColumnType("TEXT").UseCollation("NOCASE");
 
-                    b.Property<string>("Value")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Value").IsRequired().HasColumnType("TEXT");
 
                     b.HasKey("Name");
 
                     b.ToTable("Recipes");
                 });
 
-            modelBuilder.Entity("IBTM.Storage.SettingRow", b =>
+            modelBuilder.Entity(
+                "IBTM.Storage.SettingRow",
+                b =>
                 {
-                    b.Property<string>("Key")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Key").HasColumnType("TEXT");
 
-                    b.Property<string>("Value")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Value").IsRequired().HasColumnType("TEXT");
 
                     b.HasKey("Key");
 
                     b.ToTable("Settings");
                 });
 
-            modelBuilder.Entity("IBTM.Storage.RecipeImageRow", b =>
+            modelBuilder.Entity(
+                "IBTM.Storage.RecipeImageRow",
+                b =>
                 {
                     b.HasOne("IBTM.Storage.RecipeRow", null)
                         .WithMany()

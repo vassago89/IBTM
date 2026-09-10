@@ -23,14 +23,18 @@ public sealed class MovsLightController(LightingSettings settings) : ILightContr
     {
         lock (_writeLock)
         {
-            if (_port?.IsOpen == true) return;
+            if (_port?.IsOpen == true)
+                return;
             if (string.IsNullOrWhiteSpace(_connection.Connection))
-                throw new InvalidOperationException(
-                    "MOVS light COM port is empty. Set Settings > Devices & Safety > Lighting > COM Port, save and restart.");
+                throw new InvalidOperationException("MOVS light COM port is empty. Set Settings > Devices & Safety > Lighting > COM Port, save and restart.");
             try
             {
-                _port ??= new SerialPort(_connection.Connection, _connection.BaudRate,
-                    _connection.Parity, _connection.DataBits, _connection.StopBits)
+                _port ??= new SerialPort(
+                    _connection.Connection,
+                    _connection.BaudRate,
+                    _connection.Parity,
+                    _connection.DataBits,
+                    _connection.StopBits)
                 {
                     Handshake = Handshake.None,
                     WriteTimeout = _connection.WriteTimeoutMilliseconds,
@@ -38,7 +42,9 @@ public sealed class MovsLightController(LightingSettings settings) : ILightContr
                 _port.Open();
             }
             catch (Exception exception) when (exception is ArgumentException
-                or System.IO.IOException or UnauthorizedAccessException or InvalidOperationException)
+                or System.IO.IOException
+                or UnauthorizedAccessException
+                or InvalidOperationException)
             {
                 _port?.Dispose();
                 _port = null;
@@ -49,20 +55,27 @@ public sealed class MovsLightController(LightingSettings settings) : ILightContr
         }
     }
 
-    public void SetLevel(int channel, int level) =>
+    public void SetLevel(int channel, int level)
+    {
         Write($":L{channel}{level:000}\r\n");
+    }
 
-    public void TurnOn(int channel) =>
+    public void TurnOn(int channel)
+    {
         Write($":O{channel}\r\n");
+    }
 
-    public void TurnOff(int channel) =>
+    public void TurnOff(int channel)
+    {
         Write($":F{channel}\r\n");
+    }
 
     public void TurnOffAll()
     {
         lock (_writeLock)
         {
-            if (_port?.IsOpen == true) _port.Write(":F0\r\n");
+            if (_port?.IsOpen == true)
+                _port.Write(":F0\r\n");
         }
     }
 

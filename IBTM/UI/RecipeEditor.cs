@@ -27,9 +27,29 @@ public partial class RecipeEditor(
 
     [ObservableProperty]
     private IReadOnlyList<string> _recipes = store.GetRecipeNames();
-    public Recipe Recipe => recipe;
-    public string ActiveName => recipe.Name;
-    public bool CanSave => !string.IsNullOrWhiteSpace(Name);
+    public Recipe Recipe
+    {
+        get
+        {
+            return recipe;
+        }
+    }
+
+    public string ActiveName
+    {
+        get
+        {
+            return recipe.Name;
+        }
+    }
+
+    public bool CanSave
+    {
+        get
+        {
+            return !string.IsNullOrWhiteSpace(Name);
+        }
+    }
 
     public event Action? Changed;
 
@@ -39,13 +59,16 @@ public partial class RecipeEditor(
         Recipes = store.GetRecipeNames();
     }
 
-    public Task ShutdownAsync() =>
-        CommandShutdown.WaitAsync(CommandShutdown.Capture(SaveCommand, LoadCommand));
+    public Task ShutdownAsync()
+    {
+        return CommandShutdown.WaitAsync(CommandShutdown.Capture(SaveCommand, LoadCommand));
+    }
 
     [RelayCommand(CanExecute = nameof(CanSave))]
     public async Task SaveAsync(CancellationToken cancellationToken = default)
     {
-        if (!ValidateName()) return;
+        if (!ValidateName())
+            return;
         Error = null;
         var name = Name.Trim();
         try
@@ -54,8 +77,13 @@ public partial class RecipeEditor(
             await store.SaveRecipeAsync(recipe, name, _imageRecipeName, operation.Token);
             await SavedAsync(name);
         }
-        catch (OperationCanceledException) { }
-        catch (Exception exception) { ReportError(exception); }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            ReportError(exception);
+        }
     }
 
     [RelayCommand]
@@ -75,8 +103,13 @@ public partial class RecipeEditor(
             selection.LastRecipeName = recipe.Name;
             await Task.Run(() => store.Database.SaveSettings([selection]));
         }
-        catch (OperationCanceledException) { }
-        catch (Exception exception) { ReportError(exception); }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            ReportError(exception);
+        }
     }
 
     [RelayCommand]
@@ -102,19 +135,28 @@ public partial class RecipeEditor(
     }
 
     public async Task<bool> SaveCarrierImagesAsync(
-        IReadOnlyList<CarrierImageTileView> images, CancellationToken cancellationToken = default)
+        IReadOnlyList<CarrierImageTileView> images,
+        CancellationToken cancellationToken = default)
     {
-        if (!ValidateName()) return false;
+        if (!ValidateName())
+            return false;
         Error = null;
         var name = Name.Trim();
         try
         {
             using var operation = operations.Link(cancellationToken);
-            recipe.CarrierImages = await store.SaveRecipeImagesAsync(recipe, name, images, operation.Token);
+            recipe.CarrierImages = await store.SaveRecipeImagesAsync(
+                recipe,
+                name,
+                images,
+                operation.Token);
             await SavedAsync(name);
             return true;
         }
-        catch (OperationCanceledException) { return false; }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
         catch (Exception exception)
         {
             ReportError(exception);
@@ -124,7 +166,8 @@ public partial class RecipeEditor(
 
     private bool ValidateName()
     {
-        if (CanSave) return true;
+        if (CanSave)
+            return true;
         Error = "Enter a recipe name before saving.";
         return false;
     }
@@ -135,16 +178,24 @@ public partial class RecipeEditor(
         Error = $"Recipe operation failed: {exception.GetBaseException().Message}";
     }
 
-    public Task<CarrierImageTileView[]> LoadCarrierImagesAsync(CancellationToken cancellationToken = default)
+    public Task<CarrierImageTileView[]> LoadCarrierImagesAsync(
+        CancellationToken cancellationToken = default)
     {
         var name = recipe.Name;
         var tiles = recipe.CarrierImages;
-        if (tiles.Count == 0) return Task.FromResult<CarrierImageTileView[]>([]);
-        return Task.Run(() => tiles.Select(tile =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return new CarrierImageTileView(tile.Number, tile.Center,
-                store.LoadRecipeImage(name, tile.Number));
-        }).ToArray(), cancellationToken);
+        if (tiles.Count == 0)
+            return Task.FromResult<CarrierImageTileView[]>([]);
+        return Task.Run(
+            () => tiles.Select(
+                tile =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    return new CarrierImageTileView(
+                        tile.Number,
+                        tile.Center,
+                        store.LoadRecipeImage(name, tile.Number));
+                })
+                .ToArray(),
+            cancellationToken);
     }
 }

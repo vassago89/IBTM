@@ -20,7 +20,8 @@ public partial class OutputWindow : Window
         _state = state;
         _machine = machine;
         Rows = signals.Outputs.Values.OrderBy(row => row.Signal)
-            .Select(row => new OutputWindowRow(row, machine)).ToArray();
+            .Select(row => new OutputWindowRow(row, machine))
+            .ToArray();
         Filter = new(Rows, row => row.Io, nameof(OutputWindowRow.Io));
 
         InitializeComponent();
@@ -48,7 +49,8 @@ public partial class OutputWindow : Window
 
         e.Cancel = true;
         base.OnClosing(e);
-        if (_closing) return;
+        if (_closing)
+            return;
         _closing = true;
         try
         {
@@ -61,15 +63,20 @@ public partial class OutputWindow : Window
             _closing = false;
             IsEnabled = true;
             System.Diagnostics.Trace.TraceError("Output window shutdown failed. {0}", exception);
-            MessageBox.Show(this, exception.Message, "Output Shutdown Failed",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                this,
+                exception.Message,
+                "Output Shutdown Failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
     private void OnRefresh(object sender, RoutedEventArgs e)
     {
         _state.RequestDisplayRefresh();
-        foreach (var row in Rows) row.ActionMessage = null;
+        foreach (var row in Rows)
+            row.ActionMessage = null;
     }
 
 }

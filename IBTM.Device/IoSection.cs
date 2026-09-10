@@ -34,4 +34,3 @@ public enum IoSection
     [Description("Operator Eject")]
     NgConveyorOperatorEject,
 }
-

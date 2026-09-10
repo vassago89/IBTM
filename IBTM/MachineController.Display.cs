@@ -26,11 +26,11 @@ public sealed partial class MachineController
                 AlarmMessage = _state.AlarmMessage,
                 IsRunning = _state.IsRunning,
                 IsHoming = _state.IsHoming,
+                SetupEditingEnabled = _state.SetupEditingEnabled,
                 AutomaticRunning = _state.AutomaticRunning,
                 StartBlock = StartBlockReason.Alarm,
                 HomeBlock = HomeBlockReason.IoUnavailable,
                 ManualBlock = ManualControlBlock.Alarm,
-                ManualOutputBlock = OutputBlockReason.IoUnavailable,
             };
         }
 
@@ -44,7 +44,6 @@ public sealed partial class MachineController
         var bolts = _recipe.Pcb.GetBolts().ToArray();
         var automatic = _state.AutomaticRunning;
         var conveyorPathBlock = GetMainConveyorPathBlock();
-        var outputBlock = GetManualOutputSafetyBlock();
 
         return new()
         {
@@ -78,26 +77,44 @@ public sealed partial class MachineController
             CanHome = IsHomeAllowed(motion),
             CanRaiseCylinders = CanRaiseCylinders,
             HomeableAxes = Enum.GetValues<MotionGroup>()
-                .SelectMany(group => _state.GetMotionStatus(group).Feedback.Axes.Select(axis => (group, axis)))
-                .Where(item => CanHomeAxis(item.group, item.axis, live: false)).ToHashSet(),
+                .SelectMany(
+                    group => _state.GetMotionStatus(group).Feedback.Axes.Select(
+                        axis => (
+                            group,
+                            axis)))
+                .Where(item => CanHomeAxis(item.group, item.axis, live: false))
+                .ToHashSet(),
             ManualBlock = _state.GetManualBlock(motion),
             ManualSetupEnabled = _state.ManualSetupEnabled,
-            ManualOutputBlock = outputBlock,
+            SetupEditingEnabled = _state.SetupEditingEnabled,
             PlacementState = _units.PcbPlacement
-                ? _pcbPlacement.State(_recipe.PcbPlacement) : PcbPlacementState.WaitingForBufferPcb,
+                ? _pcbPlacement.State(_recipe.PcbPlacement)
+                : PcbPlacementState.WaitingForBufferPcb,
             PlacementTarget = _pcbPlacement.TargetHeatSink,
-            FasteningState = teachingReady && _units.BoltFastening ? _fasteningStation.State() : BoltFasteningState.Waiting,
-            FasteningBolt = teachingReady && _units.BoltFastening && automatic ? _fasteningStation.ActiveBolt() : null,
-            InspectionState = teachingReady && _units.Inspection ? _inspectionStation.State(bolts) : InspectionStationState.Waiting,
-            InspectionBolt = teachingReady && _units.Inspection && automatic ? _inspectionStation.ActiveBolt(bolts) : null,
-            InspectionPcb = teachingReady && _units.Inspection && automatic ? _inspectionStation.ActivePcb(bolts) : null,
+            FasteningState = teachingReady && _units.BoltFastening
+                ? _fasteningStation.State()
+                : BoltFasteningState.Waiting,
+            FasteningBolt = teachingReady && _units.BoltFastening && automatic
+                ? _fasteningStation.ActiveBolt()
+                : null,
+            InspectionState = teachingReady && _units.Inspection
+                ? _inspectionStation.State(bolts)
+                : InspectionStationState.Waiting,
+            InspectionBolt = teachingReady && _units.Inspection && automatic
+                ? _inspectionStation.ActiveBolt(bolts)
+                : null,
+            InspectionPcb = teachingReady && _units.Inspection && automatic
+                ? _inspectionStation.ActivePcb(bolts)
+                : null,
             NgTransferDryRunState = _units.NgCarrierTransfer && _inspectionGantry.Motion.XyHomed
-                ? _ngTransferDryRun.State : NgTransferState.Unavailable,
+                ? _ngTransferDryRun.State
+                : NgTransferState.Unavailable,
             NgTransferDestination = _ngTransferDryRun.Destination,
             NgTransferDryRunTransfers = _ngTransferDryRun.CompletedTransfers,
             InspectionDryRunReady = _inspectionDryRun.Ready,
             InspectionDryRunState = _units.Inspection && _inspectionGantry.Motion.XyHomed
-                ? _inspectionDryRun.State : InspectionDryRunState.Unavailable,
+                ? _inspectionDryRun.State
+                : InspectionDryRunState.Unavailable,
             InspectionDryRunDirection = _inspectionDryRun.Direction,
             InspectionDryRunPasses = _inspectionDryRun.CompletedPasses,
             InspectionDryRunPcb = _inspectionDryRun.ActivePcb,
@@ -106,13 +123,16 @@ public sealed partial class MachineController
             InspectionDryRunBoltPresent = _inspectionDryRun.LastBoltPresent,
             MainConveyorPathBlock = conveyorPathBlock,
             MainConveyorDryRunState = conveyorPathBlock == OutputBlockReason.None
-                ? _mainConveyorDryRun.State : MainConveyorDryRunState.Unavailable,
+                ? _mainConveyorDryRun.State
+                : MainConveyorDryRunState.Unavailable,
             MainConveyorDestination = _mainConveyorDryRun.Destination,
             MainConveyorDryRunPasses = _mainConveyorDryRun.CompletedPasses,
             PcbReturnState = PcbReturnNeedsCarrier && _mainConveyorDryRun.ReturningToStation1
-                ? _mainConveyorDryRun.State : _pcbReturn.State,
+                ? _mainConveyorDryRun.State
+                : _pcbReturn.State,
             PcbReturnDestination = PcbReturnNeedsCarrier && _mainConveyorDryRun.ReturningToStation1
-                ? _mainConveyorDryRun.Destination : _pcbReturn.Destination,
+                ? _mainConveyorDryRun.Destination
+                : _pcbReturn.Destination,
             PcbReturnCount = _pcbReturn.CompletedReturns,
             PcbReturnHeatSink = _pcbReturn.HeatSink,
             PcbDryRunState = _pcbDryRun.State,
@@ -125,7 +145,8 @@ public sealed partial class MachineController
             NgConveyorDryRunReady = _ngConveyorDryRun.Ready,
             BoltRouteReady = _boltRoute.Ready,
             BoltRouteState = _units.BoltFastening && _fasteningGantry.Motion.XyHomed
-                ? _boltRoute.State : BoltRouteState.Unavailable,
+                ? _boltRoute.State
+                : BoltRouteState.Unavailable,
             BoltRouteDirection = _boltRoute.Direction,
             BoltRouteTarget = _boltRoute.ActiveBolt,
             BoltRoutePass = _boltRoute.ActivePass,

@@ -7,20 +7,53 @@ namespace IBTM.Inspection.Training;
 
 internal sealed class BoltTrainingDb : DbContext
 {
-    internal static string DefaultFile => Path.Combine(AppContext.BaseDirectory, "TrainingData", "BoltTraining.db");
+    internal static string DefaultFile
+    {
+        get
+        {
+            return Path.Combine(AppContext.BaseDirectory, "TrainingData", "BoltTraining.db");
+        }
+    }
 
     // The parameterless constructor is used by the EF migration tools.
-    public BoltTrainingDb() : this(CreateOptions(DefaultFile)) { }
-    public BoltTrainingDb(DbContextOptions<BoltTrainingDb> options) : base(options) { }
+    public BoltTrainingDb() : this(CreateOptions(DefaultFile))
+    {
+    }
 
-    internal DbSet<BoltTrainingSample> Samples => Set<BoltTrainingSample>();
-    internal DbSet<BoltTrainingModel> Models => Set<BoltTrainingModel>();
-    internal DbSet<BoltTrainingSettingsRow> TrainingSettings => Set<BoltTrainingSettingsRow>();
+    public BoltTrainingDb(DbContextOptions<BoltTrainingDb> options) : base(options)
+    {
+    }
 
-    internal static DbContextOptions<BoltTrainingDb> CreateOptions(string databaseFile) =>
-        new DbContextOptionsBuilder<BoltTrainingDb>()
-            .UseSqlite(new SqliteConnectionStringBuilder { DataSource = databaseFile }.ToString())
+    internal DbSet<BoltTrainingSample> Samples
+    {
+        get
+        {
+            return Set<BoltTrainingSample>();
+        }
+    }
+
+    internal DbSet<BoltTrainingModel> Models
+    {
+        get
+        {
+            return Set<BoltTrainingModel>();
+        }
+    }
+
+    internal DbSet<BoltTrainingSettingsRow> TrainingSettings
+    {
+        get
+        {
+            return Set<BoltTrainingSettingsRow>();
+        }
+    }
+
+    internal static DbContextOptions<BoltTrainingDb> CreateOptions(string databaseFile)
+    {
+        return new DbContextOptionsBuilder<BoltTrainingDb>().UseSqlite(
+            new SqliteConnectionStringBuilder { DataSource = databaseFile }.ToString())
             .Options;
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -36,7 +69,9 @@ internal sealed class BoltTrainingDb : DbContext
         model.Property(value => value.Id).ValueGeneratedNever();
 
         var settings = modelBuilder.Entity<BoltTrainingSettingsRow>();
-        settings.ToTable(nameof(TrainingSettings), table => table.HasCheckConstraint("CK_TrainingSettings_Id", "Id = 1"));
+        settings.ToTable(
+            nameof(TrainingSettings),
+            table => table.HasCheckConstraint("CK_TrainingSettings_Id", "Id = 1"));
         settings.Property(value => value.Id).ValueGeneratedNever();
     }
 }

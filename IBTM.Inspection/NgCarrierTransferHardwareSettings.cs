@@ -4,7 +4,13 @@ namespace IBTM.Inspection;
 
 public sealed class NgCarrierTransferHardwareSettings : IoHardwareSettings
 {
-    public override HardwareArea Area => HardwareArea.NgCarrierTransfer;
+    public override HardwareArea Area
+    {
+        get
+        {
+            return HardwareArea.NgCarrierTransfer;
+        }
+    }
 
     public NgCarrierTransferHardwareSettings()
     {

@@ -13,9 +13,7 @@ public abstract class StationWork
     private volatile ConcurrentDictionary<HeatSinkSlot, HeatSinkAssembly> _assemblies = new();
     private bool _completed;
 
-    protected StationWork(
-        ConveyorStation station,
-        Func<bool>? isEnabled = null)
+    protected StationWork(ConveyorStation station, Func<bool>? isEnabled = null)
     {
         _isEnabled = isEnabled ?? AlwaysEnabled;
         Station = station;
@@ -24,33 +22,104 @@ public abstract class StationWork
     }
 
     public event Action? Changed;
-    public bool Enabled => _isEnabled();
+    public bool Enabled
+    {
+        get
+        {
+            return _isEnabled();
+        }
+    }
+
     public ConveyorStation Station { get; }
-    public bool CarrierPresent => Station.CarrierPresent;
-    public StationCylinderState BackupPlate => Station.BackupPlate;
-    public StationCylinderState Stopper => Station.Stopper;
-    public bool CarrierSeated =>
-        CarrierPresent
-        && BackupPlate == StationCylinderState.Up
-        && Stopper == StationCylinderState.Down;
-    public bool Completed => !Enabled || Volatile.Read(ref _completed);
-    public IEnumerable<HeatSinkAssembly> Assemblies => _assemblies.Select(item => item.Value);
-    public virtual bool CanReceive => !CarrierPresent;
-    public virtual bool HasNg =>
-        Assemblies.Any(assembly => assembly.Result == AssemblyResult.Ng);
-    public bool CanTransfer =>
-        CarrierPresent
-        && Completed
-        && Stopper == StationCylinderState.Down;
 
-    public bool HeatSinkPresent(HeatSinkSlot heatSink) =>
-        Station.HeatSinkPresent(heatSink);
+    public bool CarrierPresent
+    {
+        get
+        {
+            return Station.CarrierPresent;
+        }
+    }
 
-    public HeatSinkAssembly Assembly(HeatSinkSlot heatSink) =>
-        _assemblies.GetOrAdd(heatSink, static slot => new HeatSinkAssembly(slot));
+    public StationCylinderState BackupPlate
+    {
+        get
+        {
+            return Station.BackupPlate;
+        }
+    }
 
-    protected void RemoveAssembly(HeatSinkSlot heatSink) =>
+    public StationCylinderState Stopper
+    {
+        get
+        {
+            return Station.Stopper;
+        }
+    }
+
+    public bool CarrierSeated
+    {
+        get
+        {
+            return CarrierPresent
+                && BackupPlate == StationCylinderState.Up
+                && Stopper == StationCylinderState.Down;
+        }
+    }
+
+    public bool Completed
+    {
+        get
+        {
+            return !Enabled || Volatile.Read(ref _completed);
+        }
+    }
+
+    public IEnumerable<HeatSinkAssembly> Assemblies
+    {
+        get
+        {
+            return _assemblies.Select(item => item.Value);
+        }
+    }
+
+    public virtual bool CanReceive
+    {
+        get
+        {
+            return !CarrierPresent;
+        }
+    }
+
+    public virtual bool HasNg
+    {
+        get
+        {
+            return Assemblies.Any(assembly => assembly.Result == AssemblyResult.Ng);
+        }
+    }
+
+    public bool CanTransfer
+    {
+        get
+        {
+            return CarrierPresent && Completed && Stopper == StationCylinderState.Down;
+        }
+    }
+
+    public bool HeatSinkPresent(HeatSinkSlot heatSink)
+    {
+        return Station.HeatSinkPresent(heatSink);
+    }
+
+    public HeatSinkAssembly Assembly(HeatSinkSlot heatSink)
+    {
+        return _assemblies.GetOrAdd(heatSink, static slot => new HeatSinkAssembly(slot));
+    }
+
+    protected void RemoveAssembly(HeatSinkSlot heatSink)
+    {
         _assemblies.TryRemove(heatSink, out _);
+    }
 
     public void TransferAssembliesTo(StationWork destination)
     {
@@ -62,8 +131,9 @@ public abstract class StationWork
 
     protected void SetAssemblies(IEnumerable<HeatSinkAssembly> assemblies)
     {
-        _assemblies = new(assemblies.Select(assembly =>
-            new KeyValuePair<HeatSinkSlot, HeatSinkAssembly>(assembly.HeatSink, assembly)));
+        _assemblies = new(
+            assemblies.Select(
+                assembly => new KeyValuePair<HeatSinkSlot, HeatSinkAssembly>(assembly.HeatSink, assembly)));
         Volatile.Write(ref _completed, false);
         Changed?.Invoke();
     }
@@ -85,9 +155,15 @@ public abstract class StationWork
         Changed?.Invoke();
     }
 
-    protected void NotifyChanged() => Changed?.Invoke();
+    protected void NotifyChanged()
+    {
+        Changed?.Invoke();
+    }
 
-    private static bool AlwaysEnabled() => true;
+    private static bool AlwaysEnabled()
+    {
+        return true;
+    }
 
     private void OnCarrierChanged(bool present)
     {

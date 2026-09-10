@@ -95,8 +95,12 @@ public partial class MainWindow : Window
         {
             _closing = false;
             _log.Error("Main window shutdown failed.", exception);
-            MessageBox.Show(this, exception.Message, "Shutdown Failed",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                this,
+                exception.Message,
+                "Shutdown Failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 
@@ -123,6 +127,7 @@ public partial class MainWindow : Window
             _logWindow.Activate();
             return;
         }
+
         _logWindow = new LogWindow(_log) { Owner = this };
         _logWindow.Closed += (_, _) => _logWindow = null;
         _logWindow.Show();
@@ -131,8 +136,8 @@ public partial class MainWindow : Window
     private void OnOpenOutputs(object sender, RoutedEventArgs e)
     {
         // Recheck the selector when clicked, before the next display update arrives.
-        if (_closing || !_state.ManualMode
-            || !_viewModel.OutputsWindowEnabled) return;
+        if (_closing || !_state.ManualMode || !_viewModel.OutputsWindowEnabled)
+            return;
 
         if (_outputWindow is not null)
         {
@@ -150,7 +155,12 @@ public partial class MainWindow : Window
 
     private void OnOpenMotion(object sender, RoutedEventArgs e)
     {
-        if (_motionWindow is not null) { _motionWindow.Activate(); return; }
+        if (_motionWindow is not null)
+        {
+            _motionWindow.Activate();
+            return;
+        }
+
         _motionWindow = new MotionWindow(_motionViewModel, _state) { Owner = this };
         _motionWindow.Closed += (_, _) =>
         {
@@ -169,11 +179,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        _adcProtocolWindow = new AdcProtocolWindow(
-            _adcBus,
-            _hantasSettings,
-            _machine,
-            _log)
+        _adcProtocolWindow = new AdcProtocolWindow(_adcBus, _hantasSettings, _machine, _log)
         {
             Owner = this,
         };
@@ -181,9 +187,7 @@ public partial class MainWindow : Window
         _adcProtocolWindow.Show();
     }
 
-    private void RecipeFile_Selected(
-        object sender,
-        SelectionChangedEventArgs e)
+    private void RecipeFile_Selected(object sender, SelectionChangedEventArgs e)
     {
         if (((ComboBox)sender).SelectedItem is string recipeName)
         {
@@ -191,9 +195,7 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnViewModelPropertyChanged(
-        object? sender,
-        PropertyChangedEventArgs e)
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (_closing || sender is not MainViewModel viewModel)
         {

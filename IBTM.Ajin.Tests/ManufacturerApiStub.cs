@@ -4,11 +4,26 @@ using System.Collections.Generic;
 // Test assembly only. Production still uses the unchanged manufacturer's declarations.
 internal static class AjinSdk
 {
-    internal sealed record Call(string Operation, int? Module = null, int? Offset = null,
-        uint? Value = null, string? Path = null, int? Axis = null);
-    internal sealed record Module(int Inputs, int Outputs, AXT_MODULE Type, int Board = 0, int Position = 0);
-    internal sealed record MotionAxis(uint Mechanical = 0, uint HomeResult = 0, uint ServoOn = 0,
-        double Position = 0, double Unit = 1, int Pulse = 1);
+    internal sealed record Call(
+        string Operation,
+        int? Module = null,
+        int? Offset = null,
+        uint? Value = null,
+        string? Path = null,
+        int? Axis = null);
+    internal sealed record Module(
+        int Inputs,
+        int Outputs,
+        AXT_MODULE Type,
+        int Board = 0,
+        int Position = 0);
+    internal sealed record MotionAxis(
+        uint Mechanical = 0,
+        uint HomeResult = 0,
+        uint ServoOn = 0,
+        double Position = 0,
+        double Unit = 1,
+        int Pulse = 1);
     internal static readonly Dictionary<int, MotionAxis> MotionAxes = [];
     internal static readonly List<Call> Calls = [];
     internal static readonly Dictionary<Call, uint> Results = [];
@@ -49,14 +64,28 @@ internal static class AjinSdk
 
 internal static class CAXL
 {
-    public static uint AxlOpen(int irq) => AjinSdk.Record(new(nameof(AxlOpen), Offset: irq));
-    public static uint AxlOpenNoReset(uint irq) => AjinSdk.Record(new(nameof(AxlOpenNoReset), Offset: checked((int)irq)));
-    public static int AxlClose() => (int)AjinSdk.Record(new(nameof(AxlClose)));
+    public static uint AxlOpen(int irq)
+    {
+        return AjinSdk.Record(new(nameof(AxlOpen), Offset: irq));
+    }
+
+    public static uint AxlOpenNoReset(uint irq)
+    {
+        return AjinSdk.Record(new(nameof(AxlOpenNoReset), Offset: checked((int)irq)));
+    }
+
+    public static int AxlClose()
+    {
+        return (int)AjinSdk.Record(new(nameof(AxlClose)));
+    }
 }
 
 internal static partial class CAXM
 {
-    public static uint AxmMotLoadParaAll(string path) => AjinSdk.Record(new(nameof(AxmMotLoadParaAll), Path: path));
+    public static uint AxmMotLoadParaAll(string path)
+    {
+        return AjinSdk.Record(new(nameof(AxmMotLoadParaAll), Path: path));
+    }
 }
 
 internal static class CAXD
@@ -99,7 +128,8 @@ internal static class CAXD
         var result = AjinSdk.Record(new(nameof(AxdiReadInportWord), module, offset));
         if (offset < 0 || (offset + 1) * 16 > AjinSdk.Modules[module].Inputs)
             throw new InvalidOperationException("Test detected an input read beyond the module's actual point count.");
-        value = AjinSdk.InputWords.GetValueOrDefault((module, offset),
+        value = AjinSdk.InputWords.GetValueOrDefault(
+            (module, offset),
             (AjinSdk.Inputs.GetValueOrDefault(module) >> (offset * 16)) & 0xFFFF);
         return result;
     }
@@ -124,6 +154,7 @@ internal static class CAXD
             var outputs = AjinSdk.Outputs.GetValueOrDefault(module);
             AjinSdk.Outputs[module] = value == 0 ? outputs & ~(1U << offset) : outputs | (1U << offset);
         }
+
         return result;
     }
 }

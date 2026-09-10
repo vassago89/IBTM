@@ -15,8 +15,11 @@ The user performs physical-equipment testing and prefers short edit/verify cycle
 - Declare the actual binding-source type at each View/Window root with `d:DataContext="{d:DesignInstance Type=..., IsDesignTimeCreatable=False}"` for editor navigation and F12. This is design-time metadata, not a runtime DataContext assignment.
 - Do not assign or traverse DataContext inside nested XAML elements, and do not use RelativeSource. Keep runtime context ownership explicit in C# and let child views/templates inherit their context.
 - Bind commands and values explicitly where they are used. Use DataTemplate for repeated or dynamic presentation; do not hide application bindings behind ContentControl wrappers.
+- Do not poll display state with UI-thread timers. Expose state changes through observable properties/collections and bind the view to them; keep device acquisition loops outside the UI.
 
 # Debuggable control flow
 
 - Keep command handling and configuration writes in named methods that F12 can follow. Avoid constructor callbacks or generic dispatchers that only forward to known concrete objects.
 - Remove one-use forwarding helpers and redundant axis-specific wrappers when the actual implementation already takes an axis. Preserve hardware boundaries, cancellation lifetimes, feedback handling and real interlocks.
+- Use ordinary block bodies for methods, local functions and computed property accessors instead of expression-bodied members. Keep simple auto-properties and ordinary lambda/switch syntax.
+- Break complex conditions at logical operators and long calls between arguments so each meaningful part is easy to scan. Do not compress code to minimize line count, or expand simple readable branches merely to add lines.

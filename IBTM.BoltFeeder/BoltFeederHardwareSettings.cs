@@ -4,7 +4,13 @@ namespace IBTM.BoltFeeder;
 
 public sealed class BoltFeederHardwareSettings : IoHardwareSettings
 {
-    public override HardwareArea Area => HardwareArea.BoltFeeder;
+    public override HardwareArea Area
+    {
+        get
+        {
+            return HardwareArea.BoltFeeder;
+        }
+    }
 
     public BoltFeederHardwareSettings()
     {

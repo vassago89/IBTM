@@ -5,13 +5,31 @@ namespace IBTM.PcbSupply;
 
 public sealed class PcbSupplyHardwareSettings : MotionHardwareSettings
 {
-    public override HardwareArea Area => HardwareArea.PcbSupply;
+    public override HardwareArea Area
+    {
+        get
+        {
+            return HardwareArea.PcbSupply;
+        }
+    }
 
     public PcbSupplyHardwareSettings() : base(
         MotionGroup.PcbSupply,
-        (MotionAxis.X, MachineAxis.PcbSupplyX, 0, 200),
-        (MotionAxis.Y, MachineAxis.PcbSupplyY, 1, 200),
-        (MotionAxis.Z, MachineAxis.PcbSupplyZ, 2, 100))
+        (
+            MotionAxis.X,
+            MachineAxis.PcbSupplyX,
+            0,
+            200),
+        (
+            MotionAxis.Y,
+            MachineAxis.PcbSupplyY,
+            1,
+            200),
+        (
+            MotionAxis.Z,
+            MachineAxis.PcbSupplyZ,
+            2,
+            100))
     {
         Inputs = new()
         {

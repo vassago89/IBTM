@@ -14,11 +14,9 @@ public sealed class VirtualMotionService(
     (double Minimum, double Maximum)? xRange = null,
     (double Minimum, double Maximum)? yRange = null,
     (double Minimum, double Maximum)? zRange = null,
-    double resolutionMillimeters =
-        MotionHardwareSettings.DefaultMillimetersPerPulse,
+    double resolutionMillimeters = MotionHardwareSettings.DefaultMillimetersPerPulse,
     Func<double>? horizontalZ = null,
-    Func<bool>? servoPowerOn = null)
-    : MotionService(
+    Func<bool>? servoPowerOn = null) : MotionService(
         settings,
         operationCancellation,
         hasY,
@@ -41,7 +39,13 @@ public sealed class VirtualMotionService(
     private double _y;
     private double _z;
 
-    public override bool IsReady => true;
+    public override bool IsReady
+    {
+        get
+        {
+            return true;
+        }
+    }
 
     public override void Initialize()
     {
@@ -49,6 +53,7 @@ public sealed class VirtualMotionService(
         {
             _servoOn[(int)axis] = servoPowerOn?.Invoke() ?? true;
         }
+
         PublishStateChanged();
     }
 
@@ -56,38 +61,35 @@ public sealed class VirtualMotionService(
         double x,
         double y,
         double velocity,
-        CancellationToken cancellationToken = default) =>
-        SimulateMoveAsync(x, y, _z, velocity, true, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        return SimulateMoveAsync(x, y, _z, velocity, true, cancellationToken);
+    }
 
     protected override Task MoveAxisCoreAsync(
         MotionAxis axis,
         double position,
         double velocity,
-        CancellationToken cancellationToken) => axis switch
+        CancellationToken cancellationToken)
+    {
+        return axis switch
         {
             MotionAxis.X => SimulateMoveAsync(position, _y, _z, velocity, true, cancellationToken),
             MotionAxis.Y => SimulateMoveAsync(_x, position, _z, velocity, true, cancellationToken),
             MotionAxis.Z => SimulateMoveAsync(_x, _y, position, velocity, false, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(axis)),
         };
+    }
 
     protected override async Task MoveZToPositiveLimitCoreAsync(
         double velocity,
         CancellationToken cancellationToken)
     {
-        var maximum = GetRange(MotionAxis.Z)?.Maximum
-            ?? throw new InvalidOperationException(
-                "Virtual Z maximum is not configured.");
+        var maximum = GetRange(MotionAxis.Z)?.Maximum ?? throw new InvalidOperationException("Virtual Z maximum is not configured.");
         _seekingZPositiveLimit = true;
         try
         {
-            await SimulateMoveAsync(
-                _x,
-                _y,
-                maximum,
-                velocity,
-                false,
-                cancellationToken);
+            await SimulateMoveAsync(_x, _y, maximum, velocity, false, cancellationToken);
         }
         finally
         {
@@ -107,20 +109,33 @@ public sealed class VirtualMotionService(
         PublishStateChanged();
     }
 
-    public override (double X, double Y, double Z) GetPosition() => (_x, _y, _z);
+    public override (double X, double Y, double Z) GetPosition()
+    {
+        return (_x, _y, _z);
+    }
 
-    public AxisState ReadDiagnosticState(MotionAxis axis) => GetAxisState(axis);
-    public double ReadDiagnosticPosition(MotionAxis axis) => GetCoordinate(axis);
+    public AxisState ReadDiagnosticState(MotionAxis axis)
+    {
+        return GetAxisState(axis);
+    }
 
-    public override AxisState GetAxisState(MotionAxis axis) => new(
-        Homed: _homed[(int)axis],
-        ServoOn: _servoOn[(int)axis],
-        Alarm: _alarm[(int)axis],
-        InPosition: !IsMoving,
-        Emergency: false,
-        HomeSensor: GetCoordinate(axis) == 0,
-        PositiveLimit: axis == MotionAxis.Z && _zPositiveLimit,
-        NegativeLimit: false);
+    public double ReadDiagnosticPosition(MotionAxis axis)
+    {
+        return GetCoordinate(axis);
+    }
+
+    public override AxisState GetAxisState(MotionAxis axis)
+    {
+        return new(
+            Homed: _homed[(int)axis],
+            ServoOn: _servoOn[(int)axis],
+            Alarm: _alarm[(int)axis],
+            InPosition: !IsMoving,
+            Emergency: false,
+            HomeSensor: GetCoordinate(axis) == 0,
+            PositiveLimit: axis == MotionAxis.Z && _zPositiveLimit,
+            NegativeLimit: false);
+    }
 
     protected override async Task<bool> HomeCoreAsync(
         MotionAxis axis,
@@ -160,13 +175,7 @@ public sealed class VirtualMotionService(
             _homed[(int)MotionAxis.Y] = false;
         }
 
-        await SimulateMoveAsync(
-            0,
-            HasY ? 0 : _y,
-            _z,
-            velocity,
-            true,
-            cancellationToken);
+        await SimulateMoveAsync(0, HasY ? 0 : _y, _z, velocity, true, cancellationToken);
         _homed[(int)MotionAxis.X] = true;
         if (HasY)
         {
@@ -183,7 +192,10 @@ public sealed class VirtualMotionService(
         PublishStateChanged();
     }
 
-    public void Dispose() => _movement?.Cancel();
+    public void Dispose()
+    {
+        _movement?.Cancel();
+    }
 
     private async Task SimulateMoveAsync(
         double x,
@@ -202,9 +214,7 @@ public sealed class VirtualMotionService(
         var startY = _y;
         var startZ = _z;
         var distance = Math.Sqrt(
-            Math.Pow(x - startX, 2)
-            + Math.Pow(y - startY, 2)
-            + Math.Pow(z - startZ, 2));
+            Math.Pow(x - startX, 2) + Math.Pow(y - startY, 2) + Math.Pow(z - startZ, 2));
         var duration = distance / velocity;
         var stopwatch = Stopwatch.StartNew();
 
@@ -218,8 +228,7 @@ public sealed class VirtualMotionService(
                     startX + ((x - startX) * progress),
                     startY + ((y - startY) * progress),
                     startZ + ((z - startZ) * progress));
-                await Task.Delay(UpdateInterval, movement.Token)
-                    .ConfigureAwait(false);
+                await Task.Delay(UpdateInterval, movement.Token).ConfigureAwait(false);
             }
 
             movement.Token.ThrowIfCancellationRequested();
@@ -303,8 +312,8 @@ public sealed class VirtualMotionService(
             _zPositiveLimit = true;
         }
         else if (_zPositiveLimit
-                 && zMaximum is not null
-                 && _z < zMaximum.Value - resolutionMillimeters / 2)
+            && zMaximum is not null
+            && _z < zMaximum.Value - resolutionMillimeters / 2)
         {
             _zPositiveLimit = false;
         }
@@ -312,15 +321,19 @@ public sealed class VirtualMotionService(
         PublishPositionChanged(_x, _y, _z);
     }
 
-    private double Quantize(double position) =>
-        Math.Round(position / resolutionMillimeters)
-        * resolutionMillimeters;
-
-    private double GetCoordinate(MotionAxis axis) => axis switch
+    private double Quantize(double position)
     {
-        MotionAxis.X => _x,
-        MotionAxis.Y => _y,
-        MotionAxis.Z => _z,
-        _ => throw new ArgumentOutOfRangeException(nameof(axis)),
-    };
+        return Math.Round(position / resolutionMillimeters) * resolutionMillimeters;
+    }
+
+    private double GetCoordinate(MotionAxis axis)
+    {
+        return axis switch
+        {
+            MotionAxis.X => _x,
+            MotionAxis.Y => _y,
+            MotionAxis.Z => _z,
+            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
+        };
+    }
 }

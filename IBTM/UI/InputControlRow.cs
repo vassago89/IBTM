@@ -15,8 +15,18 @@ public sealed partial class InputControlRow
     }
 
     public IoInputStatus Io { get; }
-    public bool IsVirtual => _virtualIo is not null;
+
+    public bool IsVirtual
+    {
+        get
+        {
+            return _virtualIo is not null;
+        }
+    }
 
     [RelayCommand(CanExecute = nameof(IsVirtual))]
-    private void Toggle() => _virtualIo?.SetInput(Io.Signal, Io.IsOn != true);
+    private void Toggle()
+    {
+        _virtualIo?.SetInput(Io.Signal, Io.IsOn != true);
+    }
 }

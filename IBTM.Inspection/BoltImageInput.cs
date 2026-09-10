@@ -8,7 +8,8 @@ public static class BoltImageInput
     public static ImageFrame Create(ImageFrame image, int regionSize)
     {
         if (regionSize <= 0 || regionSize > image.Width || regionSize > image.Height)
-            throw new ArgumentOutOfRangeException(nameof(regionSize),
+            throw new ArgumentOutOfRangeException(
+                nameof(regionSize),
                 $"Central ROI must fit within the {image.Width} x {image.Height} image.");
 
         var size = IBoltRecessSegmenter.InputSize;
@@ -38,8 +39,8 @@ public static class BoltImageInput
                     var second = (left + x1) * ImageFrame.ColorChannelCount + channel;
                     var a = image.Pixels[upper + first] * (1 - fx) + image.Pixels[upper + second] * fx;
                     var b = image.Pixels[lower + first] * (1 - fx) + image.Pixels[lower + second] * fx;
-                    pixels[y * stride + x * ImageFrame.ColorChannelCount + channel] =
-                        (byte)Math.Round(a * (1 - fy) + b * fy);
+                    pixels[y * stride + x * ImageFrame.ColorChannelCount + channel] = (byte)Math.Round(
+                        a * (1 - fy) + b * fy);
                 }
             }
         }

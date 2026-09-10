@@ -15,11 +15,22 @@ internal sealed class TestNgCarrierTransferFeedback : INgCarrierTransferFeedback
 
     public event Action? Changed;
 
-    public bool IsRaised =>
-        _io.GetInput(InputIo.NgCarrierPickupUp)
-        && !_io.GetInput(InputIo.NgCarrierPickupDown);
+    public bool IsRaised
+    {
+        get
+        {
+            return _io.GetInput(InputIo.NgCarrierPickupUp)
+                && !_io.GetInput(InputIo.NgCarrierPickupDown);
+        }
+    }
 
-    public bool IsClear => IsRaised && !_io.GetInput(InputIo.NgCarrierDetected);
+    public bool IsClear
+    {
+        get
+        {
+            return IsRaised && !_io.GetInput(InputIo.NgCarrierDetected);
+        }
+    }
 
     private void OnInputChanged(InputIo input, bool _)
     {

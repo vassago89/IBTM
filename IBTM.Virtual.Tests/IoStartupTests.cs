@@ -28,8 +28,10 @@ public sealed class IoStartupTests
         {
             Assert.False(value);
             writes.Add(output);
-            if (output == OutputIo.MainConveyorRun) throw conveyorFailure;
-            if (output == OutputIo.ShootBolt) throw shootingFailure;
+            if (output == OutputIo.MainConveyorRun)
+                throw conveyorFailure;
+            if (output == OutputIo.ShootBolt)
+                throw shootingFailure;
         };
         try
         {
@@ -64,6 +66,7 @@ public sealed class IoStartupTests
             Assert.True(state.IsRunning);
             Assert.False(machine.CanReset);
         }
+
         Assert.Equal(0, io.ReadsWhileUnavailable);
     }
 
@@ -83,21 +86,22 @@ public sealed class IoStartupTests
         await machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(2));
 
         AssertUnavailable(state, error);
-        Assert.Contains(services.GetRequiredService<ApplicationLog>().ReadAfter(0),
+        Assert.Contains(
+            services.GetRequiredService<ApplicationLog>().ReadAfter(0),
             entry => entry.Level == "ERROR" && entry.Detail?.Contains(error.Message) == true);
         Assert.True(machine.CanReset);
         Assert.False(machine.CanStart);
         Assert.False(machine.CanHome);
         Assert.False(state.ManualSetupEnabled);
-        Assert.All(services.GetRequiredService<IoSignals>().Outputs.Values,
+        Assert.All(
+            services.GetRequiredService<IoSignals>().Outputs.Values,
             output => Assert.Null(output.IsOn));
         Assert.Equal(0, io.ReadsWhileUnavailable);
         Assert.Equal(0, io.WritesWhileUnavailable);
 
         io.InitializationError = null;
         await machine.ResetAsync().WaitAsync(TimeSpan.FromSeconds(2));
-        await WaitUntilAsync(() => state.Display.Available
-            && state.Display.Alarm == MachineAlarm.None);
+        await WaitUntilAsync(() => state.Display.Available && state.Display.Alarm == MachineAlarm.None);
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.Null(state.Display.ReadError);
         Assert.Equal(0, io.ReadsWhileUnavailable);
@@ -119,10 +123,12 @@ public sealed class IoStartupTests
         await WaitUntilAsync(() => !state.Display.Available);
 
         AssertUnavailable(state, error);
-        Assert.Contains(services.GetRequiredService<ApplicationLog>().ReadAfter(0),
+        Assert.Contains(
+            services.GetRequiredService<ApplicationLog>().ReadAfter(0),
             entry => entry.Level == "ERROR" && entry.Detail?.Contains(error.Message) == true);
         Assert.True(machine.CanReset);
-        Assert.All(services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
+        Assert.All(
+            services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
         Assert.Equal(0, io.ReadsWhileUnavailable);
         await machine.ShutdownAsync();
@@ -148,7 +154,8 @@ public sealed class IoStartupTests
         await WaitUntilAsync(() => !state.Display.Available);
 
         AssertUnavailable(state, error);
-        Assert.All(services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
+        Assert.All(
+            services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
         Assert.Equal(0, io.ReadsWhileUnavailable);
         await machine.ShutdownAsync();
@@ -189,19 +196,20 @@ public sealed class IoStartupTests
         Assert.False(state.Display.ManualSetupEnabled);
     }
 
-    private static ServiceProvider CreateServices() => new ServiceCollection()
-        .AddIbtmApplication(new MachineSettings
-        {
-            Drivers = new() { Inspection = InspectionAlgorithm.Virtual },
-        })
-        .AddSingleton<StartupIo>()
-        .AddSingleton<IIoService>(provider => provider.GetRequiredService<StartupIo>())
-        .BuildServiceProvider();
+    private static ServiceProvider CreateServices()
+    {
+        return new ServiceCollection().AddIbtmApplication(
+            new MachineSettings { Drivers = new() { Inspection = InspectionAlgorithm.Virtual }, })
+            .AddSingleton<StartupIo>()
+            .AddSingleton<IIoService>(provider => provider.GetRequiredService<StartupIo>())
+            .BuildServiceProvider();
+    }
 
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        while (!condition()) await Task.Delay(10, timeout.Token);
+        while (!condition())
+            await Task.Delay(10, timeout.Token);
     }
 
     // Physical I/O starts closed; the regular VirtualIoService starts ready and
@@ -209,7 +217,15 @@ public sealed class IoStartupTests
     private sealed class StartupIo(VirtualIoService inner) : IIoService
     {
         public bool IsReady { get; private set; }
-        public int TimeoutMilliseconds => inner.TimeoutMilliseconds;
+
+        public int TimeoutMilliseconds
+        {
+            get
+            {
+                return inner.TimeoutMilliseconds;
+            }
+        }
+
         public Exception? InitializationError { get; set; }
         public Exception? OutputReadError { get; set; }
         public Action? BeforeOutputRead { get; set; }
@@ -217,21 +233,38 @@ public sealed class IoStartupTests
         public bool FailCheckReady { get; set; }
         public int ReadsWhileUnavailable { get; private set; }
         public int WritesWhileUnavailable { get; private set; }
+
         public event Action<Exception>? Faulted;
         public event Action<InputIo, bool>? InputChanged
         {
-            add => inner.InputChanged += value;
-            remove => inner.InputChanged -= value;
+            add
+            {
+                inner.InputChanged += value;
+            }
+
+            remove
+            {
+                inner.InputChanged -= value;
+            }
         }
+
         public event Action<OutputIo, bool>? OutputChanged
         {
-            add => inner.OutputChanged += value;
-            remove => inner.OutputChanged -= value;
+            add
+            {
+                inner.OutputChanged += value;
+            }
+
+            remove
+            {
+                inner.OutputChanged -= value;
+            }
         }
 
         public void Initialize()
         {
-            if (!FailCheckReady && InitializationError is { } error) throw error;
+            if (!FailCheckReady && InitializationError is { } error)
+                throw error;
             IsReady = true;
             inner.Initialize();
         }
@@ -243,6 +276,7 @@ public sealed class IoStartupTests
                 IsReady = false;
                 throw error;
             }
+
             inner.CheckReady();
         }
 
@@ -252,8 +286,15 @@ public sealed class IoStartupTests
             Faulted?.Invoke(error);
         }
 
-        public bool GetInput(InputIo input) => inner.GetInput(input);
-        public OutputFeedback? GetOutputFeedback(OutputIo output) => inner.GetOutputFeedback(output);
+        public bool GetInput(InputIo input)
+        {
+            return inner.GetInput(input);
+        }
+
+        public OutputFeedback? GetOutputFeedback(OutputIo output)
+        {
+            return inner.GetOutputFeedback(output);
+        }
 
         public bool GetOutput(OutputIo output)
         {
@@ -262,10 +303,12 @@ public sealed class IoStartupTests
                 ReadsWhileUnavailable++;
                 throw new IOException("Simulated AXT_RT_NOT_OPEN during output read.");
             }
+
             var beforeRead = BeforeOutputRead;
             BeforeOutputRead = null;
             beforeRead?.Invoke();
-            if (OutputReadError is { } error) throw error;
+            if (OutputReadError is { } error)
+                throw error;
             return inner.GetOutput(output);
         }
 
@@ -276,6 +319,7 @@ public sealed class IoStartupTests
                 WritesWhileUnavailable++;
                 throw new IOException("Output write before I/O initialization.");
             }
+
             BeforeOutputWrite?.Invoke(output, value);
             inner.SetOutput(output, value);
         }

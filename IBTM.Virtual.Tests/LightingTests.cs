@@ -18,25 +18,38 @@ public sealed class LightingTests
         var light = new PartialOnFailureLight();
         var settings = new MachineSettings();
         settings.Drivers.Inspection = InspectionAlgorithm.Virtual;
-        using var services = new ServiceCollection()
-            .AddSingleton(VirtualTest.OpenMachineStore(Path.Combine(Path.GetTempPath(), $"IBTM-light-cleanup-{Guid.NewGuid():N}.db")))
+        using var services = new ServiceCollection().AddSingleton(
+            VirtualTest.OpenMachineStore(
+                Path.Combine(Path.GetTempPath(), $"IBTM-light-cleanup-{Guid.NewGuid():N}.db")))
             .AddIbtmApplication(settings)
-            .AddSingleton<ILightController>(light).BuildServiceProvider();
+            .AddSingleton<ILightController>(light)
+            .BuildServiceProvider();
         var inspector = services.GetRequiredService<BoltInspector>();
         var reference = services.GetRequiredService<CarrierReferenceSettings>();
         reference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
         reference.LowerRightLocatingPin = new() { X = 20, Y = 20 };
         foreach (var action in new Func<Task>[]
         {
-            async () => { await inspector.CaptureCurrentAsync(); },
-            async () => { await inspector.CaptureCarrierImagesAsync(); },
-            () => { inspector.StartLiveView(); return Task.CompletedTask; },
+            async () =>
+            {
+                await inspector.CaptureCurrentAsync();
+            },
+            async () =>
+            {
+                await inspector.CaptureCarrierImagesAsync();
+            },
+            () =>
+            {
+                inspector.StartLiveView();
+                return Task.CompletedTask;
+            },
         })
         {
             var error = await Assert.ThrowsAsync<IOException>(action);
             Assert.Same(light.Failure, error);
             Assert.False(light.IsOn);
         }
+
         Assert.Equal(3, light.OffCalls);
     }
 
@@ -45,11 +58,31 @@ public sealed class LightingTests
         public IOException Failure { get; } = new("ON failed after the output was sent.");
         public bool IsOn { get; private set; }
         public int OffCalls { get; private set; }
-        public void Initialize() { }
-        public void SetLevel(int channel, int level) { }
-        public void TurnOn(int channel) { IsOn = true; throw Failure; }
-        public void TurnOff(int channel) { IsOn = false; OffCalls++; }
-        public void TurnOffAll() => IsOn = false;
+
+        public void Initialize()
+        {
+        }
+
+        public void SetLevel(int channel, int level)
+        {
+        }
+
+        public void TurnOn(int channel)
+        {
+            IsOn = true;
+            throw Failure;
+        }
+
+        public void TurnOff(int channel)
+        {
+            IsOn = false;
+            OffCalls++;
+        }
+
+        public void TurnOffAll()
+        {
+            IsOn = false;
+        }
     }
 
     [Fact]
@@ -57,8 +90,9 @@ public sealed class LightingTests
     {
         var settings = new MachineSettings();
         settings.Drivers.Light = LightDriver.Movs;
-        typeof(MachineSettings).Assembly.GetType("IBTM.DevelopmentProfile")!
-            .GetMethod("UseVirtualHardware")!.Invoke(null, [settings]);
+        typeof(MachineSettings).Assembly.GetType("IBTM.DevelopmentProfile")!.GetMethod("UseVirtualHardware")!.Invoke(
+            null,
+            [settings]);
         Assert.Equal(LightDriver.Virtual, settings.Drivers.Light);
     }
 
@@ -66,7 +100,8 @@ public sealed class LightingTests
     [InlineData(ControlDriver.Physical, LightDriver.Virtual)]
     [InlineData(ControlDriver.Virtual, LightDriver.Movs)]
     public void LightSelectionIsIndependentAndMissingComDoesNotBreakConstruction(
-        ControlDriver motion, LightDriver light)
+        ControlDriver motion,
+        LightDriver light)
     {
         var settings = new MachineSettings();
         settings.Drivers.Control = motion;
@@ -92,7 +127,9 @@ public sealed class LightingTests
         var settings = new LightingSettings();
         using var controller = new MovsLightController(settings);
         settings.Connection = "COM9";
-        Assert.Contains("COM port is empty", Assert.Throws<InvalidOperationException>(controller.Initialize).Message);
+        Assert.Contains(
+            "COM port is empty",
+            Assert.Throws<InvalidOperationException>(controller.Initialize).Message);
         controller.TurnOffAll();
     }
 
@@ -101,10 +138,8 @@ public sealed class LightingTests
     [InlineData(19200, 0)]
     public void InvalidSerialSettingsReportLightingErrorAndCanBeRetried(int baudRate, int timeout)
     {
-        using var controller = new MovsLightController(new LightingSettings
-        {
-            Connection = "COM9", BaudRate = baudRate, WriteTimeoutMilliseconds = timeout,
-        });
+        using var controller = new MovsLightController(
+            new LightingSettings { Connection = "COM9", BaudRate = baudRate, WriteTimeoutMilliseconds = timeout, });
         for (var attempt = 0; attempt < 2; attempt++)
         {
             // Invalid constructor/setter values fail before SerialPort.Open.

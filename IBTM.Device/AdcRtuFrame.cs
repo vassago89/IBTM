@@ -5,10 +5,7 @@ namespace IBTM.Device;
 
 public static class AdcRtuFrame
 {
-    public static byte[] Build(
-        byte slaveAddress,
-        AdcFunctionCode function,
-        ReadOnlySpan<byte> data)
+    public static byte[] Build(byte slaveAddress, AdcFunctionCode function, ReadOnlySpan<byte> data)
     {
         var frame = new byte[data.Length + 4];
         frame[0] = slaveAddress;
@@ -28,9 +25,7 @@ public static class AdcRtuFrame
             crc ^= value;
             for (var bit = 0; bit < 8; bit++)
             {
-                crc = (ushort)((crc & 1) == 1
-                    ? (crc >> 1) ^ 0xA001
-                    : crc >> 1);
+                crc = (ushort)((crc & 1) == 1 ? (crc >> 1) ^ 0xA001 : crc >> 1);
             }
         }
 

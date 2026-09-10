@@ -61,7 +61,8 @@ public partial class SettingsViewModel : ObservableObject
         _log = log;
         _lightTestChannel = settings.Lighting.InspectionChannel;
         ActiveLightConnection = settings.Drivers.Light == LightDriver.Virtual
-            ? "Virtual" : $"{settings.Lighting.Connection} · {settings.Lighting.BaudRate} baud";
+            ? "Virtual"
+            : $"{settings.Lighting.Connection} · {settings.Lighting.BaudRate} baud";
         TestLightCommand.PropertyChanged += OnLightCommandChanged;
         OffTestLightCommand.PropertyChanged += OnLightCommandChanged;
         _virtualCamera = camera as VirtualCamera;
@@ -77,25 +78,30 @@ public partial class SettingsViewModel : ObservableObject
         CameraDrivers = Enum.GetValues<CameraDriver>();
         BoltDrivers = Enum.GetValues<BoltDriver>();
         var hardware = settings.HardwareSections;
-        InputMappings = hardware
-            .OfType<InputHardwareSettings>()
-            .SelectMany(section => section.Inputs.Select(mapping =>
-                new HardwareMappingRow(section, mapping.Key, mapping.Value)))
+        InputMappings = hardware.OfType<InputHardwareSettings>()
+            .SelectMany(
+                section => section.Inputs.Select(
+                    mapping => new HardwareMappingRow(section, mapping.Key, mapping.Value)))
             .ToArray();
-        OutputMappings = hardware
-            .OfType<IoHardwareSettings>()
-            .SelectMany(section => section.Outputs.Select(mapping =>
-                new HardwareMappingRow(section, mapping.Key, mapping.Value.Number)
-                {
-                    OffNumber = mapping.Value.OffNumber,
-                    Feedback = mapping.Value.Feedback,
-                }))
+        OutputMappings = hardware.OfType<IoHardwareSettings>()
+            .SelectMany(
+                section =>
+                    section.Outputs.Select(
+                        mapping =>
+                            new HardwareMappingRow(section, mapping.Key, mapping.Value.Number)
+                            { OffNumber = mapping.Value.OffNumber, Feedback = mapping.Value.Feedback, }))
             .ToArray();
-        AxisMappings = hardware
-            .OfType<MotionHardwareSettings>()
-            .SelectMany(section => section.Axes.Select(mapping =>
-                new HardwareMappingRow(section, mapping.Key, mapping.Value.Number,
-                    mapping.Value.Minimum, mapping.Value.Maximum)))
+        AxisMappings = hardware.OfType<MotionHardwareSettings>()
+            .SelectMany(
+                section =>
+                    section.Axes.Select(
+                        mapping =>
+                            new HardwareMappingRow(
+                                section,
+                                mapping.Key,
+                                mapping.Value.Number,
+                                mapping.Value.Minimum,
+                                mapping.Value.Maximum)))
             .ToArray();
         InputMappingView = GroupMappings(InputMappings);
         OutputMappingView = GroupMappings(OutputMappings);
@@ -108,8 +114,23 @@ public partial class SettingsViewModel : ObservableObject
     public BoltDriver ActiveBoltDriver { get; }
     public LightDriver ActiveLightDriver { get; }
     public InspectionAlgorithm ActiveInspectionAlgorithm { get; }
-    public bool IsVirtualDevelopment => DevelopmentProfile.IsEnabled;
-    public bool CanChangeDrivers => CanEditSettings && !IsVirtualDevelopment;
+
+    public bool IsVirtualDevelopment
+    {
+        get
+        {
+            return DevelopmentProfile.IsEnabled;
+        }
+    }
+
+    public bool CanChangeDrivers
+    {
+        get
+        {
+            return CanEditSettings && !IsVirtualDevelopment;
+        }
+    }
+
     public ControlDriver[] ControlDrivers { get; }
     public CameraDriver[] CameraDrivers { get; }
     public BoltDriver[] BoltDrivers { get; }
@@ -117,9 +138,16 @@ public partial class SettingsViewModel : ObservableObject
     public Parity[] LightParities { get; } = Enum.GetValues<Parity>();
     public StopBits[] LightStopBits { get; } = [StopBits.One, StopBits.OnePointFive, StopBits.Two];
     public int[] LightDataBits { get; } = [5, 6, 7, 8];
-    public InspectionAlgorithm[] InspectionAlgorithms { get; } =
-        Enum.GetValues<InspectionAlgorithm>();
-    public bool IsVirtualCamera => _virtualCamera is not null;
+    public InspectionAlgorithm[] InspectionAlgorithms { get; } = Enum.GetValues<InspectionAlgorithm>();
+
+    public bool IsVirtualCamera
+    {
+        get
+        {
+            return _virtualCamera is not null;
+        }
+    }
+
     public HardwareMappingRow[] InputMappings { get; }
     public HardwareMappingRow[] OutputMappings { get; }
     public HardwareMappingRow[] AxisMappings { get; }
@@ -128,18 +156,44 @@ public partial class SettingsViewModel : ObservableObject
     public HardwareMappingRow[] FeedbackMappings { get; }
     public static InputIo[] InputSignals { get; } = Enum.GetValues<InputIo>();
     public MotionGroup[] MotionGroups { get; }
-    public MotionSettings CurrentMotionSettings => _motions[SelectedMotionGroup].Settings;
-    public IEnumerable<HardwareMappingRow> CurrentAxisMappings =>
-        AxisMappings.Where(row => row.Area == CurrentMotionHardwareSettings.Area);
-    public MotionHardwareSettings CurrentMotionHardwareSettings =>
-        _motions[SelectedMotionGroup].Hardware;
-    public bool CurrentMotionHasZ =>
-        CurrentMotionHardwareSettings.AxisSignals.ContainsKey(MotionAxis.Z);
+
+    public MotionSettings CurrentMotionSettings
+    {
+        get
+        {
+            return _motions[SelectedMotionGroup].Settings;
+        }
+    }
+
+    public IEnumerable<HardwareMappingRow> CurrentAxisMappings
+    {
+        get
+        {
+            return AxisMappings.Where(row => row.Area == CurrentMotionHardwareSettings.Area);
+        }
+    }
+
+    public MotionHardwareSettings CurrentMotionHardwareSettings
+    {
+        get
+        {
+            return _motions[SelectedMotionGroup].Hardware;
+        }
+    }
+
+    public bool CurrentMotionHasZ
+    {
+        get
+        {
+            return CurrentMotionHardwareSettings.AxisSignals.ContainsKey(MotionAxis.Z);
+        }
+    }
 
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
     private async Task SaveSettingsAsync()
     {
-        if (!CanEditSettings) return;
+        if (!CanEditSettings)
+            return;
         if (Settings.Drivers.Light == LightDriver.Movs
             && string.IsNullOrWhiteSpace(Settings.Lighting.Connection))
         {
@@ -147,27 +201,40 @@ public partial class SettingsViewModel : ObservableObject
             Trace.TraceError("Settings not saved: {0}", DatabaseMessage);
             return;
         }
+
         using var operation = _operations.Link();
         ApplyHardwareMappings();
         await Settings.SaveAsync(_store, operation.Token);
         DatabaseMessage = "Settings saved. Restart to apply driver, connection, pulse length and mapping changes.";
-        Trace.TraceInformation("Settings saved to {0}. Restart required for hardware changes.", _store.DatabaseFile);
+        Trace.TraceInformation(
+            "Settings saved to {0}. Restart required for hardware changes.",
+            _store.DatabaseFile);
         _state.Refresh();
     }
 
-    public bool CanEditSettings => !_operations.IsShuttingDown
-        && !_state.IsRunning
-        && _state.ManualMode;
+    public bool CanEditSettings
+    {
+        get
+        {
+            return _state.SetupEditingEnabled;
+        }
+    }
 
-    public string SettingsAccessMessage => _operations.IsShuttingDown
-        ? "Settings are locked while the application is closing."
-        : _state.IsRunning
-            ? "Settings are locked while the machine is busy. Stop the operation before editing."
-            : _state.AutoMode
-                ? "Settings are locked in AUTO, including during an alarm. Switch the machine to MANUAL before editing."
-                : _state.IsError
-                    ? "Stopped in MANUAL with an alarm: settings can be edited without resetting. Motion and teaching remain interlocked."
-                    : "Settings can be edited while stopped in MANUAL.";
+    public string SettingsAccessMessage
+    {
+        get
+        {
+            return _operations.IsShuttingDown
+                ? "Settings are locked while the application is closing."
+                : _state.IsRunning
+                    ? "Settings are locked while the machine is busy. Stop the operation before editing."
+                    : _state.AutoMode
+                        ? "Settings are locked in AUTO, including during an alarm. Switch the machine to MANUAL before editing."
+                        : _state.IsError
+                            ? "Stopped in MANUAL with an alarm: settings can be edited without resetting. Motion and teaching remain interlocked."
+                            : "Settings can be edited while stopped in MANUAL.";
+        }
+    }
 
     public void RefreshCommands()
     {
@@ -187,16 +254,23 @@ public partial class SettingsViewModel : ObservableObject
     private async Task BackupDatabaseAsync()
     {
         using var operation = _operations.Link();
-        var dialog = new SaveFileDialog { Title = "Back Up Machine Settings and Recipes",
-            Filter = "SQLite database|*.db", FileName = $"IBTM-Machine-{DateTime.Now:yyyyMMdd-HHmmss}.db" };
-        if (dialog.ShowDialog() != true) return;
+        var dialog = new SaveFileDialog
+        {
+            Title = "Back Up Machine Settings and Recipes",
+            Filter = "SQLite database|*.db",
+            FileName = $"IBTM-Machine-{DateTime.Now:yyyyMMdd-HHmmss}.db"
+        };
+        if (dialog.ShowDialog() != true)
+            return;
         try
         {
             await Task.Run(() => _store.Backup(dialog.FileName), operation.Token);
             DatabaseMessage = "Saved settings, recipes and carrier images backed up. Unsaved edits, AJIN .mot files and training data are not included.";
             Trace.TraceInformation("Machine database backed up to {0}.", dialog.FileName);
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+        }
         catch (Exception exception)
         {
             Trace.TraceError("Machine database backup failed. {0}", exception);
@@ -209,9 +283,13 @@ public partial class SettingsViewModel : ObservableObject
     {
         using var operation = _operations.Link();
         var dialog = new OpenFileDialog { Title = "Restore Machine Settings and Recipes", Filter = "SQLite database|*.db" };
-        if (dialog.ShowDialog() != true || MessageBox.Show(
-            "Restore the selected machine database and close IBTM? Unsaved edits will be discarded. Training data is unchanged. The previous machine database is retained.",
-            "Restore Machine Database", MessageBoxButton.OKCancel, MessageBoxImage.Warning) != MessageBoxResult.OK) return;
+        if (dialog.ShowDialog() != true
+            || MessageBox.Show(
+                "Restore the selected machine database and close IBTM? Unsaved edits will be discarded. Training data is unchanged. The previous machine database is retained.",
+                "Restore Machine Database",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning) != MessageBoxResult.OK)
+            return;
         try
         {
             await Task.Run(() => _store.PrepareRestore(dialog.FileName), operation.Token);
@@ -219,7 +297,9 @@ public partial class SettingsViewModel : ObservableObject
             Trace.TraceInformation("Machine database restore prepared from {0}.", dialog.FileName);
             _ = Application.Current.Dispatcher.BeginInvoke(() => Application.Current.MainWindow.Close());
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+        }
         catch (Exception exception)
         {
             Trace.TraceError("Machine database restore failed. {0}", exception);
@@ -241,19 +321,23 @@ public partial class SettingsViewModel : ObservableObject
             {
                 return;
             }
+
             path = dialog.FileName;
         }
 
         try
         {
             VirtualImageError = null;
-            var image = await Task.Run(() => BoltTrainingImages.Decode(File.ReadAllBytes(path)), cancellationToken);
+            var image = await Task.Run(
+                () => BoltTrainingImages.Decode(File.ReadAllBytes(path)),
+                cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (!CanChangeVirtualImage())
             {
                 VirtualImageError = "Stop the machine before changing the camera image.";
                 return;
             }
+
             _virtualCamera!.SourceImage = image;
             VirtualImageName = Path.GetFileName(path);
         }
@@ -275,16 +359,32 @@ public partial class SettingsViewModel : ObservableObject
         VirtualImageError = null;
     }
 
-    private bool CanChangeVirtualImage() => IsVirtualCamera && CanEditSettings;
-    private bool CanClearVirtualImage() => CanChangeVirtualImage() && VirtualImageName is not null;
+    private bool CanChangeVirtualImage()
+    {
+        return IsVirtualCamera && CanEditSettings;
+    }
+
+    private bool CanClearVirtualImage()
+    {
+        return CanChangeVirtualImage() && VirtualImageName is not null;
+    }
 
     public async Task ShutdownAsync()
     {
         await CommandShutdown.StopAsync(
-            () => { LoadVirtualImageCommand.Cancel(); TestLightCommand.Cancel(); },
-            SaveSettingsCommand, LoadVirtualImageCommand,
-            BackupDatabaseCommand, RestoreDatabaseCommand, TestLightCommand, OffTestLightCommand);
-        if (PendingLightOffChannel is { } channel) await TurnTestLightOffAsync(channel);
+            () =>
+            {
+                LoadVirtualImageCommand.Cancel();
+                TestLightCommand.Cancel();
+            },
+            SaveSettingsCommand,
+            LoadVirtualImageCommand,
+            BackupDatabaseCommand,
+            RestoreDatabaseCommand,
+            TestLightCommand,
+            OffTestLightCommand);
+        if (PendingLightOffChannel is { } channel)
+            await TurnTestLightOffAsync(channel);
     }
 
     private void ApplyHardwareMappings()
@@ -311,23 +411,17 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
-    private static ICollectionView GroupMappings(
-        IEnumerable<HardwareMappingRow> mappings)
+    private static ICollectionView GroupMappings(IEnumerable<HardwareMappingRow> mappings)
     {
         var view = CollectionViewSource.GetDefaultView(mappings);
-        view.SortDescriptions.Add(new(
-            nameof(HardwareMappingRow.Area),
-            System.ComponentModel.ListSortDirection.Ascending));
-        view.SortDescriptions.Add(new(
-            nameof(HardwareMappingRow.Section),
-            System.ComponentModel.ListSortDirection.Ascending));
-        view.SortDescriptions.Add(new(
-            nameof(HardwareMappingRow.Order),
-            System.ComponentModel.ListSortDirection.Ascending));
-        view.GroupDescriptions.Add(new PropertyGroupDescription(
-            nameof(HardwareMappingRow.Area)));
-        view.GroupDescriptions.Add(new PropertyGroupDescription(
-            nameof(HardwareMappingRow.Section)));
+        view.SortDescriptions.Add(
+            new(nameof(HardwareMappingRow.Area), System.ComponentModel.ListSortDirection.Ascending));
+        view.SortDescriptions.Add(
+            new(nameof(HardwareMappingRow.Section), System.ComponentModel.ListSortDirection.Ascending));
+        view.SortDescriptions.Add(
+            new(nameof(HardwareMappingRow.Order), System.ComponentModel.ListSortDirection.Ascending));
+        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(HardwareMappingRow.Area)));
+        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(HardwareMappingRow.Section)));
         return view;
     }
 }

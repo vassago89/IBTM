@@ -16,18 +16,14 @@ public sealed class PhysicalIoService(
     IReadOnlyDictionary<InputIo, int> inputMap,
     IReadOnlyDictionary<OutputIo, OutputHardware> outputMap,
     MachineOptions options,
-    ApplicationLog? log = null)
-    : IIoService, IDisposable
+    ApplicationLog? log = null) : IIoService, IDisposable
 {
     // Persisted logical address boundary, not the detected AlphaMotion board size.
     private const int AlphaMotionChannelCount = AlphaMotionController.ChannelCount;
-    private static readonly TimeSpan InputPollInterval =
-        TimeSpan.FromMilliseconds(10);
+    private static readonly TimeSpan InputPollInterval = TimeSpan.FromMilliseconds(10);
     private static readonly InputIo[] Inputs = Enum.GetValues<InputIo>();
-    private readonly bool[] _inputs = new bool[
-        Inputs.Max(input => (int)input) + 1];
-    private readonly bool[] _inputScan = new bool[
-        Inputs.Max(input => (int)input) + 1];
+    private readonly bool[] _inputs = new bool[Inputs.Max(input => (int)input) + 1];
+    private readonly bool[] _inputScan = new bool[Inputs.Max(input => (int)input) + 1];
     private readonly InputIo[] _changedInputs = new InputIo[Inputs.Length];
     private readonly uint[] _rtexInputs = new uint[ajin.RtexInputWordCount];
     private readonly Lock _lifecycleGate = new();
@@ -38,8 +34,21 @@ public sealed class PhysicalIoService(
     public event Action<InputIo, bool>? InputChanged;
     public event Action<OutputIo, bool>? OutputChanged;
     public event Action<Exception>? Faulted;
-    public bool IsReady => _ready;
-    public int TimeoutMilliseconds => options.TimeoutMilliseconds;
+    public bool IsReady
+    {
+        get
+        {
+            return _ready;
+        }
+    }
+
+    public int TimeoutMilliseconds
+    {
+        get
+        {
+            return options.TimeoutMilliseconds;
+        }
+    }
 
     public void Initialize()
     {
@@ -73,8 +82,7 @@ public sealed class PhysicalIoService(
                 _ready = true;
                 _inputMonitor = new CancellationTokenSource();
                 var cancellationToken = _inputMonitor.Token;
-                _inputMonitorTask = Task.Run(
-                    () => MonitorInputsAsync(cancellationToken));
+                _inputMonitorTask = Task.Run(() => MonitorInputsAsync(cancellationToken));
             }
             catch (Exception exception)
             {
@@ -119,14 +127,20 @@ public sealed class PhysicalIoService(
         }
     }
 
-    public bool GetInput(InputIo input) =>
-        Volatile.Read(ref _inputs[(int)input]);
+    public bool GetInput(InputIo input)
+    {
+        return Volatile.Read(ref _inputs[(int)input]);
+    }
 
-    public bool GetOutput(OutputIo output) =>
-        ReadOutput(outputMap[output].Number);
+    public bool GetOutput(OutputIo output)
+    {
+        return ReadOutput(outputMap[output].Number);
+    }
 
-    public OutputFeedback? GetOutputFeedback(OutputIo output) =>
-        outputMap[output].Feedback;
+    public OutputFeedback? GetOutputFeedback(OutputIo output)
+    {
+        return outputMap[output].Feedback;
+    }
 
     public void SetOutput(OutputIo output, bool value)
     {
@@ -145,7 +159,9 @@ public sealed class PhysicalIoService(
         }
         catch (Exception exception)
         {
-            log?.Error($"DO {output}, channel={mapping.Number}, paired OFF={mapping.OffNumber}: write {(value ? "ON" : "OFF")} failed.", exception);
+            log?.Error(
+                $"DO {output}, channel={mapping.Number}, paired OFF={mapping.OffNumber}: write {(value ? "ON" : "OFF")} failed.",
+                exception);
             throw;
         }
 
@@ -166,22 +182,25 @@ public sealed class PhysicalIoService(
     {
         _inputMonitor?.Cancel();
         // Monitor failures have already been reported through Faulted.
-        _inputMonitorTask?.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing)
-            .GetAwaiter().GetResult();
+        _inputMonitorTask?.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing).GetAwaiter().GetResult();
         _inputMonitor?.Dispose();
         _inputMonitor = null;
         _inputMonitorTask = null;
     }
 
-    private bool ReadInput(int channel) =>
-        channel < AlphaMotionChannelCount
+    private bool ReadInput(int channel)
+    {
+        return channel < AlphaMotionChannelCount
             ? alphaMotion.ReadInput(channel)
             : ajin.ReadRtexInput(channel - AlphaMotionChannelCount);
+    }
 
-    private bool ReadOutput(int channel) =>
-        channel < AlphaMotionChannelCount
+    private bool ReadOutput(int channel)
+    {
+        return channel < AlphaMotionChannelCount
             ? alphaMotion.ReadOutput(channel)
             : ajin.ReadRtexOutput(channel - AlphaMotionChannelCount);
+    }
 
     private void WriteOutput(int channel, bool value)
     {
@@ -210,15 +229,17 @@ public sealed class PhysicalIoService(
                 ajin.ReadRtexInputs(_rtexInputs);
                 if (firstScan)
                 {
-                    log?.Write($"First input scan completed. AlphaMotion=0x{alphaInputs:X8}; AJIN words={string.Join(", ", _rtexInputs.Select(word => $"0x{word:X8}"))}.");
+                    log?.Write(
+                        $"First input scan completed. AlphaMotion=0x{alphaInputs:X8}; AJIN words={string.Join(
+                            ", ",
+                            _rtexInputs.Select(word => $"0x{word:X8}"))}.");
                     firstScan = false;
                 }
+
                 stage = "Input address mapping";
                 foreach (var input in Inputs)
                 {
-                    _inputScan[(int)input] = ReadMonitoredInput(
-                        inputMap[input],
-                        alphaInputs);
+                    _inputScan[(int)input] = ReadMonitoredInput(inputMap[input], alphaInputs);
                 }
 
                 var changedCount = 0;
@@ -239,23 +260,24 @@ public sealed class PhysicalIoService(
                 {
                     var input = _changedInputs[index];
                     stage = $"Input change notification: {input}, channel={inputMap[input]}";
-                    log?.Write($"DI {input}, channel={inputMap[input]}: {(_inputScan[(int)input] ? "ON" : "OFF")}");
+                    log?.Write(
+                        $"DI {input}, channel={inputMap[input]}: {(_inputScan[(int)input] ? "ON" : "OFF")}");
                     InputChanged?.Invoke(input, _inputScan[(int)input]);
                 }
 
-                await Task.Delay(InputPollInterval, cancellationToken)
-                    .ConfigureAwait(false);
+                await Task.Delay(InputPollInterval, cancellationToken).ConfigureAwait(false);
             }
         }
-        catch (OperationCanceledException) when (
-            cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             log?.Write("Input scan stopped.");
         }
         catch (Exception exception)
         {
             _ready = false;
-            log?.Error($"Input scan stopped by error during {stage}. Inputs will no longer update until initialization succeeds.", exception);
+            log?.Error(
+                $"Input scan stopped by error during {stage}. Inputs will no longer update until initialization succeeds.",
+                exception);
             Faulted?.Invoke(exception);
             throw;
         }

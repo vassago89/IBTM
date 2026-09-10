@@ -42,52 +42,77 @@ public sealed class NgCarrierTransfer : INgCarrierTransferFeedback
 
     public event Action? Changed;
 
-    public bool CarrierDetected =>
-        _io.GetInput(InputIo.NgCarrierDetected);
-    public NgTransferLiftState Lift =>
-        (_io.GetInput(InputIo.NgCarrierPickupUp),
-            _io.GetInput(InputIo.NgCarrierPickupDown)) switch
+    public bool CarrierDetected
+    {
+        get
         {
-            (true, false) => NgTransferLiftState.Up,
-            (false, true) => NgTransferLiftState.Down,
-            _ => NgTransferLiftState.Between,
-        };
-    public NgTransferGripperState Gripper =>
-        (_io.GetInput(InputIo.NgCarrierGripperOpen),
-            _io.GetInput(InputIo.NgCarrierGripperClosed)) switch
+            return _io.GetInput(InputIo.NgCarrierDetected);
+        }
+    }
+
+    public NgTransferLiftState Lift
+    {
+        get
         {
-            (true, false) => NgTransferGripperState.Open,
-            (false, true) => NgTransferGripperState.Closed,
-            _ => NgTransferGripperState.Between,
-        };
-    public bool IsRaised => Lift == NgTransferLiftState.Up;
-    public bool IsClear => IsRaised && !CarrierDetected;
+            return (_io.GetInput(InputIo.NgCarrierPickupUp), _io.GetInput(InputIo.NgCarrierPickupDown)) switch
+            {
+                (true, false) => NgTransferLiftState.Up,
+                (false, true) => NgTransferLiftState.Down,
+                _ => NgTransferLiftState.Between,
+            };
+        }
+    }
 
-    public Task RaiseAsync(CancellationToken cancellationToken = default) =>
-        SetLiftDownAsync(false, cancellationToken);
+    public NgTransferGripperState Gripper
+    {
+        get
+        {
+            return (
+                _io.GetInput(InputIo.NgCarrierGripperOpen),
+                _io.GetInput(InputIo.NgCarrierGripperClosed)) switch
+            {
+                (true, false) => NgTransferGripperState.Open,
+                (false, true) => NgTransferGripperState.Closed,
+                _ => NgTransferGripperState.Between,
+            };
+        }
+    }
 
-    public Task SetLiftDownAsync(
-        bool down,
-        CancellationToken cancellationToken = default) =>
-        _io.SetOutputAndWaitAsync(
-            OutputIo.NgCarrierPickupDown,
-            down,
-            cancellationToken);
+    public bool IsRaised
+    {
+        get
+        {
+            return Lift == NgTransferLiftState.Up;
+        }
+    }
 
-    public Task SetGripperClosedAsync(
-        bool closed,
-        CancellationToken cancellationToken = default) =>
-        _io.SetOutputAndWaitAsync(
-            OutputIo.NgCarrierGripperClose,
-            closed,
-            cancellationToken);
+    public bool IsClear
+    {
+        get
+        {
+            return IsRaised && !CarrierDetected;
+        }
+    }
 
-    internal Task WaitForCarrierGripAsync(
-        CancellationToken cancellationToken = default) =>
-        _io.WaitForInputAsync(
-            InputIo.NgCarrierDetected,
-            true,
-            cancellationToken);
+    public Task RaiseAsync(CancellationToken cancellationToken = default)
+    {
+        return SetLiftDownAsync(false, cancellationToken);
+    }
+
+    public Task SetLiftDownAsync(bool down, CancellationToken cancellationToken = default)
+    {
+        return _io.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, down, cancellationToken);
+    }
+
+    public Task SetGripperClosedAsync(bool closed, CancellationToken cancellationToken = default)
+    {
+        return _io.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperClose, closed, cancellationToken);
+    }
+
+    internal Task WaitForCarrierGripAsync(CancellationToken cancellationToken = default)
+    {
+        return _io.WaitForInputAsync(InputIo.NgCarrierDetected, true, cancellationToken);
+    }
 
     private void OnInputChanged(InputIo input, bool _)
     {

@@ -13,13 +13,20 @@ namespace IBTM;
 
 public enum DryRunTarget
 {
-    [Description("NG Transfer")] NgTransfer,
-    [Description("Inspection Route")] Inspection,
-    [Description("Main Conveyor")] MainConveyor,
-    [Description("PCB Return")] PcbReturn,
-    [Description("PCB Round Trip")] PcbRoundTrip,
-    [Description("NG Conveyor Round Trip")] NgConveyor,
-    [Description("Bolt Route")] BoltRoute,
+    [Description("NG Transfer")]
+    NgTransfer,
+    [Description("Inspection Route")]
+    Inspection,
+    [Description("Main Conveyor")]
+    MainConveyor,
+    [Description("PCB Return")]
+    PcbReturn,
+    [Description("PCB Round Trip")]
+    PcbRoundTrip,
+    [Description("NG Conveyor Round Trip")]
+    NgConveyor,
+    [Description("Bolt Route")]
+    BoltRoute,
 }
 
 // A completed display read, never an authorization to operate the equipment.
@@ -57,9 +64,17 @@ public sealed record MachineDisplay
     public bool CanRaiseCylinders { get; init; }
     public IReadOnlySet<(MotionGroup Group, MotionAxis Axis)> HomeableAxes { get; init; } = new HashSet<(MotionGroup, MotionAxis)>();
     public ManualControlBlock ManualBlock { get; init; } = ManualControlBlock.MotionNotReady;
-    public bool ManualControlsEnabled => Available && ManualBlock == ManualControlBlock.None;
+
+    public bool ManualControlsEnabled
+    {
+        get
+        {
+            return Available && ManualBlock == ManualControlBlock.None;
+        }
+    }
+
     public bool ManualSetupEnabled { get; init; }
-    public OutputBlockReason ManualOutputBlock { get; init; } = OutputBlockReason.StateUnavailable;
+    public bool SetupEditingEnabled { get; init; }
     public PcbPlacementState PlacementState { get; init; }
     public HeatSinkSlot? PlacementTarget { get; init; }
     public BoltFasteningState FasteningState { get; init; }
@@ -80,7 +95,15 @@ public sealed record MachineDisplay
     public bool? InspectionDryRunBoltPresent { get; init; }
     // Collision clearance only, not automatic-run or whole-machine readiness.
     public OutputBlockReason MainConveyorPathBlock { get; init; } = OutputBlockReason.StateUnavailable;
-    public bool MainConveyorPathClear => MainConveyorPathBlock == OutputBlockReason.None;
+
+    public bool MainConveyorPathClear
+    {
+        get
+        {
+            return MainConveyorPathBlock == OutputBlockReason.None;
+        }
+    }
+
     public MainConveyorDryRunState MainConveyorDryRunState { get; init; }
     public MainConveyorDestination MainConveyorDestination { get; init; }
     public int MainConveyorDryRunPasses { get; init; }

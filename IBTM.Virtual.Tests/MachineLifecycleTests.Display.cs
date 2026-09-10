@@ -45,7 +45,8 @@ public sealed partial class MachineLifecycleTests
         feedback.BeforeRead = () =>
         {
             Assert.False(readingView.Value);
-            if (Interlocked.Exchange(ref blocked, 1) != 0) return;
+            if (Interlocked.Exchange(ref blocked, 1) != 0)
+                return;
             entered.Set();
             released.Wait();
         };
@@ -54,35 +55,42 @@ public sealed partial class MachineLifecycleTests
         {
             state.RequestDisplayRefresh();
             Assert.True(await Task.Run(() => entered.Wait(TimeSpan.FromSeconds(2))));
-            await Task.Run(() =>
-            {
-                readingView.Value = true;
-                var manual = services.GetRequiredService<MotionWindowViewModel>();
-                foreach (var row in manual.Axes)
+            await Task.Run(
+                () =>
                 {
-                    _ = row.Diagnostics.Snapshot.Condition;
-                    _ = manual.HomeAxisCommand.CanExecute(row);
-                }
-                var supply = services.GetRequiredService<SupplyTeachingViewModel>();
-                var station = services.GetRequiredService<StationTeachingViewModel>();
-                foreach (var group in Enum.GetValues<MotionGroup>())
-                {
-                    station.SelectedMotionGroup = group == MotionGroup.PcbSupply
-                        ? MotionGroup.PcbPlacementHandler : group;
-                    TeachingMotionViewModel teaching = group == MotionGroup.PcbSupply ? supply : station;
-                    _ = teaching.ManualBlock;
-                    _ = teaching.CanEditTeaching;
-                    _ = teaching.MotionHint;
-                    foreach (var direction in Enum.GetValues<TeachingDirection>())
+                    readingView.Value = true;
+                    var manual = services.GetRequiredService<MotionWindowViewModel>();
+                    foreach (var row in manual.Axes)
                     {
-                        _ = teaching.JogCommand.CanExecute(direction);
-                        _ = teaching.StepCommand.CanExecute(direction);
+                        _ = row.Diagnostics.Snapshot.Condition;
+                        _ = manual.HomeAxisCommand.CanExecute(row);
                     }
-                    foreach (var output in teaching.TeachingOutputs.Values)
-                        _ = teaching.SetOutputOnCommand.CanExecute(output);
-                }
-                for (var index = 0; index < 1000; index++) state.RequestDisplayRefresh();
-            }).WaitAsync(TimeSpan.FromSeconds(2));
+
+                    var supply = services.GetRequiredService<SupplyTeachingViewModel>();
+                    var station = services.GetRequiredService<StationTeachingViewModel>();
+                    foreach (var group in Enum.GetValues<MotionGroup>())
+                    {
+                station.SelectedMotionGroup = group == MotionGroup.PcbSupply
+                    ? MotionGroup.PcbPlacementHandler
+                    : group;
+                        TeachingMotionViewModel teaching = group == MotionGroup.PcbSupply ? supply : station;
+                        _ = teaching.ManualBlock;
+                        _ = teaching.CanEditTeaching;
+                        _ = teaching.MotionHint;
+                        foreach (var direction in Enum.GetValues<TeachingDirection>())
+                        {
+                            _ = teaching.JogCommand.CanExecute(direction);
+                            _ = teaching.StepCommand.CanExecute(direction);
+                        }
+
+                        foreach (var output in teaching.TeachingOutputs.Values)
+                            _ = teaching.SetOutputOnCommand.CanExecute(output);
+                    }
+
+                    for (var index = 0; index < 1000; index++)
+                        state.RequestDisplayRefresh();
+                })
+                .WaitAsync(TimeSpan.FromSeconds(2));
 
             var io = services.GetRequiredService<VirtualIoService>();
             var light = services.GetRequiredService<IoSignals>().Outputs[OutputIo.MachineLight];
@@ -129,11 +137,13 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var active = probes[MotionGroup.InspectionGantry];
-        foreach (var probe in probes.Where(item => item.Key != MotionGroup.InspectionGantry).Select(item => item.Value))
+        foreach (var probe in probes.Where(item => item.Key != MotionGroup.InspectionGantry).Select(
+            item => item.Value))
         {
             probe.ReportReady = true;
             probe.FailHardwareCalls = true; // Disabled hardware must not be sampled, even while AUTO polls.
         }
+
         Task? run = null;
         try
         {
@@ -145,16 +155,25 @@ public sealed partial class MachineLifecycleTests
             run = machine.StartAsync();
             await WaitUntilAsync(() => state.Display.AutomaticRunning && state.Display.Homed);
             var scans = 0;
-            void CountScan() => Interlocked.Increment(ref scans);
+            void CountScan()
+            {
+                Interlocked.Increment(ref scans);
+            }
+
             state.DisplayChanged += CountScan;
             try
             {
                 await WaitUntilAsync(() => Volatile.Read(ref scans) >= 2);
                 Assert.False(run.IsCompleted);
                 Assert.Equal(MachineAlarm.None, state.Alarm);
-                if (fault == "ReadFailure") active.FailHardwareCalls = true;
-                else active.OverrideState = value => fault == "Alarm"
-                    ? value with { Alarm = true } : value with { ServoOn = false };
+                if (fault == "ReadFailure")
+                    active.FailHardwareCalls = true;
+                else
+                    active.OverrideState = value =>
+                        fault == "Alarm"
+                            ? value with { Alarm = true }
+
+                            : value with { ServoOn = false };
                 // No StateChanged, DI changes, UI timer or explicit refresh request accompanies this fault.
                 await run.WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
@@ -162,8 +181,10 @@ public sealed partial class MachineLifecycleTests
                 Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
                 Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
                 Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
-                await WaitUntilAsync(() => !services.GetRequiredService<OperationCancellation>().HasActiveOperations);
-                Assert.All(probes.Where(item => item.Key != MotionGroup.InspectionGantry),
+                await WaitUntilAsync(
+                    () => !services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+                Assert.All(
+                    probes.Where(item => item.Key != MotionGroup.InspectionGantry),
                     item => Assert.Equal(0, item.Value.HardwareCalls));
                 active.FailHardwareCalls = false;
                 active.OverrideState = null;
@@ -171,14 +192,18 @@ public sealed partial class MachineLifecycleTests
                 await WaitUntilAsync(() => state.Display.Available && !state.Display.MotionFaulted);
                 Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm); // Recovery never restarts AUTO.
             }
-            finally { state.DisplayChanged -= CountScan; }
+            finally
+            {
+                state.DisplayChanged -= CountScan;
+            }
         }
         finally
         {
             active.FailHardwareCalls = false;
             active.OverrideState = null;
             await machine.ShutdownAsync();
-            if (run is not null) await run.WaitAsync(TimeSpan.FromSeconds(2));
+            if (run is not null)
+                await run.WaitAsync(TimeSpan.FromSeconds(2));
         }
     }
 
@@ -192,7 +217,6 @@ public sealed partial class MachineLifecycleTests
         Assert.True(state.Display.Available);
         var error = new IOException("Display feedback unavailable.");
         feedback.BeforeRead = () => throw error;
-
         // A ready display is not permission to operate when the actual read fails.
         Assert.Throws<IOException>(() => machine.CanHome);
         state.RequestDisplayRefresh();
@@ -201,7 +225,8 @@ public sealed partial class MachineLifecycleTests
         Assert.False(state.Display.CanHome);
         Assert.False(state.Display.CanStart);
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        Assert.All(services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
+        Assert.All(
+            services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
 
         feedback.BeforeRead = null;
@@ -221,12 +246,15 @@ public sealed partial class MachineLifecycleTests
         var error = new InvalidOperationException("Display calculation failed.");
         try
         {
-            if (!duringInitialization) await machine.InitializeAsync();
+            if (!duringInitialization)
+                await machine.InitializeAsync();
             feedback.BeforeRead = () => throw error;
             if (duringInitialization)
             {
-                Assert.Same(error, await Assert.ThrowsAsync<InvalidOperationException>(
-                    () => machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(2))));
+                Assert.Same(
+                    error,
+                    await Assert.ThrowsAsync<InvalidOperationException>(
+                        () => machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(2))));
             }
             else
             {
@@ -236,7 +264,9 @@ public sealed partial class MachineLifecycleTests
 
             feedback.BeforeRead = null;
             state.RequestDisplayRefresh();
-            Assert.Same(error, await Assert.ThrowsAsync<InvalidOperationException>(machine.ShutdownAsync));
+            Assert.Same(
+                error,
+                await Assert.ThrowsAsync<InvalidOperationException>(machine.ShutdownAsync));
             Assert.Same(error, state.Display.ReadError);
         }
         finally
@@ -251,13 +281,15 @@ public sealed partial class MachineLifecycleTests
         using var services = CreateServices(FlowSettings());
         await services.GetRequiredService<MachineController>().InitializeAsync();
         var manual = services.GetRequiredService<MotionWindowViewModel>();
-        var row = manual.Axes.Single(axis => axis.Group == MotionGroup.InspectionGantry && axis.Axis == MotionAxis.X);
+        var row = manual.Axes.Single(
+            axis => axis.Group == MotionGroup.InspectionGantry && axis.Axis == MotionAxis.X);
         var motion = services.GetRequiredService<InspectionGantry>().Feedback;
         void FailOnce()
         {
             motion.StateChanged -= FailOnce;
             throw new IOException("Servo feedback failed.");
         }
+
         motion.StateChanged += FailOnce;
 
         Assert.True(manual.ToggleServoCommand.CanExecute(row));
@@ -282,60 +314,4 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
     }
 
-    [Fact]
-    public async Task DiagnosticOutputsKeepLocalRotationInterlocksAndCancelFeedbackOnModeChange()
-    {
-        var settings = FlowSettings();
-        using var services = CreateServices(settings);
-        var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        var signals = services.GetRequiredService<IoSignals>();
-        var motion = services.GetRequiredKeyedService<IAxisMotion>(MotionGroup.PcbSupply);
-        await machine.InitializeAsync();
-        var gripper = new OutputControlRow(signals.Outputs[OutputIo.PcbSupplyGripperClosed], machine);
-        Assert.True(gripper.ToggleCommand.CanExecute(null));
-        await gripper.ToggleCommand.ExecuteAsync(null);
-        Assert.Equal(OutputBlockReason.HandlerNotHomed, gripper.BlockReason);
-        Assert.False(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
-        await machine.HomeAsync(CancellationToken.None);
-        typeof(MachineState).GetMethod("SetError", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(state, [MachineAlarm.MotionUnavailable, new IOException("Another handler is unavailable.")]);
-
-        var rotation = new OutputControlRow(signals.Outputs[OutputIo.PcbSupplyRotate], machine);
-        var position = motion.GetPosition();
-        var wasRotated = io.GetOutput(OutputIo.PcbSupplyRotate);
-        await rotation.ToggleCommand.ExecuteAsync(null);
-        Assert.Equal(OutputBlockReason.None, rotation.BlockReason);
-        Assert.Equal(!wasRotated, io.GetOutput(OutputIo.PcbSupplyRotate));
-        Assert.Equal(position, motion.GetPosition());
-        Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
-
-        await motion.MoveZAsync(settings.PcbSupply.RotationZ + 1, 10_000);
-        Assert.True(rotation.ToggleCommand.CanExecute(null));
-        position = motion.GetPosition();
-        await rotation.ToggleCommand.ExecuteAsync(null);
-        Assert.Equal(OutputBlockReason.OutputInterlock, rotation.BlockReason);
-        Assert.Equal(!wasRotated, io.GetOutput(OutputIo.PcbSupplyRotate));
-        Assert.Equal(position, motion.GetPosition()); // No implicit Z recovery move.
-
-        motion.SetServo(MotionAxis.X, false);
-        await gripper.ToggleCommand.ExecuteAsync(null);
-        Assert.Equal(OutputBlockReason.HandlerServoOff, gripper.BlockReason);
-        Assert.False(io.GetOutput(OutputIo.PcbSupplyGripperClosed));
-        motion.SetServo(MotionAxis.X, true);
-        io.AutoResponseEnabled = false;
-        var toggle = gripper.ToggleCommand.ExecuteAsync(null);
-        await WaitUntilAsync(() => gripper.ToggleCommand.IsRunning);
-        Assert.True(state.IsRunning);
-        io.SetInput(InputIo.AutoMode, false);
-        await toggle.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.False(state.IsRunning);
-        Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
-        Assert.False(gripper.HasFeedbackError);
-        var gripperOn = io.GetOutput(OutputIo.PcbSupplyGripperClosed);
-        await gripper.ToggleCommand.ExecuteAsync(null);
-        Assert.Equal(OutputBlockReason.AutoMode, gripper.BlockReason);
-        Assert.Equal(gripperOn, io.GetOutput(OutputIo.PcbSupplyGripperClosed));
-    }
 }

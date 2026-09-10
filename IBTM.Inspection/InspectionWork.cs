@@ -18,21 +18,35 @@ public sealed class InspectionWork : StationWork
         transferFeedback.Changed += NotifyChanged;
     }
 
-    public override bool CanReceive =>
-        base.CanReceive
-        && _transferFeedback.IsClear;
+    public override bool CanReceive
+    {
+        get
+        {
+            return base.CanReceive && _transferFeedback.IsClear;
+        }
+    }
 
-    public bool RouteToNg => !Enabled || HasNg;
+    public bool RouteToNg
+    {
+        get
+        {
+            return !Enabled || HasNg;
+        }
+    }
 
-    public override bool HasNg =>
-        CarrierPresent
-        && (base.HasNg
-            || Completed
-            && (Enabled
-                ? !Assemblies.Any(assembly =>
-                    assembly.InspectionResult != AssemblyResult.Pending)
-                : !HeatSinkPresent(HeatSinkSlot.HeatSink1)
-                  && !HeatSinkPresent(HeatSinkSlot.HeatSink2)));
+    public override bool HasNg
+    {
+        get
+        {
+            return CarrierPresent
+                && (base.HasNg
+                    || Completed
+                    && (Enabled
+                        ? !Assemblies.Any(assembly => assembly.InspectionResult != AssemblyResult.Pending)
+                        : !HeatSinkPresent(HeatSinkSlot.HeatSink1)
+                            && !HeatSinkPresent(HeatSinkSlot.HeatSink2)));
+        }
+    }
 
     internal InspectionWorkState State
     {

@@ -9,12 +9,17 @@ internal static class DevelopmentProfile
 {
     public const string Argument = "--virtual-development";
 
-    public static bool IsEnabled =>
+    public static bool IsEnabled
+    {
+        get
+        {
 #if VIRTUAL_DEVELOPMENT
-        true;
+            return true;
 #else
-        false;
+            return false;
 #endif
+        }
+    }
 
     public static void UseVirtualHardware(MachineSettings settings)
     {
@@ -49,6 +54,7 @@ internal static class DevelopmentProfile
             section.Settings.HorizontalHome.SearchSpeed = 200;
             section.Settings.ZHome.SearchSpeed = 100;
         }
+
         settings.PcbSupply.CarrierY = 10;
         settings.PcbSupply.RotationZ = 0;
         settings.PcbSupply.BufferHandoffPosition = new() { X = 80, Y = 30, Z = 10 };
@@ -94,7 +100,8 @@ internal static class DevelopmentProfile
         var recipe = new Recipe { Name = "Virtual Development" };
         recipe.Pcb = new()
         {
-            Width = 14, Height = 22,
+            Width = 14,
+            Height = 22,
             Origins = new()
             {
                 [HeatSinkSlot.HeatSink1] = new() { X = 3, Y = 2 },
@@ -109,8 +116,7 @@ internal static class DevelopmentProfile
         recipe.BoltFastening.PcbPreset = 4;
         recipe.BoltFastening.IpmSeatingPreset = 3;
         recipe.BoltFastening.IpmFinalPreset = 5;
-        recipe.Pcb.BoltPoints =
-        [
+        recipe.Pcb.BoltPoints = [
             new() { Number = 1, Head = FasteningHead.Shooting, X = 4, Y = 5 },
             new() { Number = 2, Head = FasteningHead.Pickup, X = 4, Y = 17 },
         ];

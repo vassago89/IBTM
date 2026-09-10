@@ -23,25 +23,40 @@ public enum TeachingMoveMode
 
 public enum TeachingDirection
 {
-    [Description("X−")] XMinus,
-    [Description("X+")] XPlus,
-    [Description("Y−")] YMinus,
-    [Description("Y+")] YPlus,
-    [Description("Z−")] ZMinus,
-    [Description("Z+")] ZPlus,
+    [Description("X−")]
+    XMinus,
+    [Description("X+")]
+    XPlus,
+    [Description("Y−")]
+    YMinus,
+    [Description("Y+")]
+    YPlus,
+    [Description("Z−")]
+    ZMinus,
+    [Description("Z+")]
+    ZPlus,
 }
 
 public enum TeachingMotionHint
 {
-    [Description("")] None,
-    [Description("This unit is disabled in Settings.")] UnitDisabled,
-    [Description("Supply is inside the buffer area.")] SupplyInBuffer,
-    [Description("Placement is inside the buffer area.")] PlacementInBuffer,
-    [Description("Raise the NG pickup before moving XY.")] RaiseNgPickup,
-    [Description("Raise the placement handler before moving X/Y.")] RaisePlacementCylinders,
-    [Description("Jog/Step adjust one axis at the current height. Raise both heads before moving to a saved position.")] BoltAdjustment,
-    [Description("Move to Safe Z before moving X/Y.")] SafeZRequired,
-    [Description("Inside buffer: Y and Z moves are disabled.")] SupplyInBufferRestricted,
+    [Description("")]
+    None,
+    [Description("This unit is disabled in Settings.")]
+    UnitDisabled,
+    [Description("Supply is inside the buffer area.")]
+    SupplyInBuffer,
+    [Description("Placement is inside the buffer area.")]
+    PlacementInBuffer,
+    [Description("Raise the NG pickup before moving XY.")]
+    RaiseNgPickup,
+    [Description("Raise the placement handler before moving X/Y.")]
+    RaisePlacementCylinders,
+    [Description("Jog/Step adjust one axis at the current height. Raise both heads before moving to a saved position.")]
+    BoltAdjustment,
+    [Description("Move to Safe Z before moving X/Y.")]
+    SafeZRequired,
+    [Description("Inside buffer: Y and Z moves are disabled.")]
+    SupplyInBufferRestricted,
 }
 
 public abstract partial class TeachingMotionViewModel(
@@ -70,79 +85,177 @@ public abstract partial class TeachingMotionViewModel(
     private string? _saveError;
 
     public TeachingMoveMode[] MoveModes { get; } = Enum.GetValues<TeachingMoveMode>();
-    public ManualControlBlock ManualBlock => state.Display.ManualBlock;
-    public bool CanEditTeaching => state.Display.ManualControlsEnabled;
+
+    public ManualControlBlock ManualBlock
+    {
+        get
+        {
+            return CanEditTeaching
+                ? ManualControlBlock.None
+                : state.Display.AutoMode ? ManualControlBlock.AutoMode : ManualControlBlock.Busy;
+        }
+    }
+
+    public bool CanEditTeaching
+    {
+        get
+        {
+            return state.Display.SetupEditingEnabled;
+        }
+    }
+
     public abstract TeachingMotionHint MotionHint { get; }
-    public IReadOnlyList<IoStatus> IoGroups => ioGroups[CurrentMotionGroup];
+
+    public IReadOnlyList<IoStatus> IoGroups
+    {
+        get
+        {
+            return ioGroups[CurrentMotionGroup];
+        }
+    }
+
     public IReadOnlyList<TeachingIoGroup> TeachingIoGroups
     {
         get
         {
             if (!_teachingIoGroups.TryGetValue(CurrentMotionGroup, out var groups))
             {
-                groups = IoGroups.Select(io => new TeachingIoGroup(io, TeachingOutputs,
-                    SetOutputOnCommand, SetOutputOffCommand, SetOutputOnCancelCommand)).ToArray();
+                groups = IoGroups.Select(
+                    io =>
+                        new TeachingIoGroup(
+                            io,
+                            TeachingOutputs,
+                            SetOutputOnCommand,
+                            SetOutputOffCommand,
+                            SetOutputOnCancelCommand))
+                    .ToArray();
                 _teachingIoGroups.Add(CurrentMotionGroup, groups);
             }
+
             return groups;
         }
     }
-    public IReadOnlyDictionary<OutputIo, TeachingOutput> TeachingOutputs => teachingOutputs[CurrentMotionGroup];
-    public bool HasY => Motion.Feedback.HasY;
-    public bool HasZ => Motion.Feedback.HasZ;
-    public MotionStatus Motion => state.GetMotionStatus(CurrentMotionGroup);
+
+    public IReadOnlyDictionary<OutputIo, TeachingOutput> TeachingOutputs
+    {
+        get
+        {
+            return teachingOutputs[CurrentMotionGroup];
+        }
+    }
+
+    public bool HasY
+    {
+        get
+        {
+            return Motion.Feedback.HasY;
+        }
+    }
+
+    public bool HasZ
+    {
+        get
+        {
+            return Motion.Feedback.HasZ;
+        }
+    }
+
+    public MotionStatus Motion
+    {
+        get
+        {
+            return state.GetMotionStatus(CurrentMotionGroup);
+        }
+    }
+
     protected MachineController Machine { get; } = machine;
 
     protected abstract MotionGroup CurrentMotionGroup { get; }
-    protected bool PositionUpdatesActive => _positionUpdatesActive;
-    protected CancellationToken ViewCancellation => _viewCancellation.Token;
+
+    protected bool PositionUpdatesActive
+    {
+        get
+        {
+            return _positionUpdatesActive;
+        }
+    }
+
+    protected CancellationToken ViewCancellation
+    {
+        get
+        {
+            return _viewCancellation.Token;
+        }
+    }
+
     protected abstract IReadOnlyList<TeachingPoint> CurrentPoints { get; }
     protected abstract TeachingPoint? CurrentPoint { get; set; }
 
     [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
-    private Task TeachCurrentPositionAsync(CancellationToken cancellationToken) =>
-        Machine.RunManualMotionAsync(CurrentMotionGroup, async token =>
-        {
-            var point = CurrentPoint!;
-            var current = Motion.Feedback.GetPosition();
-            point.Teach(current.X, current.Y, current.Z);
-            if (point.Storage == TeachingStorage.Buffer) return;
+    private Task TeachCurrentPositionAsync(CancellationToken cancellationToken)
+    {
+        return Machine.RunTeachingEditAsync(
+            async token =>
+            {
+                if (CurrentPoint is not { TeachMode: not TeachMode.Image, Position.CanTeach: true } point
+                    || !Motion.Feedback.IsReady)
+                    return;
+                var current = Motion.Feedback.GetPosition();
+                point.Teach(current.X, current.Y, current.Z);
+                if (point.Storage == TeachingStorage.Buffer)
+                    return;
 
-            point.Apply();
-            RefreshPointPositions();
-            if (point.Storage == TeachingStorage.Machine
-                && !await SaveSettingsAsync(token, point.Position.Setting!)) return;
+                point.Apply();
+                RefreshPointPositions();
+                if (point.Storage == TeachingStorage.Machine
+                    && !await SaveSettingsAsync(token, point.Position.Setting!))
+                    return;
 
-            token.ThrowIfCancellationRequested();
-            OnPointTaught(point);
-            NotifyManualTeachingCommands();
-        }, cancellationToken, ViewCancellation);
+                token.ThrowIfCancellationRequested();
+                OnPointTaught(point);
+                NotifyManualTeachingCommands();
+            },
+            cancellationToken,
+            ViewCancellation);
+    }
 
-    private bool CanTeachCurrentPosition() =>
-        CurrentPoint is { TeachMode: not TeachMode.Image, Position.CanTeach: true }
-        && Machine.CanUseManualMotion(CurrentMotionGroup, live: false);
+    private bool CanTeachCurrentPosition()
+    {
+        return CurrentPoint is { TeachMode: not TeachMode.Image, Position.CanTeach: true }
+            && CanEditTeaching
+            && Motion.Feedback.IsReady;
+    }
 
     protected abstract void RefreshPointPositions();
-    protected virtual void OnPointTaught(TeachingPoint point) { }
+    protected virtual void OnPointTaught(TeachingPoint point)
+    {
+    }
 
     [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
     private Task MoveToPointAsync(CancellationToken cancellationToken)
     {
         var point = CurrentPoint!;
-        return Machine.RunManualMotionAsync(CurrentMotionGroup,
-            token => MovePointAsync(point, token), cancellationToken, ViewCancellation);
+        return Machine.RunManualMotionAsync(
+            CurrentMotionGroup,
+            token => MovePointAsync(point, token),
+            cancellationToken,
+            ViewCancellation);
     }
 
     protected abstract bool CanMoveToPoint();
     protected abstract Task MovePointAsync(TeachingPoint point, CancellationToken cancellationToken);
 
-    protected async Task<bool> SaveSettingsAsync(CancellationToken cancellationToken, params Setting[] settings)
+    protected async Task<bool> SaveSettingsAsync(
+        CancellationToken cancellationToken,
+        params Setting[] settings)
     {
         SaveError = null;
         try
         {
             await Task.Run(() => store.SaveSettings(settings, cancellationToken), cancellationToken);
-            System.Diagnostics.Trace.TraceInformation("Teaching settings saved: {0}.", CurrentMotionGroup);
+            System.Diagnostics.Trace.TraceInformation(
+                "Teaching settings saved: {0}.",
+                CurrentMotionGroup);
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -151,7 +264,10 @@ public abstract partial class TeachingMotionViewModel(
         }
         catch (Exception exception)
         {
-            System.Diagnostics.Trace.TraceError("Teaching settings save failed: {0}. {1}", CurrentMotionGroup, exception);
+            System.Diagnostics.Trace.TraceError(
+                "Teaching settings save failed: {0}. {1}",
+                CurrentMotionGroup,
+                exception);
             SaveError = $"Teaching values were not saved: {exception.GetBaseException().Message}";
             return false;
         }
@@ -162,19 +278,33 @@ public abstract partial class TeachingMotionViewModel(
         get
         {
             for (var index = 0; index < CurrentPoints.Count; index++)
-                if (CurrentPoints[index] == CurrentPoint) return index;
+                if (CurrentPoints[index] == CurrentPoint)
+                    return index;
             return -1;
         }
     }
 
     [RelayCommand(CanExecute = nameof(CanSelectPreviousPoint))]
-    private void SelectPreviousPoint() => CurrentPoint = CurrentPoints[CurrentPointIndex - 1];
+    private void SelectPreviousPoint()
+    {
+        CurrentPoint = CurrentPoints[CurrentPointIndex - 1];
+    }
 
     [RelayCommand(CanExecute = nameof(CanSelectNextPoint))]
-    private void SelectNextPoint() => CurrentPoint = CurrentPoints[CurrentPointIndex + 1];
+    private void SelectNextPoint()
+    {
+        CurrentPoint = CurrentPoints[CurrentPointIndex + 1];
+    }
 
-    private bool CanSelectPreviousPoint() => CurrentPointIndex > 0;
-    private bool CanSelectNextPoint() => CurrentPointIndex < CurrentPoints.Count - 1;
+    private bool CanSelectPreviousPoint()
+    {
+        return CurrentPointIndex > 0;
+    }
+
+    private bool CanSelectNextPoint()
+    {
+        return CurrentPointIndex < CurrentPoints.Count - 1;
+    }
 
     protected void NotifyPointSelectionCommands()
     {
@@ -183,19 +313,28 @@ public abstract partial class TeachingMotionViewModel(
     }
 
     [RelayCommand(CanExecute = nameof(CanSetOutput), IncludeCancelCommand = true)]
-    private Task SetOutputOnAsync(TeachingOutput output, CancellationToken cancellationToken) =>
-        SetOutputAsync(output, true, cancellationToken);
+    private Task SetOutputOnAsync(TeachingOutput output, CancellationToken cancellationToken)
+    {
+        return SetOutputAsync(output, true, cancellationToken);
+    }
 
     [RelayCommand(CanExecute = nameof(CanSetOutput))]
-    private Task SetOutputOffAsync(TeachingOutput output, CancellationToken cancellationToken) =>
-        SetOutputAsync(output, false, cancellationToken);
+    private Task SetOutputOffAsync(TeachingOutput output, CancellationToken cancellationToken)
+    {
+        return SetOutputAsync(output, false, cancellationToken);
+    }
 
-    private bool CanSetOutput(TeachingOutput? output) =>
-        output is not null
-        && TeachingOutputs.ContainsKey(output.Signal)
-        && Machine.CanSetTeachingOutput(output, live: false);
+    private bool CanSetOutput(TeachingOutput? output)
+    {
+        return output is not null
+            && TeachingOutputs.ContainsKey(output.Signal)
+            && Machine.CanSetTeachingOutput(output, live: false);
+    }
 
-    private async Task SetOutputAsync(TeachingOutput output, bool value, CancellationToken cancellationToken)
+    private async Task SetOutputAsync(
+        TeachingOutput output,
+        bool value,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -207,30 +346,34 @@ public abstract partial class TeachingMotionViewModel(
         }
     }
 
-
     [RelayCommand(CanExecute = nameof(CanMoveDirection))]
     private Task JogAsync(TeachingDirection direction, CancellationToken cancellationToken)
     {
         var (axis, sign) = Resolve(direction);
-        return Machine.RunManualMotionAsync(CurrentMotionGroup,
+        return Machine.RunManualMotionAsync(
+            CurrentMotionGroup,
             token => JogCurrentAsync(axis, sign * JogSpeed, token),
-            cancellationToken, ViewCancellation);
+            cancellationToken,
+            ViewCancellation);
     }
 
     [RelayCommand(CanExecute = nameof(CanStep))]
     private Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken)
     {
-        return Machine.RunManualMotionAsync(CurrentMotionGroup,
+        return Machine.RunManualMotionAsync(
+            CurrentMotionGroup,
             token =>
             {
                 var (axis, target) = StepTarget(direction, Motion.Feedback.GetPosition());
                 return MoveCurrentAxisAsync(axis, target, token);
             },
-            cancellationToken, ViewCancellation);
+            cancellationToken,
+            ViewCancellation);
     }
 
     private (MotionAxis Axis, double Position) StepTarget(
-        TeachingDirection direction, (double X, double Y, double Z) current)
+        TeachingDirection direction,
+        (double X, double Y, double Z) current)
     {
         var (axis, sign) = Resolve(direction);
         var position = axis switch
@@ -245,49 +388,69 @@ public abstract partial class TeachingMotionViewModel(
 
     private bool CanStep(TeachingDirection direction)
     {
-        if (!CanMoveDirection(direction)) return false;
+        if (!CanMoveDirection(direction))
+            return false;
         var position = Motion.Position;
         var (axis, target) = StepTarget(direction, (position.X, position.Y, position.Z));
         return Motion.Feedback.GetRange(axis) is not { } range
-               || target >= range.Minimum && target <= range.Maximum;
+            || target >= range.Minimum
+            && target <= range.Maximum;
     }
 
-    private static (MotionAxis Axis, int Sign) Resolve(TeachingDirection direction) => direction switch
+    private static (MotionAxis Axis, int Sign) Resolve(TeachingDirection direction)
     {
-        TeachingDirection.XMinus => (MotionAxis.X, -1),
-        TeachingDirection.XPlus => (MotionAxis.X, 1),
-        TeachingDirection.YMinus => (MotionAxis.Y, -1),
-        TeachingDirection.YPlus => (MotionAxis.Y, 1),
-        TeachingDirection.ZMinus => (MotionAxis.Z, -1),
-        TeachingDirection.ZPlus => (MotionAxis.Z, 1),
-        _ => throw new ArgumentOutOfRangeException(nameof(direction)),
-    };
+        return direction switch
+        {
+            TeachingDirection.XMinus => (MotionAxis.X, -1),
+            TeachingDirection.XPlus => (MotionAxis.X, 1),
+            TeachingDirection.YMinus => (MotionAxis.Y, -1),
+            TeachingDirection.YPlus => (MotionAxis.Y, 1),
+            TeachingDirection.ZMinus => (MotionAxis.Z, -1),
+            TeachingDirection.ZPlus => (MotionAxis.Z, 1),
+            _ => throw new ArgumentOutOfRangeException(nameof(direction)),
+        };
+    }
 
-    private bool CanMoveDirection(TeachingDirection direction) => CanJog(Resolve(direction).Axis);
+    private bool CanMoveDirection(TeachingDirection direction)
+    {
+        return CanJog(Resolve(direction).Axis);
+    }
 
     [RelayCommand]
-    private void JogStop() => CancelTeaching();
+    private void JogStop()
+    {
+        CancelTeaching();
+    }
 
-    private bool CanJogZ() => CanJog(MotionAxis.Z);
+    private bool CanJogZ()
+    {
+        return CanJog(MotionAxis.Z);
+    }
+
     protected abstract bool CanJog(MotionAxis axis);
     protected abstract void NotifyManualTeachingCommands();
 
     [RelayCommand(CanExecute = nameof(CanJogZ))]
-    private Task MoveToHorizontalZAsync(CancellationToken cancellationToken) =>
-        Machine.RunManualMotionAsync(CurrentMotionGroup,
+    private Task MoveToHorizontalZAsync(CancellationToken cancellationToken)
+    {
+        return Machine.RunManualMotionAsync(
+            CurrentMotionGroup,
             MoveCurrentToHorizontalZAsync,
-            cancellationToken, ViewCancellation);
+            cancellationToken,
+            ViewCancellation);
+    }
 
     protected abstract Task JogCurrentAsync(
         MotionAxis axis,
         double velocity,
         CancellationToken cancellationToken);
 
-    protected abstract Task MoveCurrentToHorizontalZAsync(
-        CancellationToken cancellationToken);
+    protected abstract Task MoveCurrentToHorizontalZAsync(CancellationToken cancellationToken);
 
     protected abstract Task MoveCurrentAxisAsync(
-        MotionAxis axis, double position, CancellationToken cancellationToken);
+        MotionAxis axis,
+        double position,
+        CancellationToken cancellationToken);
 
     protected void CancelTeaching()
     {
@@ -325,19 +488,21 @@ public abstract partial class TeachingMotionViewModel(
 
     protected void QueueManualCommandRefresh()
     {
-        if (!PositionUpdatesActive || Interlocked.Exchange(ref _manualCommandRefreshQueued, 1) != 0)
+        if (!PositionUpdatesActive
+            || Interlocked.Exchange(ref _manualCommandRefreshQueued, 1) != 0)
         {
             return;
         }
 
-        Application.Current.Dispatcher.BeginInvoke(() =>
-        {
-            Interlocked.Exchange(ref _manualCommandRefreshQueued, 0);
-            if (PositionUpdatesActive)
+        Application.Current.Dispatcher.BeginInvoke(
+            () =>
             {
-                NotifyManualTeachingCommands();
-            }
-        });
+                Interlocked.Exchange(ref _manualCommandRefreshQueued, 0);
+                if (PositionUpdatesActive)
+                {
+                    NotifyManualTeachingCommands();
+                }
+            });
     }
 
 }

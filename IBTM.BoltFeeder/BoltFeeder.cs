@@ -22,13 +22,17 @@ public abstract class BoltFeeder : AutoUnit
     protected IIoService Io { get; }
     protected abstract int TimeoutMilliseconds { get; }
 
-    public BoltFeederState State =>
-        Io.GetInput(_boltDetected)
-            ? BoltFeederState.BoltReady
-            : BoltFeederState.WaitingForBolt;
+    public BoltFeederState State
+    {
+        get
+        {
+            return Io.GetInput(_boltDetected)
+                ? BoltFeederState.BoltReady
+                : BoltFeederState.WaitingForBolt;
+        }
+    }
 
-    public async Task RunAsync(
-        CancellationToken cancellationToken = default)
+    public async Task RunAsync(CancellationToken cancellationToken = default)
     {
         try
         {
@@ -45,8 +49,7 @@ public abstract class BoltFeeder : AutoUnit
         var waitingForBolt = State == BoltFeederState.WaitingForBolt;
         SetFeeding(waitingForBolt);
         return waitingForBolt
-            ? Io.WaitForInputAsync(
-                _boltDetected, true, TimeoutMilliseconds, cancellationToken)
+            ? Io.WaitForInputAsync(_boltDetected, true, TimeoutMilliseconds, cancellationToken)
             : WaitForChangeAsync(cancellationToken);
     }
 

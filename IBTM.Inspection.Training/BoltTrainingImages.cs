@@ -21,21 +21,33 @@ public static class BoltTrainingImages
     public static ImageFrame Decode(byte[] bytes)
     {
         using var stream = new MemoryStream(bytes, writable: false);
-        var image = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat,
-            BitmapCacheOption.OnLoad).Frames[0];
+        var image = BitmapDecoder.Create(
+            stream,
+            BitmapCreateOptions.PreservePixelFormat,
+            BitmapCacheOption.OnLoad)
+            .Frames[0];
         return ToFrame(image);
     }
 
     internal static BitmapSource Create(ImageFrame image)
     {
-        var bitmap = BitmapSource.Create(image.Width, image.Height, 96, 96,
-            PixelFormats.Bgr24, null, image.Pixels, image.Stride);
+        var bitmap = BitmapSource.Create(
+            image.Width,
+            image.Height,
+            96,
+            96,
+            PixelFormats.Bgr24,
+            null,
+            image.Pixels,
+            image.Stride);
         bitmap.Freeze();
         return bitmap;
     }
 
-    internal static Rect Region(BitmapSource source, int size) => new(
-        (source.PixelWidth - size) / 2, (source.PixelHeight - size) / 2, size, size);
+    internal static Rect Region(BitmapSource source, int size)
+    {
+        return new((source.PixelWidth - size) / 2, (source.PixelHeight - size) / 2, size, size);
+    }
 
     public static ImageFrame ToFrame(BitmapSource source)
     {
@@ -61,14 +73,10 @@ public static class BoltTrainingImages
                 continue;
             }
 
-            var pixel = index / size * image.Stride
-                        + index % size * ImageFrame.ColorChannelCount;
-            pixels[pixel + ImageFrame.BlueChannel] = (byte)(
-                (pixels[pixel + ImageFrame.BlueChannel] * 2 + 40) / 3);
-            pixels[pixel + ImageFrame.GreenChannel] = (byte)(
-                (pixels[pixel + ImageFrame.GreenChannel] * 2 + 90) / 3);
-            pixels[pixel + ImageFrame.RedChannel] = (byte)(
-                (pixels[pixel + ImageFrame.RedChannel] + 510) / 3);
+            var pixel = index / size * image.Stride + index % size * ImageFrame.ColorChannelCount;
+            pixels[pixel + ImageFrame.BlueChannel] = (byte)((pixels[pixel + ImageFrame.BlueChannel] * 2 + 40) / 3);
+            pixels[pixel + ImageFrame.GreenChannel] = (byte)((pixels[pixel + ImageFrame.GreenChannel] * 2 + 90) / 3);
+            pixels[pixel + ImageFrame.RedChannel] = (byte)((pixels[pixel + ImageFrame.RedChannel] + 510) / 3);
         }
 
         var overlay = BitmapSource.Create(

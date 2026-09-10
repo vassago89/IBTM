@@ -4,5 +4,8 @@ namespace IBTM.UI;
 
 public partial class NgConveyorView : UserControl
 {
-    public NgConveyorView() => InitializeComponent();
+    public NgConveyorView()
+    {
+        InitializeComponent();
+    }
 }

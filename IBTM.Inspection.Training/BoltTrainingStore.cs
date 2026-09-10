@@ -12,26 +12,40 @@ namespace IBTM.Inspection.Training;
 
 public enum BoltLabel
 {
-    [Description("Unlabeled")] Unlabeled = 0,
-    [Description("Empty")] Empty = 1,
-    [Description("Bolt")] Bolt = 2,
+    [Description("Unlabeled")]
+    Unlabeled = 0,
+    [Description("Empty")]
+    Empty = 1,
+    [Description("Bolt")]
+    Bolt = 2,
 }
 
 public enum BoltSampleUse
 {
-    [Description("Training")] Training = 0,
-    [Description("Validation")] Validation = 1,
+    [Description("Training")]
+    Training = 0,
+    [Description("Validation")]
+    Validation = 1,
 }
 
-public sealed record BoltSampleInfo(long Id, string Name, BoltLabel Label, BoltSampleUse Use,
-    bool Included, int RegionSize, Point[] Polygon, BoltImageInspection? Inspection = null);
+public sealed record BoltSampleInfo(
+    long Id,
+    string Name,
+    BoltLabel Label,
+    BoltSampleUse Use,
+    bool Included,
+    int RegionSize,
+    Point[] Polygon,
+    BoltImageInspection? Inspection = null);
 internal sealed record BoltTrainedModel(byte[] Weights, int Epochs, double ValidationLoss);
 
 public sealed class BoltTrainingStore
 {
     private readonly DbContextOptions<BoltTrainingDb> _options;
 
-    public BoltTrainingStore() : this(BoltTrainingDb.DefaultFile) { }
+    public BoltTrainingStore() : this(BoltTrainingDb.DefaultFile)
+    {
+    }
 
     public BoltTrainingStore(string databaseFile)
     {
@@ -53,15 +67,22 @@ public sealed class BoltTrainingStore
     {
         using var db = new BoltTrainingDb(_options);
         var row = db.TrainingSettings.Find(1);
-        if (row is null) row = db.TrainingSettings.Add(new()).Entity;
+        if (row is null)
+            row = db.TrainingSettings.Add(new()).Entity;
         row.Value = JsonSerializer.Serialize(settings);
         db.SaveChanges();
     }
 
-    public long AddImage(string name, ImageFrame image, int regionSize, BoltImageInspection? inspection = null)
+    public long AddImage(
+        string name,
+        ImageFrame image,
+        int regionSize,
+        BoltImageInspection? inspection = null)
     {
         if (regionSize <= 0 || regionSize > image.Width || regionSize > image.Height)
-            throw new ArgumentOutOfRangeException(nameof(regionSize), "The central ROI must fit inside the image.");
+            throw new ArgumentOutOfRangeException(
+                nameof(regionSize),
+                "The central ROI must fit inside the image.");
         using var db = new BoltTrainingDb(_options);
         var sample = new BoltTrainingSample
         {
@@ -79,20 +100,44 @@ public sealed class BoltTrainingStore
     {
         using var db = new BoltTrainingDb(_options);
         return db.Samples.OrderBy(sample => sample.Id)
-            .Select(sample => new { sample.Id, sample.Name, sample.Label, sample.SampleUse,
-                sample.Included, sample.RegionSize, sample.Polygon, sample.Inspection })
+            .Select(
+                sample =>
+                    new
+
+                    {
+
+                        sample.Id,
+                        sample.Name,
+                        sample.Label,
+                        sample.SampleUse,
+                        sample.Included,
+                        sample.RegionSize,
+                        sample.Polygon,
+                        sample.Inspection
+
+                    })
             .AsEnumerable()
-            .Select(sample => new BoltSampleInfo(sample.Id, sample.Name, sample.Label, sample.SampleUse,
-                sample.Included, sample.RegionSize, JsonSerializer.Deserialize<Point[]>(sample.Polygon)!,
-                sample.Inspection is null ? null : JsonSerializer.Deserialize<BoltImageInspection>(sample.Inspection)))
+            .Select(
+                sample =>
+                    new BoltSampleInfo(
+                        sample.Id,
+                        sample.Name,
+                        sample.Label,
+                        sample.SampleUse,
+                        sample.Included,
+                        sample.RegionSize,
+                        JsonSerializer.Deserialize<Point[]>(sample.Polygon)!,
+                        sample.Inspection is null
+                            ? null
+                            : JsonSerializer.Deserialize<BoltImageInspection>(sample.Inspection)))
             .ToArray();
     }
 
     public long GetDatabaseSizeBytes()
     {
         using var db = new BoltTrainingDb(_options);
-        return db.Database.SqlQueryRaw<long>(
-            "SELECT page_count * page_size AS Value FROM pragma_page_count(), pragma_page_size()").Single();
+        return db.Database.SqlQueryRaw<long>("SELECT page_count * page_size AS Value FROM pragma_page_count(), pragma_page_size()")
+            .Single();
     }
 
     internal ImageFrame LoadImage(long id)
@@ -106,13 +151,20 @@ public sealed class BoltTrainingStore
     {
         using var db = new BoltTrainingDb(_options);
         var json = JsonSerializer.Serialize(polygon);
-        db.Samples.Where(sample => sample.Id == id).ExecuteUpdate(update => update
-            .SetProperty(sample => sample.SampleUse, sample => sample.Label == label ? sample.SampleUse
-                : db.Samples.Count(other => other.Label == label && other.Id != id) % 5 == 0
-                    ? BoltSampleUse.Validation : BoltSampleUse.Training)
-            .SetProperty(sample => sample.Label, label)
-            .SetProperty(sample => sample.RegionSize, regionSize)
-            .SetProperty(sample => sample.Polygon, json));
+        db.Samples.Where(sample => sample.Id == id)
+            .ExecuteUpdate(
+                update =>
+                    update.SetProperty(
+                        sample => sample.SampleUse,
+                        sample =>
+                            sample.Label == label
+                                ? sample.SampleUse
+                                : db.Samples.Count(other => other.Label == label && other.Id != id) % 5 == 0
+                                    ? BoltSampleUse.Validation
+                                    : BoltSampleUse.Training)
+                        .SetProperty(sample => sample.Label, label)
+                        .SetProperty(sample => sample.RegionSize, regionSize)
+                        .SetProperty(sample => sample.Polygon, json));
     }
 
     public void SetIncluded(long id, bool included)
@@ -125,9 +177,9 @@ public sealed class BoltTrainingStore
     internal BoltTrainedModel LoadModel()
     {
         using var db = new BoltTrainingDb(_options);
-        return db.Models.Select(model => new BoltTrainedModel(model.Weights, model.Epochs, model.ValidationLoss))
-            .SingleOrDefault()
-            ?? throw new InvalidOperationException("No trained bolt model. Train the model in Bolt Training first.");
+        return db.Models.Select(
+            model => new BoltTrainedModel(model.Weights, model.Epochs, model.ValidationLoss))
+            .SingleOrDefault() ?? throw new InvalidOperationException("No trained bolt model. Train the model in Bolt Training first.");
     }
 
     internal void SetUse(long id, BoltSampleUse use)

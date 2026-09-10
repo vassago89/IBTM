@@ -54,8 +54,6 @@ public partial class MainViewModel : ObservableObject
     private readonly ManualHardwareViewModel _manualHardwareViewModel;
     private readonly MachineState _state;
     private readonly MachineController _machine;
-    private readonly UnitSettings _units;
-    private readonly bool _virtualBolt;
     private readonly IAsyncRelayCommand[] _recipeEditingCommands;
     private int _stateRefreshQueued;
     private bool _shuttingDown;
@@ -94,22 +92,17 @@ public partial class MainViewModel : ObservableObject
         RecipeEditor = recipeEditor;
         _state = state;
         _machine = machine;
-        _units = units;
         var controlVirtual = drivers.Control == ControlDriver.Virtual;
         var cameraVirtual = drivers.Camera == CameraDriver.Virtual;
         var boltVirtual = drivers.Bolt == BoltDriver.Virtual;
-        var inspectionSimulated = units.Inspection
-                                  && drivers.Inspection == InspectionAlgorithm.Virtual;
-        _virtualBolt = boltVirtual;
+        var inspectionSimulated = units.Inspection && drivers.Inspection == InspectionAlgorithm.Virtual;
         Environment = (controlVirtual, cameraVirtual, boltVirtual) switch
         {
             (true, true, true) => MachineEnvironmentDisplay.Virtual,
-            (false, false, false) when !inspectionSimulated =>
-                MachineEnvironmentDisplay.Physical,
+            (false, false, false) when !inspectionSimulated => MachineEnvironmentDisplay.Physical,
             _ => MachineEnvironmentDisplay.Mixed,
         };
-        _recipeEditingCommands =
-        [
+        _recipeEditingCommands = [
             recipeEditor.SaveCommand,
             recipeEditor.LoadCommand,
             supplyTeachingViewModel.TeachCurrentPositionCommand,
@@ -132,45 +125,99 @@ public partial class MainViewModel : ObservableObject
         {
             command.PropertyChanged += OnRecipeEditingChanged;
         }
+
         state.DisplayChanged += OnMachineStateChanged;
         ActivateCurrentPage();
     }
 
-    public OperationViewModel Operation => _operationViewModel;
+    public OperationViewModel Operation
+    {
+        get
+        {
+            return _operationViewModel;
+        }
+    }
+
     public RecipeEditor RecipeEditor { get; }
     public BoltImageCollector ImageCollector { get; }
     public MachineEnvironmentDisplay Environment { get; }
-    public bool RecipeToolsVisible =>
-        SelectedPage is AppPage.SupplyTeaching
-            or AppPage.StationTeaching;
-    public bool RecipeEditingEnabled =>
-        _state.ManualMode
-        && !_state.IsRunning
-        && Array.TrueForAll(_recipeEditingCommands, static command => !command.IsRunning);
-    public bool OperationPageSelected =>
-        SelectedPage == AppPage.Operation;
-    public ObservableObject CurrentPage => SelectedPage switch
+
+    public bool RecipeToolsVisible
     {
-        AppPage.Operation => _operationViewModel,
-        AppPage.SupplyTeaching => _supplyTeachingViewModel,
-        AppPage.StationTeaching => _stationTeachingViewModel,
-        AppPage.BoltTraining => _boltTrainingViewModel,
-        AppPage.Settings => _settingsViewModel,
-        AppPage.ManualHardware => _manualHardwareViewModel,
-        _ => throw new ArgumentOutOfRangeException(nameof(SelectedPage)),
-    };
-    public bool ManualControlsEnabled => _state.Display.ManualControlsEnabled;
+        get
+        {
+            return SelectedPage is AppPage.SupplyTeaching or AppPage.StationTeaching;
+        }
+    }
+
+    public bool RecipeEditingEnabled
+    {
+        get
+        {
+            return _state.ManualMode
+                && !_state.IsRunning
+                && Array.TrueForAll(_recipeEditingCommands, static command => !command.IsRunning);
+        }
+    }
+
+    public bool OperationPageSelected
+    {
+        get
+        {
+            return SelectedPage == AppPage.Operation;
+        }
+    }
+
+    public ObservableObject CurrentPage
+    {
+        get
+        {
+            return SelectedPage switch
+            {
+                AppPage.Operation => _operationViewModel,
+                AppPage.SupplyTeaching => _supplyTeachingViewModel,
+                AppPage.StationTeaching => _stationTeachingViewModel,
+                AppPage.BoltTraining => _boltTrainingViewModel,
+                AppPage.Settings => _settingsViewModel,
+                AppPage.ManualHardware => _manualHardwareViewModel,
+                _ => throw new ArgumentOutOfRangeException(nameof(SelectedPage)),
+            };
+        }
+    }
+
+    public bool ManualControlsEnabled
+    {
+        get
+        {
+            return _state.Display.ManualControlsEnabled;
+        }
+    }
+
     // Window access follows selector mode only, not alarm/busy output admission.
-    public bool OutputsWindowEnabled => !_shuttingDown
-        && !_state.Display.AutoMode;
-    public bool AdcProtocolEnabled =>
-        _virtualBolt || _machine.AdcProtocolAvailable;
-    public bool CurrentPageEnabled =>
-        SelectedPage is AppPage.Operation
-            or AppPage.Settings
-            or AppPage.ManualHardware
-        || (!RecipeEditor.SaveCommand.IsRunning
-            && !RecipeEditor.LoadCommand.IsRunning);
+    public bool OutputsWindowEnabled
+    {
+        get
+        {
+            return !_shuttingDown && !_state.Display.AutoMode;
+        }
+    }
+
+    public bool AdcProtocolEnabled
+    {
+        get
+        {
+            return !_shuttingDown;
+        }
+    }
+
+    public bool CurrentPageEnabled
+    {
+        get
+        {
+            return SelectedPage is AppPage.Operation or AppPage.Settings or AppPage.ManualHardware
+                || (!RecipeEditor.SaveCommand.IsRunning && !RecipeEditor.LoadCommand.IsRunning);
+        }
+    }
 
     public Task ShutdownAsync()
     {
@@ -181,6 +228,7 @@ public partial class MainViewModel : ObservableObject
         {
             command.PropertyChanged -= OnRecipeEditingChanged;
         }
+
         return Task.WhenAll(
             CommandShutdown.WaitAsync(CommandShutdown.Capture(ResetCommand)),
             _operationViewModel.ShutdownAsync(),
@@ -196,7 +244,8 @@ public partial class MainViewModel : ObservableObject
     private async Task ResetAsync()
     {
         // The controller rechecks the same conditions as the physical RESET input.
-        if (!CanReset()) return;
+        if (!CanReset())
+            return;
         ResetError = null;
         Trace.TraceInformation("On-screen RESET requested.");
         try
@@ -218,12 +267,21 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool CanReset() => !_shuttingDown && _machine.CanReset;
+    private bool CanReset()
+    {
+        return !_shuttingDown && _machine.CanReset;
+    }
 
     [RelayCommand(CanExecute = nameof(CanNavigate))]
-    private void Navigate(AppPage page) => SelectedPage = page;
+    private void Navigate(AppPage page)
+    {
+        SelectedPage = page;
+    }
 
-    partial void OnSelectedPageChanging(AppPage value) => DeactivateCurrentPage();
+    partial void OnSelectedPageChanging(AppPage value)
+    {
+        DeactivateCurrentPage();
+    }
 
     partial void OnSelectedPageChanged(AppPage value)
     {
@@ -234,17 +292,18 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private bool CanNavigate(AppPage page) =>
-        page == AppPage.Operation
-        || !_state.IsRunning && page switch
-        {
-            AppPage.Settings or AppPage.ManualHardware => true,
-            AppPage.BoltTraining => _state.ManualMode && _state.SafetyReady,
-            AppPage.SupplyTeaching => _state.ManualMode && (_units.PcbSupply || _units.PcbPlacement),
-            AppPage.StationTeaching => _state.ManualMode
-                && (_units.PcbPlacement || _units.BoltFastening || _units.Inspection || _units.NgCarrierTransfer),
-            _ => false,
-        };
+    private bool CanNavigate(AppPage page)
+    {
+        return page == AppPage.Operation
+            || !_shuttingDown
+            && !_state.AutomaticRunning
+            && page switch
+            {
+                AppPage.Settings or AppPage.ManualHardware => true,
+                AppPage.BoltTraining or AppPage.SupplyTeaching or AppPage.StationTeaching => _state.ManualMode,
+                _ => false,
+            };
+    }
 
     private void ActivateCurrentPage()
     {
@@ -307,48 +366,46 @@ public partial class MainViewModel : ObservableObject
 
     private void OnMachineStateChanged()
     {
-        if (_shuttingDown
-            || Interlocked.Exchange(ref _stateRefreshQueued, 1) != 0)
+        if (_shuttingDown || Interlocked.Exchange(ref _stateRefreshQueued, 1) != 0)
         {
             return;
         }
 
-        Application.Current.Dispatcher.BeginInvoke(() =>
-        {
-            Interlocked.Exchange(ref _stateRefreshQueued, 0);
-            if (_shuttingDown)
+        Application.Current.Dispatcher.BeginInvoke(
+            () =>
             {
-                return;
-            }
+                Interlocked.Exchange(ref _stateRefreshQueued, 0);
+                if (_shuttingDown)
+                {
+                    return;
+                }
 
-            OnPropertyChanged(nameof(ManualControlsEnabled));
-            OnPropertyChanged(nameof(OutputsWindowEnabled));
-            OnPropertyChanged(nameof(AdcProtocolEnabled));
-            OnPropertyChanged(nameof(CurrentPageEnabled));
-            OnPropertyChanged(nameof(RecipeEditingEnabled));
-            NavigateCommand.NotifyCanExecuteChanged();
-            ResetCommand.NotifyCanExecuteChanged();
-            if (_state.AutomaticRunning
-                && SelectedPage != AppPage.Operation)
-            {
-                Navigate(AppPage.Operation);
-            }
-            else if (!_state.ManualMode
-                && SelectedPage is AppPage.SupplyTeaching
-                    or AppPage.StationTeaching)
-            {
-                Navigate(AppPage.Operation);
-            }
-            else if ((!_state.SafetyReady || !_state.ManualMode)
-                      && SelectedPage == AppPage.BoltTraining
-                      && !_boltTrainingViewModel.IsBusy)
-            {
-                Navigate(AppPage.Operation);
-            }
+                OnPropertyChanged(nameof(ManualControlsEnabled));
+                OnPropertyChanged(nameof(OutputsWindowEnabled));
+                OnPropertyChanged(nameof(AdcProtocolEnabled));
+                OnPropertyChanged(nameof(CurrentPageEnabled));
+                OnPropertyChanged(nameof(RecipeEditingEnabled));
+                NavigateCommand.NotifyCanExecuteChanged();
+                ResetCommand.NotifyCanExecuteChanged();
+                if (_state.AutomaticRunning && SelectedPage != AppPage.Operation)
+                {
+                    Navigate(AppPage.Operation);
+                }
+                else if (!_state.ManualMode
+                    && SelectedPage is AppPage.SupplyTeaching or AppPage.StationTeaching)
+                {
+                    Navigate(AppPage.Operation);
+                }
+                else if (!_state.ManualMode
+                    && SelectedPage == AppPage.BoltTraining
+                    && !_boltTrainingViewModel.IsBusy)
+                {
+                    Navigate(AppPage.Operation);
+                }
 
-            if (SelectedPage == AppPage.Settings)
-                _settingsViewModel.RefreshCommands();
-        });
+                if (SelectedPage == AppPage.Settings)
+                    _settingsViewModel.RefreshCommands();
+            });
     }
 
 }

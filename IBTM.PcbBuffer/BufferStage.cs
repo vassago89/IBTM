@@ -58,27 +58,51 @@ public sealed class BufferStage
     public event Action? PositionChanged;
     public event Action? StateChanged;
 
-    public bool PcbPresent =>
-        _io.GetInput(InputIo.PcbBufferPcbPresent);
+    public bool PcbPresent
+    {
+        get
+        {
+            return _io.GetInput(InputIo.PcbBufferPcbPresent);
+        }
+    }
 
-    private bool PositionKnown =>
-        _supplyEnabled() && _placementEnabled()
-        && _supplyMotion.IsReady && _placementMotion.IsReady
-        && _supplyMotion.GetAxisState(MotionAxis.X).Homed
-        && _placementMotion.GetAxisState(MotionAxis.X).Homed
-        && _placementMotion.GetAxisState(MotionAxis.Y).Homed
-        && _placementMotion.GetAxisState(MotionAxis.Z).Homed;
+    private bool PositionKnown
+    {
+        get
+        {
+            return _supplyEnabled()
+                && _placementEnabled()
+                && _supplyMotion.IsReady
+                && _placementMotion.IsReady
+                && _supplyMotion.GetAxisState(MotionAxis.X).Homed
+                && _placementMotion.GetAxisState(MotionAxis.X).Homed
+                && _placementMotion.GetAxisState(MotionAxis.Y).Homed
+                && _placementMotion.GetAxisState(MotionAxis.Z).Homed;
+        }
+    }
 
-    public bool SupplyInside =>
-        _supplyEnabled() && _supplyMotion.IsReady
-        && _supplyMotion.GetAxisState(MotionAxis.X).Homed
-        && _settings.ContainsSupplyX(_supplyMotion.GetPosition().X);
+    public bool SupplyInside
+    {
+        get
+        {
+            return _supplyEnabled()
+                && _supplyMotion.IsReady
+                && _supplyMotion.GetAxisState(MotionAxis.X).Homed
+                && _settings.ContainsSupplyX(_supplyMotion.GetPosition().X);
+        }
+    }
 
-    public bool PlacementInside =>
-        _placementEnabled() && _placementMotion.IsReady
-        && _placementMotion.GetAxisState(MotionAxis.X).Homed
-        && _placementMotion.GetAxisState(MotionAxis.Y).Homed
-        && IsInsidePlacement(_placementMotion.GetPosition());
+    public bool PlacementInside
+    {
+        get
+        {
+            return _placementEnabled()
+                && _placementMotion.IsReady
+                && _placementMotion.GetAxisState(MotionAxis.X).Homed
+                && _placementMotion.GetAxisState(MotionAxis.Y).Homed
+                && IsInsidePlacement(_placementMotion.GetPosition());
+        }
+    }
 
     private bool PlacementBlocksSupply
     {
@@ -91,44 +115,92 @@ public sealed class BufferStage
             }
 
             var position = _placementMotion.GetPosition();
-            return IsInsidePlacement(position)
-                && position.Z > _placementEntryZ();
+            return IsInsidePlacement(position) && position.Z > _placementEntryZ();
         }
     }
 
-    public bool SupplyAtHandoff =>
-        _supplyEnabled() && _supplyMotion.IsReady
-        && IsSettled(_supplyMotion)
-        && IsAt(_supplyMotion.GetPosition(), _supplyHandoff);
+    public bool SupplyAtHandoff
+    {
+        get
+        {
+            return _supplyEnabled()
+                && _supplyMotion.IsReady
+                && IsSettled(_supplyMotion)
+                && IsAt(_supplyMotion.GetPosition(), _supplyHandoff);
+        }
+    }
 
-    public bool PlacementSecuredAtHandoff =>
-        PlacementAtHandoff
-        && _placementState.PcbSecured;
+    public bool PlacementSecuredAtHandoff
+    {
+        get
+        {
+            return PlacementAtHandoff && _placementState.PcbSecured;
+        }
+    }
 
-    public bool PlacementAtHandoff =>
-        _placementEnabled() && _placementMotion.IsReady
-        && IsSettled(_placementMotion)
-        && IsAt(_placementMotion.GetPosition(), _placementHandoff);
+    public bool PlacementAtHandoff
+    {
+        get
+        {
+            return _placementEnabled()
+                && _placementMotion.IsReady
+                && IsSettled(_placementMotion)
+                && IsAt(_placementMotion.GetPosition(), _placementHandoff);
+        }
+    }
 
     // Shared-buffer transfers still require both handlers to be enabled and
     // homed; ignoring an unused drive is not permission to enter an unknown zone.
-    public bool CanSupplyLower => PositionKnown && !PlacementBlocksSupply;
-    public bool CanSupplyEnter => CanSupplyLower && !PcbPresent;
-    public bool CanPlacementEnter =>
-        PositionKnown
-        && PcbPresent
-        && (!SupplyInside || SupplyAtHandoff);
-    public bool CanPlacementReturn =>
-        PositionKnown && !SupplyInside
-        && (!PcbPresent || PlacementInside && _placementState.PcbSecured);
-    public bool CanSupplyReturn =>
-        PositionKnown && PcbPresent && PlacementSecuredAtHandoff;
+    public bool CanSupplyLower
+    {
+        get
+        {
+            return PositionKnown && !PlacementBlocksSupply;
+        }
+    }
+
+    public bool CanSupplyEnter
+    {
+        get
+        {
+            return CanSupplyLower && !PcbPresent;
+        }
+    }
+
+    public bool CanPlacementEnter
+    {
+        get
+        {
+            return PositionKnown && PcbPresent && (!SupplyInside || SupplyAtHandoff);
+        }
+    }
+
+    public bool CanPlacementReturn
+    {
+        get
+        {
+            return PositionKnown
+                && !SupplyInside
+                && (!PcbPresent || PlacementInside && _placementState.PcbSecured);
+        }
+    }
+
+    public bool CanSupplyReturn
+    {
+        get
+        {
+            return PositionKnown && PcbPresent && PlacementSecuredAtHandoff;
+        }
+    }
+
     public bool Conflict
     {
         get
         {
-            if (!_supplyEnabled() || !_placementEnabled()
-                || !_supplyMotion.IsReady || !_placementMotion.IsReady
+            if (!_supplyEnabled()
+                || !_placementEnabled()
+                || !_supplyMotion.IsReady
+                || !_placementMotion.IsReady
                 || !_supplyMotion.GetAxisState(MotionAxis.X).Homed)
             {
                 return false;
@@ -149,30 +221,26 @@ public sealed class BufferStage
                 return false;
             }
 
-            var supplyAtHandoff = IsSettled(_supplyMotion)
-                                  && IsAt(
-                                      supplyPosition,
-                                      _supplyHandoff);
-            var placementAtHandoff = IsSettled(_placementMotion)
-                                     && IsAt(
-                                         placementPosition,
-                                         _placementHandoff);
+            var supplyAtHandoff = IsSettled(_supplyMotion) && IsAt(supplyPosition, _supplyHandoff);
+            var placementAtHandoff = IsSettled(_placementMotion) && IsAt(
+                placementPosition,
+                _placementHandoff);
             return !supplyAtHandoff && !placementAtHandoff;
         }
     }
 
-    public Task WaitForPcbAsync(
-        CancellationToken cancellationToken = default) =>
-        _io.WaitForInputAsync(
-            InputIo.PcbBufferPcbPresent,
-            true,
-            cancellationToken);
+    public Task WaitForPcbAsync(CancellationToken cancellationToken = default)
+    {
+        return _io.WaitForInputAsync(InputIo.PcbBufferPcbPresent, true, cancellationToken);
+    }
 
-    public async Task WaitForSupplyOutsideAsync(
-        CancellationToken cancellationToken = default)
+    public async Task WaitForSupplyOutsideAsync(CancellationToken cancellationToken = default)
     {
         var changed = new AsyncAutoResetEvent();
-        void OnStateChanged() => changed.Set();
+        void OnStateChanged()
+        {
+            changed.Set();
+        }
 
         StateChanged += OnStateChanged;
         try
@@ -188,32 +256,24 @@ public sealed class BufferStage
         }
     }
 
-    private static bool IsAt(
-        (double X, double Y, double Z) current,
-        AxisPosition target) =>
-        Math.Abs(current.X - target.X)
-            <= MotionService.PositionToleranceMillimeters
-        && Math.Abs(current.Y - target.Y)
-            <= MotionService.PositionToleranceMillimeters
-        && Math.Abs(current.Z - target.Z)
-            <= MotionService.PositionToleranceMillimeters;
+    private static bool IsAt((double X, double Y, double Z) current, AxisPosition target)
+    {
+        return Math.Abs(current.X - target.X) <= MotionService.PositionToleranceMillimeters
+            && Math.Abs(current.Y - target.Y) <= MotionService.PositionToleranceMillimeters
+            && Math.Abs(current.Z - target.Z) <= MotionService.PositionToleranceMillimeters;
+    }
 
-    private bool IsInsidePlacement((double X, double Y, double Z) position) =>
-        Between(
-            position.X,
-            _settings.PlacementBoundary1.X,
-            _settings.PlacementBoundary2.X)
-        && Between(
-            position.Y,
-            _settings.PlacementBoundary1.Y,
-            _settings.PlacementBoundary2.Y);
+    private bool IsInsidePlacement((double X, double Y, double Z) position)
+    {
+        return Between(position.X, _settings.PlacementBoundary1.X, _settings.PlacementBoundary2.X)
+            && Between(position.Y, _settings.PlacementBoundary1.Y, _settings.PlacementBoundary2.Y);
+    }
 
-    private static bool Between(
-        double value,
-        double boundary1,
-        double boundary2) =>
-        value >= Math.Min(boundary1, boundary2)
-        && value <= Math.Max(boundary1, boundary2);
+    private static bool Between(double value, double boundary1, double boundary2)
+    {
+        return value >= Math.Min(boundary1, boundary2)
+            && value <= Math.Max(boundary1, boundary2);
+    }
 
     private static bool IsSettled(IMotionFeedback motion)
     {

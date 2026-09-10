@@ -31,10 +31,15 @@ public sealed class NgShuttle : AutoUnit
 
     public NgShuttleFeedback Feedback { get; }
 
-    public bool CanReceive =>
-        Feedback.Lift == NgShuttleLiftState.Up
-        && !Feedback.CarrierDetected
-        && _conveyor.CanAcceptCarrier;
+    public bool CanReceive
+    {
+        get
+        {
+            return Feedback.Lift == NgShuttleLiftState.Up
+                && !Feedback.CarrierDetected
+                && _conveyor.CanAcceptCarrier;
+        }
+    }
 
     public NgShuttleState State
     {
@@ -75,31 +80,33 @@ public sealed class NgShuttle : AutoUnit
         }
     }
 
-    public Task RunAsync(CancellationToken cancellationToken = default) =>
-        RunLoopAsync(ExecuteAsync, cancellationToken);
-
-    private Task ExecuteAsync(CancellationToken cancellationToken) => State switch
+    public Task RunAsync(CancellationToken cancellationToken = default)
     {
-        NgShuttleState.Lowering => SetDownAsync(true, cancellationToken),
-        NgShuttleState.Raising => SetDownAsync(false, cancellationToken),
-        _ => WaitForChangeAsync(cancellationToken),
-    };
+        return RunLoopAsync(ExecuteAsync, cancellationToken);
+    }
 
-    internal Task SetDownAsync(
-        bool down,
-        CancellationToken cancellationToken = default) =>
-        _io.SetOutputAndWaitAsync(
-            OutputIo.NgShuttleDown,
-            down,
-            cancellationToken);
+    private Task ExecuteAsync(CancellationToken cancellationToken)
+    {
+        return State switch
+        {
+            NgShuttleState.Lowering => SetDownAsync(true, cancellationToken),
+            NgShuttleState.Raising => SetDownAsync(false, cancellationToken),
+            _ => WaitForChangeAsync(cancellationToken),
+        };
+    }
 
-    public Task WaitForCarrierAsync(
-        bool detected,
-        CancellationToken cancellationToken = default) =>
-        _io.WaitForInputAsync(
-            InputIo.NgShuttleCarrierDetected,
-            detected,
-            cancellationToken);
+    internal Task SetDownAsync(bool down, CancellationToken cancellationToken = default)
+    {
+        return _io.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, down, cancellationToken);
+    }
 
-    private void NotifyChanged() => Changed?.Invoke();
+    public Task WaitForCarrierAsync(bool detected, CancellationToken cancellationToken = default)
+    {
+        return _io.WaitForInputAsync(InputIo.NgShuttleCarrierDetected, detected, cancellationToken);
+    }
+
+    private void NotifyChanged()
+    {
+        Changed?.Invoke();
+    }
 }

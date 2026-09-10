@@ -73,7 +73,9 @@ public sealed class RecipeTests
         Assert.Single(loaded.Pcb.BoltPoints);
         Assert.Equal(2, loaded.Pcb.GetBolts().Count());
         Assert.Equal(layout.DataMatrix, loaded.Pcb.DataMatrix);
-        Assert.Equal(layout.GetRegion(HeatSinkSlot.HeatSink2), loaded.Pcb.GetRegion(HeatSinkSlot.HeatSink2));
+        Assert.Equal(
+            layout.GetRegion(HeatSinkSlot.HeatSink2),
+            loaded.Pcb.GetRegion(HeatSinkSlot.HeatSink2));
         layout.Origins.Remove(HeatSinkSlot.HeatSink2);
         Assert.False(layout.IsDefined);
         Assert.Null(targets[1].X); // No guessed zero-origin target for an untaught PCB.
@@ -88,8 +90,7 @@ public sealed class RecipeTests
         var recipe = new PcbSupplyRecipe();
         var supplyHandoff = supply.BufferHandoffPosition;
         var placementHandoff = placement.BufferHandoffPosition;
-        TeachingPosition[] definitions =
-        [
+        TeachingPosition[] definitions = [
             .. supply.GetTeachingPositions(recipe),
             .. placement.GetTeachingPositions(),
             placement.GetBufferTeachingPosition(),
@@ -98,7 +99,8 @@ public sealed class RecipeTests
         var points = definitions.Select(p => new TeachingPoint(p)).ToArray();
         Assert.Equal(12, points.Length);
         var staged = points.Where(p => p.Storage == TeachingStorage.Buffer).ToArray();
-        foreach (var point in staged) point.Teach(10, 20, 30);
+        foreach (var point in staged)
+            point.Teach(10, 20, 30);
         Assert.Equal(0, supply.BufferHandoffPosition.X);
         Assert.Equal(0, placement.BufferHandoffPosition.X);
         Assert.Equal(0, buffer.SupplyBoundary1);
@@ -106,18 +108,25 @@ public sealed class RecipeTests
         var carrierY = points.Single(p => p.Target == TeachingTarget.SupplyCarrierY);
         carrierY.Teach(0, 45, 0);
         carrierY.Apply();
-        foreach (var point in points.Where(p => p.Storage != TeachingStorage.Buffer)) point.Refresh();
+        foreach (var point in points.Where(p => p.Storage != TeachingStorage.Buffer))
+            point.Refresh();
         var picks = points.Where(p => p.Storage == TeachingStorage.Recipe).ToArray();
         Assert.All(picks, p => Assert.Equal(45, p.Y));
         Assert.Equal(10, staged[0].X);
         Assert.Equal(0, supply.BufferHandoffPosition.X);
         Assert.Same(supply, carrierY.Position.Setting);
 
-        foreach (var point in picks) { point.Teach(12, 999, 34); point.Apply(); }
+        foreach (var point in picks)
+        {
+            point.Teach(12, 999, 34);
+            point.Apply();
+        }
+
         Assert.Equal((12, 34), (recipe.Pcb1PickPosition.X, recipe.Pcb1PickPosition.Z));
         Assert.Equal((12, 34), (recipe.Pcb2PickPosition.X, recipe.Pcb2PickPosition.Z));
         Assert.Equal(45, supply.CarrierY);
-        foreach (var point in staged) point.Apply();
+        foreach (var point in staged)
+            point.Apply();
         Assert.Same(supplyHandoff, supply.BufferHandoffPosition);
         Assert.Same(placementHandoff, placement.BufferHandoffPosition);
         Assert.Equal((10, 20, 30), (supplyHandoff.X, supplyHandoff.Y, supplyHandoff.Z));
@@ -153,8 +162,9 @@ public sealed class RecipeTests
         recipe.BoltPoints = [bolt];
         var target = recipe.GetBolts(HeatSinkSlot.HeatSink1).Single();
         var image = new TeachingPoint(inspection.GetBoltTeachingPositions([target], reference).Single());
-        var position = new TeachingPoint(fastening.GetTeachingPositions(recipe, HeatSinkSlot.HeatSink1, reference)
-            .Single(p => p.Target == TeachingTarget.BoltPosition));
+        var position = new TeachingPoint(
+            fastening.GetTeachingPositions(recipe, HeatSinkSlot.HeatSink1, reference)
+                .Single(p => p.Target == TeachingTarget.BoltPosition));
         Assert.False(image.Position.HasPosition);
         Assert.Equal("—", image.PositionLabel);
         Assert.False(position.Position.HasPosition);
@@ -174,11 +184,13 @@ public sealed class RecipeTests
         fastening.SafeZ = 7;
         position.Refresh();
         Assert.Equal(7, position.Z);
-        Assert.All(recipe.GetBolts(), bolt => Assert.Equal(7, fastening.GetBoltPosition(bolt, reference).Z));
+        Assert.All(
+            recipe.GetBolts(),
+            bolt => Assert.Equal(7, fastening.GetBoltPosition(bolt, reference).Z));
 
         var lowerRight = reference.LowerRightLocatingPin;
-        var upperLeft = new TeachingPoint(pins
-            .Single(p => p.Target == TeachingTarget.CarrierUpperLeftLocatingPin));
+        var upperLeft = new TeachingPoint(
+            pins.Single(p => p.Target == TeachingTarget.CarrierUpperLeftLocatingPin));
         upperLeft.Teach(105, 205, 0);
         upperLeft.Apply();
         image.Refresh();
@@ -189,15 +201,16 @@ public sealed class RecipeTests
         var transfer = new NgCarrierTransferSettings();
         Assert.All(transfer.GetTeachingPositions(), p => Assert.Same(transfer, p.Setting));
 
-        recipe.BoltPoints =
-        [
+        recipe.BoltPoints = [
             new() { Number = 2, Head = FasteningHead.Pickup },
             bolt,
             new() { Number = 3, Head = FasteningHead.Pickup },
         ];
         var ordered = fastening.GetTeachingPositions(recipe, HeatSinkSlot.HeatSink1, reference);
         Assert.Equal(TeachingTarget.SafeZ, ordered[0].Target);
-        Assert.Equal(new[] { 1, 2, 3 }, ordered.Where(point => point.Bolt is not null).Select(point => point.Bolt!.Number));
+        Assert.Equal(
+            new[] { 1, 2, 3 },
+            ordered.Where(point => point.Bolt is not null).Select(point => point.Bolt!.Number));
         Assert.Equal(new[] { 2, 1, 3 }, recipe.BoltPoints.Select(point => point.Number));
     }
 
@@ -212,8 +225,7 @@ public sealed class RecipeTests
         var savedName = recipe.Name;
         var operations = new OperationCancellation();
         var (database, store) = CreateStore();
-        var editor = new RecipeEditor(store,
-            new RecipeSelectionSettings(), recipe, operations);
+        var editor = new RecipeEditor(store, new RecipeSelectionSettings(), recipe, operations);
         bool? activeAtChange = null;
         editor.PropertyChanged += (_, args) =>
         {
@@ -234,8 +246,10 @@ public sealed class RecipeTests
         using var cancellation = new CancellationTokenSource();
         void CancelWhenStarted()
         {
-            if (operations.HasActiveOperations) cancellation.Cancel();
+            if (operations.HasActiveOperations)
+                cancellation.Cancel();
         }
+
         operations.ActivityChanged += CancelWhenStarted;
         await editor.SaveAsync(cancellation.Token);
         operations.ActivityChanged -= CancelWhenStarted;
@@ -285,18 +299,26 @@ public sealed class RecipeTests
         var target = new Recipe { Name = "Target" };
         var sourceEditor = new RecipeEditor(store, new(), source, new());
         var targetEditor = new RecipeEditor(store, new(), target, new());
-        CarrierImageTileView[] Images(double x, byte value) =>
-        [
-            new(1, new() { X = x }, Image(value)),
-            new(2, new() { X = x + 1 }, Image(value)),
-        ];
+        CarrierImageTileView[] Images(double x, byte value)
+        {
+            return [new(1, new() { X = x }, Image(value)), new(2, new() { X = x + 1 }, Image(value)),];
+        }
+
         static BitmapSource Image(byte value)
         {
-            var image = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Bgr24,
-                null, new byte[] { value, value, value }, 3);
+            var image = BitmapSource.Create(
+                1,
+                1,
+                96,
+                96,
+                PixelFormats.Bgr24,
+                null,
+                new byte[] { value, value, value },
+                3);
             image.Freeze();
             return image;
         }
+
         await sourceEditor.SaveCarrierImagesAsync(Images(1, 10));
         await targetEditor.SaveCarrierImagesAsync(Images(10, 100));
         var original = database.LoadRecipeImage(target.Name, 1);
@@ -308,7 +330,9 @@ public sealed class RecipeTests
         Assert.False(await targetEditor.SaveCarrierImagesAsync(Images(30, 200)));
         Assert.Contains("test failure", targetEditor.Error);
         Assert.Equal([10d, 11d], target.CarrierImages.Select(tile => tile.Center.X));
-        Assert.Equal([10d, 11d], (await store.LoadRecipeAsync("Target")).CarrierImages.Select(tile => tile.Center.X));
+        Assert.Equal(
+            [10d, 11d],
+            (await store.LoadRecipeAsync("Target")).CarrierImages.Select(tile => tile.Center.X));
         Assert.Equal(original, database.LoadRecipeImage("Target", 1));
 
         sourceEditor.Name = target.Name;
@@ -321,7 +345,9 @@ public sealed class RecipeTests
         await sourceEditor.SaveAsync();
         Assert.Null(sourceEditor.Error);
         Assert.Equal("Target", sourceEditor.ActiveName);
-        Assert.Equal([1d, 2d], (await store.LoadRecipeAsync("Target")).CarrierImages.Select(tile => tile.Center.X));
+        Assert.Equal(
+            [1d, 2d],
+            (await store.LoadRecipeAsync("Target")).CarrierImages.Select(tile => tile.Center.X));
         Assert.Equal(database.LoadRecipeImage("Source", 1), database.LoadRecipeImage("Target", 1));
         Assert.Equal(2, (await sourceEditor.LoadCarrierImagesAsync()).Length);
 
@@ -332,10 +358,15 @@ public sealed class RecipeTests
             cancellation.Cancel();
             yield return new(2, [200]);
         }
+
         var beforeCancel = database.LoadRecipeImage("Target", 1);
-        Assert.Throws<OperationCanceledException>(() => database.SaveRecipe("Target",
-            new Recipe { Name = "Cancelled" }, [1, 2], images: CancelAfterFirstImage(),
-            cancellationToken: cancellation.Token));
+        Assert.Throws<OperationCanceledException>(
+            () => database.SaveRecipe(
+                "Target",
+                new Recipe { Name = "Cancelled" },
+                [1, 2],
+                images: CancelAfterFirstImage(),
+                cancellationToken: cancellation.Token));
         Assert.Equal("Target", (await store.LoadRecipeAsync("Target")).Name);
         Assert.Equal(beforeCancel, database.LoadRecipeImage("Target", 1));
         Assert.False(await sourceEditor.SaveCarrierImagesAsync(Images(30, 200), cancellation.Token));

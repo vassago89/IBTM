@@ -12,9 +12,12 @@ namespace IBTM.UI;
 public sealed partial class OutputControlRow : ObservableObject
 {
     private readonly MachineController _machine;
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasFeedbackError))] private string? _feedbackError;
-    [ObservableProperty, NotifyPropertyChangedFor(nameof(ToggleHint))] private string? _actionMessage;
-    [ObservableProperty] private OutputBlockReason _blockReason;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(HasFeedbackError))]
+    private string? _feedbackError;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ToggleHint))]
+    private string? _actionMessage;
+    [ObservableProperty]
+    private OutputBlockReason _blockReason;
 
     public OutputControlRow(IoOutputStatus status, MachineController machine)
     {
@@ -24,14 +27,40 @@ public sealed partial class OutputControlRow : ObservableObject
     }
 
     public IoOutputStatus Io { get; }
-    public bool HasFeedbackError => FeedbackError is not null;
 
-    public bool IsConveyorRun => MachineController.IsConveyorRunOutput(Io.Signal);
-    public bool IsMaintainedOutput => IsConveyorRun
-        || MachineController.IsInterfaceOutput(Io.Signal);
-    public string ToggleHint => ActionMessage ?? (IsMaintainedOutput
-        ? "ON starts this output. OFF or closing this window stops it."
-        : "Toggle this output.");
+    public bool HasFeedbackError
+    {
+        get
+        {
+            return FeedbackError is not null;
+        }
+    }
+
+    public bool IsConveyorRun
+    {
+        get
+        {
+            return MachineController.IsConveyorRunOutput(Io.Signal);
+        }
+    }
+
+    public bool IsMaintainedOutput
+    {
+        get
+        {
+            return IsConveyorRun || MachineController.IsInterfaceOutput(Io.Signal);
+        }
+    }
+
+    public string ToggleHint
+    {
+        get
+        {
+            return ActionMessage ?? (IsMaintainedOutput
+                ? "ON starts this output. OFF or closing this window stops it."
+                : "Toggle this output.");
+        }
+    }
 
     // The button always calls this method. XAML only displays the observed IO state.
     [RelayCommand(CanExecute = nameof(CanSwitch))]
@@ -44,18 +73,23 @@ public sealed partial class OutputControlRow : ObservableObject
     }
 
     // Only prevents overlapping feedback waits; safety is checked by the controller.
-    private bool CanSwitch() => IsMaintainedOutput || !ToggleCommand.IsRunning;
+    private bool CanSwitch()
+    {
+        return IsMaintainedOutput || !ToggleCommand.IsRunning;
+    }
 
     [RelayCommand]
     private void StopOutputTest()
     {
         ToggleCommand.Cancel();
-        if (IsMaintainedOutput) _machine.StopManualOutput(Io.Signal);
+        if (IsMaintainedOutput)
+            _machine.StopManualOutput(Io.Signal);
     }
 
     private void OnToggleCommandChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (args.PropertyName != nameof(IAsyncRelayCommand.IsRunning)) return;
+        if (args.PropertyName != nameof(IAsyncRelayCommand.IsRunning))
+            return;
         SwitchCommand.NotifyCanExecuteChanged();
     }
 

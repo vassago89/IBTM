@@ -73,6 +73,7 @@
                            VerticalAlignment="Center"
                            Style="{StaticResource SectionHeaderStyle}"/>
                 <ComboBox x:Name="PortBox" Grid.Column="1" Margin="10,0,8,0"
+                          ItemsSource="{Binding PortNames}"
                           SelectionChanged="OnPortSelectionChanged"/>
                 <Button x:Name="RefreshPortsButton"
                         Grid.Column="2"
@@ -98,13 +99,13 @@
                 <Button x:Name="ConnectButton"
                         Grid.Column="6"
                         Margin="16,0,0,0"
-                        Content="Connect"
+                        Content="{Binding ConnectionAction}"
                         Style="{StaticResource PrimaryButtonStyle}"
                         Click="OnToggleConnection"/>
-                <TextBlock x:Name="ConnectionStatusText"
+                <TextBlock
                            Grid.Column="7"
                            Margin="16,0,0,0"
-                           Text="Disconnected"
+                           Text="{Binding ConnectionStatus}"
                            VerticalAlignment="Center"
                            Foreground="{StaticResource TextSecondaryBrush}"/>
             </Grid>
@@ -176,9 +177,9 @@
                     </WrapPanel>
 
                     <TextBlock Text="CONTROLLER / LAST RESULT" Style="{StaticResource SectionHeaderStyle}"/>
-                    <TextBlock x:Name="ResultText"
+                    <TextBlock
                                Margin="0,10,0,0"
-                               Text="No result read"
+                               Text="{Binding ResultMessage}"
                                TextWrapping="Wrap"
                                FontFamily="Cascadia Mono, Consolas"
                                Foreground="{StaticResource TextPrimaryBrush}"/>
@@ -225,9 +226,9 @@
                             Click="OnExecuteRegister"/>
 
                     <TextBlock Text="RESPONSE" Style="{StaticResource SectionHeaderStyle}"/>
-                    <TextBlock x:Name="RegisterResultText"
+                    <TextBlock
                                Margin="0,10,0,0"
-                               Text="-"
+                               Text="{Binding RegisterResult}"
                                TextWrapping="Wrap"
                                FontFamily="Cascadia Mono, Consolas"
                                Foreground="{StaticResource TextPrimaryBrush}"/>
@@ -250,14 +251,18 @@
                             Style="{StaticResource SecondaryButtonStyle}"
                             Click="OnClearLog"/>
                 </Grid>
-                <TextBox x:Name="LogBox"
-                         Grid.Row="1"
-                         Margin="0,10,0,0"
-                         IsReadOnly="True"
-                         AcceptsReturn="True"
-                         TextWrapping="NoWrap"
-                         VerticalScrollBarVisibility="Auto"
-                         HorizontalScrollBarVisibility="Auto"/>
+                <ListBox x:Name="FrameLogList" Grid.Row="1" Margin="0,10,0,0"
+                         ItemsSource="{Binding FrameLog}" Style="{StaticResource PanelListStyle}"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBox Text="{Binding Mode=OneWay}" IsReadOnly="True" TextWrapping="NoWrap"
+                                     BorderThickness="0" Background="Transparent" Padding="4,2"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
             </Grid>
         </Border>
     </Grid>

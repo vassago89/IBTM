@@ -20,15 +20,18 @@ public sealed class InspectionTests
     [InlineData(true)]
     public void DataMatrixReadsOriginalCentralRegion(bool inverted)
     {
-        var camera = new VirtualCamera(() => (13, 15, 0), () => [],
+        var camera = new VirtualCamera(
+            () => (13, 15, 0),
+            () => [],
             () => [new(new() { X = 13, Y = 15 }, 4, 4, "PCB-000123")]);
         var image = camera.Capture(500, 0);
         var stride = image.Stride + 5;
         var pixels = new byte[stride * image.Height];
         for (var row = 0; row < image.Height; row++)
-        for (var column = 0; column < image.Stride; column++)
-            pixels[row * stride + column] = inverted
-                ? (byte)(255 - image.Pixels[row * image.Stride + column]) : image.Pixels[row * image.Stride + column];
+            for (var column = 0; column < image.Stride; column++)
+                pixels[row * stride + column] = inverted
+                    ? (byte)(255 - image.Pixels[row * image.Stride + column])
+                    : image.Pixels[row * image.Stride + column];
         var padded = new ImageFrame(image.Width, image.Height, stride, pixels);
         Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, 80, 80));
         Assert.Null(DataMatrixReader.Read(padded, 20, 20));
@@ -40,7 +43,8 @@ public sealed class InspectionTests
         float[] probabilities = [0, 0.5f, 0.5f, 0.9f, 1];
         var prediction = new BoltPrediction(new(1, 1, 3, [0, 0, 0]), probabilities);
         foreach (var threshold in new[] { 0f, 0.49f, 0.5f, 0.50001f, 1f })
-            Assert.Equal((double)probabilities.Count(value => value >= threshold) / probabilities.Length,
+            Assert.Equal(
+                (double)probabilities.Count(value => value >= threshold) / probabilities.Length,
                 prediction.MaskRatio(threshold));
     }
 
@@ -58,8 +62,7 @@ public sealed class InspectionTests
         for (var y = 0; y < regionSize; y++)
             for (var x = 0; x < regionSize; x++)
                 for (var channel = 0; channel < ImageFrame.ColorChannelCount; channel++)
-                    pixels[(top + y) * stride + (left + x) * ImageFrame.ColorChannelCount + channel] =
-                        (byte)(10 + 40 * x / (regionSize - 1) + 80 * y / (regionSize - 1) + channel);
+                    pixels[(top + y) * stride + (left + x) * ImageFrame.ColorChannelCount + channel] = (byte)(10 + 40 * x / (regionSize - 1) + 80 * y / (regionSize - 1) + channel);
         var source = new ImageFrame(width, height, stride, pixels);
 
         var input = BoltImageInput.Create(source, regionSize);
@@ -77,7 +80,10 @@ public sealed class InspectionTests
     [InlineData(2, 3, 32, 23)]
     [InlineData(32, 23, 2, 3)]
     public async Task CarrierScanUsesTheTwoReferencePins(
-        double left, double top, double right, double bottom)
+        double left,
+        double top,
+        double right,
+        double bottom)
     {
         var reference = new CarrierReferenceSettings
         {
@@ -90,10 +96,16 @@ public sealed class InspectionTests
         };
         var operations = new OperationCancellation();
         using var motion = new VirtualMotionService(
-            settings.Motion, operations, hasZ: false,
-            xRange: (0, 40), yRange: (0, 30));
-        var io = new VirtualIoService(
-            new NgCarrierTransferHardwareSettings().Outputs, new());
+            settings.Motion,
+            operations,
+            hasZ: false,
+            xRange: (
+                0,
+                40),
+            yRange: (
+                0,
+                30));
+        var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
         io.Initialize();
         motion.Initialize();
         var gantry = new InspectionGantry(motion, new NgCarrierTransfer(io), operations, settings);
@@ -106,7 +118,12 @@ public sealed class InspectionTests
             new VirtualCamera(motion.GetPosition, () => []),
             new VirtualLightController(),
             new BoltPresenceDetector(() => new(), new VirtualBoltRecessSegmenter(), () => 0.5f),
-            settings, reference, new LightingSettings(), () => recipe, () => pcb, () => scale);
+            settings,
+            reference,
+            new LightingSettings(),
+            () => recipe,
+            () => pcb,
+            () => scale);
         var inspections = new List<BoltInspectionImage>();
         inspector.Inspected += inspections.Add;
 
@@ -114,13 +131,21 @@ public sealed class InspectionTests
         var middleX = (left + right) / 2;
         var middleY = (top + bottom) / 2;
         Assert.Equal(
-            new[]
-            {
-                (left, top), (middleX, top), (right, top),
-                (right, middleY), (middleX, middleY), (left, middleY),
-                (left, bottom), (middleX, bottom), (right, bottom),
-            },
-            images.Select(image => (image.Center.X, image.Center.Y)));
+            new[] { (left, top), (middleX, top), (right, top), (right, middleY), (
+                middleX,
+                middleY), (
+                    left,
+                    middleY), (
+                        left,
+                        bottom), (
+                            middleX,
+                            bottom), (
+                                right,
+                                bottom), },
+            images.Select(
+                image => (
+                    image.Center.X,
+                    image.Center.Y)));
         Assert.True(gantry.IsAt(reference.LowerRightLocatingPin));
         Assert.All(images, image => Assert.NotEmpty(image.Frame.Pixels));
         Assert.Empty(inspections); // Carrier teaching images are not automatic bolt inspections.
@@ -139,7 +164,8 @@ public sealed class InspectionTests
         Assert.All(xs.Zip(xs.Skip(1)), pair => Assert.InRange(pair.Second - pair.First, 0, 7));
         Assert.All(ys.Zip(ys.Skip(1)), pair => Assert.InRange(pair.Second - pair.First, 0, 5));
         recipe.CarrierScanOverlapMillimeters = inspector.FieldOfView.Height;
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => inspector.CaptureCarrierImagesAsync());
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => inspector.CaptureCarrierImagesAsync());
     }
 
     [Trait("Category", "MachineFlow")]
@@ -150,9 +176,7 @@ public sealed class InspectionTests
             new NgCarrierTransferHardwareSettings().Outputs,
             new MachineOptions());
         var transferFeedback = new TestNgCarrierTransferFeedback(io);
-        var work = new InspectionWork(
-            ConveyorStation.Inspection(io),
-            transferFeedback);
+        var work = new InspectionWork(ConveyorStation.Inspection(io), transferFeedback);
         var carrierReference = new CarrierReferenceSettings
         {
             UpperLeftLocatingPin = new AxisPosition { X = 2, Y = 2 },
@@ -167,12 +191,15 @@ public sealed class InspectionTests
             gantrySettings.Motion,
             operations,
             hasZ: false,
-            xRange: (0, 40),
-            yRange: (0, 30));
+            xRange: (
+                0,
+                40),
+            yRange: (
+                0,
+                30));
         var transfer = new NgCarrierTransfer(io);
         var gantry = new InspectionGantry(motion, transfer, operations, gantrySettings);
-        BoltTarget[] bolts =
-        [
+        BoltTarget[] bolts = [
             Bolt(1, HeatSinkSlot.HeatSink1, 9, 9, carrierReference),
             Bolt(2, HeatSinkSlot.HeatSink1, 9, 21, carrierReference),
             Bolt(3, HeatSinkSlot.HeatSink2, 31, 9, carrierReference),
@@ -181,12 +208,11 @@ public sealed class InspectionTests
         var camera = new MissingBoltCamera(
             new VirtualCamera(
                 motion.GetPosition,
-                () => bolts.Select(
-                    bolt => gantrySettings.GetBoltPosition(
-                        bolt,
-                        carrierReference)),
-                () => [new(new() { X = 13, Y = 15 }, 4, 4, "PCB-1"),
-                    new(new() { X = 31, Y = 15 }, 4, 4, "PCB-2")]),
+                () => bolts.Select(bolt => gantrySettings.GetBoltPosition(bolt, carrierReference)),
+                () => [
+            new(new() { X = 13, Y = 15 }, 4, 4, "PCB-1"),
+            new(new() { X = 31, Y = 15 }, 4, 4, "PCB-2")
+        ]),
             motion.GetPosition,
             gantrySettings.GetBoltPosition(bolts[1], carrierReference));
         var segmenter = new CountingSegmenter();
@@ -194,19 +220,17 @@ public sealed class InspectionTests
             gantry,
             camera,
             new VirtualLightController(),
-            new BoltPresenceDetector(
-                () => new BoltInspectionRecipe(),
-                segmenter, () => 0.5f),
+            new BoltPresenceDetector(() => new BoltInspectionRecipe(), segmenter, () => 0.5f),
             gantrySettings,
             carrierReference,
-            new LightingSettings(), () => new(), TaughtPcbLayout, () => 0.05);
+            new LightingSettings(),
+            () => new(),
+            TaughtPcbLayout,
+            () => 0.05);
         var inspections = new List<BoltInspectionImage>();
         inspector.Inspected += inspections.Add;
         var shuttleFeedback = new NgShuttleFeedback(io);
-        var conveyor = new NgCarrierConveyor(
-            io,
-            new NgConveyorSettings(),
-            shuttleFeedback);
+        var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings(), shuttleFeedback);
         var shuttle = new NgShuttle(io, conveyor, shuttleFeedback, transferFeedback);
         var transferSettings = new NgCarrierTransferSettings();
         var station = new InspectionStation(
@@ -235,21 +259,21 @@ public sealed class InspectionTests
 
         using var firstStop = new CancellationTokenSource();
         var firstRun = station.RunAsync(bolts, firstStop.Token);
-        Assert.True(await WaitUntilAsync(
-            () => work.Assembly(HeatSinkSlot.HeatSink1)
-                .BoltPresenceResults.Count == 1,
-            TimeSpan.FromSeconds(2)));
+        Assert.True(
+            await WaitUntilAsync(
+                () => work.Assembly(HeatSinkSlot.HeatSink1).BoltPresenceResults.Count == 1,
+                TimeSpan.FromSeconds(2)));
         firstStop.Cancel();
         await firstRun;
 
         Assert.False(work.Completed);
-        Assert.Single(work.Assembly(HeatSinkSlot.HeatSink1)
-            .BoltPresenceResults);
+        Assert.Single(work.Assembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
 
         io.SetInput(InputIo.InspectionHeatSink1Present, false);
         camera.AfterCapture = () =>
         {
-            if (station.ActiveBolt(bolts) is null) return;
+            if (station.ActiveBolt(bolts) is null)
+                return;
             camera.AfterCapture = null;
             io.SetInput(InputIo.InspectionHeatSink1Present, true);
             io.SetInput(InputIo.InspectionHeatSink2Present, false);
@@ -257,15 +281,11 @@ public sealed class InspectionTests
         };
         using var cancellation = new CancellationTokenSource();
         var run = station.RunAsync(bolts, cancellation.Token);
-        Assert.True(await WaitUntilAsync(
-            () => work.Completed,
-            TimeSpan.FromSeconds(2)));
+        Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
 
         Assert.Empty(work.Assembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
         Assert.Equal(2, work.Assembly(HeatSinkSlot.HeatSink2).BoltPresenceResults.Count);
-        Assert.Equal(
-            AssemblyResult.Ok,
-            work.Assembly(HeatSinkSlot.HeatSink2).InspectionResult);
+        Assert.Equal(AssemblyResult.Ok, work.Assembly(HeatSinkSlot.HeatSink2).InspectionResult);
         io.SetInput(InputIo.InspectionHeatSink1Present, false);
         io.SetInput(InputIo.InspectionHeatSink2Present, false);
         Assert.True(work.Completed);
@@ -276,14 +296,10 @@ public sealed class InspectionTests
 
         io.SetInput(InputIo.InspectionCarrierPresent, false);
         io.SetInput(InputIo.InspectionCarrierPresent, true);
-        Assert.True(await WaitUntilAsync(
-            () => work.Completed,
-            TimeSpan.FromSeconds(2)));
+        Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
 
-        var heatSink1 = work.Assemblies.Single(
-            assembly => assembly.HeatSink == HeatSinkSlot.HeatSink1);
-        var heatSink2 = work.Assemblies.Single(
-            assembly => assembly.HeatSink == HeatSinkSlot.HeatSink2);
+        var heatSink1 = work.Assemblies.Single(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink1);
+        var heatSink2 = work.Assemblies.Single(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink2);
         Assert.Equal(AssemblyResult.Ng, heatSink1.InspectionResult);
         Assert.True(heatSink1.BoltPresenceResults[1]);
         Assert.False(heatSink1.BoltPresenceResults[2]);
@@ -295,9 +311,7 @@ public sealed class InspectionTests
         io.SetInput(InputIo.InspectionHeatSink2Present, false);
         io.SetInput(InputIo.InspectionCarrierPresent, true);
 
-        Assert.True(await WaitUntilAsync(
-            () => work.Completed,
-            TimeSpan.FromSeconds(2)));
+        Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
         Assert.True(work.HasNg);
         Assert.Empty(work.Assemblies);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
@@ -320,13 +334,19 @@ public sealed class InspectionTests
 
         Assert.Equal(segmentCallsAtStop, segmenter.Calls);
         Assert.Equal(segmenter.Calls, inspections.Count);
-        Assert.Contains(inspections, image => image.BoltNumber == 2
-            && image.HeatSink == HeatSinkSlot.HeatSink1 && !image.Present);
-        Assert.All(inspections, image =>
-        {
-            Assert.Equal(128, image.RegionSize);
-            Assert.True(image.Image.Width > 128 && image.Image.Height > 128);
-        });
+        Assert.Contains(
+            inspections,
+            image =>
+                image.BoltNumber == 2
+                    && image.HeatSink == HeatSinkSlot.HeatSink1
+                    && !image.Present);
+        Assert.All(
+            inspections,
+            image =>
+            {
+                Assert.Equal(128, image.RegionSize);
+                Assert.True(image.Image.Width > 128 && image.Image.Height > 128);
+            });
         Assert.Empty(work.Assemblies);
         Assert.False(work.Completed);
 
@@ -337,7 +357,9 @@ public sealed class InspectionTests
             Y = position.Y,
         };
         var transferWork = new InspectionWork(
-            ConveyorStation.Inspection(io), transferFeedback, isEnabled: () => false);
+            ConveyorStation.Inspection(io),
+            transferFeedback,
+            isEnabled: () => false);
         var transferStation = new InspectionStation(
             transferWork,
             inspector,
@@ -358,13 +380,9 @@ public sealed class InspectionTests
         io.SetInput(InputIo.NgCarrierGripperOpen, true);
         io.SetInput(InputIo.NgCarrierDetected, true);
 
-        Assert.Equal(
-            InspectionStationState.WaitingForShuttleCarrier,
-            transferStation.State([]));
+        Assert.Equal(InspectionStationState.WaitingForShuttleCarrier, transferStation.State([]));
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        Assert.Equal(
-            InspectionStationState.RaisingCarrierTransfer,
-            transferStation.State([]));
+        Assert.Equal(InspectionStationState.RaisingCarrierTransfer, transferStation.State([]));
         Assert.Equal(InspectionStationState.Waiting, station.State(bolts));
 
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
@@ -382,20 +400,27 @@ public sealed class InspectionTests
         var position = CarrierCoordinates.FromMachine(
             new AxisPosition { X = x, Y = y },
             reference.UpperLeftLocatingPin!);
-        return new BoltTarget(new BoltPoint
-        {
-            Number = number,
-            X = position.X,
-            Y = position.Y,
-        }, heatSink, new PcbLayout { Origins = new() { [heatSink] = new() } });
+        return new BoltTarget(
+            new BoltPoint { Number = number, X = position.X, Y = position.Y, },
+            heatSink,
+            new PcbLayout { Origins = new() { [heatSink] = new() } });
     }
 
     private sealed class CountingSegmenter : IBoltRecessSegmenter
     {
         private readonly VirtualBoltRecessSegmenter _inner = new();
         public int Calls { get; private set; }
-        public void CheckReady() => _inner.CheckReady();
-        public void Reload() => _inner.Reload();
+
+        public void CheckReady()
+        {
+            _inner.CheckReady();
+        }
+
+        public void Reload()
+        {
+            _inner.Reload();
+        }
+
         public float[] Segment(ImageFrame image)
         {
             Calls++;
@@ -409,37 +434,54 @@ public sealed class InspectionTests
         AxisPosition missingPosition) : ICamera
     {
         public Action? AfterCapture { get; set; }
-        public (int Width, int Height) FrameSize => camera.FrameSize;
+
+        public (int Width, int Height) FrameSize
+        {
+            get
+            {
+                return camera.FrameSize;
+            }
+        }
 
         public event Action<ImageFrame>? FrameReady
         {
-            add { }
-            remove { }
+            add
+            {
+            }
+
+            remove
+            {
+            }
         }
 
         public event Action<Exception>? LiveViewFailed
         {
-            add { }
-            remove { }
+            add
+            {
+            }
+
+            remove
+            {
+            }
         }
 
-        public void Initialize() => camera.Initialize();
+        public void Initialize()
+        {
+            camera.Initialize();
+        }
 
         public ImageFrame Capture(double exposureMicroseconds, double gain)
         {
             var image = camera.Capture(exposureMicroseconds, gain);
             var current = position();
-            var missing = Math.Abs(current.X - missingPosition.X)
-                              <= MotionService.PositionToleranceMillimeters
-                          && Math.Abs(current.Y - missingPosition.Y)
-                              <= MotionService.PositionToleranceMillimeters;
+            var missing = Math.Abs(current.X - missingPosition.X) <= MotionService.PositionToleranceMillimeters
+                && Math.Abs(current.Y - missingPosition.Y) <= MotionService.PositionToleranceMillimeters;
             var captured = missing
                 ? image with
                 {
-                    Pixels = Enumerable.Repeat(
-                        (byte)30,
-                        image.Stride * image.Height).ToArray(),
+                    Pixels = Enumerable.Repeat((byte)30, image.Stride * image.Height).ToArray(),
                 }
+
                 : image;
             AfterCapture?.Invoke();
             return captured;

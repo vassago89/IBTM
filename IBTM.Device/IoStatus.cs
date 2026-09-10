@@ -17,20 +17,42 @@ public abstract class IoSignal<T>(
     public HardwareArea Area { get; } = area;
     public IoSection? Section { get; } = section;
     public int? Number { get; } = number;
-    public virtual string Address => Number?.ToString("D3") ?? "—";
+
+    public virtual string Address
+    {
+        get
+        {
+            return Number?.ToString("D3") ?? "—";
+        }
+    }
+
     public abstract bool? IsOn { get; }
 
-    protected void Notify(string propertyName) =>
+    protected void Notify(string propertyName)
+    {
         PropertyChanged?.Invoke(this, new(propertyName));
+    }
 
-    internal virtual void Refresh() => Notify(nameof(IsOn));
+    internal virtual void Refresh()
+    {
+        Notify(nameof(IsOn));
+    }
 }
 
 public sealed class IoInputStatus(
-    InputIo signal, HardwareArea area, IoSection? section, IIoService io, int? number = null)
-    : IoSignal<InputIo>(signal, area, section, number)
+    InputIo signal,
+    HardwareArea area,
+    IoSection? section,
+    IIoService io,
+    int? number = null) : IoSignal<InputIo>(signal, area, section, number)
 {
-    public override bool? IsOn => io.IsReady ? io.GetInput(Signal) : null;
+    public override bool? IsOn
+    {
+        get
+        {
+            return io.IsReady ? io.GetInput(Signal) : null;
+        }
+    }
 }
 
 public sealed class IoOutputStatus : IoSignal<OutputIo>
@@ -45,8 +67,7 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
         IIoService io,
         IReadOnlyDictionary<InputIo, IoInputStatus> inputs,
         int? number = null,
-        int? offNumber = null)
-        : base(signal, area, section, number)
+        int? offNumber = null) : base(signal, area, section, number)
     {
         _io = io;
         OffNumber = offNumber;
@@ -59,18 +80,59 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
 
     public IoInputStatus[] Feedback { get; }
     public int? OffNumber { get; }
-    public override string Address => OffNumber is { } off ? $"{base.Address} / {off:D3}" : base.Address;
-    public override bool? IsOn => _isOn;
-    public bool HasFeedback => Feedback.Length > 0;
-    public bool HasConflict => HasFeedback && Feedback[0].IsOn == true && Feedback[1].IsOn == true;
-    public bool IsMatched => IsOn is { } on && HasFeedback && !HasConflict
-        && Feedback[on ? 0 : 1].IsOn == true;
 
-    internal override void Refresh() => Update(_io.GetOutput(Signal));
+    public override string Address
+    {
+        get
+        {
+            return OffNumber is { } off ? $"{base.Address} / {off:D3}" : base.Address;
+        }
+    }
+
+    public override bool? IsOn
+    {
+        get
+        {
+            return _isOn;
+        }
+    }
+
+    public bool HasFeedback
+    {
+        get
+        {
+            return Feedback.Length > 0;
+        }
+    }
+
+    public bool HasConflict
+    {
+        get
+        {
+            return HasFeedback && Feedback[0].IsOn == true && Feedback[1].IsOn == true;
+        }
+    }
+
+    public bool IsMatched
+    {
+        get
+        {
+            return IsOn is { } on
+                && HasFeedback
+                && !HasConflict
+                && Feedback[on ? 0 : 1].IsOn == true;
+        }
+    }
+
+    internal override void Refresh()
+    {
+        Update(_io.GetOutput(Signal));
+    }
 
     internal void Update(bool? value)
     {
-        if (_isOn == value) return;
+        if (_isOn == value)
+            return;
         _isOn = value;
         base.Refresh();
         RefreshFeedback();

@@ -19,38 +19,56 @@ public sealed partial class IoList<TRow, TSignal> : ObservableObject
 
     public IoList(TRow[] rows, Func<TRow, IoSignal<TSignal>> signal, string path = "")
     {
-        Areas =
-        [
+        Areas = [
             new(null, "All Units"),
-            .. rows.Select(row => signal(row).Area).Distinct().Order()
+            ..rows.Select(row => signal(row).Area)
+                .Distinct()
+                .Order()
                 .Select(area => new KeyValuePair<HardwareArea?, string>(area, area.GetDescription())),
         ];
         _selectedArea = Areas[0];
         FilteredRows = new ListCollectionView(rows);
         var prefix = path.Length == 0 ? "" : path + ".";
-        foreach (var property in new[] { nameof(IoSignal<TSignal>.Area), nameof(IoSignal<TSignal>.Section) })
+        foreach (var property in new[]
+        {
+            nameof(IoSignal<TSignal>.Area),
+            nameof(IoSignal<TSignal>.Section)
+        })
         {
             FilteredRows.SortDescriptions.Add(new(prefix + property, ListSortDirection.Ascending));
             FilteredRows.GroupDescriptions.Add(new PropertyGroupDescription(prefix + property));
         }
-        FilteredRows.SortDescriptions.Add(new(prefix + nameof(IoSignal<TSignal>.Signal), ListSortDirection.Ascending));
+
+        FilteredRows.SortDescriptions.Add(
+            new(prefix + nameof(IoSignal<TSignal>.Signal), ListSortDirection.Ascending));
         FilteredRows.Filter = item =>
         {
             var row = signal((TRow)item);
             return (SelectedArea.Key is null || row.Area == SelectedArea.Key)
                 && (Matches(row)
-                    || row is IoOutputStatus output && output.Feedback.Any(Matches));
+                    || row is IoOutputStatus output
+                    && output.Feedback.Any(Matches));
         };
     }
 
     public ICollectionView FilteredRows { get; }
     public KeyValuePair<HardwareArea?, string>[] Areas { get; }
 
-    private bool Matches<T>(IoSignal<T> row) where T : struct, Enum =>
-        row.Signal.GetDescription().Contains(SearchText, StringComparison.OrdinalIgnoreCase)
-        || row.Signal.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase)
-        || row.Address.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+    private bool Matches<T>(IoSignal<T> row)
+        where T : struct, Enum
+    {
+        return row.Signal.GetDescription().Contains(SearchText, StringComparison.OrdinalIgnoreCase)
+            || row.Signal.ToString().Contains(SearchText, StringComparison.OrdinalIgnoreCase)
+            || row.Address.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+    }
 
-    partial void OnSearchTextChanged(string value) => FilteredRows.Refresh();
-    partial void OnSelectedAreaChanged(KeyValuePair<HardwareArea?, string> value) => FilteredRows.Refresh();
+    partial void OnSearchTextChanged(string value)
+    {
+        FilteredRows.Refresh();
+    }
+
+    partial void OnSelectedAreaChanged(KeyValuePair<HardwareArea?, string> value)
+    {
+        FilteredRows.Refresh();
+    }
 }

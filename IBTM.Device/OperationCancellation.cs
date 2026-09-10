@@ -16,12 +16,20 @@ public sealed class OperationCancellation
 
     public bool HasActiveOperations
     {
-        get { lock (_gate) return _activeOperations > 0; }
+        get
+        {
+            lock (_gate)
+                return _activeOperations > 0;
+        }
     }
 
     public bool IsShuttingDown
     {
-        get { lock (_gate) return _shutdown is not null; }
+        get
+        {
+            lock (_gate)
+                return _shutdown is not null;
+        }
     }
 
     public Operation Link(
@@ -49,7 +57,8 @@ public sealed class OperationCancellation
 
         try
         {
-            if (becameActive) ActivityChanged?.Invoke();
+            if (becameActive)
+                ActivityChanged?.Invoke();
             return operation;
         }
         catch
@@ -141,6 +150,7 @@ public sealed class OperationCancellation
             {
                 _drained?.TrySetResult();
             }
+
             // Shutdown may dispose subscribers once the drain completes.
             becameIdle &= _shutdown is null;
         }
@@ -151,21 +161,33 @@ public sealed class OperationCancellation
         }
     }
 
-    public sealed class Operation(
-        OperationCancellation owner,
-        CancellationTokenSource source) : IDisposable
+    public sealed class Operation(OperationCancellation owner, CancellationTokenSource source) : IDisposable
     {
         private readonly Lock _gate = new();
         private int _users = 1; // Scope ownership plus active cancellation callbacks.
         private bool _disposeRequested;
-        public CancellationToken Token => source.Token;
-        public bool IsCancellationRequested => source.IsCancellationRequested;
+        public CancellationToken Token
+        {
+            get
+            {
+                return source.Token;
+            }
+        }
+
+        public bool IsCancellationRequested
+        {
+            get
+            {
+                return source.IsCancellationRequested;
+            }
+        }
 
         public void Cancel()
         {
             lock (_gate)
             {
-                if (_disposeRequested) return;
+                if (_disposeRequested)
+                    return;
                 _users++;
             }
 
@@ -183,9 +205,11 @@ public sealed class OperationCancellation
         {
             lock (_gate)
             {
-                if (_disposeRequested) return;
+                if (_disposeRequested)
+                    return;
                 _disposeRequested = true;
             }
+
             Release();
         }
 
@@ -193,7 +217,8 @@ public sealed class OperationCancellation
         {
             lock (_gate)
             {
-                if (--_users != 0) return;
+                if (--_users != 0)
+                    return;
             }
 
             source.Dispose();

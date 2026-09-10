@@ -25,8 +25,11 @@ public sealed class IoTests
     {
         var settings = new MachineSettings();
         var hardware = typeof(MachineSettings).GetProperties()
-            .Select(property => property.GetValue(settings)).OfType<InputHardwareSettings>().ToArray();
-        var inputs = hardware.SelectMany(section => section.Inputs).ToDictionary(pair => pair.Key, pair => pair.Value);
+            .Select(property => property.GetValue(settings))
+            .OfType<InputHardwareSettings>()
+            .ToArray();
+        var inputs = hardware.SelectMany(section => section.Inputs)
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
         Assert.Equal(Enum.GetValues<InputIo>().Order(), inputs.Keys.Order());
         Assert.Equal(inputs.Count, inputs.Values.Distinct().Count());
         Assert.DoesNotContain(86, inputs.Values); // DI-146 is not installed; P3 is DI-142.
@@ -41,8 +44,12 @@ public sealed class IoTests
 
         var outputs = hardware.OfType<IoHardwareSettings>().SelectMany(section => section.Outputs).ToArray();
         Assert.Equal(Enum.GetValues<OutputIo>().Order(), outputs.Select(pair => pair.Key).Order());
-        var channels = outputs.SelectMany(pair => pair.Value.OffNumber is { } off
-            ? new[] { pair.Value.Number, off } : new[] { pair.Value.Number }).ToArray();
+        var channels = outputs.SelectMany(
+            pair =>
+                pair.Value.OffNumber is { } off
+                    ? new[] { pair.Value.Number, off }
+                    : new[] { pair.Value.Number })
+            .ToArray();
         Assert.Equal(channels.Length, channels.Distinct().Count());
     }
 
@@ -73,13 +80,16 @@ public sealed class IoTests
         Assert.False(output.IsOn);
         Assert.Equal(1, probe.Reads);
         Assert.Equal(OutputIo.NgShuttleDown, output.Signal);
-        Assert.Equal(new[] { InputIo.NgShuttleDown, InputIo.NgShuttleUp },
+        Assert.Equal(
+            new[] { InputIo.NgShuttleDown, InputIo.NgShuttleUp },
             output.Feedback.Select(row => row.Signal));
-        Assert.All(output.Feedback, row =>
-        {
-            Assert.Same(status.Inputs.Single(input => input.Signal == row.Signal), row);
-            Assert.DoesNotContain(row, status.Sensors);
-        });
+        Assert.All(
+            output.Feedback,
+            row =>
+            {
+                Assert.Same(status.Inputs.Single(input => input.Signal == row.Signal), row);
+                Assert.DoesNotContain(row, status.Sensors);
+            });
 
         var sensor = status.Sensors.Single(row => row.Signal == InputIo.PcbSupplyPcbDetected);
         Assert.Equal("999", sensor.Address);
@@ -104,7 +114,8 @@ public sealed class IoTests
         var outputChanges = 0;
         output.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(output.IsOn)) outputChanges++;
+            if (args.PropertyName == nameof(output.IsOn))
+                outputChanges++;
         };
         io.SetOutput(output.Signal, true);
         Assert.False(output.IsOn);
@@ -154,8 +165,10 @@ public sealed class IoTests
             if (method!.Name == nameof(IIoService.GetOutput))
             {
                 Reads++;
-                if (Error is { } error) throw error;
+                if (Error is { } error)
+                    throw error;
             }
+
             return method.Invoke(Io, args);
         }
     }
@@ -176,8 +189,8 @@ public sealed class IoTests
         await waiting;
 
         io.SetInput(InputIo.NgShuttleUp, true);
-        await Assert.ThrowsAsync<IoTimeoutException>(() =>
-            signals.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true));
+        await Assert.ThrowsAsync<IoTimeoutException>(
+            () => signals.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true));
         Assert.True(io.GetOutput(OutputIo.NgShuttleDown));
 
         using var stop = new CancellationTokenSource();
@@ -190,10 +203,8 @@ public sealed class IoTests
     [Fact]
     public void ManualResponseRetainsDoorEmergencyStopAndResetInterlocks()
     {
-        var io = new VirtualIoService(
-            new MachineHardwareSettings().Outputs, new MachineOptions());
-        using var motion = new VirtualMotionService(
-            new MotionSettings(), new OperationCancellation());
+        var io = new VirtualIoService(new MachineHardwareSettings().Outputs, new MachineOptions());
+        using var motion = new VirtualMotionService(new MotionSettings(), new OperationCancellation());
         _ = new VirtualMachine(io, [motion]);
         io.Initialize();
         motion.Initialize();
@@ -203,11 +214,13 @@ public sealed class IoTests
 
         io.SetInput(InputIo.AutoMode, false);
         Assert.False(io.GetInput(InputIo.ServoMainContactorOn));
-        Assert.All(motion.Axes, axis =>
-        {
-            Assert.False(motion.GetAxisState(axis).ServoOn);
-            Assert.True(motion.GetAxisState(axis).Alarm);
-        });
+        Assert.All(
+            motion.Axes,
+            axis =>
+            {
+                Assert.False(motion.GetAxisState(axis).ServoOn);
+                Assert.True(motion.GetAxisState(axis).Alarm);
+            });
         io.SetInput(InputIo.ResetButton, true);
         Assert.False(io.GetInput(InputIo.ServoMainContactorOn));
 

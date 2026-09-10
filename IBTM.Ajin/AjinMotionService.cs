@@ -22,13 +22,15 @@ public class AjinMotionService(
         hasY: axisY is not null,
         hasZ: axisZ is not null,
         horizontalZ: horizontalZ,
-        xRange: (axisX.Minimum, axisX.Maximum),
-        yRange: axisY is null
-            ? null
-            : (axisY.Minimum, axisY.Maximum),
-        zRange: axisZ is null
-            ? null
-            : (axisZ.Minimum, axisZ.Maximum)), IMotionDiagnostics
+        xRange: (
+            axisX.Minimum,
+            axisX.Maximum),
+        yRange: axisY is null ? null : (
+            axisY.Minimum,
+            axisY.Maximum),
+        zRange: axisZ is null ? null : (
+            axisZ.Minimum,
+            axisZ.Maximum)), IMotionDiagnostics
 {
     private const uint HomeSuccess = 0x01;
     private const uint HomeSearching = 0x02;
@@ -46,11 +48,17 @@ public class AjinMotionService(
     private readonly int? _axisY = axisY?.Number;
     private readonly int? _axisZ = axisZ?.Number;
     private readonly double _millimetersPerPulse = millimetersPerPulse;
-    private readonly int[] _axes = new[] { axisX, axisY, axisZ }
-        .OfType<AxisHardware>().Select(axis => axis.Number).ToArray();
+    private readonly int[] _axes = new[] { axisX, axisY, axisZ }.OfType<AxisHardware>().Select(
+        axis => axis.Number).ToArray();
     private bool _initialized;
 
-    public override bool IsReady => _initialized;
+    public override bool IsReady
+    {
+        get
+        {
+            return _initialized;
+        }
+    }
 
     public override void Initialize()
     {
@@ -63,9 +71,11 @@ public class AjinMotionService(
         foreach (var axis in _axes)
         {
             // mm conversion belongs here, not in the .mot file's SDK scaling.
-            AjinController.Check(CAXM.AxmMotSetMoveUnitPerPulse(axis, 1, 1),
+            AjinController.Check(
+                CAXM.AxmMotSetMoveUnitPerPulse(axis, 1, 1),
                 nameof(CAXM.AxmMotSetMoveUnitPerPulse));
-            AjinController.Check(CAXM.AxmMotSetAccelUnit(axis, AccelerationInUnitsPerSecondSquared),
+            AjinController.Check(
+                CAXM.AxmMotSetAccelUnit(axis, AccelerationInUnitsPerSecondSquared),
                 nameof(CAXM.AxmMotSetAccelUnit));
         }
 
@@ -94,25 +104,15 @@ public class AjinMotionService(
 
         if (distanceX == 0)
         {
-            return MoveAxisCoreAsync(
-                MotionAxis.Y,
-                y,
-                velocity,
-                cancellationToken);
+            return MoveAxisCoreAsync(MotionAxis.Y, y, velocity, cancellationToken);
         }
 
         if (distanceY == 0)
         {
-            return MoveAxisCoreAsync(
-                MotionAxis.X,
-                x,
-                velocity,
-                cancellationToken);
+            return MoveAxisCoreAsync(MotionAxis.X, x, velocity, cancellationToken);
         }
 
-        var totalDistance = Math.Sqrt(
-            distanceX * distanceX
-            + distanceY * distanceY);
+        var totalDistance = Math.Sqrt(distanceX * distanceX + distanceY * distanceY);
         var velocityInUnits = ToUnits(velocity);
         var velocityX = velocityInUnits * distanceX / totalDistance;
         var velocityY = velocityInUnits * distanceY / totalDistance;
@@ -139,11 +139,7 @@ public class AjinMotionService(
         var positiveLevel = 0U;
         var negativeLevel = 0U;
         AjinController.Check(
-            CAXM.AxmSignalGetLimit(
-                _axisZ!.Value,
-                ref stopMode,
-                ref positiveLevel,
-                ref negativeLevel),
+            CAXM.AxmSignalGetLimit(_axisZ!.Value, ref stopMode, ref positiveLevel, ref negativeLevel),
             nameof(CAXM.AxmSignalGetLimit));
 
         var velocityInUnits = ToUnits(velocity);
@@ -163,8 +159,7 @@ public class AjinMotionService(
 
         if (!GetAxisState(MotionAxis.Z).PositiveLimit)
         {
-            throw new InvalidOperationException(
-                "Z axis stopped before reaching its positive limit.");
+            throw new InvalidOperationException("Z axis stopped before reaching its positive limit.");
         }
     }
 
@@ -193,13 +188,15 @@ public class AjinMotionService(
         PublishStateChanged();
     }
 
-    public override (double X, double Y, double Z) GetPosition() =>
-        !_initialized
+    public override (double X, double Y, double Z) GetPosition()
+    {
+        return !_initialized
             ? default
             : (
                 ReadPosition(_axisX),
                 _axisY is null ? 0 : ReadPosition(_axisY.Value),
                 _axisZ is null ? 0 : ReadPosition(_axisZ.Value));
+    }
 
     public override AxisState GetAxisState(MotionAxis axis)
     {
@@ -252,15 +249,18 @@ public class AjinMotionService(
     {
         var number = GetAxis(axis);
         var position = ReadPosition(number);
-        if (_initialized) return position;
+        if (_initialized)
+            return position;
         // Disabled groups have not applied our 1/1 pulse units. Read (never rewrite)
         // the existing SDK scale before converting their position to millimeters.
         var unit = 0.0;
         var pulse = 0;
-        AjinController.Check(CAXM.AxmMotGetMoveUnitPerPulse(number, ref unit, ref pulse),
+        AjinController.Check(
+            CAXM.AxmMotGetMoveUnitPerPulse(number, ref unit, ref pulse),
             $"{nameof(CAXM.AxmMotGetMoveUnitPerPulse)} (axis={number})");
         if (!double.IsFinite(unit) || unit <= 0 || pulse <= 0)
-            throw new System.IO.IOException($"Invalid AJIN position scale (axis={number}, unit={unit}, pulse={pulse}).");
+            throw new System.IO.IOException(
+                $"Invalid AJIN position scale (axis={number}, unit={unit}, pulse={pulse}).");
         return position * pulse / unit;
     }
 
@@ -288,18 +288,17 @@ public class AjinMotionService(
                 velocityInUnits / home.SearchAccelerationSeconds,
                 ToUnits(home.DetectionSpeed) / home.DetectionAccelerationSeconds),
             nameof(CAXM.AxmHomeSetVel));
-        using var cancellationRegistration = cancellationToken.Register(() =>
-        {
-            CAXM.AxmMoveSStop(axisNumber);
-            CAXM.AxmHomeSetResult(axisNumber, HomeUnknown);
-        });
+        using var cancellationRegistration = cancellationToken.Register(
+            () =>
+            {
+                CAXM.AxmMoveSStop(axisNumber);
+                CAXM.AxmHomeSetResult(axisNumber, HomeUnknown);
+            });
         try
         {
             BeginMotion(axis != MotionAxis.Z);
             cancellationToken.ThrowIfCancellationRequested();
-            AjinController.Check(
-                CAXM.AxmHomeSetStart(axisNumber),
-                nameof(CAXM.AxmHomeSetStart));
+            AjinController.Check(CAXM.AxmHomeSetStart(axisNumber), nameof(CAXM.AxmHomeSetStart));
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -320,8 +319,7 @@ public class AjinMotionService(
                     return false;
                 }
 
-                await Task.Delay(StatusPollInterval, cancellationToken)
-                    .ConfigureAwait(false);
+                await Task.Delay(StatusPollInterval, cancellationToken).ConfigureAwait(false);
             }
         }
         catch
@@ -342,14 +340,10 @@ public class AjinMotionService(
     {
         if (_axisY is null)
         {
-            return await HomeCoreAsync(
-                MotionAxis.X,
-                velocity,
-                cancellationToken);
+            return await HomeCoreAsync(MotionAxis.X, velocity, cancellationToken);
         }
 
-        using var homing = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken);
+        using var homing = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         async Task<bool> HomeAxisAsync(MotionAxis axis)
         {
             var succeeded = false;
@@ -369,13 +363,10 @@ public class AjinMotionService(
 
         try
         {
-            var result = await Task.WhenAll(
-                HomeAxisAsync(MotionAxis.X),
-                HomeAxisAsync(MotionAxis.Y));
+            var result = await Task.WhenAll(HomeAxisAsync(MotionAxis.X), HomeAxisAsync(MotionAxis.Y));
             return result[0] && result[1];
         }
-        catch (OperationCanceledException) when (
-            !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             return false;
         }
@@ -424,8 +415,7 @@ public class AjinMotionService(
     {
         cancellationToken.ThrowIfCancellationRequested();
         var horizontal = Array.Exists(axes, axis => axis != _axisZ);
-        using var cancellationRegistration =
-            cancellationToken.Register(StopAxes);
+        using var cancellationRegistration = cancellationToken.Register(StopAxes);
         try
         {
             BeginMotion(horizontal);
@@ -473,7 +463,8 @@ public class AjinMotionService(
         while (ReadMoveState(axes).Moving)
         {
             if (Stopwatch.GetElapsedTime(started).TotalMilliseconds >= options.TimeoutMilliseconds)
-                throw new TimeoutException($"Motion did not stop within {options.TimeoutMilliseconds} ms.");
+                throw new TimeoutException(
+                    $"Motion did not stop within {options.TimeoutMilliseconds} ms.");
             await Task.Delay(StatusPollInterval).ConfigureAwait(false);
         }
     }
@@ -487,7 +478,8 @@ public class AjinMotionService(
             var (moving, inPosition, faulted) = ReadMoveState(axes);
             if (faulted)
                 throw new InvalidOperationException("Motion stopped by an axis fault.");
-            if (!moving && inPosition) return;
+            if (!moving && inPosition)
+                return;
 
             if (moving)
                 stoppedAt = null;
@@ -495,7 +487,8 @@ public class AjinMotionService(
             {
                 stoppedAt ??= Stopwatch.GetTimestamp();
                 if (Stopwatch.GetElapsedTime(stoppedAt.Value).TotalMilliseconds >= options.TimeoutMilliseconds)
-                    throw new TimeoutException($"In-position feedback was not received within {options.TimeoutMilliseconds} ms.");
+                    throw new TimeoutException(
+                        $"In-position feedback was not received within {options.TimeoutMilliseconds} ms.");
             }
 
             await Task.Delay(StatusPollInterval, cancellationToken).ConfigureAwait(false);
@@ -543,19 +536,26 @@ public class AjinMotionService(
         return position * _millimetersPerPulse;
     }
 
-    private double ToUnits(double millimeters) =>
-        millimeters / _millimetersPerPulse;
-
-    private int GetAxis(MotionAxis axis) => axis switch
+    private double ToUnits(double millimeters)
     {
-        MotionAxis.X => _axisX,
-        MotionAxis.Y => _axisY!.Value,
-        MotionAxis.Z => _axisZ!.Value,
-        _ => throw new ArgumentOutOfRangeException(nameof(axis)),
-    };
+        return millimeters / _millimetersPerPulse;
+    }
 
-    private static bool Bit(uint value, int bit) =>
-        ((value >> bit) & 1) != 0;
+    private int GetAxis(MotionAxis axis)
+    {
+        return axis switch
+        {
+            MotionAxis.X => _axisX,
+            MotionAxis.Y => _axisY!.Value,
+            MotionAxis.Z => _axisZ!.Value,
+            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
+        };
+    }
+
+    private static bool Bit(uint value, int bit)
+    {
+        return ((value >> bit) & 1) != 0;
+    }
 
     private void PublishPosition()
     {

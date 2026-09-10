@@ -8,7 +8,10 @@ public sealed class BoltPresenceDetector(
     IBoltRecessSegmenter segmenter,
     Func<float> getMaskThreshold)
 {
-    internal void CheckReady() => segmenter.CheckReady();
+    internal void CheckReady()
+    {
+        segmenter.CheckReady();
+    }
 
     public BoltPrediction Predict(ImageFrame image)
     {
@@ -17,5 +20,8 @@ public sealed class BoltPresenceDetector(
         return new(input, segmenter.Segment(input));
     }
 
-    internal bool IsPresent(ImageFrame image) => Predict(image).IsPresent(getMaskThreshold(), getRecipe().MinimumMaskRatio);
+    internal bool IsPresent(ImageFrame image)
+    {
+        return Predict(image).IsPresent(getMaskThreshold(), getRecipe().MinimumMaskRatio);
+    }
 }

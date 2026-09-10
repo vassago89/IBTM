@@ -14,10 +14,9 @@ public sealed class VirtualIoService(
     private const int FeedbackDelayMilliseconds = 200;
 
     private readonly bool[] _inputs = CreateInitialInputs();
-    private readonly bool[] _outputs = new bool[
-        Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
-    private readonly int[] _feedbackVersions = new int[
-        Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
+    private readonly bool[] _outputs = new bool[Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
+    private readonly int[] _feedbackVersions = new int[Enum.GetValues<OutputIo>().Max(
+        output => (int)output) + 1];
     private readonly Lock _responseGate = new();
     private bool _autoResponseEnabled = true;
     private int _autoResponseVersion;
@@ -26,8 +25,22 @@ public sealed class VirtualIoService(
     public event Action<OutputIo, bool>? OutputChanged;
     public event Action? AutoResponseChanged;
     public event Action<Exception>? Faulted;
-    public bool IsReady => _connected;
-    public int TimeoutMilliseconds => options.TimeoutMilliseconds;
+    public bool IsReady
+    {
+        get
+        {
+            return _connected;
+        }
+    }
+
+    public int TimeoutMilliseconds
+    {
+        get
+        {
+            return options.TimeoutMilliseconds;
+        }
+    }
+
     internal event Action<OutputIo, bool>? OutputApplied;
     internal event Action? FeedbackSynchronized;
 
@@ -49,7 +62,11 @@ public sealed class VirtualIoService(
 
     public bool AutoResponseEnabled
     {
-        get => Volatile.Read(ref _autoResponseEnabled);
+        get
+        {
+            return Volatile.Read(ref _autoResponseEnabled);
+        }
+
         set
         {
             lock (_responseGate)
@@ -83,7 +100,13 @@ public sealed class VirtualIoService(
         }
     }
 
-    internal int AutoResponseVersion => Volatile.Read(ref _autoResponseVersion);
+    internal int AutoResponseVersion
+    {
+        get
+        {
+            return Volatile.Read(ref _autoResponseVersion);
+        }
+    }
 
     internal void ApplyAutoResponse(int version, Action response)
     {
@@ -101,21 +124,20 @@ public sealed class VirtualIoService(
     public void Initialize()
     {
         CheckReady();
-        ApplyAutoResponse(AutoResponseVersion, () =>
-        {
-            foreach (var feedback in outputs.Values
-                         .Select(output => output.Feedback)
-                         .OfType<OutputFeedback>())
+        ApplyAutoResponse(
+            AutoResponseVersion,
+            () =>
             {
-                if (GetInput(feedback.OnInput)
-                    || GetInput(feedback.OffInput))
+                foreach (var feedback in outputs.Values.Select(output => output.Feedback).OfType<OutputFeedback>())
                 {
-                    continue;
-                }
+                    if (GetInput(feedback.OnInput) || GetInput(feedback.OffInput))
+                    {
+                        continue;
+                    }
 
-                SetInput(feedback.OffInput, true);
-            }
-        });
+                    SetInput(feedback.OffInput, true);
+                }
+            });
     }
 
     public void CheckReady()
@@ -140,12 +162,20 @@ public sealed class VirtualIoService(
         }
     }
 
-    public bool GetInput(InputIo input) => _inputs[(int)input];
+    public bool GetInput(InputIo input)
+    {
+        return _inputs[(int)input];
+    }
 
-    public bool GetOutput(OutputIo output) => _outputs[(int)output];
+    public bool GetOutput(OutputIo output)
+    {
+        return _outputs[(int)output];
+    }
 
-    public OutputFeedback? GetOutputFeedback(OutputIo output) =>
-        outputs[output].Feedback;
+    public OutputFeedback? GetOutputFeedback(OutputIo output)
+    {
+        return outputs[output].Feedback;
+    }
 
     public void SetInput(InputIo input, bool value)
     {
@@ -175,12 +205,7 @@ public sealed class VirtualIoService(
             OutputChanged?.Invoke(output, value);
             if (_autoResponseEnabled && outputs[output].Feedback is { } feedback)
             {
-                _ = ApplyFeedbackAsync(
-                    output,
-                    value,
-                    feedback,
-                    feedbackVersion,
-                    responseVersion);
+                _ = ApplyFeedbackAsync(output, value, feedback, feedbackVersion, responseVersion);
             }
         }
     }
@@ -194,24 +219,26 @@ public sealed class VirtualIoService(
         bool notifyApplied = true)
     {
         await Task.Delay(FeedbackDelayMilliseconds).ConfigureAwait(false);
-        ApplyAutoResponse(responseVersion, () =>
-        {
-            if (_feedbackVersions[(int)output] != version)
+        ApplyAutoResponse(
+            responseVersion,
+            () =>
             {
-                return;
-            }
+                if (_feedbackVersions[(int)output] != version)
+                {
+                    return;
+                }
 
-            var expected = value ? feedback.OnInput : feedback.OffInput;
-            SetInput(value ? feedback.OffInput : feedback.OnInput, false);
-            SetInput(expected, true);
-            if (notifyApplied)
-            {
-                OutputApplied?.Invoke(output, value);
-            }
-            else
-            {
-                FeedbackSynchronized?.Invoke();
-            }
-        });
+                var expected = value ? feedback.OnInput : feedback.OffInput;
+                SetInput(value ? feedback.OffInput : feedback.OnInput, false);
+                SetInput(expected, true);
+                if (notifyApplied)
+                {
+                    OutputApplied?.Invoke(output, value);
+                }
+                else
+                {
+                    FeedbackSynchronized?.Invoke();
+                }
+            });
     }
 }

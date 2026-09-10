@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
-
 namespace IBTM.Inspection.Training.Migrations
 {
     [DbContext(typeof(BoltTrainingDb))]
@@ -17,58 +16,52 @@ namespace IBTM.Inspection.Training.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.10");
 
-            modelBuilder.Entity("IBTM.Inspection.Training.BoltTrainingModel", b =>
+            modelBuilder.Entity(
+                "IBTM.Inspection.Training.BoltTrainingModel",
+                b =>
                 {
-                    b.Property<int>("Id")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("Id").HasColumnType("INTEGER");
 
-                    b.Property<int>("Epochs")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("Epochs").HasColumnType("INTEGER");
 
-                    b.Property<DateTimeOffset>("TrainedAt")
-                        .HasColumnType("TEXT");
+                    b.Property<DateTimeOffset>("TrainedAt").HasColumnType("TEXT");
 
-                    b.Property<double>("ValidationLoss")
-                        .HasColumnType("REAL");
+                    b.Property<double>("ValidationLoss").HasColumnType("REAL");
 
-                    b.Property<byte[]>("Weights")
-                        .IsRequired()
-                        .HasColumnType("BLOB");
+                    b.Property<byte[]>("Weights").IsRequired().HasColumnType("BLOB");
 
                     b.HasKey("Id");
 
-                    b.ToTable("Model", null, t =>
+                    b.ToTable(
+                        "Model",
+                        null,
+                        t =>
                         {
                             t.HasCheckConstraint("CK_Model_Id", "Id = 1");
                         });
                 });
 
-            modelBuilder.Entity("IBTM.Inspection.Training.BoltTrainingSample", b =>
+            modelBuilder.Entity(
+                "IBTM.Inspection.Training.BoltTrainingSample",
+                b =>
                 {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<long>("Id").ValueGeneratedOnAdd().HasColumnType("INTEGER");
 
-                    b.Property<byte[]>("Image")
-                        .IsRequired()
-                        .HasColumnType("BLOB");
+                    b.Property<byte[]>("Image").IsRequired().HasColumnType("BLOB");
 
                     b.Property<bool>("Included")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(true);
 
-                    b.Property<string>("Inspection")
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Inspection").HasColumnType("TEXT");
 
                     b.Property<int>("Label")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
                         .HasDefaultValue(0);
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Name").IsRequired().HasColumnType("TEXT");
 
                     b.Property<string>("Polygon")
                         .IsRequired()
@@ -76,8 +69,7 @@ namespace IBTM.Inspection.Training.Migrations
                         .HasColumnType("TEXT")
                         .HasDefaultValue("[]");
 
-                    b.Property<int>("RegionSize")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("RegionSize").HasColumnType("INTEGER");
 
                     b.Property<int>("SampleUse")
                         .ValueGeneratedOnAdd()
@@ -89,18 +81,20 @@ namespace IBTM.Inspection.Training.Migrations
                     b.ToTable("Samples", (string)null);
                 });
 
-            modelBuilder.Entity("IBTM.Inspection.Training.BoltTrainingSettingsRow", b =>
+            modelBuilder.Entity(
+                "IBTM.Inspection.Training.BoltTrainingSettingsRow",
+                b =>
                 {
-                    b.Property<int>("Id")
-                        .HasColumnType("INTEGER");
+                    b.Property<int>("Id").HasColumnType("INTEGER");
 
-                    b.Property<string>("Value")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
+                    b.Property<string>("Value").IsRequired().HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
-                    b.ToTable("TrainingSettings", null, t =>
+                    b.ToTable(
+                        "TrainingSettings",
+                        null,
+                        t =>
                         {
                             t.HasCheckConstraint("CK_TrainingSettings_Id", "Id = 1");
                         });

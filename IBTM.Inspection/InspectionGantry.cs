@@ -27,28 +27,54 @@ public sealed class InspectionGantry
     }
 
     public MotionStatus Motion { get; }
-    public IMotionFeedback Feedback => _motion;
-    public bool CanMove => _transfer.IsRaised;
-    public bool CanHome => _transfer.IsClear;
 
-    public void InitializeMotion() => _motion.Initialize();
+    public IMotionFeedback Feedback
+    {
+        get
+        {
+            return _motion;
+        }
+    }
 
-    public void ResetMotion() => _motion.Reset();
+    public bool CanMove
+    {
+        get
+        {
+            return _transfer.IsRaised;
+        }
+    }
 
-    public void SetServo(MotionAxis axis, bool on) =>
+    public bool CanHome
+    {
+        get
+        {
+            return _transfer.IsClear;
+        }
+    }
+
+    public void InitializeMotion()
+    {
+        _motion.Initialize();
+    }
+
+    public void ResetMotion()
+    {
+        _motion.Reset();
+    }
+
+    public void SetServo(MotionAxis axis, bool on)
+    {
         _motion.SetServo(axis, on);
+    }
 
-    public async Task<bool> HomeAxisAsync(
-        MotionAxis axis,
-        CancellationToken cancellationToken = default)
+    public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
     {
         using var operation = _operations.Link(cancellationToken);
         EnsureCanHome(operation.Token);
         return await _motion.HomeAsync(axis, _settings.Home(axis).SearchSpeed, operation.Token);
     }
 
-    public async Task<bool> HomeHorizontalAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<bool> HomeHorizontalAsync(CancellationToken cancellationToken = default)
     {
         using var operation = _operations.Link(cancellationToken);
         EnsureCanHome(operation.Token);
@@ -61,14 +87,13 @@ public sealed class InspectionGantry
         CancellationToken cancellationToken = default)
     {
         EnsureCanMove(cancellationToken);
-        return _motion.MoveToXYAsync(
-            position.X,
-            position.Y,
-            velocity,
-            cancellationToken);
+        return _motion.MoveToXYAsync(position.X, position.Y, velocity, cancellationToken);
     }
 
-    public bool CanJog(MotionAxis axis) => axis is MotionAxis.X or MotionAxis.Y && CanMove;
+    public bool CanJog(MotionAxis axis)
+    {
+        return axis is MotionAxis.X or MotionAxis.Y && CanMove;
+    }
 
     public Task MoveAxisAsync(
         MotionAxis axis,
@@ -85,10 +110,7 @@ public sealed class InspectionGantry
         };
     }
 
-    public Task JogAsync(
-        MotionAxis axis,
-        double velocity,
-        CancellationToken cancellationToken = default)
+    public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
     {
         EnsureCanMove(cancellationToken);
         if (axis is not (MotionAxis.X or MotionAxis.Y))
@@ -102,10 +124,8 @@ public sealed class InspectionGantry
         return !_motion.IsMoving
             && _motion.GetAxisState(MotionAxis.X).InPosition
             && _motion.GetAxisState(MotionAxis.Y).InPosition
-            && Math.Abs(current.X - position.X)
-                <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(current.Y - position.Y)
-                <= MotionService.PositionToleranceMillimeters;
+            && Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
+            && Math.Abs(current.Y - position.Y) <= MotionService.PositionToleranceMillimeters;
     }
 
     private void EnsureCanMove(CancellationToken cancellationToken)
@@ -113,8 +133,7 @@ public sealed class InspectionGantry
         cancellationToken.ThrowIfCancellationRequested();
         if (!CanMove)
         {
-            throw new InvalidOperationException(
-                "NG carrier pickup must be raised before inspection XY movement.");
+            throw new InvalidOperationException("NG carrier pickup must be raised before inspection XY movement.");
         }
     }
 
@@ -123,8 +142,7 @@ public sealed class InspectionGantry
         cancellationToken.ThrowIfCancellationRequested();
         if (!CanHome)
         {
-            throw new InvalidOperationException(
-                "Release the NG carrier and raise the pickup before homing the inspection XY axes.");
+            throw new InvalidOperationException("Release the NG carrier and raise the pickup before homing the inspection XY axes.");
         }
     }
 }

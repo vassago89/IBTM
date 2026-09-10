@@ -4,5 +4,8 @@ namespace IBTM.UI;
 
 public partial class InspectionView : UserControl
 {
-    public InspectionView() => InitializeComponent();
+    public InspectionView()
+    {
+        InitializeComponent();
+    }
 }

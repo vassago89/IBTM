@@ -16,14 +16,36 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
     private readonly SemaphoreSlim _exchange = new(1, 1);
     private SerialPort? _port;
 
-    public bool IsOpen => _port?.IsOpen == true;
-    public string PortName => _port?.PortName ?? string.Empty;
-    public int BaudRate => _port?.BaudRate ?? 0;
+    public bool IsOpen
+    {
+        get
+        {
+            return _port?.IsOpen == true;
+        }
+    }
+
+    public string PortName
+    {
+        get
+        {
+            return _port?.PortName ?? string.Empty;
+        }
+    }
+
+    public int BaudRate
+    {
+        get
+        {
+            return _port?.BaudRate ?? 0;
+        }
+    }
 
     public event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
-    public string[] GetPortNames() =>
-        SerialPort.GetPortNames().Order(StringComparer.OrdinalIgnoreCase).ToArray();
+    public string[] GetPortNames()
+    {
+        return SerialPort.GetPortNames().Order(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
 
     public void Open(string portName, int baudRate)
     {
@@ -33,12 +55,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         }
 
         Close();
-        _port = new SerialPort(
-            portName,
-            baudRate,
-            Parity.None,
-            dataBits: 8,
-            StopBits.One)
+        _port = new SerialPort(portName, baudRate, Parity.None, dataBits: 8, StopBits.One)
         {
             Handshake = Handshake.None,
             ReadTimeout = settings.ResponseTimeoutMilliseconds,
@@ -58,25 +75,29 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         byte slaveAddress,
         ushort address,
         ushort count,
-        CancellationToken cancellationToken = default) =>
-        ReadRegistersAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return ReadRegistersAsync(
             slaveAddress,
             AdcFunctionCode.ReadHoldingRegisters,
             address,
             count,
             cancellationToken);
+    }
 
     public Task<ushort[]> ReadInputRegistersAsync(
         byte slaveAddress,
         ushort address,
         ushort count,
-        CancellationToken cancellationToken = default) =>
-        ReadRegistersAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return ReadRegistersAsync(
             slaveAddress,
             AdcFunctionCode.ReadInputRegisters,
             address,
             count,
             cancellationToken);
+    }
 
     public async Task WriteRegisterAsync(
         byte slaveAddress,
@@ -87,10 +108,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         var data = new byte[4];
         BinaryPrimitives.WriteUInt16BigEndian(data, address);
         BinaryPrimitives.WriteUInt16BigEndian(data.AsSpan(2), value);
-        var request = AdcRtuFrame.Build(
-            slaveAddress,
-            AdcFunctionCode.WriteSingleRegister,
-            data);
+        var request = AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.WriteSingleRegister, data);
         var response = await ExchangeAsync(
             slaveAddress,
             AdcFunctionCode.WriteSingleRegister,
@@ -110,10 +128,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         var response = await ExchangeAsync(
             slaveAddress,
             AdcFunctionCode.RequestDeviceInformation,
-            AdcRtuFrame.Build(
-                slaveAddress,
-                AdcFunctionCode.RequestDeviceInformation,
-                []),
+            AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestDeviceInformation, []),
             cancellationToken);
         return response[3..^2];
     }
@@ -142,15 +157,13 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         var byteCount = response[2];
         if (byteCount != count * 2)
         {
-            throw new InvalidDataException(
-                $"ADC returned {byteCount} data bytes; expected {count * 2}.");
+            throw new InvalidDataException($"ADC returned {byteCount} data bytes; expected {count * 2}.");
         }
 
         var values = new ushort[count];
         for (var index = 0; index < count; index++)
         {
-            values[index] = BinaryPrimitives.ReadUInt16BigEndian(
-                response.AsSpan(3 + index * 2, 2));
+            values[index] = BinaryPrimitives.ReadUInt16BigEndian(response.AsSpan(3 + index * 2, 2));
         }
 
         return values;
@@ -167,8 +180,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         {
             var port = _port!;
             port.DiscardInBuffer();
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(
-                cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(settings.ResponseTimeoutMilliseconds);
 
             byte[] response;
@@ -177,7 +189,8 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
                 FrameTransferred?.Invoke(AdcFrameDirection.Transmit, request);
                 await AwaitSerialIoAsync(
                     port.BaseStream.WriteAsync(request, timeout.Token).AsTask(),
-                    port.DiscardOutBuffer, timeout.Token);
+                    port.DiscardOutBuffer,
+                    timeout.Token);
                 response = await ReadResponseAsync(
                     port.BaseStream,
                     port.DiscardInBuffer,
@@ -186,12 +199,10 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
                     function,
                     timeout.Token);
             }
-            catch (OperationCanceledException)
-                when (!cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 throw new TimeoutException(
-                    $"ADC response timed out after "
-                    + $"{settings.ResponseTimeoutMilliseconds} ms.");
+                    $"ADC response timed out after " + $"{settings.ResponseTimeoutMilliseconds} ms.");
             }
 
             return response;
@@ -202,7 +213,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         }
     }
 
-    private static async Task<byte[]> ReadResponseAsync(    
+    private static async Task<byte[]> ReadResponseAsync(
         Stream stream,
         Action abortRead,
         Action<byte[]> received,
@@ -210,18 +221,19 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         AdcFunctionCode function,
         CancellationToken cancellationToken)
     {
-        Task ReadAsync(byte[] bytes) => AwaitSerialIoAsync(
-            ReadAndReportAsync(bytes), abortRead, cancellationToken);
+        Task ReadAsync(byte[] bytes)
+        {
+            return AwaitSerialIoAsync(ReadAndReportAsync(bytes), abortRead, cancellationToken);
+        }
 
         async Task ReadAndReportAsync(byte[] bytes)
         {
             var offset = 0;
             while (offset < bytes.Length)
             {
-                var count = await stream.ReadAsync(bytes.AsMemory(offset), cancellationToken)
-                    .ConfigureAwait(false);
-                if (count == 0) throw new EndOfStreamException("ADC response ended before the frame was complete.");
-
+                var count = await stream.ReadAsync(bytes.AsMemory(offset), cancellationToken).ConfigureAwait(false);
+                if (count == 0)
+                    throw new EndOfStreamException("ADC response ended before the frame was complete.");
                 // Report bytes before parsing, including partial and invalid responses.
                 received(bytes.AsSpan(offset, count).ToArray());
                 offset += count;
@@ -236,13 +248,9 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
             var tail = new byte[3];
             await ReadAsync(tail);
             byte[] errorFrame = [.. header, .. tail];
-            ValidateFrame(
-                errorFrame,
-                slaveAddress,
-                (byte)((byte)function | ExceptionFunctionMask));
+            ValidateFrame(errorFrame, slaveAddress, (byte)((byte)function | ExceptionFunctionMask));
             var code = (AdcExceptionCode)tail[0];
-            throw new IOException(
-                $"ADC controller returned {code} (0x{(byte)code:X2}).");
+            throw new IOException($"ADC controller returned {code} (0x{(byte)code:X2}).");
         }
 
         byte[] response;
@@ -266,7 +274,10 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         return response;
     }
 
-    private static async Task AwaitSerialIoAsync(Task operation, Action abort, CancellationToken cancellationToken)
+    private static async Task AwaitSerialIoAsync(
+        Task operation,
+        Action abort,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -282,10 +293,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         }
     }
 
-    private static void ValidateFrame(
-        byte[] frame,
-        byte slaveAddress,
-        byte function)
+    private static void ValidateFrame(byte[] frame, byte slaveAddress, byte function)
     {
         if (frame[0] != slaveAddress || frame[1] != function)
         {
@@ -293,8 +301,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         }
 
         var expected = BinaryPrimitives.ReadUInt16LittleEndian(frame.AsSpan(^2));
-        var actual = AdcRtuFrame.CalculateCrc(
-            frame.AsSpan(0, frame.Length - 2));
+        var actual = AdcRtuFrame.CalculateCrc(frame.AsSpan(0, frame.Length - 2));
         if (actual != expected)
         {
             throw new InvalidDataException("ADC response CRC is invalid.");

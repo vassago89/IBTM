@@ -15,7 +15,8 @@ public sealed class MotionStatus : INotifyPropertyChanged
     private MotionPosition _position;
     private bool _isMoving;
     private Task? _monitoring;
-    private readonly TaskCompletionSource _firstMonitorRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _firstMonitorRead = new(
+        TaskCreationOptions.RunContinuationsAsynchronously);
 
     public MotionStatus(IMotionFeedback motion)
     {
@@ -39,19 +40,32 @@ public sealed class MotionStatus : INotifyPropertyChanged
     public IReadOnlyDictionary<MotionAxis, AxisStatus> Axes { get; }
     // Independent raw monitoring continues for disabled, servo-off and alarmed axes.
     public IReadOnlyDictionary<MotionAxis, MotionDiagnostics> MonitorAxes { get; }
-    public Task MonitoringCompletion => _monitoring ?? Task.CompletedTask;
+
+    public Task MonitoringCompletion
+    {
+        get
+        {
+            return _monitoring ?? Task.CompletedTask;
+        }
+    }
 
     // Startup awaits the first sample; MonitoringCompletion owns the lifetime of the loop.
-    public Task StartMonitoringAsync(CancellationToken lifetime, Action refreshed,
+    public Task StartMonitoringAsync(
+        CancellationToken lifetime,
+        Action refreshed,
         Action<MotionAxis, Exception> reportError)
     {
-        if (Feedback is not IMotionDiagnostics) return Task.CompletedTask;
-        if (_monitoring is not null) return _firstMonitorRead.Task;
+        if (Feedback is not IMotionDiagnostics)
+            return Task.CompletedTask;
+        if (_monitoring is not null)
+            return _firstMonitorRead.Task;
         _monitoring = Task.Run(() => MonitorAsync(lifetime, refreshed, reportError));
         return _firstMonitorRead.Task;
     }
 
-    private async Task MonitorAsync(CancellationToken lifetime, Action refreshed,
+    private async Task MonitorAsync(
+        CancellationToken lifetime,
+        Action refreshed,
         Action<MotionAxis, Exception> reportError)
     {
         try
@@ -76,6 +90,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
                 status.Invalidate(error);
                 reportError(axis, error);
             }
+
             refreshed();
             _firstMonitorRead.TrySetException(error);
             throw;
@@ -84,7 +99,8 @@ public sealed class MotionStatus : INotifyPropertyChanged
 
     public void RefreshMonitorFeedback(Action<MotionAxis, Exception>? reportError = null)
     {
-        if (Feedback is not IMotionDiagnostics diagnostics) return;
+        if (Feedback is not IMotionDiagnostics diagnostics)
+            return;
         foreach (var (axis, status) in MonitorAxes)
         {
             var previous = status.Snapshot.ReadError?.Message;
@@ -94,33 +110,61 @@ public sealed class MotionStatus : INotifyPropertyChanged
         }
     }
 
-    public bool XyHomed => Axes[MotionAxis.X].State is { Homed: true }
-        && (!Feedback.HasY || Axes[MotionAxis.Y].State is { Homed: true });
+    public bool XyHomed
+    {
+        get
+        {
+            return Axes[MotionAxis.X].State is { Homed: true }
+                && (!Feedback.HasY || Axes[MotionAxis.Y].State is { Homed: true });
+        }
+    }
 
     // Display only; motion commands read Feedback again when they execute.
-    public bool IsAtZ(double z) => !Feedback.HasZ
-        || Axes[MotionAxis.Z].State is { Homed: true }
-        && Math.Abs(Position.Z - z) <= MotionService.PositionToleranceMillimeters;
+    public bool IsAtZ(double z)
+    {
+        return !Feedback.HasZ
+            || Axes[MotionAxis.Z].State is { Homed: true }
+            && Math.Abs(Position.Z - z) <= MotionService.PositionToleranceMillimeters;
+    }
 
     public MotionPosition Position
     {
-        get => _position;
-        private set => Set(ref _position, value, nameof(Position));
+        get
+        {
+            return _position;
+        }
+
+        private set
+        {
+            Set(ref _position, value, nameof(Position));
+        }
     }
 
     public bool IsMoving
     {
-        get => _isMoving;
-        private set => Set(ref _isMoving, value, nameof(IsMoving));
+        get
+        {
+            return _isMoving;
+        }
+
+        private set
+        {
+            Set(ref _isMoving, value, nameof(IsMoving));
+        }
     }
 
     public double ZMinimum { get; }
     public double ZMaximum { get; }
 
-    private void OnPositionChanged(double x, double y, double z) =>
+    private void OnPositionChanged(double x, double y, double z)
+    {
         Position = new(x, y, z);
+    }
 
-    private void OnMovingChanged(bool moving) => IsMoving = moving;
+    private void OnMovingChanged(bool moving)
+    {
+        IsMoving = moving;
+    }
 
     public void RefreshControlFeedback(bool available = true)
     {
@@ -137,7 +181,8 @@ public sealed class MotionStatus : INotifyPropertyChanged
         }
         catch (IOException)
         {
-            foreach (var status in Axes.Values) status.Update(null);
+            foreach (var status in Axes.Values)
+                status.Update(null);
             throw;
         }
         finally
@@ -155,8 +200,6 @@ public sealed class MotionStatus : INotifyPropertyChanged
         }
 
         field = value;
-        PropertyChanged?.Invoke(
-            this,
-            new PropertyChangedEventArgs(propertyName));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

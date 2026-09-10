@@ -197,10 +197,34 @@ feeder, shooting and interface run outputs; it does not reset alarms or reverse
 pneumatic valves. OFF does not close the window, and a missing display snapshot
 does not prevent opening it.
 
-Manual Control's conveyor Run/Stop rows retain their coordinated motor-test
-admission, forward/normal-speed setup and cancellation lifetime. They can stop a
-motor started from OUTPUTS. Teaching, homing, axis movement and automatic transfer
-keep their existing interlocks.
+Manual Control's conveyor Run/Stop rows use the same minimum manual/I/O/E-STOP
+conditions, without unit-enable, carrier, peer-handshake or unrelated-motion
+gates. RUN selects forward/normal speed and owns its cancellation lifetime;
+STOP can also stop a motor started from OUTPUTS. Automatic and Dry Run sequences
+retain their own route, clearance and readiness checks.
+
+Setup editing and teaching lists are independent of unit Enable, servo, homing
+and latched alarms. Pages remain viewable while another manual operation runs;
+data writes still require idle MANUAL so running operations do not read changing
+settings. Teaching the current readable position does not move an axis and does
+not require Servo ON. It rejects unavailable position feedback.
+Manual moves check only the selected mechanism's initialized, homed, servo-on,
+fault-free axes and its actual clearance, not unrelated axes or latched alarms.
+Individual Home likewise checks its selected axes and existing Home clearance;
+HOME ALL retains its all-enabled-axis readiness checks.
+
+Teaching cylinder/vacuum commands do not require unrelated handler readiness.
+Supply rotation still requires its own motion because it first moves Z to the
+rotation height; placement rotation keeps its physical clearance check. Feedback
+waits and cancellation remain on these coordinated teaching commands.
+
+Camera live view does not require motion readiness or an alarm reset; AUTO or
+leaving the view stops it. Reinspection of a saved image uses the data-edit path,
+not the motion path. Moving camera scans retain inspection-axis requirements.
+ADC head tests no longer require unrelated axes to be homed/ready. The ADC window
+can remain open to view logs when its hardware commands are blocked.
+Unrelated alarms no longer cancel a lighting test, and a failed light-OFF command
+can be retried even while another operation is busy.
 
 The sidebar **MOTION** button opens a separate Motion Monitor that stays open in
 AUTO, during motion and during alarms. It groups axes by mechanism and shows the

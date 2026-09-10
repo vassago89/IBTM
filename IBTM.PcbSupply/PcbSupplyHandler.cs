@@ -33,17 +33,47 @@ public sealed class PcbSupplyHandler
     public event Action? Changed;
 
     public MotionStatus Motion { get; }
-    public IMotionFeedback Feedback => _motion;
-    public bool IsAtRotationZ => _motion.IsAtHorizontalZ;
 
-    public bool UpstreamCarrierAvailable =>
-        _io.GetInput(InputIo.PcbSupplyAvailableFromFront1);
-    public PcbSupplyCylinderState Gripper => CylinderState(
-        InputIo.PcbSupplyGripperClosed,
-        InputIo.PcbSupplyGripperOpen);
-    public PcbSupplyCylinderState IpmFixer => CylinderState(
-        InputIo.PcbSupplyIpmFixerForward,
-        InputIo.PcbSupplyIpmFixerBackward);
+    public IMotionFeedback Feedback
+    {
+        get
+        {
+            return _motion;
+        }
+    }
+
+    public bool IsAtRotationZ
+    {
+        get
+        {
+            return _motion.IsAtHorizontalZ;
+        }
+    }
+
+    public bool UpstreamCarrierAvailable
+    {
+        get
+        {
+            return _io.GetInput(InputIo.PcbSupplyAvailableFromFront1);
+        }
+    }
+
+    public PcbSupplyCylinderState Gripper
+    {
+        get
+        {
+            return CylinderState(InputIo.PcbSupplyGripperClosed, InputIo.PcbSupplyGripperOpen);
+        }
+    }
+
+    public PcbSupplyCylinderState IpmFixer
+    {
+        get
+        {
+            return CylinderState(InputIo.PcbSupplyIpmFixerForward, InputIo.PcbSupplyIpmFixerBackward);
+        }
+    }
+
     public PcbSupplyPcbState Pcb
     {
         get
@@ -55,19 +85,23 @@ public sealed class PcbSupplyHandler
 
             return Gripper == PcbSupplyCylinderState.Forward
                 && IpmFixer == PcbSupplyCylinderState.Forward
-                    ? PcbSupplyPcbState.Secured
-                    : PcbSupplyPcbState.Detected;
+                ? PcbSupplyPcbState.Secured
+                : PcbSupplyPcbState.Detected;
         }
     }
 
-    public PcbSupplyRotationState Rotation =>
-        (_io.GetInput(InputIo.PcbSupplyUnrotated),
-            _io.GetInput(InputIo.PcbSupplyRotated)) switch
+    public PcbSupplyRotationState Rotation
+    {
+        get
         {
-            (true, false) => PcbSupplyRotationState.Unrotated,
-            (false, true) => PcbSupplyRotationState.Rotated,
-            _ => PcbSupplyRotationState.Between,
-        };
+            return (_io.GetInput(InputIo.PcbSupplyUnrotated), _io.GetInput(InputIo.PcbSupplyRotated)) switch
+            {
+                (true, false) => PcbSupplyRotationState.Unrotated,
+                (false, true) => PcbSupplyRotationState.Rotated,
+                _ => PcbSupplyRotationState.Between,
+            };
+        }
+    }
 
     public bool CanPrepareHome
     {
@@ -80,12 +114,20 @@ public sealed class PcbSupplyHandler
         }
     }
 
-    public void InitializeMotion() => _motion.Initialize();
+    public void InitializeMotion()
+    {
+        _motion.Initialize();
+    }
 
-    public void ResetMotion() => _motion.Reset();
+    public void ResetMotion()
+    {
+        _motion.Reset();
+    }
 
-    public void SetServo(MotionAxis axis, bool on) =>
+    public void SetServo(MotionAxis axis, bool on)
+    {
         _motion.SetServo(axis, on);
+    }
 
     internal bool AtHandoffXY
     {
@@ -95,10 +137,8 @@ public sealed class PcbSupplyHandler
             return !_motion.IsMoving
                 && _motion.GetAxisState(MotionAxis.X).InPosition
                 && _motion.GetAxisState(MotionAxis.Y).InPosition
-                && Math.Abs(position.X - _settings.BufferHandoffPosition.X)
-                    <= MotionService.PositionToleranceMillimeters
-                && Math.Abs(position.Y - _settings.BufferHandoffPosition.Y)
-                    <= MotionService.PositionToleranceMillimeters;
+                && Math.Abs(position.X - _settings.BufferHandoffPosition.X) <= MotionService.PositionToleranceMillimeters
+                && Math.Abs(position.Y - _settings.BufferHandoffPosition.Y) <= MotionService.PositionToleranceMillimeters;
         }
     }
 
@@ -107,18 +147,17 @@ public sealed class PcbSupplyHandler
         get
         {
             var z = _motion.GetPosition().Z;
-            return z > _settings.RotationZ
-                       + MotionService.PositionToleranceMillimeters
-                && z <= _settings.BufferHandoffPosition.Z
-                        + MotionService.PositionToleranceMillimeters;
+            return z > _settings.RotationZ + MotionService.PositionToleranceMillimeters
+                && z <= _settings.BufferHandoffPosition.Z + MotionService.PositionToleranceMillimeters;
         }
     }
 
-    public void SetUpstreamReady(bool ready) =>
+    public void SetUpstreamReady(bool ready)
+    {
         _io.SetOutput(OutputIo.PcbSupplyReadyToFront1, ready);
+    }
 
-    internal async Task MoveAboveHandoffAsync(
-        CancellationToken cancellationToken)
+    internal async Task MoveAboveHandoffAsync(CancellationToken cancellationToken)
     {
         await _motion.MoveToHorizontalZAsync(cancellationToken);
         await MoveHorizontalAsync(
@@ -127,51 +166,46 @@ public sealed class PcbSupplyHandler
             cancellationToken);
     }
 
-    public Task MoveToHandoffZAsync(
-        CancellationToken cancellationToken,
-        double? z = null) =>
-        Rotation != PcbSupplyRotationState.Rotated
-            ? throw new InvalidOperationException(
-                "Supply must be rotated before lowering into the buffer.")
+    public Task MoveToHandoffZAsync(CancellationToken cancellationToken, double? z = null)
+    {
+        return Rotation != PcbSupplyRotationState.Rotated
+            ? throw new InvalidOperationException("Supply must be rotated before lowering into the buffer.")
             : _motion.MoveZAsync(
                 z ?? _settings.BufferHandoffPosition.Z,
                 _settings.Motion.ZSpeed,
                 cancellationToken);
+    }
 
     internal async Task PickAsync(
         PcbPickPosition position,
         CancellationToken cancellationToken = default)
     {
-        await MoveHorizontalAsync(
-            position.X,
-            _settings.CarrierY,
-            cancellationToken);
-        await _motion.MoveZAsync(
-            position.Z,
-            _settings.Motion.ZSpeed,
-            cancellationToken);
+        await MoveHorizontalAsync(position.X, _settings.CarrierY, cancellationToken);
+        await _motion.MoveZAsync(position.Z, _settings.Motion.ZSpeed, cancellationToken);
         if (Pcb == PcbSupplyPcbState.None)
         {
             await _motion.MoveToHorizontalZAsync(cancellationToken);
         }
     }
 
-    public async Task SecurePcbAsync(
-        CancellationToken cancellationToken = default)
+    public async Task SecurePcbAsync(CancellationToken cancellationToken = default)
     {
         await SetGripperClosedAsync(true, cancellationToken);
         await SetIpmFixerAsync(true, cancellationToken);
     }
 
-    public bool CanMoveToTeachingPosition(TeachingPosition point, bool live = true) =>
-        (!IsInsideBuffer(live) || point.Mode == TeachMode.XOnly && AtRotationZ(live))
-        && point.Target switch
-        {
-            TeachingTarget.SupplyBufferHandoff => Rotation == PcbSupplyRotationState.Rotated,
-            TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick =>
-                Rotation == PcbSupplyRotationState.Unrotated,
-            _ => true,
-        };
+    public bool CanMoveToTeachingPosition(TeachingPosition point, bool live = true)
+    {
+        return (!IsInsideBuffer(live) || point.Mode == TeachMode.XOnly && AtRotationZ(live))
+            && point.Target switch
+            {
+                TeachingTarget.SupplyBufferHandoff => Rotation == PcbSupplyRotationState.Rotated,
+                TeachingTarget.SupplyPcb1Pick or TeachingTarget.SupplyPcb2Pick
+
+                    => Rotation == PcbSupplyRotationState.Unrotated,
+                _ => true,
+            };
+    }
 
     public async Task MoveToTeachingPositionAsync(
         TeachingPosition point,
@@ -211,8 +245,7 @@ public sealed class PcbSupplyHandler
         {
             await MoveXAsync(x, cancellationToken);
             if (_motion.GetAxisState(MotionAxis.Y).InPosition
-                && Math.Abs(_motion.GetPosition().Y - y)
-                    <= MotionService.PositionToleranceMillimeters)
+                && Math.Abs(_motion.GetPosition().Y - y) <= MotionService.PositionToleranceMillimeters)
             {
                 return;
             }
@@ -226,13 +259,9 @@ public sealed class PcbSupplyHandler
         }
     }
 
-    internal async Task MoveClearAsync(
-        CancellationToken cancellationToken = default)
+    internal async Task MoveClearAsync(CancellationToken cancellationToken = default)
     {
-        await _motion.MoveZAsync(
-            _settings.BufferClearZ,
-            _settings.Motion.ZSpeed,
-            cancellationToken);
+        await _motion.MoveZAsync(_settings.BufferClearZ, _settings.Motion.ZSpeed, cancellationToken);
         await _motion.MoveXAtClearZAsync(
             XHome,
             _settings.BufferClearZ,
@@ -240,56 +269,43 @@ public sealed class PcbSupplyHandler
             cancellationToken);
     }
 
-    public Task SetIpmFixerAsync(
-        bool forward,
-        CancellationToken cancellationToken = default) =>
-        _io.SetOutputAndWaitAsync(
-            OutputIo.PcbSupplyIpmFixerForward,
-            forward,
-            cancellationToken);
+    public Task SetIpmFixerAsync(bool forward, CancellationToken cancellationToken = default)
+    {
+        return _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, forward, cancellationToken);
+    }
 
-    public Task SetGripperClosedAsync(
-        bool closed,
-        CancellationToken cancellationToken = default) =>
-        _io.SetOutputAndWaitAsync(
-            OutputIo.PcbSupplyGripperClosed,
-            closed,
-            cancellationToken);
+    public Task SetGripperClosedAsync(bool closed, CancellationToken cancellationToken = default)
+    {
+        return _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, closed, cancellationToken);
+    }
 
-    public async Task<bool> PrepareHomeAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<bool> PrepareHomeAsync(CancellationToken cancellationToken = default)
     {
         if (!CanPrepareHome)
         {
             return false;
         }
 
-        await _io.SetOutputAndWaitAsync(
-            OutputIo.PcbSupplyRotate,
-            true,
-            cancellationToken);
+        await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, true, cancellationToken);
 
-        await _motion.MoveZToPositiveLimitAsync(
-            _settings.Motion.ZHome.SearchSpeed,
-            cancellationToken);
+        await _motion.MoveZToPositiveLimitAsync(_settings.Motion.ZHome.SearchSpeed, cancellationToken);
         return true;
     }
 
-    public async Task<bool> CompleteHomeAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<bool> CompleteHomeAsync(CancellationToken cancellationToken = default)
     {
         if (!await _motion.HomeFromZPositiveLimitAsync(
-                MotionAxis.X,
-                _settings.Motion.HorizontalHome.SearchSpeed,
-                cancellationToken))
+            MotionAxis.X,
+            _settings.Motion.HorizontalHome.SearchSpeed,
+            cancellationToken))
         {
             return false;
         }
 
         if (!await _motion.HomeFromZPositiveLimitAsync(
-                MotionAxis.Y,
-                _settings.Motion.HorizontalHome.SearchSpeed,
-                cancellationToken))
+            MotionAxis.Y,
+            _settings.Motion.HorizontalHome.SearchSpeed,
+            cancellationToken))
         {
             return false;
         }
@@ -300,26 +316,34 @@ public sealed class PcbSupplyHandler
             cancellationToken);
     }
 
-    public bool AtReturnEntryZ =>
-        Rotation == PcbSupplyRotationState.Rotated
-        && !_motion.IsMoving
-        && _motion.GetAxisState(MotionAxis.Y).InPosition
-        && _motion.GetAxisState(MotionAxis.Z).InPosition
-        && Math.Abs(_motion.GetPosition().Y - _settings.BufferHandoffPosition.Y)
-            <= MotionService.PositionToleranceMillimeters
-        && Math.Abs(_motion.GetPosition().Z - _settings.BufferClearZ)
-            <= MotionService.PositionToleranceMillimeters;
+    public bool AtReturnEntryZ
+    {
+        get
+        {
+            return Rotation == PcbSupplyRotationState.Rotated
+                && !_motion.IsMoving
+                && _motion.GetAxisState(MotionAxis.Y).InPosition
+                && _motion.GetAxisState(MotionAxis.Z).InPosition
+                && Math.Abs(_motion.GetPosition().Y - _settings.BufferHandoffPosition.Y) <= MotionService.PositionToleranceMillimeters
+                && Math.Abs(_motion.GetPosition().Z - _settings.BufferClearZ) <= MotionService.PositionToleranceMillimeters;
+        }
+    }
 
-    public bool OnReturnHandoffPath =>
-        AtHandoffXY
-        && Rotation == PcbSupplyRotationState.Rotated
-        && _motion.GetPosition().Z >= _settings.BufferHandoffPosition.Z
-            - MotionService.PositionToleranceMillimeters
-        && _motion.GetPosition().Z <= _settings.BufferClearZ
-            + MotionService.PositionToleranceMillimeters;
+    public bool OnReturnHandoffPath
+    {
+        get
+        {
+            return AtHandoffXY
+                && Rotation == PcbSupplyRotationState.Rotated
+                && _motion.GetPosition().Z >= _settings.BufferHandoffPosition.Z - MotionService.PositionToleranceMillimeters
+                && _motion.GetPosition().Z <= _settings.BufferClearZ + MotionService.PositionToleranceMillimeters;
+        }
+    }
 
-    public Task WaitForPcbAsync(CancellationToken cancellationToken) =>
-        _io.WaitForInputAsync(InputIo.PcbSupplyPcbDetected, true, cancellationToken);
+    public Task WaitForPcbAsync(CancellationToken cancellationToken)
+    {
+        return _io.WaitForInputAsync(InputIo.PcbSupplyPcbDetected, true, cancellationToken);
+    }
 
     public async Task PrepareReturnEntryAsync(CancellationToken cancellationToken)
     {
@@ -330,14 +354,16 @@ public sealed class PcbSupplyHandler
         await MoveTeachingZAsync(_settings.BufferClearZ, cancellationToken);
     }
 
-    public Task EnterAtClearZAsync(CancellationToken cancellationToken) =>
-        Rotation != PcbSupplyRotationState.Rotated
+    public Task EnterAtClearZAsync(CancellationToken cancellationToken)
+    {
+        return Rotation != PcbSupplyRotationState.Rotated
             ? throw new InvalidOperationException("Supply must be rotated before entering the buffer.")
             : _motion.MoveXAtClearZAsync(
                 _settings.BufferHandoffPosition.X,
                 _settings.BufferClearZ,
                 _settings.Motion.HorizontalSpeed,
                 cancellationToken);
+    }
 
     public async Task ReturnWithPcbAsync(CancellationToken cancellationToken)
     {
@@ -347,83 +373,80 @@ public sealed class PcbSupplyHandler
         await SetRotatedAsync(false, cancellationToken);
     }
 
-    public Task MoveXAsync(
-        double x,
-        CancellationToken cancellationToken = default) =>
-        _motion.MoveXAsync(
-            x,
-            _settings.Motion.HorizontalSpeed,
-            cancellationToken);
-
-    public Task MoveYAsync(
-        double y,
-        CancellationToken cancellationToken = default) =>
-        InsideBuffer
-            ? throw new InvalidOperationException(
-                "Supply Y cannot move inside the buffer.")
-            : _motion.MoveYAsync(
-            y,
-            _settings.Motion.HorizontalSpeed,
-            cancellationToken);
-
-    public Task MoveTeachingZAsync(
-        double z,
-        CancellationToken cancellationToken = default) =>
-        InsideBuffer
-            ? throw new InvalidOperationException(
-                "Supply Z cannot move inside the buffer.")
-            : _motion.MoveZAsync(
-                z,
-                _settings.Motion.ZSpeed,
-                cancellationToken);
-
-    public bool CanJog(MotionAxis axis, bool live = true) => axis switch
+    public Task MoveXAsync(double x, CancellationToken cancellationToken = default)
     {
-        MotionAxis.X => AtRotationZ(live),
-        MotionAxis.Y => _motion.HasY && !IsInsideBuffer(live) && AtRotationZ(live),
-        MotionAxis.Z => _motion.HasZ && !IsInsideBuffer(live),
-        _ => false,
-    };
+        return _motion.MoveXAsync(x, _settings.Motion.HorizontalSpeed, cancellationToken);
+    }
 
-    public Task JogAsync(
-        MotionAxis axis,
-        double velocity,
-        CancellationToken cancellationToken = default)
+    public Task MoveYAsync(double y, CancellationToken cancellationToken = default)
+    {
+        return InsideBuffer
+            ? throw new InvalidOperationException("Supply Y cannot move inside the buffer.")
+            : _motion.MoveYAsync(y, _settings.Motion.HorizontalSpeed, cancellationToken);
+    }
+
+    public Task MoveTeachingZAsync(double z, CancellationToken cancellationToken = default)
+    {
+        return InsideBuffer
+            ? throw new InvalidOperationException("Supply Z cannot move inside the buffer.")
+            : _motion.MoveZAsync(z, _settings.Motion.ZSpeed, cancellationToken);
+    }
+
+    public bool CanJog(MotionAxis axis, bool live = true)
+    {
+        return axis switch
+        {
+            MotionAxis.X => AtRotationZ(live),
+            MotionAxis.Y => _motion.HasY && !IsInsideBuffer(live) && AtRotationZ(live),
+            MotionAxis.Z => _motion.HasZ && !IsInsideBuffer(live),
+            _ => false,
+        };
+    }
+
+    public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
     {
         if (axis is MotionAxis.Y or MotionAxis.Z && InsideBuffer)
             throw new InvalidOperationException($"Supply {axis} cannot jog inside the buffer.");
         return _motion.JogAsync(axis, velocity, cancellationToken);
     }
 
-    private bool InsideBuffer => IsInsideBuffer(live: true);
+    private bool InsideBuffer
+    {
+        get
+        {
+            return IsInsideBuffer(live: true);
+        }
+    }
 
-    public bool IsInsideBuffer(bool live) =>
-        _bufferSettings.ContainsSupplyX(live ? _motion.GetPosition().X : Motion.Position.X);
+    public bool IsInsideBuffer(bool live)
+    {
+        return _bufferSettings.ContainsSupplyX(live ? _motion.GetPosition().X : Motion.Position.X);
+    }
 
-    private bool AtRotationZ(bool live) =>
-        live ? IsAtRotationZ : Motion.IsAtZ(_settings.RotationZ);
+    private bool AtRotationZ(bool live)
+    {
+        return live ? IsAtRotationZ : Motion.IsAtZ(_settings.RotationZ);
+    }
 
-    public bool CanRotateInPlace(bool live = true) => !IsInsideBuffer(live) && AtRotationZ(live);
+    public bool CanRotateInPlace(bool live = true)
+    {
+        return !IsInsideBuffer(live) && AtRotationZ(live);
+    }
 
-    public Task MoveToRotationZAsync(
-        CancellationToken cancellationToken = default) =>
-        _motion.MoveToHorizontalZAsync(cancellationToken);
+    public Task MoveToRotationZAsync(CancellationToken cancellationToken = default)
+    {
+        return _motion.MoveToHorizontalZAsync(cancellationToken);
+    }
 
-    public async Task SetRotatedAsync(
-        bool rotated,
-        CancellationToken cancellationToken = default)
+    public async Task SetRotatedAsync(bool rotated, CancellationToken cancellationToken = default)
     {
         if (InsideBuffer)
         {
-            throw new InvalidOperationException(
-                "Supply cannot rotate inside the buffer.");
+            throw new InvalidOperationException("Supply cannot rotate inside the buffer.");
         }
 
         await _motion.MoveToHorizontalZAsync(cancellationToken);
-        await _io.SetOutputAndWaitAsync(
-            OutputIo.PcbSupplyRotate,
-            rotated,
-            cancellationToken);
+        await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, rotated, cancellationToken);
     }
 
     private void OnInputChanged(InputIo input, bool _)
@@ -441,13 +464,13 @@ public sealed class PcbSupplyHandler
         }
     }
 
-    private PcbSupplyCylinderState CylinderState(
-        InputIo forwardInput,
-        InputIo backwardInput) =>
-        (_io.GetInput(backwardInput), _io.GetInput(forwardInput)) switch
+    private PcbSupplyCylinderState CylinderState(InputIo forwardInput, InputIo backwardInput)
+    {
+        return (_io.GetInput(backwardInput), _io.GetInput(forwardInput)) switch
         {
             (true, false) => PcbSupplyCylinderState.Backward,
             (false, true) => PcbSupplyCylinderState.Forward,
             _ => PcbSupplyCylinderState.Between,
         };
+    }
 }

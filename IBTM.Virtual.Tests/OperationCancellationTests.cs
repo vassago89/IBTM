@@ -18,11 +18,13 @@ public sealed class OperationCancellationTests
             operations.ActivityChanged -= FailOnce;
             throw failure;
         }
+
         operations.ActivityChanged += FailOnce;
 
         Assert.Same(failure, Assert.Throws<InvalidOperationException>(() => operations.Link()));
         Assert.False(operations.HasActiveOperations);
-        using (operations.Link()) Assert.True(operations.HasActiveOperations);
+        using (operations.Link())
+            Assert.True(operations.HasActiveOperations);
         await operations.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(1));
     }
 
@@ -33,21 +35,20 @@ public sealed class OperationCancellationTests
         for (var iteration = 0; iteration < 100; iteration++)
         {
             var operation = operations.Link();
-            await Task.WhenAll(
-                Task.Run(operation.Cancel),
-                Task.Run(operation.Dispose));
+            await Task.WhenAll(Task.Run(operation.Cancel), Task.Run(operation.Dispose));
             operation.Cancel();
             operation.Dispose();
         }
 
         var last = operations.Link();
         var shutdown = Task.CompletedTask;
-        using var registration = last.Token.Register(() =>
-        {
-            last.Dispose();
-            shutdown = operations.ShutdownAsync();
-            Assert.False(shutdown.IsCompleted);
-        });
+        using var registration = last.Token.Register(
+            () =>
+            {
+                last.Dispose();
+                shutdown = operations.ShutdownAsync();
+                Assert.False(shutdown.IsCompleted);
+            });
         last.Cancel();
         await shutdown.WaitAsync(TimeSpan.FromSeconds(2));
     }
@@ -56,8 +57,8 @@ public sealed class OperationCancellationTests
     public async Task ShutdownCancelsImmediatelyAndWaitsForEveryScope()
     {
         var operations = new OperationCancellation();
-        Assert.Throws<OperationCanceledException>(() =>
-            operations.Link(new CancellationToken(canceled: true)));
+        Assert.Throws<OperationCanceledException>(
+            () => operations.Link(new CancellationToken(canceled: true)));
         using var outer = operations.Link();
         using var inner = operations.Link(outer.Token);
         Assert.True(operations.HasActiveOperations);
@@ -113,8 +114,7 @@ public sealed class OperationCancellationTests
 
         var error = await Assert.ThrowsAsync<AggregateException>(
             () => shutdown.WaitAsync(TimeSpan.FromSeconds(2)));
-        Assert.Contains(error.Flatten().InnerExceptions,
-            exception => exception.Message == "Stop failed");
+        Assert.Contains(error.Flatten().InnerExceptions, exception => exception.Message == "Stop failed");
         Assert.Same(shutdown, operations.ShutdownAsync());
     }
 

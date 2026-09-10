@@ -11,9 +11,7 @@ public abstract class StartPreparation
     private readonly StationWork _work;
     private bool _automaticRunning;
 
-    protected StartPreparation(
-        MachineState state,
-        StationWork work)
+    protected StartPreparation(MachineState state, StationWork work)
     {
         _state = state;
         _work = work;
@@ -22,15 +20,22 @@ public abstract class StartPreparation
         work.Changed += Invalidate;
     }
 
-    public bool Required =>
-        _work.Enabled
-        && !_state.AutomaticRunning
-        && _work.CarrierPresent
-        && (_work.HeatSinkPresent(HeatSinkSlot.HeatSink1)
-            || _work.HeatSinkPresent(HeatSinkSlot.HeatSink2));
+    public bool Required
+    {
+        get
+        {
+            return _work.Enabled
+                && !_state.AutomaticRunning
+                && _work.CarrierPresent
+                && (_work.HeatSinkPresent(HeatSinkSlot.HeatSink1)
+                    || _work.HeatSinkPresent(HeatSinkSlot.HeatSink2));
+        }
+    }
 
-    public bool Prepare(Window owner) =>
-        !Required || _prepared || Open(owner);
+    public bool Prepare(Window owner)
+    {
+        return !Required || _prepared || Open(owner);
+    }
 
     public bool Open(Window owner)
     {
@@ -43,7 +48,11 @@ public abstract class StartPreparation
         return true;
     }
 
-    private void Invalidate() => _prepared = false;
+    private void Invalidate()
+    {
+        _prepared = false;
+    }
+
     protected abstract bool Show(Window owner);
 
     private void OnMachineStateChanged()

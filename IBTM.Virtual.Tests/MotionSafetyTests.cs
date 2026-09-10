@@ -19,7 +19,10 @@ public sealed class MotionSafetyTests
     [InlineData(MotionAxis.Y, 0, 2, 0)]
     [InlineData(MotionAxis.Z, 0, 0, 2)]
     public async Task SingleAxisAdjustmentMovesOnlyTheRequestedAxis(
-        MotionAxis axis, double x, double y, double z)
+        MotionAxis axis,
+        double x,
+        double y,
+        double z)
     {
         using var motion = new VirtualMotionService(new MotionSettings(), new OperationCancellation());
         motion.Initialize();
@@ -43,8 +46,7 @@ public sealed class MotionSafetyTests
         motion.Initialize();
         var display = new MotionStatus(motion);
         var homed = false;
-        motion.StateChanged += () => homed =
-            motion.GetAxisState(MotionAxis.X).Homed
+        motion.StateChanged += () => homed = motion.GetAxisState(MotionAxis.X).Homed
             && (!horizontal || motion.GetAxisState(MotionAxis.Y).Homed);
 
         var completed = horizontal
@@ -80,18 +82,18 @@ public sealed class MotionSafetyTests
 
         var jog = motion.JogAsync(MotionAxis.X, velocity, stop.Token);
         Assert.False(jog.IsCompleted);
-        Assert.True(await WaitUntilAsync(
-            () => motion.GetPosition().X >= pulseLength,
-            TimeSpan.FromSeconds(1)));
+        Assert.True(
+            await WaitUntilAsync(() => motion.GetPosition().X >= pulseLength, TimeSpan.FromSeconds(1)));
         stop.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jog.WaitAsync(TimeSpan.FromSeconds(1)));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => jog.WaitAsync(TimeSpan.FromSeconds(1)));
         Assert.False(motion.IsMoving);
 
         var stoppedPosition = motion.GetPosition();
         await Task.Delay(30);
         Assert.Equal(stoppedPosition, motion.GetPosition());
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            motion.JogAsync(MotionAxis.X, velocity, stop.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => motion.JogAsync(MotionAxis.X, velocity, stop.Token));
         Assert.False(motion.IsMoving);
     }
 
@@ -110,8 +112,7 @@ public sealed class MotionSafetyTests
         motion.PositionChanged += (x, y, z) =>
         {
             if ((x != 0 || y != 0)
-                && System.Math.Abs(z + 5)
-                    > MotionService.PositionToleranceMillimeters)
+                && System.Math.Abs(z + 5) > MotionService.PositionToleranceMillimeters)
             {
                 movedXyBeforeZClear = true;
             }
@@ -129,7 +130,9 @@ public sealed class MotionSafetyTests
         using var motion = new VirtualMotionService(
             new MotionSettings(),
             new OperationCancellation(),
-            zRange: (0, 100));
+            zRange: (
+                0,
+                100));
         motion.Initialize();
 
         await motion.MoveZToPositiveLimitAsync(1_000);
@@ -146,8 +149,12 @@ public sealed class MotionSafetyTests
         using var motion = new VirtualMotionService(
             new MotionSettings(),
             xRange: (0, 200),
-            yRange: (0, 200),
-            zRange: (0, 100),
+            yRange: (
+                0,
+                200),
+            zRange: (
+                0,
+                100),
             horizontalZ: () => 0,
             operationCancellation: new OperationCancellation());
         var supply = new PcbSupplyHandler(
@@ -176,15 +183,12 @@ public sealed class MotionSafetyTests
         {
             var movedX = System.Math.Abs(x - previous.X) > 0.001;
             var movedY = System.Math.Abs(y - previous.Y) > 0.001;
-            if ((movedX || movedY)
-                && !motion.GetAxisState(MotionAxis.Z).PositiveLimit)
+            if ((movedX || movedY) && !motion.GetAxisState(MotionAxis.Z).PositiveLimit)
             {
                 horizontalMovedBeforeZLimit = true;
             }
 
-            if (movedY
-                && System.Math.Abs(x)
-                    > MotionService.PositionToleranceMillimeters)
+            if (movedY && System.Math.Abs(x) > MotionService.PositionToleranceMillimeters)
             {
                 yMovedBeforeXHome = true;
             }
@@ -197,8 +201,7 @@ public sealed class MotionSafetyTests
         io.SetInput(InputIo.PcbSupplyPcbDetected, false);
 
         var prepared = await supply.PrepareHomeAsync();
-        var homed = prepared
-            && await supply.CompleteHomeAsync();
+        var homed = prepared && await supply.CompleteHomeAsync();
 
         Assert.True(homed);
         Assert.True(rotatedBeforeMotion);
@@ -221,10 +224,7 @@ public sealed class MotionSafetyTests
         var io = CreateIo();
         using var supply = Motion(settings, operations);
         using var placement = Motion(settings, operations);
-        var placementHandler = new PcbPlacementHandler(
-            placement,
-            io,
-            new PcbPlacementHandlerSettings());
+        var placementHandler = new PcbPlacementHandler(placement, io, new PcbPlacementHandlerSettings());
         var buffer = new BufferStage(
             new PcbBufferSettings
             {
@@ -295,11 +295,7 @@ public sealed class MotionSafetyTests
             motion,
             io,
             settings,
-            new PcbBufferSettings
-            {
-                SupplyBoundary1 = 10,
-                SupplyBoundary2 = 30,
-            });
+            new PcbBufferSettings { SupplyBoundary1 = 10, SupplyBoundary2 = 30, });
 
         io.Initialize();
         motion.Initialize();
@@ -309,18 +305,17 @@ public sealed class MotionSafetyTests
         motion.PositionChanged += (x, y, _) =>
         {
             if (x > MotionService.PositionToleranceMillimeters
-                && System.Math.Abs(y - 15)
-                    > MotionService.PositionToleranceMillimeters)
+                && System.Math.Abs(y - 15) > MotionService.PositionToleranceMillimeters)
             {
                 xMovedBeforeY = true;
             }
         };
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            supply.MoveToHandoffZAsync(default));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => supply.MoveToHandoffZAsync(default));
 
         await supply.SetRotatedAsync(true);
-        var handoff = Array.Find(settings.GetTeachingPositions(new()),
+        var handoff = Array.Find(
+            settings.GetTeachingPositions(new()),
             point => point.Target == TeachingTarget.SupplyBufferHandoff)!;
         await supply.MoveToTeachingPositionAsync(handoff, new() { X = 20, Y = 15, Z = 7 });
 
@@ -329,8 +324,9 @@ public sealed class MotionSafetyTests
         Assert.Equal(5, settings.BufferHandoffPosition.Z);
     }
 
-    private static VirtualIoService CreateIo() => new(
-        new PcbSupplyHardwareSettings().Outputs,
-        new MachineOptions());
+    private static VirtualIoService CreateIo()
+    {
+        return new(new PcbSupplyHardwareSettings().Outputs, new MachineOptions());
+    }
 
 }

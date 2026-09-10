@@ -10,8 +10,10 @@ public abstract class AutoUnit
 
     public abstract event Action? Changed;
 
-    protected Task WaitForChangeAsync(CancellationToken cancellationToken) =>
-        _stateChanged.WaitAsync(cancellationToken);
+    protected Task WaitForChangeAsync(CancellationToken cancellationToken)
+    {
+        return _stateChanged.WaitAsync(cancellationToken);
+    }
 
     protected async Task RunLoopAsync(
         Func<CancellationToken, Task> execute,
@@ -26,8 +28,7 @@ public abstract class AutoUnit
                 await execute(cancellationToken);
             }
         }
-        catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
         finally

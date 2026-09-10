@@ -65,7 +65,10 @@ public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
         return mask.data<float>().ToArray();
     }
 
-    public void Dispose() => _model?.Dispose();
+    public void Dispose()
+    {
+        _model?.Dispose();
+    }
 
     internal static float[] CreateInput(ImageFrame image)
     {
@@ -79,14 +82,9 @@ public sealed class TorchBoltRecessSegmenter : IBoltRecessSegmenter, IDisposable
             {
                 var source = y * image.Stride + x * ImageFrame.ColorChannelCount;
                 var target = (y * size) + x;
-                input[target] = image.Pixels[source + ImageFrame.RedChannel]
-                                / (float)byte.MaxValue;
-                input[plane + target] =
-                    image.Pixels[source + ImageFrame.GreenChannel]
-                    / (float)byte.MaxValue;
-                input[(2 * plane) + target] =
-                    image.Pixels[source + ImageFrame.BlueChannel]
-                    / (float)byte.MaxValue;
+                input[target] = image.Pixels[source + ImageFrame.RedChannel] / (float)byte.MaxValue;
+                input[plane + target] = image.Pixels[source + ImageFrame.GreenChannel] / (float)byte.MaxValue;
+                input[(2 * plane) + target] = image.Pixels[source + ImageFrame.BlueChannel] / (float)byte.MaxValue;
             }
         }
 

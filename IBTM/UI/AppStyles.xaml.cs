@@ -5,7 +5,10 @@ namespace IBTM.UI;
 
 public partial class AppStyles : ResourceDictionary
 {
-    public AppStyles() => InitializeComponent();
+    public AppStyles()
+    {
+        InitializeComponent();
+    }
 
     private void OnComboBoxDropDownClick(object sender, RoutedEventArgs e)
     {

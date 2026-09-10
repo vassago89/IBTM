@@ -18,7 +18,8 @@ public sealed class BoltTrainingStoreTests
     public void ExistingDatabaseIsAdoptedWithoutReplacingTrainingData(bool hasSettings)
     {
         var file = Path.Combine(Path.GetTempPath(), $"IBTM-training-migration-{Guid.NewGuid():N}.db");
-        var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = file }.ToString());
+        var connection = new SqliteConnection(
+            new SqliteConnectionStringBuilder { DataSource = file }.ToString());
         try
         {
             connection.Open();
@@ -55,12 +56,15 @@ public sealed class BoltTrainingStoreTests
             Assert.Equal(BoltLabel.Bolt, sample.Label);
             Assert.Equal(BoltSampleUse.Validation, sample.Use);
             Assert.False(sample.Included);
-            Assert.Equal(new[] { new Point(12, 24), new Point(64, 24), new Point(64, 80) }, sample.Polygon);
+            Assert.Equal(
+                new[] { new Point(12, 24), new Point(64, 24), new Point(64, 80) },
+                sample.Polygon);
             Assert.Equal(hasSettings ? 70 : 50, store.LoadSettings().MaxEpochs);
             Assert.Equal(hasSettings ? 4 : 8, store.LoadSettings().BatchSize);
             Assert.Equal(0.5f, store.LoadSettings().MaskThreshold);
 
-            store.SaveSettings(new() { MaxEpochs = 9, BatchSize = 3, LearningRate = 0.0005, Patience = 2, MaskThreshold = 0.7f });
+            store.SaveSettings(
+                new() { MaxEpochs = 9, BatchSize = 3, LearningRate = 0.0005, Patience = 2, MaskThreshold = 0.7f });
             store.SetIncluded(17, true);
             var pixels = new byte[] { 20, 40, 60 };
             var id = store.AddImage("New capture", new ImageFrame(1, 1, 3, pixels), 1);
@@ -93,7 +97,8 @@ public sealed class BoltTrainingStoreTests
         {
             connection.Dispose();
             SqliteConnection.ClearPool(connection);
-            foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(file + suffix);
+            foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" })
+                File.Delete(file + suffix);
         }
     }
 
@@ -120,19 +125,23 @@ public sealed class BoltTrainingStoreTests
 
         var samples = store.GetSamples();
         Assert.Equal(3, samples.Count); // Off: 0, All: 2, NG Only: 1.
-        Assert.All(samples, sample =>
-        {
-            Assert.Equal(BoltLabel.Unlabeled, sample.Label);
-            Assert.Empty(sample.Polygon);
-            Assert.Equal(160, sample.RegionSize);
-            Assert.Equal(timestamp, sample.Inspection!.CapturedAt);
-            Assert.Equal("First", sample.Inspection.RecipeName);
-        });
-        Assert.Equal(new[] { AssemblyResult.Ok, AssemblyResult.Ng, AssemblyResult.Ng },
+        Assert.All(
+            samples,
+            sample =>
+            {
+                Assert.Equal(BoltLabel.Unlabeled, sample.Label);
+                Assert.Empty(sample.Polygon);
+                Assert.Equal(160, sample.RegionSize);
+                Assert.Equal(timestamp, sample.Inspection!.CapturedAt);
+                Assert.Equal("First", sample.Inspection.RecipeName);
+            });
+        Assert.Equal(
+            new[] { AssemblyResult.Ok, AssemblyResult.Ng, AssemblyResult.Ng },
             samples.Select(sample => sample.Inspection!.Result));
         Assert.Equal(2, samples[^1].Inspection!.BoltNumber);
         Assert.Equal(HeatSinkSlot.HeatSink2, samples[^1].Inspection!.HeatSink);
-        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = file }.ToString());
+        using var connection = new SqliteConnection(
+            new SqliteConnectionStringBuilder { DataSource = file }.ToString());
         connection.Open();
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT Image FROM Samples WHERE Id = $id";
@@ -158,6 +167,8 @@ public sealed class BoltTrainingStoreTests
         store.SaveSettings(settings);
         collector.Collect(ng);
         Assert.Equal(4, store.GetSamples().Count);
-        Assert.Equal(InspectionImageCollection.Off, new BoltTrainingStore(file).LoadSettings().ImageCollection);
+        Assert.Equal(
+            InspectionImageCollection.Off,
+            new BoltTrainingStore(file).LoadSettings().ImageCollection);
     }
 }

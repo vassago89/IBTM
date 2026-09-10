@@ -59,116 +59,136 @@ public sealed class ConveyorStation
     internal event Action? Changed;
     public event Action<bool>? CarrierChanged;
 
-    public static ConveyorStation PcbPlacement(IIoService io) => new(
-        io,
-        InputIo.PcbPlacementCarrierPresent,
-        InputIo.PcbPlacementBackupPlateUp,
-        InputIo.PcbPlacementBackupPlateDown,
-        InputIo.PcbPlacementStopperUp,
-        InputIo.PcbPlacementStopperDown,
-        InputIo.PcbPlacementHeatSink1Present,
-        InputIo.PcbPlacementHeatSink2Present,
-        OutputIo.PcbPlacementBackupPlateUp,
-        OutputIo.PcbPlacementStopperUp);
+    public static ConveyorStation PcbPlacement(IIoService io)
+    {
+        return new(
+            io,
+            InputIo.PcbPlacementCarrierPresent,
+            InputIo.PcbPlacementBackupPlateUp,
+            InputIo.PcbPlacementBackupPlateDown,
+            InputIo.PcbPlacementStopperUp,
+            InputIo.PcbPlacementStopperDown,
+            InputIo.PcbPlacementHeatSink1Present,
+            InputIo.PcbPlacementHeatSink2Present,
+            OutputIo.PcbPlacementBackupPlateUp,
+            OutputIo.PcbPlacementStopperUp);
+    }
 
-    public static ConveyorStation BoltFastening(IIoService io) => new(
-        io,
-        InputIo.BoltFasteningCarrierPresent,
-        InputIo.BoltFasteningBackupPlateUp,
-        InputIo.BoltFasteningBackupPlateDown,
-        InputIo.BoltFasteningStopperUp,
-        InputIo.BoltFasteningStopperDown,
-        InputIo.BoltFasteningHeatSink1Present,
-        InputIo.BoltFasteningHeatSink2Present,
-        OutputIo.BoltFasteningBackupPlateUp,
-        OutputIo.BoltFasteningStopperUp);
+    public static ConveyorStation BoltFastening(IIoService io)
+    {
+        return new(
+            io,
+            InputIo.BoltFasteningCarrierPresent,
+            InputIo.BoltFasteningBackupPlateUp,
+            InputIo.BoltFasteningBackupPlateDown,
+            InputIo.BoltFasteningStopperUp,
+            InputIo.BoltFasteningStopperDown,
+            InputIo.BoltFasteningHeatSink1Present,
+            InputIo.BoltFasteningHeatSink2Present,
+            OutputIo.BoltFasteningBackupPlateUp,
+            OutputIo.BoltFasteningStopperUp);
+    }
 
-    public static ConveyorStation Inspection(IIoService io) => new(
-        io,
-        InputIo.InspectionCarrierPresent,
-        InputIo.InspectionBackupPlateUp,
-        InputIo.InspectionBackupPlateDown,
-        InputIo.InspectionStopperUp,
-        InputIo.InspectionStopperDown,
-        InputIo.InspectionHeatSink1Present,
-        InputIo.InspectionHeatSink2Present,
-        OutputIo.InspectionBackupPlateUp,
-        OutputIo.InspectionStopperUp);
+    public static ConveyorStation Inspection(IIoService io)
+    {
+        return new(
+            io,
+            InputIo.InspectionCarrierPresent,
+            InputIo.InspectionBackupPlateUp,
+            InputIo.InspectionBackupPlateDown,
+            InputIo.InspectionStopperUp,
+            InputIo.InspectionStopperDown,
+            InputIo.InspectionHeatSink1Present,
+            InputIo.InspectionHeatSink2Present,
+            OutputIo.InspectionBackupPlateUp,
+            OutputIo.InspectionStopperUp);
+    }
 
-    public bool CarrierPresent => _io.GetInput(_carrier);
+    public bool CarrierPresent
+    {
+        get
+        {
+            return _io.GetInput(_carrier);
+        }
+    }
 
-    public IoStatus CreateIoStatus(HardwareArea area, IoSignals io) => io.Select(
-        area,
-        [_carrier, _backupPlateUp, _backupPlateDown, _stopperUp, _stopperDown, _heatSink1, _heatSink2],
-        [_backupPlate, _stopper]);
+    public IoStatus CreateIoStatus(HardwareArea area, IoSignals io)
+    {
+        return io.Select(
+            area,
+            [
+            _carrier,
+            _backupPlateUp,
+            _backupPlateDown,
+            _stopperUp,
+            _stopperDown,
+            _heatSink1,
+            _heatSink2
+        ],
+            [_backupPlate, _stopper]);
+    }
 
-    public StationCylinderState BackupPlate => CylinderState(
-        _backupPlateUp,
-        _backupPlateDown);
-    public StationCylinderState Stopper => CylinderState(
-        _stopperUp,
-        _stopperDown);
-    internal bool HeatSinkPresent(HeatSinkSlot heatSink) =>
-        _io.GetInput(heatSink == HeatSinkSlot.HeatSink1
-            ? _heatSink1
-            : _heatSink2);
+    public StationCylinderState BackupPlate
+    {
+        get
+        {
+            return CylinderState(_backupPlateUp, _backupPlateDown);
+        }
+    }
 
-    public Task PrepareToReceiveAsync(
-        CancellationToken cancellationToken) =>
-        Task.WhenAll(
-            _io.SetOutputAndWaitAsync(
-                _stopper,
-                true,
-                cancellationToken),
-            _io.SetOutputAndWaitAsync(
-                _backupPlate,
-                false,
-                cancellationToken));
+    public StationCylinderState Stopper
+    {
+        get
+        {
+            return CylinderState(_stopperUp, _stopperDown);
+        }
+    }
 
-    public Task ReleaseAsync(CancellationToken cancellationToken) =>
-        Task.WhenAll(
-            _io.SetOutputAndWaitAsync(
-                _stopper,
-                false,
-                cancellationToken),
-            _io.SetOutputAndWaitAsync(
-                _backupPlate,
-                false,
-                cancellationToken));
+    internal bool HeatSinkPresent(HeatSinkSlot heatSink)
+    {
+        return _io.GetInput(heatSink == HeatSinkSlot.HeatSink1 ? _heatSink1 : _heatSink2);
+    }
+
+    public Task PrepareToReceiveAsync(CancellationToken cancellationToken)
+    {
+        return Task.WhenAll(
+            _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken),
+            _io.SetOutputAndWaitAsync(_backupPlate, false, cancellationToken));
+    }
+
+    public Task ReleaseAsync(CancellationToken cancellationToken)
+    {
+        return Task.WhenAll(
+            _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken),
+            _io.SetOutputAndWaitAsync(_backupPlate, false, cancellationToken));
+    }
 
     public async Task SeatAsync(CancellationToken cancellationToken)
     {
-        await _io.SetOutputAndWaitAsync(
-            _stopper,
-            true,
-            cancellationToken);
-        await _io.SetOutputAndWaitAsync(
-            _backupPlate,
-            true,
-            cancellationToken);
-        await _io.SetOutputAndWaitAsync(
-            _stopper,
-            false,
-            cancellationToken);
+        await _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken);
+        await _io.SetOutputAndWaitAsync(_backupPlate, true, cancellationToken);
+        await _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken);
     }
 
-    public Task RaiseBackupPlateAsync(
-        CancellationToken cancellationToken) =>
-        _io.SetOutputAndWaitAsync(
-            _backupPlate,
-            true,
-            cancellationToken);
+    public Task RaiseBackupPlateAsync(CancellationToken cancellationToken)
+    {
+        return _io.SetOutputAndWaitAsync(_backupPlate, true, cancellationToken);
+    }
 
-    public Task WaitForCarrierAsync(CancellationToken cancellationToken) =>
-        _io.WaitForInputAsync(_carrier, true, cancellationToken);
+    public Task WaitForCarrierAsync(CancellationToken cancellationToken)
+    {
+        return _io.WaitForInputAsync(_carrier, true, cancellationToken);
+    }
 
-    private StationCylinderState CylinderState(InputIo up, InputIo down) =>
-        (_io.GetInput(up), _io.GetInput(down)) switch
+    private StationCylinderState CylinderState(InputIo up, InputIo down)
+    {
+        return (_io.GetInput(up), _io.GetInput(down)) switch
         {
             (true, false) => StationCylinderState.Up,
             (false, true) => StationCylinderState.Down,
             _ => StationCylinderState.Between,
         };
+    }
 
     private void OnInputChanged(InputIo input, bool value)
     {

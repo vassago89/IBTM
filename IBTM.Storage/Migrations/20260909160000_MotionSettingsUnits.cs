@@ -10,10 +10,16 @@ public sealed class MotionSettingsUnits : Migration
     protected override void Up(MigrationBuilder migrationBuilder)
     {
         // Convert the old common settings once. Coordinates and pulse lengths are untouched.
-        foreach (var key in new[] { "PcbSupplySettings", "PcbPlacementHandlerSettings",
-                     "BoltFasteningSettings", "InspectionGantrySettings" })
+        foreach (var key in new[]
         {
-            migrationBuilder.Sql($"""
+            "PcbSupplySettings",
+            "PcbPlacementHandlerSettings",
+            "BoltFasteningSettings",
+            "InspectionGantrySettings"
+        })
+        {
+            migrationBuilder.Sql(
+                $"""
                 INSERT OR IGNORE INTO Settings (Key, Value)
                 SELECT '{key}', json_object() WHERE EXISTS (SELECT 1 FROM Settings);
                 UPDATE Settings SET Value = json_set(Value,
@@ -23,10 +29,16 @@ public sealed class MotionSettingsUnits : Migration
                         1.0 / COALESCE((SELECT json_extract(Value, '$.AccelerationMultiplier') FROM Settings WHERE Key = 'AjinSettings'), 2.0)))
                 WHERE Key = '{key}';
                 """);
-            foreach (var (name, oldSpeed, defaultSpeed) in new[]
-                     { ("HorizontalHome", "HorizontalSpeed", 15), ("ZHome", "ZSpeed", 10) })
+            foreach (var (name, oldSpeed, defaultSpeed) in new[] { (
+                "HorizontalHome",
+                "HorizontalSpeed",
+                15), (
+                    "ZHome",
+                    "ZSpeed",
+                    10) })
             {
-                migrationBuilder.Sql($"""
+                migrationBuilder.Sql(
+                    $"""
                     WITH Old AS (SELECT
                         COALESCE((SELECT json_extract(Value, '$.{oldSpeed}') FROM Settings WHERE Key = 'HomeSettings'), {defaultSpeed}) AS Speed,
                         COALESCE((SELECT json_extract(Value, '$.HomeSecondVelocityRatio') FROM Settings WHERE Key = 'AjinSettings'), 0.2) AS R2,
@@ -41,6 +53,7 @@ public sealed class MotionSettingsUnits : Migration
                     """);
             }
         }
+
         migrationBuilder.Sql("""
             DELETE FROM Settings WHERE Key = 'HomeSettings';
             UPDATE Settings SET Value = json_remove(Value, '$.AccelerationMultiplier',

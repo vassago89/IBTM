@@ -23,7 +23,8 @@ public sealed class BoltFasteningTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ManualReverseStopsOnReleaseOrCommunicationFailureWithoutACompletionResult(bool communicationFailure)
+    public async Task ManualReverseStopsOnReleaseOrCommunicationFailureWithoutACompletionResult(
+        bool communicationFailure)
     {
         IAdcBus bus = new VirtualAdcBus();
         var head = new AdcBoltHead(bus, new HantasSettings(), 2);
@@ -32,7 +33,8 @@ public sealed class BoltFasteningTests
         var writes = new List<(byte Slave, ushort Address, ushort Value)>();
         bus.FrameTransferred += (direction, frame) =>
         {
-            if (direction != AdcFrameDirection.Transmit) return;
+            if (direction != AdcFrameDirection.Transmit)
+                return;
             var address = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2));
             if (frame[1] == (byte)AdcFunctionCode.WriteSingleRegister)
             {
@@ -40,11 +42,16 @@ public sealed class BoltFasteningTests
                 writes.Add((frame[0], address, value));
                 if (address == (ushort)AdcRemoteRegister.RemoteStart)
                 {
-                    if (value == 0) stops++;
-                    else started = true;
+                    if (value == 0)
+                        stops++;
+                    else
+                        started = true;
                 }
             }
-            if (communicationFailure && started && stops == 0
+
+            if (communicationFailure
+                && started
+                && stops == 0
                 && frame[1] == (byte)AdcFunctionCode.ReadInputRegisters)
                 throw new IOException("Reverse monitoring failed.");
         };
@@ -63,12 +70,19 @@ public sealed class BoltFasteningTests
             release.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
         }
-        Assert.Equal(new[]
-        {
-            ((byte)2, (ushort)AdcRemoteRegister.Direction, (ushort)AdcDirection.Loosening),
-            ((byte)2, (ushort)AdcRemoteRegister.RemoteStart, (ushort)1),
-            ((byte)2, (ushort)AdcRemoteRegister.RemoteStart, (ushort)0),
-        }, writes);
+
+        Assert.Equal(
+            new[] { (
+                (byte)2,
+                (ushort)AdcRemoteRegister.Direction,
+                (ushort)AdcDirection.Loosening), (
+                    (byte)2,
+                    (ushort)AdcRemoteRegister.RemoteStart,
+                    (ushort)1), (
+                        (byte)2,
+                        (ushort)AdcRemoteRegister.RemoteStart,
+                        (ushort)0), },
+            writes);
         Assert.Equal(1, stops);
         Assert.False((await bus.ReadControllerStatusAsync(2)).Running);
         Assert.Equal((ushort)0, (await bus.ReadFasteningResultAsync(2)).EventCount);
@@ -84,10 +98,15 @@ public sealed class BoltFasteningTests
         var nativeIo = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var abortCalled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         Action abort = () => abortCalled.SetResult();
-        var wait = (Task)typeof(AdcBus).GetMethod("AwaitSerialIoAsync", BindingFlags.Static | BindingFlags.NonPublic)!
-            .Invoke(null, [nativeIo.Task, abort, cancellation.Token])!;
-        if (timeout) cancellation.CancelAfter(20);
-        else cancellation.Cancel();
+        var wait = (Task)typeof(AdcBus).GetMethod(
+            "AwaitSerialIoAsync",
+            BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(
+                null,
+                [nativeIo.Task, abort, cancellation.Token])!;
+        if (timeout)
+            cancellation.CancelAfter(20);
+        else
+            cancellation.Cancel();
         await abortCalled.Task.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(wait.IsCompleted); // A following bus request must not overlap the aborted native IO.
         nativeIo.SetException(new IOException("Native serial IO aborted."));
@@ -105,7 +124,8 @@ public sealed class BoltFasteningTests
             (byte)(responseKind == "address" ? 1 : 0),
             (AdcFunctionCode)(responseKind == "controller-error" ? 0x84 : 0x04),
             responseKind == "controller-error" ? [0x02] : [0x02, 0x12, 0x34]);
-        if (responseKind == "crc") frame[^1] ^= 0xFF;
+        if (responseKind == "crc")
+            frame[^1] ^= 0xFF;
         using var stream = new AdcResponseStream(frame);
         var chunks = new List<byte[]>();
         var reading = ReadAdcResponseAsync(stream, chunks.Add, CancellationToken.None);
@@ -113,7 +133,9 @@ public sealed class BoltFasteningTests
         if (responseKind == "valid")
             Assert.Equal(frame, await reading.WaitAsync(TimeSpan.FromSeconds(2)));
         else if (responseKind == "controller-error")
-            Assert.Contains("IllegalAddress", (await Assert.ThrowsAsync<IOException>(() => reading)).Message);
+            Assert.Contains(
+                "IllegalAddress",
+                (await Assert.ThrowsAsync<IOException>(() => reading)).Message);
         else
             await Assert.ThrowsAsync<InvalidDataException>(() => reading);
 
@@ -133,30 +155,48 @@ public sealed class BoltFasteningTests
         var chunks = new List<byte[]>();
         var reading = ReadAdcResponseAsync(stream, chunks.Add, cancellation.Token);
         await stream.Waiting.Task.WaitAsync(TimeSpan.FromSeconds(2));
-
         // Already visible before the incomplete response times out or is canceled.
         Assert.Equal(partial[..receivedCount], chunks.SelectMany(chunk => chunk).ToArray());
         cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => reading.WaitAsync(TimeSpan.FromSeconds(2)));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => reading.WaitAsync(TimeSpan.FromSeconds(2)));
         Assert.True(stream.Aborted);
         Assert.Equal(partial[..receivedCount], chunks.SelectMany(chunk => chunk).ToArray());
     }
 
     private static Task<byte[]> ReadAdcResponseAsync(
-        AdcResponseStream stream, Action<byte[]> received, CancellationToken cancellationToken) =>
-        (Task<byte[]>)typeof(AdcBus).GetMethod("ReadResponseAsync", BindingFlags.Static | BindingFlags.NonPublic)!
-            .Invoke(null, [stream, (Action)stream.Abort, received, (byte)0,
-                AdcFunctionCode.ReadInputRegisters, cancellationToken])!;
+        AdcResponseStream stream,
+        Action<byte[]> received,
+        CancellationToken cancellationToken)
+    {
+        return (Task<byte[]>)typeof(AdcBus).GetMethod(
+            "ReadResponseAsync",
+            BindingFlags.Static | BindingFlags.NonPublic)!.Invoke(
+                null,
+                [
+            stream,
+            (Action)stream.Abort,
+            received,
+            (byte)0,
+            AdcFunctionCode.ReadInputRegisters,
+            cancellationToken
+        ])!;
+    }
 
     private sealed class AdcResponseStream(byte[] bytes) : MemoryStream(bytes)
     {
-        private readonly TaskCompletionSource<int> _pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource Waiting { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<int> _pending = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Waiting { get; } = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
         public bool Aborted { get; private set; }
 
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        public override ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
         {
-            if (Position < Length) return base.ReadAsync(buffer[..1], cancellationToken);
+            if (Position < Length)
+                return base.ReadAsync(buffer[..1], cancellationToken);
             Waiting.TrySetResult();
             return new(_pending.Task); // Model Windows native IO ignoring cancellation.
         }
@@ -178,7 +218,8 @@ public sealed class BoltFasteningTests
         var statusReads = 0;
         bus.FrameTransferred += (direction, frame) =>
         {
-            if (direction == AdcFrameDirection.Transmit && frame[1] == (byte)AdcFunctionCode.ReadInputRegisters
+            if (direction == AdcFrameDirection.Transmit
+                && frame[1] == (byte)AdcFunctionCode.ReadInputRegisters
                 && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcStatusRegister.Preset)
                 statusReads++;
         };
@@ -204,8 +245,7 @@ public sealed class BoltFasteningTests
     [Fact]
     public void RecoveryPreservesMeasuredResultsUntilExplicitlyUnchecked()
     {
-        var io = new VirtualIoService(
-            Outputs(new ConveyorHardwareSettings()), new MachineOptions());
+        var io = new VirtualIoService(Outputs(new ConveyorHardwareSettings()), new MachineOptions());
         var work = new BoltFasteningWork(ConveyorStation.BoltFastening(io));
         io.Initialize();
         io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
@@ -223,10 +263,17 @@ public sealed class BoltFasteningTests
         second.RecordPcbBolt(3, secondPcbOk);
         work.Complete();
 
-        (HeatSinkSlot HeatSink, int Number, FasteningPass Pass, bool Completed)[] items =
-        [
-            (HeatSinkSlot.HeatSink1, 1, FasteningPass.Pcb, true),
-            (HeatSinkSlot.HeatSink1, 4, FasteningPass.IpmSeating, true),
+        (HeatSinkSlot HeatSink, int Number, FasteningPass Pass, bool Completed)[] items = [
+            (
+                HeatSinkSlot.HeatSink1,
+                1,
+                FasteningPass.Pcb,
+                true),
+            (
+                HeatSinkSlot.HeatSink1,
+                4,
+                FasteningPass.IpmSeating,
+                true),
         ];
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, false);
         io.SetInput(InputIo.BoltFasteningHeatSink2Present, false);
@@ -241,20 +288,14 @@ public sealed class BoltFasteningTests
         Assert.True(work.HasNg);
         Assert.False(work.Completed);
 
-        work.PrepareRecovery(
-        [
-            (HeatSinkSlot.HeatSink1, 1, FasteningPass.Pcb, false),
-        ]);
+        work.PrepareRecovery([(HeatSinkSlot.HeatSink1, 1, FasteningPass.Pcb, false),]);
 
         Assert.Empty(first.PcbBoltResults);
         Assert.Same(finalNg, first.IpmFinalResults[2]);
         Assert.Equal(AssemblyResult.Ng, first.FasteningResult);
         Assert.True(work.HasNg);
 
-        work.PrepareRecovery(
-        [
-            (HeatSinkSlot.HeatSink1, 2, FasteningPass.IpmFinal, false),
-        ]);
+        work.PrepareRecovery([(HeatSinkSlot.HeatSink1, 2, FasteningPass.IpmFinal, false),]);
 
         Assert.Empty(first.IpmFinalResults);
         Assert.Same(seatingOk, first.IpmSeatingResults[2]);
@@ -268,8 +309,7 @@ public sealed class BoltFasteningTests
     [Theory]
     [InlineData(AdcFunctionCode.ReadInputRegisters)]
     [InlineData(AdcFunctionCode.WriteSingleRegister)]
-    public async Task FailedFasteningPreparationStillStopsTheHead(
-        AdcFunctionCode failingFunction)
+    public async Task FailedFasteningPreparationStillStopsTheHead(AdcFunctionCode failingFunction)
     {
         IAdcBus bus = new VirtualAdcBus();
         var head = new AdcBoltHead(bus, new HantasSettings(), 1);
@@ -278,10 +318,10 @@ public sealed class BoltFasteningTests
         var stops = 0;
         bus.FrameTransferred += (direction, frame) =>
         {
-            if (direction != AdcFrameDirection.Transmit) return;
+            if (direction != AdcFrameDirection.Transmit)
+                return;
             if (frame[1] == (byte)AdcFunctionCode.WriteSingleRegister
-                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2))
-                    == (ushort)AdcRemoteRegister.RemoteStart
+                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcRemoteRegister.RemoteStart
                 && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) == 0)
             {
                 stops++;
@@ -310,13 +350,11 @@ public sealed class BoltFasteningTests
         await head.CheckReadyAsync();
         virtualBus.SetNextFasteningResult(2, AdcEventStatus.Error);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => head.TightenAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
 
         Assert.Equal(BoltHeadState.Ready, head.State);
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(2)).EventCount);
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => head.CheckReadyAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
 
         virtualBus.SetNextFasteningResult(2, AdcEventStatus.FasteningNg);
         await head.SelectPresetAsync(3);
@@ -326,10 +364,8 @@ public sealed class BoltFasteningTests
         await bus.StartAsync(2);
         Assert.Equal(AdcEventStatus.Error, (await bus.ReadFasteningResultAsync(2)).Status);
         await bus.StopAsync(2);
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => head.CheckReadyAsync());
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => head.TightenAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(2)).EventCount);
 
         await bus.ResetAlarmAsync(2);
@@ -369,8 +405,7 @@ public sealed class BoltFasteningTests
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
         ((VirtualAdcBus)bus).SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
         stop.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => tightening);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tightening);
 
         await Task.Delay(300);
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
@@ -387,16 +422,11 @@ public sealed class BoltFasteningTests
     [Fact]
     public async Task ShootingFeederKeepsTheNextBoltReady()
     {
-        var io = new VirtualIoService(
-            new BoltFeederHardwareSettings().Outputs,
-            new MachineOptions());
+        var io = new VirtualIoService(new BoltFeederHardwareSettings().Outputs, new MachineOptions());
         _ = new VirtualMachine(io, []);
         var feeder = new ShootingBoltFeeder(
             io,
-            new BoltFeederSettings
-            {
-                ShootingTimeoutMilliseconds = 500,
-            });
+            new BoltFeederSettings { ShootingTimeoutMilliseconds = 500, });
         var refillCount = 0;
         var runCount = 0;
         io.OutputChanged += (output, value) =>
@@ -419,15 +449,15 @@ public sealed class BoltFasteningTests
         var run = feeder.RunAsync(cancellation.Token);
         var firstBolt = await WaitUntilAsync(
             () => runCount == 1
-                  && feeder.State == BoltFeederState.BoltReady
-                  && !io.GetOutput(OutputIo.ShootingFeederRunSignal),
+                && feeder.State == BoltFeederState.BoltReady
+                && !io.GetOutput(OutputIo.ShootingFeederRunSignal),
             TimeSpan.FromSeconds(1));
         io.SetInput(InputIo.ShootingFeederBoltDetected, false);
         var nextBolt = await WaitUntilAsync(
             () => runCount == 2
-                  && refillCount == 2
-                  && feeder.State == BoltFeederState.BoltReady
-                  && !io.GetOutput(OutputIo.ShootingFeederRunSignal),
+                && refillCount == 2
+                && feeder.State == BoltFeederState.BoltReady
+                && !io.GetOutput(OutputIo.ShootingFeederRunSignal),
             TimeSpan.FromSeconds(1));
 
         cancellation.Cancel();
@@ -451,8 +481,10 @@ public sealed class BoltFasteningTests
             ShootingHead = HeadSettings(),
         };
         var io = new VirtualIoService(
-            Outputs(new BoltFasteningHardwareSettings(),
-                new BoltFeederHardwareSettings(), new ConveyorHardwareSettings()),
+            Outputs(
+                new BoltFasteningHardwareSettings(),
+                new BoltFeederHardwareSettings(),
+                new ConveyorHardwareSettings()),
             new MachineOptions());
         _ = new VirtualMachine(io, []);
         io.OutputChanged += (output, value) =>
@@ -488,10 +520,20 @@ public sealed class BoltFasteningTests
         var pickupHead = new AdcBoltHead(bus, connection, 1);
         var shootingHead = new AdcBoltHead(bus, connection, 2);
         using var motion = new VirtualMotionService(
-            settings.Motion, xRange: (0, 100), yRange: (0, 100), zRange: (0, 100),
-            horizontalZ: () => settings.SafeZ, operationCancellation: new());
+            settings.Motion,
+            xRange: (0, 100),
+            yRange: (0, 100),
+            zRange: (
+                0,
+                100),
+            horizontalZ: () => settings.SafeZ,
+            operationCancellation: new());
         var gantry = new BoltFasteningGantry(
-            shootingHead, pickupHead, io, motion, settings,
+            shootingHead,
+            pickupHead,
+            io,
+            motion,
+            settings,
             new CarrierReferenceSettings
             {
                 UpperLeftLocatingPin = new AxisPosition { X = 0, Y = 0 },
@@ -499,23 +541,23 @@ public sealed class BoltFasteningTests
             });
         var movedWithLoweredCylinder = false;
         motion.PositionChanged += (_, _, _) =>
-            movedWithLoweredCylinder |= motion.IsMovingHorizontal && !gantry.CanMoveHorizontal;
+            movedWithLoweredCylinder |= motion.IsMovingHorizontal
+                && !gantry.CanMoveHorizontal;
         var work = new BoltFasteningWork(ConveyorStation.BoltFastening(io));
         var pickupFeeder = new PickupBoltFeeder(io, new());
         var shootingFeeder = new ShootingBoltFeeder(io, new());
         var layout = new PcbLayout
+
         {
-            Width = 50, Height = 50,
+
+            Width = 50,
+            Height = 50,
             Origins = new()
             {
                 [HeatSinkSlot.HeatSink1] = new(),
                 [HeatSinkSlot.HeatSink2] = new() { X = 10, Y = 10 },
             },
-            BoltPoints =
-            [
-                Bolt(1, FasteningHead.Pickup, 20, 30),
-                Bolt(2, FasteningHead.Shooting, 20, 30),
-            ],
+            BoltPoints = [Bolt(1, FasteningHead.Pickup, 20, 30), Bolt(2, FasteningHead.Shooting, 20, 30),],
         };
         var station = new BoltFasteningStation(gantry, work, pickupFeeder, shootingFeeder, () => layout);
         var recipe = new BoltFasteningRecipe { PcbPreset = 4, IpmSeatingPreset = 3, IpmFinalPreset = 5 };
@@ -547,6 +589,7 @@ public sealed class BoltFasteningTests
                     if (input == InputIo.PickupHeadVacuumDetected && value)
                         stopAfterPickup.Cancel();
                 }
+
                 io.InputChanged += StopWithPickedBolt;
                 try
                 {
@@ -556,6 +599,7 @@ public sealed class BoltFasteningTests
                 {
                     io.InputChanged -= StopWithPickedBolt;
                 }
+
                 Assert.True(gantry.PickupBoltLoaded);
                 Assert.True(io.GetOutput(OutputIo.PickupHeadVacuumPump));
                 Assert.Equal(BoltCylinderState.Down, gantry.PickupHeadPosition);
@@ -568,7 +612,8 @@ public sealed class BoltFasteningTests
             var resumedRun = station.RunAsync(recipe, cancellation.Token);
             try
             {
-                Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(10)),
+                Assert.True(
+                    await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(10)),
                     $"State={station.State()}, Error={resumedRun.Exception?.GetBaseException().Message}");
             }
             finally
@@ -593,12 +638,10 @@ public sealed class BoltFasteningTests
             Assert.True(gantry.CanMoveHorizontal);
             Assert.True(motion.IsAtHorizontalZ);
             Assert.Equal(
-                new (byte Head, ushort Preset)[]
-                {
-                    (2, 4), (2, 4), (1, 3), (1, 3), (1, 5), (1, 5),
-                },
+                new (byte Head, ushort Preset)[] { (2, 4), (2, 4), (1, 3), (1, 3), (1, 5), (
+                    1,
+                    5), },
                 tightenings);
-
             // A replaced carrier must never inherit the previous carrier's in-flight result.
             io.SetInput(InputIo.BoltFasteningCarrierPresent, false);
             io.SetInput(InputIo.BoltFasteningHeatSink2Present, false);
@@ -622,6 +665,7 @@ public sealed class BoltFasteningTests
             await feederRuns;
         }
     }
+
     [Theory]
     [InlineData(FasteningHead.Pickup)]
     [InlineData(FasteningHead.Shooting)]
@@ -636,34 +680,43 @@ public sealed class BoltFasteningTests
             ShootingHead = HeadSettings(),
         };
         var io = new VirtualIoService(
-            Outputs(new BoltFasteningHardwareSettings(),
-                new BoltFeederHardwareSettings(), new ConveyorHardwareSettings()),
-            new MachineOptions()) { AutoResponseEnabled = false };
+            Outputs(
+                new BoltFasteningHardwareSettings(),
+                new BoltFeederHardwareSettings(),
+                new ConveyorHardwareSettings()),
+            new MachineOptions())
+        { AutoResponseEnabled = false };
         using var motion = new VirtualMotionService(
-            settings.Motion, xRange: (0, 100), yRange: (0, 100), zRange: (0, 100),
+            settings.Motion,
+            xRange: (0, 100),
+            yRange: (0, 100),
+            zRange: (
+                0,
+                100),
             horizontalZ: () => settings.SafeZ,
             operationCancellation: new OperationCancellation());
         var bus = new VirtualAdcBus();
         var gantry = new BoltFasteningGantry(
             new AdcBoltHead(bus, new HantasSettings(), 2),
             new AdcBoltHead(bus, new HantasSettings(), 1),
-            io, motion, settings,
-            new CarrierReferenceSettings
-            {
-                UpperLeftLocatingPin = new(),
-                LowerRightLocatingPin = new() { X = 100 },
-            });
+            io,
+            motion,
+            settings,
+            new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100 }, });
         var layout = new PcbLayout
         {
-            Width = 50, Height = 50,
+            Width = 50,
+            Height = 50,
             Origins = new() { [HeatSinkSlot.HeatSink1] = new() },
             BoltPoints = [Bolt(1, head, 10, 10)],
         };
         var feederSettings = new BoltFeederSettings();
         var station = new BoltFasteningStation(
-            gantry, new BoltFasteningWork(ConveyorStation.BoltFastening(io)),
+            gantry,
+            new BoltFasteningWork(ConveyorStation.BoltFastening(io)),
             new PickupBoltFeeder(io, feederSettings),
-            new ShootingBoltFeeder(io, feederSettings), () => layout);
+            new ShootingBoltFeeder(io, feederSettings),
+            () => layout);
         io.SetInput(InputIo.PickupHeadUp, true);
         io.SetInput(InputIo.ShootingHeadUp, true);
         io.SetInput(InputIo.ShootingEscapeBackward, true);
@@ -682,13 +735,16 @@ public sealed class BoltFasteningTests
         {
             io.SetOutput(OutputIo.ShootingEscapeForward, true);
         }
+
         io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
         io.SetInput(InputIo.BoltFasteningStopperDown, true);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
-        Assert.Equal(head == FasteningHead.Pickup
-            ? BoltFasteningState.WaitingForPickupFeeder
-            : BoltFasteningState.WaitingForShootingFeeder, station.State());
+        Assert.Equal(
+            head == FasteningHead.Pickup
+                ? BoltFasteningState.WaitingForPickupFeeder
+                : BoltFasteningState.WaitingForShootingFeeder,
+            station.State());
 
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var continued = false;
@@ -712,6 +768,7 @@ public sealed class BoltFasteningTests
                 io.SetInput(InputIo.ShootingEscapeBackward, false);
                 io.SetInput(InputIo.ShootingEscapeForward, true);
             }
+
             Assert.True(await WaitUntilAsync(() => continued, TimeSpan.FromSeconds(1)));
         }
         finally
@@ -719,28 +776,31 @@ public sealed class BoltFasteningTests
             stop.Cancel();
             await run;
         }
+
         Assert.False(io.GetInput(InputIo.PickupFeederBoltDetected));
         Assert.False(io.GetInput(InputIo.ShootingFeederBoltDetected));
         Assert.False(io.GetOutput(OutputIo.ShootBolt));
         Assert.Equal(settings.SafeZ, motion.GetPosition().Z);
     }
 
-    private static BoltPoint Bolt(
-        int number,
-        FasteningHead head,
-        double x,
-        double y) => new()
+    private static BoltPoint Bolt(int number, FasteningHead head, double x, double y)
+    {
+        return new()
         {
             Number = number,
             Head = head,
             X = x,
             Y = y,
         };
+    }
 
-    private static BoltHeadSettings HeadSettings() => new()
+    private static BoltHeadSettings HeadSettings()
     {
-        UpperLeftLocatingPin = new AxisPosition { X = 0, Y = 0 },
-        LowerRightLocatingPin = new AxisPosition { X = 100, Y = 0 },
-    };
+        return new()
+        {
+            UpperLeftLocatingPin = new AxisPosition { X = 0, Y = 0 },
+            LowerRightLocatingPin = new AxisPosition { X = 100, Y = 0 },
+        };
+    }
 
 }

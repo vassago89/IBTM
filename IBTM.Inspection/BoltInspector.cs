@@ -7,9 +7,7 @@ using IBTM.Device;
 
 namespace IBTM.Inspection;
 
-public sealed record CarrierScanImage(
-    AxisPosition Center,
-    ImageFrame Frame);
+public sealed record CarrierScanImage(AxisPosition Center, ImageFrame Frame);
 
 public sealed class BoltInspector(
     InspectionGantry gantry,
@@ -27,14 +25,28 @@ public sealed class BoltInspector(
 
     public event Action<ImageFrame>? FrameReady
     {
-        add => camera.FrameReady += value;
-        remove => camera.FrameReady -= value;
+        add
+        {
+            camera.FrameReady += value;
+        }
+
+        remove
+        {
+            camera.FrameReady -= value;
+        }
     }
 
     public event Action<Exception>? LiveViewFailed
     {
-        add => camera.LiveViewFailed += value;
-        remove => camera.LiveViewFailed -= value;
+        add
+        {
+            camera.LiveViewFailed += value;
+        }
+
+        remove
+        {
+            camera.LiveViewFailed -= value;
+        }
     }
 
     public void InitializeVision()
@@ -44,28 +56,55 @@ public sealed class BoltInspector(
         camera.Initialize();
     }
 
-    public void CheckReady() => presenceDetector.CheckReady();
+    public void CheckReady()
+    {
+        presenceDetector.CheckReady();
+    }
 
-    public BoltPrediction Predict(ImageFrame image) => presenceDetector.Predict(image);
+    public BoltPrediction Predict(ImageFrame image)
+    {
+        return presenceDetector.Predict(image);
+    }
 
-    public (double Width, double Height) FieldOfView => GetFieldOfView(camera.FrameSize);
+    public (double Width, double Height) FieldOfView
+    {
+        get
+        {
+            return GetFieldOfView(camera.FrameSize);
+        }
+    }
 
-    public (double Width, double Height) GetFieldOfView((int Width, int Height) frameSize) =>
-        (frameSize.Width * getMillimetersPerPixel(), frameSize.Height * getMillimetersPerPixel());
+    public (double Width, double Height) GetFieldOfView((int Width, int Height) frameSize)
+    {
+        return (frameSize.Width * getMillimetersPerPixel(), frameSize.Height * getMillimetersPerPixel());
+    }
 
-    public bool HasBarcodeRegion(HeatSinkSlot pcb) =>
-        carrierReference.IsDefined && getPcb().GetDataMatrix(pcb) is { } region
-        && region.Width > 0 && region.Height > 0
-        && region.Width <= FieldOfView.Width
-        && region.Height <= FieldOfView.Height;
+    public bool HasBarcodeRegion(HeatSinkSlot pcb)
+    {
+        return carrierReference.IsDefined
+            && getPcb().GetDataMatrix(pcb) is { } region
+            && region.Width > 0
+            && region.Height > 0
+            && region.Width <= FieldOfView.Width
+            && region.Height <= FieldOfView.Height;
+    }
 
-    public AxisPosition BarcodePosition(HeatSinkSlot pcb) =>
-        CarrierCoordinates.ToMachine(getPcb().GetDataMatrix(pcb)!.Center, carrierReference.UpperLeftLocatingPin!);
+    public AxisPosition BarcodePosition(HeatSinkSlot pcb)
+    {
+        return CarrierCoordinates.ToMachine(
+            getPcb().GetDataMatrix(pcb)!.Center,
+            carrierReference.UpperLeftLocatingPin!);
+    }
 
-    public bool IsAtBarcode(HeatSinkSlot pcb) => gantry.IsAt(BarcodePosition(pcb));
+    public bool IsAtBarcode(HeatSinkSlot pcb)
+    {
+        return gantry.IsAt(BarcodePosition(pcb));
+    }
 
-    public Task MoveToBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken = default) =>
-        MoveToAsync(BarcodePosition(pcb), cancellationToken);
+    public Task MoveToBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken = default)
+    {
+        return MoveToAsync(BarcodePosition(pcb), cancellationToken);
+    }
 
     public async Task<ImageFrame> CaptureBarcodeAsync(
         HeatSinkSlot pcb,
@@ -89,31 +128,39 @@ public sealed class BoltInspector(
             (int)Math.Ceiling(region.Height / getMillimetersPerPixel()));
     }
 
-    public Task<ImageFrame> CaptureCurrentAsync(CancellationToken cancellationToken = default) =>
-        Task.Run(Capture, cancellationToken);
+    public Task<ImageFrame> CaptureCurrentAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.Run(Capture, cancellationToken);
+    }
 
     internal async Task<string> ReadBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken)
     {
         var image = await CaptureCurrentAsync(cancellationToken);
         var text = await Task.Run(() => ReadBarcode(image), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        return !string.IsNullOrEmpty(text) ? text
-            : throw new InvalidOperationException($"Data Matrix could not be read for {pcb.GetDescription()}. Check the PCB and camera image.");
+        return !string.IsNullOrEmpty(text)
+            ? text
+            : throw new InvalidOperationException(
+                $"Data Matrix could not be read for {pcb.GetDescription()}. Check the PCB and camera image.");
     }
 
-    public bool HasPosition(BoltTarget point) =>
-        CarrierCoordinates.IsDefined(
+    public bool HasPosition(BoltTarget point)
+    {
+        return CarrierCoordinates.IsDefined(
             carrierReference.UpperLeftLocatingPin,
             carrierReference.LowerRightLocatingPin)
-        && point is { X: not null, Y: not null };
+            && point is { X: not null, Y: not null };
+    }
 
-    internal bool IsAt(BoltTarget point) =>
-        gantry.IsAt(Position(point));
+    internal bool IsAt(BoltTarget point)
+    {
+        return gantry.IsAt(Position(point));
+    }
 
-    public Task MoveToAsync(
-        BoltTarget point,
-        CancellationToken cancellationToken = default) =>
-        MoveToAsync(Position(point), cancellationToken);
+    public Task MoveToAsync(BoltTarget point, CancellationToken cancellationToken = default)
+    {
+        return MoveToAsync(Position(point), cancellationToken);
+    }
 
     private ImageFrame Capture()
     {
@@ -136,10 +183,9 @@ public sealed class BoltInspector(
         return await CaptureCurrentAsync(cancellationToken);
     }
 
-    internal Task<bool> InspectAsync(
-        BoltTarget point,
-        CancellationToken cancellationToken = default) =>
-        Task.Run(
+    internal Task<bool> InspectAsync(BoltTarget point, CancellationToken cancellationToken = default)
+    {
+        return Task.Run(
             () =>
             {
                 var image = Capture();
@@ -147,15 +193,21 @@ public sealed class BoltInspector(
                 cancellationToken.ThrowIfCancellationRequested();
                 var present = presenceDetector.IsPresent(image);
                 cancellationToken.ThrowIfCancellationRequested();
-                Inspected?.Invoke(new(image, point.Number, point.HeatSink,
-                    getRecipe().RegionSizePixels, present, capturedAt));
+                Inspected?.Invoke(
+                    new(
+                        image,
+                        point.Number,
+                        point.HeatSink,
+                        getRecipe().RegionSizePixels,
+                        present,
+                        capturedAt));
                 return present;
             },
             cancellationToken);
+    }
 
-    public async Task<IReadOnlyList<CarrierScanImage>>
-        CaptureCarrierImagesAsync(
-            CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<CarrierScanImage>> CaptureCarrierImagesAsync(
+        CancellationToken cancellationToken = default)
     {
         var overlap = getRecipe().CarrierScanOverlapMillimeters;
         var (width, height) = FieldOfView;
@@ -167,8 +219,7 @@ public sealed class BoltInspector(
             carrierReference.UpperLeftLocatingPin.Y,
             carrierReference.LowerRightLocatingPin.Y,
             height - overlap);
-        var images = new List<CarrierScanImage>(
-            xPositions.Count * yPositions.Count);
+        var images = new List<CarrierScanImage>(xPositions.Count * yPositions.Count);
 
         try
         {
@@ -177,20 +228,14 @@ public sealed class BoltInspector(
             {
                 for (var column = 0; column < xPositions.Count; column++)
                 {
-                    var xIndex = row % 2 == 0
-                        ? column
-                        : xPositions.Count - column - 1;
+                    var xIndex = row % 2 == 0 ? column : xPositions.Count - column - 1;
                     var center = new AxisPosition
                     {
                         X = xPositions[xIndex],
                         Y = yPositions[row],
                     };
-                    await MoveToAsync(center, cancellationToken)
-                        .ConfigureAwait(false);
-                    var frame = await Task.Run(
-                            CaptureFrame,
-                            cancellationToken)
-                        .ConfigureAwait(false);
+                    await MoveToAsync(center, cancellationToken).ConfigureAwait(false);
+                    var frame = await Task.Run(CaptureFrame, cancellationToken).ConfigureAwait(false);
                     images.Add(new(center, frame));
                 }
             }
@@ -230,21 +275,17 @@ public sealed class BoltInspector(
         }
     }
 
-    private AxisPosition Position(BoltTarget point) =>
-        gantrySettings.GetBoltPosition(point, carrierReference);
+    private AxisPosition Position(BoltTarget point)
+    {
+        return gantrySettings.GetBoltPosition(point, carrierReference);
+    }
 
-    private Task MoveToAsync(
-        AxisPosition position,
-        CancellationToken cancellationToken) =>
-        gantry.MoveToAsync(
-            position,
-            gantrySettings.Motion.HorizontalSpeed,
-            cancellationToken);
+    private Task MoveToAsync(AxisPosition position, CancellationToken cancellationToken)
+    {
+        return gantry.MoveToAsync(position, gantrySettings.Motion.HorizontalSpeed, cancellationToken);
+    }
 
-    private static IReadOnlyList<double> ScanPositions(
-        double start,
-        double end,
-        double pitch)
+    private static IReadOnlyList<double> ScanPositions(double start, double end, double pitch)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pitch);
         var distance = Math.Abs(end - start);
@@ -257,8 +298,7 @@ public sealed class BoltInspector(
         var positions = new double[segments + 1];
         for (var index = 0; index <= segments; index++)
         {
-            positions[index] =
-                start + ((end - start) * index / segments);
+            positions[index] = start + ((end - start) * index / segments);
         }
 
         return positions;
@@ -271,8 +311,10 @@ public sealed class BoltInspector(
         light.TurnOn(channel);
     }
 
-    private void TurnLightOff() =>
+    private void TurnLightOff()
+    {
         light.TurnOff(lightingSettings.InspectionChannel);
+    }
 
     private ImageFrame CaptureFrame()
     {

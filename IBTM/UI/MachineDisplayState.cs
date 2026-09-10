@@ -32,7 +32,6 @@ public enum MachineDisplayState
     Alarm,
 }
 
-
 public enum HandlerDisplayState
 {
     [Description("Position unknown")]

@@ -15,17 +15,26 @@ public sealed class NgShuttleFeedback
 
     public event Action? Changed;
 
-    public bool CarrierDetected =>
-        _io.GetInput(InputIo.NgShuttleCarrierDetected);
-
-    public NgShuttleLiftState Lift =>
-        (_io.GetInput(InputIo.NgShuttleUp),
-            _io.GetInput(InputIo.NgShuttleDown)) switch
+    public bool CarrierDetected
+    {
+        get
         {
-            (true, false) => NgShuttleLiftState.Up,
-            (false, true) => NgShuttleLiftState.Down,
-            _ => NgShuttleLiftState.Between,
-        };
+            return _io.GetInput(InputIo.NgShuttleCarrierDetected);
+        }
+    }
+
+    public NgShuttleLiftState Lift
+    {
+        get
+        {
+            return (_io.GetInput(InputIo.NgShuttleUp), _io.GetInput(InputIo.NgShuttleDown)) switch
+            {
+                (true, false) => NgShuttleLiftState.Up,
+                (false, true) => NgShuttleLiftState.Down,
+                _ => NgShuttleLiftState.Between,
+            };
+        }
+    }
 
     private void OnInputChanged(InputIo input, bool _)
     {

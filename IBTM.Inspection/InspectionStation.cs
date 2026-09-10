@@ -37,21 +37,26 @@ public sealed class InspectionStation : AutoUnit
 
     public override event Action? Changed;
 
-    public InspectionStationState State(
-        IReadOnlyList<BoltTarget> bolts) =>
-        TransferState(CurrentTransferState) ?? NextInspectionState(NextBolt(bolts));
+    public InspectionStationState State(IReadOnlyList<BoltTarget> bolts)
+    {
+        return TransferState(CurrentTransferState) ?? NextInspectionState(NextBolt(bolts));
+    }
 
-    public BoltTarget? ActiveBolt(IReadOnlyList<BoltTarget> bolts) =>
-        _work.Enabled
-        && _work.State == InspectionWorkState.ReadyToInspect
-        && NextBarcode() is null
+    public BoltTarget? ActiveBolt(IReadOnlyList<BoltTarget> bolts)
+    {
+        return _work.Enabled
+            && _work.State == InspectionWorkState.ReadyToInspect
+            && NextBarcode() is null
             ? NextBolt(bolts)
             : null;
+    }
 
-    public HeatSinkSlot? ActivePcb(IReadOnlyList<BoltTarget> bolts) =>
-        _work.Enabled && _work.State == InspectionWorkState.ReadyToInspect
+    public HeatSinkSlot? ActivePcb(IReadOnlyList<BoltTarget> bolts)
+    {
+        return _work.Enabled && _work.State == InspectionWorkState.ReadyToInspect
             ? NextBarcode() ?? NextBolt(bolts)?.HeatSink
             : null;
+    }
 
     public async Task RunAsync(
         IReadOnlyList<BoltTarget> bolts,
@@ -65,50 +70,63 @@ public sealed class InspectionStation : AutoUnit
         await RunLoopAsync(token => ExecuteAsync(bolts, token), cancellationToken);
     }
 
-    private Task ExecuteAsync(
-        IReadOnlyList<BoltTarget> bolts,
-        CancellationToken cancellationToken)
+    private Task ExecuteAsync(IReadOnlyList<BoltTarget> bolts, CancellationToken cancellationToken)
     {
         var transferState = CurrentTransferState;
         if (TransferState(transferState) is not null)
-            return _move.ExecuteAsync(NgTransferDestination.Shuttle, transferState, cancellationToken)
-                ?? WaitForChangeAsync(cancellationToken);
+            return _move.ExecuteAsync(NgTransferDestination.Shuttle, transferState, cancellationToken) ?? WaitForChangeAsync(
+                cancellationToken);
 
         return NextInspectionState(NextBolt(bolts)) is InspectionStationState.Waiting
             or InspectionStationState.BarcodeTeachingRequired
-                ? WaitForChangeAsync(cancellationToken)
-                : ExecuteInspectionAsync(bolts, cancellationToken);
+            ? WaitForChangeAsync(cancellationToken)
+            : ExecuteInspectionAsync(bolts, cancellationToken);
     }
 
-    private NgTransferState CurrentTransferState => !_isTransferEnabled() ? NgTransferState.Idle : _move.State(
-        NgTransferDestination.Shuttle,
-        canPickUp: _work.CarrierSeated && _work.Completed && _work.RouteToNg && _shuttle.CanReceive,
-        canReceive: _shuttle.CanReceive);
+    private NgTransferState CurrentTransferState
+    {
+        get
+        {
+            return !_isTransferEnabled()
+                ? NgTransferState.Idle
+                : _move.State(
+                    NgTransferDestination.Shuttle,
+                    canPickUp: _work.CarrierSeated
+                        && _work.Completed
+                        && _work.RouteToNg
+                        && _shuttle.CanReceive,
+                    canReceive: _shuttle.CanReceive);
+        }
+    }
 
     // Inspection's display enum describes the same shared transfer states.
-    private static InspectionStationState? TransferState(NgTransferState state) => state switch
+    private static InspectionStationState? TransferState(NgTransferState state)
     {
-        NgTransferState.MovingToCarrier => InspectionStationState.MovingTransferToCarrier,
-        NgTransferState.LoweringToCarrier => InspectionStationState.LoweringTransferAtCarrier,
-        NgTransferState.Closing => InspectionStationState.ClosingTransferGripper,
-        NgTransferState.WaitingForGrip => InspectionStationState.WaitingForCarrierGrip,
-        NgTransferState.Raising => InspectionStationState.RaisingCarrierTransfer,
-        NgTransferState.MovingToDestination => InspectionStationState.MovingTransferToShuttle,
-        NgTransferState.StationNotReady or NgTransferState.ShuttleNotReady
-            or NgTransferState.WaitingForDestination => InspectionStationState.WaitingForShuttleReady,
-        NgTransferState.LoweringAtDestination => InspectionStationState.LoweringTransferAtShuttle,
-        NgTransferState.Opening => InspectionStationState.OpeningTransferGripper,
-        NgTransferState.WaitingForPlacement => InspectionStationState.WaitingForShuttleCarrier,
-        _ => null,
-    };
+        return state switch
+        {
+            NgTransferState.MovingToCarrier => InspectionStationState.MovingTransferToCarrier,
+            NgTransferState.LoweringToCarrier => InspectionStationState.LoweringTransferAtCarrier,
+            NgTransferState.Closing => InspectionStationState.ClosingTransferGripper,
+            NgTransferState.WaitingForGrip => InspectionStationState.WaitingForCarrierGrip,
+            NgTransferState.Raising => InspectionStationState.RaisingCarrierTransfer,
+            NgTransferState.MovingToDestination => InspectionStationState.MovingTransferToShuttle,
+            NgTransferState.StationNotReady
+                or NgTransferState.ShuttleNotReady
+                or NgTransferState.WaitingForDestination
+
+                => InspectionStationState.WaitingForShuttleReady,
+            NgTransferState.LoweringAtDestination => InspectionStationState.LoweringTransferAtShuttle,
+            NgTransferState.Opening => InspectionStationState.OpeningTransferGripper,
+            NgTransferState.WaitingForPlacement => InspectionStationState.WaitingForShuttleCarrier,
+            _ => null,
+        };
+    }
 
     private async Task ExecuteInspectionAsync(
         IReadOnlyList<BoltTarget> bolts,
         CancellationToken cancellationToken)
     {
-        using var operation =
-            CancellationTokenSource.CreateLinkedTokenSource(
-                cancellationToken);
+        using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckWorkPosition()
         {
             if (!_work.CarrierSeated || !_transfer.IsClear)
@@ -122,9 +140,7 @@ public sealed class InspectionStation : AutoUnit
         {
             CheckWorkPosition();
             operation.Token.ThrowIfCancellationRequested();
-            var targets = Enum.GetValues<HeatSinkSlot>()
-                .Where(_work.HeatSinkPresent)
-                .ToArray();
+            var targets = Enum.GetValues<HeatSinkSlot>().Where(_work.HeatSinkPresent).ToArray();
             _runTargets = targets;
 
             while (!operation.IsCancellationRequested)
@@ -147,13 +163,9 @@ public sealed class InspectionStation : AutoUnit
                         break;
                     case InspectionStationState.InspectingBolt:
                         var assembly = _work.Assembly(bolt!.HeatSink);
-                        var present = await _inspector.InspectAsync(
-                            bolt,
-                            operation.Token);
+                        var present = await _inspector.InspectAsync(bolt, operation.Token);
                         operation.Token.ThrowIfCancellationRequested();
-                        assembly.RecordBoltPresence(
-                            bolt.Number,
-                            present);
+                        assembly.RecordBoltPresence(bolt.Number, present);
                         NotifyChanged();
                         break;
                     case InspectionStationState.CompletingInspection:
@@ -170,9 +182,9 @@ public sealed class InspectionStation : AutoUnit
                 }
             }
         }
-        catch (OperationCanceledException)
-            when (operation.IsCancellationRequested
-                && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (
+            operation.IsCancellationRequested
+            && !cancellationToken.IsCancellationRequested)
         {
         }
         finally
@@ -184,15 +196,15 @@ public sealed class InspectionStation : AutoUnit
 
     private InspectionStationState NextInspectionState(BoltTarget? bolt)
     {
-        if (!_work.Enabled
-            || _work.State != InspectionWorkState.ReadyToInspect)
+        if (!_work.Enabled || _work.State != InspectionWorkState.ReadyToInspect)
         {
             return InspectionStationState.Waiting;
         }
 
         if (NextBarcode() is { } pcb)
         {
-            if (!_inspector.HasBarcodeRegion(pcb)) return InspectionStationState.BarcodeTeachingRequired;
+            if (!_inspector.HasBarcodeRegion(pcb))
+                return InspectionStationState.BarcodeTeachingRequired;
             return _inspector.IsAtBarcode(pcb)
                 ? InspectionStationState.ReadingBarcode
                 : InspectionStationState.MovingToBarcode;
@@ -208,22 +220,32 @@ public sealed class InspectionStation : AutoUnit
             : InspectionStationState.MovingToBolt;
     }
 
-    private HeatSinkSlot? NextBarcode() => Enum.GetValues<HeatSinkSlot>()
-        .Where(pcb => _runTargets?.Contains(pcb) ?? _work.HeatSinkPresent(pcb))
-        .Where(pcb => _work.Assembly(pcb).PcbBarcode is null)
-        .Select(pcb => (HeatSinkSlot?)pcb).FirstOrDefault();
+    private HeatSinkSlot? NextBarcode()
+    {
+        return Enum.GetValues<HeatSinkSlot>()
+            .Where(pcb => _runTargets?.Contains(pcb) ?? _work.HeatSinkPresent(pcb))
+            .Where(pcb => _work.Assembly(pcb).PcbBarcode is null)
+            .Select(pcb => (HeatSinkSlot?)pcb)
+            .FirstOrDefault();
+    }
 
     private BoltTarget? NextBolt(IReadOnlyList<BoltTarget> bolts)
     {
         var targets = _runTargets;
-        return bolts
-            .Where(bolt => targets?.Contains(bolt.HeatSink)
-                ?? _work.HeatSinkPresent(bolt.HeatSink))
-            .OrderBy(bolt => bolt.HeatSink).ThenBy(bolt => bolt.Number)
-            .FirstOrDefault(bolt => !_work.Assemblies.Any(assembly =>
-                assembly.HeatSink == bolt.HeatSink
-                && assembly.BoltPresenceResults.ContainsKey(bolt.Number)));
+        return bolts.Where(
+            bolt => targets?.Contains(bolt.HeatSink) ?? _work.HeatSinkPresent(bolt.HeatSink))
+            .OrderBy(bolt => bolt.HeatSink)
+            .ThenBy(bolt => bolt.Number)
+            .FirstOrDefault(
+                bolt =>
+                    !_work.Assemblies.Any(
+                        assembly =>
+                            assembly.HeatSink == bolt.HeatSink
+                                && assembly.BoltPresenceResults.ContainsKey(bolt.Number)));
     }
 
-    private void NotifyChanged() => Changed?.Invoke();
+    private void NotifyChanged()
+    {
+        Changed?.Invoke();
+    }
 }

@@ -4,7 +4,13 @@ namespace IBTM.BoltFastening;
 
 public sealed class BoltFasteningStationHardwareSettings : InputHardwareSettings
 {
-    public override HardwareArea Area => HardwareArea.BoltFasteningStation;
+    public override HardwareArea Area
+    {
+        get
+        {
+            return HardwareArea.BoltFasteningStation;
+        }
+    }
 
     public BoltFasteningStationHardwareSettings()
     {

@@ -36,7 +36,8 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
         var manual = services.GetRequiredService<MotionWindowViewModel>();
-        var axis = manual.Axes.Single(row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
+        var axis = manual.Axes.Single(
+            row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
         feedback.BeforeRead = () => throw new IOException("Home feedback read failed.");
 
         await manual.HomeAxisCommand.ExecuteAsync(axis);
@@ -71,8 +72,7 @@ public sealed partial class MachineLifecycleTests
 
         var actual = jog
             ? await Assert.ThrowsAsync<InvalidOperationException>(() => motion.JogAsync(MotionAxis.X, 1))
-            : await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                motion.MoveXAsync(100, 1));
+            : await Assert.ThrowsAsync<InvalidOperationException>(() => motion.MoveXAsync(100, 1));
 
         Assert.Same(failure, actual);
         await operations.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(1));
@@ -150,7 +150,8 @@ public sealed partial class MachineLifecycleTests
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
         teaching.SelectedMotionGroup = MotionGroup.InspectionGantry;
         await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
-        await teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus).WaitAsync(TimeSpan.FromSeconds(2));
+        await teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus)
+            .WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
         Assert.Contains(fault.Message, state.AlarmDetail);
         Assert.False(gantry.Feedback.IsMoving);
@@ -163,7 +164,8 @@ public sealed partial class MachineLifecycleTests
         var jog = gantry.JogAsync(MotionAxis.X, 10, stopped.Token);
         Assert.True(gantry.Feedback.IsMoving);
         stopped.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jog.WaitAsync(TimeSpan.FromSeconds(2)));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => jog.WaitAsync(TimeSpan.FromSeconds(2)));
         Assert.False(gantry.Feedback.IsMoving);
         Assert.Equal(MachineAlarm.None, state.Alarm);
     }
@@ -192,20 +194,24 @@ public sealed partial class MachineLifecycleTests
 
         foreach (var input in new[]
         {
-            InputIo.MainConveyorEntryCarrierDetected, InputIo.PcbPlacementCarrierPresent,
-            InputIo.BoltFasteningCarrierPresent, InputIo.InspectionCarrierPresent,
-            InputIo.MainConveyorExitCarrierDetected, InputIo.NgCarrierDetected,
-            InputIo.NgShuttleCarrierDetected, InputIo.NgConveyorPosition1Occupied,
+            InputIo.MainConveyorEntryCarrierDetected,
+            InputIo.PcbPlacementCarrierPresent,
+            InputIo.BoltFasteningCarrierPresent,
+            InputIo.InspectionCarrierPresent,
+            InputIo.MainConveyorExitCarrierDetected,
+            InputIo.NgCarrierDetected,
+            InputIo.NgShuttleCarrierDetected,
+            InputIo.NgConveyorPosition1Occupied,
             InputIo.NgConveyorPosition2Occupied,
         })
         {
-            await WaitUntilAsync(() => state.Display is
-                { HomeBlock: HomeBlockReason.None, HomeableAxes.Count: > 0 });
+            await WaitUntilAsync(
+                () => state.Display is { HomeBlock: HomeBlockReason.None, HomeableAxes.Count: > 0 });
             io.SetInput(input, true);
             Assert.Equal(HomeBlockReason.CarrierDetected, machine.HomeBlock);
             Assert.False(machine.CanHome);
-            await WaitUntilAsync(() => state.Display is
-                { HomeBlock: HomeBlockReason.CarrierDetected, HomeableAxes.Count: 0 });
+            await WaitUntilAsync(
+                () => state.Display is { HomeBlock: HomeBlockReason.CarrierDetected, HomeableAxes.Count: 0 });
             Assert.All(manual.Axes, axis => Assert.False(manual.HomeAxisCommand.CanExecute(axis)));
             await machine.HomeAsync(CancellationToken.None);
             await manual.HomeAxisCommand.ExecuteAsync(manual.Axes[3]);
@@ -214,7 +220,10 @@ public sealed partial class MachineLifecycleTests
 
         foreach (var (up, down, reason) in new[]
         {
-            (InputIo.PcbPlacementHandlerUp, InputIo.PcbPlacementHandlerDown, HomeBlockReason.PlacementNotRaised),
+            (
+                InputIo.PcbPlacementHandlerUp,
+                InputIo.PcbPlacementHandlerDown,
+                HomeBlockReason.PlacementNotRaised),
             (InputIo.PickupHeadUp, InputIo.PickupHeadDown, HomeBlockReason.FasteningNotRaised),
             (InputIo.ShootingHeadUp, InputIo.ShootingHeadDown, HomeBlockReason.FasteningNotRaised),
             (InputIo.NgCarrierPickupUp, InputIo.NgCarrierPickupDown, HomeBlockReason.NgPickupNotRaised),
@@ -230,6 +239,7 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(down, false);
             Assert.True(machine.CanHome);
         }
+
         Assert.Equal(0, outputsChanged);
 
         settings.Units.PcbSupply = settings.Units.PcbPlacement = settings.Units.BoltFastening = false;
@@ -255,11 +265,11 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         IIoService signals = io;
         await machine.InitializeAsync();
-        OutputIo[] cylinders =
-        [
+        OutputIo[] cylinders = [
             OutputIo.PcbPlacementHandlerDown,
             OutputIo.PickupHeadDown,
-            OutputIo.ShootingHeadDown, OutputIo.NgCarrierPickupDown,
+            OutputIo.ShootingHeadDown,
+            OutputIo.NgCarrierPickupDown,
         ];
         await Task.WhenAll(cylinders.Select(output => signals.SetOutputAndWaitAsync(output, true)));
         await signals.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
@@ -271,7 +281,8 @@ public sealed partial class MachineLifecycleTests
             services.GetRequiredService<InspectionGantry>().Feedback,
         };
         var moved = false;
-        foreach (var motion in motions) motion.MovingChanged += moving => moved |= moving;
+        foreach (var motion in motions)
+            motion.MovingChanged += moving => moved |= moving;
         var outputChanges = new ConcurrentQueue<OutputIo>();
         io.OutputChanged += (output, _) => outputChanges.Enqueue(output);
 
@@ -355,8 +366,7 @@ public sealed partial class MachineLifecycleTests
 
         Assert.False(machine.CanHome);
         await machine.HomeAsync(CancellationToken.None);
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            gantry.HomeAxisAsync(MotionAxis.X));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.HomeAxisAsync(MotionAxis.X));
         Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
         Assert.False(state.Homed);
 
@@ -364,8 +374,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(machine.CanHome);
         Assert.False(gantry.CanMove);
         await machine.HomeAsync(CancellationToken.None);
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            gantry.HomeAxisAsync(MotionAxis.X));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.HomeAxisAsync(MotionAxis.X));
         Assert.False(state.Homed);
         Assert.True(io.GetOutput(OutputIo.NgCarrierPickupDown));
         Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
@@ -379,7 +388,8 @@ public sealed partial class MachineLifecycleTests
         {
             if (moving && state.IsHoming)
             {
-                unsafeMovement |= !gantry.CanMove || !gantry.CanHome
+                unsafeMovement |= !gantry.CanMove
+                    || !gantry.CanHome
                     || !io.GetInput(InputIo.NgCarrierGripperOpen);
             }
         };
@@ -390,10 +400,9 @@ public sealed partial class MachineLifecycleTests
 
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            gantry.JogAsync(MotionAxis.X, 10));
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-            await gantry.MoveToAsync(new AxisPosition { X = 20, Y = 10 }, 100));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.JogAsync(MotionAxis.X, 10));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await gantry.MoveToAsync(new AxisPosition { X = 20, Y = 10 }, 100));
         io.SetInput(InputIo.NgCarrierPickupDown, false);
         io.SetInput(InputIo.NgCarrierPickupUp, true);
         var moving = gantry.MoveToAsync(new AxisPosition { X = 20, Y = 10 }, 10);
@@ -414,7 +423,9 @@ public sealed partial class MachineLifecycleTests
     [InlineData(MotionGroup.BoltFastening, InputIo.PickupHeadUp, InputIo.PickupHeadDown)]
     [InlineData(MotionGroup.BoltFastening, InputIo.ShootingHeadUp, InputIo.ShootingHeadDown)]
     public async Task HorizontalMotionRequiresRaisedCylindersWhileZCanRetract(
-        MotionGroup group, InputIo up, InputIo down)
+        MotionGroup group,
+        InputIo up,
+        InputIo down)
     {
         var settings = FlowSettings();
         settings.PcbPlacementHandler.Motion.HorizontalSpeed = 10;
@@ -427,25 +438,31 @@ public sealed partial class MachineLifecycleTests
         var fastening = services.GetRequiredService<BoltFasteningGantry>();
         var isPlacement = group == MotionGroup.PcbPlacementHandler;
         var feedback = isPlacement ? placement.Feedback : fastening.Feedback;
-        Task MoveXY() => isPlacement
-            ? placement.MoveToXYAsync(20, 20)
-            : fastening.MoveToXYAsync(20, 20);
+        Task MoveXY()
+        {
+            return isPlacement ? placement.MoveToXYAsync(20, 20) : fastening.MoveToXYAsync(20, 20);
+        }
+
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.AutoResponseEnabled = false;
 
         io.SetInput(up, false);
         io.SetInput(down, true);
-        if (isPlacement) await placement.MoveZAsync(1);
-        else await fastening.MoveZAsync(1);
+        if (isPlacement)
+            await placement.MoveZAsync(1);
+        else
+            await fastening.MoveZAsync(1);
         Assert.Equal(1, feedback.GetPosition().Z);
         Assert.Equal(MachineAlarm.None, state.Alarm);
         await Assert.ThrowsAsync<InvalidOperationException>(MoveXY);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => isPlacement
-            ? placement.HomeAxisAsync(MotionAxis.X)
-            : fastening.HomeAxisAsync(MotionAxis.X));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => isPlacement
+                ? placement.HomeAxisAsync(MotionAxis.X)
+                : fastening.HomeAxisAsync(MotionAxis.X));
         if (isPlacement)
-            await Assert.ThrowsAsync<InvalidOperationException>(() => placement.JogAsync(MotionAxis.Y, 10));
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => placement.JogAsync(MotionAxis.Y, 10));
 
         io.SetInput(up, true);
         await Assert.ThrowsAsync<InvalidOperationException>(MoveXY);
@@ -482,7 +499,9 @@ public sealed partial class MachineLifecycleTests
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, false);
         await move;
 
-        Assert.Equal((20, 20, settings.PcbPlacementHandler.BufferEntryZ), placement.Feedback.GetPosition());
+        Assert.Equal(
+            (20, 20, settings.PcbPlacementHandler.BufferEntryZ),
+            placement.Feedback.GetPosition());
         Assert.Equal(MachineAlarm.None, state.Alarm);
     }
 
@@ -503,7 +522,8 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         await gantry.MoveZAsync(14);
         teaching.SelectedMotionGroup = MotionGroup.BoltFastening;
-        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Target == TeachingTarget.BoltPickup);
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(
+            point => point.Target == TeachingTarget.BoltPickup);
         Assert.Equal(TeachingSaveBehavior.BoltPickup, teaching.SaveBehavior);
         await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
 
@@ -520,7 +540,8 @@ public sealed partial class MachineLifecycleTests
                 loweredAt.Enqueue(gantry.Feedback.GetPosition());
         };
         gantry.Feedback.PositionChanged += (_, _, _) =>
-            movedXyWithHeadDown |= gantry.Feedback.IsMovingHorizontal && !gantry.CanMoveHorizontal;
+            movedXyWithHeadDown |= gantry.Feedback.IsMovingHorizontal
+                && !gantry.CanMoveHorizontal;
 
         var move = teaching.MoveToPointCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => io.GetOutput(OutputIo.PickupHeadDown));
@@ -546,7 +567,8 @@ public sealed partial class MachineLifecycleTests
         var stopAtSafeZ = true;
         gantry.Feedback.PositionChanged += (_, _, z) =>
         {
-            if (stopAtSafeZ && Math.Abs(z - settings.BoltFastening.SafeZ) <= MotionService.PositionToleranceMillimeters)
+            if (stopAtSafeZ
+                && Math.Abs(z - settings.BoltFastening.SafeZ) <= MotionService.PositionToleranceMillimeters)
             {
                 stopAtSafeZ = false;
                 teaching.JogStopCommand.Execute(null);
@@ -592,8 +614,10 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         teaching.SelectedMotionGroup = MotionGroup.BoltFastening;
-        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Target == TeachingTarget.BoltPickup);
-        if (returning) await gantry.MoveToPickupPositionAsync();
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(
+            point => point.Target == TeachingTarget.BoltPickup);
+        if (returning)
+            await gantry.MoveToPickupPositionAsync();
         io.AutoResponseEnabled = false;
         settings.Options.TimeoutMilliseconds = 50;
 
@@ -621,12 +645,16 @@ public sealed partial class MachineLifecycleTests
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, true);
         var jog = gantry.JogAsync(MotionAxis.X, 1);
         await WaitUntilAsync(() => gantry.Feedback.GetPosition().X > 0);
-        if (autoMode) io.SetInput(InputIo.AutoMode, false);
-        else gantry.SetServo(MotionAxis.X, false);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jog.WaitAsync(TimeSpan.FromSeconds(2)));
+        if (autoMode)
+            io.SetInput(InputIo.AutoMode, false);
+        else
+            gantry.SetServo(MotionAxis.X, false);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => jog.WaitAsync(TimeSpan.FromSeconds(2)));
         var stopped = gantry.Feedback.GetPosition();
         Assert.Equal(MotionCommand.None, gantry.Feedback.Command);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => gantry.AdjustAxisAsync(MotionAxis.X, 20, 1));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => gantry.AdjustAxisAsync(MotionAxis.X, 20, 1));
         Assert.Equal(stopped, gantry.Feedback.GetPosition());
         Assert.True(io.GetInput(InputIo.ShootingHeadDown));
     }
@@ -651,8 +679,7 @@ public sealed partial class MachineLifecycleTests
                 io.SetInput(InputIo.PickupHeadUp, false);
         };
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            gantry.MoveToXYAsync(20, 20));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => gantry.MoveToXYAsync(20, 20));
 
         var after = gantry.Feedback.GetPosition();
         Assert.Equal(before.X, after.X);
@@ -668,7 +695,9 @@ public sealed partial class MachineLifecycleTests
     [InlineData(MachineUnit.BoltFastening, MotionGroup.BoltFastening)]
     [InlineData(MachineUnit.Inspection, MotionGroup.InspectionGantry)]
     [InlineData(MachineUnit.NgCarrierTransfer, MotionGroup.InspectionGantry)]
-    public async Task OnlyEnabledMotionsAreInitializedReadResetAndHomed(MachineUnit unit, MotionGroup group)
+    public async Task OnlyEnabledMotionsAreInitializedReadResetAndHomed(
+        MachineUnit unit,
+        MotionGroup group)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(unit);
@@ -678,7 +707,8 @@ public sealed partial class MachineLifecycleTests
         var manual = services.GetRequiredService<MotionWindowViewModel>();
         foreach (var (candidate, probe) in probes)
         {
-            if (candidate == group) continue;
+            if (candidate == group)
+                continue;
             // Also simulate an initialized drive that was subsequently disabled.
             probe.ReportReady = true;
             probe.FailHardwareCalls = true;
@@ -726,7 +756,9 @@ public sealed partial class MachineLifecycleTests
             manual.ToggleServoCommand.Execute(row);
             await manual.HomeAxisCommand.ExecuteAsync(row);
         }
-        Assert.All(probes.Where(item => item.Key != group),
+
+        Assert.All(
+            probes.Where(item => item.Key != group),
             item => Assert.Equal(0, item.Value.HardwareCalls));
         Assert.Equal(MachineAlarm.None, state.Alarm);
     }
@@ -755,7 +787,6 @@ public sealed partial class MachineLifecycleTests
         Assert.True(state.Ready);
         Assert.True(state.ManualControlsEnabled);
         Assert.Equal(failedCalls, probes[MotionGroup.PcbSupply].HardwareCalls);
-
         // Re-enabling the same faulty hardware makes it mandatory again.
         settings.Units.PcbSupply = true;
         Assert.True(state.Faulted);
@@ -770,7 +801,8 @@ public sealed partial class MachineLifecycleTests
     public async Task HomeStopsWhenItsCarrierOrCylinderConditionChanges(InputIo input, bool value)
     {
         var settings = FlowSettings();
-        foreach (var motionSettings in MotionSettingsOf(settings)) motionSettings.ZHome.SearchSpeed = 20;
+        foreach (var motionSettings in MotionSettingsOf(settings))
+            motionSettings.ZHome.SearchSpeed = 20;
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -795,14 +827,15 @@ public sealed partial class MachineLifecycleTests
     public async Task MotionAlarmBlocksHomeAndStopsAllHomingAxes()
     {
         var settings = FlowSettings();
-        foreach (var motionSettings in MotionSettingsOf(settings)) motionSettings.ZHome.SearchSpeed = 20;
+        foreach (var motionSettings in MotionSettingsOf(settings))
+            motionSettings.ZHome.SearchSpeed = 20;
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
-        var placement = (VirtualMotionService)services
-            .GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler);
-        var fastening = (VirtualMotionService)services
-            .GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
+        var placement = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(
+            MotionGroup.PcbPlacementHandler);
+        var fastening = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(
+            MotionGroup.BoltFastening);
         await machine.InitializeAsync();
 
         fastening.SetAlarm(MotionAxis.X, true);
@@ -810,9 +843,7 @@ public sealed partial class MachineLifecycleTests
         await machine.ResetAsync();
         Assert.True(machine.CanHome);
 
-        await Task.WhenAll(
-            placement.MoveZAsync(50, 10_000),
-            fastening.MoveZAsync(50, 10_000));
+        await Task.WhenAll(placement.MoveZAsync(50, 10_000), fastening.MoveZAsync(50, 10_000));
         var homing = machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => placement.IsMoving && fastening.IsMoving);
         fastening.SetAlarm(MotionAxis.X, true);
@@ -833,56 +864,58 @@ public sealed partial class MachineLifecycleTests
     public async Task FailedHomeReportsCauseAndStopsOtherHomingAxes(bool exception, bool individual)
     {
         var settings = FlowSettings();
-        foreach (var motionSettings in MotionSettingsOf(settings)) motionSettings.ZHome.SearchSpeed = 1;
+        foreach (var motionSettings in MotionSettingsOf(settings))
+            motionSettings.ZHome.SearchSpeed = 1;
         HomeResultMotion? homeResult = null;
-        using var services = new ServiceCollection()
-            .AddSingleton(_ => VirtualTest.OpenMachineStore())
+        using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings)
-            .AddSingleton(provider =>
-            {
-                var motion = DispatchProxy.Create<IXyMotion, HomeResultMotion>();
-                homeResult = (HomeResultMotion)motion;
-                homeResult.Motion = provider.GetRequiredKeyedService<IXyMotion>(
-                    MotionGroup.BoltFastening);
-                return new BoltFasteningGantry(
-                    provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
-                    provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
-                    provider.GetRequiredService<IIoService>(),
-                    motion,
-                    settings.BoltFastening,
-                    settings.CarrierReference);
-            })
+            .AddSingleton(
+                provider =>
+                {
+                    var motion = DispatchProxy.Create<IXyMotion, HomeResultMotion>();
+                    homeResult = (HomeResultMotion)motion;
+                    homeResult.Motion = provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
+                    return new BoltFasteningGantry(
+                        provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
+                        provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
+                        provider.GetRequiredService<IIoService>(),
+                        motion,
+                        settings.BoltFastening,
+                        settings.CarrierReference);
+                })
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
-        var placement = services.GetRequiredKeyedService<IXyMotion>(
-            MotionGroup.PcbPlacementHandler);
-        var supply = services.GetRequiredKeyedService<IAxisMotion>(
-            MotionGroup.PcbSupply);
+        var placement = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler);
+        var supply = services.GetRequiredKeyedService<IAxisMotion>(MotionGroup.PcbSupply);
         var manual = services.GetRequiredService<MotionWindowViewModel>();
         await machine.InitializeAsync();
         await placement.MoveZAsync(50, 10_000);
 
-        var axisRow = manual.Axes.Single(row => row.Group == MotionGroup.BoltFastening && row.Axis == MotionAxis.Z);
+        var axisRow = manual.Axes.Single(
+            row => row.Group == MotionGroup.BoltFastening && row.Axis == MotionAxis.Z);
         var homing = individual
             ? manual.HomeAxisCommand.ExecuteAsync(axisRow)
             : machine.HomeAsync(CancellationToken.None);
         try
         {
-            await WaitUntilAsync(() => individual ? state.IsHoming : placement.IsMoving && supply.IsMoving);
+            await WaitUntilAsync(
+                () => individual ? state.IsHoming : placement.IsMoving && supply.IsMoving);
             if (exception)
             {
-                homeResult!.Result.SetException(new MotionException(
-                    "Home", new InvalidOperationException("Home command failed.")));
+                homeResult!.Result.SetException(
+                    new MotionException("Home", new InvalidOperationException("Home command failed.")));
             }
             else
             {
                 homeResult!.Result.SetResult(false);
             }
+
             await homing.WaitAsync(TimeSpan.FromSeconds(2));
 
             Assert.Equal(MachineAlarm.HomeFailed, state.Alarm);
-            if (exception) Assert.Contains("Home command failed.", state.AlarmDetail);
+            if (exception)
+                Assert.Contains("Home command failed.", state.AlarmDetail);
             await WaitUntilAsync(() => state.Display.Alarm == MachineAlarm.HomeFailed);
             Assert.False(manual.HomeAxisCommand.CanExecute(axisRow));
             Assert.False(state.IsHoming);

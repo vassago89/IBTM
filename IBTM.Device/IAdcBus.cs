@@ -8,7 +8,9 @@ namespace IBTM.Device;
 public interface IAdcBus
 {
     bool IsOpen { get; }
+
     string PortName { get; }
+
     int BaudRate { get; }
 
     // Receive notifications are raw chunks, not necessarily complete or valid frames.
@@ -56,57 +58,64 @@ public interface IAdcBus
         byte slaveAddress,
         CancellationToken cancellationToken = default)
     {
-        var values = await ReadInputRegistersAsync(slaveAddress,
-            (ushort)AdcStatusRegister.Preset, AdcControllerStatus.RegisterCount, cancellationToken);
+        var values = await ReadInputRegistersAsync(
+            slaveAddress,
+            (ushort)AdcStatusRegister.Preset,
+            AdcControllerStatus.RegisterCount,
+            cancellationToken);
         return AdcControllerStatus.FromRegisters(values);
     }
 
-    Task ResetAlarmAsync(
-        byte slaveAddress,
-        CancellationToken cancellationToken = default) =>
-        WriteRegisterAsync(
+    Task ResetAlarmAsync(byte slaveAddress, CancellationToken cancellationToken = default)
+    {
+        return WriteRegisterAsync(
             slaveAddress,
             (ushort)AdcRemoteRegister.AlarmReset,
             1,
             cancellationToken);
+    }
 
     Task SelectPresetAsync(
         byte slaveAddress,
         ushort preset,
-        CancellationToken cancellationToken = default) =>
-        WriteRegisterAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return WriteRegisterAsync(
             slaveAddress,
             (ushort)AdcRemoteRegister.Preset,
             preset,
             cancellationToken);
+    }
 
     Task SetDirectionAsync(
         byte slaveAddress,
         AdcDirection direction,
-        CancellationToken cancellationToken = default) =>
-        WriteRegisterAsync(
+        CancellationToken cancellationToken = default)
+    {
+        return WriteRegisterAsync(
             slaveAddress,
             (ushort)AdcRemoteRegister.Direction,
             (ushort)direction,
             cancellationToken);
+    }
 
-    Task StartAsync(
-        byte slaveAddress,
-        CancellationToken cancellationToken = default) =>
-        WriteRegisterAsync(
+    Task StartAsync(byte slaveAddress, CancellationToken cancellationToken = default)
+    {
+        return WriteRegisterAsync(
             slaveAddress,
             (ushort)AdcRemoteRegister.RemoteStart,
             1,
             cancellationToken);
+    }
 
-    Task StopAsync(
-        byte slaveAddress,
-        CancellationToken cancellationToken = default) =>
-        WriteRegisterAsync(
+    Task StopAsync(byte slaveAddress, CancellationToken cancellationToken = default)
+    {
+        return WriteRegisterAsync(
             slaveAddress,
             (ushort)AdcRemoteRegister.RemoteStart,
             0,
             cancellationToken);
+    }
 }
 
 public enum AdcFunctionCode : byte
@@ -198,22 +207,39 @@ public enum AdcResultRegister : ushort
 
 public enum AdcStatusRegister : ushort
 {
-    [Description("Current Preset")] Preset = 3303,
-    [Description("Ready")] Ready = 3306,
-    [Description("Motor Run")] MotorRun = 3307,
-    [Description("Current Alarm")] Alarm = 3308,
-    [Description("Current Direction")] Direction = 3309,
+    [Description("Current Preset")]
+    Preset = 3303,
+    [Description("Ready")]
+    Ready = 3306,
+    [Description("Motor Run")]
+    MotorRun = 3307,
+    [Description("Current Alarm")]
+    Alarm = 3308,
+    [Description("Current Direction")]
+    Direction = 3309,
 }
 
-public sealed record AdcControllerStatus(ushort Preset, bool Ready, bool Running, ushort Alarm, AdcDirection Direction)
+public sealed record AdcControllerStatus(
+    ushort Preset,
+    bool Ready,
+    bool Running,
+    ushort Alarm,
+    AdcDirection Direction)
 {
     public const ushort RegisterCount = (ushort)AdcStatusRegister.Direction - (ushort)AdcStatusRegister.Preset + 1;
 
     internal static AdcControllerStatus FromRegisters(ushort[] values)
     {
-        ushort Read(AdcStatusRegister register) => values[(ushort)register - (ushort)AdcStatusRegister.Preset];
-        return new(Read(AdcStatusRegister.Preset), Read(AdcStatusRegister.Ready) != 0,
-            Read(AdcStatusRegister.MotorRun) != 0, Read(AdcStatusRegister.Alarm),
+        ushort Read(AdcStatusRegister register)
+        {
+            return values[(ushort)register - (ushort)AdcStatusRegister.Preset];
+        }
+
+        return new(
+            Read(AdcStatusRegister.Preset),
+            Read(AdcStatusRegister.Ready) != 0,
+            Read(AdcStatusRegister.MotorRun) != 0,
+            Read(AdcStatusRegister.Alarm),
             (AdcDirection)Read(AdcStatusRegister.Direction));
     }
 }
@@ -277,16 +303,20 @@ public sealed record AdcFasteningResult(
     ushort SnugAngle)
 {
     private const ushort FirstRegister = (ushort)AdcResultRegister.EventCount;
-    public const ushort RegisterCount =
-        (ushort)((ushort)AdcResultRegister.SnugAngle - FirstRegister + 1);
+    public const ushort RegisterCount = (ushort)((ushort)AdcResultRegister.SnugAngle - FirstRegister + 1);
     private const double RegisterScale = 100.0;
 
     internal static AdcFasteningResult FromRegisters(ushort[] values)
     {
-        ushort Read(AdcResultRegister register) =>
-            values[(ushort)register - FirstRegister];
-        double ReadScaled(AdcResultRegister register) =>
-            Read(register) / RegisterScale;
+        ushort Read(AdcResultRegister register)
+        {
+            return values[(ushort)register - FirstRegister];
+        }
+
+        double ReadScaled(AdcResultRegister register)
+        {
+            return Read(register) / RegisterScale;
+        }
 
         return new(
             Read(AdcResultRegister.EventCount),

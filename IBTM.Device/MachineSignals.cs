@@ -206,14 +206,12 @@ public enum InputIo
 
     [Description("Emergency Stop 2 Pressed")]
     EmergencyStop2Pressed,
-
     // Keep the persisted mapping key; the physical contact is ON in MANUAL.
     [Description("Auto / Manual Selector")]
     AutoMode,
 
     [Description("Reset Button")]
     ResetButton,
-
     // Preserve existing database mapping keys; ON means the door is CLOSED.
     [Description("Door 1 Closed")]
     Door1Open,
@@ -421,4 +419,3 @@ public enum MachineAxis
     [Description("Inspection Gantry Y")]
     InspectionGantryY,
 }
-

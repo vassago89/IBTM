@@ -9,8 +9,7 @@ public sealed class PcbPlacementRecoveryItem
     public bool Completed { get; set; }
 }
 
-public sealed class PcbPlacementRecoveryViewModel(
-    IReadOnlyList<PcbPlacementRecoveryItem> items)
+public sealed class PcbPlacementRecoveryViewModel(IReadOnlyList<PcbPlacementRecoveryItem> items)
 {
     public IReadOnlyList<PcbPlacementRecoveryItem> Items { get; } = items;
 }

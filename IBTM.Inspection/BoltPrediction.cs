@@ -16,12 +16,17 @@ public sealed class BoltPrediction(ImageFrame input, float[] probabilities)
         while (low < high)
         {
             var middle = low + (high - low) / 2;
-            if (_sorted[middle] >= threshold) high = middle;
-            else low = middle + 1;
+            if (_sorted[middle] >= threshold)
+                high = middle;
+            else
+                low = middle + 1;
         }
+
         return (double)(_sorted.Length - low) / _sorted.Length;
     }
 
-    public bool IsPresent(float maskThreshold, double minimumMaskRatio) =>
-        MaskRatio(maskThreshold) >= minimumMaskRatio;
+    public bool IsPresent(float maskThreshold, double minimumMaskRatio)
+    {
+        return MaskRatio(maskThreshold) >= minimumMaskRatio;
+    }
 }

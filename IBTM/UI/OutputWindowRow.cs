@@ -8,7 +8,8 @@ namespace IBTM.UI;
 
 public sealed partial class OutputWindowRow(IoOutputStatus io, MachineController machine) : ObservableObject
 {
-    [ObservableProperty] private string? _actionMessage;
+    [ObservableProperty]
+    private string? _actionMessage;
 
     public IoOutputStatus Io { get; } = io;
 

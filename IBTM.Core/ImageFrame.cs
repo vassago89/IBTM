@@ -1,10 +1,6 @@
 namespace IBTM.Core;
 
-public sealed record ImageFrame(
-    int Width,
-    int Height,
-    int Stride,
-    byte[] Pixels)
+public sealed record ImageFrame(int Width, int Height, int Stride, byte[] Pixels)
 {
     public const int ColorChannelCount = 3;
     public const int BlueChannel = 0;

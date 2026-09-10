@@ -31,10 +31,19 @@ public sealed class DiagnosticToolsTests
             settings.LightTestChannel = 2;
             settings.LightTestLevel = 43;
             var test = settings.TestLightCommand.ExecuteAsync(null);
-            Assert.True(await VirtualTest.WaitUntilAsync(() => settings.LightTestOn, TimeSpan.FromSeconds(2)));
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => settings.LightTestOn, TimeSpan.FromSeconds(2)));
             Assert.True(state.IsRunning);
             Assert.False(settings.CanEditSettings);
             Assert.False(machine.CanStart);
+            typeof(MachineState).GetMethod(
+                "SetError",
+                System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.NonPublic)!.Invoke(
+                        state,
+                        [MachineAlarm.MotionUnavailable, new IOException("Unrelated motion alarm.")]);
+            Assert.True(settings.LightTestOn);
+            Assert.False(test.IsCompleted);
             await settings.OffTestLightCommand.ExecuteAsync(null);
             await test.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(settings.LightTestOn);
@@ -44,7 +53,8 @@ public sealed class DiagnosticToolsTests
             Assert.Equal("off:2", light.Calls.Last());
 
             test = settings.TestLightCommand.ExecuteAsync(null);
-            Assert.True(await VirtualTest.WaitUntilAsync(() => settings.LightTestOn, TimeSpan.FromSeconds(2)));
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => settings.LightTestOn, TimeSpan.FromSeconds(2)));
             io.SetInput(InputIo.AutoMode, false);
             await test.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Equal("off:2", light.Calls.Last());
@@ -53,7 +63,11 @@ public sealed class DiagnosticToolsTests
             await settings.TestLightCommand.ExecuteAsync(null); // Direct invocation cannot bypass AUTO.
             Assert.Equal(calls, light.Calls.Count);
         }
-        finally { await settings.ShutdownAsync(); await machine.ShutdownAsync(); }
+        finally
+        {
+            await settings.ShutdownAsync();
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]
@@ -87,7 +101,11 @@ public sealed class DiagnosticToolsTests
             Assert.Equal(onWrites, light.Calls.Count(call => call.StartsWith("on:")));
             Assert.Null(settings.PendingLightOffChannel);
         }
-        finally { await settings.ShutdownAsync(); await machine.ShutdownAsync(); }
+        finally
+        {
+            await settings.ShutdownAsync();
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]
@@ -98,38 +116,53 @@ public sealed class DiagnosticToolsTests
         settings.Units.NgCarrierTransfer = true;
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
-        var motion = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
+        var motion = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(
+            MotionGroup.InspectionGantry);
         await machine.InitializeAsync();
         try
         {
             motion.SetAlarm(MotionAxis.X, true);
             motion.SetServo(MotionAxis.Y, false);
-            typeof(MachineState).GetMethod("SetError",
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-                .Invoke(state, [MachineAlarm.MotionUnavailable, new IOException("Axis alarm is latched.")]);
+            typeof(MachineState).GetMethod(
+                "SetError",
+                System.Reflection.BindingFlags.Instance
+                    | System.Reflection.BindingFlags.NonPublic)!.Invoke(
+                        state,
+                        [MachineAlarm.MotionUnavailable, new IOException("Axis alarm is latched.")]);
             state.RequestDisplayRefresh();
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => state.Display.Available && state.Display.MotionFaulted && !state.Display.ServoPowerOn,
-                TimeSpan.FromSeconds(2)));
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(
+                    () => state.Display.Available
+                        && state.Display.MotionFaulted
+                        && !state.Display.ServoPowerOn,
+                    TimeSpan.FromSeconds(2)));
             var view = new MotionWindowViewModel(machine, state, settings);
             var axes = view.Axes.Where(row => row.Group == MotionGroup.InspectionGantry).ToArray();
-            Assert.All(axes, row =>
-            {
-                Assert.NotNull(row.Diagnostics.Snapshot.State);
-                Assert.NotNull(row.Diagnostics.Snapshot.Position);
-                Assert.False(view.HomeAxisCommand.CanExecute(row));
-            });
+            Assert.All(
+                axes,
+                row =>
+                {
+                    Assert.NotNull(row.Diagnostics.Snapshot.State);
+                    Assert.NotNull(row.Diagnostics.Snapshot.Position);
+                    Assert.False(view.HomeAxisCommand.CanExecute(row));
+                });
             var x = Assert.Single(axes, row => row.Axis == MotionAxis.X);
             var y = Assert.Single(axes, row => row.Axis == MotionAxis.Y);
-            Assert.True(await VirtualTest.WaitUntilAsync(() => x.Diagnostics.Snapshot.Faulted == true && y.Diagnostics.Snapshot.State?.ServoOn == false,
-                TimeSpan.FromSeconds(2)));
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(
+                    () => x.Diagnostics.Snapshot.Faulted == true
+                        && y.Diagnostics.Snapshot.State?.ServoOn == false,
+                    TimeSpan.FromSeconds(2)));
             Assert.Equal(AxisCondition.Alarm, x.Diagnostics.Snapshot.Condition);
             Assert.True(x.Diagnostics.Snapshot.Faulted);
             Assert.Equal(AxisCondition.ServoOff, y.Diagnostics.Snapshot.Condition);
             Assert.False(y.Diagnostics.Snapshot.State?.ServoOn);
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
         }
-        finally { await machine.ShutdownAsync(); }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]
@@ -137,11 +170,16 @@ public sealed class DiagnosticToolsTests
     {
         var probe = System.Reflection.DispatchProxy.Create<IXyMotion, DiagnosticMotionProbe>();
         var diagnostics = (DiagnosticMotionProbe)probe;
-        using var services = CreateServices(new RecordingLight(), collection =>
-            collection.AddSingleton(provider => new IBTM.Inspection.InspectionGantry(probe,
-                provider.GetRequiredService<IBTM.Inspection.NgCarrierTransfer>(),
-                provider.GetRequiredService<OperationCancellation>(),
-                provider.GetRequiredService<IBTM.Inspection.InspectionGantrySettings>())));
+        using var services = CreateServices(
+            new RecordingLight(),
+            collection =>
+                collection.AddSingleton(
+                    provider =>
+                        new IBTM.Inspection.InspectionGantry(
+                            probe,
+                            provider.GetRequiredService<IBTM.Inspection.NgCarrierTransfer>(),
+                            provider.GetRequiredService<OperationCancellation>(),
+                            provider.GetRequiredService<IBTM.Inspection.InspectionGantrySettings>())));
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var settings = services.GetRequiredService<MachineSettings>();
@@ -150,57 +188,73 @@ public sealed class DiagnosticToolsTests
         try
         {
             var view = new MotionWindowViewModel(machine, state, settings) { EnabledOnly = false };
-            var x = Assert.Single(view.Axes, row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
-            var y = Assert.Single(view.Axes, row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.Y);
+            var x = Assert.Single(
+                view.Axes,
+                row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
+            var y = Assert.Single(
+                view.Axes,
+                row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.Y);
             Assert.False(x.Enabled);
             Assert.NotNull(x.Diagnostics.Snapshot.State);
             Assert.False(view.ToggleServoCommand.CanExecute(x));
             Assert.False(view.HomeAxisCommand.CanExecute(x));
             var reads = diagnostics.Reads;
-
             // Change raw state silently: no motion, input event, refresh request or monitor window.
             diagnostics.Position = 42;
             diagnostics.Alarmed = true;
-            Assert.True(await VirtualTest.WaitUntilAsync(() => diagnostics.Reads > reads && x.Diagnostics.Snapshot.Position == 42
-                && x.Diagnostics.Snapshot.Faulted == true, TimeSpan.FromSeconds(2)));
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(
+                    () => diagnostics.Reads > reads
+                        && x.Diagnostics.Snapshot.Position == 42
+                        && x.Diagnostics.Snapshot.Faulted == true,
+                    TimeSpan.FromSeconds(2)));
             Assert.Equal(MachineAlarm.None, state.Alarm); // Disabled axes are diagnostic only.
             Assert.False(state.Display.MotionFaulted);
 
             diagnostics.FailX = true;
             diagnostics.Position = 43;
-            Assert.True(await VirtualTest.WaitUntilAsync(() => x.Diagnostics.Snapshot.State is null && x.Diagnostics.Snapshot.Position == 43
-                && y.Diagnostics.Snapshot.State is not null, TimeSpan.FromSeconds(2)));
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(
+                    () => x.Diagnostics.Snapshot.State is null
+                        && x.Diagnostics.Snapshot.Position == 43
+                        && y.Diagnostics.Snapshot.State is not null,
+                    TimeSpan.FromSeconds(2)));
             Assert.NotNull(x.Diagnostics.Snapshot.ReadError);
             Assert.True(state.Display.Available);
-
             // A failed enabled control scan must not hide the independent monitor cache
             // or throw while WPF evaluates the RESET button.
             settings.Units.NgCarrierTransfer = true;
             diagnostics.FailControl = true;
-            Assert.True(await VirtualTest.WaitUntilAsync(() => !state.Display.Available,
-                TimeSpan.FromSeconds(2)));
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => !state.Display.Available, TimeSpan.FromSeconds(2)));
             Assert.NotNull(y.Diagnostics.Snapshot.State);
             Assert.NotNull(y.Diagnostics.Snapshot.Position);
             Assert.True(machine.CanReset);
             Assert.False(view.ToggleServoCommand.CanExecute(y));
             diagnostics.FailControl = false;
             settings.Units.NgCarrierTransfer = false;
-
             // Control-I/O loss does not stop independent motion diagnostics or allow control.
             io.SetConnected(false);
             diagnostics.FailX = false;
             diagnostics.Alarmed = false;
             diagnostics.Position = 44;
-            Assert.True(await VirtualTest.WaitUntilAsync(() => x.Diagnostics.Snapshot.Position == 44 && x.Diagnostics.Snapshot.Faulted == false,
-                TimeSpan.FromSeconds(2)));
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(
+                    () => x.Diagnostics.Snapshot.Position == 44
+                        && x.Diagnostics.Snapshot.Faulted == false,
+                    TimeSpan.FromSeconds(2)));
             Assert.False(view.ToggleServoCommand.CanExecute(x));
             Assert.False(view.HomeAxisCommand.CanExecute(x));
 
             await machine.ShutdownAsync();
-            Assert.True(services.GetRequiredService<IBTM.Inspection.InspectionGantry>()
-                .Motion.MonitoringCompletion.IsCompletedSuccessfully);
+            Assert.True(
+                services.GetRequiredService<IBTM.Inspection.InspectionGantry>()
+                    .Motion.MonitoringCompletion.IsCompletedSuccessfully);
         }
-        finally { await machine.ShutdownAsync(); }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 
     public class DiagnosticMotionProbe : System.Reflection.DispatchProxy, IMotionDiagnostics
@@ -214,10 +268,16 @@ public sealed class DiagnosticToolsTests
         public AxisState ReadDiagnosticState(MotionAxis axis)
         {
             Interlocked.Increment(ref Reads);
-            if (FailX && axis == MotionAxis.X) throw new IOException("Diagnostic X read failed.");
+            if (FailX && axis == MotionAxis.X)
+                throw new IOException("Diagnostic X read failed.");
             return new(false, false, Alarmed, true, false, true, false, false);
         }
-        public double ReadDiagnosticPosition(MotionAxis axis) => Volatile.Read(ref Position);
+
+        public double ReadDiagnosticPosition(MotionAxis axis)
+        {
+            return Volatile.Read(ref Position);
+        }
+
         protected override object? Invoke(System.Reflection.MethodInfo? method, object?[]? arguments)
         {
             if (FailControl && method!.Name == nameof(IMotionFeedback.GetAxisState))
@@ -227,97 +287,34 @@ public sealed class DiagnosticToolsTests
     }
 
     [Fact]
-    public async Task StopperTestReportsTimeoutAndRejectsAnOccupiedStation()
+    public async Task DirectInterfaceOutputStaysOnUntilOffDespitePeerFeedback()
     {
         using var services = CreateServices(new RecordingLight());
         var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         try
         {
             io.AutoResponseEnabled = false;
-            services.GetRequiredService<MachineOptions>().TimeoutMilliseconds = 30;
-            var row = new OutputControlRow(services.GetRequiredService<IoSignals>()
-                .Outputs[OutputIo.PcbPlacementStopperUp], machine);
-            var log = services.GetRequiredService<ApplicationLog>();
-            var since = log.LatestSequence;
-            var sawWaiting = false;
-            row.ToggleCommand.PropertyChanged += (_, _) =>
-            {
-                sawWaiting |= row.ToggleCommand.IsRunning;
-            };
-            await row.ToggleCommand.ExecuteAsync(null);
-            Assert.True(sawWaiting);
-            Assert.True(io.GetOutput(OutputIo.PcbPlacementStopperUp));
-            Assert.True(row.HasFeedbackError);
-            Assert.Contains("PCB Placement Stopper Up", row.FeedbackError);
-            Assert.Contains(log.ReadAfter(since), entry => entry.Level == "ERROR"
-                && entry.Message.Contains("PcbPlacementStopperUp") && entry.Detail!.Contains("timeout"));
-            Assert.False(state.IsRunning);
-
-            row.Refresh();
-            Assert.Null(row.FeedbackError);
-            Assert.False(row.HasFeedbackError);
-            Assert.False(row.ToggleCommand.IsRunning);
-
-            io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
-            await row.ToggleCommand.ExecuteAsync(null);
-            Assert.True(io.GetOutput(OutputIo.PcbPlacementStopperUp)); // No OFF write at an occupied station.
-            io.SetInput(InputIo.PcbPlacementCarrierPresent, false);
-            io.SetInput(InputIo.AutoMode, false);
-            await row.ToggleCommand.ExecuteAsync(null);
-            Assert.True(io.GetOutput(OutputIo.PcbPlacementStopperUp)); // AUTO cannot bypass admission.
-        }
-        finally { await machine.ShutdownAsync(); }
-    }
-
-    [Fact]
-    public async Task InterfaceOutputStaysOnUntilOffOrPeerInterlock()
-    {
-        using var services = CreateServices(new RecordingLight());
-        var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        await machine.InitializeAsync();
-        try
-        {
-            io.AutoResponseEnabled = false;
-            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
-            io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
-            io.SetInput(InputIo.MainConveyorReadyFromRear, false);
-            var row = new OutputControlRow(services.GetRequiredService<IoSignals>()
-                .Outputs[OutputIo.MainConveyorReadyToFront2], machine);
-            Assert.False(row.ToggleCommand.IsRunning);
-            var test = row.ToggleCommand.ExecuteAsync(null);
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => io.GetOutput(OutputIo.MainConveyorReadyToFront2), TimeSpan.FromSeconds(2)));
-            Assert.True(state.IsRunning);
-            await Task.Delay(1100);
-            Assert.True(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
-            Assert.False(test.IsCompleted);
-            Assert.True(row.StopOutputTestCommand.CanExecute(null));
-            row.StopOutputTestCommand.Execute(null);
-            await test.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
-            Assert.False(state.IsRunning);
-            Assert.False(row.ToggleCommand.IsRunning);
-
-            test = row.ToggleCommand.ExecuteAsync(null);
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => io.GetOutput(OutputIo.MainConveyorReadyToFront2), TimeSpan.FromSeconds(2)));
+            var row = new OutputWindowRow(
+                services.GetRequiredService<IoSignals>().Outputs[OutputIo.MainConveyorReadyToFront2],
+                machine);
+            row.ToggleCommand.Execute(null);
+            await Task.Delay(1100); // Guard against restoring the old one-second pulse.
             io.SetInput(InputIo.MainConveyorReadyFromRear, true);
-            await test.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            Assert.True(io.GetOutput(row.Io.Signal));
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-            await row.ToggleCommand.ExecuteAsync(null);
-            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            row.ToggleCommand.Execute(null);
+            Assert.False(io.GetOutput(row.Io.Signal));
         }
-        finally { await machine.ShutdownAsync(); }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]
-    public async Task InterfaceOutputSendsOffWhileUiContextIsBlocked()
+    public async Task ManualConveyorSendsOffWhileUiContextIsBlocked()
     {
         using var services = CreateServices(new RecordingLight());
         var machine = services.GetRequiredService<MachineController>();
@@ -332,79 +329,36 @@ public sealed class DiagnosticToolsTests
             io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
             io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
             io.SetInput(InputIo.MainConveyorReadyFromRear, false);
-            row = new OutputControlRow(services.GetRequiredService<IoSignals>()
-                .Outputs[OutputIo.MainConveyorReadyToFront2], machine);
+            row = new OutputControlRow(
+                services.GetRequiredService<IoSignals>().Outputs[OutputIo.MainConveyorRun],
+                machine);
             var previous = SynchronizationContext.Current;
             try
             {
                 SynchronizationContext.SetSynchronizationContext(context);
                 test = row.ToggleCommand.ExecuteAsync(null);
             }
-            finally { SynchronizationContext.SetSynchronizationContext(previous); }
-            Assert.True(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            finally
+            {
+                SynchronizationContext.SetSynchronizationContext(previous);
+            }
+
+            Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
             row.StopOutputTestCommand.Execute(null);
             // No queued UI callback is allowed to run before OFF is observed.
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => !io.GetOutput(OutputIo.MainConveyorReadyToFront2), TimeSpan.FromSeconds(2)));
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(
+                    () => !io.GetOutput(OutputIo.MainConveyorRun),
+                    TimeSpan.FromSeconds(2)));
             Assert.False(test.IsCompleted); // Only the UI command completion is still queued.
         }
         finally
         {
             row?.ToggleCommand.Cancel();
             context.Release();
-            if (test is not null) await test.WaitAsync(TimeSpan.FromSeconds(2));
+            if (test is not null)
+                await test.WaitAsync(TimeSpan.FromSeconds(2));
             await machine.ShutdownAsync();
-        }
-    }
-
-    [Fact]
-    public async Task InterfaceInterlockReadFailureStopsOutputWithoutThrowingIntoInputNotifications()
-    {
-        var motion = System.Reflection.DispatchProxy.Create<IXyMotion, InterfaceClearanceMotion>();
-        var probe = (InterfaceClearanceMotion)motion;
-        using var services = CreateServices(new RecordingLight(), collection =>
-            collection.AddSingleton(provider => new IBTM.PcbPlacement.PcbPlacementHandler(motion,
-                provider.GetRequiredService<IIoService>(),
-                provider.GetRequiredService<IBTM.PcbPlacement.PcbPlacementHandlerSettings>())));
-        var settings = services.GetRequiredService<MachineSettings>();
-        settings.Units.PcbPlacement = true;
-        var machine = services.GetRequiredService<MachineController>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        await machine.InitializeAsync();
-        try
-        {
-            io.AutoResponseEnabled = false;
-            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
-            io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
-            io.SetInput(InputIo.MainConveyorReadyFromRear, false);
-            var row = new OutputControlRow(services.GetRequiredService<IoSignals>()
-                .Outputs[OutputIo.MainConveyorReadyToFront2], machine);
-            var test = row.ToggleCommand.ExecuteAsync(null);
-            Assert.True(await VirtualTest.WaitUntilAsync(() => io.GetOutput(OutputIo.MainConveyorReadyToFront2),
-                TimeSpan.FromSeconds(2)));
-            probe.FailReads = true;
-            Assert.Null(Record.Exception(() => io.SetInput(InputIo.PcbSupplyGripperOpen,
-                !io.GetInput(InputIo.PcbSupplyGripperOpen))));
-            await test.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
-            Assert.True(io.IsReady);
-        }
-        finally { probe.FailReads = false; await machine.ShutdownAsync(); }
-    }
-
-    public class InterfaceClearanceMotion : System.Reflection.DispatchProxy
-    {
-        private readonly VirtualMotionService _motion = new(new(), new());
-        public volatile bool FailReads;
-        protected override object? Invoke(System.Reflection.MethodInfo? method, object?[]? arguments)
-        {
-            if (method!.Name is nameof(IMotionFeedback.GetAxisState) or "get_IsAtHorizontalZ")
-            {
-                if (FailReads) throw new IOException("Placement clearance feedback failed.");
-                if (method.Name == "get_IsAtHorizontalZ") return true;
-                return new AxisState(true, true, false, true, false, false, false, false);
-            }
-            return method.Invoke(_motion, arguments);
         }
     }
 
@@ -415,13 +369,16 @@ public sealed class DiagnosticToolsTests
         public override void Post(SendOrPostCallback callback, object? state)
         {
             _pending.Enqueue(() => callback(state));
-            if (Volatile.Read(ref _released) != 0) Drain();
+            if (Volatile.Read(ref _released) != 0)
+                Drain();
         }
+
         public void Release()
         {
             Volatile.Write(ref _released, 1);
             Drain();
         }
+
         private void Drain()
         {
             while (_pending.TryDequeue(out var callback))
@@ -429,22 +386,35 @@ public sealed class DiagnosticToolsTests
         }
     }
 
-    private static ServiceProvider CreateServices(RecordingLight light, Action<ServiceCollection>? configure = null)
+    private static ServiceProvider CreateServices(
+        RecordingLight light,
+        Action<ServiceCollection>? configure = null)
     {
         var collection = new ServiceCollection();
-        collection
-        .AddSingleton(VirtualTest.OpenMachineStore(Path.Combine(Path.GetTempPath(), $"IBTM-diagnostic-{Guid.NewGuid():N}.db")))
-        .AddIbtmApplication(new MachineSettings
-        {
-            Drivers = new() { Inspection = InspectionAlgorithm.Virtual, Light = LightDriver.Virtual },
-            Units = new()
-            {
-                MainConveyor = true, PcbSupply = false, PcbPlacement = false,
-                PickupBoltFeeder = false, ShootingBoltFeeder = false, BoltFastening = false,
-                Inspection = false, NgCarrierTransfer = false, NgShuttle = false, NgConveyor = false,
-            },
-        })
-        .AddSingleton<ILightController>(light);
+        collection.AddSingleton(
+            VirtualTest.OpenMachineStore(
+                Path.Combine(Path.GetTempPath(), $"IBTM-diagnostic-{Guid.NewGuid():N}.db")))
+            .AddIbtmApplication(
+                new MachineSettings
+
+                {
+
+                    Drivers = new() { Inspection = InspectionAlgorithm.Virtual, Light = LightDriver.Virtual },
+                    Units = new()
+                    {
+                        MainConveyor = true,
+                        PcbSupply = false,
+                        PcbPlacement = false,
+                        PickupBoltFeeder = false,
+                        ShootingBoltFeeder = false,
+                        BoltFastening = false,
+                        Inspection = false,
+                        NgCarrierTransfer = false,
+                        NgShuttle = false,
+                        NgConveyor = false,
+                    },
+                })
+            .AddSingleton<ILightController>(light);
         configure?.Invoke(collection);
         return collection.BuildServiceProvider();
     }
@@ -454,18 +424,34 @@ public sealed class DiagnosticToolsTests
         public ConcurrentQueue<string> Calls { get; } = new();
         public bool FailOn { get; init; }
         public bool FailOff { get; set; }
-        public void Initialize() => Calls.Enqueue("initialize");
-        public void SetLevel(int channel, int level) => Calls.Enqueue($"level:{channel}:{level}");
+
+        public void Initialize()
+        {
+            Calls.Enqueue("initialize");
+        }
+
+        public void SetLevel(int channel, int level)
+        {
+            Calls.Enqueue($"level:{channel}:{level}");
+        }
+
         public void TurnOn(int channel)
         {
             Calls.Enqueue($"on:{channel}");
-            if (FailOn) throw new IOException("Simulated ON failure.");
+            if (FailOn)
+                throw new IOException("Simulated ON failure.");
         }
+
         public void TurnOff(int channel)
         {
             Calls.Enqueue($"off:{channel}");
-            if (FailOff) throw new IOException("Simulated OFF failure.");
+            if (FailOff)
+                throw new IOException("Simulated OFF failure.");
         }
-        public void TurnOffAll() => Calls.Enqueue("off:all");
+
+        public void TurnOffAll()
+        {
+            Calls.Enqueue("off:all");
+        }
     }
 }

@@ -2,13 +2,14 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace IBTM.Storage.Migrations;
-
 // Apply the confirmed wiring once; keep axis teaching, recipes and all other settings.
 [DbContext(typeof(MachineDb))]
 [Migration("20260908150000_IoMap260901")]
 public sealed class IoMap260901 : Migration
 {
-    protected override void Up(MigrationBuilder migrationBuilder) => migrationBuilder.Sql("""
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.Sql("""
         UPDATE Settings SET Value = json_set(
             replace(replace(Value, 'PcbSupplyNestForward', 'PcbSupplyGripperClosed'),
                 'PcbSupplyNestBackward', 'PcbSupplyGripperOpen'),
@@ -62,4 +63,5 @@ public sealed class IoMap260901 : Migration
             '$.Outputs.NgCarrierEjectCompleteLamp.Number', 76)
         WHERE Key = 'NgConveyorHardwareSettings';
         """);
+    }
 }

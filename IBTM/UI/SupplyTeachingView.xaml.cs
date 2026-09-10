@@ -4,5 +4,8 @@ namespace IBTM.UI;
 
 public partial class SupplyTeachingView : UserControl
 {
-    public SupplyTeachingView() => InitializeComponent();
+    public SupplyTeachingView()
+    {
+        InitializeComponent();
+    }
 }

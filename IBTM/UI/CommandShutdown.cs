@@ -7,9 +7,7 @@ namespace IBTM.UI;
 
 internal static class CommandShutdown
 {
-    public static async Task StopAsync(
-        Action stop,
-        params IAsyncRelayCommand[] commands)
+    public static async Task StopAsync(Action stop, params IAsyncRelayCommand[] commands)
     {
         var pending = Capture(commands);
         try
@@ -22,11 +20,13 @@ internal static class CommandShutdown
         }
     }
 
-    public static Task[] Capture(params IAsyncRelayCommand[] commands) =>
-        commands.Select(command => command.ExecutionTask)
+    public static Task[] Capture(params IAsyncRelayCommand[] commands)
+    {
+        return commands.Select(command => command.ExecutionTask)
             .OfType<Task>()
             .Where(task => !task.IsCompleted)
             .ToArray();
+    }
 
     public static async Task WaitAsync(params Task[] tasks)
     {

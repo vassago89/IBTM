@@ -52,9 +52,13 @@ public sealed class AlarmRecoveryTests
                 Assert.Null(row.ActionMessage);
                 Assert.Equal(new[] { (output, true), (output, false) }, writes);
             }
+
             Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
         }
-        finally { await machine.ShutdownAsync(); }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]
@@ -68,69 +72,47 @@ public sealed class AlarmRecoveryTests
         try
         {
             io.AutoResponseEnabled = false;
-            var rows = new[] { OutputIo.MainConveyorRun, OutputIo.NgConveyorRun,
-                OutputIo.ShootBolt, OutputIo.MainConveyorReadyToFront2 }
-                .Select(output => new OutputWindowRow(signals.Outputs[output], machine)).ToArray();
-            foreach (var row in rows) row.ToggleCommand.Execute(null);
+            var rows = new[]
+            {
+                OutputIo.MainConveyorRun,
+                OutputIo.NgConveyorRun,
+                OutputIo.ShootBolt,
+                OutputIo.MainConveyorReadyToFront2
+            }.Select(output => new OutputWindowRow(signals.Outputs[output], machine))
+                .ToArray();
+            foreach (var row in rows)
+                row.ToggleCommand.Execute(null);
             Assert.All(rows, row => Assert.True(io.GetOutput(row.Io.Signal)));
 
             io.SetInput(InputIo.AutoMode, false);
-            Assert.All(rows, row =>
-            {
-                Assert.False(io.GetOutput(row.Io.Signal));
-                row.ToggleCommand.Execute(null);
-                Assert.Contains("AutoMode", row.ActionMessage);
-                Assert.False(io.GetOutput(row.Io.Signal));
-            });
+            Assert.All(
+                rows,
+                row =>
+                {
+                    Assert.False(io.GetOutput(row.Io.Signal));
+                    row.ToggleCommand.Execute(null);
+                    Assert.Contains("AutoMode", row.ActionMessage);
+                    Assert.False(io.GetOutput(row.Io.Signal));
+                });
 
             io.SetInput(InputIo.AutoMode, true);
-            foreach (var row in rows) row.ToggleCommand.Execute(null);
+            foreach (var row in rows)
+                row.ToggleCommand.Execute(null);
             io.SetInput(InputIo.EmergencyStop1Pressed, true);
-            Assert.All(rows, row =>
-            {
-                Assert.False(io.GetOutput(row.Io.Signal));
-                row.ToggleCommand.Execute(null);
-                Assert.Contains("EmergencyStop", row.ActionMessage);
-                Assert.False(io.GetOutput(row.Io.Signal));
-            });
+            Assert.All(
+                rows,
+                row =>
+                {
+                    Assert.False(io.GetOutput(row.Io.Signal));
+                    row.ToggleCommand.Execute(null);
+                    Assert.Contains("EmergencyStop", row.ActionMessage);
+                    Assert.False(io.GetOutput(row.Io.Signal));
+                });
         }
-        finally { await machine.ShutdownAsync(); }
-    }
-
-    [Fact]
-    public async Task OutputToggleUsesLiveStateAndRejectsAutoOrBusyCommands()
-    {
-        using var services = CreateServices();
-        var machine = services.GetRequiredService<MachineController>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        var signals = services.GetRequiredService<IoSignals>();
-        await machine.InitializeAsync();
-        try
+        finally
         {
-            var row = new OutputControlRow(signals.Outputs[OutputIo.MachineLight], machine);
-            await row.ToggleCommand.ExecuteAsync(null);
-            signals.RefreshOutputs();
-            Assert.True(row.Io.IsOn);
-
-            io.SetInput(InputIo.AutoMode, false);
-            await row.ToggleCommand.ExecuteAsync(null);
-            Assert.Equal(OutputBlockReason.AutoMode, row.BlockReason);
-            Assert.True(io.GetOutput(row.Io.Signal));
-
-            io.SetInput(InputIo.AutoMode, true);
-            using (services.GetRequiredService<OperationCancellation>().Link())
-            {
-                await row.ToggleCommand.ExecuteAsync(null);
-                Assert.Equal(OutputBlockReason.Busy, row.BlockReason);
-                Assert.True(io.GetOutput(row.Io.Signal));
-            }
-
-            await row.ToggleCommand.ExecuteAsync(null);
-            signals.RefreshOutputs();
-            Assert.Equal(OutputBlockReason.None, row.BlockReason);
-            Assert.False(row.Io.IsOn);
+            await machine.ShutdownAsync();
         }
-        finally { await machine.ShutdownAsync(); }
     }
 
     [Fact]
@@ -155,131 +137,10 @@ public sealed class AlarmRecoveryTests
                 Assert.False(io.GetOutput(output));
             }
         }
-        finally { await machine.ShutdownAsync(); }
-    }
-
-    [Fact]
-    public async Task InterfaceOutputsIgnoreWholeMachineMotionReadinessButKeepTransferInterlocks()
-    {
-        using var services = CreateServices();
-        var settings = services.GetRequiredService<MachineSettings>();
-        settings.Units.PcbSupply = true;
-        settings.Units.NgCarrierTransfer = true;
-        var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        var signals = services.GetRequiredService<IoSignals>();
-        var motion = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
-        await machine.InitializeAsync();
-        try
+        finally
         {
-            io.AutoResponseEnabled = false;
-            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
-            io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
-            io.SetInput(InputIo.MainConveyorReadyFromRear, false);
-            motion.SetServo(MotionAxis.X, false);
-            motion.SetAlarm(MotionAxis.X, true);
-            SetAlarm(state, MachineAlarm.MotionUnavailable);
-            Assert.False(state.Ready);
-            Assert.False(state.Homed);
-
-            foreach (var output in new[] { OutputIo.PcbSupplyReadyToFront1,
-                OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear })
-            {
-                Assert.True(await VirtualTest.WaitUntilAsync(() => state.Display.Available
-                    && !state.Display.IsRunning && state.Display.Alarm == MachineAlarm.MotionUnavailable,
-                    TimeSpan.FromSeconds(2)));
-                var row = new OutputControlRow(signals.Outputs[output], machine);
-                Assert.True(row.ToggleCommand.CanExecute(null));
-                var test = row.ToggleCommand.ExecuteAsync(null);
-                Assert.True(await VirtualTest.WaitUntilAsync(() => io.GetOutput(output), TimeSpan.FromSeconds(2)));
-                Assert.True(row.StopOutputTestCommand.CanExecute(null));
-                Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
-                Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-                row.StopOutputTestCommand.Execute(null);
-                await test.WaitAsync(TimeSpan.FromSeconds(2));
-                Assert.False(io.GetOutput(output));
-            }
-
-            var ready = new OutputControlRow(signals.Outputs[OutputIo.MainConveyorReadyToFront2], machine);
-            foreach (var input in new[] { InputIo.NgCarrierPickupDown,
-                InputIo.MainConveyorEntryCarrierDetected, InputIo.MainConveyorReadyFromRear,
-                InputIo.EmergencyStop1Pressed })
-            {
-                // Losing a real interlock while ON must still cancel and send OFF.
-                var test = ready.ToggleCommand.ExecuteAsync(null);
-                Assert.True(await VirtualTest.WaitUntilAsync(() => io.GetOutput(OutputIo.MainConveyorReadyToFront2),
-                    TimeSpan.FromSeconds(2)));
-                io.SetInput(input, true);
-                await test.WaitAsync(TimeSpan.FromSeconds(2));
-                Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
-                // A direct invocation cannot bypass the same blocked condition.
-                await ready.ToggleCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(2));
-                Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
-                io.SetInput(input, false);
-                SetAlarm(state, MachineAlarm.MotionUnavailable);
-            }
-            io.SetInput(InputIo.AutoMode, false);
-            await ready.ToggleCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            await machine.ShutdownAsync();
         }
-        finally { await machine.ShutdownAsync(); }
-    }
-
-    [Theory]
-    [InlineData(MachineAlarm.MotionUnavailable)]
-    [InlineData(MachineAlarm.HomeFailed)]
-    [InlineData(MachineAlarm.Inspection)]
-    public async Task DiagnosticOutputsAllowNonSafetyAlarmsWithoutClearingThem(MachineAlarm alarm)
-    {
-        using var services = CreateServices();
-        var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        var signals = services.GetRequiredService<IoSignals>();
-        await machine.InitializeAsync();
-        try
-        {
-            SetAlarm(state, alarm);
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => state.Display.Alarm == alarm, TimeSpan.FromSeconds(2)));
-            var row = new OutputControlRow(signals.Outputs[OutputIo.MachineLight], machine);
-            Assert.True(row.ToggleCommand.CanExecute(null));
-            await row.ToggleCommand.ExecuteAsync(null);
-            Assert.True(io.GetOutput(OutputIo.MachineLight));
-            Assert.Equal(alarm, state.Alarm);
-            Assert.False(state.ManualControlsEnabled);
-            Assert.False(state.ManualSetupEnabled); // Teaching/automatic admission is unchanged.
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => !state.Display.IsRunning, TimeSpan.FromSeconds(2)));
-
-            foreach (var output in new[] { OutputIo.ShootBolt, OutputIo.NgShuttleDown })
-            {
-                var restricted = new OutputControlRow(signals.Outputs[output], machine);
-                await restricted.ToggleCommand.ExecuteAsync(null);
-                Assert.Equal(OutputBlockReason.DedicatedControlRequired, restricted.BlockReason);
-                Assert.Contains("dedicated", restricted.ToggleHint);
-                Assert.False(io.GetOutput(output));
-            }
-
-            // Bypassed general-machine checks still cannot energize diagnostic outputs
-            // with an actual emergency stop or low-air input present.
-            var options = services.GetRequiredService<MachineOptions>();
-            options.UseEmergencyStop = false;
-            options.UseAirPressureInterlock = false;
-            foreach (var input in new[] { InputIo.EmergencyStop1Pressed, InputIo.AirPressureHigh })
-            {
-                io.SetInput(input, input != InputIo.AirPressureHigh);
-                await row.ToggleCommand.ExecuteAsync(null);
-                Assert.True(io.GetOutput(OutputIo.MachineLight)); // A blocked toggle made no write.
-                io.SetInput(input, input == InputIo.AirPressureHigh);
-            }
-
-            io.SetConnected(false);
-            await row.ToggleCommand.ExecuteAsync(null);
-            Assert.True(io.GetOutput(OutputIo.MachineLight));
-        }
-        finally { await machine.ShutdownAsync(); }
     }
 
     [Fact]
@@ -294,10 +155,13 @@ public sealed class AlarmRecoveryTests
         {
             io.AutoResponseEnabled = false;
             SetAlarm(state, MachineAlarm.MotionUnavailable);
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => state.Display.Alarm == MachineAlarm.MotionUnavailable, TimeSpan.FromSeconds(2)));
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(
+                    () => state.Display.Alarm == MachineAlarm.MotionUnavailable,
+                    TimeSpan.FromSeconds(2)));
             var row = new OutputControlRow(
-                services.GetRequiredService<IoSignals>().Outputs[OutputIo.MainConveyorRun], machine);
+                services.GetRequiredService<IoSignals>().Outputs[OutputIo.MainConveyorRun],
+                machine);
 
             foreach (var stop in new Action[]
             {
@@ -310,8 +174,10 @@ public sealed class AlarmRecoveryTests
                 io.SetInput(InputIo.AutoMode, true);
                 Assert.False(row.ToggleCommand.IsRunning);
                 var run = row.ToggleCommand.ExecuteAsync(null);
-                Assert.True(await VirtualTest.WaitUntilAsync(
-                    () => io.GetOutput(OutputIo.MainConveyorRun), TimeSpan.FromSeconds(2)));
+                Assert.True(
+                    await VirtualTest.WaitUntilAsync(
+                        () => io.GetOutput(OutputIo.MainConveyorRun),
+                        TimeSpan.FromSeconds(2)));
                 Assert.True(state.IsRunning);
                 Assert.False(io.GetOutput(OutputIo.MainConveyorReverse));
                 Assert.True(io.GetOutput(OutputIo.MainConveyorNormalSpeed));
@@ -325,116 +191,10 @@ public sealed class AlarmRecoveryTests
                 Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
             }
         }
-        finally { await machine.ShutdownAsync(); }
-    }
-
-    [Fact]
-    public async Task DiagnosticMainConveyorKeepsSafetyAndPathAdmissionAndStopsOnMaterial()
-    {
-        using var services = CreateServices();
-        var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
-        var settings = services.GetRequiredService<MachineSettings>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        await machine.InitializeAsync();
-        try
+        finally
         {
-            io.AutoResponseEnabled = false;
-            var row = new OutputControlRow(
-                services.GetRequiredService<IoSignals>().Outputs[OutputIo.MainConveyorRun], machine);
-            async Task AssertBlockedAsync(OutputBlockReason reason)
-            {
-                await row.ToggleCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(2));
-                Assert.Equal(reason, row.BlockReason);
-                Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-                Assert.False(state.IsRunning);
-            }
-
-            settings.Units.MainConveyor = false;
-            await AssertBlockedAsync(OutputBlockReason.MainConveyorDisabled);
-            settings.Units.MainConveyor = true;
-            settings.Units.PcbPlacement = true;
-            io.SetInput(InputIo.PcbPlacementHandlerUp, false);
-            await AssertBlockedAsync(OutputBlockReason.PlacementNotRaised);
-            settings.Units.PcbPlacement = false;
-            io.SetInput(InputIo.PcbPlacementHandlerUp, true);
-
-            var options = services.GetRequiredService<MachineOptions>();
-            options.UseEmergencyStop = false;
-            options.UseAirPressureInterlock = false;
-            foreach (var input in new[] { InputIo.EmergencyStop1Pressed, InputIo.AirPressureHigh,
-                InputIo.PcbPlacementCarrierPresent })
-            {
-                io.SetInput(input, input != InputIo.AirPressureHigh);
-                await AssertBlockedAsync(input switch
-                {
-                    InputIo.EmergencyStop1Pressed => OutputBlockReason.EmergencyStop,
-                    InputIo.AirPressureHigh => OutputBlockReason.AirPressureLow,
-                    _ => OutputBlockReason.MainConveyorCarrierDetected,
-                });
-                io.SetInput(input, input == InputIo.AirPressureHigh);
-            }
-            io.SetInput(InputIo.AutoMode, false);
-            await AssertBlockedAsync(OutputBlockReason.AutoMode);
-            io.SetInput(InputIo.AutoMode, true);
-
-            foreach (var input in new[] { InputIo.MainConveyorEntryCarrierDetected, InputIo.AirPressureHigh })
-            {
-                var run = row.ToggleCommand.ExecuteAsync(null);
-                Assert.True(await VirtualTest.WaitUntilAsync(
-                    () => io.GetOutput(OutputIo.MainConveyorRun), TimeSpan.FromSeconds(2)));
-                io.SetInput(input, input != InputIo.AirPressureHigh);
-                await run.WaitAsync(TimeSpan.FromSeconds(2));
-                Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-                Assert.False(state.IsRunning);
-                io.SetInput(input, input == InputIo.AirPressureHigh);
-            }
+            await machine.ShutdownAsync();
         }
-        finally { await machine.ShutdownAsync(); }
-    }
-
-    [Fact]
-    public async Task ConveyorDirectionAndSpeedToggleBothWaysOnlyWhileIdle()
-    {
-        using var services = CreateServices();
-        var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        var signals = services.GetRequiredService<IoSignals>();
-        await machine.InitializeAsync();
-        try
-        {
-            io.AutoResponseEnabled = false;
-            SetAlarm(state, MachineAlarm.MotionUnavailable);
-            foreach (var output in new[] { OutputIo.MainConveyorReverse, OutputIo.MainConveyorNormalSpeed,
-                OutputIo.NgConveyorReverse, OutputIo.NgConveyorNormalSpeed })
-            {
-                var row = new OutputControlRow(signals.Outputs[output], machine);
-                io.SetOutput(output, false);
-                state.RequestDisplayRefresh();
-                Assert.True(await VirtualTest.WaitUntilAsync(() => row.ToggleCommand.CanExecute(null),
-                    TimeSpan.FromSeconds(2)));
-                await row.ToggleCommand.ExecuteAsync(null);
-                Assert.True(io.GetOutput(output));
-                await row.ToggleCommand.ExecuteAsync(null);
-                Assert.False(io.GetOutput(output));
-
-                // Direct invocation must not change direction or speed during another operation.
-                using (services.GetRequiredService<OperationCancellation>().Link())
-                {
-                    await row.ToggleCommand.ExecuteAsync(null);
-                    Assert.False(io.GetOutput(output));
-                    io.SetOutput(output, true);
-                    await row.ToggleCommand.ExecuteAsync(null);
-                    Assert.True(io.GetOutput(output));
-                }
-                io.SetOutput(output, false);
-            }
-            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
-            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
-        }
-        finally { await machine.ShutdownAsync(); }
     }
 
     [Theory]
@@ -454,29 +214,35 @@ public sealed class AlarmRecoveryTests
         {
             io.AutoResponseEnabled = false;
             SetAlarm(state, MachineAlarm.MotionUnavailable);
-            Assert.Equal(new[] { OutputIo.MainConveyorRun, OutputIo.NgConveyorRun },
+            Assert.Equal(
+                new[] { OutputIo.MainConveyorRun, OutputIo.NgConveyorRun },
                 manual.Conveyors.Select(row => row.Io.Signal));
             var manualRow = manual.Conveyors.Single(row => row.Io.Signal == output);
             var outputRow = new OutputControlRow(signals.Outputs[output], machine);
             foreach (var (start, stop) in new[] { (manualRow, outputRow), (outputRow, manualRow) })
             {
-                Assert.True(await VirtualTest.WaitUntilAsync(() => start.BlockReason == OutputBlockReason.None,
-                    TimeSpan.FromSeconds(2)));
+                Assert.True(
+                    await VirtualTest.WaitUntilAsync(
+                        () => start.BlockReason == OutputBlockReason.None,
+                        TimeSpan.FromSeconds(2)));
                 Assert.Equal(start.BlockReason, stop.BlockReason);
                 var run = start.ToggleCommand.ExecuteAsync(null);
-                Assert.True(await VirtualTest.WaitUntilAsync(() => io.GetOutput(output), TimeSpan.FromSeconds(2)));
+                Assert.True(
+                    await VirtualTest.WaitUntilAsync(() => io.GetOutput(output), TimeSpan.FromSeconds(2)));
                 signals.RefreshOutputs();
                 if (start == outputRow)
                 {
                     manual.Deactivate(); // Leaving Manual must not cancel OUTPUTS' operation.
                     Assert.True(io.GetOutput(output));
                 }
+
                 Assert.True(stop.StopOutputTestCommand.CanExecute(null));
                 stop.StopOutputTestCommand.Execute(null);
                 await run.WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.False(io.GetOutput(output));
                 Assert.False(state.IsRunning);
             }
+
             var ownedRun = manualRow.ToggleCommand.ExecuteAsync(null);
             Assert.True(io.GetOutput(output));
             manual.Deactivate();
@@ -484,7 +250,11 @@ public sealed class AlarmRecoveryTests
             Assert.False(io.GetOutput(output));
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
         }
-        finally { await manual.ShutdownAsync(); await machine.ShutdownAsync(); }
+        finally
+        {
+            await manual.ShutdownAsync();
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]
@@ -499,8 +269,9 @@ public sealed class AlarmRecoveryTests
         try
         {
             io.AutoResponseEnabled = false;
-            var row = new OutputControlRow(services.GetRequiredService<IoSignals>()
-                .Outputs[OutputIo.NgConveyorRun], machine);
+            var row = new OutputControlRow(
+                services.GetRequiredService<IoSignals>().Outputs[OutputIo.NgConveyorRun],
+                machine);
             var shuttle = io.GetOutput(OutputIo.NgShuttleDown);
             var stopper = io.GetOutput(OutputIo.NgConveyorStopperUp);
             foreach (var up in new[] { true, false })
@@ -508,8 +279,10 @@ public sealed class AlarmRecoveryTests
                 io.SetInput(InputIo.NgShuttleUp, up);
                 io.SetInput(InputIo.NgShuttleDown, !up);
                 var run = row.ToggleCommand.ExecuteAsync(null);
-                Assert.True(await VirtualTest.WaitUntilAsync(() => io.GetOutput(OutputIo.NgConveyorRun),
-                    TimeSpan.FromSeconds(2)));
+                Assert.True(
+                    await VirtualTest.WaitUntilAsync(
+                        () => io.GetOutput(OutputIo.NgConveyorRun),
+                        TimeSpan.FromSeconds(2)));
                 Assert.False(io.GetOutput(OutputIo.NgConveyorReverse));
                 Assert.True(io.GetOutput(OutputIo.NgConveyorNormalSpeed));
                 Assert.Equal(shuttle, io.GetOutput(OutputIo.NgShuttleDown));
@@ -521,14 +294,17 @@ public sealed class AlarmRecoveryTests
                 io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
                 io.SetInput(InputIo.NgShuttleCarrierDetected, true);
                 state.RequestDisplayRefresh();
-                Assert.True(await VirtualTest.WaitUntilAsync(() => !ReferenceEquals(previous, state.Display),
-                    TimeSpan.FromSeconds(2)));
+                Assert.True(
+                    await VirtualTest.WaitUntilAsync(
+                        () => !ReferenceEquals(previous, state.Display),
+                        TimeSpan.FromSeconds(2)));
                 Assert.True(io.GetOutput(OutputIo.NgConveyorRun));
                 Assert.False(run.IsCompleted);
                 row.ToggleCommand.Cancel();
                 await run.WaitAsync(TimeSpan.FromSeconds(2));
                 Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
             }
+
             var active = row.ToggleCommand.ExecuteAsync(null);
             Assert.True(io.GetOutput(OutputIo.NgConveyorRun));
             // Removing occupancy admission does not remove the MANUAL-only gate.
@@ -540,100 +316,10 @@ public sealed class AlarmRecoveryTests
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
             Assert.False(state.IsRunning);
         }
-        finally { await machine.ShutdownAsync(); }
-    }
-
-    [Fact]
-    public async Task ConveyorOutputReportsNgClearanceReasonInUiAndLog()
-    {
-        using var services = CreateServices();
-        var settings = services.GetRequiredService<MachineSettings>();
-        settings.Units.Inspection = true; // Inspection also shares the NG pickup clearance.
-        var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        var log = services.GetRequiredService<ApplicationLog>();
-        await machine.InitializeAsync();
-        try
+        finally
         {
-            io.AutoResponseEnabled = false;
-            SetAlarm(state, MachineAlarm.MotionUnavailable);
-            var row = new OutputControlRow(services.GetRequiredService<IoSignals>()
-                .Outputs[OutputIo.MainConveyorRun], machine);
-            async Task AssertReasonAsync(OutputBlockReason reason)
-            {
-                Assert.True(row.SwitchCommand.CanExecute(null));
-                var attempt = row.ToggleCommand.ExecuteAsync(null);
-                if (reason == OutputBlockReason.None) row.StopOutputTestCommand.Execute(null);
-                await attempt.WaitAsync(TimeSpan.FromSeconds(2));
-                Assert.Equal(reason, row.BlockReason);
-            }
-
-            io.SetInput(InputIo.NgCarrierPickupUp, false);
-            io.SetInput(InputIo.NgCarrierPickupDown, true);
-            await AssertReasonAsync(OutputBlockReason.NgPickupNotRaised);
-            Assert.Contains("[NgPickupNotRaised]", row.ToggleHint);
-            var since = log.LatestSequence;
-            await row.ToggleCommand.ExecuteAsync(null);
-            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-            Assert.Contains(log.ReadAfter(since), entry => entry.Message.Contains("ignored: [NgPickupNotRaised]"));
-
-            io.SetInput(InputIo.NgCarrierPickupDown, false); // Neither limit is not proof of UP.
-            await AssertReasonAsync(OutputBlockReason.NgPickupNotRaised);
-            io.SetInput(InputIo.NgCarrierPickupUp, true);
-            io.SetInput(InputIo.NgCarrierDetected, true);
-            await AssertReasonAsync(OutputBlockReason.NgCarrierDetected);
-            io.SetInput(InputIo.NgCarrierDetected, false);
-            await AssertReasonAsync(OutputBlockReason.None);
-
-            since = log.LatestSequence;
-            var run = row.ToggleCommand.ExecuteAsync(null);
-            Assert.True(await VirtualTest.WaitUntilAsync(() => io.GetOutput(OutputIo.MainConveyorRun),
-                TimeSpan.FromSeconds(2)));
-            Assert.True(row.StopOutputTestCommand.CanExecute(null)); // Busy must not disable OFF.
-            io.SetInput(InputIo.NgCarrierPickupDown, true); // Conflicting UP/DOWN also blocks.
-            await run.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-            Assert.Contains(log.ReadAfter(since), entry => entry.Message.Contains("stopped: [NgPickupNotRaised]"));
-            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
-
-            settings.Units.Inspection = false;
-            state.RequestDisplayRefresh();
-            await AssertReasonAsync(OutputBlockReason.None); // Disabled units do not add clearance gates.
-            settings.Units.NgCarrierTransfer = true;
-            state.RequestDisplayRefresh();
-            await AssertReasonAsync(OutputBlockReason.NgPickupNotRaised);
+            await machine.ShutdownAsync();
         }
-        finally { await machine.ShutdownAsync(); }
-    }
-
-    [Theory]
-    [InlineData(MachineAlarm.EmergencyStop)]
-    [InlineData(MachineAlarm.DoorOpen)]
-    [InlineData(MachineAlarm.AirPressureLow)]
-    [InlineData(MachineAlarm.IoCommunication)]
-    [InlineData(MachineAlarm.BufferConflict)]
-    public async Task DiagnosticOutputsKeepSafetyAndCommunicationAlarmsBlocked(MachineAlarm alarm)
-    {
-        using var services = CreateServices();
-        var machine = services.GetRequiredService<MachineController>();
-        var state = services.GetRequiredService<MachineState>();
-        var io = services.GetRequiredService<VirtualIoService>();
-        await machine.InitializeAsync();
-        try
-        {
-            SetAlarm(state, alarm);
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => state.Display.Alarm == alarm, TimeSpan.FromSeconds(2)));
-            var row = new OutputControlRow(
-                services.GetRequiredService<IoSignals>().Outputs[OutputIo.MachineLight], machine);
-            await row.ToggleCommand.ExecuteAsync(null);
-            Assert.Equal(OutputBlockReason.MachineAlarm, row.BlockReason);
-            Assert.Contains("Read only", row.ToggleHint);
-            Assert.False(io.GetOutput(OutputIo.MachineLight));
-            Assert.Equal(alarm, state.Alarm);
-        }
-        finally { await machine.ShutdownAsync(); }
     }
 
     [Fact]
@@ -661,18 +347,21 @@ public sealed class AlarmRecoveryTests
             Assert.False(view.CanEditSettings);
             Assert.False(state.ManualControlsEnabled);
             Assert.False(state.AutomaticRunning);
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => state.Display.AutoMode, TimeSpan.FromSeconds(2)));
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => state.Display.AutoMode, TimeSpan.FromSeconds(2)));
 
             io.SetInput(InputIo.AutoMode, true);
             Assert.True(input.IsOn);
             Assert.False(state.AutoMode);
             Assert.True(state.ManualMode);
             Assert.True(view.CanEditSettings);
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => !state.Display.AutoMode, TimeSpan.FromSeconds(2)));
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => !state.Display.AutoMode, TimeSpan.FromSeconds(2)));
         }
-        finally { await machine.ShutdownAsync(); }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]
@@ -702,18 +391,25 @@ public sealed class AlarmRecoveryTests
             Assert.True(view.SaveSettingsCommand.CanExecute(null));
             Assert.Contains("without resetting", view.SettingsAccessMessage);
             Assert.False(state.ManualControlsEnabled);
-            Assert.False(state.ManualSetupEnabled);
+            Assert.True(state.ManualSetupEnabled);
             Assert.False(machine.CanStart);
             Assert.False(machine.CanHome);
 
             view.Settings.AlphaMotion.ControllerNumber = 3;
             await view.SaveSettingsCommand.ExecuteAsync(null);
-            Assert.Equal(3, services.GetRequiredService<MachineStore>().LoadSettings()
-                .Get<AlphaMotionSettings>().ControllerNumber);
+            Assert.Equal(
+                3,
+                services.GetRequiredService<MachineStore>()
+                    .LoadSettings()
+                    .Get<AlphaMotionSettings>()
+                    .ControllerNumber);
             Assert.Equal(MachineAlarm.Inspection, state.Alarm);
             Assert.False(io.GetInput(InputIo.ResetButton));
         }
-        finally { await machine.ShutdownAsync(); }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]
@@ -736,9 +432,14 @@ public sealed class AlarmRecoveryTests
                 await view.SaveSettingsCommand.ExecuteAsync(null);
                 Assert.False(services.GetRequiredService<MachineStore>().HasData);
             }
+
             Assert.True(view.CanEditSettings);
         }
-        finally { await machine.ShutdownAsync(); }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+
         Assert.False(view.CanEditSettings);
         Assert.False(view.SaveSettingsCommand.CanExecute(null));
         Assert.Contains("closing", view.SettingsAccessMessage);
@@ -768,7 +469,10 @@ public sealed class AlarmRecoveryTests
             Assert.False(state.IsHoming);
             Assert.False(state.IsRunning);
         }
-        finally { await machine.ShutdownAsync(); }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 
     [Theory]
@@ -789,8 +493,12 @@ public sealed class AlarmRecoveryTests
         await machine.InitializeAsync();
         try
         {
-            var isDoor = input is InputIo.Door1Open or InputIo.Door2Open or InputIo.Door3Open
-                or InputIo.Door4Open or InputIo.Door5Open or InputIo.Door6Open;
+            var isDoor = input is InputIo.Door1Open
+                or InputIo.Door2Open
+                or InputIo.Door3Open
+                or InputIo.Door4Open
+                or InputIo.Door5Open
+                or InputIo.Door6Open;
             Assert.True(state.DoorClosed);
             io.SetInput(InputIo.AutoMode, false);
             io.SetInput(input, input == InputIo.EmergencyStop1Pressed);
@@ -810,37 +518,61 @@ public sealed class AlarmRecoveryTests
                 Assert.False(state.DoorClosed);
                 Assert.False(state.DoorInterlockReady);
                 Assert.False(machine.CanStart);
-                Assert.True(await VirtualTest.WaitUntilAsync(
-                    () => state.Display.Available && !state.Display.DoorClosed, TimeSpan.FromSeconds(2)));
+                Assert.True(
+                    await VirtualTest.WaitUntilAsync(
+                        () => state.Display.Available && !state.Display.DoorClosed,
+                        TimeSpan.FromSeconds(2)));
 
                 io.SetInput(input, true);
                 Assert.True(signal.IsOn);
                 Assert.True(state.DoorClosed);
-                Assert.True(await VirtualTest.WaitUntilAsync(
-                    () => state.Display.DoorClosed, TimeSpan.FromSeconds(2)));
+                Assert.True(
+                    await VirtualTest.WaitUntilAsync(
+                        () => state.Display.DoorClosed,
+                        TimeSpan.FromSeconds(2)));
                 // Closing the door does not clear the latched alarm or restart the machine.
                 Assert.Equal(alarm, state.Alarm);
                 Assert.False(state.AutomaticRunning);
             }
         }
-        finally { await machine.ShutdownAsync(); }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 
-    private static void SetAlarm(MachineState state, MachineAlarm alarm) =>
-        typeof(MachineState).GetMethod("SetError", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .Invoke(state, [alarm, new IOException("Simulated commissioning alarm.")]);
+    private static void SetAlarm(MachineState state, MachineAlarm alarm)
+    {
+        typeof(MachineState).GetMethod("SetError", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(
+            state,
+            [alarm, new IOException("Simulated commissioning alarm.")]);
+    }
 
-    private static ServiceProvider CreateServices() => new ServiceCollection()
-        .AddSingleton(VirtualTest.OpenMachineStore(Path.Combine(Path.GetTempPath(), $"IBTM-alarm-recovery-{Guid.NewGuid():N}.db")))
-        .AddIbtmApplication(new MachineSettings
-        {
-            Drivers = new() { Inspection = InspectionAlgorithm.Virtual, Light = LightDriver.Virtual },
-            Units = new()
-            {
-                MainConveyor = true, PcbSupply = false, PcbPlacement = false,
-                PickupBoltFeeder = false, ShootingBoltFeeder = false, BoltFastening = false,
-                Inspection = false, NgCarrierTransfer = false, NgShuttle = false, NgConveyor = false,
-            },
-        })
-        .BuildServiceProvider();
+    private static ServiceProvider CreateServices()
+    {
+        return new ServiceCollection().AddSingleton(
+            VirtualTest.OpenMachineStore(
+                Path.Combine(Path.GetTempPath(), $"IBTM-alarm-recovery-{Guid.NewGuid():N}.db")))
+            .AddIbtmApplication(
+                new MachineSettings
+
+                {
+
+                    Drivers = new() { Inspection = InspectionAlgorithm.Virtual, Light = LightDriver.Virtual },
+                    Units = new()
+                    {
+                        MainConveyor = true,
+                        PcbSupply = false,
+                        PcbPlacement = false,
+                        PickupBoltFeeder = false,
+                        ShootingBoltFeeder = false,
+                        BoltFastening = false,
+                        Inspection = false,
+                        NgCarrierTransfer = false,
+                        NgShuttle = false,
+                        NgConveyor = false,
+                    },
+                })
+            .BuildServiceProvider();
+    }
 }

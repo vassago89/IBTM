@@ -137,11 +137,40 @@ public sealed class TeachingPosition(
     public BoltTarget? Bolt { get; init; }
     public Func<AxisPosition>? CoordinateOrigin { get; init; }
     public bool Staged { get; init; }
-    public TeachingStorage Storage => Staged ? TeachingStorage.Buffer
-        : Setting is null ? TeachingStorage.Recipe : TeachingStorage.Machine;
-    public bool HasPosition => isDefined?.Invoke() ?? true;
-    public bool CanTeach => apply is not null;
 
-    public AxisPosition Read() => read();
-    public void Apply(AxisPosition position) => apply!(position);
+    public TeachingStorage Storage
+    {
+        get
+        {
+            return Staged
+                ? TeachingStorage.Buffer
+                : Setting is null ? TeachingStorage.Recipe : TeachingStorage.Machine;
+        }
+    }
+
+    public bool HasPosition
+    {
+        get
+        {
+            return isDefined?.Invoke() ?? true;
+        }
+    }
+
+    public bool CanTeach
+    {
+        get
+        {
+            return apply is not null;
+        }
+    }
+
+    public AxisPosition Read()
+    {
+        return read();
+    }
+
+    public void Apply(AxisPosition position)
+    {
+        apply!(position);
+    }
 }

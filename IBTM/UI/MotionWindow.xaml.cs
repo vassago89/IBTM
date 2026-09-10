@@ -27,12 +27,15 @@ public partial class MotionWindow : Window
 
     private void OnDisplayChanged()
     {
-        if (_closing || Interlocked.Exchange(ref _refreshQueued, 1) != 0) return;
-        Dispatcher.BeginInvoke(() =>
-        {
-            Interlocked.Exchange(ref _refreshQueued, 0);
-            if (!_closing) _viewModel.Refresh();
-        });
+        if (_closing || Interlocked.Exchange(ref _refreshQueued, 1) != 0)
+            return;
+        Dispatcher.BeginInvoke(
+            () =>
+            {
+                Interlocked.Exchange(ref _refreshQueued, 0);
+                if (!_closing)
+                    _viewModel.Refresh();
+            });
     }
 
     public Task ShutdownAsync()
@@ -43,10 +46,16 @@ public partial class MotionWindow : Window
 
     protected override async void OnClosing(CancelEventArgs e)
     {
-        if (_shutdownCompleted) { base.OnClosing(e); return; }
+        if (_shutdownCompleted)
+        {
+            base.OnClosing(e);
+            return;
+        }
+
         e.Cancel = true;
         base.OnClosing(e);
-        if (_closing) return;
+        if (_closing)
+            return;
         _closing = true;
         try
         {
@@ -59,7 +68,12 @@ public partial class MotionWindow : Window
             _closing = false;
             IsEnabled = true;
             System.Diagnostics.Trace.TraceError("Motion window shutdown failed. {0}", exception);
-            MessageBox.Show(this, exception.Message, "Motion Shutdown Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(
+                this,
+                exception.Message,
+                "Motion Shutdown Failed",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
     }
 

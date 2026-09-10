@@ -25,7 +25,8 @@ public sealed class HikCameraTests
         else
             Assert.Equal(1, camera.Capture(500, 0).Width);
 
-        Assert.Equal(noData ? ["Start", "Read", "Stop"] : ["Start", "Read", "Free", "Stop"],
+        Assert.Equal(
+            noData ? ["Start", "Read", "Stop"] : ["Start", "Read", "Free", "Stop"],
             sdk.Calls.ToArray());
         sdk.NoData = false;
         sdk.ConversionFails = false;
@@ -57,6 +58,7 @@ public sealed class HikCameraTests
             {
                 camera.StopLiveView();
             }
+
             camera.StopLiveView();
             Assert.Empty(failures);
             var calls = sdk.Calls.ToArray();
@@ -67,6 +69,7 @@ public sealed class HikCameraTests
                 Assert.Equal("Read", calls[index]);
                 Assert.Equal("Free", calls[index + 1]);
             }
+
             sdk.Calls.Clear();
         }
 
@@ -84,66 +87,76 @@ public sealed class HikCameraTests
 
         public HikCamera CreateCamera()
         {
-            var image = Stub<IImage>((method, _) => method.Name switch
+            var image = Stub<IImage>(
+                (method, _) => method.Name switch
             {
                 "get_Width" or "get_Height" => 1u,
                 _ => throw new NotSupportedException(method.Name)
             });
-            var frame = Stub<IFrameOut>((method, _) => method.Name switch
+            var frame = Stub<IFrameOut>(
+                (method, _) => method.Name switch
             {
                 "get_LostPacket" => 0u,
                 "get_Image" => image,
                 _ => throw new NotSupportedException(method.Name)
             });
-            var converter = Stub<IPixelTypeConverter>((method, args) =>
-            {
-                Assert.Equal("ConvertPixelType", method.Name);
-                args[2] = 3ul;
-                return ConversionFails ? MvError.MV_E_PARAMETER : MvError.MV_OK;
-            });
-            var parameters = Stub<IParameters>((method, args) =>
-            {
-                Assert.Contains(method.Name, new[] { "SetEnumValueByString", "SetFloatValue" });
-                Assert.Contains((string)args[0]!, new[] { "ExposureAuto", "ExposureTime", "GainAuto", "Gain" });
-                return MvError.MV_OK;
-            });
-            var stream = Stub<IStreamGrabber>((method, args) =>
-            {
-                switch (method.Name)
+            var converter = Stub<IPixelTypeConverter>(
+                (method, args) =>
                 {
-                    case "StartGrabbing":
-                        Assert.Empty(args);
-                        Assert.False(_grabbing);
-                        _grabbing = true;
-                        Calls.Enqueue("Start");
-                        break;
-                    case "GetImageBuffer":
-                        Assert.True(_grabbing);
-                        Assert.False(_bufferHeld);
-                        Calls.Enqueue("Read");
-                        Thread.Sleep(1);
-                        if (NoData) return MvError.MV_E_NODATA;
-                        _bufferHeld = true;
-                        args[1] = frame;
-                        break;
-                    case "FreeImageBuffer":
-                        Assert.True(_bufferHeld);
-                        Assert.Same(frame, args[0]);
-                        _bufferHeld = false;
-                        Calls.Enqueue("Free");
-                        break;
-                    case "StopGrabbing":
-                        Assert.True(_grabbing);
-                        Assert.False(_bufferHeld);
-                        _grabbing = false;
-                        Calls.Enqueue("Stop");
-                        break;
-                    default:
-                        throw new NotSupportedException(method.Name);
-                }
-                return MvError.MV_OK;
-            });
-            var device = Stub<IDevice>((method, _) => method.Name switch
+                    Assert.Equal("ConvertPixelType", method.Name);
+                    args[2] = 3ul;
+                    return ConversionFails ? MvError.MV_E_PARAMETER : MvError.MV_OK;
+                });
+            var parameters = Stub<IParameters>(
+                (method, args) =>
+                {
+                    Assert.Contains(method.Name, new[] { "SetEnumValueByString", "SetFloatValue" });
+                    Assert.Contains(
+                        (string)args[0]!,
+                        new[] { "ExposureAuto", "ExposureTime", "GainAuto", "Gain" });
+                    return MvError.MV_OK;
+                });
+            var stream = Stub<IStreamGrabber>(
+                (method, args) =>
+                {
+                    switch (method.Name)
+                    {
+                        case "StartGrabbing":
+                            Assert.Empty(args);
+                            Assert.False(_grabbing);
+                            _grabbing = true;
+                            Calls.Enqueue("Start");
+                            break;
+                        case "GetImageBuffer":
+                            Assert.True(_grabbing);
+                            Assert.False(_bufferHeld);
+                            Calls.Enqueue("Read");
+                            Thread.Sleep(1);
+                            if (NoData)
+                                return MvError.MV_E_NODATA;
+                            _bufferHeld = true;
+                            args[1] = frame;
+                            break;
+                        case "FreeImageBuffer":
+                            Assert.True(_bufferHeld);
+                            Assert.Same(frame, args[0]);
+                            _bufferHeld = false;
+                            Calls.Enqueue("Free");
+                            break;
+                        case "StopGrabbing":
+                            Assert.True(_grabbing);
+                            Assert.False(_bufferHeld);
+                            _grabbing = false;
+                            Calls.Enqueue("Stop");
+                            break;
+                        default:
+                            throw new NotSupportedException(method.Name);
+                    }
+
+                    return MvError.MV_OK;
+                });
+            var device = Stub<IDevice>(
+                (method, _) => method.Name switch
             {
                 "get_Parameters" => parameters,
                 "get_PixelTypeConverter" => converter,
@@ -154,15 +167,18 @@ public sealed class HikCameraTests
             });
             var camera = new HikCamera(new InspectionCameraSettings());
             // Inject SDK interfaces without opening physical hardware or initializing the native SDK.
-            typeof(HikCamera).GetField("_device", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .SetValue(camera, device);
-            typeof(HikCamera).GetField("_streamGrabber", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .SetValue(camera, stream);
+            typeof(HikCamera).GetField("_device", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(
+                camera,
+                device);
+            typeof(HikCamera).GetField("_streamGrabber", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(
+                camera,
+                stream);
             return camera;
         }
     }
 
-    private static T Stub<T>(Func<MethodInfo, object?[], object?> invoke) where T : class
+    private static T Stub<T>(Func<MethodInfo, object?[], object?> invoke)
+        where T : class
     {
         var stub = DispatchProxy.Create<T, SdkProxy>();
         ((SdkProxy)(object)stub).Handler = invoke;
@@ -172,7 +188,10 @@ public sealed class HikCameraTests
     public class SdkProxy : DispatchProxy
     {
         public Func<MethodInfo, object?[], object?> Handler { get; set; } = null!;
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
-            Handler(targetMethod!, args!);
+
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            return Handler(targetMethod!, args!);
+        }
     }
 }

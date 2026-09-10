@@ -36,8 +36,9 @@ public sealed partial class MachineLifecycleTests
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.BoltFastening.Motion.ZSpeed = 30;
         using var services = CreateServices(settings);
-        services.GetRequiredService<Recipe>().Pcb.BoltPoints =
-            [new() { Number = 1, Head = FasteningHead.Pickup, X = 10, Y = 10 }];
+        services.GetRequiredService<Recipe>().Pcb.BoltPoints = [new() { Number = 1, Head = FasteningHead.Pickup, X = 10, Y = 10 }
+
+        ];
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var gantry = services.GetRequiredService<BoltFasteningGantry>();
@@ -48,31 +49,43 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
-        await services.GetRequiredService<BoltFasteningWork>().Station.SeatAsync(CancellationToken.None);
+        await services.GetRequiredService<BoltFasteningWork>()
+            .Station.SeatAsync(CancellationToken.None);
 
-        var stops = new Queue<BoltRouteState>([
-            BoltRouteState.LoweringForPickup, BoltRouteState.MovingToPickupZ,
-            BoltRouteState.MovingToSafeZ, BoltRouteState.LoweringAtPoint, BoltRouteState.RaisingHeads]);
+        var stops = new Queue<BoltRouteState>(
+            [
+            BoltRouteState.LoweringForPickup,
+            BoltRouteState.MovingToPickupZ,
+            BoltRouteState.MovingToSafeZ,
+            BoltRouteState.LoweringAtPoint,
+            BoltRouteState.RaisingHeads
+        ]);
         void InterruptStroke()
         {
-            if (!stops.TryPeek(out var next) || route.State != next) return;
+            if (!stops.TryPeek(out var next) || route.State != next)
+                return;
             if (next is BoltRouteState.MovingToPickupZ or BoltRouteState.MovingToSafeZ
-                && gantry.Feedback.GetPosition().Z is not (> 1 and < 9)) return;
+                && gantry.Feedback.GetPosition().Z is not (> 1 and < 9))
+                return;
             stops.Dequeue();
             manual.RunDryRunCommand.Cancel();
         }
+
         var adcFrames = 0;
         services.GetRequiredService<IAdcBus>().FrameTransferred += (_, _) => adcFrames++;
         io.OutputChanged += (output, on) =>
         {
-            if (output != OutputIo.PickupHeadDown) return;
-            if (!on) Assert.Equal(settings.BoltFastening.SafeZ, gantry.Feedback.GetPosition().Z, 2);
+            if (output != OutputIo.PickupHeadDown)
+                return;
+            if (!on)
+                Assert.Equal(settings.BoltFastening.SafeZ, gantry.Feedback.GetPosition().Z, 2);
             InterruptStroke();
         };
         gantry.Feedback.PositionChanged += (_, _, _) => InterruptStroke();
         gantry.Feedback.MovingChanged += _ =>
         {
-            if (gantry.Feedback.IsMovingHorizontal) Assert.True(gantry.CanMoveHorizontal);
+            if (gantry.Feedback.IsMovingHorizontal)
+                Assert.True(gantry.CanMoveHorizontal);
         };
         while (stops.Count > 0)
         {
@@ -83,7 +96,12 @@ public sealed partial class MachineLifecycleTests
             Assert.False(gantry.Feedback.IsMoving);
             Assert.Equal(0, route.CompletedPasses);
         }
-        route.Changed += () => { if (route.CompletedPasses == 2) manual.RunDryRunCommand.Cancel(); };
+
+        route.Changed += () =>
+        {
+            if (route.CompletedPasses == 2)
+                manual.RunDryRunCommand.Cancel();
+        };
         await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
         await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
         Assert.Equal(2, route.CompletedPasses);
@@ -120,25 +138,31 @@ public sealed partial class MachineLifecycleTests
         var unsafeTravel = false;
         var raisedWhileRunning = false;
         var stopAtPass = 2;
-        route.Changed += () => { if (route.CompletedPasses == stopAtPass) machine.Stop(); };
+        route.Changed += () =>
+        {
+            if (route.CompletedPasses == stopAtPass)
+                machine.Stop();
+        };
         io.OutputChanged += (output, value) =>
         {
             raisedWhileRunning |= output == OutputIo.NgShuttleDown && !value && conveyor.RunCommandOn;
-            if (output != OutputIo.NgConveyorRun || !value) return;
+            if (output != OutputIo.NgConveyorRun || !value)
+                return;
             unsafeTravel |= !io.GetInput(InputIo.NgShuttleDown) || io.GetInput(InputIo.NgShuttleUp);
             if (stopFirstReverse && io.GetOutput(OutputIo.NgConveyorReverse))
             {
                 stopFirstReverse = false;
                 machine.Stop();
             }
-            if (lowerPickup) io.SetInput(InputIo.NgCarrierPickupUp, false);
+
+            if (lowerPickup)
+                io.SetInput(InputIo.NgCarrierPickupUp, false);
         };
         await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
         await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
         Assert.Equal(1, route.CompletedPasses);
         Assert.Equal(NgConveyorDestination.Shuttle, route.Destination);
         Assert.False(conveyor.RunCommandOn);
-
         // Resume a stopped carrier between P1 and P3: no input is currently ON.
         io.AutoResponseEnabled = false;
         io.SetInput(InputIo.NgConveyorPosition1Occupied, false);
@@ -156,7 +180,12 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(InputIo.NgShuttleUp, true);
             await resumed.WaitAsync(TimeSpan.FromSeconds(5));
         }
-        finally { machine.Stop(); await resumed; }
+        finally
+        {
+            machine.Stop();
+            await resumed;
+        }
+
         Assert.Equal(2, route.CompletedPasses);
         Assert.True(io.GetInput(InputIo.NgShuttleCarrierDetected));
         Assert.True(io.GetInput(InputIo.NgShuttleUp));
@@ -202,19 +231,35 @@ public sealed partial class MachineLifecycleTests
         io.AutoResponseEnabled = false;
         io.SetOutput(OutputIo.PcbPlacementIpmGripperClose, true);
         io.SetOutput(OutputIo.PcbPlacementIpmDown, true);
-        foreach (var input in new[] { InputIo.PcbPlacementCarrierPresent,
-            InputIo.PcbPlacementBackupPlateUp, InputIo.PcbPlacementStopperDown,
-            InputIo.PcbPlacementHeatSink1Present, InputIo.PcbPlacementPcbDetected,
-            InputIo.PcbPlacementIpmGripperClosed, InputIo.PcbPlacementHandlerRotated,
-            InputIo.PcbPlacementIpmDown }) io.SetInput(input, true);
-        foreach (var input in new[] { InputIo.PcbPlacementBackupPlateDown,
-            InputIo.PcbPlacementStopperUp, InputIo.PcbPlacementIpmGripperOpen,
-            InputIo.PcbPlacementHandlerUnrotated, InputIo.PcbPlacementIpmUp }) io.SetInput(input, false);
-
+        foreach (var input in new[]
+        {
+            InputIo.PcbPlacementCarrierPresent,
+            InputIo.PcbPlacementBackupPlateUp,
+            InputIo.PcbPlacementStopperDown,
+            InputIo.PcbPlacementHeatSink1Present,
+            InputIo.PcbPlacementPcbDetected,
+            InputIo.PcbPlacementIpmGripperClosed,
+            InputIo.PcbPlacementHandlerRotated,
+            InputIo.PcbPlacementIpmDown
+        })
+            io.SetInput(input, true);
+        foreach (var input in new[]
+        {
+            InputIo.PcbPlacementBackupPlateDown,
+            InputIo.PcbPlacementStopperUp,
+            InputIo.PcbPlacementIpmGripperOpen,
+            InputIo.PcbPlacementHandlerUnrotated,
+            InputIo.PcbPlacementIpmUp
+        })
+            io.SetInput(input, false);
         // XY alone is not a placement position, even with PCB detection and vacuum OFF.
-        Assert.DoesNotContain(placer.State(recipe), new[] { PcbPlacementState.PressingPcb, PcbPlacementState.RecordingPlacement });
+        Assert.DoesNotContain(
+            placer.State(recipe),
+            new[] { PcbPlacementState.PressingPcb, PcbPlacementState.RecordingPlacement });
         await handler.MoveZAsync(10);
-        Assert.DoesNotContain(placer.State(recipe), new[] { PcbPlacementState.PressingPcb, PcbPlacementState.RecordingPlacement });
+        Assert.DoesNotContain(
+            placer.State(recipe),
+            new[] { PcbPlacementState.PressingPcb, PcbPlacementState.RecordingPlacement });
         io.SetInput(InputIo.PcbPlacementHandlerUp, false);
         io.SetInput(InputIo.PcbPlacementHandlerDown, true);
 
@@ -223,7 +268,8 @@ public sealed partial class MachineLifecycleTests
         using var pressing = new CancellationTokenSource();
         io.OutputChanged += (output, on) =>
         {
-            if (output is not (OutputIo.PcbPlacementIpmDown or OutputIo.PcbPlacementIpmGripperClose)) return;
+            if (output is not (OutputIo.PcbPlacementIpmDown or OutputIo.PcbPlacementIpmGripperClose))
+                return;
             outputs.Add((output, on));
             var feedback = io.GetOutputFeedback(output)!;
             io.SetInput(on ? feedback.OffInput : feedback.OnInput, false);
@@ -232,8 +278,10 @@ public sealed partial class MachineLifecycleTests
                 pressing.Cancel(); // Stop between Up and Down feedback.
                 return;
             }
+
             io.SetInput(on ? feedback.OnInput : feedback.OffInput, true);
-            if (output == OutputIo.PcbPlacementIpmGripperClose && on) closing.Cancel();
+            if (output == OutputIo.PcbPlacementIpmGripperClose && on)
+                closing.Cancel();
         };
 
         Assert.Equal(PcbPlacementState.OpeningGripper, placer.State(recipe));
@@ -241,14 +289,14 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(PcbPlacementState.RaisingIpm, placer.State(recipe));
         await placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, CancellationToken.None)!;
         Assert.Equal(PcbPlacementState.PressingPcb, placer.State(recipe));
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, closing.Token)!);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, closing.Token)!);
         Assert.Equal(PlacementGripperState.Closed, handler.IpmGripper);
         Assert.Equal(PcbPlacementState.PressingPcb, placer.State(recipe));
         Assert.Empty(work.Assemblies);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, pressing.Token)!);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, pressing.Token)!);
         Assert.Equal(PlacementCylinderState.Between, handler.IpmLift);
         Assert.Equal(PcbPlacementState.PressingPcb, placer.State(recipe));
         Assert.Empty(work.Assemblies);
@@ -256,16 +304,23 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(PcbPlacementState.RecordingPlacement, placer.State(recipe));
         await placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, CancellationToken.None)!;
         Assert.Single(work.Assemblies);
-        Assert.Equal(new[] { (OutputIo.PcbPlacementIpmGripperClose, false),
-            (OutputIo.PcbPlacementIpmDown, false), (OutputIo.PcbPlacementIpmGripperClose, true),
-            (OutputIo.PcbPlacementIpmDown, true) }, outputs);
+        Assert.Equal(
+            new[] { (OutputIo.PcbPlacementIpmGripperClose, false), (
+                OutputIo.PcbPlacementIpmDown,
+                false), (
+                    OutputIo.PcbPlacementIpmGripperClose,
+                    true), (
+                        OutputIo.PcbPlacementIpmDown,
+                        true) },
+            outputs);
         await machine.ShutdownAsync();
     }
 
     [Trait("Category", "MachineFlow")]
     [Theory]
     [InlineData(HeatSinkSlot.HeatSink2)]
-    public async Task PcbReturnReversesHandoffAndResumesWithoutReleasingTheReceivingHandler(HeatSinkSlot heatSink)
+    public async Task PcbReturnReversesHandoffAndResumesWithoutReleasingTheReceivingHandler(
+        HeatSinkSlot heatSink)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
@@ -292,13 +347,16 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.PcbPlacementHeatSink1Present, heatSink == HeatSinkSlot.HeatSink1);
         io.SetInput(InputIo.PcbPlacementHeatSink2Present, heatSink == HeatSinkSlot.HeatSink2);
         await work.Station.SeatAsync(CancellationToken.None);
-
         // Place one real simulated PCB through the existing forward operation first.
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         await placement.SetVacuumAsync(true);
         await placement.SetIpmGripperAsync(true);
         using var placed = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-        work.Changed += () => { if (work.Completed) placed.Cancel(); };
+        work.Changed += () =>
+        {
+            if (work.Completed)
+                placed.Cancel();
+        };
         await services.GetRequiredService<PcbPlacer>().RunAsync(recipe.PcbPlacement, placed.Token);
         Assert.True(work.Completed);
         Assert.Equal(PlacementPcbState.None, placement.Pcb);
@@ -324,8 +382,10 @@ public sealed partial class MachineLifecycleTests
         io.OutputChanged += (output, _) =>
         {
             if (output == OutputIo.PcbPlacementHandlerRotate)
-                rotatedAwayFromTeaching |= !placement.IsAtXY(recipe.PcbPlacement.HeatSink1PcbPlacementPosition)
-                    || !placement.AtHorizontalZ || !placement.CanMoveHorizontal;
+                rotatedAwayFromTeaching |= !placement.IsAtXY(
+                    recipe.PcbPlacement.HeatSink1PcbPlacementPosition)
+                    || !placement.AtHorizontalZ
+                    || !placement.CanMoveHorizontal;
         };
         placement.Feedback.PositionChanged += (x, y, z) =>
         {
@@ -334,21 +394,28 @@ public sealed partial class MachineLifecycleTests
                 && placement.Pcb == PlacementPcbState.Secured
                 && placement.IpmLift != PlacementCylinderState.Down;
             var target = heatSink == HeatSinkSlot.HeatSink1
-                ? recipe.PcbPlacement.HeatSink1PcbPlacementPosition : recipe.PcbPlacement.HeatSink2PcbPlacementPosition;
+                ? recipe.PcbPlacement.HeatSink1PcbPlacementPosition
+                : recipe.PcbPlacement.HeatSink2PcbPlacementPosition;
             if (returning.Destination == PcbReturnDestination.HeatSink
-                && Math.Abs(x - target.X) < 0.05 && Math.Abs(y - target.Y) < 0.05
+                && Math.Abs(x - target.X) < 0.05
+                && Math.Abs(y - target.Y) < 0.05
                 && z > 0)
                 enteredWithOpenDown |= placement.IpmGripper == PlacementGripperState.Open
                     && placement.IpmLift == PlacementCylinderState.Down;
         };
         supply.Feedback.PositionChanged += (x, y, z) =>
         {
-            if (returning.Destination != PcbReturnDestination.Supply) return;
+            if (returning.Destination != PcbReturnDestination.Supply)
+                return;
             changedYInside |= x >= 60 && Math.Abs(y - 30) > 0.05;
             movedBeforeRelease |= supply.Pcb == PcbSupplyPcbState.Secured
                 && (!placement.AtHorizontalZ || !placement.CanMoveHorizontal);
-            if (stopped == 0 && x > 65 && Math.Abs(z - 20) < 0.05
-                || stopped == 1 && Math.Abs(x - 80) < 0.05 && z is > 11 and < 18)
+            if (stopped == 0
+                && x > 65
+                && Math.Abs(z - 20) < 0.05
+                || stopped == 1
+                && Math.Abs(x - 80) < 0.05
+                && z is > 11 and < 18)
             {
                 stopped++;
                 machine.Stop();
@@ -356,16 +423,25 @@ public sealed partial class MachineLifecycleTests
         };
         io.InputChanged += (input, value) =>
         {
-            if (!stoppedAtPickup && input == InputIo.PcbPlacementVacuumDetected && value
+            if (!stoppedAtPickup
+                && input == InputIo.PcbPlacementVacuumDetected
+                && value
                 && returning.Destination == PcbReturnDestination.HeatSink)
             {
                 stoppedAtPickup = true;
                 machine.Stop();
             }
-            if (input != InputIo.PcbPlacementVacuumDetected || value
-                || returning.Destination != PcbReturnDestination.Supply) return;
+
+            if (input != InputIo.PcbPlacementVacuumDetected
+                || value
+                || returning.Destination != PcbReturnDestination.Supply)
+                return;
             releasedBeforeSupplySecured |= supply.Pcb != PcbSupplyPcbState.Secured;
-            if (stopped == 2) { stopped++; machine.Stop(); }
+            if (stopped == 2)
+            {
+                stopped++;
+                machine.Stop();
+            }
         };
 
         await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
@@ -374,21 +450,31 @@ public sealed partial class MachineLifecycleTests
         Assert.True(placement.VacuumDetected);
         Assert.NotEqual(PlacementPcbState.Secured, placement.Pcb);
         await WaitUntilAsync(() => manual.DryRunPcb == heatSink);
-        manual.SelectedDryRunHeatSink = heatSink == HeatSinkSlot.HeatSink1
-            ? HeatSinkSlot.HeatSink2 : HeatSinkSlot.HeatSink1;
+            manual.SelectedDryRunHeatSink = heatSink == HeatSinkSlot.HeatSink1
+                ? HeatSinkSlot.HeatSink2
+                : HeatSinkSlot.HeatSink1;
         Assert.Equal(heatSink, manual.DryRunPcb);
 
         for (var pass = 0; pass < 4; pass++)
         {
             await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
             var run = manual.RunDryRunCommand.ExecuteAsync(null);
-            try { await run.WaitAsync(TimeSpan.FromSeconds(8)); }
-            finally { machine.Stop(); await run; }
+            try
+            {
+                await run.WaitAsync(TimeSpan.FromSeconds(8));
+            }
+            finally
+            {
+                machine.Stop();
+                await run;
+            }
+
             Assert.False(state.IsError, state.AlarmDetail);
             Assert.False(supply.Feedback.IsMoving);
             Assert.False(placement.Feedback.IsMoving);
             Assert.False(buffer.Conflict);
-            if (pass < 3) Assert.Equal(pass + 1, stopped);
+            if (pass < 3)
+                Assert.Equal(pass + 1, stopped);
         }
 
         Assert.Equal(PcbReturnState.Completed, returning.State);
@@ -396,7 +482,9 @@ public sealed partial class MachineLifecycleTests
         Assert.Null(returning.HeatSink);
         Assert.Equal(PcbSupplyPcbState.Secured, supply.Pcb);
         Assert.Equal(PcbSupplyRotationState.Unrotated, supply.Rotation);
-        Assert.Equal((0, settings.PcbSupply.CarrierY, settings.PcbSupply.RotationZ), supply.Feedback.GetPosition());
+        Assert.Equal(
+            (0, settings.PcbSupply.CarrierY, settings.PcbSupply.RotationZ),
+            supply.Feedback.GetPosition());
         Assert.Equal(PlacementPcbState.None, placement.Pcb);
         Assert.False(buffer.PcbPresent);
         Assert.False(work.Completed);
@@ -415,7 +503,8 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task MainConveyorDryRunUsesManualCommandsAndStopsIfAnEnabledHeadLowers(bool transferEnabled)
+    public async Task MainConveyorDryRunUsesManualCommandsAndStopsIfAnEnabledHeadLowers(
+        bool transferEnabled)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
@@ -434,21 +523,27 @@ public sealed partial class MachineLifecycleTests
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
         await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
         var stopAfter = 2;
-        dryRun.Changed += () => { if (dryRun.CompletedPasses == stopAfter) manual.RunDryRunCommand.Cancel(); };
+        dryRun.Changed += () =>
+        {
+            if (dryRun.CompletedPasses == stopAfter)
+                manual.RunDryRunCommand.Cancel();
+        };
         await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(8));
         Assert.Equal(2, dryRun.CompletedPasses);
         Assert.True(io.GetInput(InputIo.MainConveyorEntryCarrierDetected));
         Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
         Assert.False(state.IsError);
-
         // A second start continues forward from the front sensor, not back to Station 3.
         stopAfter = -1;
         await WaitUntilAsync(() => manual.RunDryRunCommand.CanExecute(null));
         io.OutputChanged += (output, value) =>
         {
-            if (output != OutputIo.MainConveyorRun || !value) return;
-            if (transferEnabled) io.SetInput(InputIo.NgCarrierPickupUp, false);
-            else machine.Stop();
+            if (output != OutputIo.MainConveyorRun || !value)
+                return;
+            if (transferEnabled)
+                io.SetInput(InputIo.NgCarrierPickupUp, false);
+            else
+                machine.Stop();
         };
         await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(3));
         Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
@@ -486,6 +581,7 @@ public sealed partial class MachineLifecycleTests
             var frame = camera.Capture(500, 0);
             camera.SourceImage = frame with { Pixels = new byte[frame.Pixels.Length] };
         }
+
         io.SetInput(InputIo.InspectionCarrierPresent, true);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
@@ -496,18 +592,21 @@ public sealed partial class MachineLifecycleTests
         Assert.False(services.GetRequiredService<InspectionGantry>().Feedback.IsMoving);
         Assert.True(work.CarrierSeated);
         Assert.False(work.Completed);
-        Assert.All(work.Assemblies, assembly =>
-        {
-            Assert.Null(assembly.PcbBarcode);
-            Assert.Empty(assembly.BoltPresenceResults);
-        });
+        Assert.All(
+            work.Assemblies,
+            assembly =>
+            {
+                Assert.Null(assembly.PcbBarcode);
+                Assert.Empty(assembly.BoltPresenceResults);
+            });
         await machine.ShutdownAsync();
     }
 
     [Theory]
     [InlineData(NgTransferDestination.Station)]
     [InlineData(NgTransferDestination.Shuttle)]
-    public async Task NgTransferUsesTheSameLiveReleaseStatesInBothDirections(NgTransferDestination destination)
+    public async Task NgTransferUsesTheSameLiveReleaseStatesInBothDirections(
+        NgTransferDestination destination)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
@@ -519,19 +618,24 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
-        await services.GetRequiredService<InspectionGantry>().MoveToAsync(destination == NgTransferDestination.Station
-            ? settings.NgCarrierTransfer.CarrierPickupPosition : settings.NgCarrierTransfer.ShuttlePlacePosition, 1_000);
+        await services.GetRequiredService<InspectionGantry>()
+            .MoveToAsync(
+                destination == NgTransferDestination.Station
+                    ? settings.NgCarrierTransfer.CarrierPickupPosition
+                    : settings.NgCarrierTransfer.ShuttlePlacePosition,
+                1_000);
         io.AutoResponseEnabled = false;
         var destinationSensor = destination == NgTransferDestination.Station
-            ? InputIo.InspectionCarrierPresent : InputIo.NgShuttleCarrierDetected;
+            ? InputIo.InspectionCarrierPresent
+            : InputIo.NgShuttleCarrierDetected;
         io.SetInput(InputIo.NgCarrierDetected, true);
         io.SetInput(InputIo.NgCarrierGripperOpen, false);
         io.SetInput(InputIo.NgCarrierGripperClosed, true);
-        Assert.Equal(NgTransferState.WaitingForDestination,
+        Assert.Equal(
+            NgTransferState.WaitingForDestination,
             move.State(destination, canPickUp: true, canReceive: false));
         io.SetInput(destinationSensor, true);
         AssertState(NgTransferState.WaitingForDestination);
-
         // The descending held carrier can enter the support sensor before Down.
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         AssertState(NgTransferState.LoweringAtDestination);

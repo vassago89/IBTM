@@ -4,7 +4,13 @@ namespace IBTM.PcbBuffer;
 
 public sealed class PcbBufferHardwareSettings : InputHardwareSettings
 {
-    public override HardwareArea Area => HardwareArea.PcbBuffer;
+    public override HardwareArea Area
+    {
+        get
+        {
+            return HardwareArea.PcbBuffer;
+        }
+    }
 
     public PcbBufferHardwareSettings()
     {

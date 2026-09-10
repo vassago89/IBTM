@@ -15,18 +15,30 @@ public sealed class VirtualCamera(
     public event Action<ImageFrame>? FrameReady;
     public event Action<Exception>? LiveViewFailed;
     public ImageFrame? SourceImage { get; set; }
-    public (int Width, int Height) FrameSize => SourceImage is { } image
-        ? (image.Width, image.Height) : (VirtualImageFactory.Width, VirtualImageFactory.Height);
+
+    public (int Width, int Height) FrameSize
+    {
+        get
+        {
+            return SourceImage is { } image
+                ? (image.Width, image.Height)
+                : (VirtualImageFactory.Width, VirtualImageFactory.Height);
+        }
+    }
+
     public bool BoltsPresent { get; set; } = true;
 
     public void Initialize()
     {
     }
 
-    public ImageFrame Capture(double exposureMicroseconds, double gain) =>
-        SourceImage ?? VirtualImageFactory.CreateInspection(
+    public ImageFrame Capture(double exposureMicroseconds, double gain)
+    {
+        return SourceImage ?? VirtualImageFactory.CreateInspection(
             getPosition(),
-            BoltsPresent ? getBoltPositions() : [], getDataMatrices?.Invoke() ?? []);
+            BoltsPresent ? getBoltPositions() : [],
+            getDataMatrices?.Invoke() ?? []);
+    }
 
     public void StartLiveView(double exposureMicroseconds, double gain)
     {

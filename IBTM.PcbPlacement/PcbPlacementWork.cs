@@ -5,13 +5,11 @@ using IBTM.Device;
 
 namespace IBTM.PcbPlacement;
 
-public sealed class PcbPlacementWork(
-    ConveyorStation station,
-    Func<bool>? isEnabled = null)
-    : StationWork(station, isEnabled)
+public sealed class PcbPlacementWork(ConveyorStation station, Func<bool>? isEnabled = null) : StationWork(
+    station,
+    isEnabled)
 {
-    public void PrepareRecovery(
-        IEnumerable<(HeatSinkSlot HeatSink, bool Completed)> items)
+    public void PrepareRecovery(IEnumerable<(HeatSinkSlot HeatSink, bool Completed)> items)
     {
         foreach (var (heatSink, completed) in items)
         {

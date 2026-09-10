@@ -9,16 +9,9 @@ using IBTM.Core;
 
 namespace IBTM.UI;
 
-public sealed record CarrierImageTileView(
-    int Number,
-    AxisPosition Center,
-    BitmapSource Image);
+public sealed record CarrierImageTileView(int Number, AxisPosition Center, BitmapSource Image);
 
-public sealed record ImageMarker(
-    double X,
-    double Y,
-    string Label,
-    bool Selected = false);
+public sealed record ImageMarker(double X, double Y, string Label, bool Selected = false);
 
 public sealed record ImageRegion(Rect Bounds, bool Selected = false, string Label = "");
 
@@ -28,22 +21,14 @@ public sealed class ImageTeachingView : FrameworkElement
     private const double MaximumZoom = 20;
     private const double ZoomStep = 1.2;
 
-    private static readonly SolidColorBrush CameraFill = FrozenBrush(
-        Color.FromArgb(18, 251, 191, 36));
-    private static readonly SolidColorBrush CameraStroke = FrozenBrush(
-        Color.FromRgb(251, 191, 36));
-    private static readonly SolidColorBrush MarkerStroke = FrozenBrush(
-        Color.FromRgb(56, 189, 248));
+    private static readonly SolidColorBrush CameraFill = FrozenBrush(Color.FromArgb(18, 251, 191, 36));
+    private static readonly SolidColorBrush CameraStroke = FrozenBrush(Color.FromRgb(251, 191, 36));
+    private static readonly SolidColorBrush MarkerStroke = FrozenBrush(Color.FromRgb(56, 189, 248));
     private static readonly SolidColorBrush SelectedMarkerStroke = FrozenBrush(
         Color.FromRgb(74, 222, 128));
-    private static readonly Pen CameraPen = FrozenPen(
-        CameraStroke,
-        2,
-        DashStyles.Dash);
+    private static readonly Pen CameraPen = FrozenPen(CameraStroke, 2, DashStyles.Dash);
     private static readonly Pen MarkerPen = FrozenPen(MarkerStroke, 1.5);
-    private static readonly Pen SelectedMarkerPen = FrozenPen(
-        SelectedMarkerStroke,
-        2.5);
+    private static readonly Pen SelectedMarkerPen = FrozenPen(SelectedMarkerStroke, 2.5);
     private static readonly Typeface MarkerTypeface = new("Segoe UI");
 
     private readonly DrawingVisual _mapVisual = new();
@@ -82,29 +67,34 @@ public sealed class ImageTeachingView : FrameworkElement
         nameof(CameraFieldOfView),
         typeof(Rect?),
         OnCameraChanged);
-    public static readonly DependencyProperty HoverPositionTextProperty =
-        DependencyProperty.Register(
-            nameof(HoverPositionText),
-            typeof(string),
-            typeof(ImageTeachingView));
-    public static readonly DependencyProperty CoordinateOriginProperty =
-        DependencyProperty.Register(
-            nameof(CoordinateOrigin),
-            typeof(Point?),
-            typeof(ImageTeachingView));
-    public static readonly DependencyProperty ClickCommandProperty =
-        DependencyProperty.Register(
-            nameof(ClickCommand),
-            typeof(ICommand),
-            typeof(ImageTeachingView));
-    public static readonly DependencyProperty RegionCommandProperty =
-        DependencyProperty.Register(nameof(RegionCommand), typeof(ICommand), typeof(ImageTeachingView));
+    public static readonly DependencyProperty HoverPositionTextProperty = DependencyProperty.Register(
+        nameof(HoverPositionText),
+        typeof(string),
+        typeof(ImageTeachingView));
+    public static readonly DependencyProperty CoordinateOriginProperty = DependencyProperty.Register(
+        nameof(CoordinateOrigin),
+        typeof(Point?),
+        typeof(ImageTeachingView));
+    public static readonly DependencyProperty ClickCommandProperty = DependencyProperty.Register(
+        nameof(ClickCommand),
+        typeof(ICommand),
+        typeof(ImageTeachingView));
+    public static readonly DependencyProperty RegionCommandProperty = DependencyProperty.Register(
+        nameof(RegionCommand),
+        typeof(ICommand),
+        typeof(ImageTeachingView));
     public static readonly DependencyProperty RegionsProperty = Register(
-        nameof(Regions), typeof(IReadOnlyList<ImageRegion>), OnMarkersChanged);
+        nameof(Regions),
+        typeof(IReadOnlyList<ImageRegion>),
+        OnMarkersChanged);
     public static readonly DependencyProperty SourceRegionProperty = Register(
-        nameof(SourceRegion), typeof(Rect?), OnMapChanged);
+        nameof(SourceRegion),
+        typeof(Rect?),
+        OnMapChanged);
     public static readonly DependencyProperty SourceOverlayProperty = Register(
-        nameof(SourceOverlay), typeof(BitmapSource), OnMapChanged);
+        nameof(SourceOverlay),
+        typeof(BitmapSource),
+        OnMapChanged);
 
     public ImageTeachingView()
     {
@@ -119,76 +109,172 @@ public sealed class ImageTeachingView : FrameworkElement
 
     public BitmapSource? Source
     {
-        get => (BitmapSource?)GetValue(SourceProperty);
-        set => SetValue(SourceProperty, value);
+        get
+        {
+            return (BitmapSource?)GetValue(SourceProperty);
+        }
+
+        set
+        {
+            SetValue(SourceProperty, value);
+        }
     }
 
     public IReadOnlyList<CarrierImageTileView>? Tiles
     {
-        get => (IReadOnlyList<CarrierImageTileView>?)GetValue(TilesProperty);
-        set => SetValue(TilesProperty, value);
+        get
+        {
+            return (IReadOnlyList<CarrierImageTileView>?)GetValue(TilesProperty);
+        }
+
+        set
+        {
+            SetValue(TilesProperty, value);
+        }
     }
 
     public double MillimetersPerPixel
     {
-        get => (double)GetValue(MillimetersPerPixelProperty);
-        set => SetValue(MillimetersPerPixelProperty, value);
+        get
+        {
+            return (double)GetValue(MillimetersPerPixelProperty);
+        }
+
+        set
+        {
+            SetValue(MillimetersPerPixelProperty, value);
+        }
     }
 
     public IReadOnlyList<ImageMarker>? Markers
     {
-        get => (IReadOnlyList<ImageMarker>?)GetValue(MarkersProperty);
-        set => SetValue(MarkersProperty, value);
+        get
+        {
+            return (IReadOnlyList<ImageMarker>?)GetValue(MarkersProperty);
+        }
+
+        set
+        {
+            SetValue(MarkersProperty, value);
+        }
     }
 
     public Rect? CameraFieldOfView
     {
-        get => (Rect?)GetValue(CameraFieldOfViewProperty);
-        set => SetValue(CameraFieldOfViewProperty, value);
+        get
+        {
+            return (Rect?)GetValue(CameraFieldOfViewProperty);
+        }
+
+        set
+        {
+            SetValue(CameraFieldOfViewProperty, value);
+        }
     }
 
     public string? HoverPositionText
     {
-        get => (string?)GetValue(HoverPositionTextProperty);
-        set => SetValue(HoverPositionTextProperty, value);
+        get
+        {
+            return (string?)GetValue(HoverPositionTextProperty);
+        }
+
+        set
+        {
+            SetValue(HoverPositionTextProperty, value);
+        }
     }
 
     public Point? CoordinateOrigin
     {
-        get => (Point?)GetValue(CoordinateOriginProperty);
-        set => SetValue(CoordinateOriginProperty, value);
+        get
+        {
+            return (Point?)GetValue(CoordinateOriginProperty);
+        }
+
+        set
+        {
+            SetValue(CoordinateOriginProperty, value);
+        }
     }
 
     public ICommand? ClickCommand
     {
-        get => (ICommand?)GetValue(ClickCommandProperty);
-        set => SetValue(ClickCommandProperty, value);
+        get
+        {
+            return (ICommand?)GetValue(ClickCommandProperty);
+        }
+
+        set
+        {
+            SetValue(ClickCommandProperty, value);
+        }
     }
 
     public ICommand? RegionCommand
     {
-        get => (ICommand?)GetValue(RegionCommandProperty);
-        set => SetValue(RegionCommandProperty, value);
+        get
+        {
+            return (ICommand?)GetValue(RegionCommandProperty);
+        }
+
+        set
+        {
+            SetValue(RegionCommandProperty, value);
+        }
     }
+
     public IReadOnlyList<ImageRegion>? Regions
     {
-        get => (IReadOnlyList<ImageRegion>?)GetValue(RegionsProperty);
-        set => SetValue(RegionsProperty, value);
+        get
+        {
+            return (IReadOnlyList<ImageRegion>?)GetValue(RegionsProperty);
+        }
+
+        set
+        {
+            SetValue(RegionsProperty, value);
+        }
     }
+
     public Rect? SourceRegion
     {
-        get => (Rect?)GetValue(SourceRegionProperty);
-        set => SetValue(SourceRegionProperty, value);
+        get
+        {
+            return (Rect?)GetValue(SourceRegionProperty);
+        }
+
+        set
+        {
+            SetValue(SourceRegionProperty, value);
+        }
     }
+
     public BitmapSource? SourceOverlay
     {
-        get => (BitmapSource?)GetValue(SourceOverlayProperty);
-        set => SetValue(SourceOverlayProperty, value);
+        get
+        {
+            return (BitmapSource?)GetValue(SourceOverlayProperty);
+        }
+
+        set
+        {
+            SetValue(SourceOverlayProperty, value);
+        }
     }
 
-    protected override int VisualChildrenCount => _visuals.Count;
+    protected override int VisualChildrenCount
+    {
+        get
+        {
+            return _visuals.Count;
+        }
+    }
 
-    protected override Visual GetVisualChild(int index) => _visuals[index];
+    protected override Visual GetVisualChild(int index)
+    {
+        return _visuals[index];
+    }
 
     protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
     {
@@ -202,17 +288,20 @@ public sealed class ImageTeachingView : FrameworkElement
         if (Source is not null)
         {
             var fitted = Fit(Source.PixelWidth, Source.PixelHeight);
-            drawingContext.DrawImage(
-                Source,
-                fitted);
+            drawingContext.DrawImage(Source, fitted);
             if (SourceRegion is { } region)
             {
                 var scale = fitted.Width / Source.PixelWidth;
-                var bounds = new Rect(fitted.X + region.X * scale, fitted.Y + region.Y * scale,
-                    region.Width * scale, region.Height * scale);
-                if (SourceOverlay is not null) drawingContext.DrawImage(SourceOverlay, bounds);
+                var bounds = new Rect(
+                    fitted.X + region.X * scale,
+                    fitted.Y + region.Y * scale,
+                    region.Width * scale,
+                    region.Height * scale);
+                if (SourceOverlay is not null)
+                    drawingContext.DrawImage(SourceOverlay, bounds);
                 drawingContext.DrawRectangle(null, SelectedMarkerPen, bounds);
             }
+
             return;
         }
 
@@ -226,13 +315,9 @@ public sealed class ImageTeachingView : FrameworkElement
         {
             drawingContext.DrawImage(
                 tile.Image,
-                WorldRect(
-                    world.X,
-                    world.Y,
-                    world.Width,
-                    world.Height,
-                    layout));
+                WorldRect(world.X, world.Y, world.Width, world.Height, layout));
         }
+
         drawingContext.Pop();
     }
 
@@ -247,34 +332,43 @@ public sealed class ImageTeachingView : FrameworkElement
         drawingContext.PushClip(_screenClip!);
         foreach (var marker in Markers ?? [])
         {
-            DrawMarker(
-                drawingContext,
-                WorldPoint(marker.X, marker.Y, layout),
-                marker);
+            DrawMarker(drawingContext, WorldPoint(marker.X, marker.Y, layout), marker);
         }
+
         foreach (var region in Regions ?? [])
         {
             DrawRegion(drawingContext, region.Bounds, layout, region.Selected);
-            if (region.Label.Length == 0) continue;
+            if (region.Label.Length == 0)
+                continue;
             var corner = WorldPoint(region.Bounds.X, region.Bounds.Y, layout);
-            var label = new FormattedText(region.Label, CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
-                MarkerTypeface, 13, region.Selected ? SelectedMarkerStroke : MarkerStroke,
+            var label = new FormattedText(
+                region.Label,
+                CultureInfo.CurrentCulture,
+                FlowDirection.LeftToRight,
+                MarkerTypeface,
+                13,
+                region.Selected ? SelectedMarkerStroke : MarkerStroke,
                 VisualTreeHelper.GetDpi(this).PixelsPerDip);
             drawingContext.DrawText(label, new Point(corner.X + 5, corner.Y + 4));
         }
-        if (_draftRegion is { } draft) DrawRegion(drawingContext, draft, layout, true);
+
+        if (_draftRegion is { } draft)
+            DrawRegion(drawingContext, draft, layout, true);
         drawingContext.Pop();
     }
 
-    private static void DrawRegion(DrawingContext drawing, Rect region, MapView layout, bool selected) =>
-        drawing.DrawRectangle(null, selected ? SelectedMarkerPen : MarkerPen,
+    private static void DrawRegion(DrawingContext drawing, Rect region, MapView layout, bool selected)
+    {
+        drawing.DrawRectangle(
+            null,
+            selected ? SelectedMarkerPen : MarkerPen,
             WorldRect(region.X, region.Y, region.Width, region.Height, layout));
+    }
 
     private void DrawCamera()
     {
         using var drawingContext = _cameraVisual.RenderOpen();
-        if (_layout is not { } layout
-            || CameraFieldOfView is not { } camera)
+        if (_layout is not { } layout || CameraFieldOfView is not { } camera)
         {
             return;
         }
@@ -345,10 +439,7 @@ public sealed class ImageTeachingView : FrameworkElement
         }
 
         var world = ScreenToWorld(mouse, before);
-        _zoom = Math.Clamp(
-            _zoom * (e.Delta > 0 ? ZoomStep : 1 / ZoomStep),
-            MinimumZoom,
-            MaximumZoom);
+        _zoom = Math.Clamp(_zoom * (e.Delta > 0 ? ZoomStep : 1 / ZoomStep), MinimumZoom, MaximumZoom);
         UpdateMapLayout();
         var after = _layout!;
         var moved = WorldPoint(world.X, world.Y, after);
@@ -385,6 +476,7 @@ public sealed class ImageTeachingView : FrameworkElement
             _draftRegion = new Rect(start, ScreenToWorld(current, regionLayout));
             DrawMarkers();
         }
+
         if (_panStart is { } previous)
         {
             _pan += current - previous;
@@ -396,9 +488,7 @@ public sealed class ImageTeachingView : FrameworkElement
         HoverPositionText = layout is not null
             && layout.Screen.Contains(current)
             && CoordinateOrigin is { } origin
-            ? PositionText(
-                ScreenToWorld(current, layout),
-                origin)
+            ? PositionText(ScreenToWorld(current, layout), origin)
             : null;
     }
 
@@ -420,14 +510,16 @@ public sealed class ImageTeachingView : FrameworkElement
         base.OnMouseLeftButtonUp(e);
         var region = _draftRegion;
         CancelRegion();
-        if (region is { Width: > 0, Height: > 0 } && RegionCommand?.CanExecute(region.Value) == true)
+        if (region is { Width: > 0, Height: > 0 }
+            && RegionCommand?.CanExecute(region.Value) == true)
             RegionCommand.Execute(region.Value);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (e.Key != Key.Escape || _regionStart is null) return;
+        if (e.Key != Key.Escape || _regionStart is null)
+            return;
         CancelRegion();
         e.Handled = true;
     }
@@ -444,7 +536,8 @@ public sealed class ImageTeachingView : FrameworkElement
     {
         _regionStart = null;
         _draftRegion = null;
-        if (_panStart is null) ReleaseMouseCapture();
+        if (_panStart is null)
+            ReleaseMouseCapture();
         DrawMarkers();
     }
 
@@ -464,6 +557,7 @@ public sealed class ImageTeachingView : FrameworkElement
         {
             ordered[index] = Tiles[index];
         }
+
         Array.Sort(ordered, static (left, right) => left.Number.CompareTo(right.Number));
 
         _tileLayout = new (CarrierImageTileView, Rect)[ordered.Length];
@@ -520,18 +614,22 @@ public sealed class ImageTeachingView : FrameworkElement
         _screenClip.Freeze();
     }
 
-    private Rect TileWorldRect(CarrierImageTileView tile) => new(
-        tile.Center.X
-            - (tile.Image.PixelWidth * MillimetersPerPixel / 2),
-        tile.Center.Y
-            - (tile.Image.PixelHeight * MillimetersPerPixel / 2),
-        tile.Image.PixelWidth * MillimetersPerPixel,
-        tile.Image.PixelHeight * MillimetersPerPixel);
+    private Rect TileWorldRect(CarrierImageTileView tile)
+    {
+        return new(
+            tile.Center.X - (tile.Image.PixelWidth * MillimetersPerPixel / 2),
+            tile.Center.Y - (tile.Image.PixelHeight * MillimetersPerPixel / 2),
+            tile.Image.PixelWidth * MillimetersPerPixel,
+            tile.Image.PixelHeight * MillimetersPerPixel);
+    }
 
-    private bool HasMap =>
-        Source is null
-        && Tiles is { Count: > 0 }
-        && MillimetersPerPixel > 0;
+    private bool HasMap
+    {
+        get
+        {
+            return Source is null && Tiles is { Count: > 0 } && MillimetersPerPixel > 0;
+        }
+    }
 
     private Rect Fit(double width, double height)
     {
@@ -545,29 +643,28 @@ public sealed class ImageTeachingView : FrameworkElement
             fittedHeight);
     }
 
-    private static Rect WorldRect(
-        double x,
-        double y,
-        double width,
-        double height,
-        MapView layout) => new(
+    private static Rect WorldRect(double x, double y, double width, double height, MapView layout)
+    {
+        return new(
             layout.Screen.Left + ((x - layout.World.Left) * layout.Scale),
             layout.Screen.Top + ((y - layout.World.Top) * layout.Scale),
             width * layout.Scale,
             height * layout.Scale);
+    }
 
-    private static Point WorldPoint(
-        double x,
-        double y,
-        MapView layout) => new(
+    private static Point WorldPoint(double x, double y, MapView layout)
+    {
+        return new(
             layout.Screen.Left + ((x - layout.World.Left) * layout.Scale),
             layout.Screen.Top + ((y - layout.World.Top) * layout.Scale));
+    }
 
-    private static Point ScreenToWorld(Point point, MapView layout) => new(
-        layout.World.Left
-            + ((point.X - layout.Screen.Left) / layout.Scale),
-        layout.World.Top
-            + ((point.Y - layout.Screen.Top) / layout.Scale));
+    private static Point ScreenToWorld(Point point, MapView layout)
+    {
+        return new(
+            layout.World.Left + ((point.X - layout.Screen.Left) / layout.Scale),
+            layout.World.Top + ((point.Y - layout.Screen.Top) / layout.Scale));
+    }
 
     private static void DrawCameraFieldOfView(
         DrawingContext drawingContext,
@@ -580,13 +677,8 @@ public sealed class ImageTeachingView : FrameworkElement
             fieldOfView.Width,
             fieldOfView.Height,
             layout);
-        var center = new Point(
-            screen.Left + (screen.Width / 2),
-            screen.Top + (screen.Height / 2));
-        drawingContext.DrawRectangle(
-            CameraFill,
-            CameraPen,
-            screen);
+        var center = new Point(screen.Left + (screen.Width / 2), screen.Top + (screen.Height / 2));
+        drawingContext.DrawRectangle(CameraFill, CameraPen, screen);
         drawingContext.DrawLine(
             CameraPen,
             new Point(center.X - 10, center.Y),
@@ -597,30 +689,19 @@ public sealed class ImageTeachingView : FrameworkElement
             new Point(center.X, center.Y + 10));
     }
 
-    private static string PositionText(Point position, Point origin) =>
-        FormattableString.Invariant(
-            $"X {position.X - origin.X:F3}   Y {position.Y - origin.Y:F3}");
-
-    private static void DrawMarker(
-        DrawingContext drawingContext,
-        Point point,
-        ImageMarker marker)
+    private static string PositionText(Point position, Point origin)
     {
-        var brush = marker.Selected
-            ? SelectedMarkerStroke
-            : MarkerStroke;
-        var pen = marker.Selected
-            ? SelectedMarkerPen
-            : MarkerPen;
+        return FormattableString.Invariant(
+            $"X {position.X - origin.X:F3}   Y {position.Y - origin.Y:F3}");
+    }
+
+    private static void DrawMarker(DrawingContext drawingContext, Point point, ImageMarker marker)
+    {
+        var brush = marker.Selected ? SelectedMarkerStroke : MarkerStroke;
+        var pen = marker.Selected ? SelectedMarkerPen : MarkerPen;
         drawingContext.DrawEllipse(Brushes.Transparent, pen, point, 7, 7);
-        drawingContext.DrawLine(
-            pen,
-            new Point(point.X - 10, point.Y),
-            new Point(point.X + 10, point.Y));
-        drawingContext.DrawLine(
-            pen,
-            new Point(point.X, point.Y - 10),
-            new Point(point.X, point.Y + 10));
+        drawingContext.DrawLine(pen, new Point(point.X - 10, point.Y), new Point(point.X + 10, point.Y));
+        drawingContext.DrawLine(pen, new Point(point.X, point.Y - 10), new Point(point.X, point.Y + 10));
 
         var text = new FormattedText(
             marker.Label,
@@ -637,27 +718,29 @@ public sealed class ImageTeachingView : FrameworkElement
         string name,
         Type type,
         PropertyChangedCallback changed,
-        object? defaultValue = null) =>
-        DependencyProperty.Register(
+        object? defaultValue = null)
+    {
+        return DependencyProperty.Register(
             name,
             type,
             typeof(ImageTeachingView),
             new FrameworkPropertyMetadata(defaultValue, changed));
+    }
 
-    private static void OnMapChanged(
-        DependencyObject sender,
-        DependencyPropertyChangedEventArgs e) =>
+    private static void OnMapChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
+    {
         ((ImageTeachingView)sender).RebuildMap();
+    }
 
-    private static void OnMarkersChanged(
-        DependencyObject sender,
-        DependencyPropertyChangedEventArgs e) =>
+    private static void OnMarkersChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
+    {
         ((ImageTeachingView)sender).DrawMarkers();
+    }
 
-    private static void OnCameraChanged(
-        DependencyObject sender,
-        DependencyPropertyChangedEventArgs e) =>
+    private static void OnCameraChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
+    {
         ((ImageTeachingView)sender).DrawCamera();
+    }
 
     private static SolidColorBrush FrozenBrush(Color color)
     {
@@ -666,10 +749,7 @@ public sealed class ImageTeachingView : FrameworkElement
         return brush;
     }
 
-    private static Pen FrozenPen(
-        Brush brush,
-        double thickness,
-        DashStyle? dashStyle = null)
+    private static Pen FrozenPen(Brush brush, double thickness, DashStyle? dashStyle = null)
     {
         var pen = new Pen(brush, thickness)
         {

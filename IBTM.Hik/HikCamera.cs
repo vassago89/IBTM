@@ -9,11 +9,9 @@ using MvCameraControl;
 
 namespace IBTM.Hik;
 
-public sealed class HikCamera(InspectionCameraSettings settings)
-    : ICamera, IDisposable
+public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDisposable
 {
-    private static readonly MvGvspPixelType OutputPixelType =
-        MvGvspPixelType.PixelType_Gvsp_BGR8_Packed;
+    private static readonly MvGvspPixelType OutputPixelType = MvGvspPixelType.PixelType_Gvsp_BGR8_Packed;
 
     private readonly object _grabGate = new();
     private IDevice? _device;
@@ -31,7 +29,8 @@ public sealed class HikCamera(InspectionCameraSettings settings)
     {
         lock (_grabGate)
         {
-            if (_device?.IsConnected == true) return;
+            if (_device?.IsConnected == true)
+                return;
 
             Disconnect();
             if (!_sdkInitialized)
@@ -40,11 +39,13 @@ public sealed class HikCamera(InspectionCameraSettings settings)
                 _sdkInitialized = true;
             }
 
-            var deviceInfo = EnumerateDevices().SingleOrDefault(
-                device => string.Equals(device.SerialNumber, settings.DeviceId,
-                    StringComparison.OrdinalIgnoreCase))
-                ?? throw new InvalidOperationException(
-                    $"Hik camera '{settings.DeviceId}' was not found.");
+            var deviceInfo = EnumerateDevices()
+                .SingleOrDefault(
+                    device => string.Equals(
+                        device.SerialNumber,
+                        settings.DeviceId,
+                        StringComparison.OrdinalIgnoreCase)) ?? throw new InvalidOperationException(
+                            $"Hik camera '{settings.DeviceId}' was not found.");
 
             _device = DeviceFactory.CreateDevice(deviceInfo);
             try
@@ -70,18 +71,19 @@ public sealed class HikCamera(InspectionCameraSettings settings)
         {
             if (_liveView)
             {
-                throw new InvalidOperationException(
-                    "Stop Hik live view before single-frame capture.");
+                throw new InvalidOperationException("Stop Hik live view before single-frame capture.");
             }
 
-            var device = _device
-                ?? throw new InvalidOperationException("Hik camera is not initialized.");
+            var device = _device ?? throw new InvalidOperationException("Hik camera is not initialized.");
             var stream = _streamGrabber!;
             ApplyExposureAndGain(device, exposureMicroseconds, gain);
             StartGrabbing();
             try
             {
-                Check(stream.GetImageBuffer(checked((uint)settings.FrameTimeoutMilliseconds), out var frameOut),
+                Check(
+                    stream.GetImageBuffer(
+                        checked((uint)settings.FrameTimeoutMilliseconds),
+                        out var frameOut),
                     "Get single Hik frame");
                 try
                 {
@@ -108,8 +110,7 @@ public sealed class HikCamera(InspectionCameraSettings settings)
                 return;
             }
 
-            var device = _device
-                ?? throw new InvalidOperationException("Hik camera is not initialized.");
+            var device = _device ?? throw new InvalidOperationException("Hik camera is not initialized.");
             ApplyExposureAndGain(device, exposureMicroseconds, gain);
             var liveThread = new Thread(ReceiveLiveFrames) { IsBackground = true, Name = "Hik live view" };
             StartGrabbing();
@@ -156,7 +157,8 @@ public sealed class HikCamera(InspectionCameraSettings settings)
             while (_liveView)
             {
                 var result = stream.GetImageBuffer(1000, out var frameOut);
-                if (result == MvError.MV_E_NODATA) continue;
+                if (result == MvError.MV_E_NODATA)
+                    continue;
                 Check(result, "Get live Hik frame");
                 ImageFrame? image = null;
                 try
@@ -173,7 +175,8 @@ public sealed class HikCamera(InspectionCameraSettings settings)
                     Check(stream.FreeImageBuffer(frameOut), "Free live Hik frame");
                 }
 
-                if (image is not null && _liveView) FrameReady?.Invoke(image);
+                if (image is not null && _liveView)
+                    FrameReady?.Invoke(image);
             }
         }
         catch (Exception exception)
@@ -190,7 +193,8 @@ public sealed class HikCamera(InspectionCameraSettings settings)
 
     private void StopGrabbing()
     {
-        if (!_grabbing) return;
+        if (!_grabbing)
+            return;
         Check(_streamGrabber!.StopGrabbing(), "Stop Hik grabbing");
         _grabbing = false;
     }
@@ -216,8 +220,7 @@ public sealed class HikCamera(InspectionCameraSettings settings)
 
     private static List<IDeviceInfo> EnumerateDevices()
     {
-        var deviceTypes =
-            DeviceTLayerType.MvGigEDevice | DeviceTLayerType.MvUsbDevice;
+        var deviceTypes = DeviceTLayerType.MvGigEDevice | DeviceTLayerType.MvUsbDevice;
         Check(
             DeviceEnumerator.EnumDevices(deviceTypes, out List<IDeviceInfo> devices),
             "Enumerate Hik cameras");
@@ -229,13 +232,9 @@ public sealed class HikCamera(InspectionCameraSettings settings)
         ConfigureGigE(device);
 
         var parameters = device.Parameters;
-        Check(
-            parameters.SetEnumValueByString("AcquisitionMode", "Continuous"),
-            "Set AcquisitionMode");
+        Check(parameters.SetEnumValueByString("AcquisitionMode", "Continuous"), "Set AcquisitionMode");
         // MVS BasicDemo: select continuous acquisition once, while grabbing is stopped.
-        Check(
-            parameters.SetEnumValueByString("TriggerMode", "Off"),
-            "Set continuous acquisition");
+        Check(parameters.SetEnumValueByString("TriggerMode", "Off"), "Set continuous acquisition");
     }
 
     private static void ApplyExposureAndGain(IDevice device, double exposureMicroseconds, double gain)
@@ -243,14 +242,10 @@ public sealed class HikCamera(InspectionCameraSettings settings)
         var parameters = device.Parameters;
         Check(parameters.SetEnumValueByString("ExposureAuto", "Off"), "Disable ExposureAuto");
         Check(
-            parameters.SetFloatValue(
-                "ExposureTime",
-                checked((float)exposureMicroseconds)),
+            parameters.SetFloatValue("ExposureTime", checked((float)exposureMicroseconds)),
             "Set ExposureTime");
         Check(parameters.SetEnumValueByString("GainAuto", "Off"), "Disable GainAuto");
-        Check(
-            parameters.SetFloatValue("Gain", checked((float)gain)),
-            "Set Gain");
+        Check(parameters.SetFloatValue("Gain", checked((float)gain)), "Set Gain");
     }
 
     private static void ConfigureGigE(IDevice device)
@@ -267,22 +262,18 @@ public sealed class HikCamera(InspectionCameraSettings settings)
             Trace.TraceWarning("Hik GigE packet size setup failed. MVS error code: 0x{0:X8}", result);
     }
 
-    private static ImageFrame ConvertFrame(
-        IDevice device,
-        IFrameOut frameOut)
+    private static ImageFrame ConvertFrame(IDevice device, IFrameOut frameOut)
     {
         if (frameOut.LostPacket != 0)
         {
             throw new InvalidOperationException(
-                $"Hik frame {frameOut.FrameNum} lost "
-                + $"{frameOut.LostPacket} packet(s).");
+                $"Hik frame {frameOut.FrameNum} lost " + $"{frameOut.LostPacket} packet(s).");
         }
 
         var image = frameOut.Image;
         var width = checked((int)image.Width);
         var height = checked((int)image.Height);
-        var pixels = new byte[checked(
-            width * height * ImageFrame.ColorChannelCount)];
+        var pixels = new byte[checked(width * height * ImageFrame.ColorChannelCount)];
         Check(
             device.PixelTypeConverter.ConvertPixelType(
                 image,
@@ -297,11 +288,7 @@ public sealed class HikCamera(InspectionCameraSettings settings)
                 $"Hik BGR frame size is {convertedSize}; expected {pixels.Length}.");
         }
 
-        return new ImageFrame(
-            width,
-            height,
-            width * ImageFrame.ColorChannelCount,
-            pixels);
+        return new ImageFrame(width, height, width * ImageFrame.ColorChannelCount, pixels);
     }
 
     private void Disconnect()
@@ -347,8 +334,7 @@ public sealed class HikCamera(InspectionCameraSettings settings)
     {
         if (result != 0)
         {
-            throw new InvalidOperationException(
-                $"{operation} failed. MVS error code: 0x{result:X8}");
+            throw new InvalidOperationException($"{operation} failed. MVS error code: 0x{result:X8}");
         }
     }
 }

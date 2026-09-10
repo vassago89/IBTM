@@ -9,26 +9,42 @@ namespace IBTM.BoltFastening;
 
 public enum BoltRouteState
 {
-    [Description("Fastening gantry is not ready")] Unavailable,
-    [Description("Waiting for carrier")] WaitingForCarrier,
-    [Description("Raise the backup plate and lower the stopper")] WaitingForSeat,
-    [Description("Ready to move")] Ready,
-    [Description("Raising heads")] RaisingHeads,
-    [Description("Moving to Safe Z")] MovingToSafeZ,
-    [Description("Moving to bolt pickup")] MovingToPickup,
-    [Description("Lowering pickup head")] LoweringForPickup,
-    [Description("Moving to pickup Z")] MovingToPickupZ,
-    [Description("At pickup position · No vacuum")] AtPickup,
-    [Description("Moving to bolt")] MovingToBolt,
-    [Description("Lowering head at bolt point")] LoweringAtPoint,
-    [Description("At bolt point · No fastening")] AtPoint,
-    [Description("Point complete")] PointComplete,
+    [Description("Fastening gantry is not ready")]
+    Unavailable,
+    [Description("Waiting for carrier")]
+    WaitingForCarrier,
+    [Description("Raise the backup plate and lower the stopper")]
+    WaitingForSeat,
+    [Description("Ready to move")]
+    Ready,
+    [Description("Raising heads")]
+    RaisingHeads,
+    [Description("Moving to Safe Z")]
+    MovingToSafeZ,
+    [Description("Moving to bolt pickup")]
+    MovingToPickup,
+    [Description("Lowering pickup head")]
+    LoweringForPickup,
+    [Description("Moving to pickup Z")]
+    MovingToPickupZ,
+    [Description("At pickup position · No vacuum")]
+    AtPickup,
+    [Description("Moving to bolt")]
+    MovingToBolt,
+    [Description("Lowering head at bolt point")]
+    LoweringAtPoint,
+    [Description("At bolt point · No fastening")]
+    AtPoint,
+    [Description("Point complete")]
+    PointComplete,
 }
 
 public enum BoltRouteDirection
 {
-    [Description("Forward")] Forward,
-    [Description("Return")] Return,
+    [Description("Forward")]
+    Forward,
+    [Description("Return")]
+    Return,
 }
 
 // Axis and head-cylinder dry run. No vacuum, shooting, ADC command or production result.
@@ -52,9 +68,30 @@ public sealed class BoltRouteDryRun : AutoUnit
     }
 
     public override event Action? Changed;
-    public bool Ready => _work.CarrierSeated;
-    public BoltTarget? ActiveBolt => _current?.Bolt;
-    public FasteningPass? ActivePass => _current?.Pass;
+    public bool Ready
+    {
+        get
+        {
+            return _work.CarrierSeated;
+        }
+    }
+
+    public BoltTarget? ActiveBolt
+    {
+        get
+        {
+            return _current?.Bolt;
+        }
+    }
+
+    public FasteningPass? ActivePass
+    {
+        get
+        {
+            return _current?.Pass;
+        }
+    }
+
     public BoltRouteDirection Direction { get; private set; }
     public int CompletedPasses { get; private set; }
 
@@ -62,38 +99,54 @@ public sealed class BoltRouteDryRun : AutoUnit
     {
         get
         {
-            if (!_work.CarrierPresent) return BoltRouteState.WaitingForCarrier;
-            if (!Ready) return BoltRouteState.WaitingForSeat;
-            if (_current is not { } target) return BoltRouteState.Ready;
-
+            if (!_work.CarrierPresent)
+                return BoltRouteState.WaitingForCarrier;
+            if (!Ready)
+                return BoltRouteState.WaitingForSeat;
+            if (_current is not { } target)
+                return BoltRouteState.Ready;
             // The stage records travel intent, not a simulated bolt-present sensor.
             // Pickup and return both pass Safe Z, so feedback alone cannot distinguish them.
             if (_stage == Stage.Stroke)
             {
                 var down = target.Bolt.Head == FasteningHead.Pickup
-                    ? _gantry.PickupHeadPosition : _gantry.ShootingHeadPosition;
+                    ? _gantry.PickupHeadPosition
+                    : _gantry.ShootingHeadPosition;
                 if (down != BoltCylinderState.Down)
-                    return target.Location == Location.Pickup ? BoltRouteState.LoweringForPickup : BoltRouteState.LoweringAtPoint;
+                    return target.Location == Location.Pickup
+                        ? BoltRouteState.LoweringForPickup
+                        : BoltRouteState.LoweringAtPoint;
                 return target.Location == Location.Pickup
-                    ? _gantry.AtPickupPosition ? BoltRouteState.AtPickup : BoltRouteState.MovingToPickupZ
+                    ? _gantry.AtPickupPosition
+                        ? BoltRouteState.AtPickup
+                        : BoltRouteState.MovingToPickupZ
                     : BoltRouteState.AtPoint;
             }
 
             // Leave the pickup with Z first, then raise the cylinder before moving XY.
-            if (!_gantry.AtSafeZ) return BoltRouteState.MovingToSafeZ;
-            if (!_gantry.CanMoveHorizontal) return BoltRouteState.RaisingHeads;
-            if (_stage == Stage.Return) return BoltRouteState.PointComplete;
+            if (!_gantry.AtSafeZ)
+                return BoltRouteState.MovingToSafeZ;
+            if (!_gantry.CanMoveHorizontal)
+                return BoltRouteState.RaisingHeads;
+            if (_stage == Stage.Return)
+                return BoltRouteState.PointComplete;
             return target.Location == Location.Pickup
                 ? _gantry.AtPickupXY ? BoltRouteState.LoweringForPickup : BoltRouteState.MovingToPickup
-                : _gantry.IsAt(target.Bolt) ? BoltRouteState.LoweringAtPoint : BoltRouteState.MovingToBolt;
+                : _gantry.IsAt(target.Bolt)
+                    ? BoltRouteState.LoweringAtPoint
+                    : BoltRouteState.MovingToBolt;
         }
     }
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var bolts = _getPcb().GetBolts().Where(bolt => _work.HeatSinkPresent(bolt.HeatSink))
-            .OrderBy(bolt => bolt.HeatSink).ThenBy(bolt => bolt.Number).ToArray();
+        var bolts = _getPcb()
+            .GetBolts()
+            .Where(bolt => _work.HeatSinkPresent(bolt.HeatSink))
+            .OrderBy(bolt => bolt.HeatSink)
+            .ThenBy(bolt => bolt.Number)
+            .ToArray();
         if (bolts.Length == 0)
             throw new InvalidOperationException("Bolt route requires taught bolt points on a detected heat sink.");
         if (bolts.Any(bolt => !_gantry.HasPosition(bolt)))
@@ -101,18 +154,26 @@ public sealed class BoltRouteDryRun : AutoUnit
 
         var targets = bolts.Where(bolt => bolt.Head == FasteningHead.Shooting)
             .Select(bolt => new Target(bolt, FasteningPass.Pcb, Location.Bolt))
-            .Concat(bolts.Where(bolt => bolt.Head == FasteningHead.Pickup)
-                .SelectMany(bolt => new[]
-                {
-                    new Target(bolt, FasteningPass.IpmSeating, Location.Pickup),
-                    new Target(bolt, FasteningPass.IpmSeating, Location.Bolt),
-                }))
-            .Concat(bolts.Where(bolt => bolt.Head == FasteningHead.Pickup)
-                .Select(bolt => new Target(bolt, FasteningPass.IpmFinal, Location.Bolt))).ToArray();
+            .Concat(
+                bolts.Where(bolt => bolt.Head == FasteningHead.Pickup)
+                    .SelectMany(
+                        bolt =>
+                            new[] { new Target(bolt, FasteningPass.IpmSeating, Location.Pickup), new Target(
+                                bolt,
+                                FasteningPass.IpmSeating,
+                                Location.Bolt), }))
+            .Concat(
+                bolts.Where(bolt => bolt.Head == FasteningHead.Pickup)
+                    .Select(bolt => new Target(bolt, FasteningPass.IpmFinal, Location.Bolt)))
+            .ToArray();
         var previous = _current;
-        var next = targets.FirstOrDefault(target => previous is not null && target.Pass == previous.Pass
-            && target.Location == previous.Location
-            && target.Bolt.HeatSink == previous.Bolt.HeatSink && target.Bolt.Number == previous.Bolt.Number);
+        var next = targets.FirstOrDefault(
+            target =>
+                previous is not null
+                    && target.Pass == previous.Pass
+                    && target.Location == previous.Location
+                    && target.Bolt.HeatSink == previous.Bolt.HeatSink
+                    && target.Bolt.Number == previous.Bolt.Number);
         if (next is null)
         {
             Direction = BoltRouteDirection.Forward;
@@ -123,11 +184,17 @@ public sealed class BoltRouteDryRun : AutoUnit
             // Manual repositioning while stopped requires approaching the target again.
             _stage = Stage.Approach;
         }
+
         _targets = targets;
         _current = next ?? targets[0];
 
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        void CheckCarrier() { if (!Ready) operation.Cancel(); }
+        void CheckCarrier()
+        {
+            if (!Ready)
+                operation.Cancel();
+        }
+
         _work.Changed += CheckCarrier;
         try
         {
@@ -174,13 +241,17 @@ public sealed class BoltRouteDryRun : AutoUnit
             case BoltRouteState.PointComplete:
                 cancellationToken.ThrowIfCancellationRequested();
                 var index = Array.IndexOf(_targets, _current!);
-                if (Direction == BoltRouteDirection.Forward && index == _targets.Length - 1
-                    || Direction == BoltRouteDirection.Return && index == 0)
+                if (Direction == BoltRouteDirection.Forward
+                    && index == _targets.Length - 1
+                    || Direction == BoltRouteDirection.Return
+                    && index == 0)
                 {
                     CompletedPasses++;
                     Direction = Direction == BoltRouteDirection.Forward
-                        ? BoltRouteDirection.Return : BoltRouteDirection.Forward;
+                        ? BoltRouteDirection.Return
+                        : BoltRouteDirection.Forward;
                 }
+
                 if (_targets.Length > 1)
                     _current = _targets[index + (Direction == BoltRouteDirection.Forward ? 1 : -1)];
                 _stage = Stage.Approach;
@@ -192,8 +263,23 @@ public sealed class BoltRouteDryRun : AutoUnit
         }
     }
 
-    private void NotifyChanged() => Changed?.Invoke();
-    private enum Stage { Approach, Stroke, Return }
-    private enum Location { Bolt, Pickup }
+    private void NotifyChanged()
+    {
+        Changed?.Invoke();
+    }
+
+    private enum Stage
+    {
+        Approach,
+        Stroke,
+        Return
+    }
+
+    private enum Location
+    {
+        Bolt,
+        Pickup
+    }
+
     private sealed record Target(BoltTarget Bolt, FasteningPass Pass, Location Location);
 }

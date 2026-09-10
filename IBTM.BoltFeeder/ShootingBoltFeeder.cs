@@ -2,18 +2,25 @@ using IBTM.Device;
 
 namespace IBTM.BoltFeeder;
 
-public sealed class ShootingBoltFeeder(
-    IIoService io,
-    BoltFeederSettings settings) : BoltFeeder(
+public sealed class ShootingBoltFeeder(IIoService io, BoltFeederSettings settings) : BoltFeeder(
     io,
     InputIo.ShootingFeederBoltDetected)
 {
-    protected override int TimeoutMilliseconds =>
-        settings.ShootingTimeoutMilliseconds;
+    protected override int TimeoutMilliseconds
+    {
+        get
+        {
+            return settings.ShootingTimeoutMilliseconds;
+        }
+    }
 
-    public void Stop() =>
+    public void Stop()
+    {
         SetFeeding(false);
+    }
 
     protected override void SetFeeding(bool value)
-        => Io.SetOutput(OutputIo.ShootingFeederRunSignal, value);
+    {
+        Io.SetOutput(OutputIo.ShootingFeederRunSignal, value);
+    }
 }

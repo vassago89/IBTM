@@ -43,20 +43,35 @@ public sealed class MainConveyor : AutoUnit
         placementWork.Changed += NotifyChanged;
         boltFasteningWork.Changed += NotifyChanged;
         inspectionWork.Changed += NotifyChanged;
-        _placement.CarrierChanged += value =>
-            OnCarrierChanged(StationPosition.PcbPlacement, value);
-        _boltFastening.CarrierChanged += value =>
-            OnCarrierChanged(StationPosition.BoltFastening, value);
-        _inspection.CarrierChanged += value =>
-            OnCarrierChanged(StationPosition.Inspection, value);
+        _placement.CarrierChanged += value => OnCarrierChanged(StationPosition.PcbPlacement, value);
+        _boltFastening.CarrierChanged += value => OnCarrierChanged(StationPosition.BoltFastening, value);
+        _inspection.CarrierChanged += value => OnCarrierChanged(StationPosition.Inspection, value);
     }
 
     public override event Action? Changed;
-    public bool RunCommandOn => _io.GetOutput(OutputIo.MainConveyorRun);
-    public bool EntryCarrierDetected =>
-        _io.GetInput(InputIo.MainConveyorEntryCarrierDetected);
-    public bool ExitCarrierDetected =>
-        _io.GetInput(InputIo.MainConveyorExitCarrierDetected);
+    public bool RunCommandOn
+    {
+        get
+        {
+            return _io.GetOutput(OutputIo.MainConveyorRun);
+        }
+    }
+
+    public bool EntryCarrierDetected
+    {
+        get
+        {
+            return _io.GetInput(InputIo.MainConveyorEntryCarrierDetected);
+        }
+    }
+
+    public bool ExitCarrierDetected
+    {
+        get
+        {
+            return _io.GetInput(InputIo.MainConveyorExitCarrierDetected);
+        }
+    }
 
     public MainConveyorState State
     {
@@ -95,20 +110,17 @@ public sealed class MainConveyor : AutoUnit
                     return MainConveyorState.MovingPcbPlacementToBoltFastening;
             }
 
-            if (_inspectionWork.CarrierPresent
-                && !_inspectionWork.CarrierSeated)
+            if (_inspectionWork.CarrierPresent && !_inspectionWork.CarrierSeated)
             {
                 return MainConveyorState.SeatingInspectionCarrier;
             }
 
-            if (_boltFasteningWork.CarrierPresent
-                && !_boltFasteningWork.CarrierSeated)
+            if (_boltFasteningWork.CarrierPresent && !_boltFasteningWork.CarrierSeated)
             {
                 return MainConveyorState.SeatingBoltFasteningCarrier;
             }
 
-            if (_placementWork.CarrierPresent
-                && !_placementWork.CarrierSeated)
+            if (_placementWork.CarrierPresent && !_placementWork.CarrierSeated)
             {
                 return MainConveyorState.SeatingPcbPlacementCarrier;
             }
@@ -163,8 +175,10 @@ public sealed class MainConveyor : AutoUnit
         }
     }
 
-    public Task RunAsync(CancellationToken cancellationToken = default) =>
-        RunControlledAsync(token => RunLoopAsync(ExecuteAsync, token), cancellationToken);
+    public Task RunAsync(CancellationToken cancellationToken = default)
+    {
+        return RunControlledAsync(token => RunLoopAsync(ExecuteAsync, token), cancellationToken);
+    }
 
     internal Task RunDryRunAsync(Func<CancellationToken, Task> run, CancellationToken cancellationToken)
     {
@@ -213,11 +227,15 @@ public sealed class MainConveyor : AutoUnit
             case MainConveyorState.MovingBoltFasteningToInspection:
                 return MoveCarrierAsync(
                     ConveyorTransfer.BoltFasteningToInspection,
-                    _boltFastening, _inspection, cancellationToken);
+                    _boltFastening,
+                    _inspection,
+                    cancellationToken);
             case MainConveyorState.MovingPcbPlacementToBoltFastening:
                 return MoveCarrierAsync(
                     ConveyorTransfer.PcbPlacementToBoltFastening,
-                    _placement, _boltFastening, cancellationToken);
+                    _placement,
+                    _boltFastening,
+                    cancellationToken);
             case MainConveyorState.ReceivingFrontCarrier:
                 return ReceiveAtPlacementAsync(cancellationToken);
             default:
@@ -256,49 +274,73 @@ public sealed class MainConveyor : AutoUnit
         _io.SetOutput(OutputIo.MainConveyorAvailableToRear, false);
     }
 
-    private void StopMotor() =>
+    private void StopMotor()
+    {
         _io.SetOutput(OutputIo.MainConveyorRun, false);
+    }
 
-    private bool CanOfferToRear =>
-        ExitCarrierDetected
-            || InspectionDischargeActive
-            || !_routeInspectionToNg()
-            && _inspectionWork.CanTransfer;
+    private bool CanOfferToRear
+    {
+        get
+        {
+            return ExitCarrierDetected
+                || InspectionDischargeActive
+                || !_routeInspectionToNg()
+                && _inspectionWork.CanTransfer;
+        }
+    }
 
-    private bool CanDischargeInspection =>
-        CanOfferToRear
-        && _io.GetInput(InputIo.MainConveyorReadyFromRear);
+    private bool CanDischargeInspection
+    {
+        get
+        {
+            return CanOfferToRear && _io.GetInput(InputIo.MainConveyorReadyFromRear);
+        }
+    }
 
-    private bool CanMoveBoltFasteningToInspection =>
-        _boltFasteningWork.CanTransfer
-        && _inspectionWork.CanReceive;
+    private bool CanMoveBoltFasteningToInspection
+    {
+        get
+        {
+            return _boltFasteningWork.CanTransfer && _inspectionWork.CanReceive;
+        }
+    }
 
-    private bool CanMovePlacementToBoltFastening =>
-        _placementWork.CanTransfer
-        && _boltFasteningWork.CanReceive;
+    private bool CanMovePlacementToBoltFastening
+    {
+        get
+        {
+            return _placementWork.CanTransfer && _boltFasteningWork.CanReceive;
+        }
+    }
 
-    private bool CanReceiveAtPlacement =>
-        _placementWork.CanReceive
-        && (_io.GetInput(InputIo.MainConveyorAvailableFromFront2)
-            || EntryCarrierDetected);
+    private bool CanReceiveAtPlacement
+    {
+        get
+        {
+            return _placementWork.CanReceive
+                && (_io.GetInput(InputIo.MainConveyorAvailableFromFront2)
+                    || EntryCarrierDetected);
+        }
+    }
 
-    private bool InspectionDischargeActive =>
-        _transfer is ConveyorTransfer.DischargingInspectionToExit
-            or ConveyorTransfer.DischargingInspectionFromExit;
+    private bool InspectionDischargeActive
+    {
+        get
+        {
+            return _transfer is ConveyorTransfer.DischargingInspectionToExit
+                or ConveyorTransfer.DischargingInspectionFromExit;
+        }
+    }
 
     private void UpdateSmema()
     {
         var rearAvailable = CanOfferToRear;
-        _io.SetOutput(
-            OutputIo.MainConveyorReadyToFront2,
-            _placementWork.CanReceive && !rearAvailable);
-        _io.SetOutput(
-            OutputIo.MainConveyorAvailableToRear,
-            rearAvailable);
+        _io.SetOutput(OutputIo.MainConveyorReadyToFront2, _placementWork.CanReceive && !rearAvailable);
+        _io.SetOutput(OutputIo.MainConveyorAvailableToRear, rearAvailable);
     }
 
-    private async Task ReceiveAtPlacementAsync(
-        CancellationToken cancellationToken)
+    private async Task ReceiveAtPlacementAsync(CancellationToken cancellationToken)
     {
         if (_transfer is not ConveyorTransfer.ReceivingBeforeEntry
             and not ConveyorTransfer.ReceivingAfterEntry)
@@ -331,9 +373,7 @@ public sealed class MainConveyor : AutoUnit
                         _transfer = ConveyorTransfer.ReceivingAfterEntry;
                     }
 
-                    _io.SetOutput(
-                        OutputIo.MainConveyorReadyToFront2,
-                        false);
+                    _io.SetOutput(OutputIo.MainConveyorReadyToFront2, false);
                     await _placement.WaitForCarrierAsync(cancellationToken);
                 }
                 finally
@@ -380,8 +420,7 @@ public sealed class MainConveyor : AutoUnit
         _transfer = ConveyorTransfer.None;
     }
 
-    private async Task DischargeInspectionAsync(
-        CancellationToken cancellationToken)
+    private async Task DischargeInspectionAsync(CancellationToken cancellationToken)
     {
         if (!InspectionDischargeActive)
         {
@@ -394,7 +433,7 @@ public sealed class MainConveyor : AutoUnit
         _io.SetOutput(
             OutputIo.MainConveyorAvailableToRear,
             _transfer == ConveyorTransfer.DischargingInspectionToExit
-            || ExitCarrierDetected);
+                || ExitCarrierDetected);
         try
         {
             if (_inspectionWork.CarrierPresent)
@@ -408,15 +447,13 @@ public sealed class MainConveyor : AutoUnit
                 try
                 {
                     StartMotor(cancellationToken);
-                    if (_transfer
-                        == ConveyorTransfer.DischargingInspectionToExit)
+                    if (_transfer == ConveyorTransfer.DischargingInspectionToExit)
                     {
                         await _io.WaitForInputAsync(
                             InputIo.MainConveyorExitCarrierDetected,
                             true,
                             cancellationToken);
-                        _transfer =
-                            ConveyorTransfer.DischargingInspectionFromExit;
+                        _transfer = ConveyorTransfer.DischargingInspectionFromExit;
                     }
 
                     await _io.WaitForInputAsync(
@@ -439,9 +476,13 @@ public sealed class MainConveyor : AutoUnit
         _transfer = ConveyorTransfer.None;
     }
 
-    internal async Task RunUntilAsync(InputIo destination, bool reverse, CancellationToken cancellationToken)
+    internal async Task RunUntilAsync(
+        InputIo destination,
+        bool reverse,
+        CancellationToken cancellationToken)
     {
-        if (_io.GetInput(destination)) return;
+        if (_io.GetInput(destination))
+            return;
         try
         {
             StartMotor(cancellationToken, reverse);
@@ -487,9 +528,7 @@ public sealed class MainConveyor : AutoUnit
         }
     }
 
-    private void OnCarrierChanged(
-        StationPosition station,
-        bool value)
+    private void OnCarrierChanged(StationPosition station, bool value)
     {
         if (!value)
         {
@@ -497,31 +536,27 @@ public sealed class MainConveyor : AutoUnit
         }
 
         if (station == StationPosition.PcbPlacement
-            && (_transfer is ConveyorTransfer.ReceivingBeforeEntry
-                or ConveyorTransfer.ReceivingAfterEntry))
+            && (_transfer is ConveyorTransfer.ReceivingBeforeEntry or ConveyorTransfer.ReceivingAfterEntry))
         {
             _transfer = ConveyorTransfer.None;
         }
 
         switch (station)
         {
-            case StationPosition.BoltFastening
-                when _transfer
-                    == ConveyorTransfer.PcbPlacementToBoltFastening:
-                _placementWork.TransferAssembliesTo(
-                    _boltFasteningWork);
+            case StationPosition.BoltFastening when _transfer == ConveyorTransfer.PcbPlacementToBoltFastening:
+                _placementWork.TransferAssembliesTo(_boltFasteningWork);
                 break;
 
-            case StationPosition.Inspection
-                when _transfer
-                    == ConveyorTransfer.BoltFasteningToInspection:
-                _boltFasteningWork.TransferAssembliesTo(
-                    _inspectionWork);
+            case StationPosition.Inspection when _transfer == ConveyorTransfer.BoltFasteningToInspection:
+                _boltFasteningWork.TransferAssembliesTo(_inspectionWork);
                 break;
         }
     }
 
-    private void NotifyChanged() => Changed?.Invoke();
+    private void NotifyChanged()
+    {
+        Changed?.Invoke();
+    }
 
     private enum StationPosition
     {

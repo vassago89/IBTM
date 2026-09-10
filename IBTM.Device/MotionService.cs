@@ -9,9 +9,12 @@ namespace IBTM.Device;
 
 public enum MotionCommand
 {
-    [Description("Idle")] None,
-    [Description("Positioning")] Positioning,
-    [Description("Manual Adjustment")] Adjustment,
+    [Description("Idle")]
+    None,
+    [Description("Positioning")]
+    Positioning,
+    [Description("Manual Adjustment")]
+    Adjustment,
 }
 
 public interface IMotionFeedback
@@ -21,12 +24,19 @@ public interface IMotionFeedback
     event Action? StateChanged;
 
     IReadOnlyList<MotionAxis> Axes { get; }
+
     bool IsReady { get; }
+
     bool HasY { get; }
+
     bool HasZ { get; }
+
     bool IsMoving { get; }
+
     bool IsMovingHorizontal { get; }
+
     MotionCommand Command { get; }
+
     bool IsAtHorizontalZ { get; }
 
     (double X, double Y, double Z) GetPosition();
@@ -37,35 +47,21 @@ public interface IMotionFeedback
 public interface IAxisMotion : IMotionFeedback
 {
     void Initialize();
-    Task MoveXAsync(
-        double x,
-        double velocity,
-        CancellationToken cancellationToken = default);
-    Task MoveYAsync(
-        double y,
-        double velocity,
-        CancellationToken cancellationToken = default);
-    Task MoveZAsync(
-        double z,
-        double velocity,
-        CancellationToken cancellationToken = default);
+    Task MoveXAsync(double x, double velocity, CancellationToken cancellationToken = default);
+    Task MoveYAsync(double y, double velocity, CancellationToken cancellationToken = default);
+    Task MoveZAsync(double z, double velocity, CancellationToken cancellationToken = default);
     Task MoveXAtClearZAsync(
         double x,
         double clearZ,
         double velocity,
         CancellationToken cancellationToken = default);
     Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default);
-    Task MoveZToPositiveLimitAsync(
-        double velocity,
-        CancellationToken cancellationToken = default);
+    Task MoveZToPositiveLimitAsync(double velocity, CancellationToken cancellationToken = default);
     Task<bool> HomeFromZPositiveLimitAsync(
         MotionAxis axis,
         double velocity,
         CancellationToken cancellationToken = default);
-    Task<bool> HomeAsync(
-        MotionAxis axis,
-        double velocity,
-        CancellationToken cancellationToken = default);
+    Task<bool> HomeAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default);
     Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default);
     void Reset();
     void SetServo(MotionAxis axis, bool on);
@@ -78,19 +74,13 @@ public interface IXyMotion : IAxisMotion
         double position,
         double velocity,
         CancellationToken cancellationToken = default);
-    Task MoveToAsync(
-        double x,
-        double y,
-        double z,
-        CancellationToken cancellationToken = default);
+    Task MoveToAsync(double x, double y, double z, CancellationToken cancellationToken = default);
     Task MoveToXYAsync(
         double x,
         double y,
         double velocity,
         CancellationToken cancellationToken = default);
-    Task<bool> HomeHorizontalAsync(
-        double velocity,
-        CancellationToken cancellationToken = default);
+    Task<bool> HomeHorizontalAsync(double velocity, CancellationToken cancellationToken = default);
 }
 
 public abstract class MotionService(
@@ -113,8 +103,8 @@ public abstract class MotionService(
         (false, true) => [MotionAxis.X, MotionAxis.Z],
         _ => [MotionAxis.X],
     };
-    protected OperationCancellation Operations { get; } =
-        operationCancellation;
+    protected OperationCancellation Operations { get; } = operationCancellation;
+
     private int _activeMotions;
     private int _activeHorizontalMotions;
     private MotionCommand _command = MotionCommand.Positioning;
@@ -123,21 +113,73 @@ public abstract class MotionService(
     public event Action<bool>? MovingChanged;
     public event Action? StateChanged;
 
-    public IReadOnlyList<MotionAxis> Axes => _axes;
+    public IReadOnlyList<MotionAxis> Axes
+    {
+        get
+        {
+            return _axes;
+        }
+    }
+
     public abstract bool IsReady { get; }
-    public bool HasY => hasY;
-    public bool HasZ => hasZ;
-    public bool IsMoving => Volatile.Read(ref _activeMotions) > 0;
-    public bool IsMovingHorizontal => Volatile.Read(ref _activeHorizontalMotions) > 0;
-    public MotionCommand Command => IsMoving ? _command : MotionCommand.None;
 
-    private double HorizontalZ => horizontalZ!();
+    public bool HasY
+    {
+        get
+        {
+            return hasY;
+        }
+    }
 
-    public bool IsAtHorizontalZ =>
-        !hasZ
-        || GetAxisState(MotionAxis.Z).Homed
-        && Math.Abs(GetPosition().Z - HorizontalZ)
-            <= PositionToleranceMillimeters;
+    public bool HasZ
+    {
+        get
+        {
+            return hasZ;
+        }
+    }
+
+    public bool IsMoving
+    {
+        get
+        {
+            return Volatile.Read(ref _activeMotions) > 0;
+        }
+    }
+
+    public bool IsMovingHorizontal
+    {
+        get
+        {
+            return Volatile.Read(ref _activeHorizontalMotions) > 0;
+        }
+    }
+
+    public MotionCommand Command
+    {
+        get
+        {
+            return IsMoving ? _command : MotionCommand.None;
+        }
+    }
+
+    private double HorizontalZ
+    {
+        get
+        {
+            return horizontalZ!();
+        }
+    }
+
+    public bool IsAtHorizontalZ
+    {
+        get
+        {
+            return !hasZ
+                || GetAxisState(MotionAxis.Z).Homed
+                && Math.Abs(GetPosition().Z - HorizontalZ) <= PositionToleranceMillimeters;
+        }
+    }
 
     public abstract void Initialize();
 
@@ -149,8 +191,10 @@ public abstract class MotionService(
     {
         using var operation = Operations.Link(cancellationToken);
         EnsureStopped();
-        if (axis == MotionAxis.Y) EnsureHasY();
-        if (axis == MotionAxis.Z) EnsureHasZ();
+        if (axis == MotionAxis.Y)
+            EnsureHasY();
+        if (axis == MotionAxis.Z)
+            EnsureHasZ();
         ValidateTarget(axis, position);
         _command = MotionCommand.Adjustment;
         try
@@ -159,7 +203,8 @@ public abstract class MotionService(
         }
         finally
         {
-            if (!IsMoving) _command = MotionCommand.Positioning;
+            if (!IsMoving)
+                _command = MotionCommand.Positioning;
         }
     }
 
@@ -177,11 +222,7 @@ public abstract class MotionService(
         ValidateTarget(MotionAxis.Y, y);
         ValidateTarget(MotionAxis.Z, z);
         await MoveToHorizontalZAsync(cancellationToken);
-        await MoveXYCoreAsync(
-            x,
-            y,
-            Settings.HorizontalSpeed,
-            cancellationToken);
+        await MoveXYCoreAsync(x, y, Settings.HorizontalSpeed, cancellationToken);
         await MoveAxisCoreAsync(MotionAxis.Z, z, Settings.ZSpeed, cancellationToken);
     }
 
@@ -239,11 +280,9 @@ public abstract class MotionService(
         ValidateTarget(MotionAxis.Z, clearZ);
         EnsureStopped();
         if (!GetAxisState(MotionAxis.Z).Homed
-            || Math.Abs(GetPosition().Z - clearZ)
-                > PositionToleranceMillimeters)
+            || Math.Abs(GetPosition().Z - clearZ) > PositionToleranceMillimeters)
         {
-            throw new InvalidOperationException(
-                $"X movement requires Z at Clear Z ({clearZ:F3}).");
+            throw new InvalidOperationException($"X movement requires Z at Clear Z ({clearZ:F3}).");
         }
 
         await MoveAxisCoreAsync(MotionAxis.X, x, velocity, cancellationToken);
@@ -268,6 +307,7 @@ public abstract class MotionService(
         {
             EnsureStopped();
         }
+
         await MoveXYCoreAsync(x, y, velocity, cancellationToken);
     }
 
@@ -284,8 +324,7 @@ public abstract class MotionService(
         await MoveAxisCoreAsync(MotionAxis.Z, z, velocity, cancellationToken);
     }
 
-    public async Task MoveToHorizontalZAsync(
-        CancellationToken cancellationToken = default)
+    public async Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default)
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
@@ -294,17 +333,12 @@ public abstract class MotionService(
         EnsureStopped();
         if (!GetAxisState(MotionAxis.Z).Homed)
         {
-            throw new InvalidOperationException(
-                "Z axis must be homed before moving to its reference.");
+            throw new InvalidOperationException("Z axis must be homed before moving to its reference.");
         }
 
         if (!IsAtHorizontalZ)
         {
-            await MoveAxisCoreAsync(
-                MotionAxis.Z,
-                HorizontalZ,
-                Settings.ZSpeed,
-                cancellationToken);
+            await MoveAxisCoreAsync(MotionAxis.Z, HorizontalZ, Settings.ZSpeed, cancellationToken);
         }
     }
 
@@ -316,9 +350,7 @@ public abstract class MotionService(
         cancellationToken = operation.Token;
         EnsureHasZ();
         EnsureStopped();
-        await MoveZToPositiveLimitCoreAsync(
-            Math.Abs(velocity),
-            cancellationToken);
+        await MoveZToPositiveLimitCoreAsync(Math.Abs(velocity), cancellationToken);
     }
 
     public async Task<bool> HomeFromZPositiveLimitAsync(
@@ -331,23 +363,17 @@ public abstract class MotionService(
         EnsureHasZ();
         EnsureStopped();
 
-        if (axis is not MotionAxis.X and not MotionAxis.Y
-            || axis == MotionAxis.Y && !hasY)
+        if (axis is not MotionAxis.X and not MotionAxis.Y || axis == MotionAxis.Y && !hasY)
         {
-            throw new InvalidOperationException(
-                $"This motion group has no horizontal {axis} axis.");
+            throw new InvalidOperationException($"This motion group has no horizontal {axis} axis.");
         }
 
         if (!GetAxisState(MotionAxis.Z).PositiveLimit)
         {
-            throw new InvalidOperationException(
-                "Z axis must be at its positive limit before horizontal homing.");
+            throw new InvalidOperationException("Z axis must be at its positive limit before horizontal homing.");
         }
 
-        return await HomeCoreAsync(
-            axis,
-            Math.Abs(velocity),
-            cancellationToken);
+        return await HomeCoreAsync(axis, Math.Abs(velocity), cancellationToken);
     }
 
     public async Task JogAsync(
@@ -358,10 +384,13 @@ public abstract class MotionService(
         if (axis is not (MotionAxis.X or MotionAxis.Y or MotionAxis.Z))
             throw new ArgumentOutOfRangeException(nameof(axis));
         using var operation = Operations.Link(cancellationToken);
-        if (axis == MotionAxis.Y) EnsureHasY();
-        if (axis == MotionAxis.Z) EnsureHasZ();
+        if (axis == MotionAxis.Y)
+            EnsureHasY();
+        if (axis == MotionAxis.Z)
+            EnsureHasZ();
         EnsureStopped();
-        if (axis != MotionAxis.Z) EnsureHorizontalZ();
+        if (axis != MotionAxis.Z)
+            EnsureHorizontalZ();
         await JogCoreAsync(axis, velocity, operation.Token);
     }
 
@@ -378,8 +407,7 @@ public abstract class MotionService(
         cancellationToken = operation.Token;
         if (!_axes.Contains(axis))
         {
-            throw new InvalidOperationException(
-                $"This motion group has no {axis} axis.");
+            throw new InvalidOperationException($"This motion group has no {axis} axis.");
         }
 
         EnsureStopped();
@@ -387,10 +415,7 @@ public abstract class MotionService(
         {
             if (!GetAxisState(MotionAxis.Z).Homed)
             {
-                if (!await HomeCoreAsync(
-                    MotionAxis.Z,
-                    Settings.ZSpeed,
-                    cancellationToken))
+                if (!await HomeCoreAsync(MotionAxis.Z, Settings.ZSpeed, cancellationToken))
                 {
                     return false;
                 }
@@ -454,15 +479,20 @@ public abstract class MotionService(
         double velocity,
         CancellationToken cancellationToken);
 
-    protected void PublishPositionChanged(double x, double y, double z) =>
+    protected void PublishPositionChanged(double x, double y, double z)
+    {
         PositionChanged?.Invoke(x, y, z);
+    }
 
-    protected void PublishStateChanged() => StateChanged?.Invoke();
-
+    protected void PublishStateChanged()
+    {
+        StateChanged?.Invoke();
+    }
 
     protected void BeginMotion(bool horizontal)
     {
-        if (horizontal) Interlocked.Increment(ref _activeHorizontalMotions);
+        if (horizontal)
+            Interlocked.Increment(ref _activeHorizontalMotions);
         if (Interlocked.Increment(ref _activeMotions) == 1)
         {
             MovingChanged?.Invoke(true);
@@ -472,7 +502,8 @@ public abstract class MotionService(
 
     protected void EndMotion(bool horizontal)
     {
-        if (horizontal) Interlocked.Decrement(ref _activeHorizontalMotions);
+        if (horizontal)
+            Interlocked.Decrement(ref _activeHorizontalMotions);
         if (Interlocked.Decrement(ref _activeMotions) == 0)
         {
             _command = MotionCommand.Positioning;
@@ -484,9 +515,7 @@ public abstract class MotionService(
     protected double ClampToRange(MotionAxis axis, double position)
     {
         var range = GetRange(axis);
-        return range is null
-            ? position
-            : Math.Clamp(position, range.Value.Minimum, range.Value.Maximum);
+        return range is null ? position : Math.Clamp(position, range.Value.Minimum, range.Value.Maximum);
     }
 
     private void EnsureHorizontalZ()
@@ -518,8 +547,7 @@ public abstract class MotionService(
     {
         if (IsMoving || _axes.Any(axis => !GetAxisState(axis).InPosition))
         {
-            throw new InvalidOperationException(
-                "A motion command is already running.");
+            throw new InvalidOperationException("A motion command is already running.");
         }
     }
 
@@ -527,23 +555,23 @@ public abstract class MotionService(
     {
         var range = GetRange(axis);
         if (range is not null
-            && (position < range.Value.Minimum
-                || position > range.Value.Maximum))
+            && (position < range.Value.Minimum || position > range.Value.Maximum))
         {
             throw new ArgumentOutOfRangeException(
                 axis.ToString(),
                 position,
-                $"{axis} target must be between "
-                + $"{range.Value.Minimum:F2} and {range.Value.Maximum:F2} mm.");
+                $"{axis} target must be between " + $"{range.Value.Minimum:F2} and {range.Value.Maximum:F2} mm.");
         }
     }
 
-    public (double Minimum, double Maximum)? GetRange(MotionAxis axis) =>
-        axis switch
+    public (double Minimum, double Maximum)? GetRange(MotionAxis axis)
+    {
+        return axis switch
         {
             MotionAxis.X => xRange,
             MotionAxis.Y => yRange,
             MotionAxis.Z => zRange,
             _ => throw new ArgumentOutOfRangeException(nameof(axis)),
         };
+    }
 }

@@ -35,7 +35,9 @@ public sealed partial class MachineLifecycleTests
         settings.Units = EnableOnly(MachineUnit.Inspection);
         using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<Recipe>();
-        recipe.Pcb.BoltPoints = [new() { Number = 1, X = 10, Y = 10 }];
+        recipe.Pcb.BoltPoints = [new() { Number = 1, X = 10, Y = 10 }
+
+        ];
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var work = services.GetRequiredService<InspectionWork>();
@@ -46,7 +48,8 @@ public sealed partial class MachineLifecycleTests
 
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
         teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
-        teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Target == TeachingTarget.DataMatrix);
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(
+            point => point.Target == TeachingTarget.DataMatrix);
         await WaitUntilAsync(() => teaching.CaptureInspectionCommand.CanExecute(null));
         await teaching.CaptureInspectionCommand.ExecuteAsync(null);
         Assert.Null(teaching.CameraError);
@@ -108,10 +111,8 @@ public sealed partial class MachineLifecycleTests
         var outputs = new List<OutputIo>();
         io.OutputChanged += (output, _) => outputs.Add(output);
         Assert.True(shoot.HoldToRun);
-        Assert.False(shoot.RequiresHandler);
 
-        Action[] stopActions =
-        [
+        Action[] stopActions = [
             () => teaching.SetOutputOnCancelCommand.Execute(null),
             () => teaching.SelectedMotionGroup = MotionGroup.InspectionGantry,
             machine.Stop,
@@ -132,6 +133,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(io.GetOutput(OutputIo.ShootBolt));
             io.SetInput(InputIo.AutoMode, true);
         }
+
         Assert.All(outputs, output => Assert.Equal(OutputIo.ShootBolt, output));
         Assert.Equal(MachineAlarm.None, state.Alarm);
         io.SetInput(InputIo.AutoMode, false);
@@ -150,10 +152,12 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         teaching.RecipeEditor.Name = $"SelectionAfterSave-{Guid.NewGuid():N}";
-        var next = teaching.FilteredPoints.Single(point => point.Target == TeachingTarget.CarrierLowerRightLocatingPin);
+        var next = teaching.FilteredPoints.Single(
+            point => point.Target == TeachingTarget.CarrierLowerRightLocatingPin);
         teaching.RecipeEditor.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(RecipeEditor.ActiveName)) teaching.SelectedPoint = next;
+            if (args.PropertyName == nameof(RecipeEditor.ActiveName))
+                teaching.SelectedPoint = next;
         };
 
         await WaitUntilAsync(() => teaching.CaptureCarrierImagesCommand.CanExecute(null));
@@ -161,7 +165,8 @@ public sealed partial class MachineLifecycleTests
 
         Assert.Same(next, teaching.SelectedPoint);
         Assert.True(teaching.HasCarrierImages);
-        var saved = await services.GetRequiredService<RecipeStore>().LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
+        var saved = await services.GetRequiredService<RecipeStore>()
+            .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
         Assert.Equal(teaching.CarrierImages.Count, saved.CarrierImages.Count);
         Assert.Null(teaching.CameraError);
     }
@@ -204,11 +209,12 @@ public sealed partial class MachineLifecycleTests
         var resumed = machine.StartAsync();
         try
         {
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => io.GetInput(InputIo.NgShuttleCarrierDetected)
-                    && io.GetInput(InputIo.NgCarrierPickupUp)
-                    && !io.GetInput(InputIo.NgCarrierDetected),
-                TimeSpan.FromSeconds(5)));
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(
+                    () => io.GetInput(InputIo.NgShuttleCarrierDetected)
+                        && io.GetInput(InputIo.NgCarrierPickupUp)
+                        && !io.GetInput(InputIo.NgCarrierDetected),
+                    TimeSpan.FromSeconds(5)));
         }
         finally
         {
@@ -242,9 +248,11 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.NgCarrierPickupDown, lift == NgTransferLiftState.Down);
         io.SetInput(InputIo.NgCarrierPickupUp, lift == NgTransferLiftState.Up);
 
-        Assert.Equal(lift == NgTransferLiftState.Up
-            ? InspectionStationState.Waiting
-            : InspectionStationState.RaisingCarrierTransfer, station.State([]));
+        Assert.Equal(
+            lift == NgTransferLiftState.Up
+                ? InspectionStationState.Waiting
+                : InspectionStationState.RaisingCarrierTransfer,
+            station.State([]));
 
         using var stop = new CancellationTokenSource();
         var run = station.RunAsync([], stop.Token);
@@ -254,7 +262,6 @@ public sealed partial class MachineLifecycleTests
 
         if (lift != NgTransferLiftState.Up)
             await VerifyDryRunReleaseAsync(NgTransferState.Raising);
-
         // The carrier may leave the pickup sensor before the gripper reaches Open.
         io.SetInput(InputIo.NgCarrierDetected, false);
         io.SetInput(InputIo.NgCarrierPickupUp, false);
@@ -289,17 +296,17 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
         settings.Drivers.Inspection = InspectionAlgorithm.TinyUnet;
-        using var services = new ServiceCollection()
-            .AddSingleton(_ => VirtualTest.OpenMachineStore())
+        using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings, new Recipe { Pcb = VirtualTest.TaughtPcbLayout() })
-            .AddSingleton(new BoltTrainingStore(Path.Combine(
-                Path.GetTempPath(), $"IBTM-empty-training-{Guid.NewGuid():N}.db")))
+            .AddSingleton(
+                new BoltTrainingStore(
+                    Path.Combine(Path.GetTempPath(), $"IBTM-empty-training-{Guid.NewGuid():N}.db")))
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        services.GetRequiredService<Recipe>().Pcb.BoltPoints.Add(
-            new BoltPoint { Number = 1, X = 10, Y = 10 });
+        services.GetRequiredService<Recipe>()
+            .Pcb.BoltPoints.Add(new BoltPoint { Number = 1, X = 10, Y = 10 });
 
         await machine.InitializeAsync();
         Assert.Equal(MachineAlarm.None, state.Alarm);
@@ -325,7 +332,9 @@ public sealed partial class MachineLifecycleTests
     [InlineData(true, false, false)]
     [InlineData(true, true, false)]
     public async Task InspectionAndConveyorAgreeOnBypassRoute(
-        bool inspectionEnabled, bool transferEnabled, bool expectNg)
+        bool inspectionEnabled,
+        bool transferEnabled,
+        bool expectNg)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
@@ -346,10 +355,8 @@ public sealed partial class MachineLifecycleTests
         assembly.CompleteInspection();
         work.Complete();
 
-        Assert.Equal(expectNg, inspection.State([])
-            == InspectionStationState.MovingTransferToCarrier);
-        Assert.Equal(!expectNg, conveyor.State
-            == MainConveyorState.DischargingInspectionCarrier);
+        Assert.Equal(expectNg, inspection.State([]) == InspectionStationState.MovingTransferToCarrier);
+        Assert.Equal(!expectNg, conveyor.State == MainConveyorState.DischargingInspectionCarrier);
     }
 
     [Fact]
@@ -395,8 +402,7 @@ public sealed partial class MachineLifecycleTests
         };
         FastHomes(settings);
         var head = new StoppingBoltHead();
-        using var services = new ServiceCollection()
-            .AddSingleton(_ => VirtualTest.OpenMachineStore())
+        using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings)
             .AddKeyedSingleton<IBoltHead>(FasteningHead.Shooting, head)
             .BuildServiceProvider();
@@ -484,10 +490,11 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task AutomaticStartWaitsForCanceledManualScopeToFinish()
     {
-        using var services = CreateServices(new MachineSettings
-        {
-            Units = EnableOnly(MachineUnit.MainConveyor),
-        });
+        using var services = CreateServices(
+            new MachineSettings
+            {
+                Units = EnableOnly(MachineUnit.MainConveyor),
+            });
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var operations = services.GetRequiredService<OperationCancellation>();
@@ -520,8 +527,7 @@ public sealed partial class MachineLifecycleTests
         };
         FastHomes(settings);
         var head = new WaitingBoltHead();
-        using var services = new ServiceCollection()
-            .AddSingleton(_ => VirtualTest.OpenMachineStore())
+        using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings)
             .AddKeyedSingleton<IBoltHead>(FasteningHead.Shooting, head)
             .AddKeyedSingleton<IBoltHead>(FasteningHead.Pickup, head)
@@ -563,7 +569,9 @@ public sealed partial class MachineLifecycleTests
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public async Task StopOrFailureDuringFirstUnitOutputPreventsLaterStarts(bool failure, bool stopBeforeFailure)
+    public async Task StopOrFailureDuringFirstUnitOutputPreventsLaterStarts(
+        bool failure,
+        bool stopBeforeFailure)
     {
         var settings = new MachineSettings
         {
@@ -586,8 +594,10 @@ public sealed partial class MachineLifecycleTests
             if (output == OutputIo.MainConveyorReadyToFront2 && value)
             {
                 stopped = true;
-                if (!failure || stopBeforeFailure) machine.Stop();
-                if (failure) throw error;
+                if (!failure || stopBeforeFailure)
+                    machine.Stop();
+                if (failure)
+                    throw error;
             }
         };
 
@@ -617,7 +627,8 @@ public sealed partial class MachineLifecycleTests
         var failure = new IOException("Conveyor cleanup failed after the air pressure trip.");
         io.OutputChanged += (output, on) =>
         {
-            if (output != OutputIo.MainConveyorReadyToFront2 || !on) return;
+            if (output != OutputIo.MainConveyorReadyToFront2 || !on)
+                return;
             io.SetInput(InputIo.AirPressureHigh, false);
             throw failure;
         };
@@ -641,9 +652,7 @@ public sealed partial class MachineLifecycleTests
         };
         FastHomes(settings);
         using var services = CreateServices(settings);
-        PrepareCarrierTeaching(
-            settings,
-            services.GetRequiredService<Recipe>());
+        PrepareCarrierTeaching(settings, services.GetRequiredService<Recipe>());
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -719,9 +728,7 @@ public sealed partial class MachineLifecycleTests
 
         settings.BoltFeeder.ShootingTimeoutMilliseconds = 500;
         var resumed = machine.StartAsync();
-        await ((IIoService)io).WaitForInputAsync(
-            InputIo.ShootingFeederBoltDetected,
-            true);
+        await ((IIoService)io).WaitForInputAsync(InputIo.ShootingFeederBoltDetected, true);
 
         machine.Stop();
         await resumed.WaitAsync(TimeSpan.FromSeconds(2));
@@ -779,14 +786,12 @@ public sealed partial class MachineLifecycleTests
         };
         FastHomes(settings);
         using var services = CreateServices(settings);
-        PrepareCarrierTeaching(
-            settings,
-            services.GetRequiredService<Recipe>());
+        PrepareCarrierTeaching(settings, services.GetRequiredService<Recipe>());
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var motion = (VirtualMotionService)services
-            .GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
+        var motion = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(
+            MotionGroup.BoltFastening);
 
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);

@@ -13,24 +13,37 @@ public partial class SettingsViewModel
 {
     private readonly ILightController _light;
     private readonly ApplicationLog _log;
-    [ObservableProperty] private int _lightTestChannel;
-    [ObservableProperty] private int _lightTestLevel = 80;
-    [ObservableProperty] private bool _lightTestOn;
+    [ObservableProperty]
+    private int _lightTestChannel;
+    [ObservableProperty]
+    private int _lightTestLevel = 80;
+    [ObservableProperty]
+    private bool _lightTestOn;
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(TestLightCommand), nameof(OffTestLightCommand))]
     private int? _pendingLightOffChannel;
-    [ObservableProperty] private string _lightTestMessage = "Test only: does not change recipe brightness.";
+    [ObservableProperty]
+    private string _lightTestMessage = "Test only: does not change recipe brightness.";
     public string ActiveLightConnection { get; }
 
-    private bool CanTestLight() => CanEditSettings && PendingLightOffChannel is null
-        && !OffTestLightCommand.IsRunning;
+    private bool CanTestLight()
+    {
+        return CanEditSettings
+            && PendingLightOffChannel is null
+            && !OffTestLightCommand.IsRunning;
+    }
 
-    private bool CanOffTestLight() => TestLightCommand.IsRunning
-        || PendingLightOffChannel is not null && !_operations.IsShuttingDown && !_state.IsRunning;
+    private bool CanOffTestLight()
+    {
+        return TestLightCommand.IsRunning
+            || PendingLightOffChannel is not null
+            && !_operations.IsShuttingDown;
+    }
 
     private void OnLightCommandChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName != nameof(IAsyncRelayCommand.IsRunning)) return;
+        if (e.PropertyName != nameof(IAsyncRelayCommand.IsRunning))
+            return;
         TestLightCommand.NotifyCanExecuteChanged();
         OffTestLightCommand.NotifyCanExecuteChanged();
     }
@@ -41,18 +54,26 @@ public partial class SettingsViewModel
         if (TestLightCommand.IsRunning)
         {
             TestLightCommand.Cancel();
-            if (TestLightCommand.ExecutionTask is { } test) await test;
+            if (TestLightCommand.ExecutionTask is { } test)
+                await test;
             return;
         }
-        if (!CanOffTestLight() || PendingLightOffChannel is not { } channel) return;
+
+        if (!CanOffTestLight() || PendingLightOffChannel is not { } channel)
+            return;
         try
         {
             using var operation = _operations.Link();
             var failure = await TurnTestLightOffAsync(channel);
             LightTestMessage = failure?.Message ?? $"OFF command sent · channel {channel}.";
         }
-        catch (OperationCanceledException) { }
-        finally { RefreshCommands(); }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            RefreshCommands();
+        }
     }
 
     private async Task<Exception?> TurnTestLightOffAsync(int channel)
@@ -61,7 +82,12 @@ public partial class SettingsViewModel
         try
         {
             // Reconnect if needed, but never send ON/brightness during an OFF retry.
-            await Task.Run(() => { _light.Initialize(); _light.TurnOff(channel); });
+            await Task.Run(
+                () =>
+                {
+                    _light.Initialize();
+                    _light.TurnOff(channel);
+                });
             _log.Write($"Lighting test OFF command sent: channel={channel}.");
             PendingLightOffChannel = null;
             return null;
@@ -69,17 +95,22 @@ public partial class SettingsViewModel
         catch (Exception exception)
         {
             var failure = new InvalidOperationException(
-                $"OFF failed on channel {channel}; light state is unknown. Press OFF to retry. {exception.Message}", exception);
+                $"OFF failed on channel {channel}; light state is unknown. Press OFF to retry. {exception.Message}",
+                exception);
             _log.Error("Lighting test cleanup failed; light may still be ON.", exception);
             return failure;
         }
-        finally { LightTestOn = false; }
+        finally
+        {
+            LightTestOn = false;
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanTestLight), IncludeCancelCommand = true)]
     private async Task TestLightAsync(CancellationToken cancellationToken)
     {
-        if (!CanTestLight() || LightTestOn) return;
+        if (!CanTestLight() || LightTestOn)
+            return;
         // MOVS commands have a single channel digit; zero addresses all channels.
         if (LightTestChannel is < 1 or > 9 || LightTestLevel is < 0 or > 255)
         {
@@ -89,15 +120,15 @@ public partial class SettingsViewModel
 
         var channel = LightTestChannel;
         var level = LightTestLevel;
-        var startingAlarm = _state.Alarm;
         try
         {
             using var operation = _operations.Link(cancellationToken);
             void StopWhenUnavailable()
             {
-                if (!_state.ManualMode || _state.Alarm != startingAlarm || _operations.IsShuttingDown)
+                if (!_state.ManualMode || _operations.IsShuttingDown)
                     operation.Cancel();
             }
+
             _state.Changed += StopWhenUnavailable;
             var initialized = false;
             Exception? failure = null;
@@ -105,17 +136,20 @@ public partial class SettingsViewModel
             {
                 StopWhenUnavailable();
                 LightTestMessage = $"Connecting: {ActiveLightConnection}…";
-                _log.Write($"Lighting test started: driver={ActiveLightDriver}, connection={ActiveLightConnection}, channel={channel}, level={level}.");
-                await Task.Run(() =>
-                {
-                    operation.Token.ThrowIfCancellationRequested();
-                    _light.Initialize();
-                    initialized = true;
-                    operation.Token.ThrowIfCancellationRequested();
-                    _light.SetLevel(channel, level);
-                    operation.Token.ThrowIfCancellationRequested();
-                    _light.TurnOn(channel);
-                }, operation.Token);
+                _log.Write(
+                    $"Lighting test started: driver={ActiveLightDriver}, connection={ActiveLightConnection}, channel={channel}, level={level}.");
+                await Task.Run(
+                    () =>
+                    {
+                        operation.Token.ThrowIfCancellationRequested();
+                        _light.Initialize();
+                        initialized = true;
+                        operation.Token.ThrowIfCancellationRequested();
+                        _light.SetLevel(channel, level);
+                        operation.Token.ThrowIfCancellationRequested();
+                        _light.TurnOn(channel);
+                    },
+                    operation.Token);
                 operation.Token.ThrowIfCancellationRequested();
                 PendingLightOffChannel = channel;
                 LightTestOn = true;
@@ -125,7 +159,9 @@ public partial class SettingsViewModel
                 // This blocks automatic/motion admission and lets STOP cancel the test.
                 await Task.Delay(Timeout.Infinite, operation.Token);
             }
-            catch (OperationCanceledException) when (operation.IsCancellationRequested) { }
+            catch (OperationCanceledException) when (operation.IsCancellationRequested)
+            {
+            }
             catch (Exception exception)
             {
                 failure = exception;
@@ -140,12 +176,20 @@ public partial class SettingsViewModel
                     var offFailure = await TurnTestLightOffAsync(channel);
                     failure = offFailure ?? failure;
                 }
+
                 LightTestOn = false;
                 LightTestMessage = failure?.Message ?? (initialized
-                    ? $"OFF command sent · channel {channel}." : "Lighting test cancelled.");
+                    ? $"OFF command sent · channel {channel}."
+                    : "Lighting test cancelled.");
             }
         }
-        catch (OperationCanceledException) { LightTestMessage = "Lighting test cancelled."; }
-        finally { RefreshCommands(); }
+        catch (OperationCanceledException)
+        {
+            LightTestMessage = "Lighting test cancelled.";
+        }
+        finally
+        {
+            RefreshCommands();
+        }
     }
 }

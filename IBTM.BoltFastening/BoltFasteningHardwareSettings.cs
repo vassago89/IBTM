@@ -5,26 +5,58 @@ namespace IBTM.BoltFastening;
 
 public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
 {
-    public override HardwareArea Area => HardwareArea.BoltFastening;
-
-    public override IoSection? GetSection(System.Enum signal) => signal switch
+    public override HardwareArea Area
     {
-        InputIo.PickupHeadDown or InputIo.PickupHeadUp or InputIo.PickupHeadVacuumDetected
-            or OutputIo.PickupHeadDown or OutputIo.PickupHeadVacuumPump =>
-            IoSection.BoltFasteningPickupHead,
-        InputIo.ShootingHeadDown or InputIo.ShootingHeadUp or InputIo.ShootingHeadVacuumDetected
-            or InputIo.ShootingTubeBoltDetected or InputIo.ShootingEscapeForward
-            or InputIo.ShootingEscapeBackward or OutputIo.ShootingHeadDown
-            or OutputIo.ShootingHeadVacuumPump or OutputIo.ShootingEscapeForward
-            or OutputIo.ShootBolt => IoSection.BoltFasteningShootingHead,
-        _ => null,
-    };
+        get
+        {
+            return HardwareArea.BoltFastening;
+        }
+    }
+
+    public override IoSection? GetSection(System.Enum signal)
+    {
+        return signal switch
+        {
+            InputIo.PickupHeadDown
+                or InputIo.PickupHeadUp
+                or InputIo.PickupHeadVacuumDetected
+                or OutputIo.PickupHeadDown
+                or OutputIo.PickupHeadVacuumPump
+
+                => IoSection.BoltFasteningPickupHead,
+            InputIo.ShootingHeadDown
+                or InputIo.ShootingHeadUp
+                or InputIo.ShootingHeadVacuumDetected
+                or InputIo.ShootingTubeBoltDetected
+                or InputIo.ShootingEscapeForward
+                or InputIo.ShootingEscapeBackward
+                or OutputIo.ShootingHeadDown
+                or OutputIo.ShootingHeadVacuumPump
+                or OutputIo.ShootingEscapeForward
+                or OutputIo.ShootBolt
+
+                => IoSection.BoltFasteningShootingHead,
+            _ => null,
+        };
+    }
 
     public BoltFasteningHardwareSettings() : base(
         MotionGroup.BoltFastening,
-        (MotionAxis.X, MachineAxis.BoltFasteningX, 6, 200),
-        (MotionAxis.Y, MachineAxis.BoltFasteningY, 7, 200),
-        (MotionAxis.Z, MachineAxis.BoltFasteningZ, 8, 200))
+        (
+            MotionAxis.X,
+            MachineAxis.BoltFasteningX,
+            6,
+            200),
+        (
+            MotionAxis.Y,
+            MachineAxis.BoltFasteningY,
+            7,
+            200),
+        (
+            MotionAxis.Z,
+            MachineAxis.BoltFasteningZ,
+            8,
+            200))
     {
         Inputs = new()
         {
@@ -40,11 +72,7 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
         };
         Outputs = new()
         {
-            [OutputIo.PickupHeadDown] = Output(
-                39,
-                40,
-                InputIo.PickupHeadDown,
-                InputIo.PickupHeadUp),
+            [OutputIo.PickupHeadDown] = Output(39, 40, InputIo.PickupHeadDown, InputIo.PickupHeadUp),
             [OutputIo.ShootingHeadDown] = Output(
                 41,
                 42,

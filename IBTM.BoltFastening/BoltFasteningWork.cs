@@ -6,10 +6,9 @@ using IBTM.Device;
 
 namespace IBTM.BoltFastening;
 
-public sealed class BoltFasteningWork(
-    ConveyorStation station,
-    Func<bool>? isEnabled = null)
-    : StationWork(station, isEnabled)
+public sealed class BoltFasteningWork(ConveyorStation station, Func<bool>? isEnabled = null) : StationWork(
+    station,
+    isEnabled)
 {
     internal BoltFasteningWorkState State
     {
@@ -32,18 +31,18 @@ public sealed class BoltFasteningWork(
     }
 
     public void PrepareRecovery(
-        IEnumerable<(HeatSinkSlot HeatSink, int Number, FasteningPass Pass, bool Completed)>
-            items)
+        IEnumerable<(HeatSinkSlot HeatSink, int Number, FasteningPass Pass, bool Completed)> items)
     {
         foreach (var group in items.GroupBy(item => item.HeatSink))
         {
-            Assembly(group.Key).PrepareFasteningRecovery(
-                group.Where(item => item.Pass == FasteningPass.Pcb)
-                    .Select(item => (item.Number, item.Completed)),
-                group.Where(item => item.Pass == FasteningPass.IpmSeating)
-                    .Select(item => (item.Number, item.Completed)),
-                group.Where(item => item.Pass == FasteningPass.IpmFinal)
-                    .Select(item => (item.Number, item.Completed)));
+            Assembly(group.Key)
+                .PrepareFasteningRecovery(
+                    group.Where(item => item.Pass == FasteningPass.Pcb)
+                        .Select(item => (item.Number, item.Completed)),
+                    group.Where(item => item.Pass == FasteningPass.IpmSeating)
+                        .Select(item => (item.Number, item.Completed)),
+                    group.Where(item => item.Pass == FasteningPass.IpmFinal)
+                        .Select(item => (item.Number, item.Completed)));
         }
 
         Restart();

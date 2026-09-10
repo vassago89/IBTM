@@ -10,6 +10,8 @@ public partial class BoltFasteningRecoveryWindow : Window
         DataContext = viewModel;
     }
 
-    private void OnApply(object sender, RoutedEventArgs e) =>
+    private void OnApply(object sender, RoutedEventArgs e)
+    {
         DialogResult = true;
+    }
 }

@@ -19,7 +19,8 @@ public sealed class MachineStoreTests
     [InlineData("\"Physical\"", LightDriver.Movs)]
     [InlineData("0", LightDriver.Virtual)]
     public async Task LightingMigrationPreservesOldSelectionAndComThenSavesIndependently(
-        string oldControl, LightDriver expected)
+        string oldControl,
+        LightDriver expected)
     {
         var file = Path.Combine(CreateDirectory(), "Machine.db");
         var store = VirtualTest.OpenMachineStore(file);
@@ -38,6 +39,7 @@ public sealed class MachineStoreTests
             command.Parameters.AddWithValue("$control", oldControl);
             command.ExecuteNonQuery();
         }
+
         var reopened = VirtualTest.OpenMachineStore(file);
         var loaded = await MachineSettings.LoadAsync(reopened);
         Assert.Equal(expected, loaded.Drivers.Light);
@@ -93,20 +95,37 @@ public sealed class MachineStoreTests
                 """;
             command.ExecuteNonQuery();
         }
+
         var reopened = VirtualTest.OpenMachineStore(file);
         var loaded = await MachineSettings.LoadAsync(reopened);
-        foreach (var motion in new[] { loaded.PcbSupply.Motion, loaded.PcbPlacementHandler.Motion,
-                     loaded.BoltFastening.Motion, loaded.InspectionGantry.Motion })
+        foreach (var motion in new[]
+        {
+            loaded.PcbSupply.Motion,
+            loaded.PcbPlacementHandler.Motion,
+            loaded.BoltFastening.Motion,
+            loaded.InspectionGantry.Motion
+        })
         {
             Assert.Equal(0.25, motion.AccelerationSeconds);
             Assert.Equal(0.25, motion.DecelerationSeconds);
-            Assert.Equal((40, 10, 5, 2), (motion.HorizontalHome.SearchSpeed, motion.HorizontalHome.DetectionSpeed,
-                motion.HorizontalHome.ApproachSpeed, motion.HorizontalHome.FineSpeed));
-            Assert.Equal((20, 5, 2.5, 1), (motion.ZHome.SearchSpeed, motion.ZHome.DetectionSpeed,
-                motion.ZHome.ApproachSpeed, motion.ZHome.FineSpeed));
+            Assert.Equal(
+                (40, 10, 5, 2),
+                (
+                    motion.HorizontalHome.SearchSpeed,
+                    motion.HorizontalHome.DetectionSpeed,
+                    motion.HorizontalHome.ApproachSpeed,
+                    motion.HorizontalHome.FineSpeed));
+            Assert.Equal(
+                (20, 5, 2.5, 1),
+                (
+                    motion.ZHome.SearchSpeed,
+                    motion.ZHome.DetectionSpeed,
+                    motion.ZHome.ApproachSpeed,
+                    motion.ZHome.FineSpeed));
             Assert.Equal(1, motion.HorizontalHome.SearchAccelerationSeconds);
             Assert.Equal(0.5, motion.HorizontalHome.DetectionAccelerationSeconds);
         }
+
         Assert.Equal(17, loaded.PcbSupply.RotationZ);
         Assert.Equal(0.005, loaded.PcbSupplyHardware.MillimetersPerPulse);
         loaded.PcbSupply.Motion.HorizontalHome.DetectionSpeed = 7;
@@ -173,10 +192,14 @@ public sealed class MachineStoreTests
         var loaded = await MachineSettings.LoadAsync(reopened);
         foreach (var property in typeof(MachineSettings).GetProperties())
         {
-            if (property.GetValue(settings) is not InputHardwareSettings expected) continue;
+            if (property.GetValue(settings) is not InputHardwareSettings expected)
+                continue;
             var actual = (InputHardwareSettings)property.GetValue(loaded)!;
-            Assert.Equal(expected.Inputs.OrderBy(pair => pair.Key), actual.Inputs.OrderBy(pair => pair.Key));
-            if (expected is not IoHardwareSettings expectedIo) continue;
+            Assert.Equal(
+                expected.Inputs.OrderBy(pair => pair.Key),
+                actual.Inputs.OrderBy(pair => pair.Key));
+            if (expected is not IoHardwareSettings expectedIo)
+                continue;
             var actualIo = (IoHardwareSettings)actual;
             Assert.Equal(expectedIo.Outputs.Keys.Order(), actualIo.Outputs.Keys.Order());
             foreach (var (signal, output) in expectedIo.Outputs)
@@ -188,6 +211,7 @@ public sealed class MachineStoreTests
                 Assert.Equal(output.Feedback?.OffInput, saved.Feedback?.OffInput);
             }
         }
+
         Assert.Equal(17, loaded.PcbSupply.RotationZ);
         Assert.Equal(350, loaded.PcbSupplyHardware.Axes[MachineAxis.PcbSupplyY].Maximum);
         Assert.Equal(0.005, loaded.PcbSupplyHardware.MillimetersPerPulse);
@@ -195,8 +219,9 @@ public sealed class MachineStoreTests
 
         loaded.ConveyorHardware.Inputs[InputIo.MainConveyorEntryCarrierDetected] = 99;
         await loaded.SaveAsync(reopened);
-        Assert.Equal(99, (await MachineSettings.LoadAsync(VirtualTest.OpenMachineStore(file)))
-            .ConveyorHardware.Inputs[InputIo.MainConveyorEntryCarrierDetected]);
+        Assert.Equal(
+            99,
+            (await MachineSettings.LoadAsync(VirtualTest.OpenMachineStore(file))).ConveyorHardware.Inputs[InputIo.MainConveyorEntryCarrierDetected]);
     }
 
     [Fact]
@@ -226,6 +251,7 @@ public sealed class MachineStoreTests
             command.CommandText = "DROP TRIGGER FailSetting";
             command.ExecuteNonQuery();
         }
+
         loaded = await MachineSettings.LoadAsync(store);
         Assert.Equal(45, loaded.PcbBuffer.SupplyBoundary1);
         Assert.Equal(12, loaded.PcbSupply.RotationZ);
@@ -249,21 +275,37 @@ public sealed class MachineStoreTests
     {
         var directory = CreateDirectory();
         var settingsPath = Directory.CreateDirectory(Path.Combine(directory, "Settings")).FullName;
-        var carrierPath = Directory.CreateDirectory(Path.Combine(directory, "Recipes", "Part", "Carrier")).FullName;
+        var carrierPath = Directory.CreateDirectory(
+            Path.Combine(directory, "Recipes", "Part", "Carrier")).FullName;
         File.WriteAllText(Path.Combine(settingsPath, "PcbSupplySettings.json"), "{\"RotationZ\":17}");
-        File.WriteAllText(Path.Combine(settingsPath, "InspectionCameraSettings.json"), "{\"DeviceId\":\"Cam1\",\"ExposureMicroseconds\":750,\"Gain\":2}");
-        File.WriteAllText(Path.Combine(settingsPath, "DriverSettings.json"), "{\"Control\":\"Physical\"}");
-        File.WriteAllText(Path.Combine(settingsPath, "LightingSettings.json"), "{\"Connection\":\"COM8\",\"InspectionChannel\":2,\"InspectionLevel\":90}");
-        File.WriteAllText(Path.Combine(settingsPath, "InspectionGantrySettings.json"), "{\"CarrierScanOverlapMillimeters\":3}");
-        File.WriteAllText(Path.Combine(settingsPath, "BoltInspectionSettings.json"), "{\"RegionSizePixels\":200,\"MaskThreshold\":0.7}");
-        File.WriteAllText(Path.Combine(settingsPath, "RecipeSelectionSettings.json"), "{\"LastRecipeName\":\"Part\"}");
-        File.WriteAllText(Path.Combine(directory, "Recipes", "Part", "Recipe.json"),
+        File.WriteAllText(
+            Path.Combine(settingsPath, "InspectionCameraSettings.json"),
+            "{\"DeviceId\":\"Cam1\",\"ExposureMicroseconds\":750,\"Gain\":2}");
+        File.WriteAllText(
+            Path.Combine(settingsPath, "DriverSettings.json"),
+            "{\"Control\":\"Physical\"}");
+        File.WriteAllText(
+            Path.Combine(settingsPath, "LightingSettings.json"),
+            "{\"Connection\":\"COM8\",\"InspectionChannel\":2,\"InspectionLevel\":90}");
+        File.WriteAllText(
+            Path.Combine(settingsPath, "InspectionGantrySettings.json"),
+            "{\"CarrierScanOverlapMillimeters\":3}");
+        File.WriteAllText(
+            Path.Combine(settingsPath, "BoltInspectionSettings.json"),
+            "{\"RegionSizePixels\":200,\"MaskThreshold\":0.7}");
+        File.WriteAllText(
+            Path.Combine(settingsPath, "RecipeSelectionSettings.json"),
+            "{\"LastRecipeName\":\"Part\"}");
+        File.WriteAllText(
+            Path.Combine(directory, "Recipes", "Part", "Recipe.json"),
             "{\"Name\":\"Part\",\"BoltInspection\":{\"MinimumMaskRatio\":0.03},\"CarrierImages\":[{\"Number\":1,\"Center\":{\"X\":12,\"Y\":34}}]}");
         var store = VirtualTest.OpenMachineStore(Path.Combine(directory, "Machine.db"));
-        var import = typeof(Recipe).Assembly.GetType("IBTM.LegacyMachineImport")!
-            .GetMethod("Run", BindingFlags.NonPublic | BindingFlags.Static)!;
-        Assert.IsType<FileNotFoundException>(Assert.Throws<TargetInvocationException>(() =>
-            import.Invoke(null, [store, directory])).InnerException);
+        var import = typeof(Recipe).Assembly.GetType("IBTM.LegacyMachineImport")!.GetMethod(
+            "Run",
+            BindingFlags.NonPublic | BindingFlags.Static)!;
+        Assert.IsType<FileNotFoundException>(
+            Assert.Throws<TargetInvocationException>(() => import.Invoke(null, [store, directory]))
+                .InnerException);
         Assert.False(store.HasData);
         var imagePath = Path.Combine(carrierPath, "0001.png");
         File.WriteAllBytes(imagePath, [10, 20, 30]);
@@ -288,6 +330,10 @@ public sealed class MachineStoreTests
         Assert.True(File.Exists(imagePath));
     }
 
-    private static string CreateDirectory() =>
-        Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"IBTM-Storage-{Guid.NewGuid():N}")).FullName;
+    private static string CreateDirectory()
+    {
+        return Directory.CreateDirectory(
+            Path.Combine(Path.GetTempPath(), $"IBTM-Storage-{Guid.NewGuid():N}"))
+            .FullName;
+    }
 }

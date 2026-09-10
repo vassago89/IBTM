@@ -52,13 +52,31 @@ public sealed class AjinHomeTests
     }
 
     private sealed class TestCompletion(MachineOptions options) : AjinMotionService(
-        new AjinController(new AjinSettings()), new AxisHardware(), null, null,
-        0.01, new MotionSettings(), options, new OperationCancellation(), null)
+        new AjinController(new AjinSettings()),
+        new AxisHardware(),
+        null,
+        null,
+        0.01,
+        new MotionSettings(),
+        options,
+        new OperationCancellation(),
+        null)
     {
         public (bool Moving, bool InPosition, bool Faulted) Feedback = (true, false, false);
-        public Task Wait(CancellationToken token) => WaitForMoveAsync([0], token);
-        public Task WaitForStop() => WaitForStopAsync([0]);
-        protected override (bool Moving, bool InPosition, bool Faulted) ReadMoveState(int[] axes) => Feedback;
+        public Task Wait(CancellationToken token)
+        {
+            return WaitForMoveAsync([0], token);
+        }
+
+        public Task WaitForStop()
+        {
+            return WaitForStopAsync([0]);
+        }
+
+        protected override (bool Moving, bool InPosition, bool Faulted) ReadMoveState(int[] axes)
+        {
+            return Feedback;
+        }
     }
 
     [Theory]
@@ -113,8 +131,7 @@ public sealed class AjinHomeTests
         var failure = new InvalidOperationException("Home command failed.");
         motion.Results[0].SetException(failure);
 
-        Assert.Same(failure, await Assert.ThrowsAsync<InvalidOperationException>(
-            () => homing));
+        Assert.Same(failure, await Assert.ThrowsAsync<InvalidOperationException>(() => homing));
         Assert.True(motion.Tokens[1].IsCancellationRequested);
     }
 
@@ -141,16 +158,17 @@ public sealed class AjinHomeTests
         new OperationCancellation(),
         horizontalZ: null)
     {
-        public TaskCompletionSource<bool>[] Results { get; } =
-        [
+        public TaskCompletionSource<bool>[] Results { get; } = [
             new(TaskCreationOptions.RunContinuationsAsynchronously),
             new(TaskCreationOptions.RunContinuationsAsynchronously),
         ];
         public CancellationToken[] Tokens { get; } = new CancellationToken[2];
         public int YHomeCalls { get; private set; }
 
-        public Task<bool> HomeHorizontal(CancellationToken cancellationToken) =>
-            HomeHorizontalCoreAsync(100, cancellationToken);
+        public Task<bool> HomeHorizontal(CancellationToken cancellationToken)
+        {
+            return HomeHorizontalCoreAsync(100, cancellationToken);
+        }
 
         protected override Task<bool> HomeCoreAsync(
             MotionAxis axis,

@@ -10,9 +10,12 @@ namespace IBTM;
 
 public enum PcbDryRunDirection
 {
-    [Description("Load one PCB in Supply")] Ready,
-    [Description("Supply → Heat sink")] Forward,
-    [Description("Heat sink → Supply")] Return,
+    [Description("Load one PCB in Supply")]
+    Ready,
+    [Description("Supply → Heat sink")]
+    Forward,
+    [Description("Heat sink → Supply")]
+    Return,
 }
 
 // One actual PCB, stationary carrier. Production pickup/SMEMA loops are not started.
@@ -24,8 +27,12 @@ public sealed class PcbDryRun : AutoUnit
     private readonly PcbPlacementWork _work;
     private readonly Recipe _recipe;
 
-    public PcbDryRun(PcbSupplier supply, PcbPlacer placement, PcbReturn returning,
-        PcbPlacementWork work, Recipe recipe)
+    public PcbDryRun(
+        PcbSupplier supply,
+        PcbPlacer placement,
+        PcbReturn returning,
+        PcbPlacementWork work,
+        Recipe recipe)
     {
         _supply = supply;
         _placement = placement;
@@ -40,23 +47,36 @@ public sealed class PcbDryRun : AutoUnit
     public PcbDryRunDirection Direction { get; private set; }
     public HeatSinkSlot HeatSink { get; private set; }
     public int CompletedCycles { get; private set; }
-    public Enum State => Direction switch
+
+    public Enum State
     {
-        PcbDryRunDirection.Ready => PcbDryRunDirection.Ready,
-        PcbDryRunDirection.Return => _return.State,
-        _ => _supply.TransferState switch
+        get
         {
-            PcbSupplyState.WaitingForPlacement or PcbSupplyState.WaitingForBuffer
-                or PcbSupplyState.WaitingForCarrierExit => _placement.State(_recipe.PcbPlacement, HeatSink),
-            var state => state,
-        },
-    };
+            return Direction switch
+            {
+                PcbDryRunDirection.Ready => PcbDryRunDirection.Ready,
+                PcbDryRunDirection.Return => _return.State,
+                _
+
+                    => _supply.TransferState switch
+                    {
+                        PcbSupplyState.WaitingForPlacement
+                            or PcbSupplyState.WaitingForBuffer
+                            or PcbSupplyState.WaitingForCarrierExit
+
+                            => _placement.State(_recipe.PcbPlacement, HeatSink),
+                        var state => state,
+                    },
+            };
+        }
+    }
 
     public Task RunAsync(HeatSinkSlot heatSink, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         CheckTarget(Direction == PcbDryRunDirection.Ready ? heatSink : HeatSink);
-        if (Direction == PcbDryRunDirection.Ready) BeginForward(heatSink);
+        if (Direction == PcbDryRunDirection.Ready)
+            BeginForward(heatSink);
         return RunLoopAsync(token => ExecuteAsync(heatSink, token), cancellationToken);
     }
 
@@ -71,9 +91,11 @@ public sealed class PcbDryRun : AutoUnit
                 NotifyChanged();
                 return;
             }
-            await (_supply.TransferStepAsync(token)
-                ?? _placement.PlaceStepAsync(_recipe.PcbPlacement, HeatSink, token)
-                ?? WaitForChangeAsync(token));
+
+            await (_supply.TransferStepAsync(token) ?? _placement.PlaceStepAsync(
+                _recipe.PcbPlacement,
+                HeatSink,
+                token) ?? WaitForChangeAsync(token));
             return;
         }
 
@@ -99,5 +121,8 @@ public sealed class PcbDryRun : AutoUnit
             throw new InvalidOperationException("PCB round trip requires a seated carrier and the selected heat sink.");
     }
 
-    private void NotifyChanged() => Changed?.Invoke();
+    private void NotifyChanged()
+    {
+        Changed?.Invoke();
+    }
 }

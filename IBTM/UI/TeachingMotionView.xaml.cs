@@ -4,5 +4,8 @@ namespace IBTM.UI;
 
 public partial class TeachingMotionView : UserControl
 {
-    public TeachingMotionView() => InitializeComponent();
+    public TeachingMotionView()
+    {
+        InitializeComponent();
+    }
 }

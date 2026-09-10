@@ -38,10 +38,16 @@ public sealed partial class MachineLifecycleTests
         {
             Units = new()
             {
-                MainConveyor = true, Inspection = true, NgCarrierTransfer = true,
-                NgShuttle = true, NgConveyor = true,
-                PcbSupply = false, PcbPlacement = false, BoltFastening = false,
-                PickupBoltFeeder = false, ShootingBoltFeeder = false,
+                MainConveyor = true,
+                Inspection = true,
+                NgCarrierTransfer = true,
+                NgShuttle = true,
+                NgConveyor = true,
+                PcbSupply = false,
+                PcbPlacement = false,
+                BoltFastening = false,
+                PickupBoltFeeder = false,
+                ShootingBoltFeeder = false,
             },
             Drivers = new() { Inspection = InspectionAlgorithm.Virtual },
         };
@@ -54,31 +60,29 @@ public sealed partial class MachineLifecycleTests
         settings.NgCarrierTransfer.Speed = 10_000;
         using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<Recipe>();
-        recipe.Pcb.BoltPoints =
-        [
-            new() { Number = 1, X = 10, Y = 10 },
-        ];
+        recipe.Pcb.BoltPoints = [new() { Number = 1, X = 10, Y = 10 },];
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var inspection = services.GetRequiredService<InspectionWork>();
-        IMotionFeedback[] disabledMotions =
-        [
+        IMotionFeedback[] disabledMotions = [
             services.GetRequiredService<PcbSupplyHandler>().Feedback,
             services.GetRequiredService<PcbPlacementHandler>().Feedback,
             services.GetRequiredService<BoltFasteningGantry>().Feedback,
         ];
-        var disabledOutputs = settings.PcbSupplyHardware.Outputs.Keys
-            .Concat(settings.PcbPlacementHandlerHardware.Outputs.Keys)
+        var disabledOutputs = settings.PcbSupplyHardware.Outputs.Keys.Concat(
+            settings.PcbPlacementHandlerHardware.Outputs.Keys)
             .Concat(settings.BoltFasteningHardware.Outputs.Keys)
-            .Concat(settings.BoltFeederHardware.Outputs.Keys).ToHashSet();
+            .Concat(settings.BoltFeederHardware.Outputs.Keys)
+            .ToHashSet();
         var unexpectedOutputs = new ConcurrentBag<OutputIo>();
         var adcFrames = 0;
-        services.GetRequiredService<IAdcBus>().FrameTransferred += (_, _) =>
-            Interlocked.Increment(ref adcFrames);
+        services.GetRequiredService<IAdcBus>().FrameTransferred += (_, _) => Interlocked.Increment(
+            ref adcFrames);
         io.OutputChanged += (output, value) =>
         {
-            if (value && disabledOutputs.Contains(output)) unexpectedOutputs.Add(output);
+            if (value && disabledOutputs.Contains(output))
+                unexpectedOutputs.Add(output);
         };
         var arrived = 0;
         var entered = false;
@@ -87,18 +91,23 @@ public sealed partial class MachineLifecycleTests
         {
             if (value)
             {
-                Interlocked.Or(ref arrived, input switch
-                {
-                    InputIo.PcbPlacementCarrierPresent => 1,
-                    InputIo.BoltFasteningCarrierPresent => 2,
-                    InputIo.InspectionCarrierPresent => 4,
-                    _ => 0,
-                });
+                Interlocked.Or(
+                    ref arrived,
+                    input switch
+                    {
+                        InputIo.PcbPlacementCarrierPresent => 1,
+                        InputIo.BoltFasteningCarrierPresent => 2,
+                        InputIo.InspectionCarrierPresent => 4,
+                        _ => 0,
+                    });
             }
-            if (input == InputIo.MainConveyorEntryCarrierDetected && value) entered = true;
+
+            if (input == InputIo.MainConveyorEntryCarrierDetected && value)
+                entered = true;
             if (input == InputIo.MainConveyorAvailableFromFront2 && value && entered)
                 io.SetInput(input, false);
-            if (input == InputIo.MainConveyorExitCarrierDetected && !value) exited = true;
+            if (input == InputIo.MainConveyorExitCarrierDetected && !value)
+                exited = true;
         };
         if (missingBolts)
         {
@@ -115,25 +124,31 @@ public sealed partial class MachineLifecycleTests
         var run = machine.StartAsync();
         try
         {
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => inspection.Completed, TimeSpan.FromSeconds(10)));
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => inspection.Completed, TimeSpan.FromSeconds(10)));
             Assert.Equal(7, arrived);
             Assert.Equal(missingBolts, inspection.HasNg);
             Assert.Equal(2, inspection.Assemblies.Count());
-            Assert.All(inspection.Assemblies, assembly =>
-            {
-                Assert.Equal(assembly.HeatSink == HeatSinkSlot.HeatSink1 ? "PCB-1" : "PCB-2", assembly.PcbBarcode);
-                Assert.Empty(assembly.PcbBoltResults);
-                Assert.Empty(assembly.IpmSeatingResults);
-                Assert.Empty(assembly.IpmFinalResults);
-                Assert.Equal(!missingBolts, Assert.Single(assembly.BoltPresenceResults).Value);
-            });
+            Assert.All(
+                inspection.Assemblies,
+                assembly =>
+                {
+                    Assert.Equal(
+                        assembly.HeatSink == HeatSinkSlot.HeatSink1 ? "PCB-1" : "PCB-2",
+                        assembly.PcbBarcode);
+                    Assert.Empty(assembly.PcbBoltResults);
+                    Assert.Empty(assembly.IpmSeatingResults);
+                    Assert.Empty(assembly.IpmFinalResults);
+                    Assert.Equal(!missingBolts, Assert.Single(assembly.BoltPresenceResults).Value);
+                });
             if (missingBolts)
             {
-                Assert.True(await VirtualTest.WaitUntilAsync(
-                    () => io.GetInput(InputIo.NgConveyorPosition1Occupied)
-                        && io.GetInput(InputIo.NgShuttleUp) && !io.GetOutput(OutputIo.NgConveyorRun),
-                    TimeSpan.FromSeconds(5)));
+                Assert.True(
+                    await VirtualTest.WaitUntilAsync(
+                        () => io.GetInput(InputIo.NgConveyorPosition1Occupied)
+                            && io.GetInput(InputIo.NgShuttleUp)
+                            && !io.GetOutput(OutputIo.NgConveyorRun),
+                        TimeSpan.FromSeconds(5)));
                 Assert.False(exited);
             }
             else
@@ -152,11 +167,16 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.Empty(unexpectedOutputs);
         Assert.Equal(0, adcFrames);
-        Assert.All(disabledMotions, motion => Assert.All(motion.Axes, axis =>
-        {
-            Assert.False(motion.GetAxisState(axis).ServoOn);
-            Assert.False(motion.GetAxisState(axis).Homed);
-        }));
+        Assert.All(
+            disabledMotions,
+            motion =>
+                Assert.All(
+                    motion.Axes,
+                    axis =>
+                    {
+                        Assert.False(motion.GetAxisState(axis).ServoOn);
+                        Assert.False(motion.GetAxisState(axis).Homed);
+                    }));
     }
 
 }

@@ -43,7 +43,6 @@ public sealed class MotionStatusTests
         Assert.Equal(AxisCondition.HomeRequired, first.Condition);
         Assert.Equal(first.Condition, second.Condition);
         Assert.False(status.XyHomed);
-
         // External card state can change while no application move is active.
         motion.State = motion.State with { ServoOn = false };
         motion.Position = (24, 0, 0); // No PositionChanged event from an external adjustment.
@@ -69,31 +68,49 @@ public sealed class MotionStatusTests
         Assert.Equal(reads, motion.Reads);
         Assert.Equal(positionReads, motion.PositionReads);
         Assert.False(status.XyHomed);
-        Assert.All(status.Axes.Values,
-            axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
+        Assert.All(status.Axes.Values, axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
         Assert.Same(motion.Failure, Assert.Throws<IOException>(() => status.RefreshControlFeedback()));
     }
 
     private sealed class StatusMotion() : AjinMotionService(
-        new AjinController(new AjinSettings()), new AxisHardware(), null, null,
-        0.01, new MotionSettings(), new MachineOptions(), new OperationCancellation(), null)
+        new AjinController(new AjinSettings()),
+        new AxisHardware(),
+        null,
+        null,
+        0.01,
+        new MotionSettings(),
+        new MachineOptions(),
+        new OperationCancellation(),
+        null)
     {
         public AxisState State = new(true, true, false, true, false, false, false, false);
         public Exception? Failure;
         public int Reads;
         public int PositionReads;
         public (double X, double Y, double Z) Position = (12, 0, 0);
-        public override bool IsReady => true;
+        public override bool IsReady
+        {
+            get
+            {
+                return true;
+            }
+        }
+
         public override (double X, double Y, double Z) GetPosition()
         {
             PositionReads++;
             return Failure is { } failure ? throw failure : Position;
         }
+
         public override AxisState GetAxisState(MotionAxis axis)
         {
             Reads++;
             return Failure is { } failure ? throw failure : State;
         }
-        public void Publish() => PublishStateChanged();
+
+        public void Publish()
+        {
+            PublishStateChanged();
+        }
     }
 }

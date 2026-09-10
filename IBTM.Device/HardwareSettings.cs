@@ -31,47 +31,55 @@ public abstract class HardwareSettings : Setting
     [JsonIgnore]
     public abstract HardwareArea Area { get; }
 
-    public virtual IoSection? GetSection(Enum signal) => null;
+    public virtual IoSection? GetSection(Enum signal)
+    {
+        return null;
+    }
 }
 
 public abstract class InputHardwareSettings : HardwareSettings
 {
     public Dictionary<InputIo, int> Inputs { get; set; } = [];
 
-    public IoStatus CreateIoStatus(IoSignals io) => io.Select(
-        Area,
-        Inputs.Keys,
-        this is IoHardwareSettings hardware ? hardware.Outputs.Keys : []);
+    public IoStatus CreateIoStatus(IoSignals io)
+    {
+        return io.Select(
+            Area,
+            Inputs.Keys,
+            this is IoHardwareSettings hardware ? hardware.Outputs.Keys : []);
+    }
 }
 
 public abstract class IoHardwareSettings : InputHardwareSettings
 {
     public Dictionary<OutputIo, OutputHardware> Outputs { get; set; } = [];
 
-    protected static OutputHardware Output(int number) => new()
+    protected static OutputHardware Output(int number)
     {
-        Number = number,
-    };
+        return new()
+        {
+            Number = number,
+        };
+    }
 
-    protected static OutputHardware Output(
-        int number,
-        InputIo onInput,
-        InputIo offInput) => new()
+    protected static OutputHardware Output(int number, InputIo onInput, InputIo offInput)
+    {
+        return new()
         {
             Number = number,
             Feedback = new(onInput, offInput),
         };
+    }
 
-    protected static OutputHardware Output(
-        int number,
-        int offNumber,
-        InputIo onInput,
-        InputIo offInput) => new()
+    protected static OutputHardware Output(int number, int offNumber, InputIo onInput, InputIo offInput)
+    {
+        return new()
         {
             Number = number,
             OffNumber = offNumber,
             Feedback = new(onInput, offInput),
         };
+    }
 }
 
 public abstract class MotionHardwareSettings(
@@ -82,15 +90,18 @@ public abstract class MotionHardwareSettings(
 
     [JsonIgnore]
     public MotionGroup Group { get; } = group;
-    [JsonIgnore]
-    public IReadOnlyDictionary<MotionAxis, MachineAxis> AxisSignals { get; } =
-        axes.ToDictionary(axis => axis.Axis, axis => axis.Signal);
-    public Dictionary<MachineAxis, AxisHardware> Axes { get; set; } =
-        axes.ToDictionary(axis => axis.Signal,
-            axis => new AxisHardware { Number = axis.Number, Maximum = axis.Maximum });
-    public double MillimetersPerPulse { get; set; } =
-        DefaultMillimetersPerPulse;
 
-    public AxisHardware? GetAxis(MotionAxis axis) =>
-        AxisSignals.TryGetValue(axis, out var signal) ? Axes[signal] : null;
+    [JsonIgnore]
+    public IReadOnlyDictionary<MotionAxis, MachineAxis> AxisSignals { get; } = axes.ToDictionary(
+        axis => axis.Axis,
+        axis => axis.Signal);
+    public Dictionary<MachineAxis, AxisHardware> Axes { get; set; } = axes.ToDictionary(
+        axis => axis.Signal,
+        axis => new AxisHardware { Number = axis.Number, Maximum = axis.Maximum });
+    public double MillimetersPerPulse { get; set; } = DefaultMillimetersPerPulse;
+
+    public AxisHardware? GetAxis(MotionAxis axis)
+    {
+        return AxisSignals.TryGetValue(axis, out var signal) ? Axes[signal] : null;
+    }
 }

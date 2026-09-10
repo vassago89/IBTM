@@ -8,14 +8,24 @@ namespace IBTM.UI;
 
 public sealed class TeachingIoGroup
 {
-    public TeachingIoGroup(IoStatus io, IReadOnlyDictionary<OutputIo, TeachingOutput> outputs,
-        IAsyncRelayCommand<TeachingOutput> onCommand, IAsyncRelayCommand<TeachingOutput> offCommand,
+    public TeachingIoGroup(
+        IoStatus io,
+        IReadOnlyDictionary<OutputIo, TeachingOutput> outputs,
+        IAsyncRelayCommand<TeachingOutput> onCommand,
+        IAsyncRelayCommand<TeachingOutput> offCommand,
         ICommand cancelCommand)
     {
         Area = io.Area;
         Sensors = io.Sensors;
-        Outputs = io.Outputs.Select(signal => new TeachingOutputRow(signal,
-            outputs.GetValueOrDefault(signal.Signal), onCommand, offCommand, cancelCommand)).ToArray();
+        Outputs = io.Outputs.Select(
+            signal =>
+                new TeachingOutputRow(
+                    signal,
+                    outputs.GetValueOrDefault(signal.Signal),
+                    onCommand,
+                    offCommand,
+                    cancelCommand))
+            .ToArray();
     }
 
     public HardwareArea Area { get; }
@@ -24,7 +34,8 @@ public sealed class TeachingIoGroup
 }
 
 public sealed record TeachingOutputRow(
-    IoOutputStatus Io, TeachingOutput? Output,
+    IoOutputStatus Io,
+    TeachingOutput? Output,
     IAsyncRelayCommand<TeachingOutput> SetOutputOnCommand,
     IAsyncRelayCommand<TeachingOutput> SetOutputOffCommand,
     ICommand SetOutputOnCancelCommand);

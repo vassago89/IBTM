@@ -9,9 +9,7 @@ using Shared;
 
 namespace IBTM.AlphaMotion;
 
-public sealed class AlphaMotionController(
-    AlphaMotionSettings settings,
-    ApplicationLog? log = null) : IDisposable
+public sealed class AlphaMotionController(AlphaMotionSettings settings, ApplicationLog? log = null) : IDisposable
 {
     // Reserved logical address window. AJIN starts at 16; this is not a board-size requirement.
     public const int ChannelCount = 16;
@@ -27,16 +25,20 @@ public sealed class AlphaMotionController(
     {
         lock (_gate)
         {
-            if (_initialized) return;
+            if (_initialized)
+                return;
             if (!Environment.Is64BitProcess)
                 throw new PlatformNotSupportedException("TMC-AE16DIOe requires a 64-bit process and tmcDApiAed_x64.dll.");
-
             // Manufacturer frmDIGITAL.LoadDevice checks < 0 for failure and adds 1
             // to this result for the board count. It is not a TMC_ST_OK status.
             _reportedResults.Clear();
             var loadResult = TMCAEDLL.AIO_LoadDevice();
             var loadError = TMCAEDLL.AIO_GetErrorCode();
-            TraceResult(loadResult, loadError, nameof(TMCAEDLL.AIO_LoadDevice), $"loaded boards={(long)loadResult + 1}");
+            TraceResult(
+                loadResult,
+                loadError,
+                nameof(TMCAEDLL.AIO_LoadDevice),
+                $"loaded boards={(long)loadResult + 1}");
             if (loadResult < 0)
                 throw CreateError(loadResult, loadError, nameof(TMCAEDLL.AIO_LoadDevice));
             try
@@ -45,34 +47,49 @@ public sealed class AlphaMotionController(
                 // Invalid sentinels detect APIs that return without filling their ref parameters.
                 uint model = uint.MaxValue, communication = uint.MaxValue;
                 uint inputs = uint.MaxValue, outputs = uint.MaxValue;
-                var result = TMCAEDLL.AIO_BoardInfo(_cardNumber, ref model, ref communication, ref inputs, ref outputs);
+                var result = TMCAEDLL.AIO_BoardInfo(
+                    _cardNumber,
+                    ref model,
+                    ref communication,
+                    ref inputs,
+                    ref outputs);
                 var error = TMCAEDLL.AIO_GetErrorCode();
                 var detail = $"model=0x{model:X}, communication=0x{communication:X}, DI={inputs}, DO={outputs}";
                 TraceResult(result, error, nameof(TMCAEDLL.AIO_BoardInfo), detail);
                 CheckStatus(result, error, nameof(TMCAEDLL.AIO_BoardInfo), detail);
                 // Identity codes and exact board size do not determine compatibility.
                 // Retain the actual counts to reject only unavailable channel addresses.
-                if (inputs > (uint)ushort.MaxValue + 1 || outputs > (uint)ushort.MaxValue + 1
+                if (inputs > (uint)ushort.MaxValue + 1
+                    || outputs > (uint)ushort.MaxValue + 1
                     || (inputs == 0 && outputs == 0))
-                    throw CreateError(result, error, nameof(TMCAEDLL.AIO_BoardInfo),
+                    throw CreateError(
+                        result,
+                        error,
+                        nameof(TMCAEDLL.AIO_BoardInfo),
                         $"Invalid or unchanged I/O counts: {detail}. Counts must fit the SDK channel address range and expose at least one I/O channel.");
                 _inputCount = inputs;
                 _outputCount = outputs;
-
                 // Probe each available direction before allowing any output command.
                 var initialInputs = ReadPort(input: true);
                 var initialOutputs = ReadPort(input: false);
-                log?.Write($"AlphaMotion ready: card={_cardNumber}, DI={inputs}, DO={outputs}, loaded boards={(long)loadResult + 1} (AIO_LoadDevice={loadResult}); initial DI=0x{initialInputs:X8}, DO=0x{initialOutputs:X8}.");
+                log?.Write(
+                    $"AlphaMotion ready: card={_cardNumber}, DI={inputs}, DO={outputs}, loaded boards={(long)loadResult + 1} (AIO_LoadDevice={loadResult}); initial DI=0x{initialInputs:X8}, DO=0x{initialOutputs:X8}.");
                 _initialized = true;
             }
             catch (Exception exception)
             {
-                try { Unload(); }
+                try
+                {
+                    Unload();
+                }
                 catch (Exception cleanupError)
                 {
                     exception.Data["AlphaMotionUnloadError"] = cleanupError.ToString();
-                    log?.Error("AlphaMotion cleanup after initialization failure also failed.", cleanupError);
+                    log?.Error(
+                        "AlphaMotion cleanup after initialization failure also failed.",
+                        cleanupError);
                 }
+
                 throw;
             }
         }
@@ -123,8 +140,12 @@ public sealed class AlphaMotionController(
             CheckStatus(result, error, nameof(TMCAEDLL.AIO_PutDOBit), detail, bit);
             var readback = ReadPort(input: false, bit);
             if (((readback >> bit) & 1) != (value ? 1U : 0U))
-                throw CreateError(result, error, nameof(TMCAEDLL.AIO_PutDOBit),
-                    $"Output readback mismatch: {detail}, DO=0x{readback:X8}.", bit);
+                throw CreateError(
+                    result,
+                    error,
+                    nameof(TMCAEDLL.AIO_PutDOBit),
+                    $"Output readback mismatch: {detail}, DO=0x{readback:X8}.",
+                    bit);
         }
     }
 
@@ -132,7 +153,8 @@ public sealed class AlphaMotionController(
     {
         lock (_gate)
         {
-            if (!_initialized) return;
+            if (!_initialized)
+                return;
             _initialized = false;
             Unload();
         }
@@ -141,13 +163,15 @@ public sealed class AlphaMotionController(
     private void EnsureReady(string operation, int? bit = null)
     {
         if (!_initialized)
-            throw new IOException($"{Address(operation, bit)} cannot run: AlphaMotion TMC-AE16DIOe is not initialized.");
+            throw new IOException(
+                $"{Address(operation, bit)} cannot run: AlphaMotion TMC-AE16DIOe is not initialized.");
     }
 
     private uint ReadPort(bool input, int? bit = null)
     {
         var count = input ? _inputCount : _outputCount;
-        if (count == 0) return 0; // This direction has no channels; individual access is rejected.
+        if (count == 0)
+            return 0; // This direction has no channels; individual access is rejected.
         var operation = input ? nameof(TMCAEDLL.AIO_GetDIDWord) : nameof(TMCAEDLL.AIO_GetDODWord);
         var mask = count >= 32 ? uint.MaxValue : (1U << (int)count) - 1;
         var read = ReadPortValue(input, uint.MaxValue, bit);
@@ -160,13 +184,22 @@ public sealed class AlphaMotionController(
             {
                 read = ReadPortValue(input, uint.MaxValue, bit);
                 if (read.Value == uint.MaxValue)
-                    throw CreateError(read.Result, read.Error, operation,
-                        "Invalid or unchanged port data after changing the read-buffer seed; I/O state is unavailable.", bit);
+                    throw CreateError(
+                        read.Result,
+                        read.Error,
+                        operation,
+                        "Invalid or unchanged port data after changing the read-buffer seed; I/O state is unavailable.",
+                        bit);
             }
         }
+
         if ((read.Value & ~mask) != 0)
-            throw CreateError(read.Result, read.Error, operation,
-                $"Invalid or unchanged port data: group=0, {(input ? "DI" : "DO")}=0x{read.Value:X8}. Reported channel count={count}; it will not be reported as OFF.", bit);
+            throw CreateError(
+                read.Result,
+                read.Error,
+                operation,
+                $"Invalid or unchanged port data: group=0, {(input ? "DI" : "DO")}=0x{read.Value:X8}. Reported channel count={count}; it will not be reported as OFF.",
+                bit);
         return read.Value;
     }
 
@@ -189,7 +222,9 @@ public sealed class AlphaMotionController(
     {
         var count = input ? _inputCount : _outputCount;
         if ((uint)bit >= count)
-            throw new ArgumentOutOfRangeException(nameof(bit), bit,
+            throw new ArgumentOutOfRangeException(
+                nameof(bit),
+                bit,
                 $"AlphaMotion card={_cardNumber} reports {count} {(input ? "DI" : "DO")} channels; this mapped channel does not exist.");
     }
 
@@ -197,11 +232,21 @@ public sealed class AlphaMotionController(
     {
         var result = TMCAEDLL.AIO_UnloadDevice();
         var error = TMCAEDLL.AIO_GetErrorCode();
-        TraceResult(result, error, nameof(TMCAEDLL.AIO_UnloadDevice), "controller unavailable", always: true);
+        TraceResult(
+            result,
+            error,
+            nameof(TMCAEDLL.AIO_UnloadDevice),
+            "controller unavailable",
+            always: true);
         CheckStatus(result, error, nameof(TMCAEDLL.AIO_UnloadDevice));
     }
 
-    private void CheckStatus(int result, int error, string operation, string? detail = null, int? bit = null)
+    private void CheckStatus(
+        int result,
+        int error,
+        string operation,
+        string? detail = null,
+        int? bit = null)
     {
         // Field-test compatibility, NOT a confirmed SDK-wide return convention:
         // permit 0/ERR_SUCCESS only alongside the caller's data validation/readback.
@@ -210,32 +255,56 @@ public sealed class AlphaMotionController(
             throw CreateError(result, error, operation, detail, bit);
     }
 
-    private void TraceResult(int result, int error, string operation, string detail, int? bit = null, bool always = false)
+    private void TraceResult(
+        int result,
+        int error,
+        string operation,
+        string detail,
+        int? bit = null,
+        bool always = false)
     {
         // First result (and status changes) only: no per-poll log flood.
         if (always || _reportedResults.Add((operation, result, error)))
-            log?.Write($"AlphaMotion native {Address(operation, bit)}: result={result}, {ErrorName(error)} ({error}); {detail}."
-                + (result == 0 && operation != nameof(TMCAEDLL.AIO_LoadDevice)
-                    ? " Zero-result compatibility path; hardware verification required." : ""));
+            log?.Write(
+                $"AlphaMotion native {Address(operation, bit)}: result={result}, {ErrorName(error)} ({error}); {detail}." + (result == 0 && operation != nameof(
+                    TMCAEDLL.AIO_LoadDevice)
+                    ? " Zero-result compatibility path; hardware verification required."
+                    : ""));
     }
 
-    private IOException CreateError(int result, int error, string operation, string? detail = null, int? bit = null) =>
-        new($"{Address(operation, bit)} failed with AlphaMotion result {result}; {ErrorName(error)} ({error})."
-            + (detail is null ? "" : $" {detail}"));
+    private IOException CreateError(
+        int result,
+        int error,
+        string operation,
+        string? detail = null,
+        int? bit = null)
+    {
+        return new(
+            $"{Address(operation, bit)} failed with AlphaMotion result {result}; {ErrorName(error)} ({error})." + (detail is null ? "" : $" {detail}"));
+    }
 
-    private static string ErrorName(int error) =>
-        typeof(tmcDef).GetFields(BindingFlags.Public | BindingFlags.Static)
-            .FirstOrDefault(field => field.Name.StartsWith("ERR_", StringComparison.Ordinal)
-                && field.IsLiteral && field.FieldType == typeof(int)
-                && (int)field.GetRawConstantValue()! == error)?.Name ?? "UNKNOWN_ERROR";
+    private static string ErrorName(int error)
+    {
+        return typeof(tmcDef).GetFields(BindingFlags.Public | BindingFlags.Static)
+            .FirstOrDefault(
+                field =>
+                    field.Name.StartsWith("ERR_", StringComparison.Ordinal)
+                        && field.IsLiteral
+                        && field.FieldType == typeof(int)
+                        && (int)field.GetRawConstantValue()! == error)?.Name ?? "UNKNOWN_ERROR";
+    }
 
-    private string Address(string operation, int? bit) =>
-        $"{operation} (card={_cardNumber}{(bit is null ? "" : $", bit={bit}")})";
+    private string Address(string operation, int? bit)
+    {
+        return $"{operation} (card={_cardNumber}{(bit is null ? "" : $", bit={bit}")})";
+    }
 
     private static ushort GetCardNumber(int value)
     {
         if (value < 0 || value > ushort.MaxValue)
-            throw new ArgumentOutOfRangeException(nameof(AlphaMotionSettings.ControllerNumber), value,
+            throw new ArgumentOutOfRangeException(
+                nameof(AlphaMotionSettings.ControllerNumber),
+                value,
                 "AlphaMotion card number must fit the manufacturer's unsigned 16-bit address.");
         return (ushort)value;
     }
@@ -243,7 +312,10 @@ public sealed class AlphaMotionController(
     private static ushort GetChannel(int bit)
     {
         if ((uint)bit >= ChannelCount)
-            throw new ArgumentOutOfRangeException(nameof(bit), bit, "AlphaMotion mapped channels are 0 through 15; logical addresses 16 and above belong to AJIN.");
+            throw new ArgumentOutOfRangeException(
+                nameof(bit),
+                bit,
+                "AlphaMotion mapped channels are 0 through 15; logical addresses 16 and above belong to AJIN.");
         return (ushort)bit;
     }
 }
