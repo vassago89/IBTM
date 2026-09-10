@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using IBTM.Ajin;
 using IBTM.Core;
 using IBTM.Device;
@@ -10,6 +12,19 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class MotionStatusTests
 {
+    [Fact]
+    public async Task FailedAdjustmentDoesNotReadFeedbackAgainToClearCommandHistory()
+    {
+        var motion = new StatusMotion();
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => motion.AdjustAxisAsync(MotionAxis.X, 0, 1));
+
+        Assert.Equal("Move was rejected.", failure.Message);
+        Assert.Equal(MotionCommand.None, motion.Command);
+        Assert.Throws<IOException>(() => motion.GetAxisState(MotionAxis.X));
+    }
+
     [Fact]
     public void DisplaysShareFeedbackAndDoNotReadTheDevice()
     {
@@ -106,6 +121,16 @@ public sealed class MotionStatusTests
         {
             Reads++;
             return Failure is { } failure ? throw failure : State;
+        }
+
+        protected override Task MoveAxisCoreAsync(
+            MotionAxis axis,
+            double position,
+            double velocity,
+            CancellationToken cancellationToken)
+        {
+            Failure = new IOException("Feedback also became unavailable.");
+            throw new InvalidOperationException("Move was rejected.");
         }
 
         public void Publish()

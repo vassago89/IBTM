@@ -506,7 +506,7 @@ public sealed class ConveyorTests
     }
 
     [Fact]
-    public async Task MainConveyorResumesAfterPassingEntrySensor()
+    public async Task StoppedInfeedNeedsPresenceFeedbackBeforeResuming()
     {
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
@@ -539,7 +539,10 @@ public sealed class ConveyorTests
 
         using var cancellation = new CancellationTokenSource();
         var resumedRun = conveyor.RunAsync(cancellation.Token);
-        await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+        Assert.Equal(MainConveyorState.CarrierPositionUnknown, conveyor.State);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
         virtualIo.SetInput(InputIo.PcbPlacementCarrierPresent, true);
         await io.WaitForInputAsync(InputIo.PcbPlacementBackupPlateUp, true);
         cancellation.Cancel();
@@ -551,7 +554,7 @@ public sealed class ConveyorTests
     }
 
     [Fact]
-    public async Task MainConveyorResumesBeforeReachingExitSensor()
+    public async Task StoppedDischargeNeedsPresenceFeedbackBeforeResuming()
     {
         var virtualIo = CreateIo();
         IIoService io = virtualIo;
@@ -594,12 +597,17 @@ public sealed class ConveyorTests
 
         using var cancellation = new CancellationTokenSource();
         var resumedRun = conveyor.RunAsync(cancellation.Token);
+        Assert.Equal(MainConveyorState.CarrierPositionUnknown, conveyor.State);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+        Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
+
+        virtualIo.SetInput(InputIo.MainConveyorExitCarrierDetected, true);
         await WaitForOutputAsync(io, OutputIo.MainConveyorAvailableToRear, true);
         Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
 
         virtualIo.SetInput(InputIo.MainConveyorReadyFromRear, true);
         await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
-        virtualIo.SetInput(InputIo.MainConveyorExitCarrierDetected, true);
         conveyor.Stop();
         await resumedRun.WaitAsync(TimeSpan.FromSeconds(2));
 

@@ -70,11 +70,11 @@ public sealed partial class MachineLifecycleTests
         public TaskCompletionSource Stopped { get; } = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public BoltHeadState State
+        public bool HasPendingResult
         {
             get
             {
-                return BoltHeadState.Ready;
+                return false;
             }
         }
 
@@ -122,11 +122,11 @@ public sealed partial class MachineLifecycleTests
         public TaskCompletionSource ReadinessReleased { get; } = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public BoltHeadState State
+        public bool HasPendingResult
         {
             get
             {
-                return BoltHeadState.Ready;
+                return false;
             }
         }
 
@@ -284,7 +284,7 @@ public sealed partial class MachineLifecycleTests
             if (name == "get_IsReady")
                 return ReportReady || _initialized;
             if ((!method.IsSpecialName && name != nameof(IMotionFeedback.GetRange))
-                || name == "get_IsAtHorizontalZ")
+                || name is "get_IsAtHorizontalZ" or "get_IsMoving" or "get_IsMovingHorizontal")
             {
                 Interlocked.Increment(ref HardwareCalls);
                 if (name == nameof(IAxisMotion.Reset))

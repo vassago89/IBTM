@@ -6,27 +6,16 @@ using IBTM.Core;
 
 namespace IBTM.UI;
 
-public sealed class BoltFasteningRecoveryPreparation : StartPreparation
+public sealed class BoltFasteningRecoveryPreparation(
+    MachineState state,
+    BoltFasteningWork work,
+    BoltFasteningStation fastening,
+    Recipe recipe) : StartPreparation(state, work)
 {
-    private readonly BoltFasteningWork _work;
-    private readonly BoltFasteningStation _fastening;
-    private readonly Recipe _recipe;
-
-    public BoltFasteningRecoveryPreparation(
-        MachineState state,
-        BoltFasteningWork work,
-        BoltFasteningStation fastening,
-        Recipe recipe) : base(state, work)
-    {
-        _work = work;
-        _fastening = fastening;
-        _recipe = recipe;
-    }
-
     protected override bool Show(Window owner)
     {
         var items = new List<BoltFasteningRecoveryItem>();
-        foreach (var bolt in _recipe.Pcb.GetBolts().Where(bolt => _work.HeatSinkPresent(bolt.HeatSink)))
+        foreach (var bolt in recipe.Pcb.GetBolts().Where(bolt => work.HeatSinkPresent(bolt.HeatSink)))
         {
             if (bolt.Head == FasteningHead.Shooting)
             {
@@ -45,8 +34,8 @@ public sealed class BoltFasteningRecoveryPreparation : StartPreparation
         var window = new BoltFasteningRecoveryWindow(
             new BoltFasteningRecoveryViewModel(
                 orderedItems,
-                _work.HeatSinkPresent(HeatSinkSlot.HeatSink1),
-                _work.HeatSinkPresent(HeatSinkSlot.HeatSink2)))
+                work.HeatSinkPresent(HeatSinkSlot.HeatSink1),
+                work.HeatSinkPresent(HeatSinkSlot.HeatSink2)))
         {
             Owner = owner,
         };
@@ -55,14 +44,14 @@ public sealed class BoltFasteningRecoveryPreparation : StartPreparation
             return false;
         }
 
-        _fastening.PrepareRecovery(
+        fastening.PrepareRecovery(
             orderedItems.Select(item => (item.HeatSink, item.Number, item.Pass, item.Completed)));
         return true;
     }
 
     private BoltFasteningRecoveryItem CreateItem(BoltTarget bolt, FasteningPass pass)
     {
-        var assembly = _work.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
+        var assembly = work.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
         var results = pass switch
         {
             FasteningPass.Pcb => assembly?.PcbBoltResults,

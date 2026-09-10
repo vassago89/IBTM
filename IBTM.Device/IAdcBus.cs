@@ -21,14 +21,9 @@ public interface IAdcBus
     void Open(string portName, int baudRate);
     void Close();
 
-    Task<ushort[]> ReadHoldingRegistersAsync(
+    Task<ushort[]> ReadRegistersAsync(
         byte slaveAddress,
-        ushort address,
-        ushort count,
-        CancellationToken cancellationToken = default);
-
-    Task<ushort[]> ReadInputRegistersAsync(
-        byte slaveAddress,
+        AdcFunctionCode function,
         ushort address,
         ushort count,
         CancellationToken cancellationToken = default);
@@ -47,8 +42,9 @@ public interface IAdcBus
         byte slaveAddress,
         CancellationToken cancellationToken = default)
     {
-        var values = await ReadInputRegistersAsync(
+        var values = await ReadRegistersAsync(
             slaveAddress,
+            AdcFunctionCode.ReadInputRegisters,
             (ushort)AdcResultRegister.EventCount,
             AdcFasteningResult.RegisterCount,
             cancellationToken);
@@ -59,8 +55,9 @@ public interface IAdcBus
         byte slaveAddress,
         CancellationToken cancellationToken = default)
     {
-        var values = await ReadInputRegistersAsync(
+        var values = await ReadRegistersAsync(
             slaveAddress,
+            AdcFunctionCode.ReadInputRegisters,
             (ushort)AdcStatusRegister.Preset,
             AdcControllerStatus.RegisterCount,
             cancellationToken);
@@ -132,18 +129,6 @@ public enum AdcFunctionCode : byte
 
     [Description("Request Device Information")]
     RequestDeviceInformation = 0x11,
-}
-
-public enum AdcRegisterAccess
-{
-    [Description("Read Holding Registers")]
-    ReadHoldingRegisters,
-
-    [Description("Read Input Registers")]
-    ReadInputRegisters,
-
-    [Description("Write Single Register")]
-    WriteSingleRegister,
 }
 
 public enum AdcRemoteRegister : ushort

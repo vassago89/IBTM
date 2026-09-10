@@ -55,34 +55,6 @@ public sealed class VirtualAdcBus : IAdcBus
         BaudRate = 0;
     }
 
-    public Task<ushort[]> ReadHoldingRegistersAsync(
-        byte slaveAddress,
-        ushort address,
-        ushort count,
-        CancellationToken cancellationToken = default)
-    {
-        return ReadRegistersAsync(
-            slaveAddress,
-            AdcFunctionCode.ReadHoldingRegisters,
-            address,
-            count,
-            cancellationToken);
-    }
-
-    public Task<ushort[]> ReadInputRegistersAsync(
-        byte slaveAddress,
-        ushort address,
-        ushort count,
-        CancellationToken cancellationToken = default)
-    {
-        return ReadRegistersAsync(
-            slaveAddress,
-            AdcFunctionCode.ReadInputRegisters,
-            address,
-            count,
-            cancellationToken);
-    }
-
     public Task WriteRegisterAsync(
         byte slaveAddress,
         ushort address,
@@ -153,12 +125,12 @@ public sealed class VirtualAdcBus : IAdcBus
         return Task.FromResult(data);
     }
 
-    private Task<ushort[]> ReadRegistersAsync(
+    public Task<ushort[]> ReadRegistersAsync(
         byte slaveAddress,
         AdcFunctionCode function,
         ushort address,
         ushort count,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var controller = GetController(slaveAddress);

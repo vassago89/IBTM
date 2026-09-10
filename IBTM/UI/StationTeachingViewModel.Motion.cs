@@ -29,7 +29,7 @@ public partial class StationTeachingViewModel
         }
     }
 
-    protected override MotionGroup CurrentMotionGroup
+    public override MotionGroup ActiveMotionGroup
     {
         get
         {
@@ -39,7 +39,7 @@ public partial class StationTeachingViewModel
 
     protected override bool CanJog(MotionAxis axis)
     {
-        return Machine.CanUseManualMotion(CurrentMotionGroup, live: false)
+        return Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
             && SelectedMotionGroup switch
             {
                 MotionGroup.PcbPlacementHandler => _placementHandler.CanJog(axis, live: false),
@@ -101,7 +101,7 @@ public partial class StationTeachingViewModel
     private Task ReturnFromPickupAsync(CancellationToken cancellationToken)
     {
         return Machine.RunManualMotionAsync(
-            CurrentMotionGroup,
+            ActiveMotionGroup,
             _fasteningGantry.ReturnFromPickupAsync,
             cancellationToken,
             ViewCancellation);
@@ -110,7 +110,7 @@ public partial class StationTeachingViewModel
     private bool CanReturnFromPickup()
     {
         return SelectedMotionGroup == MotionGroup.BoltFastening
-            && Machine.CanUseManualMotion(CurrentMotionGroup, live: false);
+            && Machine.CanUseManualMotion(ActiveMotionGroup, live: false);
     }
 
     protected override Task MovePointAsync(TeachingPoint point, CancellationToken cancellationToken)
@@ -139,7 +139,7 @@ public partial class StationTeachingViewModel
     protected override bool CanMoveToPoint()
     {
         return SelectedPoint is not null
-            && Machine.CanUseManualMotion(CurrentMotionGroup, live: false)
+            && Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
             && (SelectedPoint.Position.Mode == TeachMode.ZOnly || CanMoveHorizontal())
             && SelectedPoint.Position.HasPosition;
     }

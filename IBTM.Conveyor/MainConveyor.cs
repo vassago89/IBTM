@@ -79,6 +79,25 @@ public sealed class MainConveyor : AutoUnit
     {
         get
         {
+            // The destination is transfer history, not proof of a carrier's location.
+            // After a stop between sensors, wait for presence feedback before resuming.
+            if (!RunCommandOn
+                && (_transfer switch
+                {
+                    ConveyorTransfer.ReceivingAfterEntry =>
+                        !EntryCarrierDetected && !_placementWork.CarrierPresent,
+                    ConveyorTransfer.PcbPlacementToBoltFastening =>
+                        !_placementWork.CarrierPresent && !_boltFasteningWork.CarrierPresent,
+                    ConveyorTransfer.BoltFasteningToInspection =>
+                        !_boltFasteningWork.CarrierPresent && !_inspectionWork.CarrierPresent,
+                    ConveyorTransfer.DischargingInspectionToExit =>
+                        !_inspectionWork.CarrierPresent && !ExitCarrierDetected,
+                    _ => false,
+                }))
+            {
+                return MainConveyorState.CarrierPositionUnknown;
+            }
+
             if (ExitCarrierDetected)
             {
                 return _io.GetInput(InputIo.MainConveyorReadyFromRear)
@@ -249,6 +268,9 @@ public sealed class MainConveyor : AutoUnit
     {
         switch (State)
         {
+            case MainConveyorState.CarrierPositionUnknown:
+                ResetSmema();
+                return WaitForChangeAsync(cancellationToken);
             case MainConveyorState.SeatingInspectionCarrier:
                 return _inspection.SeatAsync(cancellationToken);
             case MainConveyorState.SeatingBoltFasteningCarrier:

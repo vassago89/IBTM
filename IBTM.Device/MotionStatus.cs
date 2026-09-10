@@ -13,7 +13,6 @@ public sealed record MotionPosition(double X, double Y, double Z);
 public sealed class MotionStatus : INotifyPropertyChanged
 {
     private MotionPosition _position;
-    private bool _isMoving;
     private Task? _monitoring;
     private readonly TaskCompletionSource _firstMonitorRead = new(
         TaskCreationOptions.RunContinuationsAsynchronously);
@@ -24,14 +23,12 @@ public sealed class MotionStatus : INotifyPropertyChanged
         Axes = motion.Axes.ToDictionary(axis => axis, _ => new AxisStatus());
         MonitorAxes = motion.Axes.ToDictionary(axis => axis, _ => new MotionDiagnostics());
         _position = new(0, 0, 0);
-        _isMoving = motion.IsMoving;
 
         var zRange = motion.GetRange(MotionAxis.Z);
         ZMinimum = zRange?.Minimum ?? 0;
         ZMaximum = zRange?.Maximum ?? 0;
 
         motion.PositionChanged += OnPositionChanged;
-        motion.MovingChanged += OnMovingChanged;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -91,6 +88,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
                 reportError(axis, error);
             }
 
+            PropertyChanged?.Invoke(this, new(nameof(IsMoving)));
             refreshed();
             _firstMonitorRead.TrySetException(error);
             throw;
@@ -101,6 +99,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
     {
         if (Feedback is not IMotionDiagnostics diagnostics)
             return;
+        var wasMoving = IsMoving;
         foreach (var (axis, status) in MonitorAxes)
         {
             var previous = status.Snapshot.ReadError?.Message;
@@ -108,6 +107,9 @@ public sealed class MotionStatus : INotifyPropertyChanged
             if (status.Snapshot.ReadError is { } error && error.Message != previous)
                 reportError?.Invoke(axis, error);
         }
+
+        if (wasMoving != IsMoving)
+            PropertyChanged?.Invoke(this, new(nameof(IsMoving)));
     }
 
     public bool XyHomed
@@ -136,7 +138,10 @@ public sealed class MotionStatus : INotifyPropertyChanged
 
         private set
         {
-            Set(ref _position, value, nameof(Position));
+            if (_position == value)
+                return;
+            _position = value;
+            PropertyChanged?.Invoke(this, new(nameof(Position)));
         }
     }
 
@@ -144,12 +149,11 @@ public sealed class MotionStatus : INotifyPropertyChanged
     {
         get
         {
-            return _isMoving;
-        }
-
-        private set
-        {
-            Set(ref _isMoving, value, nameof(IsMoving));
+            // Observed movement only. Unknown feedback is exposed by the axis status;
+            // command admission must still read current hardware feedback.
+            return Feedback is IMotionDiagnostics
+                ? MonitorAxes.Values.Any(axis => axis.Snapshot.State is { InMotion: true })
+                : Axes.Values.Any(axis => axis.State is { InMotion: true });
         }
     }
 
@@ -161,19 +165,16 @@ public sealed class MotionStatus : INotifyPropertyChanged
         Position = new(x, y, z);
     }
 
-    private void OnMovingChanged(bool moving)
-    {
-        IsMoving = moving;
-    }
-
     public void RefreshControlFeedback(bool available = true)
     {
         var wasHomed = XyHomed;
+        var wasMoving = IsMoving;
         try
         {
+            var ready = available && Feedback.IsReady;
             foreach (var (axis, status) in Axes)
-                status.Update(available && Feedback.IsReady ? Feedback.GetAxisState(axis) : null);
-            if (available && Feedback.IsReady)
+                status.Update(ready ? Feedback.GetAxisState(axis) : null);
+            if (ready)
             {
                 var position = Feedback.GetPosition();
                 OnPositionChanged(position.X, position.Y, position.Z);
@@ -187,19 +188,11 @@ public sealed class MotionStatus : INotifyPropertyChanged
         }
         finally
         {
+            if (wasMoving != IsMoving)
+                PropertyChanged?.Invoke(this, new(nameof(IsMoving)));
             if (wasHomed != XyHomed)
                 PropertyChanged?.Invoke(this, new(nameof(XyHomed)));
         }
     }
 
-    private void Set<T>(ref T field, T value, string propertyName)
-    {
-        if (EqualityComparer<T>.Default.Equals(field, value))
-        {
-            return;
-        }
-
-        field = value;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
 }

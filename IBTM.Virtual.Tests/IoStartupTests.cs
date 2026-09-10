@@ -15,6 +15,23 @@ namespace IBTM.Virtual.Tests;
 public sealed class IoStartupTests
 {
     [Fact]
+    public async Task PhysicalInputWithoutAValidScanIsNotOffOrCompleted()
+    {
+        // Construction and unavailable reads must not invoke either native SDK.
+        using var physical = new PhysicalIoService(
+            new IBTM.AlphaMotion.AlphaMotionController(new()),
+            new IBTM.Ajin.AjinController(new()),
+            new Dictionary<InputIo, int>(),
+            new Dictionary<OutputIo, OutputHardware>(),
+            new());
+        IIoService io = physical;
+
+        Assert.Throws<IOException>(() => io.GetInput(InputIo.PcbPlacementCarrierPresent));
+        await Assert.ThrowsAsync<IOException>(
+            () => io.WaitForInputAsync(InputIo.PcbPlacementCarrierPresent, false));
+    }
+
+    [Fact]
     public async Task InputFaultStopsReachableOutputsAndManualStopCanRetry()
     {
         using var services = CreateServices();
@@ -319,6 +336,12 @@ public sealed class IoStartupTests
 
         public bool GetInput(InputIo input)
         {
+            if (!IsReady)
+            {
+                ReadsWhileUnavailable++;
+                throw new IOException("Input scan is unavailable; cached inputs are not current feedback.");
+            }
+
             return inner.GetInput(input);
         }
 

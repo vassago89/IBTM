@@ -752,10 +752,10 @@ public sealed partial class MachineLifecycleTests
         Assert.True(machine.CanHome);
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(state.Ready);
-        Assert.True(state.ManualControlsEnabled);
+        await WaitUntilAsync(() => state.ManualControlsEnabled);
 
         probes[group].Motion.SetServo(MotionAxis.X, false);
-        Assert.True(machine.CanReset);
+        await WaitUntilAsync(() => machine.CanReset);
         await machine.ResetAsync();
         Assert.True(state.Ready);
         Assert.Equal(1, probes[group].ResetCalls);

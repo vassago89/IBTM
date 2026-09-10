@@ -8,7 +8,7 @@ namespace IBTM.UI;
 
 public partial class SupplyTeachingViewModel
 {
-    public MotionGroup ActiveMotionGroup
+    public override MotionGroup ActiveMotionGroup
     {
         get
         {
@@ -42,14 +42,6 @@ public partial class SupplyTeachingViewModel
             return ActiveMotionGroup == MotionGroup.PcbSupply
                 ? _supplySettings.RotationZ
                 : _placementSettings.BufferEntryZ;
-        }
-    }
-
-    protected override MotionGroup CurrentMotionGroup
-    {
-        get
-        {
-            return ActiveMotionGroup;
         }
     }
 
@@ -103,7 +95,7 @@ public partial class SupplyTeachingViewModel
 
     protected override bool CanJog(MotionAxis axis)
     {
-        return Machine.CanUseManualMotion(CurrentMotionGroup, live: false)
+        return Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
             && (ActiveMotionGroup == MotionGroup.PcbSupply
                 ? _supplyHandler.CanJog(axis, live: false)
                 : _placementHandler.CanJog(axis, live: false));
@@ -121,7 +113,7 @@ public partial class SupplyTeachingViewModel
 
     protected override bool CanMoveToPoint()
     {
-        return Machine.CanUseManualMotion(CurrentMotionGroup, live: false)
+        return Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
             && SelectedPoint is { } point
             && (point.Position.MotionGroup != MotionGroup.PcbSupply
                 ? point.Position.Mode == TeachMode.ZOnly || _placementHandler.CanMoveHorizontal

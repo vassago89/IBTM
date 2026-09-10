@@ -230,12 +230,12 @@ public sealed class BoltInspector
 
     internal bool IsAt(BoltTarget point)
     {
-        return gantry.IsAt(Position(point));
+        return gantry.IsAt(gantrySettings.GetBoltPosition(point, carrierReference));
     }
 
     public Task MoveToAsync(BoltTarget point, CancellationToken cancellationToken = default)
     {
-        return MoveToAsync(Position(point), cancellationToken);
+        return MoveToAsync(gantrySettings.GetBoltPosition(point, carrierReference), cancellationToken);
     }
 
     private ImageFrame Capture()
@@ -483,11 +483,6 @@ public sealed class BoltInspector
         {
             throw new AggregateException(failure, cleanupFailure);
         }
-    }
-
-    private AxisPosition Position(BoltTarget point)
-    {
-        return gantrySettings.GetBoltPosition(point, carrierReference);
     }
 
     private Task MoveToAsync(AxisPosition position, CancellationToken cancellationToken)

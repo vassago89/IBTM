@@ -91,34 +91,6 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         }
     }
 
-    public Task<ushort[]> ReadHoldingRegistersAsync(
-        byte slaveAddress,
-        ushort address,
-        ushort count,
-        CancellationToken cancellationToken = default)
-    {
-        return ReadRegistersAsync(
-            slaveAddress,
-            AdcFunctionCode.ReadHoldingRegisters,
-            address,
-            count,
-            cancellationToken);
-    }
-
-    public Task<ushort[]> ReadInputRegistersAsync(
-        byte slaveAddress,
-        ushort address,
-        ushort count,
-        CancellationToken cancellationToken = default)
-    {
-        return ReadRegistersAsync(
-            slaveAddress,
-            AdcFunctionCode.ReadInputRegisters,
-            address,
-            count,
-            cancellationToken);
-    }
-
     public async Task WriteRegisterAsync(
         byte slaveAddress,
         ushort address,
@@ -165,12 +137,12 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         }
     }
 
-    private async Task<ushort[]> ReadRegistersAsync(
+    public async Task<ushort[]> ReadRegistersAsync(
         byte slaveAddress,
         AdcFunctionCode function,
         ushort address,
         ushort count,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
         var data = new byte[4];
         BinaryPrimitives.WriteUInt16BigEndian(data, address);

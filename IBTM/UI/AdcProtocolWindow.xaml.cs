@@ -64,7 +64,7 @@ public partial class AdcProtocolWindow : Window
         RefreshPorts();
         BaudBox.SelectedItem = settings.BaudRate;
         SlaveBox.Text = settings.PickupSlaveAddress.ToString();
-        AccessBox.SelectedItem = AdcRegisterAccess.ReadInputRegisters;
+        AccessBox.SelectedItem = AdcFunctionCode.ReadInputRegisters;
         AddressBox.Text = ((ushort)AdcResultRegister.EventCount).ToString();
         CountBox.Text = AdcFasteningResult.RegisterCount.ToString();
         NextResultBox.SelectedItem = AdcEventStatus.FasteningOk;
@@ -82,7 +82,11 @@ public partial class AdcProtocolWindow : Window
 
     public int[] BaudRates { get; } = [9600, 19200, 38400, 57600, 115200];
     public ReadOnlyObservableCollection<string> FrameLog { get; }
-    public AdcRegisterAccess[] RegisterAccesses { get; } = Enum.GetValues<AdcRegisterAccess>();
+    public AdcFunctionCode[] RegisterAccesses { get; } = [
+        AdcFunctionCode.ReadHoldingRegisters,
+        AdcFunctionCode.ReadInputRegisters,
+        AdcFunctionCode.WriteSingleRegister,
+    ];
 
     public bool IsVirtual
     {
@@ -313,30 +317,23 @@ public partial class AdcProtocolWindow : Window
         await ExecuteAsync(
             async cancellationToken =>
             {
-                var access = (AdcRegisterAccess)AccessBox.SelectedItem;
+                var access = (AdcFunctionCode)AccessBox.SelectedItem;
                 var address = ushort.Parse(AddressBox.Text);
 
                 switch (access)
                 {
-                    case AdcRegisterAccess.ReadHoldingRegisters:
+                    case AdcFunctionCode.ReadHoldingRegisters:
+                    case AdcFunctionCode.ReadInputRegisters:
                         RegisterResult = FormatRegisters(
                             address,
-                            await _bus.ReadHoldingRegistersAsync(
+                            await _bus.ReadRegistersAsync(
                                 SlaveAddress,
+                                access,
                                 address,
                                 ushort.Parse(CountBox.Text),
                                 cancellationToken));
                         break;
-                    case AdcRegisterAccess.ReadInputRegisters:
-                        RegisterResult = FormatRegisters(
-                            address,
-                            await _bus.ReadInputRegistersAsync(
-                                SlaveAddress,
-                                address,
-                                ushort.Parse(CountBox.Text),
-                                cancellationToken));
-                        break;
-                    case AdcRegisterAccess.WriteSingleRegister:
+                    case AdcFunctionCode.WriteSingleRegister:
                         var value = ushort.Parse(ValueBox.Text);
                         if (address == (ushort)AdcRemoteRegister.RemoteStart && value != 0)
                         {

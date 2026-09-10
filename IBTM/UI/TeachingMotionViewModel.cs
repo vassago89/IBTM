@@ -67,7 +67,6 @@ public abstract partial class TeachingMotionViewModel(
     IReadOnlyDictionary<MotionGroup, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : ObservableObject
 {
     private CancellationTokenSource _viewCancellation = new();
-    private bool _positionUpdatesActive;
     private readonly Dictionary<MotionGroup, TeachingIoGroup[]> _teachingIoGroups = [];
     private int _manualCommandRefreshQueued;
 
@@ -110,9 +109,9 @@ public abstract partial class TeachingMotionViewModel(
     {
         get
         {
-            if (!_teachingIoGroups.TryGetValue(CurrentMotionGroup, out var groups))
+            if (!_teachingIoGroups.TryGetValue(ActiveMotionGroup, out var groups))
             {
-                groups = ioGroups[CurrentMotionGroup].Select(
+                groups = ioGroups[ActiveMotionGroup].Select(
                     io =>
                         new TeachingIoGroup(
                             io,
@@ -121,7 +120,7 @@ public abstract partial class TeachingMotionViewModel(
                             SetOutputOffCommand,
                             SetOutputOnCancelCommand))
                     .ToArray();
-                _teachingIoGroups.Add(CurrentMotionGroup, groups);
+                _teachingIoGroups.Add(ActiveMotionGroup, groups);
             }
 
             return groups;
@@ -132,7 +131,7 @@ public abstract partial class TeachingMotionViewModel(
     {
         get
         {
-            return teachingOutputs[CurrentMotionGroup];
+            return teachingOutputs[ActiveMotionGroup];
         }
     }
 
@@ -140,21 +139,15 @@ public abstract partial class TeachingMotionViewModel(
     {
         get
         {
-            return state.GetMotionStatus(CurrentMotionGroup);
+            return state.GetMotionStatus(ActiveMotionGroup);
         }
     }
 
     protected MachineController Machine { get; } = machine;
 
-    protected abstract MotionGroup CurrentMotionGroup { get; }
+    public abstract MotionGroup ActiveMotionGroup { get; }
 
-    protected bool PositionUpdatesActive
-    {
-        get
-        {
-            return _positionUpdatesActive;
-        }
-    }
+    protected bool PositionUpdatesActive { get; private set; }
 
     protected CancellationToken ViewCancellation
     {
@@ -212,7 +205,7 @@ public abstract partial class TeachingMotionViewModel(
     {
         var point = CurrentPoint!;
         return Machine.RunManualMotionAsync(
-            CurrentMotionGroup,
+            ActiveMotionGroup,
             token => MovePointAsync(point, token),
             cancellationToken,
             ViewCancellation);
@@ -231,7 +224,7 @@ public abstract partial class TeachingMotionViewModel(
             await Task.Run(() => store.SaveSettings(settings, cancellationToken), cancellationToken);
             System.Diagnostics.Trace.TraceInformation(
                 "Teaching settings saved: {0}.",
-                CurrentMotionGroup);
+                ActiveMotionGroup);
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -242,7 +235,7 @@ public abstract partial class TeachingMotionViewModel(
         {
             System.Diagnostics.Trace.TraceError(
                 "Teaching settings save failed: {0}. {1}",
-                CurrentMotionGroup,
+                ActiveMotionGroup,
                 exception);
             SaveError = $"Teaching values were not saved: {exception.GetBaseException().Message}";
             return false;
@@ -327,7 +320,7 @@ public abstract partial class TeachingMotionViewModel(
     {
         var (axis, sign) = Resolve(direction);
         return Machine.RunManualMotionAsync(
-            CurrentMotionGroup,
+            ActiveMotionGroup,
             token => JogCurrentAsync(axis, sign * JogSpeed, token),
             cancellationToken,
             ViewCancellation);
@@ -337,7 +330,7 @@ public abstract partial class TeachingMotionViewModel(
     private Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken)
     {
         return Machine.RunManualMotionAsync(
-            CurrentMotionGroup,
+            ActiveMotionGroup,
             token =>
             {
                 var (axis, target) = StepTarget(direction, Motion.Feedback.GetPosition());
@@ -410,7 +403,7 @@ public abstract partial class TeachingMotionViewModel(
     private Task MoveToHorizontalZAsync(CancellationToken cancellationToken)
     {
         return Machine.RunManualMotionAsync(
-            CurrentMotionGroup,
+            ActiveMotionGroup,
             MoveCurrentToHorizontalZAsync,
             cancellationToken,
             ViewCancellation);
@@ -452,13 +445,13 @@ public abstract partial class TeachingMotionViewModel(
 
     protected void ActivatePositionUpdates()
     {
-        _positionUpdatesActive = true;
+        PositionUpdatesActive = true;
         OnPropertyChanged(nameof(Motion));
     }
 
     public virtual void Deactivate()
     {
-        _positionUpdatesActive = false;
+        PositionUpdatesActive = false;
         CancelTeaching();
     }
 

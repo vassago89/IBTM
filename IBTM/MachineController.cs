@@ -1207,7 +1207,8 @@ public sealed partial class MachineController
 
     private void CheckMotionInterlocks()
     {
-        if (_fasteningGantry.Feedback.Command == MotionCommand.Adjustment
+        if (_units.BoltFastening
+            && _fasteningGantry.Feedback.Command == MotionCommand.Adjustment
             && (!ManualMotionReady(MotionGroup.BoltFastening)
                 || _state.AutomaticRunning
                 || _state.IsHoming
@@ -1216,12 +1217,14 @@ public sealed partial class MachineController
             Stop();
         }
 
-        var fasteningBlocked = _fasteningGantry.Feedback.Command == MotionCommand.Positioning
-            && _fasteningGantry.Feedback.IsMovingHorizontal
-            && !_fasteningGantry.CanMoveHorizontal;
+        var fasteningBlocked = _units.BoltFastening
+            && _fasteningGantry.Feedback.Command != MotionCommand.Adjustment
+            && !_fasteningGantry.CanMoveHorizontal
+            && _fasteningGantry.Feedback.IsMovingHorizontal;
         var alarm = MachineAlarm.None;
-        if (_placementHandler.Feedback.IsMovingHorizontal
-            && !_placementHandler.CanMoveHorizontal)
+        if (_units.PcbPlacement
+            && !_placementHandler.CanMoveHorizontal
+            && _placementHandler.Feedback.IsMovingHorizontal)
         {
             alarm = MachineAlarm.PcbPlacement;
         }
@@ -1229,8 +1232,9 @@ public sealed partial class MachineController
         {
             alarm = MachineAlarm.BoltFastening;
         }
-        else if ((_inspectionGantry.Feedback.IsMoving && !_inspectionGantry.CanMove)
-            || (InspectionGantryEnabled && _state.IsHoming && !_inspectionGantry.CanHome))
+        else if (InspectionGantryEnabled
+            && ((!_inspectionGantry.CanMove && _inspectionGantry.Feedback.IsMoving)
+                || (_state.IsHoming && !_inspectionGantry.CanHome)))
         {
             alarm = MachineAlarm.NgCarrierTransfer;
         }

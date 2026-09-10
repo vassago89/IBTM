@@ -22,4 +22,5 @@ public readonly record struct AxisState(
     bool Emergency,
     bool HomeSensor,
     bool PositiveLimit,
-    bool NegativeLimit);
+    bool NegativeLimit,
+    bool InMotion = false);

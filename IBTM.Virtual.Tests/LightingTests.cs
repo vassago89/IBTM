@@ -319,7 +319,7 @@ public sealed class LightingTests
     }
 
     [Fact]
-    public void ConnectionEditsRequireANewDriverAndUninitializedShutdownIsSafe()
+    public void ConnectionEditsRequireANewDriverAndDisconnectedOffIsNotReportedAsSuccess()
     {
         var settings = new LightingSettings();
         using var controller = new MovsLightController(settings);
@@ -327,7 +327,7 @@ public sealed class LightingTests
         Assert.Contains(
             "COM port is empty",
             Assert.Throws<InvalidOperationException>(controller.Initialize).Message);
-        controller.TurnOffAll();
+        Assert.Throws<InvalidOperationException>(controller.TurnOffAll);
     }
 
     [Fact]

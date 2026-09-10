@@ -5,12 +5,24 @@ internal static partial class CAXM
 {
     public static uint AxmMotSetMoveUnitPerPulse(int axis, double unit, int pulse)
     {
-        return AjinSdk.Record(new(nameof(AxmMotSetMoveUnitPerPulse), Axis: axis));
+        var result = AjinSdk.Record(new(nameof(AxmMotSetMoveUnitPerPulse), Axis: axis));
+        if (result == 0)
+            AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { Unit = unit, Pulse = pulse };
+        return result;
     }
 
     public static uint AxmMotSetAccelUnit(int axis, uint unit)
     {
-        return AjinSdk.Record(new(nameof(AxmMotSetAccelUnit), Value: unit, Axis: axis));
+        var result = AjinSdk.Record(new(nameof(AxmMotSetAccelUnit), Value: unit, Axis: axis));
+        if (result == 0)
+            AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { AccelerationUnit = unit };
+        return result;
+    }
+
+    public static uint AxmMotGetAccelUnit(int axis, ref uint unit)
+    {
+        unit = AjinSdk.MotionAxes[axis].AccelerationUnit;
+        return AjinSdk.Record(new(nameof(AxmMotGetAccelUnit), Axis: axis));
     }
 
     public static uint AxmMotGetMoveUnitPerPulse(int axis, ref double unit, ref int pulse)
@@ -109,7 +121,8 @@ internal static partial class CAXM
 
     public static uint AxmStatusReadInMotion(int axis, ref uint value)
     {
-        throw new NotSupportedException();
+        value = AjinSdk.MotionAxes[axis].InMotion;
+        return AjinSdk.Record(new(nameof(AxmStatusReadInMotion), Axis: axis));
     }
 
     public static uint AxmSignalGetLimit(

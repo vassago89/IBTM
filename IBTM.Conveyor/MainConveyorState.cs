@@ -33,4 +33,7 @@ public enum MainConveyorState
 
     [Description("Discharging S3")]
     DischargingInspectionCarrier,
+
+    [Description("Carrier position unknown")]
+    CarrierPositionUnknown,
 }

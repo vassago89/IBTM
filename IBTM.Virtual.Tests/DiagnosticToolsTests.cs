@@ -241,6 +241,15 @@ public sealed class DiagnosticToolsTests
             Assert.Equal(MachineAlarm.None, state.Alarm); // Disabled axes are diagnostic only.
             Assert.False(state.Display.MotionFaulted);
 
+            // Movement started outside the application still makes the machine busy.
+            diagnostics.InMotion = true;
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => state.IsRunning, TimeSpan.FromSeconds(2)));
+            Assert.False(machine.CanReset);
+            diagnostics.InMotion = false;
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => !state.IsRunning, TimeSpan.FromSeconds(2)));
+
             diagnostics.FailX = true;
             diagnostics.Position = 43;
             Assert.True(
@@ -298,6 +307,7 @@ public sealed class DiagnosticToolsTests
         public volatile bool Alarmed;
         public volatile bool FailX;
         public volatile bool FailControl;
+        public volatile bool InMotion;
         public int Position;
         public int Reads;
         public AxisState ReadDiagnosticState(MotionAxis axis)
@@ -305,7 +315,7 @@ public sealed class DiagnosticToolsTests
             Interlocked.Increment(ref Reads);
             if (FailX && axis == MotionAxis.X)
                 throw new IOException("Diagnostic X read failed.");
-            return new(false, false, Alarmed, true, false, true, false, false);
+            return new(false, false, Alarmed, true, false, true, false, false, InMotion);
         }
 
         public double ReadDiagnosticPosition(MotionAxis axis)
@@ -315,6 +325,8 @@ public sealed class DiagnosticToolsTests
 
         protected override object? Invoke(System.Reflection.MethodInfo? method, object?[]? arguments)
         {
+            if (method!.Name == "get_IsMoving")
+                throw new IOException("Command availability must use the independent monitor snapshot.");
             if (FailControl && method!.Name == nameof(IMotionFeedback.GetAxisState))
                 throw new IOException("Control feedback read failed.");
             return method!.Invoke(_motion, arguments);

@@ -11,6 +11,62 @@ namespace IBTM.Ajin.Tests;
 
 public sealed class AjinControllerTests
 {
+    [Fact]
+    public void MotionUsesLiveMovementPositionAndUnitsWithoutLocalInitializationState()
+    {
+        using var controller = new AjinController(new());
+        controller.Initialize();
+        AjinSdk.MotionAxes[9] = new(
+            Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1, Position: 120, InMotion: 1);
+        var motion = new AjinMotionService(
+            controller, new() { Number = 9 }, null, null, 0.01, new(), new(), new(), null);
+        var feedback = new MotionStatus(motion);
+
+        Assert.True(motion.IsReady);
+        Assert.True(motion.IsMoving);
+        Assert.True(motion.IsMovingHorizontal);
+        Assert.Equal(MotionCommand.None, motion.Command); // External motion, not an application command.
+        feedback.RefreshControlFeedback();
+        feedback.RefreshMonitorFeedback();
+        Assert.True(feedback.IsMoving);
+        Assert.Equal(AxisCondition.Moving, feedback.Axes[MotionAxis.X].Condition);
+        Assert.Equal(1.2, motion.GetPosition().X);
+
+        AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with
+        {
+            InMotion = 0, Mechanical = 0, Position = 240
+        };
+        feedback.RefreshControlFeedback();
+        feedback.RefreshMonitorFeedback();
+        Assert.False(motion.IsMoving);
+        Assert.False(feedback.IsMoving);
+        Assert.Equal(AxisCondition.NotInPosition, feedback.Axes[MotionAxis.X].Condition);
+        Assert.Equal(2.4, motion.GetPosition().X);
+
+        AjinSdk.MotionAxes[9] = AjinSdk.MotionAxes[9] with { Position = 2.4, Pulse = 100 };
+        Assert.False(motion.IsReady);
+        Assert.Equal(2.4, motion.GetPosition().X);
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation.StartsWith("AxmMotSet"));
+
+        motion.Initialize();
+        Assert.True(motion.IsReady);
+        var writes = AjinSdk.Calls.Count(call => call.Operation.StartsWith("AxmMotSet"));
+        motion.Initialize();
+        Assert.Equal(writes, AjinSdk.Calls.Count(call => call.Operation.StartsWith("AxmMotSet")));
+
+        var read = new AjinSdk.Call(nameof(CAXM.AxmStatusGetActPos), Axis: 9);
+        AjinSdk.Results[read] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        Assert.Throws<IOException>(() => motion.GetPosition()); // Never substitute zero.
+
+        AjinSdk.Results.Clear();
+        AjinSdk.Results[new(nameof(CAXM.AxmMotGetAccelUnit), Axis: 9)] =
+            (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        var error = Assert.Throws<IOException>(() => motion.IsReady);
+        Assert.Contains("AxmMotGetAccelUnit (axis=9)", error.Message);
+        Assert.Throws<IOException>(motion.Initialize);
+        Assert.Equal(writes, AjinSdk.Calls.Count(call => call.Operation.StartsWith("AxmMotSet")));
+    }
+
     public AjinControllerTests()
     {
         AjinSdk.Reset();
@@ -63,7 +119,7 @@ public sealed class AjinControllerTests
 
         status.RefreshMonitorFeedback();
 
-        Assert.False(motion.IsReady); // Monitoring must not initialize motion/parameters/servo.
+        Assert.True(motion.IsReady); // The existing hardware parameters already match; no local init flag is needed.
         Assert.True(status.MonitorAxes[MotionAxis.X].Snapshot.State!.Value.Alarm);
         Assert.True(status.MonitorAxes[MotionAxis.X].Snapshot.State!.Value.HomeSensor);
         Assert.Equal(12.34, status.MonitorAxes[MotionAxis.X].Snapshot.Position);
@@ -108,7 +164,9 @@ public sealed class AjinControllerTests
                         nameof(CAXM.AxmHomeGetResult),
                         nameof(CAXM.AxmSignalIsServoOn),
                         nameof(CAXM.AxmStatusGetActPos),
-                        nameof(CAXM.AxmMotGetMoveUnitPerPulse)
+                        nameof(CAXM.AxmMotGetMoveUnitPerPulse),
+                        nameof(CAXM.AxmMotGetAccelUnit),
+                        nameof(CAXM.AxmStatusReadInMotion)
                     }));
     }
 

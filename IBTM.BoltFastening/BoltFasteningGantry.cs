@@ -110,9 +110,9 @@ public sealed class BoltFasteningGantry
         }
     }
 
-    internal BoltHeadState HeadState(FasteningHead head)
+    internal bool HasPendingResult(FasteningHead head)
     {
-        return GetHead(head).State;
+        return GetHead(head).HasPendingResult;
     }
 
     public bool AtSafeZ

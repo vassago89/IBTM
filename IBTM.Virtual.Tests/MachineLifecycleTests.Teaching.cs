@@ -105,7 +105,7 @@ public sealed partial class MachineLifecycleTests
             await teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);
 
         Assert.Equal(
-            savePosition ? MachineAlarm.IoCommunication : MachineAlarm.NgCarrierTransfer,
+            savePosition ? MachineAlarm.IoCommunication : MachineAlarm.Inspection,
             state.Alarm);
         Assert.Contains("Teaching feedback read failed.", state.AlarmDetail);
         Assert.Equal(before, (point.X, point.Y, point.Z));

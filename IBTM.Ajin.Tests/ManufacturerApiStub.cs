@@ -23,7 +23,9 @@ internal static class AjinSdk
         uint ServoOn = 0,
         double Position = 0,
         double Unit = 1,
-        int Pulse = 1);
+        int Pulse = 1,
+        uint InMotion = 0,
+        uint AccelerationUnit = 0);
     internal static readonly Dictionary<int, MotionAxis> MotionAxes = [];
     internal static readonly List<Call> Calls = [];
     internal static readonly Dictionary<Call, uint> Results = [];

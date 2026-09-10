@@ -122,14 +122,6 @@ public sealed class NgCarrierConveyor : AutoUnit
         }
     }
 
-    internal bool CarrierMoving
-    {
-        get
-        {
-            return _movement is Movement.ToPosition1 or Movement.ToPosition2 or Movement.Compacting;
-        }
-    }
-
     internal bool CanAcceptCarrier
     {
         get
@@ -147,8 +139,11 @@ public sealed class NgCarrierConveyor : AutoUnit
     {
         get
         {
-            return _movement == Movement.WaitingForShuttleRaise
-                || State == NgConveyorState.Full;
+            return !RunCommandOn
+                && ((!Position3Occupied
+                        && (_movement == Movement.ToPosition1 && Position1Occupied
+                            || _movement == Movement.ToPosition2 && Position2Occupied))
+                    || State == NgConveyorState.Full);
         }
     }
 
@@ -156,6 +151,20 @@ public sealed class NgCarrierConveyor : AutoUnit
     {
         get
         {
+            // A stopped transfer with no presence feedback has no known physical location.
+            // The saved destination is work history, not permission to guess and resume.
+            if (!RunCommandOn
+                && (_movement switch
+                {
+                    Movement.ToPosition1 => !Position1Occupied && !Position3Occupied,
+                    Movement.ToPosition2 => !Position2Occupied && !Position3Occupied,
+                    Movement.Compacting => !Position1Occupied && !Position2Occupied,
+                    _ => false,
+                }))
+            {
+                return NgConveyorState.CarrierPositionUnknown;
+            }
+
             switch (_ejectionPhase)
             {
                 case EjectionPhase.Ejecting:
@@ -188,15 +197,17 @@ public sealed class NgCarrierConveyor : AutoUnit
             switch (_movement)
             {
                 case Movement.ToPosition1:
-                    return NgConveyorState.MovingToPosition1;
+                    return Position1Occupied && !Position3Occupied
+                        ? NgConveyorState.WaitingForShuttleUp
+                        : NgConveyorState.MovingToPosition1;
                 case Movement.ToPosition2:
-                    return NgConveyorState.MovingToPosition2;
+                    return Position2Occupied && !Position3Occupied
+                        ? NgConveyorState.WaitingForShuttleUp
+                        : NgConveyorState.MovingToPosition2;
                 case Movement.Compacting:
                     return StopperUp
                         ? NgConveyorState.CompactingCarriers
                         : NgConveyorState.SecuringEjectStopper;
-                case Movement.WaitingForShuttleRaise:
-                    return NgConveyorState.WaitingForShuttleUp;
             }
 
             if (NeedsCompaction)
@@ -330,7 +341,6 @@ public sealed class NgCarrierConveyor : AutoUnit
         await SetStopperUpAsync(true, cancellationToken);
         await RunUntilAsync(PositionInput(destination), true, false, cancellationToken);
 
-        _movement = Movement.WaitingForShuttleRaise;
         Changed?.Invoke();
     }
 
@@ -455,7 +465,7 @@ public sealed class NgCarrierConveyor : AutoUnit
     private void OnShuttleChanged()
     {
         if (_shuttle.Lift == NgShuttleLiftState.Up
-            && _movement == Movement.WaitingForShuttleRaise)
+            && ShuttleCanRaise)
         {
             _movement = Movement.None;
         }
@@ -465,6 +475,13 @@ public sealed class NgCarrierConveyor : AutoUnit
 
     private void OnInputChanged(InputIo input, bool _)
     {
+        if (input == InputIo.NgConveyorPosition1Occupied
+            && Position1Occupied
+            && _movement == Movement.Compacting)
+        {
+            _movement = Movement.None;
+        }
+
         if (input is InputIo.NgConveyorPosition1Occupied
             or InputIo.NgConveyorPosition2Occupied
             or InputIo.NgConveyorStopperUp
@@ -498,6 +515,5 @@ public sealed class NgCarrierConveyor : AutoUnit
         ToPosition1,
         ToPosition2,
         Compacting,
-        WaitingForShuttleRaise,
     }
 }

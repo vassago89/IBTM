@@ -16,18 +16,10 @@ public enum BoltDriver
     HantasAdc,
 }
 
-public enum BoltHeadState
-{
-    [Description("Ready")]
-    Ready,
-
-    [Description("Tightening")]
-    Tightening,
-}
-
 public interface IBoltHead
 {
-    BoltHeadState State { get; }
+    // Result ownership only, not the physical head's ready/running state.
+    bool HasPendingResult { get; }
 
     Task CheckReadyAsync(CancellationToken cancellationToken = default);
     Task ResetAsync(CancellationToken cancellationToken = default);

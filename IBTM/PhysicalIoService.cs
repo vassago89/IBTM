@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -129,6 +130,11 @@ public sealed class PhysicalIoService(
 
     public bool GetInput(InputIo input)
     {
+        if (!_ready)
+        {
+            throw new IOException($"DI {input} is unavailable: the input scan is not running.");
+        }
+
         return Volatile.Read(ref _inputs[(int)input]);
     }
 

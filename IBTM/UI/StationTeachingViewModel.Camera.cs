@@ -121,7 +121,7 @@ public partial class StationTeachingViewModel
             && ScanOverlap < _boltInspector.FieldOfView.Width
             && ScanOverlap < _boltInspector.FieldOfView.Height
             && RecipeEditor.CanSave
-            && Machine.CanUseManualMotion(CurrentMotionGroup, live: false);
+            && Machine.CanUseManualMotion(ActiveMotionGroup, live: false);
     }
 
     [RelayCommand(CanExecute = nameof(CanTeachImagePoint))]
@@ -293,7 +293,7 @@ public partial class StationTeachingViewModel
     private bool CanCollectBoltImages()
     {
         return IsInspectionSelected
-            && Machine.CanUseManualMotion(CurrentMotionGroup, live: false)
+            && Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
             && _inspectionGantry.CanMove
             && RecipeEditor.Recipe.Pcb.GetBolts()
                 .Any(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
@@ -308,7 +308,7 @@ public partial class StationTeachingViewModel
         try
         {
             await Machine.RunManualMotionAsync(
-                CurrentMotionGroup,
+                ActiveMotionGroup,
                 async ct =>
                 {
                     activeCancellation = ct;

@@ -8,6 +8,8 @@ public enum AxisCondition
     Ready,
     [Description("Moving")]
     Moving,
+    [Description("Not In Position")]
+    NotInPosition,
     [Description("Servo Off")]
     ServoOff,
     [Description("Home Required")]
@@ -57,7 +59,8 @@ public sealed class AxisStatus : INotifyPropertyChanged
             { PositiveLimit: true } => AxisCondition.PositiveLimit,
             { ServoOn: false } => AxisCondition.ServoOff,
             { Homed: false } => AxisCondition.HomeRequired,
-            { InPosition: false } => AxisCondition.Moving,
+            { InMotion: true } => AxisCondition.Moving,
+            { InPosition: false } => AxisCondition.NotInPosition,
             _ => AxisCondition.Ready,
         };
     }

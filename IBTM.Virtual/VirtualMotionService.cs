@@ -134,7 +134,8 @@ public sealed class VirtualMotionService(
             Emergency: false,
             HomeSensor: GetCoordinate(axis) == 0,
             PositiveLimit: axis == MotionAxis.Z && _zPositiveLimit,
-            NegativeLimit: false);
+            NegativeLimit: false,
+            InMotion: IsMoving);
     }
 
     protected override async Task<bool> HomeCoreAsync(

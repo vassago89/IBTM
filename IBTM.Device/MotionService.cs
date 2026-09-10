@@ -141,7 +141,7 @@ public abstract class MotionService(
         }
     }
 
-    public bool IsMoving
+    public virtual bool IsMoving
     {
         get
         {
@@ -149,7 +149,7 @@ public abstract class MotionService(
         }
     }
 
-    public bool IsMovingHorizontal
+    public virtual bool IsMovingHorizontal
     {
         get
         {
@@ -161,7 +161,8 @@ public abstract class MotionService(
     {
         get
         {
-            return IsMoving ? _command : MotionCommand.None;
+            // Command ownership is not hardware movement: external moves have no local command.
+            return Volatile.Read(ref _activeMotions) > 0 ? _command : MotionCommand.None;
         }
     }
 
@@ -205,7 +206,7 @@ public abstract class MotionService(
         }
         finally
         {
-            if (!IsMoving)
+            if (Volatile.Read(ref _activeMotions) == 0)
                 _command = MotionCommand.Positioning;
         }
     }
@@ -521,7 +522,9 @@ public abstract class MotionService(
 
     private void EnsureStopped()
     {
-        if (IsMoving || _axes.Any(axis => !GetAxisState(axis).InPosition))
+        if (Volatile.Read(ref _activeMotions) > 0
+            || IsMoving
+            || _axes.Any(axis => !GetAxisState(axis).InPosition))
         {
             throw new InvalidOperationException("A motion command is already running.");
         }

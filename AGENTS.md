@@ -23,3 +23,10 @@ The user performs physical-equipment testing and prefers short edit/verify cycle
 - Remove one-use forwarding helpers and redundant axis-specific wrappers when the actual implementation already takes an axis. Preserve hardware boundaries, cancellation lifetimes, feedback handling and real interlocks.
 - Use ordinary block bodies for methods, local functions and computed property accessors instead of expression-bodied members. Keep simple auto-properties and ordinary lambda/switch syntax.
 - Break complex conditions at logical operators and long calls between arguments so each meaningful part is easy to scan. Do not compress code to minimize line count, or expand simple readable branches merely to add lines.
+
+# Physical equipment state
+
+- Hardware can change outside this application. Determine position, movement, readiness and actuator completion from current I/O or SDK feedback, not from a previous command or initialization flag.
+- Keep command ownership, cancellation, selected destinations and uncollected results as software history only; do not present them as physical state or use them to override contradictory feedback.
+- Missing feedback is unknown, not OFF, position zero, ready or completed. Expose unhandled/ambiguous states explicitly; do not silently retry an assumed sequence or hide a skipped operation as success.
+- Preserve actual interlocks and result ownership. Do not delete necessary history when sensors cannot distinguish intermediate positions; report the uncertainty instead of guessing.

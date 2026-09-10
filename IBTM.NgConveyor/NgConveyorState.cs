@@ -42,6 +42,9 @@ public enum NgConveyorState
 
     [Description("Release EJECT / COMPLETE Buttons")]
     WaitingForEjectButtonRelease,
+
+    [Description("Carrier Position Unknown")]
+    CarrierPositionUnknown,
 }
 
 public enum NgShuttleState

@@ -4,29 +4,21 @@ using IBTM.Virtual;
 
 namespace IBTM.UI;
 
-public sealed partial class InputControlRow
+public sealed partial class InputControlRow(IoInputStatus io, VirtualIoService? virtualIo)
 {
-    private readonly VirtualIoService? _virtualIo;
-
-    public InputControlRow(IoInputStatus io, VirtualIoService? virtualIo)
-    {
-        Io = io;
-        _virtualIo = virtualIo;
-    }
-
-    public IoInputStatus Io { get; }
+    public IoInputStatus Io { get; } = io;
 
     public bool IsVirtual
     {
         get
         {
-            return _virtualIo is not null;
+            return virtualIo is not null;
         }
     }
 
     [RelayCommand(CanExecute = nameof(IsVirtual))]
     private void Toggle()
     {
-        _virtualIo?.SetInput(Io.Signal, Io.IsOn != true);
+        virtualIo?.SetInput(Io.Signal, Io.IsOn != true);
     }
 }

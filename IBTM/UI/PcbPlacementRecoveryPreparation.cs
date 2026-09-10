@@ -6,25 +6,20 @@ using IBTM.PcbPlacement;
 
 namespace IBTM.UI;
 
-public sealed class PcbPlacementRecoveryPreparation : StartPreparation
+public sealed class PcbPlacementRecoveryPreparation(
+    MachineState state,
+    PcbPlacementWork work) : StartPreparation(state, work)
 {
-    private readonly PcbPlacementWork _work;
-
-    public PcbPlacementRecoveryPreparation(MachineState state, PcbPlacementWork work) : base(state, work)
-    {
-        _work = work;
-    }
-
     protected override bool Show(Window owner)
     {
         var items = Enum.GetValues<HeatSinkSlot>()
-            .Where(_work.HeatSinkPresent)
+            .Where(work.HeatSinkPresent)
             .Select(
                 heatSink =>
                     new PcbPlacementRecoveryItem
                     {
                         HeatSink = heatSink,
-                        Completed = _work.Assemblies.Any(assembly => assembly.HeatSink == heatSink),
+                        Completed = work.Assemblies.Any(assembly => assembly.HeatSink == heatSink),
                     })
             .ToArray();
         var window = new PcbPlacementRecoveryWindow(new PcbPlacementRecoveryViewModel(items))
@@ -36,7 +31,7 @@ public sealed class PcbPlacementRecoveryPreparation : StartPreparation
             return false;
         }
 
-        _work.PrepareRecovery(items.Select(item => (item.HeatSink, item.Completed)));
+        work.PrepareRecovery(items.Select(item => (item.HeatSink, item.Completed)));
         return true;
     }
 }

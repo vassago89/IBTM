@@ -50,26 +50,45 @@ public class AjinMotionService(
     private readonly double _millimetersPerPulse = millimetersPerPulse;
     private readonly int[] _axes = new[] { axisX, axisY, axisZ }.OfType<AxisHardware>().Select(
         axis => axis.Number).ToArray();
-    private bool _initialized;
-
     public override bool IsReady
     {
         get
         {
-            return _initialized;
+            return _axes.All(AxisParametersMatch);
+        }
+    }
+
+    public override bool IsMoving
+    {
+        get
+        {
+            return Axes.Any(axis => GetAxisState(axis).InMotion);
+        }
+    }
+
+    public override bool IsMovingHorizontal
+    {
+        get
+        {
+            return Axes.Any(axis => axis != MotionAxis.Z && GetAxisState(axis).InMotion);
         }
     }
 
     public override void Initialize()
     {
-        if (_initialized)
+        controller.Initialize();
+        if (IsMoving)
         {
-            return;
+            throw new InvalidOperationException("Cannot configure axes while hardware reports motion.");
         }
 
-        controller.Initialize();
         foreach (var axis in _axes)
         {
+            if (AxisParametersMatch(axis))
+            {
+                continue;
+            }
+
             // mm conversion belongs here, not in the .mot file's SDK scaling.
             AjinController.Check(
                 CAXM.AxmMotSetMoveUnitPerPulse(axis, 1, 1),
@@ -81,7 +100,6 @@ public class AjinMotionService(
 
         // Communication readiness is independent of servo power and axis alarms.
         // Servo ON belongs to an explicit operator command (or the existing RESET flow).
-        _initialized = true;
         PublishPosition();
         PublishStateChanged();
     }
@@ -190,29 +208,14 @@ public class AjinMotionService(
 
     public override (double X, double Y, double Z) GetPosition()
     {
-        return !_initialized
-            ? default
-            : (
-                ReadPosition(_axisX),
-                _axisY is null ? 0 : ReadPosition(_axisY.Value),
-                _axisZ is null ? 0 : ReadPosition(_axisZ.Value));
+        return (
+            ReadPosition(_axisX),
+            _axisY is null ? 0 : ReadPosition(_axisY.Value),
+            _axisZ is null ? 0 : ReadPosition(_axisZ.Value));
     }
 
     public override AxisState GetAxisState(MotionAxis axis)
     {
-        if (!_initialized)
-        {
-            return new AxisState(
-                Homed: false,
-                ServoOn: false,
-                Alarm: true,
-                InPosition: false,
-                Emergency: false,
-                HomeSensor: false,
-                PositiveLimit: false,
-                NegativeLimit: false);
-        }
-
         return ReadDiagnosticState(axis);
     }
 
@@ -224,6 +227,7 @@ public class AjinMotionService(
         var mechanical = 0U;
         var homeResult = 0U;
         var servoOn = 0U;
+        var inMotion = 0U;
         AjinController.Check(
             CAXM.AxmStatusReadMechanical(axisNumber, ref mechanical),
             $"{nameof(CAXM.AxmStatusReadMechanical)} (axis={axisNumber})");
@@ -233,6 +237,9 @@ public class AjinMotionService(
         AjinController.Check(
             CAXM.AxmSignalIsServoOn(axisNumber, ref servoOn),
             $"{nameof(CAXM.AxmSignalIsServoOn)} (axis={axisNumber})");
+        AjinController.Check(
+            CAXM.AxmStatusReadInMotion(axisNumber, ref inMotion),
+            $"{nameof(CAXM.AxmStatusReadInMotion)} (axis={axisNumber})");
 
         return new AxisState(
             Homed: homeResult == HomeSuccess,
@@ -242,26 +249,13 @@ public class AjinMotionService(
             Emergency: Bit(mechanical, EmergencyBit),
             HomeSensor: Bit(mechanical, HomeSensorBit),
             PositiveLimit: Bit(mechanical, PositiveLimitBit),
-            NegativeLimit: Bit(mechanical, NegativeLimitBit));
+            NegativeLimit: Bit(mechanical, NegativeLimitBit),
+            InMotion: inMotion != 0);
     }
 
     public double ReadDiagnosticPosition(MotionAxis axis)
     {
-        var number = GetAxis(axis);
-        var position = ReadPosition(number);
-        if (_initialized)
-            return position;
-        // Disabled groups have not applied our 1/1 pulse units. Read (never rewrite)
-        // the existing SDK scale before converting their position to millimeters.
-        var unit = 0.0;
-        var pulse = 0;
-        AjinController.Check(
-            CAXM.AxmMotGetMoveUnitPerPulse(number, ref unit, ref pulse),
-            $"{nameof(CAXM.AxmMotGetMoveUnitPerPulse)} (axis={number})");
-        if (!double.IsFinite(unit) || unit <= 0 || pulse <= 0)
-            throw new System.IO.IOException(
-                $"Invalid AJIN position scale (axis={number}, unit={unit}, pulse={pulse}).");
-        return position * pulse / unit;
+        return ReadPosition(GetAxis(axis));
     }
 
     protected override async Task<bool> HomeCoreAsync(
@@ -271,6 +265,7 @@ public class AjinMotionService(
     {
         cancellationToken.ThrowIfCancellationRequested();
         var axisNumber = GetAxis(axis);
+        EnsureAxisParameters(axisNumber);
         var velocityInUnits = ToUnits(velocity);
 
         var home = Settings.Home(axis);
@@ -414,6 +409,11 @@ public class AjinMotionService(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        foreach (var axis in axes)
+        {
+            EnsureAxisParameters(axis);
+        }
+
         var horizontal = Array.Exists(axes, axis => axis != _axisZ);
         using var cancellationRegistration = cancellationToken.Register(StopAxes);
         try
@@ -533,7 +533,43 @@ public class AjinMotionService(
         AjinController.Check(
             CAXM.AxmStatusGetActPos(axis, ref position),
             $"{nameof(CAXM.AxmStatusGetActPos)} (axis={axis})");
-        return position * _millimetersPerPulse;
+        var unit = 0.0;
+        var pulse = 0;
+        AjinController.Check(
+            CAXM.AxmMotGetMoveUnitPerPulse(axis, ref unit, ref pulse),
+            $"{nameof(CAXM.AxmMotGetMoveUnitPerPulse)} (axis={axis})");
+        if (!double.IsFinite(unit) || unit <= 0 || pulse <= 0)
+        {
+            throw new System.IO.IOException(
+                $"Invalid AJIN position scale (axis={axis}, unit={unit}, pulse={pulse}).");
+        }
+
+        return position * pulse / unit * _millimetersPerPulse;
+    }
+
+    private static bool AxisParametersMatch(int axis)
+    {
+        var unit = 0.0;
+        var pulse = 0;
+        var accelerationUnit = uint.MaxValue;
+        AjinController.Check(
+            CAXM.AxmMotGetMoveUnitPerPulse(axis, ref unit, ref pulse),
+            $"{nameof(CAXM.AxmMotGetMoveUnitPerPulse)} (axis={axis})");
+        AjinController.Check(
+            CAXM.AxmMotGetAccelUnit(axis, ref accelerationUnit),
+            $"{nameof(CAXM.AxmMotGetAccelUnit)} (axis={axis})");
+        return unit == 1
+            && pulse == 1
+            && accelerationUnit == AccelerationInUnitsPerSecondSquared;
+    }
+
+    private static void EnsureAxisParameters(int axis)
+    {
+        if (!AxisParametersMatch(axis))
+        {
+            throw new InvalidOperationException(
+                $"AJIN axis {axis} unit settings changed. Initialize motion before issuing a move.");
+        }
     }
 
     private double ToUnits(double millimeters)

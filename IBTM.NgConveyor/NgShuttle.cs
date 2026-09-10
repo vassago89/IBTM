@@ -53,7 +53,6 @@ public sealed class NgShuttle : AutoUnit
                 }
 
                 if (_conveyor.Position3Occupied
-                    || _conveyor.CarrierMoving
                     || _conveyor.RunCommandOn)
                 {
                     return NgShuttleState.WaitingForConveyor;

@@ -75,11 +75,7 @@ public sealed class MovsLightController(LightingSettings settings) : ILightContr
 
     public void TurnOffAll()
     {
-        lock (_writeLock)
-        {
-            if (_port?.IsOpen == true)
-                _port.Write(":F0\r\n");
-        }
+        Write(0, ":F0\r\n");
     }
 
     public void Dispose()
@@ -88,7 +84,8 @@ public sealed class MovsLightController(LightingSettings settings) : ILightContr
         {
             try
             {
-                TurnOffAll();
+                if (_port is not null)
+                    TurnOffAll();
             }
             finally
             {

@@ -12,7 +12,7 @@ namespace IBTM.Virtual.Tests;
 public sealed class NgConveyorTests
 {
     [Fact]
-    public async Task CompactionResumesBetweenPositionSensors()
+    public async Task StoppedCompactionNeedsPresenceFeedbackBeforeResuming()
     {
         var system = CreateSystem();
         system.Io.AutoResponseEnabled = false;
@@ -35,11 +35,11 @@ public sealed class NgConveyorTests
         await system.Conveyor.RunAsync(stop.Token);
         system.Io.OutputChanged -= StopBetweenSensors;
         Assert.False(system.Conveyor.RunCommandOn);
-        Assert.Equal(NgConveyorState.CompactingCarriers, system.Conveyor.State);
+        Assert.Equal(NgConveyorState.CarrierPositionUnknown, system.Conveyor.State);
 
         using var resumed = new CancellationTokenSource();
         var run = system.Conveyor.RunAsync(resumed.Token);
-        Assert.True(system.Conveyor.RunCommandOn);
+        Assert.False(system.Conveyor.RunCommandOn);
         system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
         await WaitForOutputAsync(system.Io, OutputIo.NgConveyorRun, false);
         resumed.Cancel();

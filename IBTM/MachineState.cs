@@ -559,9 +559,10 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
                 || AutomaticRunning
                 || BoltTestRunning
                 || IsHoming
-                || ConveyorRunning // A motion already in progress must still keep the machine busy, even if
-            // its unit is disabled programmatically before the operation has stopped.
-                || _motions.Values.Any(static motion => motion.Feedback.IsMoving)
+                || ConveyorRunning
+                // Always-on observations include disabled axes, without issuing native
+                // calls while the UI evaluates commands such as RESET.
+                || _motions.Values.Any(static motion => motion.IsMoving)
                 || (_io.IsReady && _ngConveyor.RunCommandOn);
         }
     }

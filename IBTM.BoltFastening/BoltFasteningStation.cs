@@ -188,7 +188,7 @@ public sealed class BoltFasteningStation(
     private BoltFasteningState? PcbState()
     {
         var bolt = PendingPcbBolts().FirstOrDefault();
-        if (gantry.HeadState(FasteningHead.Shooting) == BoltHeadState.Tightening)
+        if (gantry.HasPendingResult(FasteningHead.Shooting))
         {
             return BoltFasteningState.FasteningPcb;
         }
@@ -239,7 +239,7 @@ public sealed class BoltFasteningStation(
     {
         var bolt = PendingIpmSeatingBolts().FirstOrDefault();
         if (bolt is not null
-            && gantry.HeadState(FasteningHead.Pickup) == BoltHeadState.Tightening)
+            && gantry.HasPendingResult(FasteningHead.Pickup))
         {
             return BoltFasteningState.SeatingIpm;
         }
@@ -302,7 +302,7 @@ public sealed class BoltFasteningStation(
     private BoltFasteningState? IpmFinalState()
     {
         var bolt = PendingIpmFinalBolts().FirstOrDefault();
-        if (gantry.HeadState(FasteningHead.Pickup) == BoltHeadState.Tightening)
+        if (gantry.HasPendingResult(FasteningHead.Pickup))
         {
             return BoltFasteningState.FinalizingIpm;
         }
@@ -339,7 +339,7 @@ public sealed class BoltFasteningStation(
             _ => throw new ArgumentOutOfRangeException(nameof(pass)),
         };
         var assembly = work.Assembly(bolt.HeatSink);
-        if (gantry.HeadState(bolt.Head) == BoltHeadState.Ready)
+        if (!gantry.HasPendingResult(bolt.Head))
         {
             await gantry.SelectPresetAsync(bolt.Head, preset, cancellationToken);
         }

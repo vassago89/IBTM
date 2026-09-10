@@ -296,10 +296,14 @@ public sealed class BoltFasteningTests
         Assert.False(running.Ready);
         Assert.Equal(AdcDirection.Loosening, running.Direction);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
+        Assert.False(head.HasPendingResult); // No local operation, but the physical head is running.
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(4));
+        Assert.Equal((ushort)3, (await bus.ReadControllerStatusAsync(1)).Preset);
         await Task.Delay(300);
         Assert.True((await bus.ReadControllerStatusAsync(1)).Running);
         Assert.Equal((ushort)0, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        await bus.StopAsync(1);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
+        Assert.Equal((ushort)0, (await bus.ReadFasteningResultAsync(1)).EventCount);
         await head.CheckReadyAsync();
         Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
     }
@@ -397,11 +401,11 @@ public sealed class BoltFasteningTests
 
         await Assert.ThrowsAsync<IOException>(() => head.TightenAsync());
         Assert.Equal(1, stops);
-        Assert.Equal(BoltHeadState.Ready, head.State);
+        Assert.False(head.HasPendingResult);
         Assert.Equal(0, (await bus.ReadFasteningResultAsync(1)).EventCount);
         Assert.True((await head.TightenAsync()).Success);
         Assert.Equal(2, stops);
-        Assert.Equal(BoltHeadState.Ready, head.State);
+        Assert.False(head.HasPendingResult);
     }
 
     [Fact]
@@ -415,12 +419,12 @@ public sealed class BoltFasteningTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
 
-        Assert.Equal(BoltHeadState.Ready, head.State);
+        Assert.False(head.HasPendingResult);
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(2)).EventCount);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
 
         virtualBus.SetNextFasteningResult(2, AdcEventStatus.FasteningNg);
-        await head.SelectPresetAsync(3);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(3));
         Assert.Equal(AdcEventStatus.Error, (await bus.ReadFasteningResultAsync(2)).Status);
         await bus.SetDirectionAsync(2, AdcDirection.Loosening);
         Assert.Equal(AdcEventStatus.Error, (await bus.ReadFasteningResultAsync(2)).Status);
@@ -464,7 +468,7 @@ public sealed class BoltFasteningTests
         using var stop = new CancellationTokenSource();
         var tightening = head.TightenAsync(stop.Token);
 
-        Assert.Equal(BoltHeadState.Tightening, head.State);
+        Assert.True(head.HasPendingResult);
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
         ((VirtualAdcBus)bus).SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
         stop.Cancel();
@@ -472,13 +476,14 @@ public sealed class BoltFasteningTests
 
         await Task.Delay(300);
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
-        Assert.Equal(BoltHeadState.Tightening, head.State);
+        Assert.True(head.HasPendingResult);
+        Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
 
         Assert.False((await head.TightenAsync()).Success);
         var completed = await bus.ReadFasteningResultAsync(1);
         Assert.Equal(2, completed.EventCount);
         Assert.Equal(3, completed.Preset);
-        Assert.Equal(BoltHeadState.Ready, head.State);
+        Assert.False(head.HasPendingResult);
         Assert.True((await head.TightenAsync()).Success);
     }
 
@@ -695,8 +700,8 @@ public sealed class BoltFasteningTests
             Assert.True(heatSink2.PcbBoltResults[2].Success);
             Assert.True(heatSink2.IpmSeatingResults[1].Success);
             Assert.True(heatSink2.IpmFinalResults[1].Success);
-            Assert.Equal(BoltHeadState.Ready, pickupHead.State);
-            Assert.Equal(BoltHeadState.Ready, shootingHead.State);
+            Assert.False(pickupHead.HasPendingResult);
+            Assert.False(shootingHead.HasPendingResult);
             Assert.False(movedWithLoweredCylinder);
             Assert.True(gantry.CanMoveHorizontal);
             Assert.True(motion.IsAtHorizontalZ);
