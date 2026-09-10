@@ -601,6 +601,65 @@ public sealed partial class MachineController
             canContinue: () => HomeAxisConditionsReady(group, axis));
     }
 
+    internal bool CanHomeUnit(MotionGroup group, bool live = true)
+    {
+        return _state.GetMotionStatus(group).Feedback.Axes
+            .All(axis => CanHomeAxis(group, axis, live));
+    }
+
+    internal Task HomeUnitAsync(MotionGroup group, CancellationToken cancellationToken)
+    {
+        return RunManualAsync(
+            async token =>
+            {
+                _state.SetHoming(true);
+                try
+                {
+                    bool homed;
+                    switch (group)
+                    {
+                        case MotionGroup.PcbPlacementHandler:
+                            homed = await _placementHandler.HomeAxisAsync(MotionAxis.Z, token);
+                            if (homed)
+                            {
+                                await _placementHandler.MoveToHorizontalZAsync(token);
+                                homed = await _placementHandler.HomeHorizontalAsync(token);
+                            }
+                            break;
+
+                        case MotionGroup.BoltFastening:
+                            homed = await _fasteningGantry.HomeAxisAsync(MotionAxis.Z, token);
+                            if (homed)
+                            {
+                                await _fasteningGantry.MoveToSafeZAsync(token);
+                                homed = await _fasteningGantry.HomeHorizontalAsync(token);
+                            }
+                            break;
+
+                        case MotionGroup.InspectionGantry:
+                            homed = await _inspectionGantry.HomeHorizontalAsync(token);
+                            break;
+
+                        default:
+                            throw new ArgumentOutOfRangeException(nameof(group));
+                    }
+
+                    if (!homed && !token.IsCancellationRequested)
+                        _state.SetError(MachineAlarm.HomeFailed);
+                }
+                finally
+                {
+                    _state.SetHoming(false);
+                    _state.Refresh();
+                }
+            },
+            MachineAlarm.HomeFailed,
+            () => CanHomeUnit(group),
+            cancellationToken,
+            canContinue: () => _state.GetMotionStatus(group).Feedback.Axes
+                .All(axis => HomeAxisConditionsReady(group, axis)));
+    }
+
     internal bool CanSetServo(MotionGroup group, bool live = true)
     {
         return _units.IsMotionEnabled(group)

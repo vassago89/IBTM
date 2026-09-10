@@ -414,19 +414,18 @@ public abstract partial class TeachingMotionViewModel(
     protected abstract bool CanJog(MotionAxis axis);
     protected abstract void NotifyManualTeachingCommands();
 
-    [RelayCommand(CanExecute = nameof(CanHomeAxis))]
-    private async Task HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken)
+    [RelayCommand(CanExecute = nameof(CanHome))]
+    private async Task HomeAsync(CancellationToken cancellationToken)
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
             ViewCancellation);
-        await Machine.HomeAxisAsync(ActiveMotionGroup, axis, cancellation.Token);
+        await Machine.HomeUnitAsync(ActiveMotionGroup, cancellation.Token);
     }
 
-    private bool CanHomeAxis(MotionAxis axis)
+    private bool CanHome()
     {
-        return Motion.Axes.ContainsKey(axis)
-            && Machine.CanHomeAxis(ActiveMotionGroup, axis, live: false);
+        return Machine.CanHomeUnit(ActiveMotionGroup, live: false);
     }
 
     [RelayCommand(CanExecute = nameof(CanJogZ))]
@@ -442,7 +441,7 @@ public abstract partial class TeachingMotionViewModel(
 
     protected void NotifyMotionCommands()
     {
-        HomeAxisCommand.NotifyCanExecuteChanged();
+        HomeCommand.NotifyCanExecuteChanged();
         JogCommand.NotifyCanExecuteChanged();
         StepCommand.NotifyCanExecuteChanged();
         MoveToHorizontalZCommand.NotifyCanExecuteChanged();

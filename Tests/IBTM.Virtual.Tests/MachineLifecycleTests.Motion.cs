@@ -859,9 +859,9 @@ public sealed partial class MachineLifecycleTests
         await Task.WhenAll(placement.MoveAxisAsync(MotionAxis.Z, 50), fastening.MoveZAsync(50));
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
-        await WaitUntilAsync(() => teaching.HomeAxisCommand.CanExecute(MotionAxis.Z));
+        await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
         var homing = teachingHome
-            ? teaching.HomeAxisCommand.ExecuteAsync(MotionAxis.Z)
+            ? teaching.HomeCommand.ExecuteAsync(null)
             : machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(
             () => placement.Feedback.IsMoving && (teachingHome || fastening.Feedback.IsMoving));
@@ -875,9 +875,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(machine.CanHome);
         if (teachingHome)
         {
-            Assert.False(teaching.HomeAxisCommand.CanExecute(MotionAxis.Z));
-            Assert.False(teaching.HomeAxisCommand.CanExecute(MotionAxis.X));
-            Assert.False(teaching.HomeAxisCommand.CanExecute(MotionAxis.Y));
+            Assert.False(teaching.HomeCommand.CanExecute(null));
         }
     }
 
@@ -919,9 +917,13 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, true)]
-    public async Task FailedHomeReportsCauseAndStopsOtherHomingAxes(bool exception, bool individual)
+    [InlineData(false, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(false, false, true)]
+    public async Task FailedHomeReportsCauseAndStopsOtherHomingAxes(
+        bool exception,
+        bool individual,
+        bool teachingHome)
     {
         var settings = FlowSettings();
         foreach (var motionSettings in MotionSettingsOf(settings))
@@ -954,13 +956,17 @@ public sealed partial class MachineLifecycleTests
 
         var axisRow = manual.Axes.Single(
             row => row.Group == MotionGroup.BoltFastening && row.Axis == MotionAxis.Z);
-        var homing = individual
-            ? manual.HomeAxisCommand.ExecuteAsync(axisRow)
-            : machine.HomeAsync(CancellationToken.None);
+        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+        var homing = teachingHome
+            ? teaching.HomeCommand.ExecuteAsync(null)
+            : individual
+                ? manual.HomeAxisCommand.ExecuteAsync(axisRow)
+                : machine.HomeAsync(CancellationToken.None);
         try
         {
             await WaitUntilAsync(
-                () => individual ? state.IsHoming : placement.IsMoving && supply.IsMoving);
+                () => individual || teachingHome ? state.IsHoming : placement.IsMoving && supply.IsMoving);
             if (exception)
             {
                 homeResult!.Result.SetException(
@@ -977,7 +983,8 @@ public sealed partial class MachineLifecycleTests
             if (exception)
                 Assert.Contains("Home command failed.", state.AlarmDetail);
             await WaitUntilAsync(() => state.Display.Alarm == MachineAlarm.HomeFailed);
-            Assert.False(manual.HomeAxisCommand.CanExecute(axisRow));
+            // A latched home failure does not block a retry while the axis feedback remains healthy.
+            Assert.True(manual.HomeAxisCommand.CanExecute(axisRow));
             Assert.False(state.IsHoming);
             Assert.False(placement.IsMoving);
             Assert.False(supply.IsMoving);
@@ -987,6 +994,7 @@ public sealed partial class MachineLifecycleTests
         finally
         {
             manual.HomeAxisCommand.Cancel();
+            teaching.HomeCommand.Cancel();
             machine.Stop();
             await homing;
         }

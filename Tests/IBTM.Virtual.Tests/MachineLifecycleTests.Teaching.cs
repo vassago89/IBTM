@@ -27,8 +27,10 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
-    [Fact]
-    public async Task TeachingHomeUsesSharedAxesAndStopsOnUnitChange()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task TeachingHomeUsesSharedAxesAndCancelsTheWholeUnit(bool stopButton)
     {
         var settings = FlowSettings();
         settings.InspectionGantry.Motion.HorizontalHome.SearchSpeed = 1;
@@ -46,33 +48,83 @@ public sealed partial class MachineLifecycleTests
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
         await gantry.MoveToAsync(new() { X = 10, Y = 7 }, 10_000);
-        await WaitUntilAsync(() => teaching.HomeAxisCommand.CanExecute(MotionAxis.X));
-        Assert.False(teaching.HomeAxisCommand.CanExecute(MotionAxis.Z));
+        await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
 
-        var home = teaching.HomeAxisCommand.ExecuteAsync(MotionAxis.X);
+        var home = teaching.HomeCommand.ExecuteAsync(null);
         await WaitUntilAsync(() => gantry.Feedback.IsMoving);
         io.SetInput(InputIo.Door1Open, false);
         Assert.Equal(HomeBlockReason.None, teaching.HomeBlock);
         Assert.True(gantry.Feedback.IsMoving);
-        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+        if (stopButton)
+            teaching.JogStopCommand.Execute(null);
+        else
+            teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         await home.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(gantry.Feedback.IsMoving);
         Assert.False(state.IsHoming);
         Assert.False(gantry.Feedback.GetAxisState(MotionAxis.X).Homed);
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
-        Assert.Equal(7, gantry.Feedback.GetPosition().Y);
+        Assert.NotEqual((0, 0, 0), gantry.Feedback.GetPosition());
 
         settings.InspectionGantry.Motion.HorizontalHome.SearchSpeed = 10_000;
         teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
-        await WaitUntilAsync(() => teaching.HomeAxisCommand.CanExecute(MotionAxis.X));
-        await teaching.HomeAxisCommand.ExecuteAsync(MotionAxis.X);
+        await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
+        await teaching.HomeCommand.ExecuteAsync(null);
         Assert.True(gantry.Feedback.GetAxisState(MotionAxis.X).Homed);
-        Assert.Equal((0, 7, 0), gantry.Feedback.GetPosition());
+        Assert.True(gantry.Feedback.GetAxisState(MotionAxis.Y).Homed);
+        Assert.Equal((0, 0, 0), gantry.Feedback.GetPosition());
 
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgCarrierPickupUp, false);
-        Assert.False(teaching.HomeAxisCommand.CanExecute(MotionAxis.X));
-        await teaching.HomeAxisCommand.ExecuteAsync(MotionAxis.X);
-        Assert.Equal((0, 7, 0), gantry.Feedback.GetPosition());
+        Assert.False(teaching.HomeCommand.CanExecute(null));
+        await teaching.HomeCommand.ExecuteAsync(null);
+        Assert.Equal((0, 0, 0), gantry.Feedback.GetPosition());
+    }
+
+    [Theory]
+    [InlineData(HardwareArea.PcbPlacementHandler, MotionGroup.PcbPlacementHandler)]
+    [InlineData(HardwareArea.BoltFastening, MotionGroup.BoltFastening)]
+    public async Task TeachingHomeCompletesZAndSafeHeightBeforeXY(
+        HardwareArea unit,
+        MotionGroup group)
+    {
+        var settings = FlowSettings();
+        settings.PcbPlacementHandler.BufferEntryZ = 8;
+        settings.BoltFastening.SafeZ = 8;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        var motion = services.GetRequiredKeyedService<IXyMotion>(group);
+        await machine.HomeAxisAsync(group, MotionAxis.Z, CancellationToken.None);
+        await motion.MoveToXYAsync(10, 7, 10_000);
+        await motion.MoveAxisAsync(MotionAxis.Z, 20, 10_000);
+        var positions = new ConcurrentQueue<(double X, double Y, double Z, bool ZHomed)>();
+        motion.PositionChanged += (x, y, z) =>
+            positions.Enqueue((x, y, z, motion.GetAxisState(MotionAxis.Z).Homed));
+        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        teaching.SelectedTeachingUnit = unit;
+        await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
+
+        await teaching.HomeCommand.ExecuteAsync(null);
+
+        var samples = positions.ToArray();
+        var firstHorizontal = Array.FindIndex(samples, position => position.X != 10 || position.Y != 7);
+        Assert.True(firstHorizontal > 0);
+        Assert.Contains(samples.Take(firstHorizontal), position => position.Z == 0);
+        Assert.All(samples.Skip(firstHorizontal), position =>
+        {
+            Assert.True(position.ZHomed);
+            Assert.Equal(8, position.Z);
+        });
+        Assert.Equal((0, 0, 8), motion.GetPosition());
+        Assert.All(motion.Axes, axis => Assert.True(motion.GetAxisState(axis).Homed));
+        var otherGroup = group == MotionGroup.BoltFastening
+            ? MotionGroup.PcbPlacementHandler
+            : MotionGroup.BoltFastening;
+        var otherMotion = services.GetRequiredKeyedService<IXyMotion>(otherGroup);
+        Assert.All(otherMotion.Axes, axis => Assert.False(otherMotion.GetAxisState(axis).Homed));
+        Assert.False(state.IsHoming);
+        Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
     }
 
     [Fact]
@@ -485,19 +537,19 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await WaitUntilAsync(() => teaching.MotionHint == TeachingMotionHint.HomeRequired);
         Assert.False(teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
-        Assert.True(teaching.HomeAxisCommand.CanExecute(MotionAxis.Z));
+        Assert.True(teaching.HomeCommand.CanExecute(null));
 
         io.SetInput(InputIo.Door1Open, false);
         Assert.False(services.GetRequiredService<MachineState>().DoorInterlockReady);
         Assert.Equal(HomeBlockReason.None, teaching.HomeBlock);
-        Assert.True(teaching.HomeAxisCommand.CanExecute(MotionAxis.Z));
+        Assert.True(teaching.HomeCommand.CanExecute(null));
         io.SetInput(InputIo.Door1Open, true);
         Assert.Equal(HomeBlockReason.None, teaching.HomeBlock);
 
         var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler);
         motion.SetServo(MotionAxis.Z, false);
         await WaitUntilAsync(() => teaching.MotionHint == TeachingMotionHint.ServoOff);
-        Assert.False(teaching.HomeAxisCommand.CanExecute(MotionAxis.Z));
+        Assert.False(teaching.HomeCommand.CanExecute(null));
 
         settings.Units.PcbPlacement = false;
         Assert.Equal(HomeBlockReason.UnitDisabled, teaching.HomeBlock);
@@ -505,7 +557,7 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
         Assert.Equal(HomeBlockReason.None, teaching.HomeBlock);
         await WaitUntilAsync(() => teaching.MotionHint == TeachingMotionHint.HomeRequired);
-        Assert.True(teaching.HomeAxisCommand.CanExecute(MotionAxis.X));
+        Assert.True(teaching.HomeCommand.CanExecute(null));
     }
 
     [Fact]

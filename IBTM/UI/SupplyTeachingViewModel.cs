@@ -140,7 +140,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
             Deactivate,
             StepCommand,
             JogCommand,
-            HomeAxisCommand,
+            HomeCommand,
             MoveToHorizontalZCommand,
             MoveToPointCommand,
             SetOutputOnCommand,

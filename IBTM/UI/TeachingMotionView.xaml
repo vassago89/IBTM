@@ -54,7 +54,7 @@
         <Grid Margin="0,2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="20"/><ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="40"/><ColumnDefinition Width="40"/><ColumnDefinition Width="58"/>
+                <ColumnDefinition Width="40"/><ColumnDefinition Width="40"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="X" VerticalAlignment="Center" FontWeight="SemiBold"/>
             <TextBlock Grid.Column="1" Text="{Binding Motion.Position.X, StringFormat=F3, TargetNullValue=—, FallbackValue=—}"
@@ -73,16 +73,12 @@
                 <Button Content="X+" Style="{StaticResource StepDirectionStyle}" Command="{Binding StepCommand}"
                         CommandParameter="{x:Static ui:TeachingDirection.XPlus}"/>
             </Grid>
-            <Button Grid.Column="4" Content="Home X" Command="{Binding HomeAxisCommand}"
-                    CommandParameter="{x:Static device:MotionAxis.X}" Margin="4,0,0,0" Padding="3,2" MinHeight="28" Height="28"
-                    Style="{StaticResource SecondaryButtonStyle}"
-                    ToolTip="Home this axis. Existing clearance and safety conditions apply; PCB Supply uses Home All."/>
         </Grid>
         <Grid Margin="0,2"
               Visibility="{Binding Motion.Feedback.HasY, Converter={StaticResource BoolToVis}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="20"/><ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="40"/><ColumnDefinition Width="40"/><ColumnDefinition Width="58"/>
+                <ColumnDefinition Width="40"/><ColumnDefinition Width="40"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="Y" VerticalAlignment="Center" FontWeight="SemiBold"/>
             <TextBlock Grid.Column="1" Text="{Binding Motion.Position.Y, StringFormat=F3, TargetNullValue=—, FallbackValue=—}"
@@ -101,16 +97,12 @@
                 <Button Content="Y+" Style="{StaticResource StepDirectionStyle}" Command="{Binding StepCommand}"
                         CommandParameter="{x:Static ui:TeachingDirection.YPlus}"/>
             </Grid>
-            <Button Grid.Column="4" Content="Home Y" Command="{Binding HomeAxisCommand}"
-                    CommandParameter="{x:Static device:MotionAxis.Y}" Margin="4,0,0,0" Padding="3,2" MinHeight="28" Height="28"
-                    Style="{StaticResource SecondaryButtonStyle}"
-                    ToolTip="Home this axis. Existing clearance and safety conditions apply; PCB Supply uses Home All."/>
         </Grid>
         <Grid Margin="0,2"
               Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="20"/><ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="40"/><ColumnDefinition Width="40"/><ColumnDefinition Width="58"/>
+                <ColumnDefinition Width="40"/><ColumnDefinition Width="40"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="Z" VerticalAlignment="Center" FontWeight="SemiBold"/>
             <TextBlock Grid.Column="1" Text="{Binding Motion.Position.Z, StringFormat=F3, TargetNullValue=—, FallbackValue=—}"
@@ -129,17 +121,16 @@
                 <Button Content="Z+" Style="{StaticResource StepDirectionStyle}" Command="{Binding StepCommand}"
                         CommandParameter="{x:Static ui:TeachingDirection.ZPlus}"/>
             </Grid>
-            <Button Grid.Column="4" Content="Home Z" Command="{Binding HomeAxisCommand}"
-                    CommandParameter="{x:Static device:MotionAxis.Z}" Margin="4,0,0,0" Padding="3,2" MinHeight="28" Height="28"
-                    Style="{StaticResource SecondaryButtonStyle}"
-                    ToolTip="Home this axis. Existing clearance and safety conditions apply; PCB Supply uses Home All."/>
         </Grid>
 
         <Grid Margin="0,8,0,0">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-            <ComboBox ItemsSource="{Binding MoveModes}" SelectedItem="{Binding MoveMode}" Margin="0,0,6,0"/>
+            <Button Content="HOME" Command="{Binding HomeCommand}" Margin="0,0,6,0"
+                    Style="{StaticResource SecondaryButtonStyle}"
+                    ToolTip="Home the selected unit: Z → safe height → XY. XY-only units home X/Y. PCB Supply uses Home All."/>
             <Button Grid.Column="1" Content="STOP" Command="{Binding JogStopCommand}" Style="{StaticResource JogStopButtonStyle}"/>
         </Grid>
+        <ComboBox ItemsSource="{Binding MoveModes}" SelectedItem="{Binding MoveMode}" Margin="0,6,0,0"/>
         <Grid Margin="0,6,0,0">
             <Grid.Style>
                 <Style TargetType="Grid">

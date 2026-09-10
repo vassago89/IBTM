@@ -466,7 +466,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 Deactivate,
                 ToggleLiveViewCommand,
                 JogCommand,
-                HomeAxisCommand,
+                HomeCommand,
                 StepCommand,
                 MoveToHorizontalZCommand,
                 MoveToPointCommand,
