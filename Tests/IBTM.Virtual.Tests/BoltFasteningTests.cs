@@ -275,6 +275,67 @@ public sealed class BoltFasteningTests
         Assert.Equal(partial[..receivedCount], chunks.SelectMany(chunk => chunk).ToArray());
     }
 
+    [Fact]
+    public async Task AdcRawCaptureKeepsEchoAndLateResponseUntilDeadline()
+    {
+        byte[] echo = [0x00, 0x11, 0xC1, 0xBC];
+        var response = AdcRtuFrame.Build(0, AdcFunctionCode.RequestDeviceInformation, [0x02, 0x01, 0xFF]);
+        byte[] incoming = [.. echo, .. response, 0xAB];
+        using var stream = new AdcResponseStream(incoming, pauseAtByte: echo.Length, delayMilliseconds: 1100);
+        var chunks = new List<byte[]>();
+        var capture = AdcBus.CaptureResponseAsync(
+            stream,
+            stream.Abort,
+            chunks.Add,
+            2200,
+            CancellationToken.None);
+
+        await stream.Waiting.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.False(capture.IsCompleted);
+        Assert.Equal(incoming, chunks.SelectMany(chunk => chunk).ToArray());
+        Assert.Equal(incoming, await capture.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.True(stream.Aborted);
+    }
+
+    [Fact]
+    public async Task AdcRawCaptureCancellationPreservesLoggedBytesAndAbortsRead()
+    {
+        byte[] echo = [0x00, 0x11, 0xC1, 0xBC];
+        using var stream = new AdcResponseStream(echo);
+        using var cancellation = new CancellationTokenSource();
+        var chunks = new List<byte[]>();
+        var capture = AdcBus.CaptureResponseAsync(
+            stream,
+            stream.Abort,
+            chunks.Add,
+            3000,
+            cancellation.Token);
+
+        await stream.Waiting.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => capture.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.True(stream.Aborted);
+        Assert.Equal(echo, chunks.SelectMany(chunk => chunk).ToArray());
+    }
+
+    [Fact]
+    public async Task AdcRawCaptureSendsOnlyDeviceInformationAndReturnsFullFrame()
+    {
+        IAdcBus bus = new VirtualAdcBus();
+        bus.Open("Virtual", 57600);
+        var frames = new List<(AdcFrameDirection Direction, byte[] Bytes)>();
+        bus.FrameTransferred += (direction, bytes) => frames.Add((direction, bytes));
+
+        var captured = await bus.CaptureDeviceInformationAsync(0, 20);
+
+        Assert.Equal(2, frames.Count);
+        Assert.Equal(AdcFrameDirection.Transmit, frames[0].Direction);
+        Assert.Equal(new byte[] { 0x00, 0x11, 0xC1, 0xBC }, frames[0].Bytes);
+        Assert.Equal(AdcFrameDirection.Receive, frames[1].Direction);
+        Assert.Equal(frames[1].Bytes, captured);
+    }
+
     private static Task<byte[]> ReadAdcResponseAsync(
         AdcResponseStream stream,
         Action<byte[]> received,
@@ -289,7 +350,10 @@ public sealed class BoltFasteningTests
             cancellationToken);
     }
 
-    private sealed class AdcResponseStream(byte[] bytes) : MemoryStream(bytes)
+    private sealed class AdcResponseStream(
+        byte[] bytes,
+        int pauseAtByte = -1,
+        int delayMilliseconds = 0) : MemoryStream(bytes)
     {
         private readonly TaskCompletionSource<int> _pending = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -297,14 +361,19 @@ public sealed class BoltFasteningTests
             TaskCreationOptions.RunContinuationsAsynchronously);
         public bool Aborted { get; private set; }
 
-        public override ValueTask<int> ReadAsync(
+        public override async ValueTask<int> ReadAsync(
             Memory<byte> buffer,
             CancellationToken cancellationToken = default)
         {
+            if (Position == pauseAtByte)
+            {
+                await Task.Delay(delayMilliseconds, cancellationToken);
+            }
+
             if (Position < Length)
-                return base.ReadAsync(buffer[..1], cancellationToken);
+                return await base.ReadAsync(buffer[..1], cancellationToken);
             Waiting.TrySetResult();
-            return new(_pending.Task); // Model Windows native IO ignoring cancellation.
+            return await _pending.Task; // Model Windows native IO ignoring cancellation.
         }
 
         public void Abort()

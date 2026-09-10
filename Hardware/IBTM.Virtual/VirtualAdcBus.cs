@@ -125,6 +125,24 @@ public sealed class VirtualAdcBus : IAdcBus
         return Task.FromResult(data);
     }
 
+    public async Task<byte[]> CaptureDeviceInformationAsync(
+        byte slaveAddress,
+        int durationMilliseconds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(durationMilliseconds);
+        cancellationToken.ThrowIfCancellationRequested();
+        var response = BuildReadResponse(
+            slaveAddress,
+            AdcFunctionCode.RequestDeviceInformation,
+            Encoding.ASCII.GetBytes("VIRTUAL ADC"));
+        Transfer(
+            AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestDeviceInformation, []),
+            response);
+        await Task.Delay(durationMilliseconds, cancellationToken);
+        return response;
+    }
+
     public Task<ushort[]> ReadRegistersAsync(
         byte slaveAddress,
         AdcFunctionCode function,

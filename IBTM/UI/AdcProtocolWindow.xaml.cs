@@ -331,6 +331,32 @@ public partial class AdcProtocolWindow : Window
             });
     }
 
+    private async void OnCaptureDeviceInformation(object sender, RoutedEventArgs e)
+    {
+        await ExecuteAsync(
+            async cancellationToken =>
+            {
+                const int durationMilliseconds = 3000;
+                var slave = SlaveAddress;
+                IsLogPaused = false;
+                ResultMessage = "Capturing raw RX for 3 seconds; no response parsing.";
+                AppendLog($"CAPTURE BEGIN  ADC {slave}, {_bus.PortName} | {_bus.BaudRate}, {durationMilliseconds} ms");
+                var received = await _bus.CaptureDeviceInformationAsync(
+                    slave,
+                    durationMilliseconds,
+                    cancellationToken);
+                var request = AdcRtuFrame.Build(slave, AdcFunctionCode.RequestDeviceInformation, []);
+                var summary = received.Length == 0
+                    ? "No bytes received."
+                    : received.AsSpan().StartsWith(request)
+                        ? $"RX starts with the TX frame; {received.Length - request.Length} byte(s) follow it."
+                        : "RX does not start with the TX frame.";
+                ResultMessage = $"Captured {received.Length} bytes over {durationMilliseconds} ms. {summary}";
+                AppendLog($"RX ALL (arrival order)  {ToHex(received)}");
+                AppendLog($"CAPTURE END  ADC {slave}: {ResultMessage}");
+            });
+    }
+
     private async void OnExecuteRegister(object sender, RoutedEventArgs e)
     {
         await ExecuteAsync(

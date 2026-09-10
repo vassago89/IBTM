@@ -125,6 +125,20 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         return response[3..^2];
     }
 
+    public Task<byte[]> CaptureDeviceInformationAsync(
+        byte slaveAddress,
+        int durationMilliseconds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(durationMilliseconds);
+        return ExchangeAsync(
+            slaveAddress,
+            AdcFunctionCode.RequestDeviceInformation,
+            AdcRtuFrame.Build(slaveAddress, AdcFunctionCode.RequestDeviceInformation, []),
+            cancellationToken,
+            durationMilliseconds);
+    }
+
     public void Dispose()
     {
         try
@@ -171,7 +185,8 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         byte slaveAddress,
         AdcFunctionCode function,
         byte[] request,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? captureMilliseconds = null)
     {
         await _exchange.WaitAsync(cancellationToken);
         try
@@ -191,6 +206,17 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
                     port.BaseStream.WriteAsync(request, timeout.Token).AsTask(),
                     port.DiscardOutBuffer,
                     timeout.Token);
+                if (captureMilliseconds is { } duration)
+                {
+                    timeout.CancelAfter(Timeout.Infinite);
+                    return await CaptureResponseAsync(
+                        port.BaseStream,
+                        port.DiscardInBuffer,
+                        bytes => FrameTransferred?.Invoke(AdcFrameDirection.Receive, bytes),
+                        duration,
+                        cancellationToken);
+                }
+
                 response = await ReadResponseAsync(
                     port.BaseStream,
                     port.DiscardInBuffer,
@@ -210,6 +236,40 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         finally
         {
             _exchange.Release();
+        }
+    }
+
+    internal static async Task<byte[]> CaptureResponseAsync(
+        Stream stream,
+        Action abortRead,
+        Action<byte[]> received,
+        int durationMilliseconds,
+        CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(durationMilliseconds);
+        using var captured = new MemoryStream();
+        var buffer = new byte[512];
+        try
+        {
+            while (true)
+            {
+                var read = stream.ReadAsync(buffer, timeout.Token).AsTask();
+                await AwaitSerialIoAsync(read, abortRead, timeout.Token).ConfigureAwait(false);
+                var count = await read.ConfigureAwait(false);
+                if (count == 0)
+                {
+                    throw new EndOfStreamException("ADC serial stream closed during raw capture.");
+                }
+
+                captured.Write(buffer, 0, count);
+                received(buffer.AsSpan(0, count).ToArray());
+            }
+        }
+        catch (OperationCanceledException) when (
+            timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            return captured.ToArray();
         }
     }
 

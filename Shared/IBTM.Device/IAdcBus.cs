@@ -38,6 +38,11 @@ public interface IAdcBus
         byte slaveAddress,
         CancellationToken cancellationToken = default);
 
+    Task<byte[]> CaptureDeviceInformationAsync(
+        byte slaveAddress,
+        int durationMilliseconds,
+        CancellationToken cancellationToken = default);
+
     async Task<AdcFasteningResult> ReadFasteningResultAsync(
         byte slaveAddress,
         CancellationToken cancellationToken = default)
