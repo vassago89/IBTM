@@ -16,6 +16,128 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
+
+    [Fact]
+    [Trait("Category", "MachineFlow")]
+    public async Task RepeatMainReturnStopsWhenNgPickupDrops()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.MainConveyor);
+        settings.Units.NgCarrierTransfer = true;
+        settings.Units.NgShuttle = true;
+        settings.Units.NgConveyor = true;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        state.RepeatEnabled = true;
+        io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+        io.SetInput(InputIo.AutoMode, false);
+        var returned = false;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.MainConveyorRun && on
+                && io.GetOutput(OutputIo.MainConveyorReverse))
+            {
+                returned = true;
+                io.SetInput(InputIo.NgCarrierPickupUp, false);
+                io.SetInput(InputIo.NgCarrierPickupDown, true);
+            }
+        };
+
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+            await machine.StartAsync(timeout.Token);
+            Assert.True(returned);
+            Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            Assert.Equal(0, state.Display.RepeatCycles);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "MachineFlow")]
+    public async Task RepeatStopResumesThePendingReturnAndRejectsUnknownCarrierPosition()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.MainConveyor);
+        settings.Units.NgCarrierTransfer = true;
+        settings.Units.NgShuttle = true;
+        settings.Units.NgConveyor = true;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        state.RepeatEnabled = true;
+        io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+        io.SetInput(InputIo.AutoMode, false);
+        var stopOutput = OutputIo.NgConveyorRun;
+        void StopOnReverse(OutputIo output, bool on)
+        {
+            if (on && output == stopOutput
+                && io.GetOutput(output == OutputIo.NgConveyorRun
+                    ? OutputIo.NgConveyorReverse : OutputIo.MainConveyorReverse))
+                machine.Stop();
+        }
+
+        io.OutputChanged += StopOnReverse;
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(5));
+            await WaitUntilAsync(() => state.Display.RepeatPhase == RepeatPhase.ReturnToShuttle);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.True(io.GetInput(InputIo.NgConveyorPosition1Occupied));
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+
+            // An old destination is not proof that the carrier is still there.
+            io.SetInput(InputIo.NgConveyorPosition1Occupied, false);
+            await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(MachineAlarm.NgConveyor, state.Alarm);
+            Assert.Contains("known presence", state.AlarmMessage);
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+            await machine.ResetAsync();
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+
+            stopOutput = OutputIo.MainConveyorRun;
+            await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(8));
+            await WaitUntilAsync(() => state.Display.RepeatPhase == RepeatPhase.ReturnToStart);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.True(io.GetInput(InputIo.InspectionCarrierPresent));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+
+            io.OutputChanged -= StopOnReverse;
+            var resumed = machine.StartAsync(timeout.Token);
+            try
+            {
+                Assert.True(await VirtualTest.WaitUntilAsync(
+                    () => state.Display.RepeatCycles >= 1 || state.IsError, TimeSpan.FromSeconds(8)));
+                Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
+                Assert.Equal(1, state.Display.RepeatCycles);
+            }
+            finally
+            {
+                machine.Stop();
+                await resumed.WaitAsync(TimeSpan.FromSeconds(3));
+            }
+        }
+        finally
+        {
+            io.OutputChanged -= StopOnReverse;
+            await machine.ShutdownAsync();
+        }
+    }
     [Fact]
     [Trait("Category", "MachineFlow")]
     public async Task RepeatRunsAutoThroughDisabledStationsAndReturnsFromNgEndTwice()

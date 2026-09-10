@@ -18,8 +18,6 @@ public enum NgTransferDestination
 
 public enum NgTransferState
 {
-    [Description("NG transfer is not ready")]
-    Unavailable,
     [Description("Waiting")]
     Idle,
     [Description("Raise Station 3 backup plate and lower its stopper")]
@@ -185,7 +183,7 @@ public sealed class NgCarrierMove(
         };
     }
 
-    public static NgTransferDestination Opposite(NgTransferDestination destination)
+    private static NgTransferDestination Opposite(NgTransferDestination destination)
     {
         return destination == NgTransferDestination.Shuttle
             ? NgTransferDestination.Station

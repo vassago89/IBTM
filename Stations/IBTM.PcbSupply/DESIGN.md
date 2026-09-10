@@ -316,76 +316,15 @@ After the PCB 1 buffer placement and unrotation, check PCB 2 on the same carrier
 After the PCB 2 buffer placement and unrotation, wait for the next accepted SMEMA carrier and
 start again from PCB 1.
 
-## Actual-product dry run
+## Repeat / Dry Run
 
-The dry run uses one actual PCB supplied by Supply, not the normal two-PCB
-carrier sequence. Do not pick another PCB while that PCB is completing its
-forward/return route. The normal PCB 1 -> PCB 2 -> upstream carrier release flow
-must not be reused as the dry-run cycle-completion condition.
+Repeat now uses the normal Auto loops and returns the carrier through the NG
+conveyor to Station 1. The old standalone PCB Return / PCB Round Trip controllers
+and their reverse-only handler helpers were removed. Supply's production
+two-PCB pickup and Buffer handoff remain unchanged.
 
-Initial setup: the operator places one PCB in the Supply gripper before
-starting the test. Start resolves the current PCB, fixing-cylinder, rotation and
-axis feedback, then continues the forward route. It does not first wait for a new
-upstream SMEMA cycle or fetch a PCB from source position 1/2. This describes initial
-preparation, not a forced start position on every Run. Stop/Run resumes the current
-physical state and route intent without loading another PCB or resetting the axes.
-
-Confirmed preparation for Placement to pick the PCB back off the heat sink:
-open the IPM gripper, then lower the IPM lift while the gripper remains open.
-This matches the existing Buffer pickup preparation. The IPM lift is not the
-handler lift: normal X/Y travel still requires the handler lift to be Up.
-The implemented `Manual > Dry Run > PCB Return` performs one return from the
-selected heat sink to Supply. It requires an unfastened PCB. If the carrier is at
-Station 2/3, the host first uses MainConveyorDryRun's finite return: front sensor
-in reverse -> Station 1 forward -> plate Up / stopper Down -> motor stopped.
-A carrier already at Station 1 only needs seating. The PCB handoff then uses the
-existing sequence below; conveyor travel is not restarted during that handoff.
-Supply and Placement must be enabled, plus Main Conveyor when carrier seating
-is still needed. The run does not loosen bolts or start the production supply loop.
-
-```text
-Placement: Open -> IPM Down -> taught PCB position -> Handler Down
-  -> PCB detection -> vacuum -> Close -> Handler Up -> Safe Z; keep IPM Down
-  -> heat-sink-1 rotation X/Y -> unrotate -> Buffer X/Y -> Handoff Z
-  -> Handler Down -> IPM Down; keep vacuum and gripper holding
-Supply: empty and outside -> Open / fixer retract -> rotate at Rotation Z
-  -> Buffer Y -> Clear Z -> Buffer X beneath Placement -> Handoff Z upward
-  -> PCB detection -> gripper Close -> fixer forward
-Placement: vacuum Off -> Open -> IPM Up -> Handler Up -> Safe Z
-Supply: Rotation Z -> X origin outside, Y unchanged -> carrier Y -> unrotate
-```
-
-Placement stays settled at Handoff while Supply enters underneath. Supply stays
-settled at Handoff while Placement releases and retracts. Only then does Supply
-withdraw with the PCB. Supply X/Y remain separate moves. All positions reuse
-existing teaching; no dry-run coordinates are hard-coded. The reverse leg finishes
-with Supply holding the PCB outside the buffer. It does not put the PCB back on
-the external source or immediately begin another forward cycle.
-
-`PcbReturn` coordinates the peer handlers in the host; neither handler project
-references the other. Route intent survives Stop in memory, while PCB, grip,
-vacuum, rotation and settled-position checks use live feedback.
-PCB pickup also keeps its original heat-sink target across Stop; changing the
-selector cannot redirect a partially vacuum-held PCB. Manual shows this active
-target separately, and a new selection applies after the current return completes.
-Partial Supply X entry resumes at Clear Z; partial upward handoff resumes upward, not by
-re-running the normal forward buffer entry. This intent is not persisted across
-application restart.
-
-`Manual > Dry Run > PCB Round Trip` repeats the forward and return routes until
-Stop. Start with one PCB in Supply and a seated Station 1 carrier. Both heat sinks
-may be present, but only the selected heat sink is used. No source pickup, SMEMA,
-conveyor, bolt or inspection loop starts. A complete return to Supply counts as
-one cycle. Changing the selected heat sink during Stop applies at the next cycle;
-the unfinished cycle keeps its original target and direction.
-
-`PcbDryRun` reuses `PcbSupplier.TransferStepAsync` and `PcbPlacer.PlaceStepAsync`,
-the same actions used by their production loops. It does not copy their forward
-motion/IO implementation. The standalone PCB Return remains available for one
-reverse leg. Production still uses PCB 1 -> PCB 2 and normal upstream SMEMA.
-Full-machine repeating integration, including NG transport, is separate. Fastening and
-loosening are excluded from dry run by user decision; taught bolt-point movement
-is retained in the independent Bolt Route test.
+For the initial carrier-only repeat, disable Supply, Placement, Bolt Fastening
+and Inspection. See the [Repeat instructions](../../README.md#repeat--dry-run-auto-기반).
 
 ## Not defined yet
 

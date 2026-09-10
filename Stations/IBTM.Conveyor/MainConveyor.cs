@@ -214,6 +214,13 @@ public sealed class MainConveyor : AutoUnit
 
     public async Task ReturnToStartAsync(CancellationToken cancellationToken)
     {
+        var carriers = (EntryCarrierDetected ? 1 : 0)
+            + (_placement.CarrierPresent ? 1 : 0)
+            + (_boltFastening.CarrierPresent ? 1 : 0)
+            + (_inspection.CarrierPresent ? 1 : 0);
+        if (carriers > 1 || ExitCarrierDetected)
+            throw new InvalidOperationException("Main conveyor return requires one carrier and a clear exit.");
+
         // Reverse travel does not transfer production results to stations it passes.
         _transfer = ConveyorTransfer.None;
         _repeat = true;

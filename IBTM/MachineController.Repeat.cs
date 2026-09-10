@@ -38,7 +38,7 @@ public sealed partial class MachineController
                 runningUnits.Add(RunUnitAsync(alarm, start));
             }
         }
-    
+
         async Task RunUnitAsync(MachineAlarm alarm, Func<Task> start)
         {
             try
@@ -72,7 +72,7 @@ public sealed partial class MachineController
                 cycle.Cancel();
             }
         }
-    
+
         StartUnit(
             _units.MainConveyor,
             MachineAlarm.MainConveyor,
@@ -109,7 +109,7 @@ public sealed partial class MachineController
             _units.NgConveyor,
             MachineAlarm.NgConveyor,
             () => _ngConveyor.RunAsync(cycle.Token, repeat));
-    
+
         await Task.WhenAll(runningUnits).ConfigureAwait(false);
     }
 
