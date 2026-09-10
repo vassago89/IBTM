@@ -232,6 +232,9 @@ public sealed partial class MachineLifecycleTests
         try
         {
             await WaitUntilAsync(() => gantry.Feedback.IsMoving);
+            Assert.False(teaching.ToggleLiveViewCommand.CanExecute(null));
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+            Assert.False(teaching.IsCameraLive);
             if (closeTeaching)
                 await teaching.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(2));
             else
@@ -250,6 +253,7 @@ public sealed partial class MachineLifecycleTests
             await command.ExecuteAsync(null);
             Assert.Null(teaching.CameraError);
             Assert.True(scanCarrier ? teaching.HasCarrierImages : teaching.Preview.HasImage);
+            Assert.True(teaching.ToggleLiveViewCommand.CanExecute(null));
 
             await gantry.MoveToAsync(new() { X = 50, Y = 50 }, 10_000);
             settings.InspectionGantry.Motion.HorizontalSpeed = 1;

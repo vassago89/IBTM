@@ -64,8 +64,6 @@ public sealed partial class MachineController
 
     private void StopConveyorMotor(OutputIo signal)
     {
-        if (!_io.IsReady)
-            return;
         if (signal == OutputIo.MainConveyorRun)
             _conveyor.Stop();
         else if (signal == OutputIo.NgConveyorRun)

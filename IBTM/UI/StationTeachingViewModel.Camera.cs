@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,35 +17,53 @@ public partial class StationTeachingViewModel
     private ImageFrame? _pendingLiveFrame;
     private bool _liveImageUpdateQueued;
     private Task _liveImageUpdate = Task.CompletedTask;
+    private Task<Exception?> _cameraStop = Task.FromResult<Exception?>(null);
 
     [RelayCommand(CanExecute = nameof(CanToggleLiveView))]
-    private void ToggleLiveView()
+    private async Task ToggleLiveViewAsync(CancellationToken cancellationToken)
     {
+        if (!CanToggleLiveView())
+            return;
+
         if (IsCameraLive)
         {
-            StopCamera();
+            await StopCameraLiveAsync();
+            return;
         }
-        else
+
+        Preview.Clear(SelectedBarcode);
+        CameraError = null;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, ViewCancellation);
+        try
         {
-            if (!_state.ManualMode)
-                return;
-            CameraError = null;
-            Preview.Clear(SelectedBarcode);
-            IsCameraLive = true;
-            try
-            {
-                _boltInspector.StartLiveView();
-            }
-            catch (Exception exception)
-            {
-                HandleLiveViewFailure(exception);
-            }
+            await _boltInspector.StartLiveViewAsync(cancellation.Token);
+            if (!_state.ManualMode || !IsInspectionSelected)
+                await StopCameraLiveAsync();
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Trace.TraceError("Camera live view start failed. {0}", exception);
         }
     }
 
     private bool CanToggleLiveView()
     {
-        return IsCameraLive || IsInspectionSelected && _state.ManualMode;
+        return IsCameraLive
+            || IsInspectionSelected
+                && _state.ManualMode
+                && !CaptureCarrierImagesCommand.IsRunning
+                && !CaptureInspectionCommand.IsRunning
+                && !CollectBoltImagesCommand.IsRunning;
+    }
+
+    private void OnInspectionCommandChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IAsyncRelayCommand.IsRunning))
+            ToggleLiveViewCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand(CanExecute = nameof(CanCaptureCarrierImages))]
@@ -293,11 +312,10 @@ public partial class StationTeachingViewModel
                 async ct =>
                 {
                     activeCancellation = ct;
-                    CameraError = null;
-                    if (IsCameraLive)
-                        StopCamera();
-                    if (CameraError is not null)
+                    if (await StopCameraLiveAsync() is not null)
                         return;
+                    ct.ThrowIfCancellationRequested();
+                    CameraError = null;
                     await action(ct);
                 },
                 token,
@@ -314,40 +332,70 @@ public partial class StationTeachingViewModel
         }
     }
 
-    private void StopCamera()
+    private Task<Exception?> StopCameraLiveAsync()
     {
+        ToggleLiveViewCommand.Cancel();
+        if (!_cameraStop.IsCompleted)
+            return _cameraStop;
+
         lock (_liveImageGate)
         {
-            IsCameraLive = false;
             LiveImage = null;
             _pendingLiveFrame = null;
         }
-        try
+
+        _cameraStop = StopAsync();
+        return _cameraStop;
+
+        async Task<Exception?> StopAsync()
         {
-            _boltInspector.StopLiveView();
-        }
-        catch (Exception exception)
-        {
-            System.Diagnostics.Trace.TraceError("Camera live view stop failed. {0}", exception);
-            CameraError = exception.Message;
+            try
+            {
+                await _boltInspector.StopLiveViewAsync();
+                return null;
+            }
+            catch (Exception exception)
+            {
+                System.Diagnostics.Trace.TraceError("Camera live view stop failed. {0}", exception);
+                return exception;
+            }
         }
     }
 
-    private void OnLiveViewFailed(Exception exception)
+    private void OnLiveViewChanged()
     {
-        Application.Current.Dispatcher.BeginInvoke(() => HandleLiveViewFailure(exception));
+        Application.Current.Dispatcher.BeginInvoke(RefreshLiveView);
     }
 
-    private void HandleLiveViewFailure(Exception exception)
+    private void RefreshLiveView()
     {
-        System.Diagnostics.Trace.TraceError("Camera live view failed. {0}", exception);
+        OnPropertyChanged(nameof(IsCameraLive));
+        OnPropertyChanged(nameof(CameraError));
         if (!IsCameraLive)
         {
-            return;
+            lock (_liveImageGate)
+            {
+                LiveImage = null;
+                _pendingLiveFrame = null;
+            }
         }
 
-        StopCamera();
+        ToggleLiveViewCommand.NotifyCanExecuteChanged();
+        CaptureCarrierImagesCommand.NotifyCanExecuteChanged();
+        TeachImagePointCommand.NotifyCanExecuteChanged();
+        TeachImageRegionCommand.NotifyCanExecuteChanged();
+    }
+
+    private async Task HandlePreviewFailureAsync(Exception exception)
+    {
+        System.Diagnostics.Trace.TraceError("Camera preview conversion failed. {0}", exception);
+        await StopCameraLiveAsync();
         CameraError = exception.Message;
+        lock (_liveImageGate)
+        {
+            _pendingLiveFrame = null;
+            _liveImageUpdateQueued = false;
+        }
     }
 
     private void UpdateLiveImage(ImageFrame frame)
@@ -401,15 +449,7 @@ public partial class StationTeachingViewModel
         catch (Exception exception)
         {
             await Application.Current.Dispatcher.InvokeAsync(
-                () =>
-                {
-                    HandleLiveViewFailure(exception);
-                    lock (_liveImageGate)
-                    {
-                        _pendingLiveFrame = null;
-                        _liveImageUpdateQueued = false;
-                    }
-                });
+                () => HandlePreviewFailureAsync(exception)).Task.Unwrap();
         }
     }
 

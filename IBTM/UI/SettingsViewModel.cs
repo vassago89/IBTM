@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Ports;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -392,20 +393,36 @@ public partial class SettingsViewModel : ObservableObject
 
     public async Task ShutdownAsync()
     {
-        await CommandShutdown.StopAsync(
-            () =>
-            {
-                LoadVirtualImageCommand.Cancel();
-                TestLightCommand.Cancel();
-            },
-            SaveSettingsCommand,
-            LoadVirtualImageCommand,
-            BackupDatabaseCommand,
-            RestoreDatabaseCommand,
-            TestLightCommand,
-            OffTestLightCommand);
+        Exception? failure = null;
+        try
+        {
+            await CommandShutdown.StopAsync(
+                () =>
+                {
+                    LoadVirtualImageCommand.Cancel();
+                    TestLightCommand.Cancel();
+                },
+                SaveSettingsCommand,
+                LoadVirtualImageCommand,
+                BackupDatabaseCommand,
+                RestoreDatabaseCommand,
+                TestLightCommand,
+                OffTestLightCommand);
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+        }
+
         if (PendingLightOffChannel is { } channel)
-            await TurnTestLightOffAsync(channel);
+        {
+            var offFailure = await TurnTestLightOffAsync(channel);
+            if (offFailure is not null)
+                failure = failure is null ? offFailure : new AggregateException(failure, offFailure);
+        }
+
+        if (failure is not null)
+            ExceptionDispatchInfo.Throw(failure);
     }
 
     private void ApplyHardwareMappings()

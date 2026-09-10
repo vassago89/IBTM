@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -197,18 +199,49 @@ public sealed class MainConveyor : AutoUnit
         _automaticCancellation = runCancellation;
         cancellationToken = runCancellation.Token;
         using var stopRegistration = cancellationToken.Register(StopMotor);
+        List<Exception>? failures = null;
         try
         {
             await run(cancellationToken);
         }
+        catch (Exception exception)
+        {
+            failures = [exception];
+        }
         finally
         {
-            ResetSmema();
-            StopMotor();
+            try
+            {
+                StopMotor();
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+
+            try
+            {
+                ResetSmema();
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+
             if (ReferenceEquals(_automaticCancellation, runCancellation))
             {
                 _automaticCancellation = null;
             }
+        }
+
+        if (failures?.Count == 1)
+        {
+            ExceptionDispatchInfo.Throw(failures[0]);
+        }
+
+        if (failures is not null)
+        {
+            throw new AggregateException("Conveyor operation or cleanup failed.", failures);
         }
     }
 

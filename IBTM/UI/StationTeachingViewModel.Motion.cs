@@ -158,9 +158,9 @@ public partial class StationTeachingViewModel
     protected override void NotifyManualTeachingCommands()
     {
         OnPropertyChanged(nameof(CanEditInspectionRecipe));
-        if (IsCameraLive && !_state.ManualMode)
+        if (!_state.ManualMode && (IsCameraLive || ToggleLiveViewCommand.IsRunning))
         {
-            StopCamera();
+            _ = StopCameraLiveAsync();
         }
 
         NotifyMotionCommands();

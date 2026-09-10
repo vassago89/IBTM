@@ -66,17 +66,30 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     [NotifyCanExecuteChangedFor(nameof(CaptureCarrierImagesCommand))]
     private double _scanOverlap;
 
-    [ObservableProperty]
     private string? _cameraError;
+
+    public string? CameraError
+    {
+        get
+        {
+            return _cameraError ?? _boltInspector.LiveViewError?.Message;
+        }
+        private set
+        {
+            SetProperty(ref _cameraError, value);
+        }
+    }
 
     [ObservableProperty]
     private IReadOnlyList<ImageMarker> _imageMarkers = [];
 
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CaptureCarrierImagesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(TeachImagePointCommand))]
-    [NotifyCanExecuteChangedFor(nameof(TeachImageRegionCommand))]
-    private bool _isCameraLive;
+    public bool IsCameraLive
+    {
+        get
+        {
+            return _boltInspector.IsLiveView;
+        }
+    }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(TeachCurrentPositionCommand))]
@@ -142,7 +155,10 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
         inspectionGantry.Feedback.PositionChanged += OnInspectionPositionChanged;
         boltInspector.FrameReady += UpdateLiveImage;
-        boltInspector.LiveViewFailed += OnLiveViewFailed;
+        boltInspector.LiveViewChanged += OnLiveViewChanged;
+        CaptureCarrierImagesCommand.PropertyChanged += OnInspectionCommandChanged;
+        CaptureInspectionCommand.PropertyChanged += OnInspectionCommandChanged;
+        CollectBoltImagesCommand.PropertyChanged += OnInspectionCommandChanged;
         state.DisplayChanged += QueueManualCommandRefresh;
         recipeEditor.Changed += OnRecipeChanged;
         recipeEditor.PropertyChanged += (_, e) =>
@@ -377,8 +393,8 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         CancelTeaching();
 
-        if (IsCameraLive)
-            StopCamera();
+        if (IsCameraLive || ToggleLiveViewCommand.IsRunning)
+            _ = StopCameraLiveAsync();
 
         RefreshTeachingPoints();
         ShowRecipeImages();
@@ -456,8 +472,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         CarrierImages = [];
         Preview.Clear();
 
-        if (IsCameraLive)
-            StopCamera();
+        _ = StopCameraLiveAsync();
     }
 
     public async Task ShutdownAsync()
@@ -466,6 +481,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         {
             await CommandShutdown.StopAsync(
                 Deactivate,
+                ToggleLiveViewCommand,
                 JogCommand,
                 StepCommand,
                 MoveToHorizontalZCommand,
@@ -489,8 +505,10 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 imageUpdate = _liveImageUpdate;
             }
 
-            await imageUpdate;
-            await _recipeImageUpdate;
+            var cameraStop = _cameraStop;
+            await Task.WhenAll(imageUpdate, _recipeImageUpdate, cameraStop);
+            if (await cameraStop is { } failure)
+                throw failure;
         }
     }
 
@@ -603,8 +621,8 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     private void OnRecipeChanged()
     {
         CameraError = null;
-        if (IsCameraLive)
-            StopCamera();
+        if (IsCameraLive || ToggleLiveViewCommand.IsRunning)
+            _ = StopCameraLiveAsync();
         SelectedPoint = null;
         if (SelectedPcb == HeatSinkSlot.HeatSink1)
             RefreshTeachingPoints();

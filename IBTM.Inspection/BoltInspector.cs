@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -9,21 +11,59 @@ namespace IBTM.Inspection;
 
 public sealed record CarrierScanImage(AxisPosition Center, ImageFrame Frame);
 
-public sealed class BoltInspector(
-    InspectionGantry gantry,
-    ICamera camera,
-    ILightController light,
-    BoltPresenceDetector presenceDetector,
-    InspectionGantrySettings gantrySettings,
-    CarrierReferenceSettings carrierReference,
-    LightingSettings lightingSettings,
-    Func<BoltInspectionRecipe> getRecipe,
-    Func<PcbLayout> getPcb,
-    Func<double> getMillimetersPerPixel)
+public sealed class BoltInspector
 {
-    private int? _liveLightChannel;
+    private readonly InspectionGantry gantry;
+    private readonly ICamera camera;
+    private readonly ILightController light;
+    private readonly BoltPresenceDetector presenceDetector;
+    private readonly InspectionGantrySettings gantrySettings;
+    private readonly CarrierReferenceSettings carrierReference;
+    private readonly LightingSettings lightingSettings;
+    private readonly Func<BoltInspectionRecipe> getRecipe;
+    private readonly Func<PcbLayout> getPcb;
+    private readonly Func<double> getMillimetersPerPixel;
+    private readonly SemaphoreSlim _visionGate = new(1, 1);
+    private volatile bool _isLiveView;
+    private int? _lightChannel;
+
+    public BoltInspector(
+        InspectionGantry gantry,
+        ICamera camera,
+        ILightController light,
+        BoltPresenceDetector presenceDetector,
+        InspectionGantrySettings gantrySettings,
+        CarrierReferenceSettings carrierReference,
+        LightingSettings lightingSettings,
+        Func<BoltInspectionRecipe> getRecipe,
+        Func<PcbLayout> getPcb,
+        Func<double> getMillimetersPerPixel)
+    {
+        this.gantry = gantry;
+        this.camera = camera;
+        this.light = light;
+        this.presenceDetector = presenceDetector;
+        this.gantrySettings = gantrySettings;
+        this.carrierReference = carrierReference;
+        this.lightingSettings = lightingSettings;
+        this.getRecipe = getRecipe;
+        this.getPcb = getPcb;
+        this.getMillimetersPerPixel = getMillimetersPerPixel;
+        camera.LiveViewFailed += OnCameraLiveViewFailed;
+    }
 
     public event Action<BoltInspectionImage>? Inspected;
+    public event Action? LiveViewChanged;
+
+    public bool IsLiveView
+    {
+        get
+        {
+            return _isLiveView;
+        }
+    }
+
+    public Exception? LiveViewError { get; private set; }
 
     public event Action<ImageFrame>? FrameReady
     {
@@ -38,24 +78,48 @@ public sealed class BoltInspector(
         }
     }
 
-    public event Action<Exception>? LiveViewFailed
+    public async Task InitializeVisionAsync(CancellationToken cancellationToken = default)
     {
-        add
+        await _visionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            camera.LiveViewFailed += value;
+            await Task.Run(InitializeVision, cancellationToken).ConfigureAwait(false);
         }
-
-        remove
+        finally
         {
-            camera.LiveViewFailed -= value;
+            _visionGate.Release();
         }
     }
 
-    public void InitializeVision()
+    private void InitializeVision()
     {
-        light.Initialize();
-        light.TurnOffAll();
-        camera.Initialize();
+        // Recovery does not require a successful OFF on a disconnected device.
+        // Each driver first restores its connection; camera initialization leaves acquisition stopped.
+        SetLiveViewState(false);
+        Exception? failure = null;
+        try
+        {
+            camera.Initialize();
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+        }
+
+        try
+        {
+            light.Initialize();
+            light.TurnOffAll();
+            _lightChannel = null;
+        }
+        catch (Exception exception)
+        {
+            failure = failure is null ? exception : new AggregateException(failure, exception);
+        }
+
+        SetLiveViewState(false, failure);
+        if (failure is not null)
+            ExceptionDispatchInfo.Throw(failure);
     }
 
     public void CheckReady()
@@ -132,9 +196,17 @@ public sealed class BoltInspector(
 
     public async Task<ImageFrame> CaptureCurrentAsync(CancellationToken cancellationToken = default)
     {
-        var frame = await Task.Run(Capture, cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-        return frame;
+        await _visionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var frame = await Task.Run(Capture, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return frame;
+        }
+        finally
+        {
+            _visionGate.Release();
+        }
     }
 
     internal async Task<string> ReadBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken)
@@ -168,15 +240,22 @@ public sealed class BoltInspector(
 
     private ImageFrame Capture()
     {
+        StopLiveView();
         var channel = lightingSettings.InspectionChannel;
+        Exception? failure = null;
         try
         {
             TurnLightOn(channel);
             return CaptureFrame();
         }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
         finally
         {
-            light.TurnOff(channel);
+            TurnLightOff(channel, failure);
         }
     }
 
@@ -188,12 +267,12 @@ public sealed class BoltInspector(
         return await CaptureCurrentAsync(cancellationToken);
     }
 
-    internal Task<bool> InspectAsync(BoltTarget point, CancellationToken cancellationToken = default)
+    internal async Task<bool> InspectAsync(BoltTarget point, CancellationToken cancellationToken = default)
     {
-        return Task.Run(
+        var image = await CaptureCurrentAsync(cancellationToken).ConfigureAwait(false);
+        return await Task.Run(
             () =>
             {
-                var image = Capture();
                 var capturedAt = DateTimeOffset.UtcNow;
                 cancellationToken.ThrowIfCancellationRequested();
                 var present = presenceDetector.IsPresent(image);
@@ -214,7 +293,24 @@ public sealed class BoltInspector(
     public async Task<IReadOnlyList<CarrierScanImage>> CaptureCarrierImagesAsync(
         CancellationToken cancellationToken = default)
     {
+        await _visionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await Task.Run(
+                () => CaptureCarrierImagesCoreAsync(cancellationToken),
+                cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _visionGate.Release();
+        }
+    }
+
+    private async Task<IReadOnlyList<CarrierScanImage>> CaptureCarrierImagesCoreAsync(
+        CancellationToken cancellationToken)
+    {
         cancellationToken.ThrowIfCancellationRequested();
+        StopLiveView();
         var overlap = getRecipe().CarrierScanOverlapMillimeters;
         var (width, height) = FieldOfView;
         var xPositions = ScanPositions(
@@ -227,6 +323,7 @@ public sealed class BoltInspector(
             height - overlap);
         var images = new List<CarrierScanImage>(xPositions.Count * yPositions.Count);
         var channel = lightingSettings.InspectionChannel;
+        Exception? failure = null;
 
         try
         {
@@ -248,47 +345,143 @@ public sealed class BoltInspector(
                 }
             }
         }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
         finally
         {
-            light.TurnOff(channel);
+            TurnLightOff(channel, failure);
         }
 
         return images;
     }
 
-    public void StartLiveView()
+    public async Task StartLiveViewAsync(CancellationToken cancellationToken = default)
     {
-        if (_liveLightChannel is not null)
-            StopLiveView();
-
-        var channel = lightingSettings.InspectionChannel;
-        _liveLightChannel = channel;
+        await _visionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            TurnLightOn(channel);
+            await Task.Run(() => StartLiveView(cancellationToken), cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            var cancelled = exception is OperationCanceledException
+                && cancellationToken.IsCancellationRequested;
+            SetLiveViewState(false, cancelled ? null : exception);
+            throw;
+        }
+        finally
+        {
+            _visionGate.Release();
+        }
+    }
+
+    private void StartLiveView(CancellationToken cancellationToken)
+    {
+        StopLiveView();
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            SetLiveViewState(true);
+            TurnLightOn(lightingSettings.InspectionChannel);
+            cancellationToken.ThrowIfCancellationRequested();
             var recipe = getRecipe();
             camera.StartLiveView(recipe.ExposureMicroseconds, recipe.Gain);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (LiveViewError is { } failure)
+                ExceptionDispatchInfo.Throw(failure);
         }
-        catch
+        catch (Exception failure)
         {
-            StopLiveView();
+            try
+            {
+                StopLiveView();
+            }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException(failure, cleanupFailure);
+            }
             throw;
         }
     }
 
-    public void StopLiveView()
+    public async Task StopLiveViewAsync()
     {
+        await _visionGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await Task.Run(StopLiveView).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            SetLiveViewState(false, exception);
+            throw;
+        }
+        finally
+        {
+            _visionGate.Release();
+        }
+    }
+
+    private void StopLiveView()
+    {
+        SetLiveViewState(false);
+        Exception? failure = null;
         try
         {
             camera.StopLiveView();
         }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
         finally
         {
-            if (_liveLightChannel is { } channel)
-            {
-                light.TurnOff(channel);
-                _liveLightChannel = null;
-            }
+            if (_lightChannel is { } channel)
+                TurnLightOff(channel, failure);
+        }
+    }
+
+    private void OnCameraLiveViewFailed(Exception failure)
+    {
+        // The driver has stopped acquisition. Finish cleanup on the receive thread;
+        // the next camera operation joins that thread before touching the light.
+        try
+        {
+            if (_lightChannel is { } channel)
+                TurnLightOff(channel, failure);
+        }
+        catch (Exception cleanupFailure)
+        {
+            failure = cleanupFailure;
+        }
+        SetLiveViewState(false, failure);
+        Trace.TraceError("Inspection live view failed. {0}", failure);
+    }
+
+    private void SetLiveViewState(bool live, Exception? failure = null)
+    {
+        if (_isLiveView == live && ReferenceEquals(LiveViewError, failure))
+            return;
+
+        LiveViewError = failure;
+        _isLiveView = live;
+        LiveViewChanged?.Invoke();
+    }
+
+    private void TurnLightOff(int channel, Exception? failure)
+    {
+        try
+        {
+            light.TurnOff(channel);
+            _lightChannel = null;
+        }
+        catch (Exception cleanupFailure) when (failure is not null)
+        {
+            throw new AggregateException(failure, cleanupFailure);
         }
     }
 
@@ -323,6 +516,7 @@ public sealed class BoltInspector(
 
     private void TurnLightOn(int channel)
     {
+        _lightChannel = channel;
         light.SetLevel(channel, getRecipe().LightLevel);
         light.TurnOn(channel);
     }

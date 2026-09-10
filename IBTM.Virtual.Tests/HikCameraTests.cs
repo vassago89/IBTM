@@ -2,8 +2,12 @@ using System;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 using IBTM.Device;
 using IBTM.Hik;
+using IBTM.Core;
+using IBTM.Inspection;
+using Microsoft.Extensions.DependencyInjection;
 using MvCameraControl;
 using Xunit;
 
@@ -78,6 +82,59 @@ public sealed class HikCameraTests
     }
 
     [Fact]
+    public async Task VisionInitializationStopsLiveAcquisitionAndAllowsRestart()
+    {
+        var sdk = new CameraSdk();
+        using var camera = sdk.CreateCamera();
+        using var services = new ServiceCollection()
+            .AddSingleton(VirtualTest.OpenMachineStore())
+            .AddIbtmApplication(new MachineSettings
+            {
+                Drivers = new() { Inspection = InspectionAlgorithm.Virtual }
+            })
+            .AddSingleton<ICamera>(camera)
+            .BuildServiceProvider();
+        var inspector = services.GetRequiredService<BoltInspector>();
+        using var received = new ManualResetEventSlim();
+        inspector.FrameReady += _ => received.Set();
+
+        await inspector.StartLiveViewAsync();
+        Assert.True(received.Wait(TimeSpan.FromSeconds(2)));
+        await inspector.InitializeVisionAsync();
+        Assert.False(inspector.IsLiveView);
+        Assert.Equal("Stop", sdk.Calls.ToArray()[^1]);
+
+        received.Reset();
+        await inspector.StartLiveViewAsync();
+        Assert.True(received.Wait(TimeSpan.FromSeconds(2)));
+        Assert.True(inspector.IsLiveView);
+        sdk.ConversionFails = true;
+        Assert.True(await VirtualTest.WaitUntilAsync(
+            () => !inspector.IsLiveView && inspector.LiveViewError is not null,
+            TimeSpan.FromSeconds(2)));
+        sdk.ConversionFails = false;
+        await inspector.StopLiveViewAsync();
+
+        var starting = inspector.StartLiveViewAsync();
+        var stopping = inspector.StopLiveViewAsync();
+        await Task.WhenAll(starting, stopping);
+        Assert.False(inspector.IsLiveView);
+        Assert.Equal("Stop", sdk.Calls.ToArray()[^1]);
+    }
+
+    [Fact]
+    public void InitializationReleasesABrokenGrabHandleForTheNextRecovery()
+    {
+        var sdk = new CameraSdk { StopFailures = 3 };
+        using var camera = sdk.CreateCamera();
+        Assert.Throws<InvalidOperationException>(() => camera.Capture(500, 0));
+        Assert.Throws<AggregateException>(camera.Initialize);
+        Assert.True(sdk.Disposed);
+        Assert.Null(typeof(HikCamera).GetField("_device", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(camera));
+    }
+
+    [Fact]
     public void LiveFailureStopsAcquisitionBeforeReportingAndAllowsRestart()
     {
         var sdk = new CameraSdk { ConversionFails = true };
@@ -114,14 +171,67 @@ public sealed class HikCameraTests
             sdk.Calls.ToArray());
     }
 
-    [Fact]
-    public void DisposeReleasesDeviceEvenWhenCloseFails()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DisposeReleasesDeviceAndPreservesCleanupFailures(bool cascadingFailures)
     {
-        var sdk = new CameraSdk { CloseFails = true };
+        var sdk = new CameraSdk
+        {
+            CloseFails = true,
+            StopFailures = cascadingFailures ? 2 : 0,
+            DisposeFails = cascadingFailures
+        };
         var camera = sdk.CreateCamera();
-        Assert.Throws<InvalidOperationException>(camera.Dispose);
+        if (cascadingFailures)
+        {
+            camera.StartLiveView(500, 0);
+            var errors = Assert.Throws<AggregateException>(camera.Dispose).Flatten().InnerExceptions;
+            Assert.Equal(3, errors.Count);
+            Assert.Contains(errors, error => error.Message.Contains("Stop Hik grabbing"));
+            Assert.Contains(errors, error => error.Message.Contains("Close Hik camera"));
+            Assert.Contains(errors, error => error.Message.Contains("Simulated device dispose failure."));
+        }
+        else
+        {
+            Assert.Contains("Close Hik camera", Assert.Throws<InvalidOperationException>(camera.Dispose).Message);
+        }
+
         Assert.True(sdk.Disposed);
         camera.Dispose();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FrameAndCleanupFailuresAreAllReported(bool live)
+    {
+        var sdk = new CameraSdk { ConversionFails = true, FreeFails = true, StopFailures = 1 };
+        using var camera = sdk.CreateCamera();
+        Exception? failure;
+        if (live)
+        {
+            using var failed = new ManualResetEventSlim();
+            failure = null;
+            camera.LiveViewFailed += error =>
+            {
+                failure = error;
+                failed.Set();
+            };
+            camera.StartLiveView(500, 0);
+            Assert.True(failed.Wait(TimeSpan.FromSeconds(2)));
+            camera.StopLiveView();
+        }
+        else
+        {
+            failure = Assert.Throws<AggregateException>(() => camera.Capture(500, 0));
+        }
+
+        var errors = Assert.IsType<AggregateException>(failure).Flatten().InnerExceptions;
+        Assert.Equal(3, errors.Count);
+        Assert.Contains(errors, error => error.Message.Contains("Convert Hik frame"));
+        Assert.Contains(errors, error => error.Message.Contains("Free Hik frame"));
+        Assert.Contains(errors, error => error.Message.Contains("Stop Hik grabbing"));
     }
 
     private sealed class CameraSdk
@@ -129,8 +239,10 @@ public sealed class HikCameraTests
         public readonly ConcurrentQueue<string> Calls = new();
         public bool NoData;
         public bool ConversionFails;
+        public bool FreeFails;
         public int StopFailures;
         public bool CloseFails;
+        public bool DisposeFails;
         public bool Disposed;
         private bool _grabbing;
         private bool _bufferHeld;
@@ -192,6 +304,8 @@ public sealed class HikCameraTests
                             Assert.Same(frame, args[0]);
                             _bufferHeld = false;
                             Calls.Enqueue("Free");
+                            if (FreeFails)
+                                return MvError.MV_E_CALLORDER;
                             break;
                         case "StopGrabbing":
                             Assert.True(_grabbing);
@@ -216,6 +330,8 @@ public sealed class HikCameraTests
                     if (method.Name == "Dispose")
                     {
                         Disposed = true;
+                        if (DisposeFails)
+                            throw new InvalidOperationException("Simulated device dispose failure.");
                         return null;
                     }
 

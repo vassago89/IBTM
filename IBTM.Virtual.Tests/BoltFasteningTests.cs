@@ -2,6 +2,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Ports;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,6 +20,44 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class BoltFasteningTests
 {
+    [Fact]
+    public void AdcConnectionMustMatchBothRequestedSettings()
+    {
+        // Constructing a SerialPort does not open it or access hardware.
+        using var port = new SerialPort("COM4", 19200);
+        AdcBus.VerifyConnectionSettings(port, "com4", 19200);
+        var wrongPort = Assert.Throws<InvalidOperationException>(
+            () => AdcBus.VerifyConnectionSettings(port, "COM3", 19200));
+        Assert.Contains("COM4", wrongPort.Message);
+        Assert.Contains("COM3", wrongPort.Message);
+        Assert.Throws<InvalidOperationException>(
+            () => AdcBus.VerifyConnectionSettings(port, "COM4", 9600));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AdcPreservesTheOperationFailureWhenStopAlsoFails(bool reverse)
+    {
+        var bus = new VirtualAdcBus();
+        var head = new AdcBoltHead(bus, new HantasSettings(), 0);
+        var operationError = new IOException("Start response lost.");
+        var stopError = new IOException("Stop response lost.");
+        bus.FrameTransferred += (direction, frame) =>
+        {
+            if (direction == AdcFrameDirection.Transmit
+                && frame[1] == (byte)AdcFunctionCode.WriteSingleRegister
+                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcRemoteRegister.RemoteStart)
+            {
+                throw BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) == 1 ? operationError : stopError;
+            }
+        };
+
+        var error = await Assert.ThrowsAsync<AggregateException>(
+            () => reverse ? head.RunReverseAsync(CancellationToken.None) : head.TightenAsync());
+        Assert.Equal(new[] { operationError, stopError }, error.InnerExceptions);
+    }
+
     [Fact]
     public async Task AdcDisconnectedRequestsFailClearlyAndCancelledReadinessDoesNotOpenTheBus()
     {

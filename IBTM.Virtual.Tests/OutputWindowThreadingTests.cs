@@ -11,6 +11,7 @@ using System.Windows.Data;
 using System.Windows.Threading;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Inspection;
 using IBTM.Storage;
 using IBTM.UI;
 using IBTM.Virtual;
@@ -93,13 +94,14 @@ public sealed class OutputWindowThreadingTests
                         PcbSupply = false,
                         PcbPlacement = false,
                         BoltFastening = false,
-                        Inspection = false,
+                        Inspection = true,
                         NgCarrierTransfer = false,
                         NgShuttle = false,
                         PickupBoltFeeder = false,
                         ShootingBoltFeeder = false,
                     },
                 })
+            .AddSingleton<ILightController>(new TestLight())
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -278,6 +280,18 @@ public sealed class OutputWindowThreadingTests
             Assert.Contains("RX RAW", (string)frames.Items[0]);
             Assert.Contains("TX", (string)frames.Items[1]);
             Assert.All(updates, thread => Assert.Equal(uiThread, thread));
+
+            var connect = (Button)adc.FindName("ConnectButton");
+            connect.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => !bus.IsOpen && connect.IsEnabled,
+                TimeSpan.FromSeconds(2)));
+            Assert.Equal("Disconnected", adc.ConnectionStatus);
+            connect.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => bus.IsOpen && connect.IsEnabled,
+                TimeSpan.FromSeconds(2)));
+            Assert.Equal("Virtual | 19200", adc.ConnectionStatus);
         }
         finally
         {
@@ -286,25 +300,180 @@ public sealed class OutputWindowThreadingTests
         }
 
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var main = services.GetRequiredService<MainViewModel>();
+        await main.NavigateCommand.ExecuteAsync(AppPage.StationTeaching);
         teaching.SelectedMotionGroup = MotionGroup.InspectionGantry;
+        var page = new Border();
+        page.SetBinding(
+            UIElement.IsEnabledProperty,
+            new Binding(nameof(MainViewModel.CurrentPageEnabled)) { Source = main });
         var preview = new Image();
         preview.SetBinding(
             Image.SourceProperty,
             new Binding(nameof(StationTeachingViewModel.LiveImage)) { Source = teaching });
+        var light = Assert.IsType<TestLight>(services.GetRequiredService<ILightController>());
+        using var releaseStop = new ManualResetEventSlim();
+        var stopEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            teaching.ToggleLiveViewCommand.Execute(null);
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => preview.Source is System.Windows.Media.Imaging.BitmapSource { IsFrozen: true },
                 TimeSpan.FromSeconds(2)));
-            teaching.ToggleLiveViewCommand.Execute(null);
+            light.BeforeOff = () =>
+            {
+                Assert.NotEqual(uiThread, Environment.CurrentManagedThreadId);
+                stopEntered.TrySetResult();
+                Assert.True(releaseStop.Wait(TimeSpan.FromSeconds(2)));
+            };
+            light.FailOff = true;
+            var stopping = main.NavigateCommand.ExecuteAsync(AppPage.Settings);
+            await stopEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(stopping.IsCompleted);
+            Assert.Equal(AppPage.StationTeaching, main.SelectedPage);
+            Assert.False(page.IsEnabled);
+            Assert.False(main.RecipeEditingEnabled);
+            Assert.False(main.NavigateCommand.CanExecute(AppPage.Settings));
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => preview.Source is null,
                 TimeSpan.FromSeconds(2)));
+            releaseStop.Set();
+            await stopping;
+            Assert.False(teaching.IsCameraLive);
+            Assert.Equal(AppPage.StationTeaching, main.SelectedPage);
+            Assert.Contains(light.OffFailure.Message, main.NavigationError);
+            Assert.True(await VirtualTest.WaitUntilAsync(() => page.IsEnabled, TimeSpan.FromSeconds(2)));
+            var failure = await Assert.ThrowsAsync<IOException>(teaching.ShutdownAsync);
+            Assert.Same(light.OffFailure, failure);
+            light.FailOff = false;
+            await main.NavigateCommand.ExecuteAsync(AppPage.Settings);
+            Assert.Equal(AppPage.Settings, main.SelectedPage);
+            Assert.Null(main.NavigationError);
+
+            var settings = services.GetRequiredService<SettingsViewModel>();
+            var lightTest = settings.TestLightCommand.ExecuteAsync(null);
+            Assert.True(await VirtualTest.WaitUntilAsync(() => settings.LightTestOn, TimeSpan.FromSeconds(2)));
+            releaseStop.Reset();
+            stopEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var returning = main.NavigateCommand.ExecuteAsync(AppPage.StationTeaching);
+            await stopEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(AppPage.Settings, main.SelectedPage);
+            Assert.False(page.IsEnabled);
+            Assert.False(lightTest.IsCompleted);
+            io.SetInput(InputIo.AutoMode, false);
+            releaseStop.Set();
+            await returning;
+            await lightTest;
+            Assert.Equal(AppPage.Operation, main.SelectedPage);
+            Assert.False(light.IsOn);
+            Assert.False(settings.LightTestOn);
+            io.SetInput(InputIo.AutoMode, true);
+            await main.NavigateCommand.ExecuteAsync(AppPage.StationTeaching);
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+            Assert.True(light.IsOn);
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+
+            var live = new CheckBox();
+            live.SetBinding(
+                System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
+                new Binding(nameof(StationTeachingViewModel.IsCameraLive))
+                { Source = teaching, Mode = BindingMode.OneWay });
+            var state = services.GetRequiredService<MachineState>();
+            foreach (var hardwareReset in new[] { false, true })
+            {
+                await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+                Assert.True(await VirtualTest.WaitUntilAsync(
+                    () => live.IsChecked == true && preview.Source is not null,
+                    TimeSpan.FromSeconds(2)));
+                Assert.True(light.IsOn);
+                state.SetError(MachineAlarm.Inspection);
+                Assert.True(machine.CanReset);
+                if (hardwareReset)
+                    await Task.Run(() => io.SetInput(InputIo.ResetButton, true));
+                else
+                    await main.ResetCommand.ExecuteAsync(null);
+
+                Assert.True(await VirtualTest.WaitUntilAsync(
+                    () => live.IsChecked == false && preview.Source is null
+                        && !state.IsRunning && state.Alarm == MachineAlarm.None,
+                    TimeSpan.FromSeconds(2)));
+                Assert.False(light.IsOn);
+                Assert.Null(teaching.CameraError);
+                Assert.Equal(MachineAlarm.None, state.Alarm);
+                io.SetInput(InputIo.ResetButton, false);
+            }
+
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+            Assert.True(light.IsOn);
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+
+            var reference = services.GetRequiredService<CarrierReferenceSettings>();
+            reference.UpperLeftLocatingPin = new() { X = 0, Y = 0 };
+            reference.LowerRightLocatingPin = new() { X = 1, Y = 0 };
+            await services.GetRequiredService<InspectionGantry>().HomeHorizontalAsync();
+            teaching.RecipeEditor.Name = "ThreadingScan";
+            teaching.ScanOverlap = 0;
+            var liveButton = new Button { Command = teaching.ToggleLiveViewCommand };
+            var scanStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            releaseStop.Reset();
+            light.BeforeOn = () =>
+            {
+                Assert.NotEqual(uiThread, Environment.CurrentManagedThreadId);
+                scanStarted.TrySetResult();
+                Assert.True(releaseStop.Wait(TimeSpan.FromSeconds(2)));
+            };
+            light.BeforeOff = () => Assert.NotEqual(uiThread, Environment.CurrentManagedThreadId);
+            var scan = teaching.CaptureCarrierImagesCommand.ExecuteAsync(null);
+            await scanStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(liveButton.IsEnabled);
+            var onCalls = light.OnCalls;
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+            Assert.False(teaching.IsCameraLive);
+            Assert.Equal(onCalls, light.OnCalls);
+            teaching.CaptureCarrierImagesCommand.Cancel();
+            releaseStop.Set();
+            await scan.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Null(teaching.CameraError);
+            Assert.True(liveButton.IsEnabled);
         }
         finally
         {
-            teaching.Deactivate();
+            releaseStop.Set();
+            light.BeforeOn = null;
+            light.BeforeOff = null;
+            light.FailOff = false;
+            await teaching.ShutdownAsync();
+        }
+    }
+
+    private sealed class TestLight : ILightController
+    {
+        public Action? BeforeOn { get; set; }
+        public Action? BeforeOff { get; set; }
+        public int OnCalls { get; private set; }
+        public bool IsOn { get; private set; }
+        public bool FailOff { get; set; }
+        public IOException OffFailure { get; } = new("Simulated live light OFF failure.");
+
+        public void Initialize() { }
+        public void SetLevel(int channel, int level) { }
+        public void TurnOn(int channel)
+        {
+            OnCalls++;
+            IsOn = true;
+            BeforeOn?.Invoke();
+        }
+        public void TurnOffAll()
+        {
+            IsOn = false;
+        }
+
+        public void TurnOff(int channel)
+        {
+            BeforeOff?.Invoke();
+            if (FailOff)
+                throw OffFailure;
+            IsOn = false;
         }
     }
 

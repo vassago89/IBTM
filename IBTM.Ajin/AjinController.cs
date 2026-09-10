@@ -36,7 +36,23 @@ public sealed class AjinController(AjinSettings settings, ApplicationLog? log = 
         lock (_gate)
         {
             if (_initialized)
-                return;
+            {
+                try
+                {
+                    ReadRtexInputs(new uint[RtexInputWordCount]);
+                    for (var index = 0; index < _outputModules.Length; index++)
+                    {
+                        _ = ReadRtexOutput(index * RtexChannelCountPerModule);
+                    }
+
+                    return;
+                }
+                catch (IOException exception)
+                {
+                    log?.Error("AJIN connection probe failed; reopening without reset.", exception);
+                    Dispose();
+                }
+            }
             // Field-test existing hardware settings. Never fall back to a resetting open.
             log?.Write(
                 $"AJIN opening with AxlOpenNoReset(interrupt={_interruptNumber}); .mot loading is skipped. Motion still applies the application's pulse and acceleration units.");

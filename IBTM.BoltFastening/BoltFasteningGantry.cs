@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -260,6 +261,32 @@ public sealed class BoltFasteningGantry
     {
         await _shootingHead.CheckReadyAsync(cancellationToken);
         await _pickupHead.CheckReadyAsync(cancellationToken);
+    }
+
+    public async Task ResetHeadsAsync(CancellationToken cancellationToken = default)
+    {
+        List<Exception>? failures = null;
+        foreach (var head in new[] { _shootingHead, _pickupHead })
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                await head.ResetAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+
+        if (failures is not null)
+        {
+            throw new AggregateException("Bolt controller reset failed.", failures);
+        }
     }
 
     internal Task MoveToBoltAsync(BoltTarget bolt, CancellationToken cancellationToken = default)

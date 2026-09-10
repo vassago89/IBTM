@@ -6,6 +6,7 @@ using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.Storage;
+using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -13,6 +14,49 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class LightingTests
 {
+    [Fact]
+    public async Task ResetRecoversMotionAndBoltHeadsEvenWhenVisionIsStillFaulted()
+    {
+        var camera = new TestCamera();
+        using var services = new ServiceCollection()
+            .AddSingleton(VirtualTest.OpenMachineStore())
+            .AddIbtmApplication(new MachineSettings
+            {
+                Drivers = new() { Inspection = InspectionAlgorithm.Virtual, Light = LightDriver.Virtual }
+            })
+            .AddSingleton<ICamera>(camera)
+            .BuildServiceProvider();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var motion = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
+        var bus = (VirtualAdcBus)services.GetRequiredService<IAdcBus>();
+        var head = services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup);
+        await machine.InitializeAsync();
+        try
+        {
+            var slave = services.GetRequiredService<MachineSettings>().Hantas.PickupSlaveAddress;
+            bus.SetNextFasteningResult(slave, AdcEventStatus.Error);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
+            await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
+            motion.SetAlarm(MotionAxis.X, true);
+            camera.FailInitialize = true;
+            state.SetError(MachineAlarm.Inspection, camera.Failure);
+
+            await machine.ResetAsync();
+
+            Assert.False(motion.GetAxisState(MotionAxis.X).Alarm);
+            await head.CheckReadyAsync();
+            Assert.Equal(MachineAlarm.Inspection, state.Alarm);
+            camera.FailInitialize = false;
+            await machine.ResetAsync();
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public async Task InspectionCleansUpTheOriginalLightChannelBeforeCompletionOrCancellation()
     {
@@ -42,8 +86,7 @@ public sealed class LightingTests
             },
             () =>
             {
-                inspector.StartLiveView();
-                return Task.CompletedTask;
+                return inspector.StartLiveViewAsync();
             },
         })
         {
@@ -58,12 +101,12 @@ public sealed class LightingTests
 
         light.FailOn = false;
         var liveChannel = settings.Lighting.InspectionChannel;
-        inspector.StartLiveView();
+        await inspector.StartLiveViewAsync();
         Assert.True(light.IsOn);
-        inspector.StopLiveView();
+        await inspector.StopLiveViewAsync();
         Assert.False(light.IsOn);
         Assert.Equal(liveChannel, light.LastOffChannel);
-        inspector.StopLiveView();
+        await inspector.StopLiveViewAsync();
         Assert.Equal(4, light.OffCalls);
 
         using var cancellation = new CancellationTokenSource();
@@ -80,6 +123,117 @@ public sealed class LightingTests
         light.OnStarted = null;
         Assert.NotEmpty((await inspector.CaptureCurrentAsync()).Pixels);
         Assert.Equal(6, light.OffCalls);
+
+        light.FailOn = true;
+        light.FailOff = true;
+        var failure = await Assert.ThrowsAsync<AggregateException>(() => inspector.CaptureCurrentAsync());
+        Assert.Contains(light.Failure, failure.InnerExceptions);
+        Assert.Contains(light.OffFailure, failure.InnerExceptions);
+        light.FailOff = false;
+        light.TurnOffAll();
+    }
+
+    [Fact]
+    public async Task VisionRecoveryAndLiveFailureDoNotDependOnATeachingView()
+    {
+        var light = new RecordingLight { FailOn = false, Connected = false };
+        var camera = new TestCamera();
+        using var services = new ServiceCollection()
+            .AddSingleton(VirtualTest.OpenMachineStore())
+            .AddIbtmApplication(new MachineSettings
+            {
+                Drivers = new() { Inspection = InspectionAlgorithm.Virtual }
+            })
+            .AddSingleton<ILightController>(light)
+            .AddSingleton<ICamera>(camera)
+            .BuildServiceProvider();
+        var inspector = services.GetRequiredService<BoltInspector>();
+
+        await Assert.ThrowsAsync<AggregateException>(() => inspector.StartLiveViewAsync());
+        Assert.False(inspector.IsLiveView);
+        Assert.NotNull(inspector.LiveViewError);
+        await inspector.InitializeVisionAsync();
+        Assert.True(light.Connected);
+        Assert.False(light.IsOn);
+        Assert.Null(inspector.LiveViewError);
+
+        await inspector.StartLiveViewAsync();
+        Assert.True(light.IsOn);
+        await Task.Run(camera.FailLiveView);
+        Assert.False(light.IsOn);
+        Assert.False(inspector.IsLiveView);
+        Assert.Same(camera.Failure, inspector.LiveViewError);
+
+        light.Connected = false;
+        camera.FailInitialize = true;
+        Assert.Same(camera.Failure, await Assert.ThrowsAsync<IOException>(
+            () => inspector.InitializeVisionAsync()));
+        Assert.True(light.Connected);
+        Assert.False(light.IsOn);
+
+        camera.FailInitialize = false;
+        await inspector.InitializeVisionAsync();
+        Assert.Null(inspector.LiveViewError);
+
+        using var cancellation = new CancellationTokenSource();
+        using var release = new ManualResetEventSlim();
+        var starting = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        light.OnStarted = () =>
+        {
+            starting.TrySetResult();
+            Assert.True(release.Wait(TimeSpan.FromSeconds(2)));
+        };
+        var live = inspector.StartLiveViewAsync(cancellation.Token);
+        try
+        {
+            await starting.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            cancellation.Cancel();
+        }
+        finally
+        {
+            release.Set();
+        }
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => live);
+        Assert.False(light.IsOn);
+        Assert.False(inspector.IsLiveView);
+        light.OnStarted = null;
+
+        await inspector.StartLiveViewAsync();
+        await services.GetRequiredService<MachineController>().ShutdownAsync();
+        Assert.False(light.IsOn);
+        Assert.False(inspector.IsLiveView);
+    }
+
+    private sealed class TestCamera : ICamera
+    {
+        public event Action<ImageFrame>? FrameReady;
+        public event Action<Exception>? LiveViewFailed;
+        public (int Width, int Height) FrameSize { get; } = (1, 1);
+        public bool FailInitialize { get; set; }
+        public IOException Failure { get; } = new("Camera disconnected.");
+
+        public void Initialize()
+        {
+            if (FailInitialize)
+                throw Failure;
+        }
+
+        public ImageFrame Capture(double exposureMicroseconds, double gain)
+        {
+            return new(1, 1, 3, [0, 0, 0]);
+        }
+
+        public void StartLiveView(double exposureMicroseconds, double gain)
+        {
+            FrameReady?.Invoke(Capture(exposureMicroseconds, gain));
+        }
+
+        public void StopLiveView() { }
+
+        public void FailLiveView()
+        {
+            LiveViewFailed?.Invoke(Failure);
+        }
     }
 
     private sealed class RecordingLight : ILightController
@@ -89,10 +243,14 @@ public sealed class LightingTests
         public int OffCalls { get; private set; }
         public int LastOffChannel { get; private set; }
         public bool FailOn { get; set; } = true;
+        public bool FailOff { get; set; }
+        public IOException OffFailure { get; } = new("OFF failed.");
         public Action? OnStarted { get; set; }
+        public bool Connected { get; set; } = true;
 
         public void Initialize()
         {
+            Connected = true;
         }
 
         public void SetLevel(int channel, int level)
@@ -101,6 +259,8 @@ public sealed class LightingTests
 
         public void TurnOn(int channel)
         {
+            if (!Connected)
+                throw Failure;
             IsOn = true;
             OnStarted?.Invoke();
             if (FailOn)
@@ -109,6 +269,8 @@ public sealed class LightingTests
 
         public void TurnOff(int channel)
         {
+            if (!Connected || FailOff)
+                throw OffFailure;
             IsOn = false;
             LastOffChannel = channel;
             OffCalls++;
@@ -116,6 +278,8 @@ public sealed class LightingTests
 
         public void TurnOffAll()
         {
+            if (!Connected || FailOff)
+                throw OffFailure;
             IsOn = false;
         }
     }

@@ -17,6 +17,7 @@ public interface IAdcBus
     event Action<AdcFrameDirection, byte[]>? FrameTransferred;
 
     string[] GetPortNames();
+    // An existing connection must match both requested settings; otherwise Open must fail.
     void Open(string portName, int baudRate);
     void Close();
 

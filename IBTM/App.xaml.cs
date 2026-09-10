@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -138,8 +139,27 @@ public partial class App : System.Windows.Application
     {
         try
         {
-            _serviceProvider?.GetService<MachineController>()?.Stop();
-            _serviceProvider?.Dispose();
+            Exception? failure = null;
+            try
+            {
+                _serviceProvider?.GetService<MachineController>()?.Stop();
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+            }
+
+            try
+            {
+                _serviceProvider?.Dispose();
+            }
+            catch (Exception exception)
+            {
+                failure = failure is null ? exception : new AggregateException(failure, exception);
+            }
+
+            if (failure is not null)
+                ExceptionDispatchInfo.Throw(failure);
             _log?.Write("Application stopped.");
         }
         catch (Exception exception)

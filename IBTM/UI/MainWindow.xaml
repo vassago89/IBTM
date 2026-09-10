@@ -40,11 +40,6 @@
         <DataTemplate DataType="{x:Type training:BoltTrainingViewModel}">
             <training:BoltTrainingView/>
         </DataTemplate>
-        <Style x:Key="NavigationItemStyle"
-               TargetType="RadioButton"
-               BasedOn="{StaticResource NavButtonStyle}">
-            <Setter Property="GroupName" Value="Navigation"/>
-        </Style>
         <Style x:Key="SidebarToolButtonStyle"
                TargetType="Button"
                BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -91,97 +86,97 @@
                 </Border>
 
                 <StackPanel Grid.Row="1" Margin="0,8">
-                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.Operation}, Converter={StaticResource EnumDescriptionConverter}}"
+                    <Button Content="{Binding Source={x:Static ui:AppPage.Operation}, Converter={StaticResource EnumDescriptionConverter}}"
                                  Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.Operation}">
-                        <RadioButton.Style>
-                            <Style TargetType="RadioButton"
-                                   BasedOn="{StaticResource NavigationItemStyle}">
+                        <Button.Style>
+                            <Style TargetType="Button"
+                                   BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}"
                                                  Value="{x:Static ui:AppPage.Operation}">
-                                        <Setter Property="IsChecked" Value="True"/>
+                                        <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </RadioButton.Style>
-                    </RadioButton>
+                        </Button.Style>
+                    </Button>
 
-                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.SupplyTeaching}, Converter={StaticResource EnumDescriptionConverter}}"
+                    <Button Content="{Binding Source={x:Static ui:AppPage.SupplyTeaching}, Converter={StaticResource EnumDescriptionConverter}}"
                                  Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.SupplyTeaching}"
                                  Margin="0,12,0,0">
-                        <RadioButton.Style>
-                            <Style TargetType="RadioButton"
-                                   BasedOn="{StaticResource NavigationItemStyle}">
+                        <Button.Style>
+                            <Style TargetType="Button"
+                                   BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}"
                                                  Value="{x:Static ui:AppPage.SupplyTeaching}">
-                                        <Setter Property="IsChecked" Value="True"/>
+                                        <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </RadioButton.Style>
-                    </RadioButton>
+                        </Button.Style>
+                    </Button>
 
-                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.StationTeaching}, Converter={StaticResource EnumDescriptionConverter}}"
+                    <Button Content="{Binding Source={x:Static ui:AppPage.StationTeaching}, Converter={StaticResource EnumDescriptionConverter}}"
                                  Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.StationTeaching}">
-                        <RadioButton.Style>
-                            <Style TargetType="RadioButton"
-                                   BasedOn="{StaticResource NavigationItemStyle}">
+                        <Button.Style>
+                            <Style TargetType="Button"
+                                   BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}"
                                                  Value="{x:Static ui:AppPage.StationTeaching}">
-                                        <Setter Property="IsChecked" Value="True"/>
+                                        <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </RadioButton.Style>
-                    </RadioButton>
+                        </Button.Style>
+                    </Button>
 
-                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.BoltTraining}, Converter={StaticResource EnumDescriptionConverter}}"
+                    <Button Content="{Binding Source={x:Static ui:AppPage.BoltTraining}, Converter={StaticResource EnumDescriptionConverter}}"
                                  Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.BoltTraining}">
-                        <RadioButton.Style>
-                            <Style TargetType="RadioButton"
-                                   BasedOn="{StaticResource NavigationItemStyle}">
+                        <Button.Style>
+                            <Style TargetType="Button"
+                                   BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}"
                                                  Value="{x:Static ui:AppPage.BoltTraining}">
-                                        <Setter Property="IsChecked" Value="True"/>
+                                        <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </RadioButton.Style>
-                    </RadioButton>
+                        </Button.Style>
+                    </Button>
 
-                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.Settings}, Converter={StaticResource EnumDescriptionConverter}}"
+                    <Button Content="{Binding Source={x:Static ui:AppPage.Settings}, Converter={StaticResource EnumDescriptionConverter}}"
                                  Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.Settings}">
-                        <RadioButton.Style>
-                            <Style TargetType="RadioButton"
-                                   BasedOn="{StaticResource NavigationItemStyle}">
+                        <Button.Style>
+                            <Style TargetType="Button"
+                                   BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}"
                                                  Value="{x:Static ui:AppPage.Settings}">
-                                        <Setter Property="IsChecked" Value="True"/>
+                                        <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </RadioButton.Style>
-                    </RadioButton>
+                        </Button.Style>
+                    </Button>
 
-                    <RadioButton Content="{Binding Source={x:Static ui:AppPage.ManualHardware}, Converter={StaticResource EnumDescriptionConverter}}"
+                    <Button Content="{Binding Source={x:Static ui:AppPage.ManualHardware}, Converter={StaticResource EnumDescriptionConverter}}"
                                  Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.ManualHardware}"
                                  Margin="0,12,0,0">
-                        <RadioButton.Style>
-                            <Style TargetType="RadioButton"
-                                   BasedOn="{StaticResource NavigationItemStyle}">
+                        <Button.Style>
+                            <Style TargetType="Button"
+                                   BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding SelectedPage}"
                                                  Value="{x:Static ui:AppPage.ManualHardware}">
-                                        <Setter Property="IsChecked" Value="True"/>
+                                        <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </RadioButton.Style>
-                    </RadioButton>
+                        </Button.Style>
+                    </Button>
 
                     <Button Content="INPUTS"
                             Margin="8,8,8,0"
@@ -494,6 +489,8 @@
                 </Grid.RowDefinitions>
                 <StackPanel>
                     <TextBlock Text="{Binding ResetError}"
+                               Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
+                    <TextBlock Text="{Binding NavigationError}"
                                Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
                     <TextBlock x:Name="RecipeError" Text="{Binding RecipeEditor.Error}"
                                Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"

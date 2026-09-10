@@ -17,6 +17,31 @@ public sealed class AjinControllerTests
     }
 
     [Fact]
+    public void InitializationReopensAFailedSessionWithoutResettingHealthyHardware()
+    {
+        using var controller = new AjinController(new());
+        controller.Initialize();
+        controller.Initialize();
+        Assert.Single(AjinSdk.Calls, call => call.Operation == "AxlOpenNoReset");
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == "AxlClose");
+
+        AjinSdk.Results[new("AxdiReadInportWord", Module: 0, Offset: 0)] =
+            (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        Assert.Throws<IOException>(() => controller.ReadRtexInputs(new uint[controller.RtexInputWordCount]));
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation == "AxlOpenNoReset")
+                AjinSdk.Results.Clear();
+        };
+
+        controller.Initialize();
+        controller.ReadRtexInputs(new uint[controller.RtexInputWordCount]);
+        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == "AxlOpenNoReset"));
+        Assert.Single(AjinSdk.Calls, call => call.Operation == "AxlClose");
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation is "AxlOpen" or "AxdoWriteOutportBit");
+    }
+
+    [Fact]
     public void DiagnosticsReadUninitializedAxesAndIsolateStatusAndPositionFailuresWithoutWrites()
     {
         using var controller = new AjinController(new());

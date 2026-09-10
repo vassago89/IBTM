@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using IBTM.Core;
 using IBTM.Device;
@@ -30,7 +31,26 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
         lock (_grabGate)
         {
             if (_device?.IsConnected == true)
-                return;
+            {
+                try
+                {
+                    StopLiveView();
+                    return;
+                }
+                catch (Exception failure)
+                {
+                    // A broken grab must not leave the same handle blocking every RESET.
+                    try
+                    {
+                        Disconnect();
+                    }
+                    catch (Exception cleanupFailure)
+                    {
+                        throw new AggregateException(failure, cleanupFailure);
+                    }
+                    throw;
+                }
+            }
 
             Disconnect();
             if (!_sdkInitialized)
@@ -57,9 +77,16 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
                 FrameSize = (checked((int)width.CurValue), checked((int)height.CurValue));
                 _streamGrabber = _device.StreamGrabber;
             }
-            catch
+            catch (Exception failure)
             {
-                Disconnect();
+                try
+                {
+                    Disconnect();
+                }
+                catch (Exception cleanupFailure)
+                {
+                    throw new AggregateException(failure, cleanupFailure);
+                }
                 throw;
             }
         }
@@ -79,6 +106,7 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
             var stream = _streamGrabber!;
             ApplyExposureAndGain(device, exposureMicroseconds, gain);
             StartGrabbing();
+            Exception? failure = null;
             try
             {
                 Check(
@@ -86,18 +114,23 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
                         checked((uint)settings.FrameTimeoutMilliseconds),
                         out var frameOut),
                     "Get single Hik frame");
-                try
-                {
-                    return ConvertFrame(device, frameOut);
-                }
-                finally
-                {
-                    Check(stream.FreeImageBuffer(frameOut), "Free single Hik frame");
-                }
+                return CopyAndReleaseFrame(device, stream, frameOut)!;
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+                throw;
             }
             finally
             {
-                StopGrabbing();
+                try
+                {
+                    StopGrabbing();
+                }
+                catch (Exception cleanupFailure) when (failure is not null)
+                {
+                    throw new AggregateException(failure, cleanupFailure);
+                }
             }
         }
     }
@@ -129,11 +162,18 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
             {
                 _liveThread.Start();
             }
-            catch
+            catch (Exception failure)
             {
                 _liveView = false;
                 _liveThread = null;
-                StopGrabbing();
+                try
+                {
+                    StopGrabbing();
+                }
+                catch (Exception cleanupFailure)
+                {
+                    throw new AggregateException(failure, cleanupFailure);
+                }
                 throw;
             }
         }
@@ -171,20 +211,10 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
                 if (result == MvError.MV_E_NODATA)
                     continue;
                 Check(result, "Get live Hik frame");
-                ImageFrame? image = null;
-                try
-                {
-                    var now = Stopwatch.GetTimestamp();
-                    if (_liveView && now >= nextFrame)
-                    {
-                        image = ConvertFrame(device, frameOut);
-                        nextFrame = now + frameInterval;
-                    }
-                }
-                finally
-                {
-                    Check(stream.FreeImageBuffer(frameOut), "Free live Hik frame");
-                }
+                var now = Stopwatch.GetTimestamp();
+                var image = CopyAndReleaseFrame(device, stream, frameOut, copy: _liveView && now >= nextFrame);
+                if (image is not null)
+                    nextFrame = now + frameInterval;
 
                 if (image is not null && _liveView)
                     FrameReady?.Invoke(image);
@@ -232,11 +262,17 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
     {
         lock (_grabGate)
         {
+            Exception? failure = null;
             try
             {
                 Disconnect();
             }
-            finally
+            catch (Exception exception)
+            {
+                failure = exception;
+            }
+
+            try
             {
                 if (_sdkInitialized)
                 {
@@ -244,6 +280,13 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
                     _sdkInitialized = false;
                 }
             }
+            catch (Exception exception)
+            {
+                failure = failure is null ? exception : new AggregateException(failure, exception);
+            }
+
+            if (failure is not null)
+                ExceptionDispatchInfo.Throw(failure);
         }
     }
 
@@ -291,60 +334,101 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
             Trace.TraceWarning("Hik GigE packet size setup failed. MVS error code: 0x{0:X8}", result);
     }
 
-    private static ImageFrame ConvertFrame(IDevice device, IFrameOut frameOut)
+    private static ImageFrame? CopyAndReleaseFrame(
+        IDevice device,
+        IStreamGrabber stream,
+        IFrameOut frameOut,
+        bool copy = true)
     {
-        if (frameOut.LostPacket != 0)
+        Exception? failure = null;
+        try
         {
-            throw new InvalidOperationException(
-                $"Hik frame {frameOut.FrameNum} lost {frameOut.LostPacket} packet(s).");
+            if (!copy)
+                return null;
+            if (frameOut.LostPacket != 0)
+            {
+                throw new InvalidOperationException(
+                    $"Hik frame {frameOut.FrameNum} lost {frameOut.LostPacket} packet(s).");
+            }
+
+            var image = frameOut.Image;
+            var width = checked((int)image.Width);
+            var height = checked((int)image.Height);
+            var pixels = new byte[checked(width * height * ImageFrame.ColorChannelCount)];
+            Check(
+                device.PixelTypeConverter.ConvertPixelType(
+                    image,
+                    pixels,
+                    out var convertedSize,
+                    OutputPixelType),
+                "Convert Hik frame to BGR8");
+
+            if (convertedSize != checked((ulong)pixels.Length))
+            {
+                throw new InvalidOperationException(
+                    $"Hik BGR frame size is {convertedSize}; expected {pixels.Length}.");
+            }
+
+            return new ImageFrame(width, height, width * ImageFrame.ColorChannelCount, pixels);
         }
-
-        var image = frameOut.Image;
-        var width = checked((int)image.Width);
-        var height = checked((int)image.Height);
-        var pixels = new byte[checked(width * height * ImageFrame.ColorChannelCount)];
-        Check(
-            device.PixelTypeConverter.ConvertPixelType(
-                image,
-                pixels,
-                out var convertedSize,
-                OutputPixelType),
-            "Convert Hik frame to BGR8");
-
-        if (convertedSize != checked((ulong)pixels.Length))
+        catch (Exception exception)
         {
-            throw new InvalidOperationException(
-                $"Hik BGR frame size is {convertedSize}; expected {pixels.Length}.");
+            failure = exception;
+            throw;
         }
-
-        return new ImageFrame(width, height, width * ImageFrame.ColorChannelCount, pixels);
+        finally
+        {
+            try
+            {
+                Check(stream.FreeImageBuffer(frameOut), "Free Hik frame");
+            }
+            catch (Exception cleanupFailure) when (failure is not null)
+            {
+                throw new AggregateException(failure, cleanupFailure);
+            }
+        }
     }
 
     private void Disconnect()
     {
         var device = _device;
+        Exception? failure = null;
         try
         {
             StopLiveView();
         }
-        finally
+        catch (Exception exception)
         {
-            _grabbing = false;
-            _liveView = false;
-            _liveThread = null;
-            _streamGrabber = null;
-            _device = null;
-            FrameSize = default;
-            try
-            {
-                if (device?.IsConnected == true)
-                    Check(device.Close(), "Close Hik camera");
-            }
-            finally
-            {
-                device?.Dispose();
-            }
+            failure = exception;
         }
+
+        _grabbing = false;
+        _liveView = false;
+        _liveThread = null;
+        _streamGrabber = null;
+        _device = null;
+        FrameSize = default;
+        try
+        {
+            if (device?.IsConnected == true)
+                Check(device.Close(), "Close Hik camera");
+        }
+        catch (Exception exception)
+        {
+            failure = failure is null ? exception : new AggregateException(failure, exception);
+        }
+
+        try
+        {
+            device?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            failure = failure is null ? exception : new AggregateException(failure, exception);
+        }
+
+        if (failure is not null)
+            ExceptionDispatchInfo.Throw(failure);
     }
 
     private static void Check(int result, string operation)

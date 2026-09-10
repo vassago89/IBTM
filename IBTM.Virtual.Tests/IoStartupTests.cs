@@ -15,6 +15,36 @@ namespace IBTM.Virtual.Tests;
 public sealed class IoStartupTests
 {
     [Fact]
+    public async Task InputFaultStopsReachableOutputsAndManualStopCanRetry()
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<StartupIo>();
+        var physicalOutputs = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        try
+        {
+            io.AllowWritesWhileUnavailable = true;
+            machine.ToggleDiagnosticOutput(OutputIo.MainConveyorRun);
+            Assert.True(physicalOutputs.GetOutput(OutputIo.MainConveyorRun));
+
+            io.Disconnect(new IOException("Input controller disconnected; motor controller is still connected."));
+            Assert.False(io.IsReady);
+            Assert.False(physicalOutputs.GetOutput(OutputIo.MainConveyorRun));
+
+            physicalOutputs.SetOutput(OutputIo.MainConveyorRun, true);
+            machine.StopManualConveyor(OutputIo.MainConveyorRun);
+            Assert.False(physicalOutputs.GetOutput(OutputIo.MainConveyorRun));
+            Assert.Equal(OutputBlockReason.IoUnavailable, machine.ToggleDiagnosticOutput(OutputIo.MainConveyorRun));
+            Assert.Equal(0, io.ReadsWhileUnavailable);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task StopAttemptsEveryDeviceAndPreservesWriteFailures()
     {
         using var services = CreateServices();
@@ -131,8 +161,8 @@ public sealed class IoStartupTests
             services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
         Assert.Equal(0, io.ReadsWhileUnavailable);
-        await machine.ShutdownAsync();
-        Assert.Equal(0, io.WritesWhileUnavailable);
+        await Assert.ThrowsAsync<AggregateException>(machine.ShutdownAsync);
+        Assert.True(io.WritesWhileUnavailable > 0);
     }
 
     [Fact]
@@ -158,7 +188,7 @@ public sealed class IoStartupTests
             services.GetRequiredService<InspectionGantry>().Motion.Axes.Values,
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
         Assert.Equal(0, io.ReadsWhileUnavailable);
-        await machine.ShutdownAsync();
+        await Assert.ThrowsAsync<AggregateException>(machine.ShutdownAsync);
     }
 
     [Fact]
@@ -231,6 +261,7 @@ public sealed class IoStartupTests
         public Action? BeforeOutputRead { get; set; }
         public Action<OutputIo, bool>? BeforeOutputWrite { get; set; }
         public bool FailCheckReady { get; set; }
+        public bool AllowWritesWhileUnavailable { get; set; }
         public int ReadsWhileUnavailable { get; private set; }
         public int WritesWhileUnavailable { get; private set; }
 
@@ -317,7 +348,8 @@ public sealed class IoStartupTests
             if (!IsReady)
             {
                 WritesWhileUnavailable++;
-                throw new IOException("Output write before I/O initialization.");
+                if (!AllowWritesWhileUnavailable)
+                    throw new IOException("Output controller is unavailable.");
             }
 
             BeforeOutputWrite?.Invoke(output, value);

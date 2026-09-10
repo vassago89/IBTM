@@ -43,10 +43,26 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
         await bus.SelectPresetAsync(slaveAddress, preset, cancellationToken);
     }
 
+    public async Task ResetAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        bus.Open(connection.PortName, connection.BaudRate);
+        await bus.StopAsync(slaveAddress, cancellationToken);
+        var status = await bus.ReadControllerStatusAsync(slaveAddress, cancellationToken);
+        if (status.Alarm != 0)
+        {
+            await bus.ResetAlarmAsync(slaveAddress, cancellationToken);
+        }
+
+        // Do not discard an interrupted fastening result when clearing a hardware alarm.
+        await CheckReadyAsync(cancellationToken);
+    }
+
     // Manual hold-to-run only. Cancellation stops rotation; it is not a loose-complete result.
     public async Task RunReverseAsync(CancellationToken cancellationToken)
     {
         await CheckReadyAsync(cancellationToken);
+        Exception? failure = null;
         try
         {
             await bus.SetDirectionAsync(slaveAddress, AdcDirection.Loosening, cancellationToken);
@@ -60,15 +76,21 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
                 await Task.Delay(ResultPollMilliseconds, cancellationToken);
             }
         }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
         finally
         {
-            await bus.StopAsync(slaveAddress, CancellationToken.None);
+            await StopAfterOperationAsync(failure);
         }
     }
 
     public async Task<BoltResult> TightenAsync(CancellationToken cancellationToken = default)
     {
         AdcFasteningResult? completed = null;
+        Exception? failure = null;
         try
         {
             var current = await bus.ReadFasteningResultAsync(slaveAddress, cancellationToken);
@@ -109,12 +131,18 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
                 }
             }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
         {
+            failure = exception;
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
         }
         finally
         {
-            await bus.StopAsync(slaveAddress, CancellationToken.None);
+            await StopAfterOperationAsync(failure);
         }
 
         if (completed is null)
@@ -138,6 +166,18 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
     public void DiscardPendingResult()
     {
         _fasteningEvent = null;
+    }
+
+    private async Task StopAfterOperationAsync(Exception? failure)
+    {
+        try
+        {
+            await bus.StopAsync(slaveAddress, CancellationToken.None);
+        }
+        catch (Exception stopError) when (failure is not null)
+        {
+            throw new AggregateException("ADC operation and STOP both failed.", failure, stopError);
+        }
     }
 
     private BoltResult Complete(AdcFasteningResult result)

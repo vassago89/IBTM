@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -90,6 +91,45 @@ public sealed class DiagnosticToolsTests
             var onWrites = light.Calls.Count(call => call.StartsWith("on:"));
             settings.LightTestChannel = 7;
             services.GetRequiredService<VirtualIoService>().SetInput(InputIo.AutoMode, false);
+            var shutdownFailure = await Assert.ThrowsAsync<InvalidOperationException>(settings.ShutdownAsync);
+            Assert.Contains("Simulated OFF failure.", shutdownFailure.Message);
+            Assert.Equal(2, settings.PendingLightOffChannel);
+
+            // Keep another command pending so shutdown must handle its failure before retrying OFF.
+            var commandFailed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var releaseCommand = new ManualResetEventSlim();
+            var commandFailure = new InvalidOperationException("Simulated command failure.");
+            void FailImageCommand(object? sender, PropertyChangedEventArgs args)
+            {
+                if (args.PropertyName != nameof(settings.VirtualImageError) || settings.VirtualImageError is null)
+                    return;
+                commandFailed.SetResult();
+                Assert.True(releaseCommand.Wait(TimeSpan.FromSeconds(2)));
+                throw commandFailure;
+            }
+
+            settings.PropertyChanged += FailImageCommand;
+            var load = Task.Run(() => settings.LoadVirtualImageCommand.ExecuteAsync(
+                Path.Combine(Path.GetTempPath(), $"missing-{Guid.NewGuid():N}.png")));
+            try
+            {
+                await commandFailed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                var shutdown = settings.ShutdownAsync();
+                releaseCommand.Set();
+                Assert.Same(commandFailure, await Assert.ThrowsAsync<InvalidOperationException>(() => load));
+                var failures = (await Assert.ThrowsAsync<AggregateException>(() => shutdown)).Flatten().InnerExceptions;
+                Assert.Equal(2, failures.Count);
+                Assert.Contains(commandFailure, failures);
+                Assert.Contains(failures, failure => failure.Message.Contains("Simulated OFF failure."));
+                Assert.Equal("off:2", light.Calls.Last());
+                Assert.Equal(2, settings.PendingLightOffChannel);
+            }
+            finally
+            {
+                releaseCommand.Set();
+                settings.PropertyChanged -= FailImageCommand;
+            }
+
             light.FailOff = false;
             await settings.OffTestLightCommand.ExecuteAsync(null);
             Assert.Equal("off:2", light.Calls.Last());

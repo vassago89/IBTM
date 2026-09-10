@@ -171,25 +171,24 @@ public partial class AdcProtocolWindow : Window
     private async void OnToggleConnection(object sender, RoutedEventArgs e)
     {
         await ExecuteAsync(
-            _ =>
+            async cancellationToken =>
             {
                 if (_bus.IsOpen)
                 {
                     var connectedPort = _bus.PortName;
-                    _bus.Close();
+                    await Task.Run(_bus.Close);
                     ConnectionAction = "Connect";
                     ConnectionStatus = "Disconnected";
                     AppendLog($"DISCONNECT  {connectedPort}");
-                    return Task.CompletedTask;
+                    return;
                 }
 
                 var portName = (string)PortBox.SelectedItem;
                 var baudRate = (int)BaudBox.SelectedItem;
-                _bus.Open(portName, baudRate);
+                await Task.Run(() => _bus.Open(portName, baudRate), cancellationToken);
                 ConnectionAction = "Disconnect";
                 ConnectionStatus = $"{portName} | {baudRate}";
                 AppendLog($"CONNECT  {_bus.PortName} | {_bus.BaudRate}");
-                return Task.CompletedTask;
             });
     }
 

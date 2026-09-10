@@ -30,6 +30,7 @@ public interface IBoltHead
     BoltHeadState State { get; }
 
     Task CheckReadyAsync(CancellationToken cancellationToken = default);
+    Task ResetAsync(CancellationToken cancellationToken = default);
     Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default);
     Task<BoltResult> TightenAsync(CancellationToken cancellationToken = default);
     void DiscardPendingResult();

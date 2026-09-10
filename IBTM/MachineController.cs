@@ -342,7 +342,7 @@ public sealed partial class MachineController
         _log?.Write("Machine initialization started.");
         using (var operation = _operations.Link())
         {
-            var (alarm, error) = await CheckHardwareAsync(operation.Token);
+            var (alarm, error) = await InitializeHardwareAsync(operation.Token);
             operation.Token.ThrowIfCancellationRequested();
             if (alarm == MachineAlarm.None)
                 alarm = SafetyAlarm();
@@ -382,7 +382,7 @@ public sealed partial class MachineController
         }
         finally
         {
-            await Task.WhenAll(shutdown, displayStopped);
+            await Task.WhenAll(shutdown, displayStopped, _boltInspector.StopLiveViewAsync());
         }
     }
 
@@ -427,7 +427,9 @@ public sealed partial class MachineController
                 MotionGroup.PcbSupply => MachineAlarm.PcbSupply,
                 MotionGroup.PcbPlacementHandler => MachineAlarm.PcbPlacement,
                 MotionGroup.BoltFastening => MachineAlarm.BoltFastening,
-                MotionGroup.InspectionGantry => MachineAlarm.NgCarrierTransfer,
+                MotionGroup.InspectionGantry => _units.Inspection
+                    ? MachineAlarm.Inspection
+                    : MachineAlarm.NgCarrierTransfer,
                 _ => throw new ArgumentOutOfRangeException(nameof(group)),
             },
             () => CanUseManualMotion(group),
@@ -837,7 +839,7 @@ public sealed partial class MachineController
 
         _log?.Write("Machine RESET started.");
         using var operation = _operations.Link();
-        var (alarm, error) = await CheckHardwareAsync(operation.Token);
+        var (alarm, error) = await InitializeIoAsync(operation.Token);
         operation.Token.ThrowIfCancellationRequested();
         if (alarm != MachineAlarm.None)
         {
@@ -850,31 +852,100 @@ public sealed partial class MachineController
             return;
         }
 
-        try
+        var failures = new List<Exception>();
+        void RecordFailure(MachineAlarm deviceAlarm, string device, Exception exception)
         {
-            if (_units.PcbSupply)
+            _log?.Error($"{device} reset failed.", exception);
+            if (alarm == MachineAlarm.None)
             {
-                _supplyHandler.ResetMotion();
+                alarm = deviceAlarm;
             }
 
-            if (_units.PcbPlacement)
+            failures.Add(exception);
+        }
+
+        foreach (var group in Enum.GetValues<MotionGroup>())
+        {
+            operation.Token.ThrowIfCancellationRequested();
+            if (!_units.IsMotionEnabled(group))
             {
-                _placementHandler.ResetMotion();
+                continue;
             }
 
-            if (_units.BoltFastening)
+            try
             {
-                _fasteningGantry.ResetMotion();
+                switch (group)
+                {
+                    case MotionGroup.PcbSupply:
+                        _supplyHandler.InitializeMotion();
+                        operation.Token.ThrowIfCancellationRequested();
+                        _supplyHandler.ResetMotion();
+                        break;
+                    case MotionGroup.PcbPlacementHandler:
+                        _placementHandler.InitializeMotion();
+                        operation.Token.ThrowIfCancellationRequested();
+                        _placementHandler.ResetMotion();
+                        break;
+                    case MotionGroup.BoltFastening:
+                        _fasteningGantry.InitializeMotion();
+                        operation.Token.ThrowIfCancellationRequested();
+                        _fasteningGantry.ResetMotion();
+                        break;
+                    case MotionGroup.InspectionGantry:
+                        _inspectionGantry.InitializeMotion();
+                        operation.Token.ThrowIfCancellationRequested();
+                        _inspectionGantry.ResetMotion();
+                        break;
+                }
             }
-
-            if (InspectionGantryEnabled)
+            catch (OperationCanceledException) when (operation.Token.IsCancellationRequested)
             {
-                _inspectionGantry.ResetMotion();
+                throw;
+            }
+            catch (Exception exception)
+            {
+                RecordFailure(MachineAlarm.MotionUnavailable, group.ToString(), exception);
             }
         }
-        catch (Exception exception)
+
+        operation.Token.ThrowIfCancellationRequested();
+        if (_units.Inspection)
         {
-            _state.SetError(MachineAlarm.MotionUnavailable, exception);
+            try
+            {
+                await _boltInspector.InitializeVisionAsync(operation.Token);
+            }
+            catch (OperationCanceledException) when (operation.Token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                RecordFailure(MachineAlarm.Inspection, "Vision / lighting", exception);
+            }
+        }
+
+        operation.Token.ThrowIfCancellationRequested();
+        if (_units.BoltFastening)
+        {
+            try
+            {
+                await _fasteningGantry.ResetHeadsAsync(operation.Token);
+            }
+            catch (OperationCanceledException) when (operation.Token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                RecordFailure(MachineAlarm.BoltFastening, "Bolt controllers", exception);
+            }
+        }
+
+        operation.Token.ThrowIfCancellationRequested();
+        if (failures.Count > 0)
+        {
+            _state.SetError(alarm, failures.Count == 1 ? failures[0] : new AggregateException(failures));
             return;
         }
 
@@ -1261,7 +1332,7 @@ public sealed partial class MachineController
 
         try
         {
-            var (startAlarm, startError) = await CheckHardwareAsync(operation.Token);
+            var (startAlarm, startError) = await InitializeHardwareAsync(operation.Token);
             if (startAlarm == MachineAlarm.None && _units.Inspection)
             {
                 try
@@ -1385,7 +1456,7 @@ public sealed partial class MachineController
         }
     }
 
-    private async Task<(MachineAlarm Alarm, Exception? Error)> CheckHardwareAsync(
+    private async Task<(MachineAlarm Alarm, Exception? Error)> InitializeIoAsync(
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -1419,7 +1490,20 @@ public sealed partial class MachineController
             return (MachineAlarm.IoCommunication, exception);
         }
 
+        return (MachineAlarm.None, null);
+    }
+
+    private async Task<(MachineAlarm Alarm, Exception? Error)> InitializeHardwareAsync(
+        CancellationToken cancellationToken)
+    {
+        var ioResult = await InitializeIoAsync(cancellationToken);
+        if (ioResult.Alarm != MachineAlarm.None)
+        {
+            return ioResult;
+        }
+
         cancellationToken.ThrowIfCancellationRequested();
+        var stage = "Motion initialization";
         try
         {
             if (_units.PcbSupply)
@@ -1464,8 +1548,12 @@ public sealed partial class MachineController
             try
             {
                 _log?.Write("Vision / lighting initialization started.");
-                _boltInspector.InitializeVision();
+                await _boltInspector.InitializeVisionAsync(cancellationToken);
                 _log?.Write("Vision / lighting initialization completed.");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception exception)
             {
@@ -1515,8 +1603,6 @@ public sealed partial class MachineController
 
     internal void StopRunOutputs()
     {
-        if (!_io.IsReady)
-            return;
         // One device's failed STOP must not skip STOP on the remaining devices.
         Action[] stops = [
             _conveyor.Stop,
@@ -1545,6 +1631,14 @@ public sealed partial class MachineController
     private void OnIoFaulted(Exception exception)
     {
         _state.SetError(MachineAlarm.IoCommunication, exception);
-        _operations.Cancel();
+        try
+        {
+            Stop();
+        }
+        catch (Exception stopError)
+        {
+            // Keep the communication fault as the alarm's cause, and report failed STOPs separately.
+            _log?.Error("Stopping outputs after the I/O fault also failed.", stopError);
+        }
     }
 }

@@ -61,10 +61,8 @@ public partial class MainViewModel : ObservableObject
     private string? _resetError;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CurrentPage))]
-    [NotifyPropertyChangedFor(nameof(CurrentPageEnabled))]
-    [NotifyPropertyChangedFor(nameof(RecipeToolsVisible))]
-    [NotifyPropertyChangedFor(nameof(OperationPageSelected))]
+    private string? _navigationError;
+
     private AppPage _selectedPage = AppPage.Operation;
 
     public MainViewModel(
@@ -102,6 +100,7 @@ public partial class MainViewModel : ObservableObject
             _ => MachineEnvironmentDisplay.Mixed,
         };
         _recipeEditingCommands = [
+            NavigateCommand,
             recipeEditor.SaveCommand,
             recipeEditor.LoadCommand,
             supplyTeachingViewModel.TeachCurrentPositionCommand,
@@ -133,6 +132,14 @@ public partial class MainViewModel : ObservableObject
     public RecipeEditor RecipeEditor { get; }
     public BoltImageCollector ImageCollector { get; }
     public MachineEnvironmentDisplay Environment { get; }
+
+    public AppPage SelectedPage
+    {
+        get
+        {
+            return _selectedPage;
+        }
+    }
 
     public bool RecipeToolsVisible
     {
@@ -198,8 +205,9 @@ public partial class MainViewModel : ObservableObject
     {
         get
         {
-            return SelectedPage is AppPage.Operation or AppPage.Settings or AppPage.ManualHardware
-                || (!RecipeEditor.SaveCommand.IsRunning && !RecipeEditor.LoadCommand.IsRunning);
+            return !NavigateCommand.IsRunning
+                && (SelectedPage is AppPage.Operation or AppPage.Settings or AppPage.ManualHardware
+                    || !RecipeEditor.SaveCommand.IsRunning && !RecipeEditor.LoadCommand.IsRunning);
         }
     }
 
@@ -214,7 +222,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         return Task.WhenAll(
-            CommandShutdown.WaitAsync(CommandShutdown.Capture(ResetCommand)),
+            CommandShutdown.WaitAsync(CommandShutdown.Capture(ResetCommand, NavigateCommand)),
             Operation.ShutdownAsync(),
             _supplyTeachingViewModel.ShutdownAsync(),
             _stationTeachingViewModel.ShutdownAsync(),
@@ -257,36 +265,51 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand(CanExecute = nameof(CanNavigate))]
-    private void Navigate(AppPage page)
+    private async Task NavigateAsync(AppPage page)
     {
-        SelectedPage = page;
-    }
+        if (NavigateCommand.IsRunning || page == SelectedPage || !CanNavigate(page))
+            return;
 
-    partial void OnSelectedPageChanging(AppPage value)
-    {
-        DeactivateCurrentPage();
-    }
-
-    partial void OnSelectedPageChanged(AppPage value)
-    {
-        ActivateCurrentPage();
-        if (value == AppPage.Operation)
+        NavigationError = null;
+        try
         {
-            _state.Refresh();
+            await DeactivateCurrentPageAsync();
+            if (_shuttingDown)
+                return;
+            // The selector can change while the previous device operation is stopping.
+            if (!CanNavigate(page))
+                page = AppPage.Operation;
+
+            _selectedPage = page;
+            OnPropertyChanged(nameof(SelectedPage));
+            OnPropertyChanged(nameof(CurrentPage));
+            OnPropertyChanged(nameof(CurrentPageEnabled));
+            OnPropertyChanged(nameof(RecipeToolsVisible));
+            OnPropertyChanged(nameof(OperationPageSelected));
+            ActivateCurrentPage();
+            if (page == AppPage.Operation)
+                _state.Refresh();
+        }
+        catch (Exception exception)
+        {
+            NavigationError = $"Page change failed: {exception.Message}";
+            Trace.TraceError("Page change failed while leaving {0}. {1}", SelectedPage, exception);
+            if (!_shuttingDown)
+                ActivateCurrentPage();
         }
     }
 
     private bool CanNavigate(AppPage page)
     {
-        return page == AppPage.Operation
-            || !_shuttingDown
-            && !_state.AutomaticRunning
-            && page switch
-            {
-                AppPage.Settings or AppPage.ManualHardware => true,
-                AppPage.BoltTraining or AppPage.SupplyTeaching or AppPage.StationTeaching => _state.ManualMode,
-                _ => false,
-            };
+        return !_shuttingDown
+            && (page == AppPage.Operation
+                || !_state.AutomaticRunning
+                    && page switch
+                    {
+                        AppPage.Settings or AppPage.ManualHardware => true,
+                        AppPage.BoltTraining or AppPage.SupplyTeaching or AppPage.StationTeaching => _state.ManualMode,
+                        _ => false,
+                    });
     }
 
     private void ActivateCurrentPage()
@@ -314,29 +337,26 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-    private void DeactivateCurrentPage()
+    private Task DeactivateCurrentPageAsync()
     {
         switch (SelectedPage)
         {
             case AppPage.Operation:
                 Operation.Deactivate();
-                break;
+                return Task.CompletedTask;
             case AppPage.SupplyTeaching:
-                _supplyTeachingViewModel.Deactivate();
-                break;
+                return _supplyTeachingViewModel.ShutdownAsync();
             case AppPage.StationTeaching:
-                _stationTeachingViewModel.Deactivate();
-                break;
+                return _stationTeachingViewModel.ShutdownAsync();
             case AppPage.ManualHardware:
-                _manualHardwareViewModel.Deactivate();
-                break;
+                return _manualHardwareViewModel.ShutdownAsync();
             case AppPage.BoltTraining:
-                _boltTrainingViewModel.Deactivate();
-                break;
+                return _boltTrainingViewModel.ShutdownAsync();
             case AppPage.Settings:
-                _settingsViewModel.TestLightCommand.Cancel();
-                break;
+                return _settingsViewModel.ShutdownAsync();
         }
+
+        return Task.CompletedTask;
     }
 
     private void OnRecipeEditingChanged(object? sender, PropertyChangedEventArgs e)
@@ -370,20 +390,15 @@ public partial class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(RecipeEditingEnabled));
                 NavigateCommand.NotifyCanExecuteChanged();
                 ResetCommand.NotifyCanExecuteChanged();
-                if (_state.AutomaticRunning && SelectedPage != AppPage.Operation)
+                var showOperation = _state.AutomaticRunning && SelectedPage != AppPage.Operation
+                    || !_state.ManualMode
+                        && (SelectedPage is AppPage.SupplyTeaching or AppPage.StationTeaching
+                            || SelectedPage == AppPage.BoltTraining && !_boltTrainingViewModel.IsBusy);
+                if (showOperation
+                    && NavigationError is null
+                    && NavigateCommand.CanExecute(AppPage.Operation))
                 {
-                    Navigate(AppPage.Operation);
-                }
-                else if (!_state.ManualMode
-                    && SelectedPage is AppPage.SupplyTeaching or AppPage.StationTeaching)
-                {
-                    Navigate(AppPage.Operation);
-                }
-                else if (!_state.ManualMode
-                    && SelectedPage == AppPage.BoltTraining
-                    && !_boltTrainingViewModel.IsBusy)
-                {
-                    Navigate(AppPage.Operation);
+                    NavigateCommand.Execute(AppPage.Operation);
                 }
 
                 if (SelectedPage == AppPage.Settings)

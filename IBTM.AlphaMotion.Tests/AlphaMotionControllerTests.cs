@@ -40,7 +40,11 @@ public sealed class AlphaMotionControllerTests
         controller.Initialize();
 
         Assert.Equal(
-            new[] { "AIO_LoadDevice", "AIO_BoardInfo", "AIO_GetDIDWord", "AIO_GetDODWord" },
+            new[]
+            {
+                "AIO_LoadDevice", "AIO_BoardInfo", "AIO_GetDIDWord", "AIO_GetDODWord",
+                "AIO_GetDIDWord", "AIO_GetDODWord"
+            },
             NativeCalls().Select(call => call.Operation));
         Assert.All(NativeCalls().Skip(1), call => Assert.Equal((ushort)0, call.Card));
         Assert.Contains(
@@ -70,6 +74,30 @@ public sealed class AlphaMotionControllerTests
         TMCAEDLL.Calls.Clear();
         Assert.Equal(value, controller.ReadInputs());
         Assert.Equal(new TMCAEDLL.Call("AIO_GetDIDWord", 0, Group: 0), Assert.Single(NativeCalls()));
+    }
+
+    [Fact]
+    public void InitializationReloadsAFailedSessionButOnlyProbesAHealthySession()
+    {
+        using var controller = new AlphaMotionController(new());
+        controller.Initialize();
+        controller.Initialize();
+        Assert.Single(NativeCalls(), call => call.Operation == "AIO_LoadDevice");
+        Assert.DoesNotContain(NativeCalls(), call => call.Operation == "AIO_UnloadDevice");
+
+        TMCAEDLL.Results["AIO_GetDIDWord"] = -1;
+        Assert.Throws<IOException>(() => controller.ReadInputs());
+        TMCAEDLL.BeforeCall = operation =>
+        {
+            if (operation == "AIO_LoadDevice")
+                TMCAEDLL.Results.Clear();
+        };
+
+        controller.Initialize();
+        Assert.Equal(0U, controller.ReadInputs());
+        Assert.Equal(2, NativeCalls().Count(call => call.Operation == "AIO_LoadDevice"));
+        Assert.Single(NativeCalls(), call => call.Operation == "AIO_UnloadDevice");
+        Assert.DoesNotContain(NativeCalls(), call => call.Operation.StartsWith("AIO_Put"));
     }
 
     [Theory]

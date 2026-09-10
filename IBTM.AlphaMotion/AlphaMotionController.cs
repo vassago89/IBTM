@@ -26,7 +26,19 @@ public sealed class AlphaMotionController(AlphaMotionSettings settings, Applicat
         lock (_gate)
         {
             if (_initialized)
-                return;
+            {
+                try
+                {
+                    _ = ReadPort(input: true);
+                    _ = ReadPort(input: false);
+                    return;
+                }
+                catch (IOException exception)
+                {
+                    log?.Error("AlphaMotion connection probe failed; reloading the device.", exception);
+                    Dispose();
+                }
+            }
             if (!Environment.Is64BitProcess)
                 throw new PlatformNotSupportedException("TMC-AE16DIOe requires a 64-bit process and tmcDApiAed_x64.dll.");
             // Manufacturer frmDIGITAL.LoadDevice checks < 0 for failure and adds 1

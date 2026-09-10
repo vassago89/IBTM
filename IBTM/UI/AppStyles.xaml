@@ -52,7 +52,7 @@
         <Setter Property="Margin" Value="0,0,0,16"/>
     </Style>
 
-    <Style x:Key="NavButtonStyle" TargetType="RadioButton">
+    <Style x:Key="NavButtonStyle" TargetType="Button">
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
         <Setter Property="Height" Value="42"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
@@ -61,7 +61,7 @@
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
-                <ControlTemplate TargetType="RadioButton">
+                <ControlTemplate TargetType="Button">
                     <Grid>
                         <Border x:Name="Root"
                                 Padding="{TemplateBinding Padding}"
@@ -84,7 +84,7 @@
                                     Value="{StaticResource PanelBgBrush}"/>
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                         </Trigger>
-                        <Trigger Property="IsChecked" Value="True">
+                        <Trigger Property="Tag" Value="Selected">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource CardBgBrush}"/>
                             <Setter TargetName="Active" Property="Visibility" Value="Visible"/>
                             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>

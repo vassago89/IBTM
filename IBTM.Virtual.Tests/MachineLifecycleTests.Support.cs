@@ -83,6 +83,11 @@ public sealed partial class MachineLifecycleTests
             return Task.CompletedTask;
         }
 
+        public Task ResetAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
         public Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
@@ -140,6 +145,11 @@ public sealed partial class MachineLifecycleTests
         public Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
+        }
+
+        public Task ResetAsync(CancellationToken cancellationToken = default)
+        {
+            return CheckReadyAsync(cancellationToken);
         }
 
         public Task<BoltResult> TightenAsync(CancellationToken cancellationToken = default)

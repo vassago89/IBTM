@@ -51,6 +51,7 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
     {
         if (IsOpen)
         {
+            VerifyConnectionSettings(_port!, portName, baudRate);
             return;
         }
 
@@ -77,6 +78,17 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
         var port = _port;
         _port = null;
         port?.Dispose();
+    }
+
+    internal static void VerifyConnectionSettings(SerialPort port, string portName, int baudRate)
+    {
+        if (!string.Equals(port.PortName, portName, StringComparison.OrdinalIgnoreCase)
+            || port.BaudRate != baudRate)
+        {
+            throw new InvalidOperationException(
+                $"ADC is connected to {port.PortName} at {port.BaudRate} baud; "
+                + $"requested {portName} at {baudRate} baud. Disconnect the current connection first.");
+        }
     }
 
     public Task<ushort[]> ReadHoldingRegistersAsync(
@@ -143,8 +155,14 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
 
     public void Dispose()
     {
-        Close();
-        _exchange.Dispose();
+        try
+        {
+            Close();
+        }
+        finally
+        {
+            _exchange.Dispose();
+        }
     }
 
     private async Task<ushort[]> ReadRegistersAsync(

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,6 +18,45 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class ConveyorTests
 {
+    [Fact]
+    public async Task ConveyorStopsMotorAndPreservesRunFailureWhenHandshakeCleanupFails()
+    {
+        var io = CreateIo();
+        var conveyor = CreateConveyor(io);
+        io.Initialize();
+        var running = false;
+        var runError = new IOException("Conveyor transfer failed.");
+        var cleanupError = new IOException("Handshake OFF failed.");
+        void FailHandshakeOff(OutputIo output, bool value)
+        {
+            if (running && output == OutputIo.MainConveyorReadyToFront2 && !value)
+                throw cleanupError;
+        }
+
+        io.OutputChanged += FailHandshakeOff;
+        try
+        {
+            var failure = await Assert.ThrowsAsync<AggregateException>(() => conveyor.RunDryRunAsync(
+                _ =>
+                {
+                    io.SetOutput(OutputIo.MainConveyorRun, true);
+                    io.SetOutput(OutputIo.MainConveyorReadyToFront2, true);
+                    running = true;
+                    return Task.FromException(runError);
+                },
+                CancellationToken.None));
+            Assert.Equal(new[] { runError, cleanupError }, failure.InnerExceptions);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+        }
+        finally
+        {
+            io.OutputChanged -= FailHandshakeOff;
+            conveyor.Stop();
+        }
+
+        await conveyor.RunDryRunAsync(_ => Task.CompletedTask, CancellationToken.None);
+    }
+
     [Trait("Category", "MachineFlow")]
     [Fact]
     public async Task ReturnToStation1FinishesSeatedAndUsesTheCarrierPositionOnTheNextReturn()

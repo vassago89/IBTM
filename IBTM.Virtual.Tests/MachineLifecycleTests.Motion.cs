@@ -28,6 +28,37 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
+    [Theory]
+    [InlineData(true, MachineAlarm.Inspection)]
+    [InlineData(false, MachineAlarm.NgCarrierTransfer)]
+    public async Task ManualInspectionGantryIoFailureUsesTheEnabledUnitAlarm(
+        bool inspectionEnabled,
+        MachineAlarm expectedAlarm)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(inspectionEnabled ? MachineUnit.Inspection : MachineUnit.NgCarrierTransfer);
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        try
+        {
+            Assert.True(machine.CanUseManualMotion(MotionGroup.InspectionGantry));
+            await machine.RunManualMotionAsync(
+                MotionGroup.InspectionGantry,
+                _ => Task.FromException(new IOException("Manual gantry I/O failure.")),
+                CancellationToken.None,
+                CancellationToken.None);
+            Assert.Equal(expectedAlarm, state.Alarm);
+            Assert.Equal("Manual gantry I/O failure.", state.AlarmMessage);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public async Task IndividualHomeReportsReadFailureBeforeMotionStarts()
     {
@@ -791,8 +822,10 @@ public sealed partial class MachineLifecycleTests
         settings.Units.PcbSupply = true;
         Assert.True(state.Faulted);
         Assert.False(state.ManualControlsEnabled);
+        var placementResets = probes[MotionGroup.PcbPlacementHandler].ResetCalls;
         await machine.ResetAsync();
         Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+        Assert.Equal(placementResets + 1, probes[MotionGroup.PcbPlacementHandler].ResetCalls);
     }
 
     [Theory]
