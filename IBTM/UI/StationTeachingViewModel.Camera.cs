@@ -17,7 +17,7 @@ public partial class StationTeachingViewModel
     private ImageFrame? _pendingLiveFrame;
     private bool _liveImageUpdateQueued;
     private Task _liveImageUpdate = Task.CompletedTask;
-    private Task<Exception?> _cameraStop = Task.FromResult<Exception?>(null);
+    private Task _cameraStop = Task.CompletedTask;
 
     [RelayCommand(CanExecute = nameof(CanToggleLiveView))]
     private async Task ToggleLiveViewAsync(CancellationToken cancellationToken)
@@ -25,19 +25,19 @@ public partial class StationTeachingViewModel
         if (!CanToggleLiveView())
             return;
 
-        if (IsCameraLive)
-        {
-            await StopCameraLiveAsync();
-            return;
-        }
-
-        Preview.Clear(SelectedBarcode);
-        CameraError = null;
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken, ViewCancellation);
         try
         {
-            await _boltInspector.StartLiveViewAsync(cancellation.Token);
+            if (Inspector.IsLiveView)
+            {
+                await StopCameraLiveAsync();
+                return;
+            }
+
+            Preview.Clear(SelectedBarcode);
+            CameraError = null;
+            await Inspector.StartLiveViewAsync(cancellation.Token);
             if (!_state.ManualMode || !IsInspectionSelected)
                 await StopCameraLiveAsync();
         }
@@ -46,13 +46,13 @@ public partial class StationTeachingViewModel
         }
         catch (Exception exception)
         {
-            System.Diagnostics.Trace.TraceError("Camera live view start failed. {0}", exception);
+            System.Diagnostics.Trace.TraceError("Camera live view operation failed. {0}", exception);
         }
     }
 
     private bool CanToggleLiveView()
     {
-        return IsCameraLive
+        return Inspector.IsLiveView
             || IsInspectionSelected
                 && _state.ManualMode
                 && !CaptureCarrierImagesCommand.IsRunning
@@ -80,7 +80,7 @@ public partial class StationTeachingViewModel
                     token.ThrowIfCancellationRequested();
                     Preview.Clear(SelectedBarcode);
                     CarrierImages = [];
-                    var captured = await _boltInspector.CaptureCarrierImagesAsync(token);
+                    var captured = await Inspector.CaptureCarrierImagesAsync(token);
                     var images = await Task.Run(
                         () => captured.Select(
                             (image, index) => new CarrierImageTileView(
@@ -118,8 +118,8 @@ public partial class StationTeachingViewModel
             && _carrierReference.IsDefined
             && MillimetersPerPixel > 0
             && ScanOverlap >= 0
-            && ScanOverlap < _boltInspector.FieldOfView.Width
-            && ScanOverlap < _boltInspector.FieldOfView.Height
+            && ScanOverlap < Inspector.FieldOfView.Width
+            && ScanOverlap < Inspector.FieldOfView.Height
             && RecipeEditor.CanSave
             && Machine.CanUseManualMotion(ActiveMotionGroup, live: false);
     }
@@ -144,7 +144,7 @@ public partial class StationTeachingViewModel
         return CanEditInspectionRecipe
             && RecipeEditor.CanSave
             && HasCarrierImages
-            && !IsCameraLive
+            && !Inspector.IsLiveView
             && _carrierReference.IsDefined
             && (SelectedPoint?.Position.Target == TeachingTarget.BoltReference
                 && FindPcb(new Rect(point, new Size())) is not null
@@ -195,7 +195,7 @@ public partial class StationTeachingViewModel
         return CanEditInspectionRecipe
             && RecipeEditor.CanSave
             && HasCarrierImages
-            && !IsCameraLive
+            && !Inspector.IsLiveView
             && _carrierReference.IsDefined
             && (SelectedPoint?.Position.Target == TeachingTarget.PcbRegion
                 && SelectedPcb == HeatSinkSlot.HeatSink1
@@ -225,8 +225,8 @@ public partial class StationTeachingViewModel
             {
                 Preview.Clear(SelectedBarcode);
                 var frame = SelectedBarcode is { } pcb
-                    ? await _boltInspector.CaptureBarcodeAsync(pcb, ct)
-                    : await _boltInspector.CaptureAsync(SelectedPoint!.Position.Bolt!, ct);
+                    ? await Inspector.CaptureBarcodeAsync(pcb, ct)
+                    : await Inspector.CaptureAsync(SelectedPoint!.Position.Bolt!, ct);
                 await Preview.SetImageAsync(frame, ct);
                 await Preview.InspectAsync(ct);
             },
@@ -238,7 +238,7 @@ public partial class StationTeachingViewModel
         return IsInspectionSelected
             && CanMoveToPoint()
             && (SelectedBarcode is { } pcb
-                ? _boltInspector.HasBarcodeRegion(pcb)
+                ? Inspector.HasBarcodeRegion(pcb)
                 : SelectedPoint?.Position.Target == TeachingTarget.BoltReference);
     }
 
@@ -278,7 +278,7 @@ public partial class StationTeachingViewModel
                     .OrderBy(point => point.HeatSink)
                     .ThenBy(point => point.Number))
                 {
-                    var frame = await _boltInspector.CaptureAsync(point, ct);
+                    var frame = await Inspector.CaptureAsync(point, ct);
                     await Task.Run(
                         () => _trainingStore.AddImage(
                             $"{point.HeatSink.GetDescription()} · Bolt {point.Number}",
@@ -299,7 +299,7 @@ public partial class StationTeachingViewModel
                 .Any(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
             && RecipeEditor.Recipe.Pcb.GetBolts()
                 .Where(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
-                .All(_boltInspector.HasPosition);
+                .All(Inspector.HasPosition);
     }
 
     private async Task RunInspectionAsync(Func<CancellationToken, Task> action, CancellationToken token)
@@ -312,8 +312,15 @@ public partial class StationTeachingViewModel
                 async ct =>
                 {
                     activeCancellation = ct;
-                    if (await StopCameraLiveAsync() is not null)
+                    try
+                    {
+                        await StopCameraLiveAsync();
+                    }
+                    catch (Exception exception)
+                    {
+                        System.Diagnostics.Trace.TraceError("Camera live view stop failed. {0}", exception);
                         return;
+                    }
                     ct.ThrowIfCancellationRequested();
                     CameraError = null;
                     await action(ct);
@@ -332,7 +339,7 @@ public partial class StationTeachingViewModel
         }
     }
 
-    private Task<Exception?> StopCameraLiveAsync()
+    private Task StopCameraLiveAsync()
     {
         ToggleLiveViewCommand.Cancel();
         if (!_cameraStop.IsCompleted)
@@ -344,21 +351,19 @@ public partial class StationTeachingViewModel
             _pendingLiveFrame = null;
         }
 
-        _cameraStop = StopAsync();
+        _cameraStop = Inspector.StopLiveViewAsync();
         return _cameraStop;
+    }
 
-        async Task<Exception?> StopAsync()
+    private async Task RequestCameraStopAsync()
+    {
+        try
         {
-            try
-            {
-                await _boltInspector.StopLiveViewAsync();
-                return null;
-            }
-            catch (Exception exception)
-            {
-                System.Diagnostics.Trace.TraceError("Camera live view stop failed. {0}", exception);
-                return exception;
-            }
+            await StopCameraLiveAsync();
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Trace.TraceError("Camera live view stop failed. {0}", exception);
         }
     }
 
@@ -369,9 +374,9 @@ public partial class StationTeachingViewModel
 
     private void RefreshLiveView()
     {
-        OnPropertyChanged(nameof(IsCameraLive));
+        OnPropertyChanged(nameof(Inspector));
         OnPropertyChanged(nameof(CameraError));
-        if (!IsCameraLive)
+        if (!Inspector.IsLiveView)
         {
             lock (_liveImageGate)
             {
@@ -389,7 +394,7 @@ public partial class StationTeachingViewModel
     private async Task HandlePreviewFailureAsync(Exception exception)
     {
         System.Diagnostics.Trace.TraceError("Camera preview conversion failed. {0}", exception);
-        await StopCameraLiveAsync();
+        await RequestCameraStopAsync();
         CameraError = exception.Message;
         lock (_liveImageGate)
         {
@@ -400,7 +405,7 @@ public partial class StationTeachingViewModel
 
     private void UpdateLiveImage(ImageFrame frame)
     {
-        if (!IsCameraLive)
+        if (!Inspector.IsLiveView)
         {
             return;
         }
@@ -441,7 +446,7 @@ public partial class StationTeachingViewModel
                 // Frozen frames can cross threads; WPF marshals the scalar binding.
                 lock (_liveImageGate)
                 {
-                    if (IsCameraLive && IsInspectionSelected)
+                    if (Inspector.IsLiveView && IsInspectionSelected)
                         LiveImage = image;
                 }
             }

@@ -121,7 +121,7 @@
                             <ui:ImageTeachingView.Style>
                                 <Style TargetType="ui:ImageTeachingView">
                                     <Setter Property="Source" Value="{Binding Preview.Image}"/>
-                                    <Style.Triggers><DataTrigger Binding="{Binding IsCameraLive}" Value="True">
+                                    <Style.Triggers><DataTrigger Binding="{Binding Inspector.IsLiveView}" Value="True">
                                         <Setter Property="Source" Value="{Binding LiveImage}"/>
                                     </DataTrigger></Style.Triggers>
                                 </Style>
@@ -147,7 +147,7 @@
                             <Style TargetType="Button"
                                    BasedOn="{StaticResource SecondaryButtonStyle}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsCameraLive}" Value="True">
+                                    <DataTrigger Binding="{Binding Inspector.IsLiveView}" Value="True">
                                         <Setter Property="Background"
                                                 Value="{StaticResource AccentBrush}"/>
                                         <Setter Property="Foreground"

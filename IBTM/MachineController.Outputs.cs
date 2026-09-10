@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -53,7 +54,12 @@ public sealed partial class MachineController
     {
         try
         {
-            StopConveyorMotor(signal);
+            if (signal == OutputIo.MainConveyorRun)
+                _conveyor.Stop();
+            else if (signal == OutputIo.NgConveyorRun)
+                _ngConveyor.Stop();
+            else
+                throw new ArgumentOutOfRangeException(nameof(signal));
         }
         catch (Exception exception)
         {
@@ -62,20 +68,11 @@ public sealed partial class MachineController
         }
     }
 
-    private void StopConveyorMotor(OutputIo signal)
-    {
-        if (signal == OutputIo.MainConveyorRun)
-            _conveyor.Stop();
-        else if (signal == OutputIo.NgConveyorRun)
-            _ngConveyor.Stop();
-        else
-            throw new ArgumentOutOfRangeException(nameof(signal));
-    }
-
     internal async Task<OutputBlockReason> RunManualConveyorAsync(
         OutputIo signal,
         CancellationToken cancellationToken)
     {
+        OperationCancellation.Operation operation;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -86,9 +83,20 @@ public sealed partial class MachineController
                 return block;
             }
 
-            using var operation = _operations.Link(cancellationToken);
+            operation = _operations.Link(cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _state.SetError(MachineAlarm.IoCommunication, exception);
+            _operations.Cancel();
+            throw;
+        }
+
+        var stopReason = OutputBlockReason.None;
+        Exception? failure = null;
+        using (operation)
+        {
             var outputStarted = false;
-            var stopReason = OutputBlockReason.None;
 
             void StopWhenUnavailable()
             {
@@ -121,62 +129,80 @@ public sealed partial class MachineController
 
             _state.Changed += StopWhenUnavailable;
             _io.OutputChanged += OnOutputChanged;
+            Task motorRun = Task.CompletedTask;
             try
             {
                 StopWhenUnavailable();
                 operation.Token.ThrowIfCancellationRequested();
-                try
+                _log?.Write($"Manual conveyor {signal}: ON, forward, normal speed; alarm={_state.Alarm}.");
+                if (signal == OutputIo.MainConveyorRun)
                 {
-                    _log?.Write($"Manual conveyor {signal}: ON, forward, normal speed; alarm={_state.Alarm}.");
-                    Task motorRun;
-                    if (signal == OutputIo.MainConveyorRun)
-                    {
-                        _conveyor.RunMotor(operation.Token);
-                        motorRun = Task.Delay(Timeout.Infinite, operation.Token);
-                    }
-                    else if (signal == OutputIo.NgConveyorRun)
-                    {
-                        motorRun = _ngConveyor.RunMotorAsync(operation.Token);
-                    }
-                    else
-                    {
-                        throw new ArgumentOutOfRangeException(nameof(signal));
-                    }
+                    motorRun = _conveyor.RunMotorAsync(operation.Token);
+                }
+                else if (signal == OutputIo.NgConveyorRun)
+                {
+                    motorRun = _ngConveyor.RunMotorAsync(operation.Token);
+                }
+                else
+                {
+                    throw new ArgumentOutOfRangeException(nameof(signal));
+                }
 
-                    outputStarted = true;
-                    if (!_io.GetOutput(signal))
-                        operation.Cancel();
-                    await motorRun.ConfigureAwait(false);
-                }
-                finally
-                {
-                    // OFF must not wait for the UI command continuation.
-                    StopConveyorMotor(signal);
-                    _log?.Write($"Manual conveyor {signal}: OFF.");
-                }
+                outputStarted = true;
+                if (!_io.GetOutput(signal))
+                    operation.Cancel();
             }
             catch (OperationCanceledException) when (operation.IsCancellationRequested)
             {
-                return stopReason;
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+            }
+
+            // A read failure after starting must still cancel and await the device's cleanup.
+            try
+            {
+                if (failure is not null && !operation.IsCancellationRequested)
+                    operation.Cancel();
+            }
+            catch (Exception exception)
+            {
+                failure = new AggregateException(failure!, exception);
+            }
+
+            try
+            {
+                await motorRun.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (operation.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                failure = failure is null ? exception : new AggregateException(failure, exception);
             }
             finally
             {
                 _state.Changed -= StopWhenUnavailable;
                 _io.OutputChanged -= OnOutputChanged;
             }
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception exception)
-        {
-            _state.SetError(MachineAlarm.IoCommunication, exception);
-            _operations.Cancel();
-            throw;
+
+            if (failure is null && outputStarted)
+                _log?.Write($"Manual conveyor {signal}: OFF.");
         }
 
-        return OutputBlockReason.None;
+        if (failure is not null)
+        {
+            if (failure is not OperationCanceledException)
+            {
+                _state.SetError(MachineAlarm.IoCommunication, failure);
+                _operations.Cancel();
+            }
+            ExceptionDispatchInfo.Throw(failure);
+        }
+
+        return stopReason;
     }
 
     // Teaching may coordinate a handler as well as its cylinder output.
@@ -192,7 +218,7 @@ public sealed partial class MachineController
     {
         return signal switch
         {
-            OutputIo.PcbSupplyRotate => !_supplyHandler.IsInsideBuffer(live),
+            OutputIo.PcbSupplyRotate => _supplyHandler.IsInsideBuffer(live) == false,
             OutputIo.PcbPlacementHandlerRotate
                 => _placementHandler.IsAtHorizontalZ(live)
                     && _placementHandler.CanMoveHorizontal,

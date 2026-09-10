@@ -116,8 +116,8 @@
                   Visibility="{Binding SupplyPositionKnown, Converter={StaticResource BoolToVis}}"
                   Panel.ZIndex="20">
                 <Grid.RenderTransform>
-                    <TranslateTransform X="{Binding PcbSupplyMapLeft}"
-                                        Y="{Binding PcbSupplyMapTop}"/>
+                    <TranslateTransform X="{Binding PcbSupplyMapLeft, TargetNullValue=0}"
+                                        Y="{Binding PcbSupplyMapTop, TargetNullValue=0}"/>
                 </Grid.RenderTransform>
                 <Grid Width="92" Height="72"
                       HorizontalAlignment="Center"
@@ -194,7 +194,7 @@
                     <Border Style="{StaticResource PcbFootprintStyle}"
                             HorizontalAlignment="Center"
                             VerticalAlignment="Center"
-                            Visibility="{Binding PcbBufferPcbPresent,
+                            Visibility="{Binding Buffer.PcbPresent,
                                                  Converter={StaticResource BoolToVis}}"/>
                     <Ellipse HorizontalAlignment="Left"
                              VerticalAlignment="Top"
@@ -215,8 +215,8 @@
                   Visibility="{Binding PlacementPositionKnown, Converter={StaticResource BoolToVis}}"
                   Panel.ZIndex="21">
                 <Grid.RenderTransform>
-                    <TranslateTransform X="{Binding PcbPlacementMapLeft}"
-                                        Y="{Binding PcbPlacementMapTop}"/>
+                    <TranslateTransform X="{Binding PcbPlacementMapLeft, TargetNullValue=0}"
+                                        Y="{Binding PcbPlacementMapTop, TargetNullValue=0}"/>
                 </Grid.RenderTransform>
                 <Grid Width="92" Height="72"
                       HorizontalAlignment="Center"

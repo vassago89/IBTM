@@ -27,24 +27,17 @@ public partial class OperationViewModel : ObservableObject
 
     private readonly MachineController _machine;
     private readonly MachineOptions _options;
-    private readonly PcbPlacementWork _pcbPlacementWork;
-    private readonly BoltFasteningWork _boltFasteningWork;
-    private readonly InspectionWork _inspectionWork;
     private readonly Recipe _recipe;
     private readonly MachineMap _map;
-    private readonly MainConveyor _conveyor;
-    private readonly BufferStage _buffer;
     private readonly PickupBoltFeeder _pickupFeeder;
     private readonly ShootingBoltFeeder _shootingFeeder;
-    private readonly NgCarrierConveyor _ngConveyor;
-    private readonly NgShuttle _ngShuttle;
-    private readonly NgCarrierTransfer _ngTransfer;
     private readonly PcbPlacementRecoveryPreparation _pcbPlacementRecovery;
     private readonly BoltFasteningRecoveryPreparation _boltFasteningRecovery;
     private volatile bool _active;
 
     public OperationViewModel(
         MachineState state,
+        IoSignals signals,
         MachineController machine,
         UnitSettings units,
         MachineOptions options,
@@ -68,23 +61,25 @@ public partial class OperationViewModel : ObservableObject
         InspectionGantry inspectionGantry)
     {
         State = state;
+        MainConveyorRun = signals.Outputs[OutputIo.MainConveyorRun];
+        NgConveyorRun = signals.Outputs[OutputIo.NgConveyorRun];
         _machine = machine;
         Units = units;
         _options = options;
-        _pcbPlacementWork = pcbPlacementWork;
-        _boltFasteningWork = boltFasteningWork;
-        _inspectionWork = inspectionWork;
+        PcbPlacementWork = pcbPlacementWork;
+        BoltFasteningWork = boltFasteningWork;
+        InspectionWork = inspectionWork;
         _recipe = recipe;
         _map = map;
-        _ngConveyor = ngConveyor;
-        _ngShuttle = ngShuttle;
+        NgConveyor = ngConveyor;
+        NgShuttle = ngShuttle;
         _pcbPlacementRecovery = pcbPlacementRecovery;
         _boltFasteningRecovery = boltFasteningRecovery;
-        _conveyor = conveyor;
-        _buffer = buffer;
+        Conveyor = conveyor;
+        Buffer = buffer;
         _pickupFeeder = pickupFeeder;
         _shootingFeeder = shootingFeeder;
-        _ngTransfer = ngTransfer;
+        NgTransfer = ngTransfer;
         Supply = supply;
         Placement = placement;
         Fastening = fastening;
@@ -103,20 +98,33 @@ public partial class OperationViewModel : ObservableObject
         shootingFeeder.Changed += OnBoltFasteningChanged;
         pcbPlacementWork.Changed += OnPcbPlacementChanged;
         boltFasteningWork.Changed += OnBoltFasteningChanged;
+        inspectionWork.Changed += OnInspectionChanged;
+        ngTransfer.Changed += OnNgConveyorChanged;
         ngConveyor.Changed += OnNgConveyorChanged;
         ngShuttle.Feedback.Changed += OnNgConveyorChanged;
         state.DisplayChanged += OnMachineDisplayChanged;
     }
 
     public MachineState State { get; }
+    public IoOutputStatus MainConveyorRun { get; }
+    public IoOutputStatus NgConveyorRun { get; }
     public UnitSettings Units { get; }
+
+    public PcbPlacementWork PcbPlacementWork { get; }
+    public BoltFasteningWork BoltFasteningWork { get; }
+    public InspectionWork InspectionWork { get; }
+    public MainConveyor Conveyor { get; }
+    public BufferStage Buffer { get; }
+    public NgCarrierConveyor NgConveyor { get; }
+    public NgShuttle NgShuttle { get; }
+    public NgCarrierTransfer NgTransfer { get; }
 
     public PcbSupplyHandler Supply { get; }
     public PcbPlacementHandler Placement { get; }
     public BoltFasteningGantry Fastening { get; }
     public InspectionGantry InspectionGantry { get; }
 
-    public double PcbSupplyZTop
+    public double? PcbSupplyZTop
     {
         get
         {
@@ -124,7 +132,7 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public double PcbPlacementZTop
+    public double? PcbPlacementZTop
     {
         get
         {
@@ -132,7 +140,7 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public double BoltFasteningZTop
+    public double? BoltFasteningZTop
     {
         get
         {
@@ -140,51 +148,51 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public double PcbSupplyMapLeft
+    public double? PcbSupplyMapLeft
     {
         get
         {
-            return _map.Supply(Supply.Motion.Position).X;
+            return _map.Supply(Supply.Motion.Position)?.X;
         }
     }
 
-    public double PcbSupplyMapTop
+    public double? PcbSupplyMapTop
     {
         get
         {
-            return _map.Supply(Supply.Motion.Position).Y;
+            return _map.Supply(Supply.Motion.Position)?.Y;
         }
     }
 
-    public double PcbPlacementMapLeft
+    public double? PcbPlacementMapLeft
     {
         get
         {
-            return _map.Placement(Placement.Motion.Position).X;
+            return _map.Placement(Placement.Motion.Position)?.X;
         }
     }
 
-    public double PcbPlacementMapTop
+    public double? PcbPlacementMapTop
     {
         get
         {
-            return _map.Placement(Placement.Motion.Position).Y;
+            return _map.Placement(Placement.Motion.Position)?.Y;
         }
     }
 
-    public double BoltFasteningMapLeft
+    public double? BoltFasteningMapLeft
     {
         get
         {
-            return _map.Fastening(Fastening.Motion.Position).X;
+            return _map.Fastening(Fastening.Motion.Position)?.X;
         }
     }
 
-    public double BoltFasteningMapTop
+    public double? BoltFasteningMapTop
     {
         get
         {
-            return _map.Fastening(Fastening.Motion.Position).Y;
+            return _map.Fastening(Fastening.Motion.Position)?.Y;
         }
     }
 
@@ -204,19 +212,19 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public double InspectionGantryMapLeft
+    public double? InspectionGantryMapLeft
     {
         get
         {
-            return _map.Inspection(InspectionGantry.Motion.Position).X;
+            return _map.Inspection(InspectionGantry.Motion.Position)?.X;
         }
     }
 
-    public double InspectionGantryMapTop
+    public double? InspectionGantryMapTop
     {
         get
         {
-            return _map.Inspection(InspectionGantry.Motion.Position).Y;
+            return _map.Inspection(InspectionGantry.Motion.Position)?.Y;
         }
     }
 
@@ -241,14 +249,6 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return Placement.Pcb != PlacementPcbState.None;
-        }
-    }
-
-    public bool PcbPlacementPcbSecured
-    {
-        get
-        {
-            return Placement.PcbSecured;
         }
     }
 
@@ -296,7 +296,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _pcbPlacementWork.Stopper == StationCylinderState.Up;
+            return PcbPlacementWork.Stopper == StationCylinderState.Up;
         }
     }
 
@@ -304,7 +304,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _pcbPlacementWork.BackupPlate == StationCylinderState.Up;
+            return PcbPlacementWork.BackupPlate == StationCylinderState.Up;
         }
     }
 
@@ -316,19 +316,11 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public bool PcbBufferPcbPresent
-    {
-        get
-        {
-            return _buffer.PcbPresent;
-        }
-    }
-
     public bool PcbPlacementHeatSink1Present
     {
         get
         {
-            return _pcbPlacementWork.HeatSinkPresent(HeatSinkSlot.HeatSink1);
+            return PcbPlacementWork.HeatSinkPresent(HeatSinkSlot.HeatSink1);
         }
     }
 
@@ -336,31 +328,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _pcbPlacementWork.HeatSinkPresent(HeatSinkSlot.HeatSink2);
-        }
-    }
-
-    public bool PcbPlacementCarrierPresent
-    {
-        get
-        {
-            return _pcbPlacementWork.CarrierPresent;
-        }
-    }
-
-    public bool MainConveyorEntryCarrierDetected
-    {
-        get
-        {
-            return _conveyor.EntryCarrierDetected;
-        }
-    }
-
-    public bool MainConveyorExitCarrierDetected
-    {
-        get
-        {
-            return _conveyor.ExitCarrierDetected;
+            return PcbPlacementWork.HeatSinkPresent(HeatSinkSlot.HeatSink2);
         }
     }
 
@@ -368,7 +336,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _boltFasteningWork.HeatSinkPresent(HeatSinkSlot.HeatSink1);
+            return BoltFasteningWork.HeatSinkPresent(HeatSinkSlot.HeatSink1);
         }
     }
 
@@ -376,15 +344,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _boltFasteningWork.HeatSinkPresent(HeatSinkSlot.HeatSink2);
-        }
-    }
-
-    public bool BoltFasteningCarrierPresent
-    {
-        get
-        {
-            return _boltFasteningWork.CarrierPresent;
+            return BoltFasteningWork.HeatSinkPresent(HeatSinkSlot.HeatSink2);
         }
     }
 
@@ -392,7 +352,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _boltFasteningWork.Stopper == StationCylinderState.Up;
+            return BoltFasteningWork.Stopper == StationCylinderState.Up;
         }
     }
 
@@ -400,7 +360,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _boltFasteningWork.BackupPlate == StationCylinderState.Up;
+            return BoltFasteningWork.BackupPlate == StationCylinderState.Up;
         }
     }
 
@@ -408,7 +368,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _inspectionWork.HeatSinkPresent(HeatSinkSlot.HeatSink1);
+            return InspectionWork.HeatSinkPresent(HeatSinkSlot.HeatSink1);
         }
     }
 
@@ -416,15 +376,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _inspectionWork.HeatSinkPresent(HeatSinkSlot.HeatSink2);
-        }
-    }
-
-    public bool InspectionCarrierPresent
-    {
-        get
-        {
-            return _inspectionWork.CarrierPresent;
+            return InspectionWork.HeatSinkPresent(HeatSinkSlot.HeatSink2);
         }
     }
 
@@ -432,7 +384,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _inspectionWork.Stopper == StationCylinderState.Up;
+            return InspectionWork.Stopper == StationCylinderState.Up;
         }
     }
 
@@ -440,7 +392,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _inspectionWork.BackupPlate == StationCylinderState.Up;
+            return InspectionWork.BackupPlate == StationCylinderState.Up;
         }
     }
 
@@ -480,7 +432,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _ngTransfer.Gripper == NgTransferGripperState.Closed;
+            return NgTransfer.Gripper == NgTransferGripperState.Closed;
         }
     }
 
@@ -488,55 +440,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return _ngTransfer.Lift == NgTransferLiftState.Down;
-        }
-    }
-
-    public bool NgCarrierDetected
-    {
-        get
-        {
-            return _ngTransfer.CarrierDetected;
-        }
-    }
-
-    public bool NgShuttleCarrierDetected
-    {
-        get
-        {
-            return _ngShuttle.Feedback.CarrierDetected;
-        }
-    }
-
-    public bool NgConveyorPosition1Occupied
-    {
-        get
-        {
-            return _ngConveyor.Position1Occupied;
-        }
-    }
-
-    public bool NgConveyorPosition2Occupied
-    {
-        get
-        {
-            return _ngConveyor.Position2Occupied;
-        }
-    }
-
-    public bool NgAlarmRequired
-    {
-        get
-        {
-            return _ngConveyor.AlarmRequired;
-        }
-    }
-
-    public NgShuttleLiftState NgShuttleLift
-    {
-        get
-        {
-            return _ngShuttle.Feedback.Lift;
+            return NgTransfer.Lift == NgTransferLiftState.Down;
         }
     }
 
@@ -544,8 +448,8 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return !PcbPlacementCarrierPresent
-                && !BoltFasteningCarrierPresent
+            return !PcbPlacementWork.CarrierPresent
+                && !BoltFasteningWork.CarrierPresent
                 && State.Display.ConveyorState == MainConveyorState.MovingPcbPlacementToBoltFastening;
         }
     }
@@ -554,8 +458,8 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return !BoltFasteningCarrierPresent
-                && !InspectionCarrierPresent
+            return !BoltFasteningWork.CarrierPresent
+                && !InspectionWork.CarrierPresent
                 && State.Display.ConveyorState == MainConveyorState.MovingBoltFasteningToInspection;
         }
     }
@@ -565,9 +469,9 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return Units.PcbPlacement
-                && PcbPlacementCarrierPresent
+                && PcbPlacementWork.CarrierPresent
                 && PcbPlacementHeatSink1Present
-                && HasAssembly(_pcbPlacementWork, HeatSinkSlot.HeatSink1);
+                && HasAssembly(PcbPlacementWork, HeatSinkSlot.HeatSink1);
         }
     }
 
@@ -576,9 +480,9 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return Units.PcbPlacement
-                && PcbPlacementCarrierPresent
+                && PcbPlacementWork.CarrierPresent
                 && PcbPlacementHeatSink2Present
-                && HasAssembly(_pcbPlacementWork, HeatSinkSlot.HeatSink2);
+                && HasAssembly(PcbPlacementWork, HeatSinkSlot.HeatSink2);
         }
     }
 
@@ -624,8 +528,8 @@ public partial class OperationViewModel : ObservableObject
 
     private string? InspectionBarcode(HeatSinkSlot pcb)
     {
-        return _inspectionWork.CarrierPresent && _inspectionWork.HeatSinkPresent(pcb)
-            ? _inspectionWork.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb)?.PcbBarcode
+        return InspectionWork.CarrierPresent && InspectionWork.HeatSinkPresent(pcb)
+            ? InspectionWork.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb)?.PcbBarcode
             : null;
     }
 
@@ -649,7 +553,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return Result(_boltFasteningWork, HeatSinkSlot.HeatSink1, inspection: false);
+            return Result(BoltFasteningWork, HeatSinkSlot.HeatSink1, inspection: false);
         }
     }
 
@@ -657,7 +561,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return Result(_boltFasteningWork, HeatSinkSlot.HeatSink2, inspection: false);
+            return Result(BoltFasteningWork, HeatSinkSlot.HeatSink2, inspection: false);
         }
     }
 
@@ -665,7 +569,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return Result(_inspectionWork, HeatSinkSlot.HeatSink1, inspection: true);
+            return Result(InspectionWork, HeatSinkSlot.HeatSink1, inspection: true);
         }
     }
 
@@ -673,7 +577,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return Result(_inspectionWork, HeatSinkSlot.HeatSink2, inspection: true);
+            return Result(InspectionWork, HeatSinkSlot.HeatSink2, inspection: true);
         }
     }
 
@@ -914,7 +818,7 @@ public partial class OperationViewModel : ObservableObject
 
     private BoltTargetState FasteningTargetState(BoltTarget bolt)
     {
-        var assembly = _boltFasteningWork.Assemblies.FirstOrDefault(
+        var assembly = BoltFasteningWork.Assemblies.FirstOrDefault(
             item => item.HeatSink == bolt.HeatSink);
         if (assembly is null)
         {
@@ -933,7 +837,7 @@ public partial class OperationViewModel : ObservableObject
 
     private BoltTargetState InspectionTargetState(BoltTarget bolt)
     {
-        var assembly = _inspectionWork.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
+        var assembly = InspectionWork.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
         if (assembly is null
             || !assembly.BoltPresenceResults.TryGetValue(bolt.Number, out var present))
         {
@@ -950,10 +854,12 @@ public partial class OperationViewModel : ObservableObject
             : BoltTargetState.Pending;
     }
 
-    private static double ZTop(MotionStatus motion)
+    private static double? ZTop(MotionStatus motion)
     {
+        if (motion.Position.Z is not { } z || motion.ZMaximum <= motion.ZMinimum)
+            return null;
         var ratio = Math.Clamp(
-            (motion.Position.Z - motion.ZMinimum) / (motion.ZMaximum - motion.ZMinimum),
+            (z - motion.ZMinimum) / (motion.ZMaximum - motion.ZMinimum),
             0,
             1);
         return ZSideViewTop + (ratio * ZSideViewTravel);
@@ -969,6 +875,7 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
+            OnPropertyChanged(nameof(SupplyPositionKnown));
             OnPropertyChanged(nameof(PcbSupplyZTop));
             OnPropertyChanged(nameof(PcbSupplyMapLeft));
             OnPropertyChanged(nameof(PcbSupplyMapTop));
@@ -985,6 +892,7 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
+            OnPropertyChanged(nameof(PlacementPositionKnown));
             OnPropertyChanged(nameof(PcbPlacementZTop));
             OnPropertyChanged(nameof(PcbPlacementMapLeft));
             OnPropertyChanged(nameof(PcbPlacementMapTop));
@@ -1001,6 +909,7 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
+            OnPropertyChanged(nameof(FasteningPositionKnown));
             OnPropertyChanged(nameof(BoltFasteningZTop));
             OnPropertyChanged(nameof(BoltFasteningMapLeft));
             OnPropertyChanged(nameof(BoltFasteningMapTop));
@@ -1017,6 +926,7 @@ public partial class OperationViewModel : ObservableObject
 
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
+            OnPropertyChanged(nameof(InspectionPositionKnown));
             OnPropertyChanged(nameof(InspectionGantryMapLeft));
             OnPropertyChanged(nameof(InspectionGantryMapTop));
         }
@@ -1056,6 +966,7 @@ public partial class OperationViewModel : ObservableObject
         OnNgConveyorChanged();
     }
 
+    // Devices expose Changed events; notifying their property also refreshes nested XAML bindings.
     private void OnPcbSupplyChanged()
     {
         if (!_active)
@@ -1077,17 +988,16 @@ public partial class OperationViewModel : ObservableObject
 
         OnPropertyChanged(nameof(PlacementStatus));
         OnPropertyChanged(nameof(PcbPlacementPcbDetected));
-        OnPropertyChanged(nameof(PcbPlacementPcbSecured));
         OnPropertyChanged(nameof(PcbPlacementHandlerDown));
         OnPropertyChanged(nameof(PcbPlacementIpmDown));
         OnPropertyChanged(nameof(Placement));
         OnPropertyChanged(nameof(PcbPlacementIpmGripperClosed));
         OnPropertyChanged(nameof(PcbPlacementStopperUp));
         OnPropertyChanged(nameof(PcbPlacementBackupPlateUp));
-        OnPropertyChanged(nameof(PcbBufferPcbPresent));
+        OnPropertyChanged(nameof(Buffer));
+        OnPropertyChanged(nameof(PcbPlacementWork));
         OnPropertyChanged(nameof(PcbPlacementHeatSink1Present));
         OnPropertyChanged(nameof(PcbPlacementHeatSink2Present));
-        OnPropertyChanged(nameof(PcbPlacementCarrierPresent));
         OnPropertyChanged(nameof(PcbPlacementHeatSink1Completed));
         OnPropertyChanged(nameof(PcbPlacementHeatSink2Completed));
         OnPropertyChanged(nameof(PlacementDisplayState));
@@ -1100,10 +1010,9 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
+        OnPropertyChanged(nameof(Conveyor));
         OnPropertyChanged(nameof(ConveyorStatus));
         OnPropertyChanged(nameof(InspectionStatus));
-        OnPropertyChanged(nameof(MainConveyorEntryCarrierDetected));
-        OnPropertyChanged(nameof(MainConveyorExitCarrierDetected));
         OnPropertyChanged(nameof(CarrierBetweenPlacementAndBolt));
         OnPropertyChanged(nameof(CarrierBetweenBoltAndInspection));
     }
@@ -1113,9 +1022,9 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
+        OnPropertyChanged(nameof(BoltFasteningWork));
         OnPropertyChanged(nameof(BoltFasteningHeatSink1Present));
         OnPropertyChanged(nameof(BoltFasteningHeatSink2Present));
-        OnPropertyChanged(nameof(BoltFasteningCarrierPresent));
         OnPropertyChanged(nameof(BoltFasteningStopperUp));
         OnPropertyChanged(nameof(BoltFasteningBackupPlateUp));
         OnPropertyChanged(nameof(PickupHeadDown));
@@ -1137,9 +1046,9 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
+        OnPropertyChanged(nameof(InspectionWork));
         OnPropertyChanged(nameof(InspectionHeatSink1Present));
         OnPropertyChanged(nameof(InspectionHeatSink2Present));
-        OnPropertyChanged(nameof(InspectionCarrierPresent));
         OnPropertyChanged(nameof(InspectionStopperUp));
         OnPropertyChanged(nameof(InspectionBackupPlateUp));
         OnPropertyChanged(nameof(InspectionActiveBolt));
@@ -1159,13 +1068,10 @@ public partial class OperationViewModel : ObservableObject
         if (!_active)
             return;
 
+        OnPropertyChanged(nameof(NgTransfer));
+        OnPropertyChanged(nameof(NgShuttle));
+        OnPropertyChanged(nameof(NgConveyor));
         OnPropertyChanged(nameof(NgCarrierGripperClosed));
         OnPropertyChanged(nameof(NgCarrierPickupDown));
-        OnPropertyChanged(nameof(NgCarrierDetected));
-        OnPropertyChanged(nameof(NgShuttleCarrierDetected));
-        OnPropertyChanged(nameof(NgConveyorPosition1Occupied));
-        OnPropertyChanged(nameof(NgConveyorPosition2Occupied));
-        OnPropertyChanged(nameof(NgAlarmRequired));
-        OnPropertyChanged(nameof(NgShuttleLift));
     }
 }

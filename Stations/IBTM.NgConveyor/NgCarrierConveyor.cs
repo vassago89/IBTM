@@ -235,15 +235,15 @@ public sealed class NgCarrierConveyor : AutoUnit
 
     public async Task RunMotorAsync(CancellationToken cancellationToken)
     {
-        using var stopRegistration = cancellationToken.Register(StopConveyor);
         try
         {
+            using var stopRegistration = cancellationToken.Register(StopConveyor);
             StartConveyor(cancellationToken);
             await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
-            StopConveyor();
+            Stop();
         }
     }
 
@@ -311,7 +311,6 @@ public sealed class NgCarrierConveyor : AutoUnit
         StopConveyor();
         SetEjectLamp(false);
         SetEjectCompleteLamp(false);
-        SetBuzzer(false);
     }
 
     private bool NeedsCompaction
@@ -348,7 +347,6 @@ public sealed class NgCarrierConveyor : AutoUnit
     {
         _ejectionPhase = EjectionPhase.Ejecting;
         SetEjectLamp(false);
-        SetBuzzer(false);
         if (Position1Occupied)
         {
             await SetStopperUpAsync(false, cancellationToken);
@@ -381,7 +379,6 @@ public sealed class NgCarrierConveyor : AutoUnit
         var alarm = AlarmRequired && _ejectionPhase == EjectionPhase.Idle;
         SetEjectCompleteLamp(_ejectionPhase == EjectionPhase.WaitingForConfirmation);
         SetEjectLamp(alarm);
-        SetBuzzer(alarm);
     }
 
     internal Task SetStopperUpAsync(bool up, CancellationToken cancellationToken)
@@ -443,11 +440,6 @@ public sealed class NgCarrierConveyor : AutoUnit
     private void SetEjectCompleteLamp(bool on)
     {
         _io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, on);
-    }
-
-    private void SetBuzzer(bool on)
-    {
-        _io.SetOutput(OutputIo.Buzzer, on);
     }
 
     private void NotifyChanged()

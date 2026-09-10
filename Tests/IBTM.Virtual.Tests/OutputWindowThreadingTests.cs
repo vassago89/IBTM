@@ -263,16 +263,41 @@ public sealed class OutputWindowThreadingTests
                 TimeSpan.FromSeconds(2)));
         }
 
-        var running = new CheckBox();
-        running.SetBinding(
-            System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
-            new Binding("State.Display.ConveyorRunning") { Source = operation, Mode = BindingMode.OneWay });
-        foreach (var on in new[] { true, false })
+        var sensor = new CheckBox();
+        foreach (var (path, signal) in new[]
         {
-            await Task.Run(() => io.SetOutput(OutputIo.MainConveyorRun, on));
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => running.IsChecked == on,
-                TimeSpan.FromSeconds(2)));
+            ("Conveyor.EntryCarrierDetected", InputIo.MainConveyorEntryCarrierDetected),
+            ("PcbPlacementWork.CarrierPresent", InputIo.PcbPlacementCarrierPresent),
+            ("NgTransfer.CarrierDetected", InputIo.NgCarrierDetected),
+            ("NgShuttle.Feedback.CarrierDetected", InputIo.NgShuttleCarrierDetected),
+        })
+        {
+            sensor.SetBinding(
+                System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
+                new Binding(path) { Source = operation, Mode = BindingMode.OneWay });
+            foreach (var detected in new[] { true, false })
+            {
+                await Task.Run(() => io.SetInput(signal, detected));
+                Assert.True(await VirtualTest.WaitUntilAsync(
+                    () => sensor.IsChecked == detected,
+                    TimeSpan.FromSeconds(2)));
+            }
+        }
+
+        var running = new CheckBox();
+        foreach (var signal in new[] { operation.MainConveyorRun, operation.NgConveyorRun })
+        {
+            Assert.Same(services.GetRequiredService<IoSignals>().Outputs[signal.Signal], signal);
+            running.SetBinding(
+                System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
+                new Binding(nameof(IoOutputStatus.IsOn)) { Source = signal, Mode = BindingMode.OneWay });
+            foreach (var on in new[] { true, false })
+            {
+                await Task.Run(() => io.SetOutput(signal.Signal, on));
+                Assert.True(await VirtualTest.WaitUntilAsync(
+                    () => running.IsChecked == on,
+                    TimeSpan.FromSeconds(2)));
+            }
         }
 
         var bus = new VirtualAdcBus();
@@ -352,12 +377,13 @@ public sealed class OutputWindowThreadingTests
                 TimeSpan.FromSeconds(2)));
             releaseStop.Set();
             await stopping;
-            Assert.False(teaching.IsCameraLive);
+            Assert.False(teaching.Inspector.IsLiveView);
             Assert.Equal(AppPage.StationTeaching, main.SelectedPage);
             Assert.Contains(light.OffFailure.Message, main.NavigationError);
             Assert.True(await VirtualTest.WaitUntilAsync(() => page.IsEnabled, TimeSpan.FromSeconds(2)));
             var failure = await Assert.ThrowsAsync<IOException>(teaching.ShutdownAsync);
             Assert.Same(light.OffFailure, failure);
+            Assert.Contains(nameof(TestLight.TurnOff), failure.StackTrace);
             light.FailOff = false;
             await main.NavigateCommand.ExecuteAsync(AppPage.Settings);
             Assert.Equal(AppPage.Settings, main.SelectedPage);
@@ -389,7 +415,7 @@ public sealed class OutputWindowThreadingTests
             var live = new CheckBox();
             live.SetBinding(
                 System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
-                new Binding(nameof(StationTeachingViewModel.IsCameraLive))
+                new Binding("Inspector.IsLiveView")
                 { Source = teaching, Mode = BindingMode.OneWay });
             var state = services.GetRequiredService<MachineState>();
             foreach (var hardwareReset in new[] { false, true })
@@ -441,13 +467,35 @@ public sealed class OutputWindowThreadingTests
             Assert.False(liveButton.IsEnabled);
             var onCalls = light.OnCalls;
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
-            Assert.False(teaching.IsCameraLive);
+            Assert.False(teaching.Inspector.IsLiveView);
             Assert.Equal(onCalls, light.OnCalls);
             teaching.CaptureCarrierImagesCommand.Cancel();
             releaseStop.Set();
             await scan.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Null(teaching.CameraError);
             Assert.True(liveButton.IsEnabled);
+
+            // Selection changes after the image commit must not undo the successful save.
+            light.BeforeOn = null;
+            var next = teaching.FilteredPoints.Single(
+                point => point.Position.Target == TeachingTarget.CarrierLowerRightLocatingPin);
+            teaching.RecipeEditor.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(RecipeEditor.ActiveName))
+                    teaching.SelectedPoint = next;
+            };
+            Assert.True(teaching.CaptureCarrierImagesCommand.CanExecute(null));
+            await teaching.CaptureCarrierImagesCommand.ExecuteAsync(null);
+            Assert.Same(next, teaching.SelectedPoint);
+            Assert.True(teaching.HasCarrierImages);
+            var saved = await services.GetRequiredService<RecipeStore>()
+                .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
+            Assert.Equal(teaching.CarrierImages.Count, saved.CarrierImages.Count);
+            Assert.Equal(
+                saved.Name,
+                services.GetRequiredService<MachineStore>()
+                    .LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
+            Assert.Null(teaching.CameraError);
         }
         finally
         {

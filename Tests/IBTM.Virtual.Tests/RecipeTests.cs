@@ -225,12 +225,17 @@ public sealed class RecipeTests
         var savedName = recipe.Name;
         var operations = new OperationCancellation();
         var (database, store) = CreateStore();
-        var editor = new RecipeEditor(store, new RecipeSelectionSettings(), recipe, operations);
+        var selection = new RecipeSelectionSettings();
+        var editor = new RecipeEditor(store, selection, recipe, operations);
         bool? activeAtChange = null;
+        string? selectedAtChange = null;
         editor.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(RecipeEditor.ActiveName))
+            {
                 activeAtChange = operations.HasActiveOperations;
+                selectedAtChange = database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName;
+            }
         };
 
         editor.Name = " ";
@@ -255,11 +260,16 @@ public sealed class RecipeTests
         operations.ActivityChanged -= CancelWhenStarted;
         Assert.Null(editor.Error);
         Assert.Empty(database.GetRecipeNames());
+        Assert.Null(selection.LastRecipeName);
+        Assert.Null(database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
         Assert.False(operations.HasActiveOperations);
 
         await editor.SaveAsync();
         Assert.Null(editor.Error);
         Assert.True(activeAtChange);
+        Assert.Equal(savedName, selectedAtChange);
+        Assert.Equal(savedName, selection.LastRecipeName);
+        Assert.Contains(savedName, editor.Recipes);
         Assert.False(operations.HasActiveOperations);
 
         editor.NewCommand.Execute(null);
@@ -286,7 +296,23 @@ public sealed class RecipeTests
         command.ExecuteNonQuery();
         await editor.LoadCommand.ExecuteAsync(savedName);
         Assert.Contains("test failure", editor.Error);
-        Assert.True(changed); // The loaded recipe and its views agree even if last-selection persistence fails.
+        Assert.False(changed);
+        Assert.Equal("New", editor.ActiveName);
+        Assert.Equal("New", editor.Name);
+        Assert.Equal(defaults.RegionSizePixels, recipe.BoltInspection.RegionSizePixels);
+        Assert.Equal("Other", selection.LastRecipeName);
+        Assert.Equal("Other", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
+        Assert.False(operations.HasActiveOperations);
+
+        command.CommandText = "DROP TRIGGER FailSelection";
+        command.ExecuteNonQuery();
+        await editor.LoadCommand.ExecuteAsync(savedName);
+        Assert.Null(editor.Error);
+        Assert.True(changed);
+        Assert.True(activeAtChange);
+        Assert.Equal(savedName, selectedAtChange);
+        Assert.Equal(savedName, editor.ActiveName);
+        Assert.Equal(savedName, selection.LastRecipeName);
         Assert.Equal(192, recipe.BoltInspection.RegionSizePixels);
         Assert.False(operations.HasActiveOperations);
     }
@@ -298,7 +324,8 @@ public sealed class RecipeTests
         var source = new Recipe { Name = "Source" };
         var target = new Recipe { Name = "Target" };
         var sourceEditor = new RecipeEditor(store, new(), source, new());
-        var targetEditor = new RecipeEditor(store, new(), target, new());
+        var targetSelection = new RecipeSelectionSettings();
+        var targetEditor = new RecipeEditor(store, targetSelection, target, new());
         CarrierImageTileView[] Images(double x, byte value)
         {
             return [new(1, new() { X = x }, Image(value)), new(2, new() { X = x + 1 }, Image(value)),];
@@ -319,12 +346,40 @@ public sealed class RecipeTests
             return image;
         }
 
-        await sourceEditor.SaveCarrierImagesAsync(Images(1, 10));
-        await targetEditor.SaveCarrierImagesAsync(Images(10, 100));
+        Assert.True(await sourceEditor.SaveCarrierImagesAsync(Images(1, 10)));
+        Assert.Equal("Source", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
+        Assert.True(await targetEditor.SaveCarrierImagesAsync(Images(10, 100)));
+        Assert.Equal("Target", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
+        await sourceEditor.SaveAsync();
+        Assert.Null(sourceEditor.Error);
         var original = database.LoadRecipeImage(target.Name, 1);
         using var connection = new SqliteConnection($"Data Source={database.DatabaseFile}");
         connection.Open();
         using var command = connection.CreateCommand();
+
+        command.CommandText = "CREATE TRIGGER FailSelection BEFORE UPDATE ON Settings WHEN NEW.Key = 'RecipeSelectionSettings' BEGIN SELECT RAISE(ABORT, 'selection failure'); END";
+        command.ExecuteNonQuery();
+        targetEditor.Name = "Rejected";
+        await targetEditor.SaveAsync();
+        Assert.Contains("selection failure", targetEditor.Error);
+        Assert.Equal("Target", targetEditor.ActiveName);
+        Assert.Equal("Target", targetSelection.LastRecipeName);
+        Assert.DoesNotContain("Rejected", database.GetRecipeNames());
+        Assert.DoesNotContain("Rejected", targetEditor.Recipes);
+        Assert.Throws<InvalidOperationException>(() => database.LoadRecipeImage("Rejected", 1));
+
+        targetEditor.Name = "Target";
+        Assert.False(await targetEditor.SaveCarrierImagesAsync(Images(30, 200)));
+        Assert.Contains("selection failure", targetEditor.Error);
+        Assert.Equal([10d, 11d], target.CarrierImages.Select(tile => tile.Center.X));
+        Assert.Equal(
+            [10d, 11d],
+            (await store.LoadRecipeAsync("Target")).CarrierImages.Select(tile => tile.Center.X));
+        Assert.Equal(original, database.LoadRecipeImage("Target", 1));
+        Assert.Equal("Source", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
+        command.CommandText = "DROP TRIGGER FailSelection";
+        command.ExecuteNonQuery();
+
         command.CommandText = "CREATE TRIGGER FailImage BEFORE INSERT ON RecipeImages WHEN NEW.Number = 2 BEGIN SELECT RAISE(ABORT, 'test failure'); END";
         command.ExecuteNonQuery();
         Assert.False(await targetEditor.SaveCarrierImagesAsync(Images(30, 200)));

@@ -41,9 +41,7 @@ public sealed record MachineDisplay
     public HomeBlockReason HomeBlock { get; init; } = HomeBlockReason.IoUnavailable;
     public bool IsHoming { get; init; }
     public bool AutomaticRunning { get; init; }
-    public bool ConveyorRunning { get; init; }
     public MainConveyorState ConveyorState { get; init; }
-    public bool NgConveyorRunning { get; init; }
     public NgConveyorState NgConveyorState { get; init; }
     public bool BufferConflict { get; init; }
     public bool SupplyInBufferArea { get; init; }

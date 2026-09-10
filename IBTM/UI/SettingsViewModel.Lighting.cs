@@ -120,9 +120,20 @@ public partial class SettingsViewModel
 
         var channel = LightTestChannel;
         var level = LightTestLevel;
+        OperationCancellation.Operation operation;
         try
         {
-            using var operation = _operations.Link(cancellationToken);
+            operation = _operations.Link(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            LightTestMessage = "Lighting test cancelled.";
+            RefreshCommands();
+            return;
+        }
+
+        using (operation)
+        {
             void StopWhenUnavailable()
             {
                 if (!_state.ManualMode || _operations.IsShuttingDown)
@@ -183,13 +194,7 @@ public partial class SettingsViewModel
                     : "Lighting test cancelled.");
             }
         }
-        catch (OperationCanceledException)
-        {
-            LightTestMessage = "Lighting test cancelled.";
-        }
-        finally
-        {
-            RefreshCommands();
-        }
+
+        RefreshCommands();
     }
 }

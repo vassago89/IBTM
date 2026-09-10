@@ -45,40 +45,51 @@ public partial class SupplyTeachingViewModel
         }
     }
 
-    protected override Task JogCurrentAsync(
-        MotionAxis axis,
-        double velocity,
-        CancellationToken cancellationToken)
+    protected override Task JogAsync(TeachingDirection direction, CancellationToken cancellationToken)
     {
-        return ActiveMotionGroup == MotionGroup.PcbSupply
-            ? _supplyHandler.JogAsync(axis, velocity, cancellationToken)
-            : _placementHandler.JogAsync(axis, velocity, cancellationToken);
+        var (axis, sign) = Resolve(direction);
+        return Machine.RunManualMotionAsync(
+            ActiveMotionGroup,
+            token => ActiveMotionGroup == MotionGroup.PcbSupply
+                ? _supplyHandler.JogAsync(axis, sign * JogSpeed, token)
+                : _placementHandler.JogAsync(axis, sign * JogSpeed, token),
+            cancellationToken,
+            ViewCancellation);
     }
 
-    protected override Task MoveCurrentToHorizontalZAsync(CancellationToken cancellationToken)
+    protected override Task MoveToHorizontalZAsync(CancellationToken cancellationToken)
     {
-        return ActiveMotionGroup == MotionGroup.PcbSupply
-            ? _supplyHandler.MoveToRotationZAsync(cancellationToken)
-            : _placementHandler.MoveToHorizontalZAsync(cancellationToken);
+        return Machine.RunManualMotionAsync(
+            ActiveMotionGroup,
+            token => ActiveMotionGroup == MotionGroup.PcbSupply
+                ? _supplyHandler.MoveToRotationZAsync(token)
+                : _placementHandler.MoveToHorizontalZAsync(token),
+            cancellationToken,
+            ViewCancellation);
     }
 
-    protected override Task MoveCurrentAxisAsync(
-        MotionAxis axis,
-        double position,
-        CancellationToken cancellationToken)
+    protected override Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken)
     {
-        return (ActiveMotionGroup, axis) switch
-        {
-            (MotionGroup.PcbSupply, MotionAxis.X)
-                => _supplyHandler.MoveXAsync(position, cancellationToken),
-            (MotionGroup.PcbSupply, MotionAxis.Y)
-                => _supplyHandler.MoveYAsync(position, cancellationToken),
-            (MotionGroup.PcbSupply, MotionAxis.Z)
-                => _supplyHandler.MoveTeachingZAsync(position, cancellationToken),
-            (MotionGroup.PcbPlacementHandler, _)
-                => _placementHandler.MoveAxisAsync(axis, position, cancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
-        };
+        return Machine.RunManualMotionAsync(
+            ActiveMotionGroup,
+            token =>
+            {
+                var (axis, target) = StepTarget(direction, Motion.Feedback.GetPosition());
+                return (ActiveMotionGroup, axis) switch
+                {
+                    (MotionGroup.PcbSupply, MotionAxis.X)
+                        => _supplyHandler.MoveXAsync(target, token),
+                    (MotionGroup.PcbSupply, MotionAxis.Y)
+                        => _supplyHandler.MoveYAsync(target, token),
+                    (MotionGroup.PcbSupply, MotionAxis.Z)
+                        => _supplyHandler.MoveTeachingZAsync(target, token),
+                    (MotionGroup.PcbPlacementHandler, _)
+                        => _placementHandler.MoveAxisAsync(axis, target, token),
+                    _ => throw new ArgumentOutOfRangeException(nameof(axis)),
+                };
+            },
+            cancellationToken,
+            ViewCancellation);
     }
 
     partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
@@ -101,14 +112,16 @@ public partial class SupplyTeachingViewModel
                 : _placementHandler.CanJog(axis, live: false));
     }
 
-    protected override Task MovePointAsync(TeachingPoint point, CancellationToken cancellationToken)
+    protected override Task MoveToPointAsync(CancellationToken cancellationToken)
     {
-        return point.Position.MotionGroup == MotionGroup.PcbSupply
-            ? _supplyHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), cancellationToken)
-            : _placementHandler.MoveToTeachingPositionAsync(
-                point.Position,
-                point.Read(),
-                cancellationToken);
+        var point = SelectedPoint!;
+        return Machine.RunManualMotionAsync(
+            ActiveMotionGroup,
+            token => point.Position.MotionGroup == MotionGroup.PcbSupply
+                ? _supplyHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), token)
+                : _placementHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), token),
+            cancellationToken,
+            ViewCancellation);
     }
 
     protected override bool CanMoveToPoint()

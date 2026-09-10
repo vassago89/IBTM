@@ -244,6 +244,7 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
                     cancellationToken)
                     .ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
+                UpdateMachineIndicators();
                 RefreshDisplay(read);
                 DisplayChanged?.Invoke();
                 _firstDisplay.TrySetResult();
@@ -264,6 +265,34 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         finally
         {
             Changed -= RequestDisplayRefresh;
+        }
+    }
+
+    internal void UpdateMachineIndicators()
+    {
+        if (!_io.IsReady)
+            return;
+
+        try
+        {
+            // Common machine indicators are independent of individual unit stop/cleanup.
+            var attention = IsError || _ngConveyor.AlarmRequired;
+            (OutputIo Signal, bool On)[] indicators = [
+                (OutputIo.TowerLampGreen, AutomaticRunning && !attention),
+                (OutputIo.TowerLampYellow, !AutomaticRunning && !attention),
+                (OutputIo.TowerLampRed, attention),
+                (OutputIo.Buzzer, attention),
+            ];
+            foreach (var (signal, on) in indicators)
+            {
+                // Reconcile with actual outputs, not a previously sent command.
+                if (_io.GetOutput(signal) != on)
+                    _io.SetOutput(signal, on);
+            }
+        }
+        catch (IOException exception)
+        {
+            _log?.Error("Machine indicator output update failed.", exception);
         }
     }
 
@@ -674,6 +703,11 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
     {
         if (Alarm == alarm && (exception is null || AlarmDetail is not null))
         {
+            if (exception is not null)
+            {
+                _log?.Error($"Machine alarm remains: {alarm}.", exception);
+            }
+
             return;
         }
 

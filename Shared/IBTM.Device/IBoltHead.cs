@@ -25,5 +25,7 @@ public interface IBoltHead
     Task ResetAsync(CancellationToken cancellationToken = default);
     Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default);
     Task<BoltResult> TightenAsync(CancellationToken cancellationToken = default);
+    // Read an outstanding result without starting or stopping the motor.
+    Task<BoltResult?> ReadPendingResultAsync(CancellationToken cancellationToken = default);
     void DiscardPendingResult();
 }

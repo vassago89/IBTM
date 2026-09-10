@@ -224,6 +224,7 @@ public sealed class DiagnosticToolsTests
             var y = Assert.Single(
                 view.Axes,
                 row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.Y);
+            var position = services.GetRequiredService<IBTM.Inspection.InspectionGantry>().Motion;
             Assert.False(x.Enabled);
             Assert.NotNull(x.Diagnostics.Snapshot.State);
             Assert.False(view.ToggleServoCommand.CanExecute(x));
@@ -239,6 +240,7 @@ public sealed class DiagnosticToolsTests
                         && x.Diagnostics.Snapshot.Faulted == true,
                     TimeSpan.FromSeconds(2)));
             Assert.Equal(MachineAlarm.None, state.Alarm); // Disabled axes are diagnostic only.
+            Assert.Equal(42, position.Position.X);
             Assert.False(state.Display.MotionFaulted);
 
             // Movement started outside the application still makes the machine busy.
@@ -259,7 +261,19 @@ public sealed class DiagnosticToolsTests
                         && y.Diagnostics.Snapshot.State is not null,
                     TimeSpan.FromSeconds(2)));
             Assert.NotNull(x.Diagnostics.Snapshot.ReadError);
+            Assert.Equal(43, position.Position.X); // A state-query failure does not hide a readable coordinate.
             Assert.True(state.Display.Available);
+            diagnostics.FailPosition = true;
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => position.Position.X is null && x.Diagnostics.Snapshot.Position is null,
+                TimeSpan.FromSeconds(2)));
+            var readErrors = Assert.IsType<AggregateException>(x.Diagnostics.Snapshot.ReadError);
+            Assert.Collection(
+                readErrors.InnerExceptions,
+                error => Assert.Equal("Diagnostic X read failed.", error.Message),
+                error => Assert.Equal("Diagnostic X position read failed.", error.Message));
+            Assert.Equal(43, position.Position.Y);
+            diagnostics.FailPosition = false;
             // A failed enabled control scan must not hide the independent monitor cache
             // or throw while WPF evaluates the RESET button.
             settings.Units.NgCarrierTransfer = true;
@@ -287,6 +301,7 @@ public sealed class DiagnosticToolsTests
                     () => x.Diagnostics.Snapshot.Position == 44
                         && x.Diagnostics.Snapshot.Faulted == false,
                     TimeSpan.FromSeconds(2)));
+            Assert.Equal(44, position.Position.X);
             Assert.False(view.ToggleServoCommand.CanExecute(x));
             Assert.False(view.HomeAxisCommand.CanExecute(x));
 
@@ -306,6 +321,7 @@ public sealed class DiagnosticToolsTests
         private readonly VirtualMotionService _motion = new(new(), new(), hasZ: false);
         public volatile bool Alarmed;
         public volatile bool FailX;
+        public volatile bool FailPosition;
         public volatile bool FailControl;
         public volatile bool InMotion;
         public int Position;
@@ -320,6 +336,8 @@ public sealed class DiagnosticToolsTests
 
         public double ReadDiagnosticPosition(MotionAxis axis)
         {
+            if (FailPosition && axis == MotionAxis.X)
+                throw new IOException("Diagnostic X position read failed.");
             return Volatile.Read(ref Position);
         }
 

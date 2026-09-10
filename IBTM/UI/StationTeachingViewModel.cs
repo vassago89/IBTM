@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,7 +23,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     private readonly PcbPlacementHandler _placementHandler;
     private readonly BoltFasteningGantry _fasteningGantry;
     private readonly InspectionGantry _inspectionGantry;
-    private readonly BoltInspector _boltInspector;
     private readonly MachineState _state;
     private readonly InspectionGantrySettings _inspectionGantrySettings;
     private readonly CarrierReferenceSettings _carrierReference;
@@ -72,7 +72,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         get
         {
-            return _cameraError ?? _boltInspector.LiveViewError?.Message;
+            return _cameraError ?? Inspector.LiveViewError?.Message;
         }
         private set
         {
@@ -83,13 +83,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     [ObservableProperty]
     private IReadOnlyList<ImageMarker> _imageMarkers = [];
 
-    public bool IsCameraLive
-    {
-        get
-        {
-            return _boltInspector.IsLiveView;
-        }
-    }
+    public BoltInspector Inspector { get; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(TeachCurrentPositionCommand))]
@@ -126,7 +120,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         _placementHandler = placementHandler;
         _fasteningGantry = fasteningGantry;
         _inspectionGantry = inspectionGantry;
-        _boltInspector = boltInspector;
+        Inspector = boltInspector;
         _state = state;
         _inspectionGantrySettings = inspectionGantrySettings;
         _carrierReference = carrierReference;
@@ -153,7 +147,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         MillimetersPerPixel = RecipeEditor.Recipe.CarrierImageMillimetersPerPixel;
         ScanOverlap = RecipeEditor.Recipe.BoltInspection.CarrierScanOverlapMillimeters;
 
-        inspectionGantry.Feedback.PositionChanged += OnInspectionPositionChanged;
+        inspectionGantry.Motion.PropertyChanged += OnInspectionMotionChanged;
         boltInspector.FrameReady += UpdateLiveImage;
         boltInspector.LiveViewChanged += OnLiveViewChanged;
         CaptureCarrierImagesCommand.PropertyChanged += OnInspectionCommandChanged;
@@ -360,16 +354,17 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             }
 
             var (width, height) = ImageFieldOfView;
-            if (width <= 0 || height <= 0)
+            if (width <= 0 || height <= 0
+                || Motion.Position is not { X: { } x, Y: { } y })
                 return null;
-            var position = Motion.Position;
-            return new Rect(position.X - (width / 2), position.Y - (height / 2), width, height);
+            return new Rect(x - (width / 2), y - (height / 2), width, height);
         }
     }
 
-    private void OnInspectionPositionChanged(double x, double y, double z)
+    private void OnInspectionMotionChanged(object? sender, PropertyChangedEventArgs args)
     {
-        if (PositionUpdatesActive && IsInspectionSelected)
+        if (PositionUpdatesActive && IsInspectionSelected
+            && args.PropertyName == nameof(MotionStatus.Position))
             OnPropertyChanged(nameof(CameraFieldOfView));
     }
 
@@ -378,8 +373,8 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         get
         {
             return (Preview.Image ?? LiveImage ?? CarrierImages.FirstOrDefault()?.Image) is { } image
-                ? _boltInspector.GetFieldOfView((image.PixelWidth, image.PixelHeight))
-                : _boltInspector.FieldOfView;
+                ? Inspector.GetFieldOfView((image.PixelWidth, image.PixelHeight))
+                : Inspector.FieldOfView;
         }
     }
 
@@ -393,8 +388,8 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         CancelTeaching();
 
-        if (IsCameraLive || ToggleLiveViewCommand.IsRunning)
-            _ = StopCameraLiveAsync();
+        if (Inspector.IsLiveView || ToggleLiveViewCommand.IsRunning)
+            _ = RequestCameraStopAsync();
 
         RefreshTeachingPoints();
         ShowRecipeImages();
@@ -472,7 +467,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         CarrierImages = [];
         Preview.Clear();
 
-        _ = StopCameraLiveAsync();
+        _ = RequestCameraStopAsync();
     }
 
     public async Task ShutdownAsync()
@@ -505,10 +500,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 imageUpdate = _liveImageUpdate;
             }
 
-            var cameraStop = _cameraStop;
-            await Task.WhenAll(imageUpdate, _recipeImageUpdate, cameraStop);
-            if (await cameraStop is { } failure)
-                throw failure;
+            await Task.WhenAll(imageUpdate, _recipeImageUpdate, _cameraStop);
         }
     }
 
@@ -621,8 +613,8 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     private void OnRecipeChanged()
     {
         CameraError = null;
-        if (IsCameraLive || ToggleLiveViewCommand.IsRunning)
-            _ = StopCameraLiveAsync();
+        if (Inspector.IsLiveView || ToggleLiveViewCommand.IsRunning)
+            _ = RequestCameraStopAsync();
         SelectedPoint = null;
         if (SelectedPcb == HeatSinkSlot.HeatSink1)
             RefreshTeachingPoints();

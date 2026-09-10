@@ -32,13 +32,14 @@ public sealed class RecipeStore(MachineStore database)
 
     public Task SaveRecipeAsync(Recipe recipe, CancellationToken cancellationToken = default)
     {
-        return SaveRecipeAsync(recipe, recipe.Name, null, cancellationToken);
+        return SaveRecipeAsync(recipe, recipe.Name, null, null, cancellationToken);
     }
 
     internal Task SaveRecipeAsync(
         Recipe recipe,
         string name,
         string? sourceRecipe,
+        RecipeSelectionSettings? selection,
         CancellationToken cancellationToken = default)
     {
         return Task.Run(
@@ -51,6 +52,7 @@ public sealed class RecipeStore(MachineStore database)
                     document,
                     recipe.CarrierImages.Select(tile => tile.Number).ToArray(),
                     sourceRecipe,
+                    selection: selection,
                     cancellationToken: cancellationToken);
             },
             cancellationToken);
@@ -60,6 +62,7 @@ public sealed class RecipeStore(MachineStore database)
         Recipe recipe,
         string name,
         IReadOnlyList<CarrierImageTileView> images,
+        RecipeSelectionSettings selection,
         CancellationToken cancellationToken = default)
     {
         return Task.Run(
@@ -86,6 +89,7 @@ public sealed class RecipeStore(MachineStore database)
                     document,
                     tiles.Select(tile => tile.Number).ToArray(),
                     images: encoded,
+                    selection: selection,
                     cancellationToken: cancellationToken);
                 return tiles;
             },

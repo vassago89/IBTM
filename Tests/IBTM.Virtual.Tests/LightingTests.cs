@@ -187,6 +187,7 @@ public sealed class LightingTests
         try
         {
             await starting.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(inspector.IsLiveView);
             cancellation.Cancel();
         }
         finally
@@ -208,6 +209,7 @@ public sealed class LightingTests
     {
         public event Action<ImageFrame>? FrameReady;
         public event Action<Exception>? LiveViewFailed;
+        public bool IsLiveView { get; private set; }
         public (int Width, int Height) FrameSize { get; } = (1, 1);
         public bool FailInitialize { get; set; }
         public IOException Failure { get; } = new("Camera disconnected.");
@@ -216,6 +218,7 @@ public sealed class LightingTests
         {
             if (FailInitialize)
                 throw Failure;
+            IsLiveView = false;
         }
 
         public ImageFrame Capture(double exposureMicroseconds, double gain)
@@ -225,13 +228,18 @@ public sealed class LightingTests
 
         public void StartLiveView(double exposureMicroseconds, double gain)
         {
+            IsLiveView = true;
             FrameReady?.Invoke(Capture(exposureMicroseconds, gain));
         }
 
-        public void StopLiveView() { }
+        public void StopLiveView()
+        {
+            IsLiveView = false;
+        }
 
         public void FailLiveView()
         {
+            IsLiveView = false;
             LiveViewFailed?.Invoke(Failure);
         }
     }

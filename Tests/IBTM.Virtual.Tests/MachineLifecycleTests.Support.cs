@@ -97,6 +97,11 @@ public sealed partial class MachineLifecycleTests
         {
         }
 
+        public Task<BoltResult?> ReadPendingResultAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<BoltResult?>(null);
+        }
+
         public async Task<BoltResult> TightenAsync(CancellationToken cancellationToken = default)
         {
             Started.SetResult();
@@ -160,6 +165,11 @@ public sealed partial class MachineLifecycleTests
         public void DiscardPendingResult()
         {
         }
+
+        public Task<BoltResult?> ReadPendingResultAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<BoltResult?>(null);
+        }
     }
 
     private static ServiceProvider CreateDisplayServices(out DisplayReadMotion feedback)
@@ -182,13 +192,23 @@ public sealed partial class MachineLifecycleTests
             .BuildServiceProvider();
     }
 
-    public class DisplayReadMotion : DispatchProxy
+    public class DisplayReadMotion : DispatchProxy, IMotionDiagnostics
     {
         public IXyMotion Motion { get; set; } = null!;
 
         public Action? BeforeRead;
         public Action? BeforePositionRead;
         public MotionAxis? LastMovedAxis { get; private set; }
+
+        public AxisState ReadDiagnosticState(MotionAxis axis)
+        {
+            return ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
+        }
+
+        public double ReadDiagnosticPosition(MotionAxis axis)
+        {
+            return ((IMotionDiagnostics)Motion).ReadDiagnosticPosition(axis);
+        }
 
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
         {
@@ -268,7 +288,7 @@ public sealed partial class MachineLifecycleTests
             .BuildServiceProvider();
     }
 
-    public class ScopedMotionProbe : DispatchProxy
+    public class ScopedMotionProbe : DispatchProxy, IMotionDiagnostics
     {
         private bool _initialized;
         public IAxisMotion Motion = null!;
@@ -277,6 +297,21 @@ public sealed partial class MachineLifecycleTests
         public int HardwareCalls;
         public int ResetCalls;
         public Func<AxisState, AxisState>? OverrideState;
+
+        public AxisState ReadDiagnosticState(MotionAxis axis)
+        {
+            if (FailHardwareCalls)
+                throw new IOException("Unavailable diagnostic state.");
+            var state = ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
+            return OverrideState?.Invoke(state) ?? state;
+        }
+
+        public double ReadDiagnosticPosition(MotionAxis axis)
+        {
+            if (FailHardwareCalls)
+                throw new IOException("Unavailable diagnostic position.");
+            return ((IMotionDiagnostics)Motion).ReadDiagnosticPosition(axis);
+        }
 
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
         {

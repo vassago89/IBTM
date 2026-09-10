@@ -140,37 +140,6 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task CarrierScanKeepsSelectionChangedAfterItsImagesWereSaved()
-    {
-        var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.Inspection);
-        settings.CarrierReference.LowerRightLocatingPin = new() { X = 10, Y = 10 };
-        using var services = CreateServices(settings);
-        var machine = services.GetRequiredService<MachineController>();
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
-        await machine.InitializeAsync();
-        await machine.HomeAsync(CancellationToken.None);
-        teaching.RecipeEditor.Name = $"SelectionAfterSave-{Guid.NewGuid():N}";
-        var next = teaching.FilteredPoints.Single(
-            point => point.Position.Target == TeachingTarget.CarrierLowerRightLocatingPin);
-        teaching.RecipeEditor.PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName == nameof(RecipeEditor.ActiveName))
-                teaching.SelectedPoint = next;
-        };
-
-        await WaitUntilAsync(() => teaching.CaptureCarrierImagesCommand.CanExecute(null));
-        await teaching.CaptureCarrierImagesCommand.ExecuteAsync(null);
-
-        Assert.Same(next, teaching.SelectedPoint);
-        Assert.True(teaching.HasCarrierImages);
-        var saved = await services.GetRequiredService<RecipeStore>()
-            .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
-        Assert.Equal(teaching.CarrierImages.Count, saved.CarrierImages.Count);
-        Assert.Null(teaching.CameraError);
-    }
-
-    [Fact]
     public async Task NgTransferResumesCarryingWithoutReturningToPickup()
     {
         var settings = FlowSettings();
@@ -544,7 +513,10 @@ public sealed partial class MachineLifecycleTests
 
         var starting = machine.StartAsync();
         await head.ReadinessEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.True(state.AutomaticRunning);
+        Assert.False(state.AutomaticRunning);
+        Assert.True(state.IsRunning);
+        await WaitUntilAsync(() => io.GetOutput(OutputIo.TowerLampYellow));
+        Assert.False(io.GetOutput(OutputIo.TowerLampGreen));
         Assert.False(machine.CanStart);
         Assert.False(machine.CanHome);
         await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(1));
@@ -558,6 +530,7 @@ public sealed partial class MachineLifecycleTests
         head.ReadinessReleased.TrySetResult();
         var resumed = machine.StartAsync();
         await WaitUntilAsync(() => state.AutomaticRunning);
+        await WaitUntilAsync(() => io.GetOutput(OutputIo.TowerLampGreen));
         machine.Stop();
         await resumed.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(state.IsRunning);

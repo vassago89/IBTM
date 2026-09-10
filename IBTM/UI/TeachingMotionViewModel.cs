@@ -200,19 +200,11 @@ public abstract partial class TeachingMotionViewModel(
     {
     }
 
+    // Concrete views keep command execution and device selection together.
     [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
-    private Task MoveToPointAsync(CancellationToken cancellationToken)
-    {
-        var point = CurrentPoint!;
-        return Machine.RunManualMotionAsync(
-            ActiveMotionGroup,
-            token => MovePointAsync(point, token),
-            cancellationToken,
-            ViewCancellation);
-    }
+    protected abstract Task MoveToPointAsync(CancellationToken cancellationToken);
 
     protected abstract bool CanMoveToPoint();
-    protected abstract Task MovePointAsync(TeachingPoint point, CancellationToken cancellationToken);
 
     protected async Task<bool> SaveSettingsAsync(
         CancellationToken cancellationToken,
@@ -316,31 +308,12 @@ public abstract partial class TeachingMotionViewModel(
     }
 
     [RelayCommand(CanExecute = nameof(CanMoveDirection))]
-    private Task JogAsync(TeachingDirection direction, CancellationToken cancellationToken)
-    {
-        var (axis, sign) = Resolve(direction);
-        return Machine.RunManualMotionAsync(
-            ActiveMotionGroup,
-            token => JogCurrentAsync(axis, sign * JogSpeed, token),
-            cancellationToken,
-            ViewCancellation);
-    }
+    protected abstract Task JogAsync(TeachingDirection direction, CancellationToken cancellationToken);
 
     [RelayCommand(CanExecute = nameof(CanStep))]
-    private Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken)
-    {
-        return Machine.RunManualMotionAsync(
-            ActiveMotionGroup,
-            token =>
-            {
-                var (axis, target) = StepTarget(direction, Motion.Feedback.GetPosition());
-                return MoveCurrentAxisAsync(axis, target, token);
-            },
-            cancellationToken,
-            ViewCancellation);
-    }
+    protected abstract Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken);
 
-    private (MotionAxis Axis, double Position) StepTarget(
+    protected (MotionAxis Axis, double Position) StepTarget(
         TeachingDirection direction,
         (double X, double Y, double Z) current)
     {
@@ -360,13 +333,23 @@ public abstract partial class TeachingMotionViewModel(
         if (!CanMoveDirection(direction))
             return false;
         var position = Motion.Position;
-        var (axis, target) = StepTarget(direction, (position.X, position.Y, position.Z));
+        var (axis, sign) = Resolve(direction);
+        var current = axis switch
+        {
+            MotionAxis.X => position.X,
+            MotionAxis.Y => position.Y,
+            MotionAxis.Z => position.Z,
+            _ => null,
+        };
+        if (current is null)
+            return false;
+        var target = current.Value + sign * StepDistance;
         return Motion.Feedback.GetRange(axis) is not { } range
             || target >= range.Minimum
             && target <= range.Maximum;
     }
 
-    private static (MotionAxis Axis, int Sign) Resolve(TeachingDirection direction)
+    protected static (MotionAxis Axis, int Sign) Resolve(TeachingDirection direction)
     {
         return direction switch
         {
@@ -400,26 +383,7 @@ public abstract partial class TeachingMotionViewModel(
     protected abstract void NotifyManualTeachingCommands();
 
     [RelayCommand(CanExecute = nameof(CanJogZ))]
-    private Task MoveToHorizontalZAsync(CancellationToken cancellationToken)
-    {
-        return Machine.RunManualMotionAsync(
-            ActiveMotionGroup,
-            MoveCurrentToHorizontalZAsync,
-            cancellationToken,
-            ViewCancellation);
-    }
-
-    protected abstract Task JogCurrentAsync(
-        MotionAxis axis,
-        double velocity,
-        CancellationToken cancellationToken);
-
-    protected abstract Task MoveCurrentToHorizontalZAsync(CancellationToken cancellationToken);
-
-    protected abstract Task MoveCurrentAxisAsync(
-        MotionAxis axis,
-        double position,
-        CancellationToken cancellationToken);
+    protected abstract Task MoveToHorizontalZAsync(CancellationToken cancellationToken);
 
     protected void CancelTeaching()
     {

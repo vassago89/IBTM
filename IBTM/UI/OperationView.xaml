@@ -119,7 +119,7 @@
                                           Visibility="{Binding SupplyPositionKnown, Converter={StaticResource BoolToVis}}"
                                           Width="42" Height="18">
                                         <Grid.RenderTransform>
-                                            <TranslateTransform Y="{Binding PcbSupplyZTop}"/>
+                                            <TranslateTransform Y="{Binding PcbSupplyZTop, TargetNullValue=0}"/>
                                         </Grid.RenderTransform>
                                         <Border Width="42"
                                                 Tag="{Binding Supply.Motion.IsMoving}"
@@ -163,7 +163,7 @@
                                           Visibility="{Binding PlacementPositionKnown, Converter={StaticResource BoolToVis}}"
                                           Width="42" Height="18">
                                         <Grid.RenderTransform>
-                                            <TranslateTransform Y="{Binding PcbPlacementZTop}"/>
+                                            <TranslateTransform Y="{Binding PcbPlacementZTop, TargetNullValue=0}"/>
                                         </Grid.RenderTransform>
                                         <Border Width="42"
                                                 Tag="{Binding Placement.Motion.IsMoving}"
@@ -177,7 +177,7 @@
                                                 VerticalAlignment="Bottom"
                                                 Background="{StaticResource MaterialPcbBrush}"
                                                 CornerRadius="1"
-                                                Visibility="{Binding PcbPlacementPcbSecured,
+                                                Visibility="{Binding Placement.PcbSecured,
                                                                      Converter={StaticResource BoolToVis}}"/>
                                     </Grid>
                                 </Grid>
@@ -208,7 +208,7 @@
                                           Visibility="{Binding FasteningPositionKnown, Converter={StaticResource BoolToVis}}"
                                           Width="68" Height="18">
                                         <Grid.RenderTransform>
-                                            <TranslateTransform Y="{Binding BoltFasteningZTop}"/>
+                                            <TranslateTransform Y="{Binding BoltFasteningZTop, TargetNullValue=0}"/>
                                         </Grid.RenderTransform>
                                         <Border Width="68"
                                                 Tag="{Binding Fastening.Motion.IsMoving}"

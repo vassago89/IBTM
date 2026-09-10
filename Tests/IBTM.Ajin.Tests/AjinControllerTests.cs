@@ -125,6 +125,7 @@ public sealed class AjinControllerTests
         Assert.Equal(12.34, status.MonitorAxes[MotionAxis.X].Snapshot.Position);
         Assert.False(status.MonitorAxes[MotionAxis.Y].Snapshot.State!.Value.ServoOn);
         Assert.Equal(-5.67, status.MonitorAxes[MotionAxis.Y].Snapshot.Position);
+        Assert.Equal(new MotionPosition(12.34, -5.67, null), status.Position);
 
         var stateRead = new AjinSdk.Call(nameof(CAXM.AxmStatusReadMechanical), Axis: 9);
         var positionRead = new AjinSdk.Call(nameof(CAXM.AxmStatusGetActPos), Axis: 10);
@@ -144,6 +145,7 @@ public sealed class AjinControllerTests
         Assert.Contains("axis=9", status.MonitorAxes[MotionAxis.X].Snapshot.ReadError!.Message);
         Assert.NotNull(status.MonitorAxes[MotionAxis.Y].Snapshot.State);
         Assert.Null(status.MonitorAxes[MotionAxis.Y].Snapshot.Position);
+        Assert.Equal(new MotionPosition(12.34, null, null), status.Position);
 
         AjinSdk.Results.Clear();
         AjinSdk.MotionAxes[10] = AjinSdk.MotionAxes[10] with { Position = -5.67, Unit = 1, Pulse = 100 };
@@ -190,10 +192,11 @@ public sealed class AjinControllerTests
 
         motion.Initialize();
         motion.Initialize();
+        status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
 
         Assert.True(motion.IsReady);
-        Assert.Equal(new MotionPosition(12.34, -5.67, 0), status.Position);
+        Assert.Equal(new MotionPosition(12.34, -5.67, null), status.Position);
         Assert.Equal(AxisCondition.Alarm, status.Axes[MotionAxis.X].Condition);
         Assert.True(status.Axes[MotionAxis.X].State!.Value.HomeSensor);
         Assert.Equal(AxisCondition.ServoOff, status.Axes[MotionAxis.Y].Condition);
@@ -208,7 +211,7 @@ public sealed class AjinControllerTests
         status.RefreshControlFeedback();
         Assert.True(motion.IsReady); // An operator command failure must not hide feedback.
         Assert.Equal(AxisCondition.Alarm, status.Axes[MotionAxis.X].Condition);
-        Assert.Equal(new MotionPosition(12.34, -5.67, 0), status.Position);
+        Assert.Equal(new MotionPosition(12.34, -5.67, null), status.Position);
 
         var reset = new AjinSdk.Call(nameof(CAXM.AxmSignalServoAlarmReset), Value: 1, Axis: 9);
         AjinSdk.Results[reset] = (uint)AXT_FUNC_RESULT.AXT_RT_MOTION_ERROR_IN_ALARM;

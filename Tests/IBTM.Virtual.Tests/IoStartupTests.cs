@@ -95,6 +95,64 @@ public sealed class IoStartupTests
         }
     }
 
+    [Theory]
+    [InlineData(OutputIo.MainConveyorRun)]
+    [InlineData(OutputIo.NgConveyorRun)]
+    public async Task ManualConveyorReadFailureWaitsForDeviceCleanup(OutputIo output)
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var operations = services.GetRequiredService<OperationCancellation>();
+        var io = services.GetRequiredService<StartupIo>();
+        var outputs = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await state.StopDisplayUpdatesAsync(); // Isolate the command's output read.
+        outputs.AutoResponseEnabled = false;
+        var readFailure = new IOException("Manual RUN output read failed.");
+        var cleanupOutput = output == OutputIo.MainConveyorRun
+            ? OutputIo.MainConveyorAvailableToRear
+            : OutputIo.NgCarrierEjectCompleteLamp;
+        var cleanupReached = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var releaseCleanup = new ManualResetEventSlim();
+        var started = false;
+        var cleanupWrites = 0;
+        io.BeforeOutputWrite = (signal, value) =>
+        {
+            if (signal == output && value)
+                started = true;
+            if (started && signal == cleanupOutput && !value)
+            {
+                Interlocked.Increment(ref cleanupWrites);
+                cleanupReached.TrySetResult();
+                Assert.True(releaseCleanup.Wait(TimeSpan.FromSeconds(2)));
+            }
+        };
+        io.OutputReadError = readFailure;
+        var run = Task.Run(() => machine.RunManualConveyorAsync(output, CancellationToken.None));
+        try
+        {
+            await cleanupReached.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(outputs.GetOutput(output));
+            Assert.False(run.IsCompleted);
+            Assert.True(operations.HasActiveOperations);
+            releaseCleanup.Set();
+            Assert.Same(
+                readFailure,
+                await Assert.ThrowsAsync<IOException>(() => run.WaitAsync(TimeSpan.FromSeconds(2))));
+            Assert.Equal(1, cleanupWrites);
+            Assert.False(operations.HasActiveOperations);
+            Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
+        }
+        finally
+        {
+            releaseCleanup.Set();
+            io.BeforeOutputWrite = null;
+            io.OutputReadError = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public void StateQueriesBeforeInitializationDoNotReadOutputs()
     {
@@ -133,9 +191,13 @@ public sealed class IoStartupTests
         await machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(2));
 
         AssertUnavailable(state, error);
-        Assert.Contains(
-            services.GetRequiredService<ApplicationLog>().Snapshot(),
-            entry => entry.Level == "ERROR" && entry.Detail?.Contains(error.Message) == true);
+        var log = services.GetRequiredService<ApplicationLog>();
+        var detail = Assert.Single(log.Snapshot(), entry => entry.Detail?.Contains(error.Message) == true);
+        Assert.Equal("Machine alarm: IoCommunication.", detail.Message);
+        Assert.Equal(error.ToString(), detail.Detail);
+        var stage = failCheckReady ? "Control I/O readiness check" : "Control I/O initialization";
+        Assert.Contains(log.Snapshot(), entry => entry.Message == $"{stage} failed. {error.Message}"
+            && entry.Detail is null);
         Assert.True(machine.CanReset);
         Assert.False(machine.CanStart);
         Assert.False(machine.CanHome);
@@ -145,6 +207,14 @@ public sealed class IoStartupTests
             output => Assert.Null(output.IsOn));
         Assert.Equal(0, io.ReadsWhileUnavailable);
         Assert.Equal(0, io.WritesWhileUnavailable);
+
+        var resetError = new IOException("Control initialization failed again during RESET.");
+        io.InitializationError = resetError;
+        await machine.ResetAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        AssertUnavailable(state, error);
+        var resetDetail = Assert.Single(log.Snapshot(), entry => entry.Detail?.Contains(resetError.Message) == true);
+        Assert.Equal("Machine alarm remains: IoCommunication.", resetDetail.Message);
+        Assert.Equal(resetError.ToString(), resetDetail.Detail);
 
         io.InitializationError = null;
         await machine.ResetAsync().WaitAsync(TimeSpan.FromSeconds(2));

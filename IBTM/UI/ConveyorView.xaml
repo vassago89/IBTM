@@ -53,7 +53,7 @@
                                         <DataTrigger Binding="{Binding Units.MainConveyor}" Value="False">
                                             <Setter Property="Opacity" Value="0.55"/>
                                         </DataTrigger>
-                                        <DataTrigger Binding="{Binding State.Display.ConveyorRunning}" Value="True">
+                                        <DataTrigger Binding="{Binding MainConveyorRun.IsOn}" Value="True">
                                             <Setter Property="Foreground"
                                                     Value="{StaticResource AccentBlueBrush}"/>
                                         </DataTrigger>
@@ -67,7 +67,7 @@
 
             <Border Canvas.Left="18" Canvas.Top="64"
                     Width="1516" Height="112"
-                    Tag="{Binding State.Display.ConveyorRunning}"
+                    Tag="{Binding MainConveyorRun.IsOn}"
                     Style="{StaticResource ConveyorBedStyle}"/>
 
             <TextBlock Canvas.Left="{x:Static ui:MachinePlan.FirstPlateLeft}" Canvas.Top="{x:Static ui:MachinePlan.StationLabelTop}"
@@ -87,7 +87,7 @@
                        Style="{StaticResource EquipmentRoleLabelStyle}"/>
 
             <Ellipse Canvas.Left="160" Canvas.Top="108"
-                     Tag="{Binding MainConveyorEntryCarrierDetected}"
+                     Tag="{Binding Conveyor.EntryCarrierDetected}"
                      ToolTip="Entry carrier sensor"
                      Style="{StaticResource MainConveyorSensorStyle}"/>
             <TextBlock Canvas.Left="150" Canvas.Top="137"
@@ -106,7 +106,7 @@
                             Pcb2Placed="{Binding PcbPlacementHeatSink2Completed}"
                             ShowPcbSlots="True"
                             ActiveHeatSink="{Binding State.Display.PlacementTarget}"
-                            Visibility="{Binding PcbPlacementCarrierPresent, Converter={StaticResource BoolToVis}}"/>
+                            Visibility="{Binding PcbPlacementWork.CarrierPresent, Converter={StaticResource BoolToVis}}"/>
             <Border Canvas.Left="{x:Static ui:MachinePlan.PlacementStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
                      Tag="{Binding PcbPlacementStopperUp}"
                      ToolTip="Placement stopper"
@@ -121,7 +121,7 @@
                             HeatSink1Result="{Binding BoltFasteningHeatSink1Result}"
                             HeatSink2Result="{Binding BoltFasteningHeatSink2Result}"
                             BoltTargets="{Binding BoltTargets}"
-                            Visibility="{Binding BoltFasteningCarrierPresent, Converter={StaticResource BoolToVis}}"/>
+                            Visibility="{Binding BoltFasteningWork.CarrierPresent, Converter={StaticResource BoolToVis}}"/>
             <Border Canvas.Left="{x:Static ui:MachinePlan.FasteningStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
                      Tag="{Binding BoltFasteningStopperUp}"
                      ToolTip="Bolt fastening stopper"
@@ -139,13 +139,13 @@
                             HeatSink2Result="{Binding InspectionHeatSink2Result}"
                             ActiveHeatSink="{Binding InspectionActivePcb}"
                             BoltTargets="{Binding InspectionTargets}"
-                            Visibility="{Binding InspectionCarrierPresent, Converter={StaticResource BoolToVis}}"/>
+                            Visibility="{Binding InspectionWork.CarrierPresent, Converter={StaticResource BoolToVis}}"/>
             <Border Canvas.Left="{x:Static ui:MachinePlan.InspectionStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
                      Tag="{Binding InspectionStopperUp}"
                      ToolTip="Inspection stopper"
                      Style="{StaticResource StopperVisualStyle}"/>
             <Ellipse Canvas.Left="1368" Canvas.Top="108"
-                     Tag="{Binding MainConveyorExitCarrierDetected}"
+                     Tag="{Binding Conveyor.ExitCarrierDetected}"
                      ToolTip="Exit carrier sensor"
                      Style="{StaticResource MainConveyorSensorStyle}"/>
             <TextBlock Canvas.Left="1358" Canvas.Top="137"

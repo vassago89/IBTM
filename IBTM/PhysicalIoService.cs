@@ -87,7 +87,7 @@ public sealed class PhysicalIoService(
             }
             catch (Exception exception)
             {
-                log?.Error($"{stage} failed. Input scan is not running.", exception);
+                log?.Error($"{stage} failed. Input scan is not running. {exception.Message}");
                 throw;
             }
         }
@@ -122,7 +122,7 @@ public sealed class PhysicalIoService(
             catch (Exception exception)
             {
                 _ready = false;
-                log?.Error("Control I/O readiness check failed.", exception);
+                log?.Error($"Control I/O readiness check failed. {exception.Message}");
                 throw;
             }
         }

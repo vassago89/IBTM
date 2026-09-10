@@ -85,14 +85,15 @@ public sealed partial class MachineLifecycleTests
         using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
         teaching.SelectedMotionGroup = MotionGroup.InspectionGantry;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
-        await machine.InitializeAsync();
-        await machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
         var point = teaching.SelectedPoint;
+        Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
         var before = (point.X, point.Y, point.Z);
         if (savePosition)
             feedback.BeforePositionRead = () => throw new IOException("Teaching feedback read failed.");
@@ -125,9 +126,9 @@ public sealed partial class MachineLifecycleTests
         using var services = CreateDisplayServices(out var feedback);
         var machine = services.GetRequiredService<MachineController>();
         var gantry = services.GetRequiredService<InspectionGantry>();
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
+        var teaching = services.GetRequiredService<StationTeachingViewModel>();
         await gantry.MoveToAsync(new() { X = 10, Y = 20 }, 10_000);
         teaching.StepDistance = 0.1;
         await WaitUntilAsync(() => teaching.StepCommand.CanExecute(direction));
@@ -234,7 +235,7 @@ public sealed partial class MachineLifecycleTests
             await WaitUntilAsync(() => gantry.Feedback.IsMoving);
             Assert.False(teaching.ToggleLiveViewCommand.CanExecute(null));
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
-            Assert.False(teaching.IsCameraLive);
+            Assert.False(teaching.Inspector.IsLiveView);
             if (closeTeaching)
                 await teaching.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(2));
             else
@@ -289,6 +290,7 @@ public sealed partial class MachineLifecycleTests
         var handler = services.GetRequiredService<PcbSupplyHandler>();
         var rotation = teaching.TeachingOutputs[OutputIo.PcbSupplyRotate];
         await handler.MoveTeachingZAsync(5);
+        await WaitUntilAsync(() => teaching.SetOutputOffCommand.CanExecute(rotation));
         await teaching.SetOutputOffCommand.ExecuteAsync(rotation);
         Assert.Equal(0, handler.Feedback.GetPosition().Z);
         Assert.Equal(PcbSupplyRotationState.Unrotated, handler.Rotation);
@@ -689,7 +691,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(10, stopped.Z);
         Assert.True(io.GetInput(InputIo.PickupHeadDown));
         Assert.True(io.GetInput(InputIo.ShootingHeadDown));
-        Assert.False(state.IsRunning);
+        await WaitUntilAsync(() => !state.IsRunning);
         Assert.Equal(MachineAlarm.None, state.Alarm);
         await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.MoveToXYAsync(30, 30));
         await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.HomeHorizontalAsync());

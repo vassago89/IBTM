@@ -24,7 +24,6 @@ public sealed class BoltInspector
     private readonly Func<PcbLayout> getPcb;
     private readonly Func<double> getMillimetersPerPixel;
     private readonly SemaphoreSlim _visionGate = new(1, 1);
-    private volatile bool _isLiveView;
     private int? _lightChannel;
 
     public BoltInspector(
@@ -59,7 +58,7 @@ public sealed class BoltInspector
     {
         get
         {
-            return _isLiveView;
+            return camera.IsLiveView;
         }
     }
 
@@ -95,7 +94,6 @@ public sealed class BoltInspector
     {
         // Recovery does not require a successful OFF on a disconnected device.
         // Each driver first restores its connection; camera initialization leaves acquisition stopped.
-        SetLiveViewState(false);
         Exception? failure = null;
         try
         {
@@ -117,7 +115,7 @@ public sealed class BoltInspector
             failure = failure is null ? exception : new AggregateException(failure, exception);
         }
 
-        SetLiveViewState(false, failure);
+        PublishLiveView(failure);
         if (failure is not null)
             ExceptionDispatchInfo.Throw(failure);
     }
@@ -369,7 +367,7 @@ public sealed class BoltInspector
         {
             var cancelled = exception is OperationCanceledException
                 && cancellationToken.IsCancellationRequested;
-            SetLiveViewState(false, cancelled ? null : exception);
+            PublishLiveView(cancelled ? null : exception);
             throw;
         }
         finally
@@ -384,7 +382,6 @@ public sealed class BoltInspector
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            SetLiveViewState(true);
             TurnLightOn(lightingSettings.InspectionChannel);
             cancellationToken.ThrowIfCancellationRequested();
             var recipe = getRecipe();
@@ -392,6 +389,7 @@ public sealed class BoltInspector
             cancellationToken.ThrowIfCancellationRequested();
             if (LiveViewError is { } failure)
                 ExceptionDispatchInfo.Throw(failure);
+            LiveViewChanged?.Invoke();
         }
         catch (Exception failure)
         {
@@ -414,11 +412,6 @@ public sealed class BoltInspector
         {
             await Task.Run(StopLiveView).ConfigureAwait(false);
         }
-        catch (Exception exception)
-        {
-            SetLiveViewState(false, exception);
-            throw;
-        }
         finally
         {
             _visionGate.Release();
@@ -427,7 +420,6 @@ public sealed class BoltInspector
 
     private void StopLiveView()
     {
-        SetLiveViewState(false);
         Exception? failure = null;
         try
         {
@@ -436,13 +428,21 @@ public sealed class BoltInspector
         catch (Exception exception)
         {
             failure = exception;
-            throw;
         }
-        finally
+
+        try
         {
             if (_lightChannel is { } channel)
                 TurnLightOff(channel, failure);
         }
+        catch (Exception exception)
+        {
+            failure = exception;
+        }
+
+        PublishLiveView(failure);
+        if (failure is not null)
+            ExceptionDispatchInfo.Throw(failure);
     }
 
     private void OnCameraLiveViewFailed(Exception failure)
@@ -458,17 +458,13 @@ public sealed class BoltInspector
         {
             failure = cleanupFailure;
         }
-        SetLiveViewState(false, failure);
+        PublishLiveView(failure);
         Trace.TraceError("Inspection live view failed. {0}", failure);
     }
 
-    private void SetLiveViewState(bool live, Exception? failure = null)
+    private void PublishLiveView(Exception? failure = null)
     {
-        if (_isLiveView == live && ReferenceEquals(LiveViewError, failure))
-            return;
-
         LiveViewError = failure;
-        _isLiveView = live;
         LiveViewChanged?.Invoke();
     }
 

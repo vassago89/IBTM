@@ -383,6 +383,7 @@ public sealed partial class MachineController
         finally
         {
             await Task.WhenAll(shutdown, displayStopped, _boltInspector.StopLiveViewAsync());
+            _state.UpdateMachineIndicators();
         }
     }
 
@@ -1271,7 +1272,6 @@ public sealed partial class MachineController
         }
 
         using var operation = _operations.Link(cancellationToken);
-        _state.SetAutomaticRunning(true);
         void StopWhenOperationBecomesUnavailable()
         {
             if (_state.IsError)
@@ -1408,6 +1408,7 @@ public sealed partial class MachineController
                 }
             }
 
+            _state.SetAutomaticRunning(true);
             StartUnit(
                 _units.MainConveyor,
                 MachineAlarm.MainConveyor,
@@ -1490,7 +1491,7 @@ public sealed partial class MachineController
         }
         catch (Exception exception)
         {
-            _log?.Error(stage + " failed.", exception);
+            _log?.Error($"{stage} failed. {exception.Message}");
             return (MachineAlarm.IoCommunication, exception);
         }
 
@@ -1542,7 +1543,7 @@ public sealed partial class MachineController
         }
         catch (Exception exception)
         {
-            _log?.Error(stage + " failed.", exception);
+            _log?.Error($"{stage} failed. {exception.Message}");
             return (MachineAlarm.MotionUnavailable, exception);
         }
 
@@ -1561,7 +1562,7 @@ public sealed partial class MachineController
             }
             catch (Exception exception)
             {
-                _log?.Error("Vision / lighting initialization failed.", exception);
+                _log?.Error($"Vision / lighting initialization failed. {exception.Message}");
                 return (MachineAlarm.Inspection, exception);
             }
         }
@@ -1581,7 +1582,7 @@ public sealed partial class MachineController
             }
             catch (Exception exception)
             {
-                _log?.Error("Bolt controller readiness check failed.", exception);
+                _log?.Error($"Bolt controller readiness check failed. {exception.Message}");
                 return (MachineAlarm.BoltFastening, exception);
             }
         }

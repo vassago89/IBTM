@@ -14,6 +14,8 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
 {
     private static readonly MvGvspPixelType OutputPixelType = MvGvspPixelType.PixelType_Gvsp_BGR8_Packed;
 
+    // Device selection changes apply after restart, not during connection recovery.
+    private readonly string _deviceId = settings.DeviceId;
     private readonly object _grabGate = new();
     private IDevice? _device;
     private IStreamGrabber? _streamGrabber;
@@ -24,6 +26,14 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
 
     public event Action<ImageFrame>? FrameReady;
     public event Action<Exception>? LiveViewFailed;
+    public bool IsLiveView
+    {
+        get
+        {
+            return _liveView && _liveThread?.IsAlive == true;
+        }
+    }
+
     public (int Width, int Height) FrameSize { get; private set; }
 
     public void Initialize()
@@ -63,9 +73,9 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
                 .SingleOrDefault(
                     device => string.Equals(
                         device.SerialNumber,
-                        settings.DeviceId,
+                        _deviceId,
                         StringComparison.OrdinalIgnoreCase)) ?? throw new InvalidOperationException(
-                            $"Hik camera '{settings.DeviceId}' was not found.");
+                            $"Hik camera '{_deviceId}' was not found.");
 
             _device = DeviceFactory.CreateDevice(deviceInfo);
             try
@@ -106,6 +116,7 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
             var stream = _streamGrabber!;
             ApplyExposureAndGain(device, exposureMicroseconds, gain);
             StartGrabbing();
+            ImageFrame? image = null;
             Exception? failure = null;
             try
             {
@@ -114,24 +125,25 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
                         checked((uint)settings.FrameTimeoutMilliseconds),
                         out var frameOut),
                     "Get single Hik frame");
-                return CopyAndReleaseFrame(device, stream, frameOut)!;
+                image = CopyAndReleaseFrame(device, stream, frameOut);
             }
             catch (Exception exception)
             {
                 failure = exception;
-                throw;
             }
-            finally
+
+            try
             {
-                try
-                {
-                    StopGrabbing();
-                }
-                catch (Exception cleanupFailure) when (failure is not null)
-                {
-                    throw new AggregateException(failure, cleanupFailure);
-                }
+                StopGrabbing();
             }
+            catch (Exception cleanupFailure) when (failure is not null)
+            {
+                throw new AggregateException(failure, cleanupFailure);
+            }
+
+            if (failure is not null)
+                ExceptionDispatchInfo.Throw(failure);
+            return image!;
         }
     }
 
@@ -224,19 +236,19 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
         {
             failure = exception;
         }
+
+        try
+        {
+            StopGrabbing();
+        }
+        catch (Exception exception)
+        {
+            failure = failure is null
+                ? exception
+                : new AggregateException(failure, exception);
+        }
         finally
         {
-            try
-            {
-                StopGrabbing();
-            }
-            catch (Exception exception)
-            {
-                failure = failure is null
-                    ? exception
-                    : new AggregateException(failure, exception);
-            }
-
             _liveView = false;
         }
 

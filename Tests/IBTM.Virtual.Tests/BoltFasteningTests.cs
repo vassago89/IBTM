@@ -34,6 +34,50 @@ public sealed class BoltFasteningTests
             () => AdcBus.VerifyConnectionSettings(port, "COM4", 9600));
     }
 
+    [Fact]
+    public async Task AdcConnectionEditsApplyWhenHeadsAreRecreated()
+    {
+        var settings = new HantasSettings { PortName = "Virtual", BaudRate = 19200 };
+        var bus = new VirtualAdcBus();
+        var pickup = new AdcBoltHead(bus, settings, settings.PickupSlaveAddress);
+        var shooting = new AdcBoltHead(bus, settings, settings.ShootingSlaveAddress);
+        byte expectedSlave = 0;
+        var expectedBaudRate = 19200;
+        bus.FrameTransferred += (direction, frame) =>
+        {
+            if (direction == AdcFrameDirection.Transmit)
+            {
+                Assert.Equal(expectedSlave, frame[0]);
+                Assert.Equal(expectedBaudRate, bus.BaudRate);
+            }
+        };
+
+        await pickup.CheckReadyAsync();
+        settings.PortName = "COM5";
+        settings.BaudRate = 115200;
+        settings.PickupSlaveAddress = 2;
+        settings.ShootingSlaveAddress = 3;
+
+        foreach (var head in new[] { pickup, shooting })
+        {
+            await head.CheckReadyAsync();
+            await head.ResetAsync();
+            bus.Close();
+            await head.ResetAsync();
+            expectedSlave++;
+        }
+
+        bus.Close();
+        expectedBaudRate = settings.BaudRate;
+        pickup = new AdcBoltHead(bus, settings, settings.PickupSlaveAddress);
+        shooting = new AdcBoltHead(bus, settings, settings.ShootingSlaveAddress);
+        foreach (var head in new[] { pickup, shooting })
+        {
+            await head.CheckReadyAsync();
+            expectedSlave++;
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -458,27 +502,41 @@ public sealed class BoltFasteningTests
         Assert.True((await selected.TightenAsync()).Success);
     }
 
-    [Fact]
-    public async Task CancelledFasteningDoesNotCompleteAndPreservesTheNextResult()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InterruptedFasteningStopsAndPreservesTheNextResult(bool timedOut)
     {
         IAdcBus bus = new VirtualAdcBus();
-        var head = new AdcBoltHead(bus, new HantasSettings(), 1);
+        var settings = new HantasSettings();
+        var head = new AdcBoltHead(bus, settings, 1);
         await head.SelectPresetAsync(3);
         Assert.True((await head.TightenAsync()).Success);
         using var stop = new CancellationTokenSource();
+        if (timedOut)
+            settings.FasteningTimeoutMilliseconds = 20;
         var tightening = head.TightenAsync(stop.Token);
 
         Assert.True(head.HasPendingResult);
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
         ((VirtualAdcBus)bus).SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
-        stop.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tightening);
+        if (timedOut)
+        {
+            await Assert.ThrowsAsync<TimeoutException>(() => tightening);
+        }
+        else
+        {
+            stop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tightening);
+        }
 
+        Assert.Null(await head.ReadPendingResultAsync());
         await Task.Delay(300);
         Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
         Assert.True(head.HasPendingResult);
         Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
 
+        settings.FasteningTimeoutMilliseconds = 15_000;
         Assert.False((await head.TightenAsync()).Success);
         var completed = await bus.ReadFasteningResultAsync(1);
         Assert.Equal(2, completed.EventCount);
@@ -534,6 +592,151 @@ public sealed class BoltFasteningTests
         Assert.True(firstBolt);
         Assert.True(nextBolt);
         Assert.False(io.GetOutput(OutputIo.ShootingFeederRunSignal));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task FasteningResumeKeepsTheResultWithItsCarrierBoltAndPass(
+        bool replaceCarrier,
+        bool markCompleted)
+    {
+        var settings = new BoltFasteningSettings
+        {
+            SafeZ = 0,
+            PickupHead = HeadSettings(),
+            ShootingHead = HeadSettings(),
+        };
+        var io = new VirtualIoService(
+            Outputs(new BoltFasteningHardwareSettings(), new ConveyorHardwareSettings()),
+            new MachineOptions()) { AutoResponseEnabled = false };
+        using var motion = Motion(settings.Motion, new());
+        motion.Initialize();
+        await HomeAsync(motion, 20_000);
+        var bus = new VirtualAdcBus();
+        var pickupHead = new AdcBoltHead(bus, new HantasSettings(), 1);
+        var gantry = new BoltFasteningGantry(
+            new AdcBoltHead(bus, new HantasSettings(), 2),
+            pickupHead,
+            io,
+            motion,
+            settings,
+            new CarrierReferenceSettings
+            {
+                UpperLeftLocatingPin = new(),
+                LowerRightLocatingPin = new() { X = 100 },
+            });
+        var work = new BoltFasteningWork(ConveyorStation.BoltFastening(io));
+        var layout = new PcbLayout
+        {
+            Width = 50,
+            Height = 50,
+            Origins = new() { [HeatSinkSlot.HeatSink1] = new() },
+            BoltPoints = [Bolt(1, FasteningHead.Pickup, 0, 0)],
+        };
+        var station = new BoltFasteningStation(
+            gantry,
+            work,
+            new PickupBoltFeeder(io, new()),
+            new ShootingBoltFeeder(io, new()),
+            () => layout);
+        io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+        io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
+        io.SetInput(InputIo.BoltFasteningStopperDown, true);
+        io.SetInput(InputIo.ShootingHeadUp, true);
+        io.SetInput(InputIo.PickupHeadDown, true);
+        io.SetInput(InputIo.PickupHeadVacuumDetected, true);
+        var originalAssembly = work.Assembly(HeatSinkSlot.HeatSink1);
+        originalAssembly.RecordIpmSeating(1, new(true, 1));
+        Assert.Equal(BoltFasteningState.FinalizingIpm, station.State());
+
+        var responseError = new IOException("Completed fastening response lost.");
+        var loseResult = true;
+        var starts = 0;
+        using var resumedStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var resuming = false;
+        bus.FrameTransferred += (direction, frame) =>
+        {
+            if (direction == AdcFrameDirection.Receive
+                && frame[1] == (byte)AdcFunctionCode.ReadInputRegisters
+                && frame[2] == AdcFasteningResult.RegisterCount * 2
+                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(3)) != 0)
+            {
+                if (loseResult)
+                {
+                    loseResult = false;
+                    throw responseError;
+                }
+
+                if (resuming
+                    && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(3)) == (replaceCarrier ? 2 : 1))
+                {
+                    resumedStop.Cancel();
+                }
+            }
+
+            if (direction == AdcFrameDirection.Transmit
+                && frame[1] == (byte)AdcFunctionCode.WriteSingleRegister
+                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcRemoteRegister.RemoteStart)
+            {
+                if (BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) != 0)
+                    starts++;
+                else if (resuming)
+                    resumedStop.Cancel();
+            }
+        };
+        bus.SetNextFasteningResult(1, AdcEventStatus.FasteningNg);
+        using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        Assert.Same(responseError, await Assert.ThrowsAsync<IOException>(
+            () => station.RunAsync(new(), firstStop.Token)));
+        Assert.True(pickupHead.HasPendingResult);
+        Assert.Empty(originalAssembly.IpmFinalResults);
+        Assert.False((await ((IAdcBus)bus).ReadControllerStatusAsync(1)).Running);
+
+        if (replaceCarrier)
+        {
+            io.SetInput(InputIo.BoltFasteningCarrierPresent, false);
+            io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+            work.Assembly(HeatSinkSlot.HeatSink1).RecordIpmSeating(1, new(true, 1));
+        }
+        else
+        {
+            // Changing an earlier pass must not reassign the outstanding final-pass result.
+            station.PrepareRecovery([
+                (HeatSinkSlot.HeatSink1, 1, FasteningPass.IpmSeating, false),
+                (HeatSinkSlot.HeatSink1, 1, FasteningPass.IpmFinal, markCompleted),
+            ]);
+            Assert.Equal(!markCompleted, pickupHead.HasPendingResult);
+            if (markCompleted)
+            {
+                Assert.Equal(BoltResultSource.Manual, originalAssembly.IpmFinalResults[1].Source);
+                Assert.NotEqual(BoltFasteningState.FinalizingIpm, station.State());
+                return;
+            }
+
+            io.SetInput(InputIo.PickupHeadDown, false);
+            io.SetInput(InputIo.PickupHeadUp, true);
+            Assert.Equal(BoltFasteningState.LoweringForIpmFinal, station.State());
+            Assert.Equal(1, station.ActiveBolt()!.Number);
+        }
+
+        resuming = true;
+        await station.RunAsync(new(), resumedStop.Token);
+        var assembly = work.Assembly(HeatSinkSlot.HeatSink1);
+        Assert.Equal(replaceCarrier, assembly.IpmFinalResults[1].Success);
+        Assert.Equal(replaceCarrier ? 2 : 1, starts);
+        Assert.False(pickupHead.HasPendingResult);
+        if (replaceCarrier)
+        {
+            Assert.NotSame(originalAssembly, assembly);
+            Assert.Empty(originalAssembly.IpmFinalResults);
+        }
+        else
+        {
+            Assert.Empty(assembly.IpmSeatingResults);
+        }
     }
 
     [Trait("Category", "MachineFlow")]

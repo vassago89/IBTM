@@ -433,6 +433,7 @@ public sealed class InspectionTests
         Func<(double X, double Y, double Z)> position,
         AxisPosition missingPosition) : ICamera
     {
+        public bool IsLiveView { get; }
         public Action? AfterCapture { get; set; }
 
         public (int Width, int Height) FrameSize

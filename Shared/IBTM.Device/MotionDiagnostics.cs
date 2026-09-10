@@ -76,7 +76,9 @@ public sealed class MotionDiagnostics : INotifyPropertyChanged
         }
         catch (Exception exception) when (IsReadFailure(exception))
         {
-            error ??= exception;
+            error = error is null
+                ? exception
+                : new AggregateException(error, exception);
         }
 
         Update(new(state, position, error));

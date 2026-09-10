@@ -17,6 +17,23 @@ public sealed class BoltFasteningStation(
     Func<PcbLayout> getPcb) : AutoUnit
 {
     private HeatSinkSlot[]? _runTargets;
+    // The result belongs to this bolt/pass, even after STOP or a recovery edit.
+    private PendingFastening? _pendingFastening;
+
+    private sealed record PendingFastening(BoltTarget Bolt, HeatSinkAssembly Assembly, FasteningPass Pass);
+
+    private PendingFastening? PendingResult
+    {
+        get
+        {
+            var pending = _pendingFastening;
+            return pending is not null
+                && work.CarrierPresent
+                && work.Assemblies.Contains(pending.Assembly)
+                ? pending
+                : null;
+        }
+    }
 
     public override event Action? Changed
     {
@@ -40,8 +57,17 @@ public sealed class BoltFasteningStation(
     public void PrepareRecovery(
         IEnumerable<(HeatSinkSlot HeatSink, int Number, FasteningPass Pass, bool Completed)> items)
     {
-        gantry.DiscardPendingResults();
-        work.PrepareRecovery(items);
+        var recovery = items.ToArray();
+        work.PrepareRecovery(recovery);
+        if (PendingResult is not { } pending
+            || !recovery.Any(item => item.HeatSink == pending.Bolt.HeatSink
+                && item.Number == pending.Bolt.Number
+                && item.Pass == pending.Pass
+                && !item.Completed))
+        {
+            _pendingFastening = null;
+            gantry.DiscardPendingResults();
+        }
     }
 
     public async Task RunAsync(BoltFasteningRecipe recipe, CancellationToken cancellationToken = default)
@@ -58,6 +84,13 @@ public sealed class BoltFasteningStation(
 
     private async Task RunCarrierAsync(BoltFasteningRecipe recipe, CancellationToken cancellationToken)
     {
+        if (_pendingFastening is not null
+            && PendingResult is null)
+        {
+            _pendingFastening = null;
+            gantry.DiscardPendingResults();
+        }
+
         if (work.State != BoltFasteningWorkState.ReadyToFasten)
         {
             await WaitForChangeAsync(cancellationToken);
@@ -79,6 +112,18 @@ public sealed class BoltFasteningStation(
             while (work.State == BoltFasteningWorkState.ReadyToFasten)
             {
                 carrierOperation.Token.ThrowIfCancellationRequested();
+                if (PendingResult is { } pending)
+                {
+                    var result = await gantry.ReadPendingResultAsync(
+                        pending.Bolt.Head,
+                        carrierOperation.Token);
+                    if (result is not null)
+                    {
+                        RecordResult(pending, result);
+                        continue;
+                    }
+                }
+
                 await ExecuteAsync(recipe, State(), carrierOperation.Token);
             }
         }
@@ -90,7 +135,11 @@ public sealed class BoltFasteningStation(
         {
             work.Changed -= CheckCarrier;
             _runTargets = null;
-            gantry.DiscardPendingResults();
+            if (_pendingFastening is { } pending
+                && !gantry.HasPendingResult(pending.Bolt.Head))
+            {
+                _pendingFastening = null;
+            }
         }
     }
 
@@ -103,7 +152,9 @@ public sealed class BoltFasteningStation(
         {
             BoltFasteningState.FasteningPcb => FastenAsync(recipe, FasteningPass.Pcb, cancellationToken),
             BoltFasteningState.MovingToPcbBolt
-                => MoveToBoltAsync(PendingPcbBolts().First(), cancellationToken),
+                => MoveToBoltAsync(
+                    PendingResult?.Bolt ?? PendingPcbBolts().First(),
+                    cancellationToken),
             BoltFasteningState.LoweringForPcb => LowerShootingHeadAsync(cancellationToken),
             BoltFasteningState.ShootingBolt => gantry.ShootBoltAsync(cancellationToken),
             BoltFasteningState.AdvancingShootingEscape
@@ -123,14 +174,18 @@ public sealed class BoltFasteningStation(
             BoltFasteningState.RaisingPickupHead
                 => gantry.SetPickupHeadDownAsync(false, cancellationToken),
             BoltFasteningState.MovingToIpmSeatingBolt
-                => MoveToBoltAsync(PendingIpmSeatingBolts().First(), cancellationToken),
+                => MoveToBoltAsync(
+                    PendingResult?.Bolt ?? PendingIpmSeatingBolts().First(),
+                    cancellationToken),
             BoltFasteningState.LoweringForIpmSeating
                 or BoltFasteningState.LoweringForIpmFinal
                 => gantry.SetPickupHeadDownAsync(true, cancellationToken),
             BoltFasteningState.SeatingIpm
                 => FastenAsync(recipe, FasteningPass.IpmSeating, cancellationToken),
             BoltFasteningState.MovingToIpmFinalBolt
-                => MoveToBoltAsync(PendingIpmFinalBolts().First(), cancellationToken),
+                => MoveToBoltAsync(
+                    PendingResult?.Bolt ?? PendingIpmFinalBolts().First(),
+                    cancellationToken),
             BoltFasteningState.FinalizingIpm
                 => FastenAsync(recipe, FasteningPass.IpmFinal, cancellationToken),
             BoltFasteningState.ClearingPickupHead
@@ -147,21 +202,38 @@ public sealed class BoltFasteningStation(
             return BoltFasteningState.Waiting;
         }
 
-        if (PcbState() is { } pcbState)
+        if (PendingResult is { } pending)
+        {
+            return (pending.Pass switch
+            {
+                FasteningPass.Pcb => PcbState(pending.Bolt),
+                FasteningPass.IpmSeating => IpmSeatingState(pending.Bolt),
+                FasteningPass.IpmFinal => IpmFinalState(pending.Bolt),
+                _ => throw new ArgumentOutOfRangeException(nameof(pending.Pass)),
+            }) ?? BoltFasteningState.Waiting;
+        }
+
+        if (PcbState(PendingPcbBolts().FirstOrDefault()) is { } pcbState)
         {
             return pcbState;
         }
 
-        if (IpmSeatingState() is { } seatingState)
+        if (IpmSeatingState(PendingIpmSeatingBolts().FirstOrDefault()) is { } seatingState)
         {
             return seatingState;
         }
 
-        return IpmFinalState() ?? BoltFasteningState.CompletingCarrier;
+        return IpmFinalState(PendingIpmFinalBolts().FirstOrDefault())
+            ?? BoltFasteningState.CompletingCarrier;
     }
 
     public BoltTarget? ActiveBolt()
     {
+        if (PendingResult is { } pending)
+        {
+            return pending.Bolt;
+        }
+
         return State() switch
         {
             BoltFasteningState.MovingToPcbBolt
@@ -185,14 +257,8 @@ public sealed class BoltFasteningStation(
         };
     }
 
-    private BoltFasteningState? PcbState()
+    private BoltFasteningState? PcbState(BoltTarget? bolt)
     {
-        var bolt = PendingPcbBolts().FirstOrDefault();
-        if (gantry.HasPendingResult(FasteningHead.Shooting))
-        {
-            return BoltFasteningState.FasteningPcb;
-        }
-
         if ((bolt is null || !gantry.IsAt(bolt) || !gantry.ShootingBoltLoaded)
             && gantry.ShootingHeadPosition != BoltCylinderState.Up)
         {
@@ -235,15 +301,8 @@ public sealed class BoltFasteningStation(
             : BoltFasteningState.LoweringForPcb;
     }
 
-    private BoltFasteningState? IpmSeatingState()
+    private BoltFasteningState? IpmSeatingState(BoltTarget? bolt)
     {
-        var bolt = PendingIpmSeatingBolts().FirstOrDefault();
-        if (bolt is not null
-            && gantry.HasPendingResult(FasteningHead.Pickup))
-        {
-            return BoltFasteningState.SeatingIpm;
-        }
-
         if (bolt is null)
         {
             var finalBolt = PendingIpmFinalBolts().FirstOrDefault();
@@ -299,14 +358,8 @@ public sealed class BoltFasteningStation(
             : BoltFasteningState.LoweringForIpmSeating;
     }
 
-    private BoltFasteningState? IpmFinalState()
+    private BoltFasteningState? IpmFinalState(BoltTarget? bolt)
     {
-        var bolt = PendingIpmFinalBolts().FirstOrDefault();
-        if (gantry.HasPendingResult(FasteningHead.Pickup))
-        {
-            return BoltFasteningState.FinalizingIpm;
-        }
-
         if (bolt is null)
         {
             return gantry.AtSafeZ && gantry.CanMoveHorizontal
@@ -331,32 +384,41 @@ public sealed class BoltFasteningStation(
         FasteningPass pass,
         CancellationToken cancellationToken)
     {
-        var (bolt, preset) = pass switch
+        var pending = PendingResult;
+        if (pending is null)
         {
-            FasteningPass.Pcb => (PendingPcbBolts().First(), recipe.PcbPreset),
-            FasteningPass.IpmSeating => (PendingIpmSeatingBolts().First(), recipe.IpmSeatingPreset),
-            FasteningPass.IpmFinal => (PendingIpmFinalBolts().First(), recipe.IpmFinalPreset),
-            _ => throw new ArgumentOutOfRangeException(nameof(pass)),
-        };
-        var assembly = work.Assembly(bolt.HeatSink);
-        if (!gantry.HasPendingResult(bolt.Head))
-        {
+            var (bolt, preset) = pass switch
+            {
+                FasteningPass.Pcb => (PendingPcbBolts().First(), recipe.PcbPreset),
+                FasteningPass.IpmSeating => (PendingIpmSeatingBolts().First(), recipe.IpmSeatingPreset),
+                FasteningPass.IpmFinal => (PendingIpmFinalBolts().First(), recipe.IpmFinalPreset),
+                _ => throw new ArgumentOutOfRangeException(nameof(pass)),
+            };
+            pending = new(bolt, work.Assembly(bolt.HeatSink), pass);
             await gantry.SelectPresetAsync(bolt.Head, preset, cancellationToken);
         }
 
-        var result = await gantry.TightenHeadAsync(bolt.Head, cancellationToken);
-        switch (pass)
+        _pendingFastening = pending;
+        var completed = await gantry.TightenHeadAsync(pending.Bolt.Head, cancellationToken);
+        RecordResult(pending, completed);
+    }
+
+    private void RecordResult(PendingFastening pending, BoltResult result)
+    {
+        switch (pending.Pass)
         {
             case FasteningPass.Pcb:
-                assembly.RecordPcbBolt(bolt.Number, result);
+                pending.Assembly.RecordPcbBolt(pending.Bolt.Number, result);
                 break;
             case FasteningPass.IpmSeating:
-                assembly.RecordIpmSeating(bolt.Number, result);
+                pending.Assembly.RecordIpmSeating(pending.Bolt.Number, result);
                 break;
             case FasteningPass.IpmFinal:
-                assembly.RecordIpmFinal(bolt.Number, result);
+                pending.Assembly.RecordIpmFinal(pending.Bolt.Number, result);
                 break;
         }
+
+        _pendingFastening = null;
     }
 
     private async Task LowerShootingHeadAsync(CancellationToken cancellationToken)

@@ -197,7 +197,7 @@ public sealed class PcbSupplyHandler
 
     public bool CanMoveToTeachingPosition(TeachingPosition point, bool live = true)
     {
-        return (!IsInsideBuffer(live) || point.Mode == TeachMode.XOnly && AtRotationZ(live))
+        return (IsInsideBuffer(live) == false || point.Mode == TeachMode.XOnly && AtRotationZ(live))
             && point.Target switch
             {
                 TeachingTarget.SupplyBufferHandoff => Rotation == PcbSupplyRotationState.Rotated,
@@ -397,8 +397,8 @@ public sealed class PcbSupplyHandler
         return axis switch
         {
             MotionAxis.X => AtRotationZ(live),
-            MotionAxis.Y => _motion.HasY && !IsInsideBuffer(live) && AtRotationZ(live),
-            MotionAxis.Z => _motion.HasZ && !IsInsideBuffer(live),
+            MotionAxis.Y => _motion.HasY && IsInsideBuffer(live) == false && AtRotationZ(live),
+            MotionAxis.Z => _motion.HasZ && IsInsideBuffer(live) == false,
             _ => false,
         };
     }
@@ -414,13 +414,14 @@ public sealed class PcbSupplyHandler
     {
         get
         {
-            return IsInsideBuffer(live: true);
+            return IsInsideBuffer(live: true) == true;
         }
     }
 
-    public bool IsInsideBuffer(bool live)
+    public bool? IsInsideBuffer(bool live)
     {
-        return _bufferSettings.ContainsSupplyX(live ? _motion.GetPosition().X : Motion.Position.X);
+        var x = live ? _motion.GetPosition().X : Motion.Position.X;
+        return x is { } position ? _bufferSettings.ContainsSupplyX(position) : null;
     }
 
     private bool AtRotationZ(bool live)

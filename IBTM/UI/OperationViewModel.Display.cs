@@ -14,7 +14,8 @@ public partial class OperationViewModel
     {
         get
         {
-            return Supply.Motion.XyHomed && _map.SupplyDefined;
+            return Supply.Motion.XyHomed && _map.SupplyDefined
+                && Supply.Motion.Position is { X: not null, Y: not null, Z: not null };
         }
     }
 
@@ -22,7 +23,8 @@ public partial class OperationViewModel
     {
         get
         {
-            return Placement.Motion.XyHomed && _map.PlacementDefined;
+            return Placement.Motion.XyHomed && _map.PlacementDefined
+                && Placement.Motion.Position is { X: not null, Y: not null, Z: not null };
         }
     }
 
@@ -30,7 +32,8 @@ public partial class OperationViewModel
     {
         get
         {
-            return Fastening.Motion.XyHomed && _map.FasteningDefined;
+            return Fastening.Motion.XyHomed && _map.FasteningDefined
+                && Fastening.Motion.Position is { X: not null, Y: not null, Z: not null };
         }
     }
 
@@ -38,7 +41,8 @@ public partial class OperationViewModel
     {
         get
         {
-            return InspectionGantry.Motion.XyHomed && _map.InspectionDefined;
+            return InspectionGantry.Motion.XyHomed && _map.InspectionDefined
+                && InspectionGantry.Motion.Position is { X: not null, Y: not null };
         }
     }
 
@@ -64,11 +68,19 @@ public partial class OperationViewModel
     {
         get
         {
-            return !Units.MainConveyor
-                ? HandlerDisplayState.Disabled
-                : !State.Display.AutomaticRunning && !State.Display.ConveyorRunning
-                    ? HandlerDisplayState.Stopped
-                    : State.Display.ConveyorState;
+            if (!Units.MainConveyor)
+            {
+                return HandlerDisplayState.Disabled;
+            }
+
+            if (MainConveyorRun.IsOn is not { } running)
+            {
+                return MachineDisplayState.Unavailable;
+            }
+
+            return !State.Display.AutomaticRunning && !running
+                ? HandlerDisplayState.Stopped
+                : State.Display.ConveyorState;
         }
     }
 
@@ -156,7 +168,7 @@ public partial class OperationViewModel
 
             if (State.Display.SupplyAtHandoff)
             {
-                return _buffer.PcbPresent
+                return Buffer.PcbPresent
                     ? HandlerDisplayState.WaitingForPlacement
                     : HandlerDisplayState.WaitingForBufferPcb;
             }
@@ -230,12 +242,12 @@ public partial class OperationViewModel
             if (!State.Display.AutomaticRunning)
                 return StationDisplayState.Stopped;
 
-            if (!BoltFasteningCarrierPresent)
+            if (!BoltFasteningWork.CarrierPresent)
             {
                 return StationDisplayState.WaitingForCarrier;
             }
 
-            if (_boltFasteningWork.Completed)
+            if (BoltFasteningWork.Completed)
             {
                 return StationDisplayState.WaitingForTransfer;
             }
@@ -259,7 +271,7 @@ public partial class OperationViewModel
             {
                 StationDisplayState.Working when InspectionStateVisible => State.Display.InspectionState,
                 StationDisplayState.WaitingForTransfer
-                    when Units.NgCarrierTransfer && _inspectionWork.RouteToNg
+                    when Units.NgCarrierTransfer && InspectionWork.RouteToNg
                     => InspectionStationState.WaitingForShuttleReady,
                 StationDisplayState.WaitingForTransfer
                     when Units.MainConveyor
@@ -291,18 +303,18 @@ public partial class OperationViewModel
                 return StationDisplayState.Stopped;
 
             if (InspectionGantry.Motion.IsMoving
-                || NgCarrierDetected
+                || NgTransfer.CarrierDetected
                 || InspectionTransferWorking)
             {
                 return StationDisplayState.Working;
             }
 
-            if (!InspectionCarrierPresent)
+            if (!InspectionWork.CarrierPresent)
             {
                 return StationDisplayState.WaitingForCarrier;
             }
 
-            if (_inspectionWork.Completed)
+            if (InspectionWork.Completed)
             {
                 return StationDisplayState.WaitingForTransfer;
             }

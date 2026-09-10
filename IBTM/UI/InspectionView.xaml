@@ -51,7 +51,7 @@
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
                                         <Condition Binding="{Binding Units.Inspection}" Value="True"/>
-                                        <Condition Binding="{Binding InspectionCarrierPresent}" Value="True"/>
+                                        <Condition Binding="{Binding InspectionWork.CarrierPresent}" Value="True"/>
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible"/>
                                 </MultiDataTrigger>
@@ -100,14 +100,14 @@
                         Visibility="{Binding InspectionPositionKnown, Converter={StaticResource BoolToVis}}"
                         Panel.ZIndex="20">
                 <StackPanel.RenderTransform>
-                    <TranslateTransform X="{Binding InspectionGantryMapLeft}"
-                                        Y="{Binding InspectionGantryMapTop}"/>
+                    <TranslateTransform X="{Binding InspectionGantryMapLeft, TargetNullValue=0}"
+                                        Y="{Binding InspectionGantryMapTop, TargetNullValue=0}"/>
                 </StackPanel.RenderTransform>
                 <Grid x:Name="CarrierPicker"
                       Width="{StaticResource CarrierWidth}"
                       Height="{StaticResource CarrierHeight}"
                       VerticalAlignment="Top">
-                    <ui:CarrierView Visibility="{Binding NgCarrierDetected, Converter={StaticResource BoolToVis}}"/>
+                    <ui:CarrierView Visibility="{Binding NgTransfer.CarrierDetected, Converter={StaticResource BoolToVis}}"/>
                     <Border Margin="-8,-6"
                             Background="{StaticResource MachineGhostBrush}"
                             Tag="{Binding InspectionGantry.Motion.IsMoving}"

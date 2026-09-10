@@ -149,9 +149,9 @@
                 <TextBlock Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
                                                            ToolTip="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
                                                            Style="{StaticResource HardwareSignalText}"/>
-                <TextBox Grid.Column="1" Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}" Margin="4,0"/>
-                <TextBox Grid.Column="2" Text="{Binding Minimum, UpdateSourceTrigger=LostFocus}" Margin="4,0"/>
-                <TextBox Grid.Column="3" Text="{Binding Maximum, UpdateSourceTrigger=LostFocus}" Margin="4,0"/>
+                <TextBox Grid.Column="1" Text="{Binding Axis.Number, UpdateSourceTrigger=PropertyChanged}" Margin="4,0"/>
+                <TextBox Grid.Column="2" Text="{Binding Axis.Minimum, UpdateSourceTrigger=LostFocus}" Margin="4,0"/>
+                <TextBox Grid.Column="3" Text="{Binding Axis.Maximum, UpdateSourceTrigger=LostFocus}" Margin="4,0"/>
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
@@ -381,12 +381,12 @@
                                                    VerticalAlignment="Center"/>
                                         <ComboBox Grid.Column="1"
                                                   ItemsSource="{x:Static ui:SettingsViewModel.InputSignals}"
-                                                  SelectedItem="{Binding Feedback.OnInput, Mode=TwoWay}"
+                                                  SelectedItem="{Binding Output.Feedback.OnInput, Mode=TwoWay}"
                                                   MinWidth="0"
                                                   Padding="5,3"/>
                                         <ComboBox Grid.Column="2"
                                                   ItemsSource="{x:Static ui:SettingsViewModel.InputSignals}"
-                                                  SelectedItem="{Binding Feedback.OffInput, Mode=TwoWay}"
+                                                  SelectedItem="{Binding Output.Feedback.OffInput, Mode=TwoWay}"
                                                   MinWidth="0"
                                                   Padding="5,3"/>
                                     </Grid>
@@ -472,9 +472,9 @@
                                                 <TextBlock Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
                                                            ToolTip="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
                                                            Style="{StaticResource HardwareSignalText}"/>
-                                                <TextBox Grid.Column="1" Text="{Binding Number, UpdateSourceTrigger=PropertyChanged}"
+                                                <TextBox Grid.Column="1" Text="{Binding Output.Number, UpdateSourceTrigger=PropertyChanged}"
                                                          MinWidth="0" Padding="5,3" Margin="4,0"/>
-                                                <TextBox Grid.Column="2" Text="{Binding OffNumber, UpdateSourceTrigger=PropertyChanged}"
+                                                <TextBox Grid.Column="2" Text="{Binding Output.OffNumber, UpdateSourceTrigger=PropertyChanged}"
                                                          ToolTip="Reverse output channel"
                                                          MinWidth="0" Padding="5,3" Margin="4,0"/>
                                             </Grid>

@@ -21,7 +21,6 @@ public sealed class MainConveyor : AutoUnit
     private readonly Func<bool> _routeInspectionToNg;
     private OperationCancellation.Operation? _automaticCancellation;
     private OperationCancellation.Operation? _manualCancellation;
-    private CancellationTokenRegistration _manualStopRegistration;
     private volatile ConveyorTransfer _transfer;
 
     public MainConveyor(
@@ -177,22 +176,24 @@ public sealed class MainConveyor : AutoUnit
         }
     }
 
-    public void RunMotor(CancellationToken cancellationToken = default)
+    public async Task RunMotorAsync(CancellationToken cancellationToken = default)
     {
         Stop();
-        _manualCancellation = _operations.Link(cancellationToken);
+        using var runCancellation = _operations.Link(cancellationToken);
+        _manualCancellation = runCancellation;
+        cancellationToken = runCancellation.Token;
         try
         {
-            var runToken = _manualCancellation.Token;
-            runToken.ThrowIfCancellationRequested();
-            _manualStopRegistration = runToken.Register(StopMotor);
-            StartMotor(runToken);
-            runToken.ThrowIfCancellationRequested();
+            using var stopRegistration = cancellationToken.Register(StopMotor);
+            StartMotor(cancellationToken);
+            await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
         }
-        catch
+        finally
         {
-            Stop();
-            throw;
+            if (ReferenceEquals(_manualCancellation, runCancellation))
+                _manualCancellation = null;
+            StopMotor();
+            ResetSmema();
         }
     }
 
@@ -310,16 +311,8 @@ public sealed class MainConveyor : AutoUnit
         }
         finally
         {
-            try
-            {
-                _manualStopRegistration.Dispose();
-                StopMotor();
-                ResetSmema();
-            }
-            finally
-            {
-                manual?.Dispose();
-            }
+            StopMotor();
+            ResetSmema();
         }
     }
 

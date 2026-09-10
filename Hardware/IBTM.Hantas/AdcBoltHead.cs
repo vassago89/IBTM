@@ -9,6 +9,9 @@ namespace IBTM.Hantas;
 public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte slaveAddress) : IBoltHead
 {
     private const int ResultPollMilliseconds = 50;
+    // Connection edits apply to a newly created head, together with its slave address.
+    private readonly string _portName = connection.PortName;
+    private readonly int _baudRate = connection.BaudRate;
     private ushort? _fasteningEvent;
 
     public bool HasPendingResult
@@ -22,7 +25,7 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
     public async Task CheckReadyAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        bus.Open(connection.PortName, connection.BaudRate);
+        bus.Open(_portName, _baudRate);
         await bus.ReadDeviceInformationAsync(slaveAddress, cancellationToken);
         var status = await bus.ReadControllerStatusAsync(slaveAddress, cancellationToken);
         RequireReady(status);
@@ -52,7 +55,7 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
     public async Task ResetAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        bus.Open(connection.PortName, connection.BaudRate);
+        bus.Open(_portName, _baudRate);
         await bus.StopAsync(slaveAddress, cancellationToken);
         var status = await bus.ReadControllerStatusAsync(slaveAddress, cancellationToken);
         if (status.Alarm != 0)
@@ -95,6 +98,7 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
 
     public async Task<BoltResult> TightenAsync(CancellationToken cancellationToken = default)
     {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         AdcFasteningResult? completed = null;
         Exception? failure = null;
         try
@@ -113,35 +117,32 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
                 RequireReady(status);
                 await bus.SetDirectionAsync(slaveAddress, AdcDirection.Fastening, cancellationToken);
 
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeout.CancelAfter(connection.FasteningTimeoutMilliseconds);
-                try
+                timeout.Token.ThrowIfCancellationRequested();
+                _fasteningEvent = previousEvent;
+                await bus.StartAsync(slaveAddress, timeout.Token);
+                while (true)
                 {
-                    timeout.Token.ThrowIfCancellationRequested();
-                    _fasteningEvent = previousEvent;
-                    await bus.StartAsync(slaveAddress, timeout.Token);
-                    while (true)
+                    var result = await bus.ReadFasteningResultAsync(slaveAddress, timeout.Token);
+                    if (IsCompleted(result, previousEvent))
                     {
-                        var result = await bus.ReadFasteningResultAsync(slaveAddress, timeout.Token);
-                        if (IsCompleted(result, previousEvent))
-                        {
-                            completed = result;
-                            break;
-                        }
-
-                        await Task.Delay(ResultPollMilliseconds, timeout.Token);
+                        completed = result;
+                        break;
                     }
-                }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                {
-                    throw new TimeoutException(
-                        $"ADC {slaveAddress} fastening timed out after {connection.FasteningTimeoutMilliseconds} ms.");
+
+                    await Task.Delay(ResultPollMilliseconds, timeout.Token);
                 }
             }
         }
         catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
         {
             failure = exception;
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            failure = new TimeoutException(
+                $"ADC {slaveAddress} fastening timed out after {connection.FasteningTimeoutMilliseconds} ms.");
+            throw failure;
         }
         catch (Exception exception)
         {
@@ -153,22 +154,25 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
             await StopAfterOperationAsync(failure);
         }
 
-        if (completed is null)
+        if (completed is not null)
         {
-            // Stop is already sent. Read a finished result once, without restarting the head.
-            if (_fasteningEvent is { } previousEvent)
-            {
-                var result = await bus.ReadFasteningResultAsync(slaveAddress, CancellationToken.None);
-                if (IsCompleted(result, previousEvent))
-                {
-                    return Complete(result);
-                }
-            }
-
-            throw new OperationCanceledException(cancellationToken);
+            return Complete(completed);
         }
 
-        return Complete(completed);
+        // Stop is already sent. Collect a late result without restarting the head.
+        return await ReadPendingResultAsync(CancellationToken.None)
+            ?? throw new OperationCanceledException(cancellationToken);
+    }
+
+    public async Task<BoltResult?> ReadPendingResultAsync(CancellationToken cancellationToken = default)
+    {
+        if (_fasteningEvent is not { } pendingEvent)
+        {
+            return null;
+        }
+
+        var result = await bus.ReadFasteningResultAsync(slaveAddress, cancellationToken);
+        return IsCompleted(result, pendingEvent) ? Complete(result) : null;
     }
 
     public void DiscardPendingResult()

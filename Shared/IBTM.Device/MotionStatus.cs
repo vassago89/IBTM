@@ -8,11 +8,10 @@ using System.Threading.Tasks;
 
 namespace IBTM.Device;
 
-public sealed record MotionPosition(double X, double Y, double Z);
+public sealed record MotionPosition(double? X, double? Y, double? Z);
 
 public sealed class MotionStatus : INotifyPropertyChanged
 {
-    private MotionPosition _position;
     private Task? _monitoring;
     private readonly TaskCompletionSource _firstMonitorRead = new(
         TaskCreationOptions.RunContinuationsAsynchronously);
@@ -22,13 +21,10 @@ public sealed class MotionStatus : INotifyPropertyChanged
         Feedback = motion;
         Axes = motion.Axes.ToDictionary(axis => axis, _ => new AxisStatus());
         MonitorAxes = motion.Axes.ToDictionary(axis => axis, _ => new MotionDiagnostics());
-        _position = new(0, 0, 0);
 
         var zRange = motion.GetRange(MotionAxis.Z);
         ZMinimum = zRange?.Minimum ?? 0;
         ZMaximum = zRange?.Maximum ?? 0;
-
-        motion.PositionChanged += OnPositionChanged;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -89,6 +85,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
             }
 
             PropertyChanged?.Invoke(this, new(nameof(IsMoving)));
+            PropertyChanged?.Invoke(this, new(nameof(Position)));
             refreshed();
             _firstMonitorRead.TrySetException(error);
             throw;
@@ -100,6 +97,7 @@ public sealed class MotionStatus : INotifyPropertyChanged
         if (Feedback is not IMotionDiagnostics diagnostics)
             return;
         var wasMoving = IsMoving;
+        var previousPosition = Position;
         foreach (var (axis, status) in MonitorAxes)
         {
             var previous = status.Snapshot.ReadError?.Message;
@@ -110,6 +108,8 @@ public sealed class MotionStatus : INotifyPropertyChanged
 
         if (wasMoving != IsMoving)
             PropertyChanged?.Invoke(this, new(nameof(IsMoving)));
+        if (previousPosition != Position)
+            PropertyChanged?.Invoke(this, new(nameof(Position)));
     }
 
     public bool XyHomed
@@ -126,22 +126,19 @@ public sealed class MotionStatus : INotifyPropertyChanged
     {
         return !Feedback.HasZ
             || Axes[MotionAxis.Z].State is { Homed: true }
-            && Math.Abs(Position.Z - z) <= MotionService.PositionToleranceMillimeters;
+            && Position.Z is { } current
+            && Math.Abs(current - z) <= MotionService.PositionToleranceMillimeters;
     }
 
     public MotionPosition Position
     {
         get
         {
-            return _position;
-        }
-
-        private set
-        {
-            if (_position == value)
-                return;
-            _position = value;
-            PropertyChanged?.Invoke(this, new(nameof(Position)));
+            // The axis snapshots own the coordinates; this is not a second position cache.
+            return new(
+                MonitorAxes[MotionAxis.X].Snapshot.Position,
+                Feedback.HasY ? MonitorAxes[MotionAxis.Y].Snapshot.Position : null,
+                Feedback.HasZ ? MonitorAxes[MotionAxis.Z].Snapshot.Position : null);
         }
     }
 
@@ -160,11 +157,6 @@ public sealed class MotionStatus : INotifyPropertyChanged
     public double ZMinimum { get; }
     public double ZMaximum { get; }
 
-    private void OnPositionChanged(double x, double y, double z)
-    {
-        Position = new(x, y, z);
-    }
-
     public void RefreshControlFeedback(bool available = true)
     {
         var wasHomed = XyHomed;
@@ -174,11 +166,6 @@ public sealed class MotionStatus : INotifyPropertyChanged
             var ready = available && Feedback.IsReady;
             foreach (var (axis, status) in Axes)
                 status.Update(ready ? Feedback.GetAxisState(axis) : null);
-            if (ready)
-            {
-                var position = Feedback.GetPosition();
-                OnPositionChanged(position.X, position.Y, position.Z);
-            }
         }
         catch (IOException)
         {

@@ -102,11 +102,13 @@ public sealed class MachineMap(
         }
     }
 
-    public (double X, double Y) Supply(MotionPosition current)
+    public (double X, double Y)? Supply(MotionPosition current)
     {
+        if (current is not { X: { } x, Y: { } y })
+            return null;
         return FromThreePoints(
-            current.X,
-            current.Y,
+            x,
+            y,
             (
                 recipe.PcbSupply.Pcb1PickPosition.X,
                 supply.CarrierY),
@@ -121,11 +123,13 @@ public sealed class MachineMap(
             SupplyBuffer);
     }
 
-    public (double X, double Y) Placement(MotionPosition current)
+    public (double X, double Y)? Placement(MotionPosition current)
     {
+        if (current is not { X: { } x, Y: { } y })
+            return null;
         return FromThreePoints(
-            current.X,
-            current.Y,
+            x,
+            y,
             (
                 placement.BufferHandoffPosition.X,
                 placement.BufferHandoffPosition.Y),
@@ -140,9 +144,9 @@ public sealed class MachineMap(
             PlacementHeatSink2);
     }
 
-    public (double X, double Y) Fastening(MotionPosition current)
+    public (double X, double Y)? Fastening(MotionPosition current)
     {
-        return MapFastening(current.X, current.Y);
+        return current is { X: { } x, Y: { } y } ? MapFastening(x, y) : null;
     }
 
     public (double X, double Y) PickupFeeder()
@@ -166,9 +170,9 @@ public sealed class MachineMap(
             mapped.Y + tool.Y - MachinePlan.FasteningContentOrigin.Y);
     }
 
-    public (double X, double Y) Inspection(MotionPosition current)
+    public (double X, double Y)? Inspection(MotionPosition current)
     {
-        return MapInspection(current.X, current.Y);
+        return current is { X: { } x, Y: { } y } ? MapInspection(x, y) : null;
     }
 
     public (double X, double Y) InspectionTarget(BoltTarget bolt)

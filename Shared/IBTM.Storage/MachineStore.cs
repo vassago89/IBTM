@@ -91,6 +91,7 @@ public sealed class MachineStore
         IReadOnlyCollection<int> imageNumbers,
         string? sourceRecipe = null,
         IEnumerable<RecipeImage>? images = null,
+        Setting? selection = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -138,6 +139,16 @@ public sealed class MachineStore
 
             db.RecipeImages.Where(row => row.RecipeName == name && !imageNumbers.Contains(row.Number))
                 .ExecuteDelete();
+        }
+
+        if (selection is not null)
+        {
+            var key = selection.GetType().Name;
+            var row = db.Settings.SingleOrDefault(row => row.Key == key);
+            if (row is null)
+                db.Settings.Add(row = new() { Key = key });
+            row.Value = JsonSerializer.Serialize(selection, selection.GetType());
+            db.SaveChanges();
         }
 
         cancellationToken.ThrowIfCancellationRequested();

@@ -49,52 +49,63 @@ public partial class StationTeachingViewModel
             };
     }
 
-    protected override Task JogCurrentAsync(
-        MotionAxis axis,
-        double velocity,
-        CancellationToken cancellationToken)
+    protected override Task JogAsync(TeachingDirection direction, CancellationToken cancellationToken)
     {
-        return SelectedMotionGroup switch
-        {
-            MotionGroup.PcbPlacementHandler
-                => _placementHandler.JogAsync(axis, velocity, cancellationToken),
-            MotionGroup.BoltFastening => _fasteningGantry.JogAsync(axis, velocity, cancellationToken),
-            MotionGroup.InspectionGantry => _inspectionGantry.JogAsync(axis, velocity, cancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(SelectedMotionGroup)),
-        };
+        var (axis, sign) = Resolve(direction);
+        return Machine.RunManualMotionAsync(
+            ActiveMotionGroup,
+            token => SelectedMotionGroup switch
+            {
+                MotionGroup.PcbPlacementHandler
+                    => _placementHandler.JogAsync(axis, sign * JogSpeed, token),
+                MotionGroup.BoltFastening
+                    => _fasteningGantry.JogAsync(axis, sign * JogSpeed, token),
+                MotionGroup.InspectionGantry
+                    => _inspectionGantry.JogAsync(axis, sign * JogSpeed, token),
+                _ => throw new ArgumentOutOfRangeException(nameof(SelectedMotionGroup)),
+            },
+            cancellationToken,
+            ViewCancellation);
     }
 
-    protected override Task MoveCurrentToHorizontalZAsync(CancellationToken cancellationToken)
+    protected override Task MoveToHorizontalZAsync(CancellationToken cancellationToken)
     {
-        return SelectedMotionGroup switch
-        {
-            MotionGroup.PcbPlacementHandler
-                => _placementHandler.MoveToHorizontalZAsync(cancellationToken),
-            MotionGroup.BoltFastening => _fasteningGantry.MoveToSafeZAsync(cancellationToken),
-            MotionGroup.InspectionGantry => Task.CompletedTask,
-            _ => throw new ArgumentOutOfRangeException(),
-        };
+        return Machine.RunManualMotionAsync(
+            ActiveMotionGroup,
+            token => SelectedMotionGroup switch
+            {
+                MotionGroup.PcbPlacementHandler => _placementHandler.MoveToHorizontalZAsync(token),
+                MotionGroup.BoltFastening => _fasteningGantry.MoveToSafeZAsync(token),
+                MotionGroup.InspectionGantry => Task.CompletedTask,
+                _ => throw new ArgumentOutOfRangeException(nameof(SelectedMotionGroup)),
+            },
+            cancellationToken,
+            ViewCancellation);
     }
 
-    protected override Task MoveCurrentAxisAsync(
-        MotionAxis axis,
-        double position,
-        CancellationToken cancellationToken)
+    protected override Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken)
     {
-        return SelectedMotionGroup switch
-        {
-            MotionGroup.PcbPlacementHandler
-                => _placementHandler.MoveAxisAsync(axis, position, cancellationToken),
-            MotionGroup.BoltFastening
-                => _fasteningGantry.AdjustAxisAsync(axis, position, JogSpeed, cancellationToken),
-            MotionGroup.InspectionGantry
-                => _inspectionGantry.MoveAxisAsync(
-                    axis,
-                    position,
-                    _inspectionGantrySettings.Motion.HorizontalSpeed,
-                    cancellationToken),
-            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
-        };
+        return Machine.RunManualMotionAsync(
+            ActiveMotionGroup,
+            token =>
+            {
+                var (axis, target) = StepTarget(direction, Motion.Feedback.GetPosition());
+                return SelectedMotionGroup switch
+                {
+                    MotionGroup.PcbPlacementHandler
+                        => _placementHandler.MoveAxisAsync(axis, target, token),
+                    MotionGroup.BoltFastening
+                        => _fasteningGantry.AdjustAxisAsync(axis, target, JogSpeed, token),
+                    MotionGroup.InspectionGantry => _inspectionGantry.MoveAxisAsync(
+                        axis,
+                        target,
+                        _inspectionGantrySettings.Motion.HorizontalSpeed,
+                        token),
+                    _ => throw new ArgumentOutOfRangeException(nameof(SelectedMotionGroup)),
+                };
+            },
+            cancellationToken,
+            ViewCancellation);
     }
 
     [RelayCommand(CanExecute = nameof(CanReturnFromPickup))]
@@ -113,27 +124,29 @@ public partial class StationTeachingViewModel
             && Machine.CanUseManualMotion(ActiveMotionGroup, live: false);
     }
 
-    protected override Task MovePointAsync(TeachingPoint point, CancellationToken cancellationToken)
+    protected override Task MoveToPointAsync(CancellationToken cancellationToken)
     {
-        return point.Position.MotionGroup switch
-        {
-            MotionGroup.PcbPlacementHandler
-                => _placementHandler.MoveToTeachingPositionAsync(
+        var point = SelectedPoint!;
+        return Machine.RunManualMotionAsync(
+            ActiveMotionGroup,
+            token => point.Position.MotionGroup switch
+            {
+                MotionGroup.PcbPlacementHandler => _placementHandler.MoveToTeachingPositionAsync(
                     point.Position,
                     point.Read(),
-                    cancellationToken),
-            MotionGroup.BoltFastening
-                => _fasteningGantry.MoveToTeachingPositionAsync(
+                    token),
+                MotionGroup.BoltFastening => _fasteningGantry.MoveToTeachingPositionAsync(
                     point.Position,
                     point.Read(),
-                    cancellationToken),
-            MotionGroup.InspectionGantry
-                => _inspectionGantry.MoveToAsync(
+                    token),
+                MotionGroup.InspectionGantry => _inspectionGantry.MoveToAsync(
                     new AxisPosition { X = point.X, Y = point.Y },
                     _inspectionGantrySettings.Motion.HorizontalSpeed,
-                    cancellationToken),
-            _ => throw new ArgumentOutOfRangeException(),
-        };
+                    token),
+                _ => throw new ArgumentOutOfRangeException(nameof(point)),
+            },
+            cancellationToken,
+            ViewCancellation);
     }
 
     protected override bool CanMoveToPoint()
@@ -158,9 +171,9 @@ public partial class StationTeachingViewModel
     protected override void NotifyManualTeachingCommands()
     {
         OnPropertyChanged(nameof(CanEditInspectionRecipe));
-        if (!_state.ManualMode && (IsCameraLive || ToggleLiveViewCommand.IsRunning))
+        if (!_state.ManualMode && (Inspector.IsLiveView || ToggleLiveViewCommand.IsRunning))
         {
-            _ = StopCameraLiveAsync();
+            _ = RequestCameraStopAsync();
         }
 
         NotifyMotionCommands();

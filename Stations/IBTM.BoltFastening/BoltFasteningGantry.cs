@@ -302,6 +302,13 @@ public sealed class BoltFasteningGantry
         return GetHead(head).TightenAsync(cancellationToken);
     }
 
+    internal Task<BoltResult?> ReadPendingResultAsync(
+        FasteningHead head,
+        CancellationToken cancellationToken)
+    {
+        return GetHead(head).ReadPendingResultAsync(cancellationToken);
+    }
+
     internal Task SelectPresetAsync(
         FasteningHead head,
         ushort preset,

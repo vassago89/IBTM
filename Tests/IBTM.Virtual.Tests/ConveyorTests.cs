@@ -285,7 +285,8 @@ public sealed class ConveyorTests
 
         if (manual)
         {
-            Assert.ThrowsAny<OperationCanceledException>(() => conveyor.RunMotor(stop.Token));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => conveyor.RunMotorAsync(stop.Token));
         }
         else
         {

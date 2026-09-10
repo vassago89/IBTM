@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using IBTM.AlphaMotion;
+using IBTM.Conveyor;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Inspection;
 using IBTM.Storage;
 using IBTM.UI;
 using IBTM.Virtual;
@@ -16,6 +19,59 @@ namespace IBTM.Virtual.Tests;
 public sealed class AlarmRecoveryTests
 {
     [Fact]
+    public async Task TowerLampsAndBuzzerFollowMachineStateNotNgMotorStop()
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var ngConveyor = services.GetRequiredService<IBTM.NgConveyor.NgCarrierConveyor>();
+        await machine.InitializeAsync();
+        try
+        {
+            await AssertIndicatorsAsync(OutputIo.TowerLampYellow, false);
+            io.SetInput(InputIo.AutoMode, false); // Selecting AUTO alone is not Auto Run.
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => state.Display.AutoMode,
+                TimeSpan.FromSeconds(2)));
+            await AssertIndicatorsAsync(OutputIo.TowerLampYellow, false);
+            state.SetAutomaticRunning(true);
+            await AssertIndicatorsAsync(OutputIo.TowerLampGreen, false);
+
+            state.SetError(MachineAlarm.MotionUnavailable);
+            await AssertIndicatorsAsync(OutputIo.TowerLampRed, true);
+            ngConveyor.Stop();
+            Assert.True(io.GetOutput(OutputIo.Buzzer));
+            state.ClearError();
+            await AssertIndicatorsAsync(OutputIo.TowerLampGreen, false);
+
+            io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+            io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
+            io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+            Assert.True(ngConveyor.Full);
+            await AssertIndicatorsAsync(OutputIo.TowerLampRed, true);
+            state.SetAutomaticRunning(false);
+            await AssertIndicatorsAsync(OutputIo.TowerLampRed, true);
+            io.SetInput(InputIo.NgShuttleCarrierDetected, false);
+            await AssertIndicatorsAsync(OutputIo.TowerLampYellow, false);
+        }
+        finally
+        {
+            state.SetAutomaticRunning(false);
+            await machine.ShutdownAsync();
+        }
+
+        async Task AssertIndicatorsAsync(OutputIo lamp, bool buzzer)
+        {
+            OutputIo[] lamps = [OutputIo.TowerLampGreen, OutputIo.TowerLampYellow, OutputIo.TowerLampRed];
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => lamps.All(output => io.GetOutput(output) == (output == lamp))
+                    && io.GetOutput(OutputIo.Buzzer) == buzzer,
+                TimeSpan.FromSeconds(2)));
+        }
+    }
+
+    [Fact]
     public async Task DirectOutputsChangeOnlyTheSelectedSignalWithoutSetupOrFeedbackAdmission()
     {
         using var services = CreateServices();
@@ -24,6 +80,8 @@ public sealed class AlarmRecoveryTests
         var io = services.GetRequiredService<VirtualIoService>();
         var signals = services.GetRequiredService<IoSignals>();
         await machine.InitializeAsync();
+        // Test the direct write itself; common indicators have their own state policy.
+        await state.StopDisplayUpdatesAsync();
         try
         {
             io.AutoResponseEnabled = false;
@@ -386,6 +444,24 @@ public sealed class AlarmRecoveryTests
             Assert.False(machine.CanStart);
             Assert.False(machine.CanHome);
 
+            var output = view.OutputMappings.Single(
+                row => row.Signal.Equals(OutputIo.PcbPlacementStopperUp)).Output!;
+            var axis = view.AxisMappings.Single(
+                row => row.Signal.Equals(MachineAxis.InspectionGantryX)).Axis!;
+            Assert.Same(view.Settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementStopperUp], output);
+            Assert.Same(view.Settings.InspectionGantryHardware.Axes[MachineAxis.InspectionGantryX], axis);
+            var runningOutput = services.GetRequiredService<IReadOnlyDictionary<OutputIo, OutputHardware>>()
+                [OutputIo.PcbPlacementStopperUp];
+            var originalOutput = (runningOutput.Number, runningOutput.OffNumber, runningOutput.Feedback!.OnInput);
+            var runningMotion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
+            var originalRange = runningMotion.GetRange(MotionAxis.X);
+            output.Number = 80;
+            output.OffNumber = 81;
+            output.Feedback!.OnInput = InputIo.InspectionStopperUp;
+            axis.Number = 12;
+            axis.Minimum = -5;
+            axis.Maximum = 150;
+
             view.Settings.AlphaMotion.ControllerNumber = 3;
             var motion = view.Settings.InspectionGantry.Motion;
             var speed = motion.HorizontalSpeed;
@@ -404,6 +480,15 @@ public sealed class AlarmRecoveryTests
                     .LoadSettings()
                     .Get<AlphaMotionSettings>()
                     .ControllerNumber);
+            var saved = services.GetRequiredService<MachineStore>().LoadSettings();
+            var savedOutput = saved.Get<ConveyorHardwareSettings>().Outputs[OutputIo.PcbPlacementStopperUp];
+            var savedAxis = saved.Get<InspectionGantryHardwareSettings>().Axes[MachineAxis.InspectionGantryX];
+            Assert.Equal((80, (int?)81, InputIo.InspectionStopperUp),
+                (savedOutput.Number, savedOutput.OffNumber, savedOutput.Feedback!.OnInput));
+            Assert.Equal((12, -5d, 150d), (savedAxis.Number, savedAxis.Minimum, savedAxis.Maximum));
+            Assert.Equal(originalOutput,
+                (runningOutput.Number, runningOutput.OffNumber, runningOutput.Feedback.OnInput));
+            Assert.Equal(originalRange, runningMotion.GetRange(MotionAxis.X));
             Assert.Equal(MachineAlarm.Inspection, state.Alarm);
             Assert.False(io.GetInput(InputIo.ResetButton));
         }

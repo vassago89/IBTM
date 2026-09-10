@@ -96,8 +96,8 @@
                   Visibility="{Binding FasteningPositionKnown, Converter={StaticResource BoolToVis}}"
                   Panel.ZIndex="20">
                 <Grid.RenderTransform>
-                    <TranslateTransform X="{Binding BoltFasteningMapLeft}"
-                                        Y="{Binding BoltFasteningMapTop}"/>
+                    <TranslateTransform X="{Binding BoltFasteningMapLeft, TargetNullValue=0}"
+                                        Y="{Binding BoltFasteningMapTop, TargetNullValue=0}"/>
                 </Grid.RenderTransform>
                 <Canvas>
                     <Border Canvas.Top="58"

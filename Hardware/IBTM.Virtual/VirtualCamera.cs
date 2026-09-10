@@ -14,6 +14,7 @@ public sealed class VirtualCamera(
 {
     public event Action<ImageFrame>? FrameReady;
     public event Action<Exception>? LiveViewFailed;
+    public bool IsLiveView { get; private set; }
     public ImageFrame? SourceImage { get; set; }
 
     public (int Width, int Height) FrameSize
@@ -30,6 +31,7 @@ public sealed class VirtualCamera(
 
     public void Initialize()
     {
+        StopLiveView();
     }
 
     public ImageFrame Capture(double exposureMicroseconds, double gain)
@@ -42,17 +44,20 @@ public sealed class VirtualCamera(
 
     public void StartLiveView(double exposureMicroseconds, double gain)
     {
+        IsLiveView = true;
         try
         {
             FrameReady?.Invoke(Capture(exposureMicroseconds, gain));
         }
         catch (Exception exception)
         {
+            IsLiveView = false;
             LiveViewFailed?.Invoke(exception);
         }
     }
 
     public void StopLiveView()
     {
+        IsLiveView = false;
     }
 }

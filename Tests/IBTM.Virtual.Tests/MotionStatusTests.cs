@@ -35,21 +35,27 @@ public sealed class MotionStatusTests
 
         Assert.Same(first, second);
         Assert.Equal(AxisCondition.Unavailable, first.Condition);
+        Assert.Null(status.Position.X);
         motion.Publish();
         Assert.Equal(0, motion.Reads);
 
+        status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
-        Assert.Equal(new MotionPosition(12, 0, 0), status.Position);
+        Assert.Equal(new MotionPosition(12, null, null), status.Position);
+        Assert.Equal(status.MonitorAxes[MotionAxis.X].Snapshot.Position, status.Position.X);
         Assert.Equal(AxisCondition.Ready, first.Condition);
         Assert.True(status.XyHomed);
-        Assert.Equal(1, motion.Reads);
+        Assert.Equal(2, motion.Reads);
+        Assert.Equal(1, motion.PositionReads); // Control refresh and bindings do not read coordinates again.
 
         motion.Failure = new IOException("Axis feedback unavailable.");
+        status.RefreshMonitorFeedback();
         Assert.Same(motion.Failure, Assert.Throws<IOException>(() => status.RefreshControlFeedback()));
         var reads = motion.Reads;
         Assert.Equal(AxisCondition.Unavailable, first.Condition);
         Assert.Null(second.State);
         Assert.False(status.XyHomed);
+        Assert.Null(status.Position.X);
         Assert.Equal(reads, motion.Reads);
 
         motion.Failure = null;
@@ -61,8 +67,9 @@ public sealed class MotionStatusTests
         // External card state can change while no application move is active.
         motion.State = motion.State with { ServoOn = false };
         motion.Position = (24, 0, 0); // No PositionChanged event from an external adjustment.
+        status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
-        Assert.Equal(new MotionPosition(24, 0, 0), status.Position);
+        Assert.Equal(new MotionPosition(24, null, null), status.Position);
         Assert.Equal(AxisCondition.ServoOff, first.Condition);
         Assert.Equal(first.Condition, second.Condition);
     }
@@ -72,6 +79,7 @@ public sealed class MotionStatusTests
     {
         var motion = new StatusMotion();
         var status = new MotionStatus(motion);
+        status.RefreshMonitorFeedback();
         status.RefreshControlFeedback();
         Assert.True(status.XyHomed);
         var reads = motion.Reads;
@@ -82,9 +90,12 @@ public sealed class MotionStatusTests
 
         Assert.Equal(reads, motion.Reads);
         Assert.Equal(positionReads, motion.PositionReads);
+        Assert.Equal(12, status.Position.X); // Control availability does not replace readable coordinates.
         Assert.False(status.XyHomed);
         Assert.All(status.Axes.Values, axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
         Assert.Same(motion.Failure, Assert.Throws<IOException>(() => status.RefreshControlFeedback()));
+        status.RefreshMonitorFeedback();
+        Assert.Null(status.Position.X);
     }
 
     private sealed class StatusMotion() : AjinMotionService(
@@ -96,7 +107,7 @@ public sealed class MotionStatusTests
         new MotionSettings(),
         new MachineOptions(),
         new OperationCancellation(),
-        null)
+        null), IMotionDiagnostics
     {
         public AxisState State = new(true, true, false, true, false, false, false, false);
         public Exception? Failure;
@@ -121,6 +132,16 @@ public sealed class MotionStatusTests
         {
             Reads++;
             return Failure is { } failure ? throw failure : State;
+        }
+
+        AxisState IMotionDiagnostics.ReadDiagnosticState(MotionAxis axis)
+        {
+            return GetAxisState(axis);
+        }
+
+        double IMotionDiagnostics.ReadDiagnosticPosition(MotionAxis axis)
+        {
+            return GetPosition().X;
         }
 
         protected override Task MoveAxisCoreAsync(

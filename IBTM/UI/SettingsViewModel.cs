@@ -82,31 +82,25 @@ public partial class SettingsViewModel : ObservableObject
         InputMappings = hardware.OfType<InputHardwareSettings>()
             .SelectMany(
                 section => section.Inputs.Select(
-                    mapping => new HardwareMappingRow(section, mapping.Key, mapping.Value)))
+                    mapping => new HardwareMappingRow(section, mapping.Key) { Number = mapping.Value }))
             .ToArray();
         OutputMappings = hardware.OfType<IoHardwareSettings>()
             .SelectMany(
                 section =>
                     section.Outputs.Select(
                         mapping =>
-                            new HardwareMappingRow(section, mapping.Key, mapping.Value.Number)
-                            { OffNumber = mapping.Value.OffNumber, Feedback = mapping.Value.Feedback, }))
+                            new HardwareMappingRow(section, mapping.Key) { Output = mapping.Value }))
             .ToArray();
         AxisMappings = hardware.OfType<MotionHardwareSettings>()
             .SelectMany(
                 section =>
                     section.Axes.Select(
                         mapping =>
-                            new HardwareMappingRow(
-                                section,
-                                mapping.Key,
-                                mapping.Value.Number,
-                                mapping.Value.Minimum,
-                                mapping.Value.Maximum)))
+                            new HardwareMappingRow(section, mapping.Key) { Axis = mapping.Value }))
             .ToArray();
         InputMappingView = GroupMappings(InputMappings);
         OutputMappingView = GroupMappings(OutputMappings);
-        FeedbackMappings = OutputMappings.Where(row => row.Feedback is not null).ToArray();
+        FeedbackMappings = OutputMappings.Where(row => row.Output?.Feedback is not null).ToArray();
     }
 
     public MachineSettings Settings { get; }
@@ -207,7 +201,12 @@ public partial class SettingsViewModel : ObservableObject
         try
         {
             using var operation = _operations.Link();
-            ApplyHardwareMappings();
+            foreach (var row in InputMappings)
+            {
+                var hardware = (InputHardwareSettings)row.Hardware;
+                hardware.Inputs[(InputIo)row.Signal] = row.Number;
+            }
+
             await Settings.SaveAsync(_store, operation.Token);
             DatabaseMessage = "Settings saved. Restart to apply driver, connection, pulse length and mapping changes.";
             Trace.TraceInformation(
@@ -423,30 +422,6 @@ public partial class SettingsViewModel : ObservableObject
 
         if (failure is not null)
             ExceptionDispatchInfo.Throw(failure);
-    }
-
-    private void ApplyHardwareMappings()
-    {
-        foreach (var row in InputMappings)
-        {
-            var hardware = (InputHardwareSettings)row.Hardware;
-            hardware.Inputs[(InputIo)row.Signal] = row.Number;
-        }
-
-        foreach (var row in OutputMappings)
-        {
-            var hardware = ((IoHardwareSettings)row.Hardware).Outputs[(OutputIo)row.Signal];
-            hardware.Number = row.Number;
-            hardware.OffNumber = row.OffNumber;
-        }
-
-        foreach (var row in AxisMappings)
-        {
-            var hardware = ((MotionHardwareSettings)row.Hardware).Axes[(MachineAxis)row.Signal];
-            hardware.Number = row.Number;
-            hardware.Minimum = row.Minimum;
-            hardware.Maximum = row.Maximum;
-        }
     }
 
     private static ICollectionView GroupMappings(IEnumerable<HardwareMappingRow> mappings)

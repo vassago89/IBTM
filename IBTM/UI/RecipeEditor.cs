@@ -74,8 +74,13 @@ public partial class RecipeEditor(
         try
         {
             using var operation = operations.Link(cancellationToken);
-            await store.SaveRecipeAsync(recipe, name, _imageRecipeName, operation.Token);
-            await SavedAsync(name);
+            await store.SaveRecipeAsync(
+                recipe,
+                name,
+                _imageRecipeName,
+                new RecipeSelectionSettings { LastRecipeName = name },
+                operation.Token);
+            Saved(name);
         }
         catch (OperationCanceledException)
         {
@@ -94,14 +99,19 @@ public partial class RecipeEditor(
         {
             using var operation = operations.Link();
             var loaded = await store.LoadRecipeAsync(recipeName, operation.Token);
-            operation.Token.ThrowIfCancellationRequested();
+            await Task.Run(
+                () => store.Database.SaveSettings(
+                    [new RecipeSelectionSettings { LastRecipeName = loaded.Name }],
+                    operation.Token),
+                operation.Token);
+
+            // Once selection is committed, apply it even if cancellation arrives afterward.
             recipe.ReplaceWith(loaded);
             _imageRecipeName = recipe.Name;
+            selection.LastRecipeName = recipe.Name;
             Name = recipe.Name;
             OnPropertyChanged(nameof(ActiveName));
             Changed?.Invoke();
-            selection.LastRecipeName = recipe.Name;
-            await Task.Run(() => store.Database.SaveSettings([selection]));
         }
         catch (OperationCanceledException)
         {
@@ -123,15 +133,15 @@ public partial class RecipeEditor(
         Changed?.Invoke();
     }
 
-    private async Task SavedAsync(string name)
+    private void Saved(string name)
     {
         recipe.Name = name;
         _imageRecipeName = name;
+        selection.LastRecipeName = name;
         Name = name;
         OnPropertyChanged(nameof(ActiveName));
-        selection.LastRecipeName = name;
-        await Task.Run(() => store.Database.SaveSettings([selection]));
-        Recipes = store.GetRecipeNames();
+        if (!Recipes.Contains(name))
+            Recipes = Recipes.Append(name).Order(StringComparer.Ordinal).ToArray();
     }
 
     public async Task<bool> SaveCarrierImagesAsync(
@@ -149,8 +159,9 @@ public partial class RecipeEditor(
                 recipe,
                 name,
                 images,
+                new RecipeSelectionSettings { LastRecipeName = name },
                 operation.Token);
-            await SavedAsync(name);
+            Saved(name);
             return true;
         }
         catch (OperationCanceledException)
