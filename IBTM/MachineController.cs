@@ -275,6 +275,10 @@ public sealed partial class MachineController
         if (!TeachingReady)
             return StartBlockReason.TeachingIncomplete;
         if (_state.RepeatEnabled
+            && (_repeatPhase == RepeatPhase.ReturnToShuttle && !_units.NgConveyor
+                || _repeatPhase == RepeatPhase.CycleShuttle && !_units.NgShuttle))
+            return StartBlockReason.RepeatReturnUnitDisabled;
+        if (_state.RepeatEnabled
             && (!_units.MainConveyor
                 || !_units.NgCarrierTransfer
                 || _units.NgConveyor && !_units.NgShuttle))

@@ -164,11 +164,11 @@
     <DataTemplate x:Key="IoSignalReadoutTemplate" DataType="{x:Type device:IoInputStatus}">
         <Grid Margin="0,3">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="42"/>
+                <ColumnDefinition Width="52"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="72"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Text="{Binding Address}" Style="{StaticResource IoAddressStyle}" FontSize="11"/>
+            <TextBlock Text="{Binding Address, StringFormat={}DI {0}}" Style="{StaticResource IoAddressStyle}" FontSize="11"/>
             <TextBlock Grid.Column="1" Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
                        TextWrapping="Wrap" Margin="0,0,8,0" VerticalAlignment="Center"
                        Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"/>
@@ -181,8 +181,8 @@
         <DockPanel LastChildFill="True">
             <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
                 <TextBlock Text="Related I/O" Style="{StaticResource PanelTitleStyle}"/>
-                <TextBlock Text="DI = feedback · DO = command"
-                           Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,5,0,0"/>
+                <TextBlock Text="Current state: blue = DI ON · amber = DO ON · — = unavailable"
+                           TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,5,0,0"/>
             </StackPanel>
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <ui:IoGroupList ItemsSource="{Binding TeachingIoGroups}">
@@ -192,41 +192,68 @@
                                 <TextBlock Text="{Binding Area, Converter={StaticResource EnumDescriptionConverter}}"
                                            FontSize="14" FontWeight="SemiBold"
                                            Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
-                                <ItemsControl ItemsSource="{Binding Sensors}"
-                                              ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
+                                <StackPanel x:Name="Inputs" Margin="0,0,0,10">
+                                    <TextBlock Text="INPUTS · CURRENT DI" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                                    <ItemsControl ItemsSource="{Binding Sensors}"
+                                                  ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
+                                </StackPanel>
                                 <ItemsControl ItemsSource="{Binding Outputs}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate DataType="{x:Type ui:TeachingOutputRow}">
-                                            <StackPanel Margin="0,8,0,0">
-                                                <Grid Margin="0,0,0,3">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="72"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
-                                                               TextWrapping="Wrap" Margin="0,0,8,0" FontSize="12"
-                                                               Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
-                                                    <TextBlock Grid.Column="1" Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
-                                                                    Style="{StaticResource IoOutputStateStyle}" FontSize="11"/>
-                                                </Grid>
-                                                <ItemsControl ItemsSource="{Binding Io.Feedback}" Margin="12,0,0,0"
-                                                              ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
-                                                <Grid x:Name="OutputControls" HorizontalAlignment="Right" Margin="0,4,0,0">
-                                                    <StackPanel x:Name="SwitchButtons" Orientation="Horizontal">
-                                                        <Button Content="ON" Command="{Binding SetOutputOnCommand}" CommandParameter="{Binding Output}"
-                                                                Style="{StaticResource SecondaryButtonStyle}" Padding="12,4" MinWidth="48" Margin="0,0,6,0"/>
-                                                        <Button Content="OFF" Command="{Binding SetOutputOffCommand}" CommandParameter="{Binding Output}"
-                                                                Style="{StaticResource SecondaryButtonStyle}" Padding="12,4" MinWidth="48"/>
-                                                    </StackPanel>
-                                                    <ui:HoldButton x:Name="HoldOutput" Content="HOLD" Visibility="Collapsed"
-                                                                   CommandParameter="{Binding Output}"
-                                                                   PressCommand="{Binding SetOutputOnCommand}"
-                                                                   ReleaseCommand="{Binding SetOutputOnCancelCommand}"
-                                                                   ToolTip="Hold to run; release to stop."
-                                                                   Style="{StaticResource SecondaryButtonStyle}" Padding="12,4" MinWidth="102"/>
-                                                </Grid>
-                                            </StackPanel>
+                                            <Border Background="{StaticResource ControlBgBrush}"
+                                                    BorderBrush="{StaticResource DividerBrush}" BorderThickness="1"
+                                                    CornerRadius="4" Padding="8" Margin="0,0,0,10">
+                                                <StackPanel>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="72"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Margin="0,0,8,0">
+                                                            <TextBlock Text="{Binding Io.Address, StringFormat={}DO {0}}"
+                                                                       Style="{StaticResource IoAddressStyle}" FontSize="11" Margin="0,0,0,4"/>
+                                                            <TextBlock Text="{Binding Io.Signal, Converter={StaticResource EnumDescriptionConverter}}"
+                                                                       TextWrapping="Wrap" FontSize="12" FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1">
+                                                            <TextBlock Text="CURRENT DO" FontSize="10" FontWeight="SemiBold"
+                                                                       Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                                                            <TextBlock Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
+                                                                       Style="{StaticResource IoOutputStateStyle}"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                    <Grid x:Name="OutputControls" HorizontalAlignment="Left" Margin="0,8,0,0">
+                                                        <StackPanel x:Name="SwitchButtons" Orientation="Horizontal">
+                                                            <Button Content="Set ON" Command="{Binding SetOutputOnCommand}" CommandParameter="{Binding Output}"
+                                                                    Style="{StaticResource SecondaryButtonStyle}" Padding="12,6" MinWidth="76" Margin="0,0,6,0"/>
+                                                            <Button Content="Set OFF" Command="{Binding SetOutputOffCommand}" CommandParameter="{Binding Output}"
+                                                                    Style="{StaticResource SecondaryButtonStyle}" Padding="12,6" MinWidth="76"/>
+                                                        </StackPanel>
+                                                        <ui:HoldButton x:Name="HoldOutput" Content="Hold to run" Visibility="Collapsed"
+                                                                       CommandParameter="{Binding Output}"
+                                                                       PressCommand="{Binding SetOutputOnCommand}"
+                                                                       ReleaseCommand="{Binding SetOutputOnCancelCommand}"
+                                                                       ToolTip="Hold to run; release to stop."
+                                                                       Style="{StaticResource SecondaryButtonStyle}" Padding="12,6" MinWidth="158"/>
+                                                    </Grid>
+                                                    <Border x:Name="Feedback" BorderBrush="{StaticResource DividerBrush}"
+                                                            BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,8,0,0">
+                                                        <StackPanel>
+                                                            <TextBlock Text="INPUT FEEDBACK · CURRENT DI" TextWrapping="Wrap"
+                                                                       Foreground="{StaticResource TextMutedBrush}" FontSize="10" FontWeight="SemiBold"
+                                                                       Margin="0,0,0,4"/>
+                                                            <ItemsControl ItemsSource="{Binding Io.Feedback}"
+                                                                          ItemTemplate="{StaticResource IoSignalReadoutTemplate}"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </StackPanel>
+                                            </Border>
                                             <DataTemplate.Triggers>
+                                                <DataTrigger Binding="{Binding Io.HasFeedback}" Value="False">
+                                                    <Setter TargetName="Feedback" Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
                                                 <DataTrigger Binding="{Binding Output}" Value="{x:Null}">
                                                     <Setter TargetName="OutputControls" Property="Visibility" Value="Collapsed"/>
                                                 </DataTrigger>
@@ -239,6 +266,11 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </StackPanel>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding Sensors.Count}" Value="0">
+                                    <Setter TargetName="Inputs" Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
                         </DataTemplate>
                     </ui:IoGroupList.ItemTemplate>
                 </ui:IoGroupList>

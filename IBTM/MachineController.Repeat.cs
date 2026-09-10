@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
-using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
 
@@ -80,12 +79,13 @@ public sealed partial class MachineController
             _units.MainConveyor,
             MachineAlarm.MainConveyor,
             () => _conveyor.RunAsync(cycle.Token, repeat));
+        // TEMP: repeat turns around at Station 1 until the front sensor is installed.
         StartUnit(
-            _units.PcbSupply && !(repeat && MainConveyor.RepeatUsesStation1ReturnSensor),
+            _units.PcbSupply && !repeat,
             MachineAlarm.PcbSupply,
             () => _pcbSupply.RunAsync(_recipe.PcbSupply, cycle.Token));
         StartUnit(
-            _units.PcbPlacement && !(repeat && MainConveyor.RepeatUsesStation1ReturnSensor),
+            _units.PcbPlacement && !repeat,
             MachineAlarm.PcbPlacement,
             () => _pcbPlacement.RunAsync(_recipe.PcbPlacement, cycle.Token));
         StartUnit(
@@ -195,7 +195,8 @@ public sealed partial class MachineController
     {
         using var cycle = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var transferChanged = new AsyncAutoResetEvent();
-        _ngMove.Changed += transferChanged.Set;
+        if (!_units.NgConveyor)
+            _ngMove.Changed += transferChanged.Set;
         var automatic = RunAutomaticUnitsAsync(cycle, repeat: true);
         try
         {

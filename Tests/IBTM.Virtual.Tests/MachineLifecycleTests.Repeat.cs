@@ -39,6 +39,7 @@ public sealed partial class MachineLifecycleTests
         var placedAndReleased = false;
         var pickedBackUp = false;
         var ngConveyorRan = false;
+        var stoppedForConfiguration = false;
         void CheckPickup()
         {
             if (io.GetInput(InputIo.NgShuttleCarrierDetected)
@@ -57,7 +58,14 @@ public sealed partial class MachineLifecycleTests
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.NgShuttleUp)
+            {
                 shuttleOutputs.Enqueue(on);
+                if (!on && !stoppedForConfiguration)
+                {
+                    stoppedForConfiguration = true;
+                    machine.Stop();
+                }
+            }
             if (output == OutputIo.NgConveyorRun && on)
                 ngConveyorRan = true;
         };
@@ -67,6 +75,21 @@ public sealed partial class MachineLifecycleTests
         var run = machine.StartAsync(timeout.Token);
         try
         {
+            if (shuttleEnabled)
+            {
+                await run.WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.True(stoppedForConfiguration);
+                settings.Units.NgShuttle = false;
+                Assert.Equal(StartBlockReason.RepeatReturnUnitDisabled, machine.StartBlock);
+                Assert.False(machine.CanStart);
+                await machine.StartAsync();
+                Assert.Equal(new[] { false }, shuttleOutputs.ToArray());
+
+                settings.Units.NgShuttle = true;
+                await WaitUntilAsync(() => state.Display.CanStart);
+                run = machine.StartAsync(timeout.Token);
+            }
+
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => state.Display.RepeatCycles >= 1 || state.IsError,
                 TimeSpan.FromSeconds(10)),

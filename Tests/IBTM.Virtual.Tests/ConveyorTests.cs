@@ -126,15 +126,14 @@ public sealed class ConveyorTests
         var conveyor = CreateConveyor(
             io,
             settings: new ConveyorSettings { CarrierStopDelaySeconds = 30 });
+        io.SetInput(InputIo.InspectionCarrierPresent, true);
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-        var run = conveyor.RunUntilAsync(
-            InputIo.PcbPlacementCarrierPresent,
-            reverse: true,
-            cancellation.Token);
+        var run = conveyor.ReturnToStartAsync(cancellation.Token);
         try
         {
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
             Assert.False(io.GetOutput(OutputIo.MainConveyorForward));
+            io.SetInput(InputIo.InspectionCarrierPresent, false);
             io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
 
             await run.WaitAsync(TimeSpan.FromSeconds(1));

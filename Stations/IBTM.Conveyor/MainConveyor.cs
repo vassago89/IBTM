@@ -10,10 +10,6 @@ namespace IBTM.Conveyor;
 
 public sealed class MainConveyor : AutoUnit
 {
-    // TEMP: the front sensor is not installed. Repeat stops at Station 1 and
-    // keeps its plate down; restore false when the user confirms installation.
-    public static readonly bool RepeatUsesStation1ReturnSensor = true;
-
     private readonly IIoService _io;
     private readonly ConveyorSettings _settings;
     private readonly OperationCancellation _operations;
@@ -28,7 +24,6 @@ public sealed class MainConveyor : AutoUnit
     private OperationCancellation.Operation? _manualCancellation;
     private volatile ConveyorTransfer _transfer;
     private bool _repeat;
-    private bool _returningFromEntry;
 
     public MainConveyor(
         IIoService io,
@@ -151,7 +146,7 @@ public sealed class MainConveyor : AutoUnit
 
             if (_placementWork.CarrierPresent
                 && !_placementWork.CarrierSeated
-                && !(_repeat && RepeatUsesStation1ReturnSensor))
+                && !_repeat)
             {
                 return MainConveyorState.SeatingPcbPlacementCarrier;
             }
@@ -245,43 +240,32 @@ public sealed class MainConveyor : AutoUnit
 
     private async Task ReturnCarrierAsync(CancellationToken cancellationToken)
     {
-        if (!_returningFromEntry)
+        if (!EntryCarrierDetected
+            && !_placement.CarrierPresent
+            && !_boltFastening.CarrierPresent
+            && !_inspection.CarrierPresent)
         {
-            if (!EntryCarrierDetected
-                && !_placement.CarrierPresent
-                && !_boltFastening.CarrierPresent
-                && !_inspection.CarrierPresent)
-            {
-                throw new InvalidOperationException("Return carrier position is unknown. Restore carrier presence before restarting.");
-            }
-
-            await Task.WhenAll(
-                _placement.ReleaseAsync(cancellationToken),
-                _boltFastening.ReleaseAsync(cancellationToken),
-                _inspection.ReleaseAsync(cancellationToken));
-            await RunUntilAsync(
-                RepeatUsesStation1ReturnSensor
-                    ? InputIo.PcbPlacementCarrierPresent
-                    : InputIo.MainConveyorEntryCarrierDetected,
-                true,
-                cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            _returningFromEntry = !RepeatUsesStation1ReturnSensor;
+            throw new InvalidOperationException("Return carrier position is unknown. Restore carrier presence before restarting.");
         }
 
-        if (RepeatUsesStation1ReturnSensor)
+        await Task.WhenAll(
+            _placement.ReleaseAsync(cancellationToken),
+            _boltFastening.ReleaseAsync(cancellationToken),
+            _inspection.ReleaseAsync(cancellationToken));
+
+        // TEMP: until the front sensor is installed, stop at Station 1 and keep its plate down.
+        if (_placement.CarrierPresent)
             return;
 
-        if (!_placement.CarrierPresent)
+        try
         {
-            if (!EntryCarrierDetected)
-                throw new InvalidOperationException("Return carrier is not at the entry or Station 1.");
-            await ReceiveAtPlacementAsync(cancellationToken);
+            StartMotor(cancellationToken, reverse: true);
+            await _placement.WaitForCarrierAsync(cancellationToken);
         }
-
-        await _placement.SeatAsync(cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        _returningFromEntry = false;
+        finally
+        {
+            StopMotor();
+        }
     }
 
     internal async Task RunControlledAsync(
@@ -432,7 +416,7 @@ public sealed class MainConveyor : AutoUnit
     {
         get
         {
-            var placementReady = _repeat && RepeatUsesStation1ReturnSensor
+            var placementReady = _repeat
                 ? _placementWork.CarrierPresent
                 : _placementWork.CanTransfer;
             return placementReady && _boltFasteningWork.CanReceive;
@@ -546,7 +530,7 @@ public sealed class MainConveyor : AutoUnit
         }
 
         await Task.WhenAll(
-            _repeat && RepeatUsesStation1ReturnSensor && source == _placement
+            _repeat && source == _placement
                 ? Task.CompletedTask
                 : source.RaiseBackupPlateAsync(cancellationToken),
             destination.SeatAsync(cancellationToken));
@@ -607,24 +591,6 @@ public sealed class MainConveyor : AutoUnit
 
         await _inspection.RaiseBackupPlateAsync(cancellationToken);
         _transfer = ConveyorTransfer.None;
-    }
-
-    internal async Task RunUntilAsync(
-        InputIo destination,
-        bool reverse,
-        CancellationToken cancellationToken)
-    {
-        if (_io.GetInput(destination))
-            return;
-        try
-        {
-            StartMotor(cancellationToken, reverse);
-            await _io.WaitForInputAsync(destination, true, cancellationToken);
-        }
-        finally
-        {
-            StopMotor();
-        }
     }
 
     private void StartMotor(CancellationToken cancellationToken, bool reverse = false)

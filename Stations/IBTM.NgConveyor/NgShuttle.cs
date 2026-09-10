@@ -116,9 +116,9 @@ public sealed class NgShuttle : AutoUnit
         _cycleReturnPending = false;
     }
 
-    public Task WaitForCarrierAsync(bool detected, CancellationToken cancellationToken = default)
+    public Task WaitForCarrierAsync(CancellationToken cancellationToken = default)
     {
-        return _io.WaitForInputAsync(InputIo.NgShuttleCarrierDetected, detected, cancellationToken);
+        return _io.WaitForInputAsync(InputIo.NgShuttleCarrierDetected, true, cancellationToken);
     }
 
     private void NotifyChanged()

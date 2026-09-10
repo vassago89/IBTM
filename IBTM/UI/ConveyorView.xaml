@@ -105,8 +105,22 @@
                             Pcb1Placed="{Binding PcbPlacementHeatSink1Completed}"
                             Pcb2Placed="{Binding PcbPlacementHeatSink2Completed}"
                             ShowPcbSlots="True"
-                            ActiveHeatSink="{Binding State.Display.PlacementTarget}"
-                            Visibility="{Binding Signals.Inputs[PcbPlacementCarrierPresent].IsOn, Converter={StaticResource BoolToVis}}"/>
+                            ActiveHeatSink="{Binding State.Display.PlacementTarget}">
+                <ui:CarrierView.Style>
+                    <Style TargetType="ui:CarrierView" BasedOn="{StaticResource CarrierStyle}">
+                        <Setter Property="Visibility"
+                                Value="{Binding Signals.Inputs[PcbPlacementCarrierPresent].IsOn, Converter={StaticResource BoolToVis}}"/>
+                        <Style.Triggers>
+                            <Trigger Property="HeatSink1Present" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="HeatSink2Present" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:CarrierView.Style>
+            </ui:CarrierView>
             <Border Canvas.Left="{x:Static ui:MachinePlan.PlacementStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
                      Tag="{Binding PcbPlacementStopperUp}"
                      ToolTip="Placement stopper"
@@ -120,8 +134,22 @@
                             HeatSink2Present="{Binding BoltFasteningHeatSink2Present}"
                             HeatSink1Result="{Binding BoltFasteningHeatSink1Result}"
                             HeatSink2Result="{Binding BoltFasteningHeatSink2Result}"
-                            BoltTargets="{Binding BoltTargets}"
-                            Visibility="{Binding Signals.Inputs[BoltFasteningCarrierPresent].IsOn, Converter={StaticResource BoolToVis}}"/>
+                            BoltTargets="{Binding BoltTargets}">
+                <ui:CarrierView.Style>
+                    <Style TargetType="ui:CarrierView" BasedOn="{StaticResource CarrierStyle}">
+                        <Setter Property="Visibility"
+                                Value="{Binding Signals.Inputs[BoltFasteningCarrierPresent].IsOn, Converter={StaticResource BoolToVis}}"/>
+                        <Style.Triggers>
+                            <Trigger Property="HeatSink1Present" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="HeatSink2Present" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:CarrierView.Style>
+            </ui:CarrierView>
             <Border Canvas.Left="{x:Static ui:MachinePlan.FasteningStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
                      Tag="{Binding BoltFasteningStopperUp}"
                      ToolTip="Bolt fastening stopper"
@@ -138,8 +166,22 @@
                             HeatSink1Result="{Binding InspectionHeatSink1Result}"
                             HeatSink2Result="{Binding InspectionHeatSink2Result}"
                             ActiveHeatSink="{Binding InspectionActivePcb}"
-                            BoltTargets="{Binding InspectionTargets}"
-                            Visibility="{Binding Signals.Inputs[InspectionCarrierPresent].IsOn, Converter={StaticResource BoolToVis}}"/>
+                            BoltTargets="{Binding InspectionTargets}">
+                <ui:CarrierView.Style>
+                    <Style TargetType="ui:CarrierView" BasedOn="{StaticResource CarrierStyle}">
+                        <Setter Property="Visibility"
+                                Value="{Binding Signals.Inputs[InspectionCarrierPresent].IsOn, Converter={StaticResource BoolToVis}}"/>
+                        <Style.Triggers>
+                            <Trigger Property="HeatSink1Present" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="HeatSink2Present" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </ui:CarrierView.Style>
+            </ui:CarrierView>
             <Border Canvas.Left="{x:Static ui:MachinePlan.InspectionStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
                      Tag="{Binding InspectionStopperUp}"
                      ToolTip="Inspection stopper"

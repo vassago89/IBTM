@@ -183,7 +183,7 @@ public sealed class NgCarrierMove(
             NgTransferState.WaitingForGrip => pickup.WaitForCarrierGripAsync(cancellationToken),
             NgTransferState.WaitingForPlacement
                 => destination == NgTransferDestination.Shuttle
-                    ? shuttle.WaitForCarrierAsync(true, cancellationToken)
+                    ? shuttle.WaitForCarrierAsync(cancellationToken)
                     : station.Station.WaitForCarrierAsync(cancellationToken),
             _ => null,
         };
