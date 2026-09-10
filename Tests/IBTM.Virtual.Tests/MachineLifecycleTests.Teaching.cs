@@ -38,7 +38,11 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
+        io.SetInput(InputIo.Door1Open, false);
+        Assert.True(machine.CanHome);
         await machine.HomeAsync(CancellationToken.None);
+        Assert.True(state.Homed);
+        io.SetInput(InputIo.Door1Open, true);
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
         await gantry.MoveToAsync(new() { X = 10, Y = 7 }, 10_000);
@@ -47,6 +51,9 @@ public sealed partial class MachineLifecycleTests
 
         var home = teaching.HomeAxisCommand.ExecuteAsync(MotionAxis.X);
         await WaitUntilAsync(() => gantry.Feedback.IsMoving);
+        io.SetInput(InputIo.Door1Open, false);
+        Assert.Equal(HomeBlockReason.None, teaching.HomeBlock);
+        Assert.True(gantry.Feedback.IsMoving);
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         await home.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(gantry.Feedback.IsMoving);
@@ -71,8 +78,9 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task NgTransferTeachingHasSeparatePointsAndUsesTheInspectionAxes()
     {
-        var settings = FlowSettings();
-        using var services = CreateServices(settings);
+        using var services = CreateDisplayServices(out var feedback);
+        var transferSettings = services.GetRequiredService<NgCarrierTransferSettings>();
+        transferSettings.Speed = 1_234;
         var machine = services.GetRequiredService<MachineController>();
         var gantry = services.GetRequiredService<InspectionGantry>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -119,7 +127,16 @@ public sealed partial class MachineLifecycleTests
             await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
             await teaching.MoveToPointCommand.ExecuteAsync(null);
             Assert.Equal((x, y, 0), gantry.Feedback.GetPosition());
+            Assert.Equal(transferSettings.Speed, feedback.LastMoveVelocity);
         }
+
+        var beforeStep = gantry.Feedback.GetPosition();
+        teaching.StepDistance = 0.1;
+        await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+        await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
+        Assert.Equal(transferSettings.Speed, feedback.LastMoveVelocity);
+        Assert.Equal(beforeStep.X + 0.1, gantry.Feedback.GetPosition().X, 6);
+        Assert.Equal(beforeStep.Y, gantry.Feedback.GetPosition().Y);
 
         var shuttle = teaching.TeachingOutputs[OutputIo.NgShuttleUp];
         await WaitUntilAsync(() => teaching.SetOutputOffCommand.CanExecute(shuttle));
@@ -425,7 +442,7 @@ public sealed partial class MachineLifecycleTests
         await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
 
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
-        Assert.True(teaching.TeachingOutputs[OutputIo.ShootBolt].HoldToRun);
+        Assert.Contains(OutputIo.ShootBolt, teaching.TeachingOutputs.Keys);
         Assert.DoesNotContain(OutputIo.ShootingEscapeForward, teaching.TeachingOutputs.Keys);
         var pickup = teaching.TeachingOutputs[OutputIo.PickupHeadDown];
         await teaching.SetOutputOnCommand.ExecuteAsync(pickup);
@@ -448,6 +465,78 @@ public sealed partial class MachineLifecycleTests
         settings.Options.TimeoutMilliseconds = 50;
         await teaching.SetOutputOffCommand.ExecuteAsync(ngLift);
         Assert.Equal(MachineAlarm.NgCarrierTransfer, state.Alarm);
+    }
+
+    [Fact]
+    public async Task StationTeachingReportsMotionAndHomeBlocks()
+    {
+        var settings = FlowSettings();
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
+        await machine.InitializeAsync();
+        await WaitUntilAsync(() => teaching.MotionHint == TeachingMotionHint.HomeRequired);
+        Assert.False(teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+        Assert.True(teaching.HomeAxisCommand.CanExecute(MotionAxis.Z));
+
+        io.SetInput(InputIo.Door1Open, false);
+        Assert.False(services.GetRequiredService<MachineState>().DoorInterlockReady);
+        Assert.Equal(HomeBlockReason.None, teaching.HomeBlock);
+        Assert.True(teaching.HomeAxisCommand.CanExecute(MotionAxis.Z));
+        io.SetInput(InputIo.Door1Open, true);
+        Assert.Equal(HomeBlockReason.None, teaching.HomeBlock);
+
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler);
+        motion.SetServo(MotionAxis.Z, false);
+        await WaitUntilAsync(() => teaching.MotionHint == TeachingMotionHint.ServoOff);
+        Assert.False(teaching.HomeAxisCommand.CanExecute(MotionAxis.Z));
+
+        settings.Units.PcbPlacement = false;
+        Assert.Equal(HomeBlockReason.UnitDisabled, teaching.HomeBlock);
+        Assert.Equal(TeachingMotionHint.UnitDisabled, teaching.MotionHint);
+        teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
+        Assert.Equal(HomeBlockReason.None, teaching.HomeBlock);
+        await WaitUntilAsync(() => teaching.MotionHint == TeachingMotionHint.HomeRequired);
+        Assert.True(teaching.HomeAxisCommand.CanExecute(MotionAxis.X));
+    }
+
+    [Fact]
+    public async Task StationTeachingControlsOnlyItsOwnStopper()
+    {
+        using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        await machine.InitializeAsync();
+        (HardwareArea Unit, OutputIo Output, InputIo Down, InputIo Up)[] stoppers = [
+            (HardwareArea.PcbPlacementHandler, OutputIo.PcbPlacementStopperDown,
+                InputIo.PcbPlacementStopperDown, InputIo.PcbPlacementStopperUp),
+            (HardwareArea.BoltFastening, OutputIo.BoltFasteningStopperDown,
+                InputIo.BoltFasteningStopperDown, InputIo.BoltFasteningStopperUp),
+            (HardwareArea.NgCarrierTransfer, OutputIo.InspectionStopperDown,
+                InputIo.InspectionStopperDown, InputIo.InspectionStopperUp),
+        ];
+        var changed = new ConcurrentQueue<OutputIo>();
+        io.OutputChanged += (signal, _) => changed.Enqueue(signal);
+
+        foreach (var (unit, output, down, up) in stoppers)
+        {
+            teaching.SelectedTeachingUnit = unit;
+            var stopper = teaching.TeachingOutputs[output];
+            Assert.Contains(teaching.TeachingIoGroups.SelectMany(group => group.Outputs),
+                row => row.Output == stopper);
+            await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(stopper));
+            await teaching.SetOutputOnCommand.ExecuteAsync(stopper);
+            Assert.True(io.GetInput(down));
+            Assert.False(io.GetInput(up));
+            await teaching.SetOutputOffCommand.ExecuteAsync(stopper);
+            Assert.False(io.GetInput(down));
+            Assert.True(io.GetInput(up));
+            Assert.All(changed, signal => Assert.Equal(output, signal));
+            changed.Clear();
+        }
     }
 
     [Fact]

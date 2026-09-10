@@ -96,7 +96,10 @@ public sealed partial class MachineController
                 ? _fasteningStation.ActiveBolt()
                 : null,
             InspectionState = teachingReady && _units.Inspection
-                ? _inspectionStation.State(bolts, _state.RepeatEnabled)
+                ? _inspectionStation.State(
+                    bolts,
+                    _state.RepeatEnabled,
+                    holdAtShuttle: _state.RepeatEnabled && !_units.NgShuttle)
                 : InspectionStationState.Waiting,
             InspectionBolt = teachingReady && _units.Inspection && automatic
                 ? _inspectionStation.ActiveBolt(bolts)

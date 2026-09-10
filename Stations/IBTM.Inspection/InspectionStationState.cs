@@ -54,4 +54,7 @@ public enum InspectionStationState
 
     [Description("Waiting for Shuttle Carrier")]
     WaitingForShuttleCarrier,
+
+    [Description("Holding Carrier at Shuttle")]
+    HoldingCarrierAtShuttle,
 }

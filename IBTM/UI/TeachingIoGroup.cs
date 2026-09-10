@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Device;
 
@@ -12,8 +11,7 @@ public sealed class TeachingIoGroup
         IoStatus io,
         IReadOnlyDictionary<OutputIo, TeachingOutput> outputs,
         IAsyncRelayCommand<TeachingOutput> onCommand,
-        IAsyncRelayCommand<TeachingOutput> offCommand,
-        ICommand cancelCommand)
+        IAsyncRelayCommand<TeachingOutput> offCommand)
     {
         Area = io.Area;
         Sensors = io.Sensors;
@@ -23,8 +21,7 @@ public sealed class TeachingIoGroup
                     signal,
                     outputs.GetValueOrDefault(signal.Signal),
                     onCommand,
-                    offCommand,
-                    cancelCommand))
+                    offCommand))
             .ToArray();
     }
 
@@ -37,5 +34,4 @@ public sealed record TeachingOutputRow(
     IoOutputStatus Io,
     TeachingOutput? Output,
     IAsyncRelayCommand<TeachingOutput> SetOutputOnCommand,
-    IAsyncRelayCommand<TeachingOutput> SetOutputOffCommand,
-    ICommand SetOutputOnCancelCommand);
+    IAsyncRelayCommand<TeachingOutput> SetOutputOffCommand);

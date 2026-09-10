@@ -1,5 +1,5 @@
 using System;
-using System.Collections;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows.Data;
@@ -13,7 +13,7 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
 {
     private readonly ApplicationLog _log;
     private readonly ListCollectionView _entries;
-    private LogEntry[] _pausedEntries = [];
+    private string _pausedText = "";
     private long _clearedThroughSequence;
 
     [ObservableProperty]
@@ -32,14 +32,17 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
             Filter = IsVisible,
             SortDescriptions = { new(nameof(LogEntry.Sequence), ListSortDirection.Descending) },
         };
+        ((INotifyCollectionChanged)_entries).CollectionChanged += OnEntriesChanged;
         log.PropertyChanged += OnLogChanged;
     }
 
-    public IEnumerable Entries
+    public string Text
     {
         get
         {
-            return IsPaused ? _pausedEntries : _entries;
+            return IsPaused
+                ? _pausedText
+                : string.Join(Environment.NewLine, _entries.Cast<LogEntry>().Select(entry => entry.Text));
         }
     }
 
@@ -77,25 +80,34 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(Status));
     }
 
+    private void OnEntriesChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        if (!IsPaused)
+            OnPropertyChanged(nameof(Text));
+    }
+
     partial void OnIsPausedChanged(bool value)
     {
-        _pausedEntries = value ? _entries.Cast<LogEntry>().ToArray() : [];
-        OnPropertyChanged(nameof(Entries));
+        _pausedText = value
+            ? string.Join(Environment.NewLine, _entries.Cast<LogEntry>().Select(entry => entry.Text))
+            : "";
+        OnPropertyChanged(nameof(Text));
     }
 
     [RelayCommand]
     private void Clear()
     {
         _clearedThroughSequence = _log.LatestSequence;
-        _pausedEntries = [];
+        _pausedText = "";
         _entries.Refresh();
         ClipboardError = null;
-        OnPropertyChanged(nameof(Entries));
+        OnPropertyChanged(nameof(Text));
     }
 
     public void Dispose()
     {
         _log.PropertyChanged -= OnLogChanged;
+        ((INotifyCollectionChanged)_entries).CollectionChanged -= OnEntriesChanged;
         _entries.DetachFromSourceCollection();
     }
 }

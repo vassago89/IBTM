@@ -57,6 +57,14 @@ public enum TeachingMotionHint
     SafeZRequired,
     [Description("Inside buffer: Y and Z moves are disabled.")]
     SupplyInBufferRestricted,
+    [Description("Home this unit before jogging or moving to a saved position.")]
+    HomeRequired,
+    [Description("Turn on this unit's axis servos before moving.")]
+    ServoOff,
+    [Description("Clear this unit's axis alarm or emergency signal before moving.")]
+    AxisFault,
+    [Description("Motion feedback is unavailable for this unit.")]
+    MotionUnavailable,
 }
 
 public abstract partial class TeachingMotionViewModel(
@@ -133,8 +141,7 @@ public abstract partial class TeachingMotionViewModel(
                             io,
                             TeachingOutputs,
                             SetOutputOnCommand,
-                            SetOutputOffCommand,
-                            SetOutputOnCancelCommand))
+                            SetOutputOffCommand))
                     .ToArray();
                 _teachingIoGroups.Add(ActiveTeachingUnit, groups);
             }
@@ -298,7 +305,7 @@ public abstract partial class TeachingMotionViewModel(
         SelectNextPointCommand.NotifyCanExecuteChanged();
     }
 
-    [RelayCommand(CanExecute = nameof(CanSetOutput), IncludeCancelCommand = true)]
+    [RelayCommand(CanExecute = nameof(CanSetOutput))]
     private Task SetOutputOnAsync(TeachingOutput output, CancellationToken cancellationToken)
     {
         return SetOutputAsync(output, true, cancellationToken);

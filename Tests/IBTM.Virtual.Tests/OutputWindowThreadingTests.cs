@@ -401,20 +401,34 @@ public sealed class OutputWindowThreadingTests
         var bus = new VirtualAdcBus();
         bus.Open("Virtual", 19200);
         var adc = new AdcProtocolWindow(bus, new IBTM.Hantas.HantasSettings(), machine);
-        var frames = (ListBox)adc.FindName("FrameLogList");
+        var frames = (TextBox)adc.FindName("FrameLogBox");
         var uiThread = Environment.CurrentManagedThreadId;
         var updates = new List<int>();
-        ((INotifyCollectionChanged)frames.Items).CollectionChanged += (_, _) =>
-            updates.Add(Environment.CurrentManagedThreadId);
+        adc.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(AdcProtocolWindow.FrameLogText))
+                updates.Add(Environment.CurrentManagedThreadId);
+        };
         try
         {
-            Assert.True(BindingOperations.IsDataBound(frames, ItemsControl.ItemsSourceProperty));
+            Assert.True(BindingOperations.IsDataBound(frames, TextBox.TextProperty));
+            Assert.True(frames.IsReadOnly);
             await Task.Run(() => bus.ReadDeviceInformationAsync(0));
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => frames.Items.Count == 2,
+                () => frames.Text.Contains("RX RAW") && frames.Text.Contains("TX"),
                 TimeSpan.FromSeconds(2)));
-            Assert.Contains("RX RAW", (string)frames.Items[0]);
-            Assert.Contains("TX", (string)frames.Items[1]);
+            Assert.True(frames.Text.IndexOf("RX RAW") < frames.Text.IndexOf("TX"));
+            adc.IsLogPaused = true;
+            frames.SelectAll();
+            var selectedFrames = frames.SelectedText;
+            Assert.Contains(Environment.NewLine, selectedFrames);
+            await Task.Run(() => bus.ReadDeviceInformationAsync(1));
+            await adc.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
+            Assert.Equal(selectedFrames, frames.SelectedText);
+            adc.IsLogPaused = false;
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => frames.Text.Length > selectedFrames.Length,
+                TimeSpan.FromSeconds(2)));
             Assert.All(updates, thread => Assert.Equal(uiThread, thread));
 
             var connect = (Button)adc.FindName("ConnectButton");
@@ -662,52 +676,51 @@ public sealed class OutputWindowThreadingTests
         log.Write("Before opening logs");
         var window = new LogWindow(log);
         var model = Assert.IsType<LogWindowViewModel>(window.DataContext);
-        var list = (ListBox)window.FindName("LogList");
+        var text = (TextBox)window.FindName("LogText");
         var uiThread = Environment.CurrentManagedThreadId;
         var updateThreads = new List<int>();
-        ((INotifyCollectionChanged)list.Items).CollectionChanged += (_, _) =>
-            updateThreads.Add(Environment.CurrentManagedThreadId);
+        model.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(LogWindowViewModel.Text))
+                updateThreads.Add(Environment.CurrentManagedThreadId);
+        };
         try
         {
-            Assert.True(BindingOperations.IsDataBound(list, ItemsControl.ItemsSourceProperty));
+            Assert.True(BindingOperations.IsDataBound(text, TextBox.TextProperty));
+            Assert.True(text.IsReadOnly);
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => list.Items.Count == 1,
+                () => text.Text.Contains("Before opening logs"),
                 TimeSpan.FromSeconds(2)));
-            Assert.Equal("Before opening logs", ((LogEntry)list.Items[0]).Message);
 
             await Task.Run(() => log.Write("Newest background entry"));
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => list.Items.Count == 2,
+                () => text.Text.Contains("Newest background entry"),
                 TimeSpan.FromSeconds(2)));
-            Assert.Equal("Newest background entry", ((LogEntry)list.Items[0]).Message);
+            Assert.StartsWith(log.Snapshot().Last().Text, text.Text);
 
             model.IsPaused = true;
-            var paused = list.Items.Cast<LogEntry>().ToArray();
+            var paused = text.Text;
+            text.SelectAll();
+            Assert.Equal(paused, text.SelectedText);
+            Assert.Contains(Environment.NewLine, text.SelectedText);
             await Task.Run(() => log.Write("Entry while paused"));
             await window.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
-            Assert.Equal(paused, list.Items.Cast<LogEntry>());
+            Assert.Equal(paused, text.Text);
+            Assert.Equal(paused, text.SelectedText);
             model.IsPaused = false;
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => list.Items.Count == 3,
+                () => text.Text.Contains("Entry while paused"),
                 TimeSpan.FromSeconds(2)));
-
-            var selected = list.Items[1];
-            list.SelectedItem = selected;
-            await Task.Run(() => log.Write("Entry while selecting"));
-            Assert.True(await VirtualTest.WaitUntilAsync(
-                () => list.Items.Count == 4,
-                TimeSpan.FromSeconds(2)));
-            Assert.Same(selected, list.SelectedItem);
 
             model.ClearCommand.Execute(null);
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => list.Items.Count == 0,
+                () => text.Text.Length == 0,
                 TimeSpan.FromSeconds(2)));
             await Task.Run(() => log.Write("Entry after clear"));
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => list.Items.Count == 1,
+                () => text.Text.Contains("Entry after clear"),
                 TimeSpan.FromSeconds(2)));
-            Assert.Equal("Entry after clear", ((LogEntry)list.Items[0]).Message);
+            Assert.Equal(log.Snapshot().Last().Text, text.Text);
             Assert.Contains(log.Snapshot(), entry => entry.Message == "Before opening logs");
             Assert.All(updateThreads, thread => Assert.Equal(uiThread, thread));
         }
@@ -723,11 +736,12 @@ public sealed class OutputWindowThreadingTests
         var reopened = new LogWindow(log);
         try
         {
-            var reopenedList = (ListBox)reopened.FindName("LogList");
+            var reopenedText = (TextBox)reopened.FindName("LogText");
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => reopenedList.Items.Count == 6,
+                () => reopenedText.Text.Contains("After closing logs"),
                 TimeSpan.FromSeconds(2)));
-            Assert.Equal("After closing logs", ((LogEntry)reopenedList.Items[0]).Message);
+            Assert.StartsWith(log.Snapshot().Last().Text, reopenedText.Text);
+            Assert.Contains("Before opening logs", reopenedText.Text);
         }
         finally
         {

@@ -40,9 +40,13 @@ public sealed class InspectionStation : AutoUnit
 
     public override event Action? Changed;
 
-    public InspectionStationState State(IReadOnlyList<BoltTarget> bolts, bool repeat = false)
+    public InspectionStationState State(
+        IReadOnlyList<BoltTarget> bolts,
+        bool repeat = false,
+        bool holdAtShuttle = false)
     {
-        return TransferState(CurrentTransferState(repeat)) ?? NextInspectionState(NextBolt(bolts));
+        return TransferState(CurrentTransferState(repeat, holdAtShuttle))
+            ?? NextInspectionState(NextBolt(bolts));
     }
 
     public BoltTarget? ActiveBolt(IReadOnlyList<BoltTarget> bolts)
@@ -64,22 +68,24 @@ public sealed class InspectionStation : AutoUnit
     public async Task RunAsync(
         IReadOnlyList<BoltTarget> bolts,
         CancellationToken cancellationToken = default,
-        bool repeat = false)
+        bool repeat = false,
+        bool holdAtShuttle = false)
     {
         if (_work.Enabled && _work.CarrierPresent && !_work.Completed)
         {
             _work.RestartInspection();
         }
 
-        await RunLoopAsync(token => ExecuteAsync(bolts, repeat, token), cancellationToken);
+        await RunLoopAsync(token => ExecuteAsync(bolts, repeat, holdAtShuttle, token), cancellationToken);
     }
 
     private Task ExecuteAsync(
         IReadOnlyList<BoltTarget> bolts,
         bool repeat,
+        bool holdAtShuttle,
         CancellationToken cancellationToken)
     {
-        var transferState = CurrentTransferState(repeat);
+        var transferState = CurrentTransferState(repeat, holdAtShuttle);
         if (TransferState(transferState) is not null)
             return _move.ExecuteAsync(NgTransferDestination.Shuttle, transferState, cancellationToken) ?? WaitForChangeAsync(
                 cancellationToken);
@@ -90,7 +96,7 @@ public sealed class InspectionStation : AutoUnit
             : ExecuteInspectionAsync(bolts, cancellationToken);
     }
 
-    private NgTransferState CurrentTransferState(bool repeat)
+    private NgTransferState CurrentTransferState(bool repeat, bool holdAtShuttle)
     {
         if (!_isTransferEnabled())
             return NgTransferState.Idle;
@@ -102,7 +108,8 @@ public sealed class InspectionStation : AutoUnit
                 && _work.Completed
                 && (repeat || _work.RouteToNg)
                 && canReceive,
-            canReceive: canReceive);
+            canReceive: canReceive,
+            holdAtDestination: holdAtShuttle);
     }
 
     // Inspection's display enum describes the same shared transfer states.
@@ -123,6 +130,7 @@ public sealed class InspectionStation : AutoUnit
             NgTransferState.LoweringAtDestination => InspectionStationState.LoweringTransferAtShuttle,
             NgTransferState.Opening => InspectionStationState.OpeningTransferGripper,
             NgTransferState.WaitingForPlacement => InspectionStationState.WaitingForShuttleCarrier,
+            NgTransferState.HoldingAtDestination => InspectionStationState.HoldingCarrierAtShuttle,
             _ => null,
         };
     }

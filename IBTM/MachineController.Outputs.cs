@@ -234,6 +234,13 @@ public sealed partial class MachineController
     {
         Task SetOutput(CancellationToken token)
         {
+            if (output.Signal == OutputIo.ShootBolt)
+            {
+                token.ThrowIfCancellationRequested();
+                _io.SetOutput(output.Signal, value);
+                return Task.CompletedTask;
+            }
+
             return output.Signal switch
             {
                 OutputIo.PcbSupplyGripperClosed => _supplyHandler.SetGripperClosedAsync(value, token),
@@ -252,13 +259,15 @@ public sealed partial class MachineController
                     => _fasteningGantry.SetVacuumAsync(FasteningHead.Pickup, value, token),
                 OutputIo.ShootingHeadVacuumPump
                     => _fasteningGantry.SetVacuumAsync(FasteningHead.Shooting, value, token),
-                OutputIo.ShootBolt => _fasteningGantry.SetManualShootingAsync(value, token),
                 OutputIo.NgCarrierPickupUp => _ngTransfer.SetLiftUpAsync(value, token),
                 OutputIo.NgCarrierGripperOpen => _ngTransfer.SetGripperOpenAsync(value, token),
                 OutputIo.NgShuttleUp => _ngShuttle.SetUpAsync(value, token),
                 OutputIo.PcbPlacementBackupPlateDown
                     or OutputIo.BoltFasteningBackupPlateDown
                     or OutputIo.InspectionBackupPlateDown
+                    or OutputIo.PcbPlacementStopperDown
+                    or OutputIo.BoltFasteningStopperDown
+                    or OutputIo.InspectionStopperDown
                     => _io.SetOutputAndWaitAsync(output.Signal, value, token),
                 _ => throw new ArgumentOutOfRangeException(nameof(output)),
             };

@@ -48,6 +48,8 @@ public enum NgTransferState
     WaitingForPlacement,
     [Description("Transfer complete")]
     Completed,
+    [Description("Carrier held at destination")]
+    HoldingAtDestination,
 }
 
 // Automatic operation and dry run use the same physical transfer.
@@ -87,7 +89,8 @@ public sealed class NgCarrierMove(
     public NgTransferState State(
         NgTransferDestination destination,
         bool canPickUp,
-        bool canReceive = true)
+        bool canReceive = true,
+        bool holdAtDestination = false)
     {
         var source = Opposite(destination);
         var atDestination = gantry.IsAt(Position(destination));
@@ -96,6 +99,17 @@ public sealed class NgCarrierMove(
         var sourcePresent = CarrierPresent(source);
         var down = pickup.Lift == NgTransferLiftState.Down;
         var open = pickup.Gripper == NgTransferGripperState.Open;
+        if (holdAtDestination && atDestination && down)
+        {
+            if (!SupportReady(destination))
+                return SupportNotReady(destination);
+            if (pickup.Gripper != NgTransferGripperState.Closed)
+                return NgTransferState.Closing;
+            return pickup.CarrierDetected
+                ? NgTransferState.HoldingAtDestination
+                : NgTransferState.WaitingForGrip;
+        }
+
         // Released carriers may still be visible to the pickup's presence sensor.
         if (atDestination && open && destinationPresent)
             return pickup.IsRaised ? NgTransferState.Completed : NgTransferState.Raising;

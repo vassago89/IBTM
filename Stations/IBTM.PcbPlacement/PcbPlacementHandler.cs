@@ -286,7 +286,9 @@ public sealed class PcbPlacementHandler : IBufferPlacementState
 
     public Task RaiseAsync(CancellationToken cancellationToken = default)
     {
-        return SetLiftDownAsync(false, cancellationToken);
+        return Task.WhenAll(
+            SetLiftDownAsync(false, cancellationToken),
+            SetIpmLiftDownAsync(false, cancellationToken));
     }
 
     public Task SetIpmLiftDownAsync(bool down, CancellationToken cancellationToken = default)

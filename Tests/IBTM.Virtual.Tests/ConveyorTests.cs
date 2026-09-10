@@ -199,9 +199,21 @@ public sealed class ConveyorTests
         Assert.True(io.GetOutput(stopper));
         Assert.Equal(StationCylinderState.Down, station.Stopper);
 
+        await station.PrepareToReceiveAsync(CancellationToken.None);
+        io.OutputChanged += (changedOutput, value) =>
+        {
+            Assert.True(changedOutput == output || changedOutput == stopper);
+            if (changedOutput == stopper && value)
+            {
+                Assert.Equal(StationCylinderState.Up, station.BackupPlate);
+            }
+        };
+
         await station.RaiseBackupPlateAsync(CancellationToken.None);
         Assert.False(io.GetOutput(output));
         Assert.Equal(StationCylinderState.Up, station.BackupPlate);
+        Assert.True(io.GetOutput(stopper));
+        Assert.Equal(StationCylinderState.Down, station.Stopper);
     }
 
     [Fact]

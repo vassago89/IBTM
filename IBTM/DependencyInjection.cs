@@ -92,6 +92,7 @@ public static class DependencyInjection
                     new(OutputIo.PcbPlacementIpmGripperClose, HardwareArea.PcbPlacementHandler),
                     new(OutputIo.PcbPlacementVacuumEjector, HardwareArea.PcbPlacementHandler),
                     new(OutputIo.PcbPlacementHandlerRotate, HardwareArea.PcbPlacementHandler),
+                    new(OutputIo.PcbPlacementStopperDown, HardwareArea.MainConveyor),
                     new(OutputIo.PcbPlacementBackupPlateDown, HardwareArea.MainConveyor),
                 ],
                 [HardwareArea.BoltFastening] = [
@@ -99,7 +100,8 @@ public static class DependencyInjection
                     new(OutputIo.ShootingHeadDown, HardwareArea.BoltFastening),
                     new(OutputIo.PickupHeadVacuumPump, HardwareArea.BoltFastening),
                     new(OutputIo.ShootingHeadVacuumPump, HardwareArea.BoltFastening),
-                    new(OutputIo.ShootBolt, HardwareArea.BoltFastening, HoldToRun: true),
+                    new(OutputIo.ShootBolt, HardwareArea.BoltFastening),
+                    new(OutputIo.BoltFasteningStopperDown, HardwareArea.MainConveyor),
                     new(OutputIo.BoltFasteningBackupPlateDown, HardwareArea.MainConveyor),
                 ],
                 [HardwareArea.InspectionGantry] = [
@@ -110,6 +112,7 @@ public static class DependencyInjection
                     new(OutputIo.NgCarrierPickupUp, HardwareArea.NgCarrierTransfer),
                     new(OutputIo.NgCarrierGripperOpen, HardwareArea.NgCarrierTransfer),
                     new(OutputIo.NgShuttleUp, HardwareArea.NgShuttle),
+                    new(OutputIo.InspectionStopperDown, HardwareArea.MainConveyor),
                     new(OutputIo.InspectionBackupPlateDown, HardwareArea.MainConveyor),
                 ],
             }.ToDictionary(

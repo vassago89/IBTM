@@ -430,21 +430,6 @@ public sealed class BoltFasteningGantry
         _io.SetOutput(OutputIo.ShootBolt, false);
     }
 
-    public async Task SetManualShootingAsync(bool on, CancellationToken cancellationToken)
-    {
-        try
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            _io.SetOutput(OutputIo.ShootBolt, on);
-            if (on)
-                await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            StopShooting();
-        }
-    }
-
     internal void DiscardPendingResults()
     {
         _shootingHead.DiscardPendingResult();

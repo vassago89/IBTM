@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
@@ -14,7 +15,20 @@ public partial class StationTeachingViewModel
         get
         {
             if (!_state.Display.Available)
-                return TeachingMotionHint.None;
+                return IsInspectionSelected ? TeachingMotionHint.None : TeachingMotionHint.MotionUnavailable;
+            if (!IsInspectionSelected)
+            {
+                if (HomeBlock == HomeBlockReason.UnitDisabled)
+                    return TeachingMotionHint.UnitDisabled;
+                if (Motion.Axes.Values.Any(axis => axis.State is null))
+                    return TeachingMotionHint.MotionUnavailable;
+                if (Motion.Axes.Values.Any(axis => axis.State is { Alarm: true } or { Emergency: true }))
+                    return TeachingMotionHint.AxisFault;
+                if (Motion.Axes.Values.Any(axis => axis.State is { ServoOn: false }))
+                    return TeachingMotionHint.ServoOff;
+                if (Motion.Axes.Values.Any(axis => axis.State is { Homed: false }))
+                    return TeachingMotionHint.HomeRequired;
+            }
             return ActiveMotionGroup switch
             {
                 MotionGroup.PcbPlacementHandler when _state.Display.SupplyInBufferArea
@@ -28,6 +42,24 @@ public partial class StationTeachingViewModel
                     => TeachingMotionHint.SafeZRequired,
                 _ => TeachingMotionHint.None,
             };
+        }
+    }
+
+    public HomeBlockReason HomeBlock
+    {
+        get
+        {
+            return IsInspectionSelected ? HomeBlockReason.None : Machine.GetHomeBlock(ActiveMotionGroup);
+        }
+    }
+
+    private double TeachingXySpeed
+    {
+        get
+        {
+            return SelectedTeachingUnit == HardwareArea.NgCarrierTransfer
+                ? _ngTransferSettings.Speed
+                : _inspectionGantrySettings.Motion.HorizontalSpeed;
         }
     }
 
@@ -116,7 +148,7 @@ public partial class StationTeachingViewModel
                     MotionGroup.InspectionGantry => _inspectionGantry.MoveAxisAsync(
                         axis,
                         target,
-                        _inspectionGantrySettings.Motion.HorizontalSpeed,
+                        TeachingXySpeed,
                         token),
                     _ => throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup)),
                 };
@@ -158,7 +190,7 @@ public partial class StationTeachingViewModel
                     token),
                 MotionGroup.InspectionGantry => _inspectionGantry.MoveToAsync(
                     new AxisPosition { X = point.X, Y = point.Y },
-                    _inspectionGantrySettings.Motion.HorizontalSpeed,
+                    TeachingXySpeed,
                     token),
                 _ => throw new ArgumentOutOfRangeException(nameof(point)),
             },
@@ -187,6 +219,7 @@ public partial class StationTeachingViewModel
 
     protected override void NotifyManualTeachingCommands()
     {
+        OnPropertyChanged(nameof(HomeBlock));
         OnPropertyChanged(nameof(CanEditInspectionRecipe));
         if (!_state.ManualMode && (Inspector.IsLiveView || ToggleLiveViewCommand.IsRunning))
         {

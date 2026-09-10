@@ -1,7 +1,9 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -22,6 +24,8 @@ public partial class AdcProtocolWindow : Window
     private const int MaximumLogEntries = 1000;
     private readonly object _frameLogGate = new();
     private readonly ObservableCollection<string> _frameLog = new();
+    private readonly ListCollectionView _frameLogView;
+    private string _pausedFrameLogText = "";
 
     private readonly CancellationTokenSource _lifetime = new();
     private readonly IAdcBus _bus;
@@ -42,6 +46,10 @@ public partial class AdcProtocolWindow : Window
     private string _registerResult = "-";
     [ObservableProperty]
     private string[] _portNames = [];
+    [ObservableProperty]
+    private bool _isLogPaused;
+    [ObservableProperty]
+    private string? _clipboardError;
 
     public AdcProtocolWindow(
         IAdcBus bus,
@@ -53,8 +61,9 @@ public partial class AdcProtocolWindow : Window
         _settings = settings;
         _machine = machine;
         _log = log;
-        FrameLog = new ReadOnlyObservableCollection<string>(_frameLog);
-        BindingOperations.EnableCollectionSynchronization(FrameLog, _frameLogGate);
+        BindingOperations.EnableCollectionSynchronization(_frameLog, _frameLogGate);
+        _frameLogView = new ListCollectionView(_frameLog);
+        ((INotifyCollectionChanged)_frameLogView).CollectionChanged += OnFrameLogChanged;
         ReverseCommand = new AsyncRelayCommand(
             token => ExecuteAsync(TestReverseAsync, token),
             CanReverse);
@@ -81,7 +90,15 @@ public partial class AdcProtocolWindow : Window
     }
 
     public int[] BaudRates { get; } = [9600, 19200, 38400, 57600, 115200];
-    public ReadOnlyObservableCollection<string> FrameLog { get; }
+    public string FrameLogText
+    {
+        get
+        {
+            return IsLogPaused
+                ? _pausedFrameLogText
+                : string.Join(Environment.NewLine, _frameLogView.Cast<string>());
+        }
+    }
     public AdcFunctionCode[] RegisterAccesses { get; } = [
         AdcFunctionCode.ReadHoldingRegisters,
         AdcFunctionCode.ReadInputRegisters,
@@ -158,6 +175,8 @@ public partial class AdcProtocolWindow : Window
     {
         _lifetime.Cancel();
         _bus.FrameTransferred -= OnFrameTransferred;
+        ((INotifyCollectionChanged)_frameLogView).CollectionChanged -= OnFrameLogChanged;
+        _frameLogView.DetachFromSourceCollection();
         _lifetime.Dispose();
         base.OnClosed(e);
     }
@@ -354,6 +373,53 @@ public partial class AdcProtocolWindow : Window
     {
         lock (_frameLogGate)
             _frameLog.Clear();
+        _pausedFrameLogText = "";
+        ClipboardError = null;
+        OnPropertyChanged(nameof(FrameLogText));
+    }
+
+    private void OnFrameLogChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (!IsLogPaused)
+            OnPropertyChanged(nameof(FrameLogText));
+    }
+
+    partial void OnIsLogPausedChanged(bool value)
+    {
+        _pausedFrameLogText = value
+            ? string.Join(Environment.NewLine, _frameLogView.Cast<string>())
+            : "";
+        OnPropertyChanged(nameof(FrameLogText));
+    }
+
+    private void OnLogSelectionChanged(object sender, RoutedEventArgs e)
+    {
+        if (FrameLogBox.IsKeyboardFocusWithin && FrameLogBox.SelectionLength > 0)
+            IsLogPaused = true;
+    }
+
+    private void OnCopyLog(object sender, RoutedEventArgs e)
+    {
+        CopyLogText(FrameLogBox.SelectionLength > 0 ? FrameLogBox.SelectedText : FrameLogBox.Text);
+    }
+
+    private void OnCopyAllLog(object sender, RoutedEventArgs e)
+    {
+        CopyLogText(FrameLogBox.Text);
+    }
+
+    private void CopyLogText(string text)
+    {
+        try
+        {
+            if (text.Length > 0)
+                Clipboard.SetText(text);
+            ClipboardError = null;
+        }
+        catch (ExternalException exception)
+        {
+            ClipboardError = $"Clipboard is unavailable: {exception.Message}";
+        }
     }
 
     private Task ExecuteAsync(

@@ -31,6 +31,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var pickup = services.GetRequiredService<NgCarrierTransfer>();
+        var gantry = services.GetRequiredService<InspectionGantry>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.InspectionCarrierPresent, true);
@@ -38,10 +39,20 @@ public sealed partial class MachineLifecycleTests
         var shuttleOutputs = new ConcurrentQueue<bool>();
         var placedAndReleased = false;
         var pickedBackUp = false;
+        var loweredWhileHolding = false;
+        var openedAtShuttle = false;
         var ngConveyorRan = false;
         var stoppedForConfiguration = false;
         void CheckPickup()
         {
+            if (gantry.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition)
+                && pickup.Lift == NgTransferLiftState.Down
+                && pickup.Gripper == NgTransferGripperState.Closed
+                && pickup.CarrierDetected)
+            {
+                loweredWhileHolding = true;
+            }
+
             if (io.GetInput(InputIo.NgShuttleCarrierDetected)
                 && pickup.IsRaised
                 && pickup.Gripper == NgTransferGripperState.Open
@@ -57,6 +68,9 @@ public sealed partial class MachineLifecycleTests
         pickup.Changed += CheckPickup;
         io.OutputChanged += (output, on) =>
         {
+            if (output == OutputIo.NgCarrierGripperOpen && on
+                && gantry.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition))
+                openedAtShuttle = true;
             if (output == OutputIo.NgShuttleUp)
             {
                 shuttleOutputs.Enqueue(on);
@@ -96,8 +110,10 @@ public sealed partial class MachineLifecycleTests
                 $"Phase={state.Display.RepeatPhase}, Alarm={state.AlarmDetail}");
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
             Assert.Equal(1, state.Display.RepeatCycles);
-            Assert.True(placedAndReleased);
-            Assert.True(pickedBackUp);
+            Assert.True(loweredWhileHolding);
+            Assert.Equal(shuttleEnabled, openedAtShuttle);
+            Assert.Equal(shuttleEnabled, placedAndReleased);
+            Assert.Equal(shuttleEnabled, pickedBackUp);
             Assert.False(ngConveyorRan);
             Assert.Equal(shuttleEnabled ? new[] { false, true } : [], shuttleOutputs.ToArray());
         }

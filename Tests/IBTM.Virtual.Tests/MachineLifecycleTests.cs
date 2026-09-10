@@ -94,9 +94,11 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task ManualShootingHoldsOnlyAirAndStopsOnReleaseNavigationOrStop()
+    public async Task ManualShootingLatchesUntilOffOrMachineStop()
     {
-        using var services = CreateServices(FlowSettings());
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
         var io = services.GetRequiredService<VirtualIoService>();
@@ -109,33 +111,33 @@ public sealed partial class MachineLifecycleTests
         var shoot = teaching.TeachingOutputs[OutputIo.ShootBolt];
         var outputs = new List<OutputIo>();
         io.OutputChanged += (output, _) => outputs.Add(output);
-        Assert.True(shoot.HoldToRun);
+        await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(shoot));
+        await teaching.SetOutputOnCommand.ExecuteAsync(shoot).WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(io.GetOutput(OutputIo.ShootBolt));
+        Assert.True(state.ManualSetupEnabled);
+        Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
 
-        Action[] stopActions = [
-            () => teaching.SetOutputOnCancelCommand.Execute(null),
-            () => teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry,
-            machine.Stop,
-            teaching.Deactivate,
-            () => io.SetInput(InputIo.AutoMode, false),
-        ];
-        foreach (var stop in stopActions)
-        {
-            teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
-            await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(shoot));
-            var holding = teaching.SetOutputOnCommand.ExecuteAsync(shoot);
-            Assert.True(io.GetOutput(OutputIo.ShootBolt));
-            Assert.False(holding.IsCompleted);
-            Assert.False(state.ManualSetupEnabled);
-            Assert.False(machine.CanStart);
-            stop();
-            await holding.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.False(io.GetOutput(OutputIo.ShootBolt));
-            io.SetInput(InputIo.AutoMode, true);
-        }
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+        teaching.Deactivate();
+        Assert.True(io.GetOutput(OutputIo.ShootBolt));
+        Assert.Single(outputs);
 
+        teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+        await WaitUntilAsync(() => teaching.SetOutputOffCommand.CanExecute(shoot));
+        await teaching.SetOutputOffCommand.ExecuteAsync(shoot);
+        Assert.False(io.GetOutput(OutputIo.ShootBolt));
         Assert.All(outputs, output => Assert.Equal(OutputIo.ShootBolt, output));
-        Assert.Equal(MachineAlarm.None, state.Alarm);
+
+        await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(shoot));
+        await teaching.SetOutputOnCommand.ExecuteAsync(shoot);
+        machine.Stop();
+        Assert.False(io.GetOutput(OutputIo.ShootBolt));
+
+        await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(shoot));
+        await teaching.SetOutputOnCommand.ExecuteAsync(shoot);
         io.SetInput(InputIo.AutoMode, false);
+        Assert.False(io.GetOutput(OutputIo.ShootBolt));
+        Assert.Equal(MachineAlarm.None, state.Alarm);
         await WaitUntilAsync(() => !teaching.SetOutputOnCommand.CanExecute(shoot));
     }
 

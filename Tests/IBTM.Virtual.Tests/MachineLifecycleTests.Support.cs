@@ -199,6 +199,7 @@ public sealed partial class MachineLifecycleTests
         public Action? BeforeRead;
         public Action? BeforePositionRead;
         public MotionAxis? LastMovedAxis { get; private set; }
+        public double? LastMoveVelocity { get; private set; }
 
         public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
         {
@@ -218,6 +219,8 @@ public sealed partial class MachineLifecycleTests
                 BeforePositionRead?.Invoke();
             if (method.Name == nameof(IAxisMotion.MoveAxisAsync))
                 LastMovedAxis = (MotionAxis)arguments![0]!;
+            if (method.Name is nameof(IAxisMotion.MoveAxisAsync) or nameof(IXyMotion.MoveToXYAsync))
+                LastMoveVelocity = (double)arguments![2]!;
             return method.Invoke(Motion, arguments);
         }
     }

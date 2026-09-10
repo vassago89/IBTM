@@ -1,8 +1,6 @@
 using System;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Controls;
 using IBTM.Core;
 
 namespace IBTM.UI;
@@ -10,7 +8,6 @@ namespace IBTM.UI;
 public partial class LogWindow : Window
 {
     private readonly LogWindowViewModel _viewModel;
-    private TextBox? _selectedTextBox;
 
     public LogWindow(ApplicationLog log)
     {
@@ -27,29 +24,24 @@ public partial class LogWindow : Window
 
     private void OnTextSelectionChanged(object sender, RoutedEventArgs e)
     {
-        var textBox = (TextBox)sender;
-        if (textBox.SelectionLength > 0)
-            _selectedTextBox = textBox;
-        else if (_selectedTextBox == textBox)
-            _selectedTextBox = null;
+        if (LogText.IsKeyboardFocusWithin && LogText.SelectionLength > 0)
+            _viewModel.IsPaused = true;
     }
 
     private void OnCopy(object sender, RoutedEventArgs e)
     {
+        CopyText(LogText.SelectionLength > 0 ? LogText.SelectedText : LogText.Text);
+    }
+
+    private void OnCopyAll(object sender, RoutedEventArgs e)
+    {
+        CopyText(LogText.Text);
+    }
+
+    private void CopyText(string text)
+    {
         try
         {
-            string text;
-            if (_selectedTextBox is { IsVisible: true, SelectionLength: > 0 })
-            {
-                text = _selectedTextBox.SelectedText;
-            }
-            else
-            {
-                var entries = LogList.SelectedItems.Count > 0 ? LogList.SelectedItems : LogList.Items;
-                text = string.Join(
-                    Environment.NewLine,
-                    entries.Cast<LogEntry>().OrderByDescending(entry => entry.Sequence).Select(entry => entry.Text));
-            }
             if (text.Length > 0)
                 Clipboard.SetText(text);
             _viewModel.ClipboardError = null;

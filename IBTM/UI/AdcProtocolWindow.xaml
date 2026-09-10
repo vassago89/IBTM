@@ -1,7 +1,6 @@
 <Window x:Class="IBTM.UI.AdcProtocolWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:sys="clr-namespace:System;assembly=System.Runtime"
         xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -242,28 +241,31 @@
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <Grid>
-                    <TextBlock Text="FRAME LOG" Style="{StaticResource SectionHeaderStyle}"/>
-                    <Button Content="Clear"
-                            HorizontalAlignment="Right"
-                            Padding="12,4"
-                            Style="{StaticResource SecondaryButtonStyle}"
-                            Click="OnClearLog"/>
-                </Grid>
-                <ListBox x:Name="FrameLogList" Grid.Row="1" Margin="0,10,0,0"
-                         ItemsSource="{Binding FrameLog}" Style="{StaticResource PanelListStyle}"
-                         ScrollViewer.VerticalScrollBarVisibility="Auto"
-                         ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate DataType="{x:Type sys:String}">
-                            <TextBox Text="{Binding Mode=OneWay}" IsReadOnly="True" TextWrapping="NoWrap"
-                                     BorderThickness="0" Background="Transparent" Padding="4,2"/>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <CheckBox Content="Pause display" IsChecked="{Binding IsLogPaused}"
+                                  VerticalAlignment="Center" Margin="0,0,16,0"/>
+                        <Button Content="Copy" Click="OnCopyLog" Padding="12,4" Margin="0,0,8,0"
+                                ToolTip="Copy selected text, or all displayed frames if nothing is selected."
+                                Style="{StaticResource SecondaryButtonStyle}"/>
+                        <Button Content="Copy all" Click="OnCopyAllLog" Padding="12,4" Margin="0,0,8,0"
+                                Style="{StaticResource SecondaryButtonStyle}"/>
+                        <Button Content="Clear" Click="OnClearLog" Padding="12,4"
+                                Style="{StaticResource SecondaryButtonStyle}"/>
+                    </StackPanel>
+                    <TextBlock Text="FRAME LOG" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center"/>
+                </DockPanel>
+                <TextBlock Grid.Row="1" Margin="0,6,0,0" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"
+                           Text="Newest first. Drag across lines or use Ctrl+A / Ctrl+C. Selecting text pauses display only; communication continues."/>
+                <TextBox x:Name="FrameLogBox" Grid.Row="2" Margin="0,8,0,0" Text="{Binding FrameLogText, Mode=OneWay}"
+                         IsReadOnly="True" IsUndoEnabled="False" AcceptsReturn="True" IsInactiveSelectionHighlightEnabled="True"
+                         SelectionChanged="OnLogSelectionChanged" FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                         TextWrapping="NoWrap" Padding="8" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+                <TextBlock Grid.Row="3" Text="{Binding ClipboardError}" Foreground="{StaticResource AccentRedBrush}" TextWrapping="Wrap"/>
             </Grid>
         </Border>
     </Grid>

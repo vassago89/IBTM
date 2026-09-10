@@ -161,6 +161,22 @@
         </Style.Triggers>
     </Style>
 
+    <Style x:Key="IoOutputStateButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+        <Setter Property="MinWidth" Value="68"/>
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+        <Setter Property="Background" Value="#222C32"/>
+        <Style.Triggers>
+            <Trigger Property="Content" Value="ON">
+                <Setter Property="Foreground" Value="#0D1B26"/>
+                <Setter Property="Background" Value="{StaticResource IoOutputOnBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource IoOutputOnBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <DataTemplate x:Key="IoSignalReadoutTemplate" DataType="{x:Type device:IoInputStatus}">
         <Grid Margin="0,3">
             <Grid.ColumnDefinitions>
@@ -183,6 +199,8 @@
                 <TextBlock Text="Related I/O" Style="{StaticResource PanelTitleStyle}"/>
                 <TextBlock Text="Current state: blue = DI ON · amber = DO ON · — = unavailable"
                            TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" FontSize="11" Margin="0,5,0,0"/>
+                <TextBlock Text="Click CURRENT DO to switch ON / OFF."
+                           TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" Margin="0,4,0,0"/>
             </StackPanel>
             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <ui:IoGroupList ItemsSource="{Binding TeachingIoGroups}">
@@ -220,23 +238,31 @@
                                                         <StackPanel Grid.Column="1">
                                                             <TextBlock Text="CURRENT DO" FontSize="10" FontWeight="SemiBold"
                                                                        Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
-                                                            <TextBlock Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
-                                                                       Style="{StaticResource IoOutputStateStyle}"/>
+                                                            <Grid>
+                                                                <TextBlock x:Name="ReadOnlyOutput" Visibility="Collapsed"
+                                                                           Text="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}"
+                                                                           Style="{StaticResource IoOutputStateStyle}"/>
+                                                                <Button x:Name="ToggleOutput" CommandParameter="{Binding Output}"
+                                                                        Content="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button" BasedOn="{StaticResource IoOutputStateButtonStyle}">
+                                                                            <Setter Property="Command" Value="{Binding SetOutputOnCommand}"/>
+                                                                            <Setter Property="ToolTip" Value="Current output: OFF. Click to turn ON."/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Io.IsOn}" Value="True">
+                                                                                    <Setter Property="Command" Value="{Binding SetOutputOffCommand}"/>
+                                                                                    <Setter Property="ToolTip" Value="Current output: ON. Click to turn OFF."/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Io.IsOn}" Value="{x:Null}">
+                                                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                                                    <Setter Property="ToolTip" Value="Current output is unavailable."/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                </Button>
+                                                            </Grid>
                                                         </StackPanel>
-                                                    </Grid>
-                                                    <Grid x:Name="OutputControls" HorizontalAlignment="Left" Margin="0,8,0,0">
-                                                        <StackPanel x:Name="SwitchButtons" Orientation="Horizontal">
-                                                            <Button Content="Set ON" Command="{Binding SetOutputOnCommand}" CommandParameter="{Binding Output}"
-                                                                    Style="{StaticResource SecondaryButtonStyle}" Padding="12,6" MinWidth="76" Margin="0,0,6,0"/>
-                                                            <Button Content="Set OFF" Command="{Binding SetOutputOffCommand}" CommandParameter="{Binding Output}"
-                                                                    Style="{StaticResource SecondaryButtonStyle}" Padding="12,6" MinWidth="76"/>
-                                                        </StackPanel>
-                                                        <ui:HoldButton x:Name="HoldOutput" Content="Hold to run" Visibility="Collapsed"
-                                                                       CommandParameter="{Binding Output}"
-                                                                       PressCommand="{Binding SetOutputOnCommand}"
-                                                                       ReleaseCommand="{Binding SetOutputOnCancelCommand}"
-                                                                       ToolTip="Hold to run; release to stop."
-                                                                       Style="{StaticResource SecondaryButtonStyle}" Padding="12,6" MinWidth="158"/>
                                                     </Grid>
                                                     <Border x:Name="Feedback" BorderBrush="{StaticResource DividerBrush}"
                                                             BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,8,0,0">
@@ -255,11 +281,8 @@
                                                     <Setter TargetName="Feedback" Property="Visibility" Value="Collapsed"/>
                                                 </DataTrigger>
                                                 <DataTrigger Binding="{Binding Output}" Value="{x:Null}">
-                                                    <Setter TargetName="OutputControls" Property="Visibility" Value="Collapsed"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Output.HoldToRun}" Value="True">
-                                                    <Setter TargetName="SwitchButtons" Property="Visibility" Value="Collapsed"/>
-                                                    <Setter TargetName="HoldOutput" Property="Visibility" Value="Visible"/>
+                                                    <Setter TargetName="ToggleOutput" Property="Visibility" Value="Collapsed"/>
+                                                    <Setter TargetName="ReadOnlyOutput" Property="Visibility" Value="Visible"/>
                                                 </DataTrigger>
                                             </DataTemplate.Triggers>
                                         </DataTemplate>

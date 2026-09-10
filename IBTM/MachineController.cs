@@ -163,7 +163,6 @@ public sealed partial class MachineController
     {
         return !_operations.IsShuttingDown
             && _state.SafetyReady
-            && _state.DoorInterlockReady
             && motion.ServosOn
             && !motion.Faulted
             && _state.ServoMainContactorOn
@@ -196,13 +195,18 @@ public sealed partial class MachineController
     {
         if (!_io.IsReady)
             return HomeBlockReason.IoUnavailable;
+        if (group is { } motionGroup && !_units.IsMotionEnabled(motionGroup))
+            return HomeBlockReason.UnitDisabled;
+        if (!_state.ManualMode && !_state.DoorInterlockReady)
+            return HomeBlockReason.DoorOpen;
         if (Array.Exists(CarrierInputs, _io.GetInput))
             return HomeBlockReason.CarrierDetected;
 
         if ((group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
             || group is null
             && BufferHandlersEnabled)
-            && !_placementHandler.CanMoveHorizontal)
+            && (!_placementHandler.CanMoveHorizontal
+                || _placementHandler.IpmLift != PlacementCylinderState.Up))
             return HomeBlockReason.PlacementNotRaised;
 
         if ((group == MotionGroup.BoltFastening || group is null && _units.BoltFastening)
@@ -554,7 +558,6 @@ public sealed partial class MachineController
         if (!_units.IsMotionEnabled(group)
             || !_state.ManualMode
             || !_state.SafetyReady
-            || !_state.DoorInterlockReady
             || !_state.ServoMainContactorOn
             || GetHomeBlock(group) != HomeBlockReason.None)
             return false;
@@ -1058,6 +1061,8 @@ public sealed partial class MachineController
         if (Array.IndexOf(CarrierInputs, input) >= 0
             || input is InputIo.PcbPlacementHandlerUp
                 or InputIo.PcbPlacementHandlerDown
+                or InputIo.PcbPlacementIpmUp
+                or InputIo.PcbPlacementIpmDown
                 or InputIo.PickupHeadUp
                 or InputIo.PickupHeadDown
                 or InputIo.ShootingHeadUp

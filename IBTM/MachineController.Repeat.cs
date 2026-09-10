@@ -103,7 +103,11 @@ public sealed partial class MachineController
         StartUnit(
             InspectionGantryEnabled,
             _units.Inspection ? MachineAlarm.Inspection : MachineAlarm.NgCarrierTransfer,
-            () => _inspectionStation.RunAsync(_recipe.Pcb.GetBolts().ToArray(), cycle.Token, repeat));
+            () => _inspectionStation.RunAsync(
+                _recipe.Pcb.GetBolts().ToArray(),
+                cycle.Token,
+                repeat,
+                holdAtShuttle: repeat && !_units.NgShuttle));
         StartUnit(
             _units.NgShuttle && (!repeat || _units.NgConveyor),
             MachineAlarm.NgShuttle,
@@ -207,8 +211,14 @@ public sealed partial class MachineController
             }
             else
             {
-                while (_ngMove.State(NgTransferDestination.Shuttle, canPickUp: true)
-                    != NgTransferState.Completed)
+                var holdAtShuttle = !_units.NgShuttle;
+                var endState = holdAtShuttle
+                    ? NgTransferState.HoldingAtDestination
+                    : NgTransferState.Completed;
+                while (_ngMove.State(
+                    NgTransferDestination.Shuttle,
+                    canPickUp: true,
+                    holdAtDestination: holdAtShuttle) != endState)
                 {
                     await transferChanged.WaitAsync(cycle.Token);
                 }

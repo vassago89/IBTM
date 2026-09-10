@@ -166,13 +166,13 @@ public sealed class ConveyorStation
     public async Task SeatAsync(CancellationToken cancellationToken)
     {
         await _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken);
-        await _io.SetOutputAndWaitAsync(_backupPlate, false, cancellationToken);
-        await _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken);
+        await RaiseBackupPlateAsync(cancellationToken);
     }
 
-    public Task RaiseBackupPlateAsync(CancellationToken cancellationToken)
+    public async Task RaiseBackupPlateAsync(CancellationToken cancellationToken)
     {
-        return _io.SetOutputAndWaitAsync(_backupPlate, false, cancellationToken);
+        await _io.SetOutputAndWaitAsync(_backupPlate, false, cancellationToken);
+        await _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken);
     }
 
     public Task WaitForCarrierAsync(CancellationToken cancellationToken)
