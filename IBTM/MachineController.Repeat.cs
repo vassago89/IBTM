@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
+using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
 
@@ -18,7 +19,7 @@ public enum RepeatPhase
     ReturnToShuttle,
     [Description("Shuttle → Station 3")]
     ReturnToStation3,
-    [Description("Station 3 → Front → Station 1")]
+    [Description("Returning to Station 1")]
     ReturnToStart,
 }
 
@@ -78,11 +79,11 @@ public sealed partial class MachineController
             MachineAlarm.MainConveyor,
             () => _conveyor.RunAsync(cycle.Token, repeat));
         StartUnit(
-            _units.PcbSupply,
+            _units.PcbSupply && !(repeat && MainConveyor.RepeatUsesStation1ReturnSensor),
             MachineAlarm.PcbSupply,
             () => _pcbSupply.RunAsync(_recipe.PcbSupply, cycle.Token));
         StartUnit(
-            _units.PcbPlacement,
+            _units.PcbPlacement && !(repeat && MainConveyor.RepeatUsesStation1ReturnSensor),
             MachineAlarm.PcbPlacement,
             () => _pcbPlacement.RunAsync(_recipe.PcbPlacement, cycle.Token));
         StartUnit(
@@ -155,7 +156,7 @@ public sealed partial class MachineController
                         await ReturnMainCarrierAsync(cancellationToken);
                         cancellationToken.ThrowIfCancellationRequested();
                         _repeatCycles++;
-                        _log?.Write($"Repeat cycle {_repeatCycles} completed at Station 1.");
+                        _log?.Write($"Repeat cycle {_repeatCycles} returned to Station 1.");
                         SetRepeatPhase(RepeatPhase.Automatic);
                         break;
                 }

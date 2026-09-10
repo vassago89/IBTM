@@ -10,6 +10,10 @@ namespace IBTM.Conveyor;
 
 public sealed class MainConveyor : AutoUnit
 {
+    // TEMP: the front sensor is not installed. Repeat stops at Station 1 and
+    // keeps its plate down; restore false when the user confirms installation.
+    public static readonly bool RepeatUsesStation1ReturnSensor = true;
+
     private readonly IIoService _io;
     private readonly OperationCancellation _operations;
     private readonly StationWork _placementWork;
@@ -142,7 +146,9 @@ public sealed class MainConveyor : AutoUnit
                 return MainConveyorState.SeatingBoltFasteningCarrier;
             }
 
-            if (_placementWork.CarrierPresent && !_placementWork.CarrierSeated)
+            if (_placementWork.CarrierPresent
+                && !_placementWork.CarrierSeated
+                && !(_repeat && RepeatUsesStation1ReturnSensor))
             {
                 return MainConveyorState.SeatingPcbPlacementCarrier;
             }
@@ -250,10 +256,18 @@ public sealed class MainConveyor : AutoUnit
                 _placement.ReleaseAsync(cancellationToken),
                 _boltFastening.ReleaseAsync(cancellationToken),
                 _inspection.ReleaseAsync(cancellationToken));
-            await RunUntilAsync(InputIo.MainConveyorEntryCarrierDetected, true, cancellationToken);
+            await RunUntilAsync(
+                RepeatUsesStation1ReturnSensor
+                    ? InputIo.PcbPlacementCarrierPresent
+                    : InputIo.MainConveyorEntryCarrierDetected,
+                true,
+                cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            _returningFromEntry = true;
+            _returningFromEntry = !RepeatUsesStation1ReturnSensor;
         }
+
+        if (RepeatUsesStation1ReturnSensor)
+            return;
 
         if (!_placement.CarrierPresent)
         {
@@ -415,7 +429,10 @@ public sealed class MainConveyor : AutoUnit
     {
         get
         {
-            return _placementWork.CanTransfer && _boltFasteningWork.CanReceive;
+            var placementReady = _repeat && RepeatUsesStation1ReturnSensor
+                ? _placementWork.CarrierPresent
+                : _placementWork.CanTransfer;
+            return placementReady && _boltFasteningWork.CanReceive;
         }
     }
 
@@ -520,7 +537,9 @@ public sealed class MainConveyor : AutoUnit
         }
 
         await Task.WhenAll(
-            source.RaiseBackupPlateAsync(cancellationToken),
+            _repeat && RepeatUsesStation1ReturnSensor && source == _placement
+                ? Task.CompletedTask
+                : source.RaiseBackupPlateAsync(cancellationToken),
             destination.SeatAsync(cancellationToken));
         _transfer = ConveyorTransfer.None;
     }

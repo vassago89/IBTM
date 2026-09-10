@@ -523,7 +523,7 @@ public sealed class VirtualMachine
 
                 if (_io.GetOutput(OutputIo.MainConveyorReverse))
                 {
-                    ReturnMainCarrier();
+                    ReturnMainCarrier(version);
                     return;
                 }
 
@@ -631,7 +631,7 @@ public sealed class VirtualMachine
             });
     }
 
-    private void ReturnMainCarrier()
+    private void ReturnMainCarrier(int version)
     {
         // The returning carrier passes every station. There is no reverse stopper.
         foreach (var input in new[]
@@ -664,6 +664,19 @@ public sealed class VirtualMachine
         {
             if (!_io.GetInput(carrier))
                 continue;
+            if (carrier != InputIo.PcbPlacementCarrierPresent)
+            {
+                MoveCarrier(
+                    carrier, heatSink1, heatSink2,
+                    InputIo.PcbPlacementCarrierPresent,
+                    InputIo.PcbPlacementHeatSink1Present,
+                    InputIo.PcbPlacementHeatSink2Present);
+                // Station 1 detects the returning carrier before the front sensor.
+                // Continue only if the controller keeps the belt running.
+                _ = TransferMainCarrierAsync(version);
+                return;
+            }
+
             var pcbs = CarrierPcbs(carrier);
             _mainEntryCarrier = (_io.GetInput(heatSink1), _io.GetInput(heatSink2), pcbs.Pcb1, pcbs.Pcb2);
             ClearCarrier(carrier, heatSink1, heatSink2);
@@ -700,7 +713,15 @@ public sealed class VirtualMachine
         var heatSink2 = _io.GetInput(sourceHeatSink2);
         var pcbs = CarrierPcbs(sourceCarrier);
         ClearCarrier(sourceCarrier, sourceHeatSink1, sourceHeatSink2);
-        _carrierPcbs[destinationCarrier] = pcbs;
+        if (destinationCarrier == InputIo.PcbPlacementCarrierPresent)
+        {
+            _placedPcbs[0] = pcbs.Pcb1;
+            _placedPcbs[1] = pcbs.Pcb2;
+        }
+        else
+        {
+            _carrierPcbs[destinationCarrier] = pcbs;
+        }
         _io.SetInput(destinationHeatSink1, heatSink1);
         _io.SetInput(destinationHeatSink2, heatSink2);
         _io.SetInput(destinationCarrier, true);

@@ -59,7 +59,7 @@ public sealed class ConveyorTests
 
     [Trait("Category", "MachineFlow")]
     [Fact]
-    public async Task ReturnToStation1FinishesSeatedAndUsesTheCarrierPositionOnTheNextReturn()
+    public async Task TemporaryRepeatReturnStopsAtStation1WithItsPlateDown()
     {
         var io = CreateIo();
         _ = new VirtualMachine(io, []);
@@ -74,7 +74,9 @@ public sealed class ConveyorTests
             Assert.False(stop.IsCancellationRequested);
             Assert.False(io.GetInput(source));
             Assert.True(io.GetInput(InputIo.PcbPlacementCarrierPresent));
-            Assert.True(io.GetInput(InputIo.PcbPlacementBackupPlateUp));
+            Assert.False(io.GetInput(InputIo.MainConveyorEntryCarrierDetected));
+            Assert.True(io.GetInput(InputIo.PcbPlacementBackupPlateDown));
+            Assert.False(io.GetInput(InputIo.PcbPlacementBackupPlateUp));
             Assert.True(io.GetInput(InputIo.PcbPlacementStopperDown));
             Assert.False(conveyor.RunCommandOn);
         }

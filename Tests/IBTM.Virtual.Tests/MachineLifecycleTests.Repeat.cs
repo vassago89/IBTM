@@ -170,6 +170,7 @@ public sealed partial class MachineLifecycleTests
                 return;
             if (output is OutputIo.MainConveyorReadyToFront2
                 or OutputIo.MainConveyorAvailableToRear
+                or OutputIo.PcbPlacementBackupPlateUp
                 or OutputIo.ShootBolt
                 or OutputIo.ShootingFeederRunSignal)
                 forbidden.Enqueue(output);
@@ -205,6 +206,9 @@ public sealed partial class MachineLifecycleTests
             Assert.True(visited.GetValueOrDefault(InputIo.NgConveyorPosition1Occupied) >= 2);
             Assert.True(visited.GetValueOrDefault(InputIo.InspectionCarrierPresent) >= 4);
             Assert.True(visited.GetValueOrDefault(InputIo.PcbPlacementCarrierPresent) >= 2);
+            Assert.Equal(0, visited.GetValueOrDefault(InputIo.MainConveyorEntryCarrierDetected));
+            Assert.True(visited.GetValueOrDefault(InputIo.BoltFasteningBackupPlateUp) >= 2);
+            Assert.True(visited.GetValueOrDefault(InputIo.InspectionBackupPlateUp) >= 2);
             Assert.Empty(forbidden);
             Assert.Empty(services.GetRequiredService<PcbPlacementWork>().Assemblies);
             Assert.Empty(services.GetRequiredService<BoltFasteningWork>().Assemblies);
