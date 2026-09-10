@@ -157,6 +157,12 @@ public sealed class NgCarrierMove(
         cancellationToken.ThrowIfCancellationRequested();
     }
 
+    public async Task ReturnToStationAsync(CancellationToken cancellationToken)
+    {
+        await station.Station.SeatAsync(cancellationToken);
+        await RunToAsync(NgTransferDestination.Station, cancellationToken);
+    }
+
     // Passive states issue no command; the caller waits or performs its other work.
     public Task? ExecuteAsync(
         NgTransferDestination destination,

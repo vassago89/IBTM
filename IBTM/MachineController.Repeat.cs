@@ -13,7 +13,7 @@ namespace IBTM;
 
 public enum RepeatPhase
 {
-    [Description("Auto → NG end")]
+    [Description("Forward repeat transfer")]
     Automatic,
     [Description("NG end → Shuttle")]
     ReturnToShuttle,
@@ -21,6 +21,8 @@ public enum RepeatPhase
     ReturnToStation3,
     [Description("Returning to Station 1")]
     ReturnToStart,
+    [Description("Shuttle down → up")]
+    CycleShuttle,
 }
 
 public sealed partial class MachineController
@@ -103,7 +105,7 @@ public sealed partial class MachineController
             _units.Inspection ? MachineAlarm.Inspection : MachineAlarm.NgCarrierTransfer,
             () => _inspectionStation.RunAsync(_recipe.Pcb.GetBolts().ToArray(), cycle.Token, repeat));
         StartUnit(
-            _units.NgShuttle,
+            _units.NgShuttle && (!repeat || _units.NgConveyor),
             MachineAlarm.NgShuttle,
             () => _ngShuttle.RunAsync(cycle.Token));
         StartUnit(
@@ -121,7 +123,10 @@ public sealed partial class MachineController
             if (_repeatPhase == RepeatPhase.Automatic)
             {
                 var carriers = CarrierInputs.Count(input =>
-                    input != InputIo.NgCarrierDetected && _io.GetInput(input));
+                    input != InputIo.NgCarrierDetected
+                    && (_units.NgConveyor
+                        || input is not (InputIo.NgConveyorPosition1Occupied or InputIo.NgConveyorPosition2Occupied))
+                    && _io.GetInput(input));
                 if (carriers == 0 && _ngTransfer.CarrierDetected)
                     carriers = 1;
                 if (carriers != 1 || _conveyor.ExitCarrierDetected)
@@ -134,8 +139,12 @@ public sealed partial class MachineController
                 switch (_repeatPhase)
                 {
                     case RepeatPhase.Automatic:
-                        await RunToNgEndAsync(cancellationToken);
-                        SetRepeatPhase(RepeatPhase.ReturnToShuttle);
+                        await RunToRepeatEndAsync(cancellationToken);
+                        SetRepeatPhase(_units.NgConveyor
+                            ? RepeatPhase.ReturnToShuttle
+                            : _units.NgShuttle
+                                ? RepeatPhase.CycleShuttle
+                                : RepeatPhase.ReturnToStation3);
                         break;
 
                     case RepeatPhase.ReturnToShuttle:
@@ -144,12 +153,13 @@ public sealed partial class MachineController
                         break;
 
                     case RepeatPhase.ReturnToStation3:
-                        await _io.SetOutputAndWaitAsync(
-                            OutputIo.InspectionStopperDown, true, cancellationToken);
-                        await _inspectionWork.Station.RaiseBackupPlateAsync(cancellationToken);
-                        await _ngShuttle.SetUpAsync(true, cancellationToken);
-                        await _ngMove.RunToAsync(NgTransferDestination.Station, cancellationToken);
+                        await _ngMove.ReturnToStationAsync(cancellationToken);
                         SetRepeatPhase(RepeatPhase.ReturnToStart);
+                        break;
+
+                    case RepeatPhase.CycleShuttle:
+                        await _ngShuttle.CycleAsync(cancellationToken);
+                        SetRepeatPhase(RepeatPhase.ReturnToStation3);
                         break;
 
                     case RepeatPhase.ReturnToStart:
@@ -173,6 +183,7 @@ public sealed partial class MachineController
                 : _repeatPhase switch
                 {
                     RepeatPhase.ReturnToShuttle => MachineAlarm.NgConveyor,
+                    RepeatPhase.CycleShuttle => MachineAlarm.NgShuttle,
                     RepeatPhase.ReturnToStation3 => MachineAlarm.NgCarrierTransfer,
                     _ => MachineAlarm.MainConveyor,
                 };
@@ -180,17 +191,31 @@ public sealed partial class MachineController
         }
     }
 
-    private async Task RunToNgEndAsync(CancellationToken cancellationToken)
+    private async Task RunToRepeatEndAsync(CancellationToken cancellationToken)
     {
         using var cycle = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var transferChanged = new AsyncAutoResetEvent();
+        _ngMove.Changed += transferChanged.Set;
         var automatic = RunAutomaticUnitsAsync(cycle, repeat: true);
         try
         {
-            await _io.WaitForInputAsync(
-                InputIo.NgConveyorPosition1Occupied, true, Timeout.Infinite, cycle.Token);
+            if (_units.NgConveyor)
+            {
+                await _io.WaitForInputAsync(
+                    InputIo.NgConveyorPosition1Occupied, true, Timeout.Infinite, cycle.Token);
+            }
+            else
+            {
+                while (_ngMove.State(NgTransferDestination.Shuttle, canPickUp: true)
+                    != NgTransferState.Completed)
+                {
+                    await transferChanged.WaitAsync(cycle.Token);
+                }
+            }
         }
         finally
         {
+            _ngMove.Changed -= transferChanged.Set;
             cycle.Cancel();
             // Reverse begins only after every forward unit has released its commands.
             await automatic;

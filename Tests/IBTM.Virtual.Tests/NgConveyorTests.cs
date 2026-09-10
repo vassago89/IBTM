@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Device;
@@ -11,6 +12,52 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class NgConveyorTests
 {
+    [Fact]
+    public void ShuttleOnlyReceiveIgnoresConveyorStateButStillRequiresRaisedEmptyShuttle()
+    {
+        var system = CreateSystem();
+        system.Io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
+        Assert.False(system.Shuttle.CanReceive(useConveyor: true));
+        Assert.True(system.Shuttle.CanReceive(useConveyor: false));
+
+        system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+        Assert.False(system.Shuttle.CanReceive(useConveyor: false));
+        system.Io.SetInput(InputIo.NgShuttleCarrierDetected, false);
+        system.Io.SetInput(InputIo.NgShuttleUp, false);
+        system.Io.SetInput(InputIo.NgShuttleDown, true);
+        Assert.False(system.Shuttle.CanReceive(useConveyor: false));
+    }
+
+    [Fact]
+    public async Task ShuttleCycleResumesItsAscentAfterStopWithoutLoweringAgain()
+    {
+        var system = CreateSystem();
+        system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+        using var stop = new CancellationTokenSource();
+        var downCommands = 0;
+        var upCommands = 0;
+        system.Io.OutputChanged += (output, on) =>
+        {
+            if (output != OutputIo.NgShuttleUp)
+                return;
+            if (!on)
+                downCommands++;
+            else if (++upCommands == 1)
+                stop.Cancel();
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => system.Shuttle.CycleAsync(stop.Token));
+        Assert.Equal(1, downCommands);
+
+        await system.Shuttle.CycleAsync(CancellationToken.None);
+
+        Assert.Equal(1, downCommands);
+        Assert.Equal(NgShuttleLiftState.Up, system.Shuttle.Feedback.Lift);
+        Assert.True(system.Shuttle.Feedback.CarrierDetected);
+        Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
+    }
+
     [Fact]
     public async Task NgActuatorOutputsOnRaisePickupOpenGripperAndRaiseShuttle()
     {

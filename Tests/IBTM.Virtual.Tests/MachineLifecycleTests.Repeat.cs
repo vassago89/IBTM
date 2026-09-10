@@ -19,6 +19,77 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task RepeatReturnsFromLastEnabledNgUnitWithoutRunningTheNgConveyor(bool shuttleEnabled)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.MainConveyor);
+        settings.Units.NgCarrierTransfer = true;
+        settings.Units.NgShuttle = shuttleEnabled;
+        settings.Conveyor.CarrierStopDelaySeconds = 0;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var pickup = services.GetRequiredService<NgCarrierTransfer>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        state.RepeatEnabled = true;
+        var shuttleOutputs = new ConcurrentQueue<bool>();
+        var placedAndReleased = false;
+        var pickedBackUp = false;
+        var ngConveyorRan = false;
+        void CheckPickup()
+        {
+            if (io.GetInput(InputIo.NgShuttleCarrierDetected)
+                && pickup.IsRaised
+                && pickup.Gripper == NgTransferGripperState.Open
+                && !pickup.CarrierDetected)
+            {
+                placedAndReleased = true;
+            }
+
+            if (placedAndReleased && pickup.CarrierDetected)
+                pickedBackUp = true;
+        }
+
+        pickup.Changed += CheckPickup;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.NgShuttleUp)
+                shuttleOutputs.Enqueue(on);
+            if (output == OutputIo.NgConveyorRun && on)
+                ngConveyorRan = true;
+        };
+        Assert.True(machine.CanStart, machine.StartBlock.ToString());
+        await WaitUntilAsync(() => state.Display.CanStart);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+        var run = machine.StartAsync(timeout.Token);
+        try
+        {
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => state.Display.RepeatCycles >= 1 || state.IsError,
+                TimeSpan.FromSeconds(10)),
+                $"Phase={state.Display.RepeatPhase}, Alarm={state.AlarmDetail}");
+            Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
+            Assert.Equal(1, state.Display.RepeatCycles);
+            Assert.True(placedAndReleased);
+            Assert.True(pickedBackUp);
+            Assert.False(ngConveyorRan);
+            Assert.Equal(shuttleEnabled ? new[] { false, true } : [], shuttleOutputs.ToArray());
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(3));
+            pickup.Changed -= CheckPickup;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task RepeatAndProductionRequireOppositeModesAndStopOnSelectorChange(bool repeat)
     {
         var settings = FlowSettings();

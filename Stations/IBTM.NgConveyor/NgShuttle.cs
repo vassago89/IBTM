@@ -11,6 +11,8 @@ public sealed class NgShuttle : AutoUnit
     private readonly IIoService _io;
     private readonly NgCarrierConveyor _conveyor;
     private readonly INgCarrierTransferFeedback _transfer;
+    // Command history only: after STOP during ascent, finish that ascent instead of lowering again.
+    private bool _cycleReturnPending;
 
     public NgShuttle(
         IIoService io,
@@ -31,14 +33,11 @@ public sealed class NgShuttle : AutoUnit
 
     public NgShuttleFeedback Feedback { get; }
 
-    public bool CanReceive
+    public bool CanReceive(bool useConveyor)
     {
-        get
-        {
-            return Feedback.Lift == NgShuttleLiftState.Up
-                && !Feedback.CarrierDetected
-                && _conveyor.CanAcceptCarrier;
-        }
+        return Feedback.Lift == NgShuttleLiftState.Up
+            && !Feedback.CarrierDetected
+            && (!useConveyor || _conveyor.CanAcceptCarrier);
     }
 
     public NgShuttleState State
@@ -97,6 +96,24 @@ public sealed class NgShuttle : AutoUnit
     public Task SetUpAsync(bool up, CancellationToken cancellationToken = default)
     {
         return _io.SetOutputAndWaitAsync(OutputIo.NgShuttleUp, up, cancellationToken);
+    }
+
+    public async Task CycleAsync(CancellationToken cancellationToken)
+    {
+        if (!Feedback.CarrierDetected || !_transfer.IsRaised)
+        {
+            throw new InvalidOperationException("Shuttle repeat requires a carrier on the shuttle and the NG pickup raised.");
+        }
+
+        if (!_cycleReturnPending)
+        {
+            await SetUpAsync(false, cancellationToken);
+            _cycleReturnPending = true;
+        }
+
+        await SetUpAsync(true, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        _cycleReturnPending = false;
     }
 
     public Task WaitForCarrierAsync(bool detected, CancellationToken cancellationToken = default)

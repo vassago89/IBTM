@@ -351,7 +351,8 @@ public static class DependencyInjection
                     provider.GetRequiredService<NgCarrierTransfer>(),
                     provider.GetRequiredService<NgCarrierMove>(),
                     provider.GetRequiredService<NgShuttle>(),
-                    () => units.NgCarrierTransfer);
+                    () => units.NgCarrierTransfer,
+                    () => units.NgConveyor);
             });
         services.AddSingleton<RecipeEditor>();
         services.AddSingleton<PcbPlacementRecoveryPreparation>();

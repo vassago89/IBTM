@@ -275,7 +275,9 @@ public sealed partial class MachineController
         if (!TeachingReady)
             return StartBlockReason.TeachingIncomplete;
         if (_state.RepeatEnabled
-            && (!_units.MainConveyor || !_units.NgCarrierTransfer || !_units.NgShuttle || !_units.NgConveyor))
+            && (!_units.MainConveyor
+                || !_units.NgCarrierTransfer
+                || _units.NgConveyor && !_units.NgShuttle))
             return StartBlockReason.RepeatRouteUnavailable;
         return _units.HasEnabledUnit() ? StartBlockReason.None : StartBlockReason.NoUnitEnabled;
     }

@@ -16,6 +16,7 @@ public sealed class InspectionStation : AutoUnit
     private readonly NgCarrierMove _move;
     private readonly NgShuttle _shuttle;
     private readonly Func<bool> _isTransferEnabled;
+    private readonly Func<bool> _isConveyorEnabled;
     private HeatSinkSlot[]? _runTargets;
 
     public InspectionStation(
@@ -24,7 +25,8 @@ public sealed class InspectionStation : AutoUnit
         NgCarrierTransfer transfer,
         NgCarrierMove move,
         NgShuttle shuttle,
-        Func<bool> isTransferEnabled)
+        Func<bool> isTransferEnabled,
+        Func<bool> isConveyorEnabled)
     {
         _work = work;
         _inspector = inspector;
@@ -32,6 +34,7 @@ public sealed class InspectionStation : AutoUnit
         _move = move;
         _shuttle = shuttle;
         _isTransferEnabled = isTransferEnabled;
+        _isConveyorEnabled = isConveyorEnabled;
         move.Changed += NotifyChanged;
     }
 
@@ -89,15 +92,17 @@ public sealed class InspectionStation : AutoUnit
 
     private NgTransferState CurrentTransferState(bool repeat)
     {
-        return !_isTransferEnabled()
-            ? NgTransferState.Idle
-            : _move.State(
-                NgTransferDestination.Shuttle,
-                canPickUp: _work.CarrierSeated
-                    && _work.Completed
-                    && (repeat || _work.RouteToNg)
-                    && _shuttle.CanReceive,
-                canReceive: _shuttle.CanReceive);
+        if (!_isTransferEnabled())
+            return NgTransferState.Idle;
+
+        var canReceive = _shuttle.CanReceive(useConveyor: !repeat || _isConveyorEnabled());
+        return _move.State(
+            NgTransferDestination.Shuttle,
+            canPickUp: _work.CarrierSeated
+                && _work.Completed
+                && (repeat || _work.RouteToNg)
+                && canReceive,
+            canReceive: canReceive);
     }
 
     // Inspection's display enum describes the same shared transfer states.

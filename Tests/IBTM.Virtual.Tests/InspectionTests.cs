@@ -239,7 +239,8 @@ public sealed class InspectionTests
             transfer,
             new NgCarrierMove(work, shuttle, transfer, gantry, transferSettings),
             shuttle,
-            isTransferEnabled: () => false);
+            isTransferEnabled: () => false,
+            isConveyorEnabled: () => true);
 
         io.Initialize();
         motion.Initialize();
@@ -367,7 +368,8 @@ public sealed class InspectionTests
             transfer,
             new NgCarrierMove(transferWork, shuttle, transfer, gantry, transferSettings),
             shuttle,
-            isTransferEnabled: () => true);
+            isTransferEnabled: () => true,
+            isConveyorEnabled: () => true);
         io.SetInput(InputIo.NgShuttleUp, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, false);
         io.SetInput(InputIo.InspectionBackupPlateDown, true);
