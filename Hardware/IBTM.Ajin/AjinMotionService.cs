@@ -289,6 +289,7 @@ public class AjinMotionService(
                 CAXM.AxmMoveSStop(axisNumber);
                 CAXM.AxmHomeSetResult(axisNumber, HomeUnknown);
             });
+        Exception? failure = null;
         try
         {
             BeginMotion(axis != MotionAxis.Z);
@@ -317,15 +318,16 @@ public class AjinMotionService(
                 await Task.Delay(StatusPollInterval, cancellationToken).ConfigureAwait(false);
             }
         }
-        catch
+        catch (Exception exception)
         {
+            failure = exception;
             CAXM.AxmMoveSStop(axisNumber);
             CAXM.AxmHomeSetResult(axisNumber, HomeUnknown);
             throw;
         }
         finally
         {
-            await EndMotionAsync([axisNumber], axis != MotionAxis.Z).ConfigureAwait(false);
+            await EndMotionAsync([axisNumber], axis != MotionAxis.Z, failure).ConfigureAwait(false);
         }
     }
 
@@ -416,6 +418,7 @@ public class AjinMotionService(
 
         var horizontal = Array.Exists(axes, axis => axis != _axisZ);
         using var cancellationRegistration = cancellationToken.Register(StopAxes);
+        Exception? failure = null;
         try
         {
             BeginMotion(horizontal);
@@ -423,36 +426,54 @@ public class AjinMotionService(
             AjinController.Check(move(), operation);
             await WaitForMoveAsync(axes, cancellationToken).ConfigureAwait(false);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException exception)
         {
+            failure = exception;
             StopAxes();
             throw;
         }
         catch (Exception exception)
         {
+            var motionFailure = new MotionException(operation, exception);
+            failure = motionFailure;
             StopAxes();
-            throw new MotionException(operation, exception);
+            throw motionFailure;
         }
         finally
         {
-            await EndMotionAsync(axes, horizontal).ConfigureAwait(false);
+            await EndMotionAsync(axes, horizontal, failure).ConfigureAwait(false);
         }
     }
 
-    private async Task EndMotionAsync(int[] axes, bool horizontal)
+    private async Task EndMotionAsync(int[] axes, bool horizontal, Exception? failure)
     {
+        Exception? cleanupFailure = null;
         try
         {
             await WaitForStopAsync(axes).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
-            throw new MotionException("Wait for motion stop", exception);
+            cleanupFailure = new MotionException("Wait for motion stop", exception);
         }
-        finally
+
+        try
         {
             EndMotion(horizontal);
             PublishPosition();
+        }
+        catch (Exception exception)
+        {
+            cleanupFailure = cleanupFailure is null
+                ? exception
+                : new AggregateException(cleanupFailure, exception);
+        }
+
+        if (cleanupFailure is not null)
+        {
+            throw new MotionException(
+                "Finish motion",
+                failure is null ? cleanupFailure : new AggregateException(failure, cleanupFailure));
         }
     }
 

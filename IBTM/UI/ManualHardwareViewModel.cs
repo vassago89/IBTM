@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -43,81 +44,11 @@ public partial class ManualHardwareViewModel : ObservableObject
         }
     }
 
-    public Enum DryRunState
+    public DryRunDisplay? DryRun
     {
         get
         {
-            return SelectedDryRun switch
-            {
-                DryRunTarget.MainConveyor => State.Display.MainConveyorDryRunState,
-                DryRunTarget.Inspection => State.Display.InspectionDryRunState,
-                DryRunTarget.PcbReturn => State.Display.PcbReturnState,
-                DryRunTarget.PcbRoundTrip => State.Display.PcbDryRunState,
-                DryRunTarget.NgConveyor => State.Display.NgConveyorDryRunState,
-                DryRunTarget.BoltRoute => State.Display.BoltRouteState,
-                _ => State.Display.NgTransferDryRunState,
-            };
-        }
-    }
-
-    public Enum DryRunDestination
-    {
-        get
-        {
-            return SelectedDryRun switch
-            {
-                DryRunTarget.MainConveyor => State.Display.MainConveyorDestination,
-                DryRunTarget.Inspection => State.Display.InspectionDryRunDirection,
-                DryRunTarget.PcbReturn => State.Display.PcbReturnDestination,
-                DryRunTarget.PcbRoundTrip => State.Display.PcbDryRunDirection,
-                DryRunTarget.NgConveyor => State.Display.NgConveyorDestination,
-                DryRunTarget.BoltRoute => State.Display.BoltRouteDirection,
-                _ => State.Display.NgTransferDestination,
-            };
-        }
-    }
-
-    public int DryRunPasses
-    {
-        get
-        {
-            return SelectedDryRun switch
-            {
-                DryRunTarget.MainConveyor => State.Display.MainConveyorDryRunPasses,
-                DryRunTarget.Inspection => State.Display.InspectionDryRunPasses,
-                DryRunTarget.PcbReturn => State.Display.PcbReturnCount,
-                DryRunTarget.PcbRoundTrip => State.Display.PcbDryRunCycles,
-                DryRunTarget.NgConveyor => State.Display.NgConveyorDryRunPasses,
-                DryRunTarget.BoltRoute => State.Display.BoltRoutePasses,
-                _ => State.Display.NgTransferDryRunTransfers,
-            };
-        }
-    }
-
-    public HeatSinkSlot? DryRunPcb
-    {
-        get
-        {
-            return SelectedDryRun switch
-            {
-                DryRunTarget.PcbReturn => State.Display.PcbReturnHeatSink,
-                DryRunTarget.PcbRoundTrip
-                    => State.Display.PcbDryRunDirection == PcbDryRunDirection.Ready
-                        ? null
-                        : State.Display.PcbDryRunHeatSink,
-                DryRunTarget.BoltRoute => State.Display.BoltRouteTarget?.HeatSink,
-                _ => State.Display.InspectionDryRunPcb,
-            };
-        }
-    }
-
-    public int? DryRunBolt
-    {
-        get
-        {
-            return SelectedDryRun == DryRunTarget.BoltRoute
-                ? State.Display.BoltRouteTarget?.Number
-                : State.Display.InspectionDryRunBolt;
+            return State.Display.DryRuns.GetValueOrDefault(SelectedDryRun);
         }
     }
 
@@ -131,7 +62,7 @@ public partial class ManualHardwareViewModel : ObservableObject
     {
         get
         {
-            return _machine.CanRunDryRun(SelectedDryRun);
+            return State.Display.ManualControlsEnabled && DryRun?.Ready == true;
         }
     }
 
@@ -144,11 +75,7 @@ public partial class ManualHardwareViewModel : ObservableObject
     private void RefreshDryRun()
     {
         OnPropertyChanged(nameof(CanRunDryRun));
-        OnPropertyChanged(nameof(DryRunState));
-        OnPropertyChanged(nameof(DryRunDestination));
-        OnPropertyChanged(nameof(DryRunPasses));
-        OnPropertyChanged(nameof(DryRunPcb));
-        OnPropertyChanged(nameof(DryRunBolt));
+        OnPropertyChanged(nameof(DryRun));
     }
 
     public void Activate()

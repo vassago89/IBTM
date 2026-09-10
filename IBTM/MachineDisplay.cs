@@ -29,6 +29,17 @@ public enum DryRunTarget
     BoltRoute,
 }
 
+public sealed record DryRunDisplay(Enum State, Enum Destination, int Passes)
+{
+    public bool Ready { get; init; }
+    public HeatSinkSlot? Pcb { get; init; }
+    public int? Bolt { get; init; }
+    public FasteningHead? Head { get; init; }
+    public FasteningPass? Pass { get; init; }
+    public string? LastBarcode { get; init; }
+    public bool? LastBoltPresent { get; init; }
+}
+
 // A completed display read, never an authorization to operate the equipment.
 public sealed record MachineDisplay
 {
@@ -80,17 +91,6 @@ public sealed record MachineDisplay
     public InspectionStationState InspectionState { get; init; }
     public BoltTarget? InspectionBolt { get; init; }
     public HeatSinkSlot? InspectionPcb { get; init; }
-    public NgTransferState NgTransferDryRunState { get; init; }
-    public NgTransferDestination NgTransferDestination { get; init; }
-    public int NgTransferDryRunTransfers { get; init; }
-    public bool InspectionDryRunReady { get; init; }
-    public InspectionDryRunState InspectionDryRunState { get; init; }
-    public InspectionRouteDirection InspectionDryRunDirection { get; init; }
-    public int InspectionDryRunPasses { get; init; }
-    public HeatSinkSlot? InspectionDryRunPcb { get; init; }
-    public int? InspectionDryRunBolt { get; init; }
-    public string? InspectionDryRunBarcode { get; init; }
-    public bool? InspectionDryRunBoltPresent { get; init; }
     // Collision clearance only, not automatic-run or whole-machine readiness.
     public OutputBlockReason MainConveyorPathBlock { get; init; } = OutputBlockReason.StateUnavailable;
 
@@ -102,25 +102,6 @@ public sealed record MachineDisplay
         }
     }
 
-    public MainConveyorDryRunState MainConveyorDryRunState { get; init; }
-    public MainConveyorDestination MainConveyorDestination { get; init; }
-    public int MainConveyorDryRunPasses { get; init; }
-    public Enum PcbReturnState { get; init; } = IBTM.PcbReturnState.WaitingForCarrier;
-    public Enum PcbReturnDestination { get; init; } = IBTM.PcbReturnDestination.HeatSink;
-    public HeatSinkSlot? PcbReturnHeatSink { get; init; }
-    public int PcbReturnCount { get; init; }
-    public Enum PcbDryRunState { get; init; } = PcbDryRunDirection.Ready;
-    public PcbDryRunDirection PcbDryRunDirection { get; init; }
-    public HeatSinkSlot PcbDryRunHeatSink { get; init; }
-    public int PcbDryRunCycles { get; init; }
-    public NgConveyorDryRunState NgConveyorDryRunState { get; init; }
-    public NgConveyorDestination NgConveyorDestination { get; init; }
-    public int NgConveyorDryRunPasses { get; init; }
-    public bool NgConveyorDryRunReady { get; init; }
-    public bool BoltRouteReady { get; init; }
-    public BoltRouteState BoltRouteState { get; init; }
-    public BoltRouteDirection BoltRouteDirection { get; init; }
-    public BoltTarget? BoltRouteTarget { get; init; }
-    public FasteningPass? BoltRoutePass { get; init; }
-    public int BoltRoutePasses { get; init; }
+    public IReadOnlyDictionary<DryRunTarget, DryRunDisplay> DryRuns { get; init; } =
+        new Dictionary<DryRunTarget, DryRunDisplay>();
 }

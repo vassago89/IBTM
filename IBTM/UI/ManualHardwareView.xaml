@@ -107,7 +107,7 @@
                         </TextBlock.Style>
                     </TextBlock>
                     <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                        <TextBlock Text="{Binding DryRunDestination, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,16,0"/>
+                        <TextBlock Text="{Binding DryRun.Destination, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,16,0"/>
                         <TextBlock Margin="0,0,16,0">
                             <Run>
                                 <Run.Style>
@@ -120,7 +120,7 @@
                                         </Style.Triggers>
                                     </Style>
                                 </Run.Style>
-                            </Run><Run Text="{Binding DryRunState, Mode=OneWay, Converter={StaticResource EnumDescriptionConverter}}"/>
+                            </Run><Run Text="{Binding DryRun.State, Mode=OneWay, Converter={StaticResource EnumDescriptionConverter}}"/>
                         </TextBlock>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}">
                             <Run>
@@ -134,9 +134,9 @@
                                         </Style.Triggers>
                                     </Style>
                                 </Run.Style>
-                            </Run><Run Text="{Binding DryRunPasses, Mode=OneWay}"/>
+                            </Run><Run Text="{Binding DryRun.Passes, Mode=OneWay}"/>
                         </TextBlock>
-                        <TextBlock Margin="16,0,0,0" Text="{Binding DryRunPcb, Converter={StaticResource EnumDescriptionConverter}, StringFormat='Active: {0}', TargetNullValue='Active: —'}">
+                        <TextBlock Margin="16,0,0,0" Text="{Binding DryRun.Pcb, Converter={StaticResource EnumDescriptionConverter}, StringFormat='Active: {0}', TargetNullValue='Active: —'}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -163,10 +163,10 @@
                                 </Style.Triggers>
                             </Style>
                         </StackPanel.Style>
-                        <TextBlock Text="{Binding State.Display.BoltRouteTarget.Head, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
-                        <TextBlock Text="{Binding State.Display.BoltRoutePass, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
-                        <TextBlock Text="{Binding DryRunPcb, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
-                        <TextBlock Text="{Binding DryRunBolt, StringFormat='Bolt {0}'}"/>
+                        <TextBlock Text="{Binding DryRun.Head, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
+                        <TextBlock Text="{Binding DryRun.Pass, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
+                        <TextBlock Text="{Binding DryRun.Pcb, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
+                        <TextBlock Text="{Binding DryRun.Bolt, StringFormat='Bolt {0}'}"/>
                     </StackPanel>
                     <Grid Margin="0,6,20,0" Visibility="{Binding IsInspectionDryRun, Converter={StaticResource BoolToVis}}">
                         <Grid.ColumnDefinitions>
@@ -177,20 +177,20 @@
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding DryRunPcb, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
-                        <TextBlock Grid.Column="1" Text="{Binding DryRunBolt, StringFormat='Bolt {0}', TargetNullValue='Data Matrix'}" Margin="0,0,20,0"/>
+                        <TextBlock Text="{Binding DryRun.Pcb, Converter={StaticResource EnumDescriptionConverter}}" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="1" Text="{Binding DryRun.Bolt, StringFormat='Bolt {0}', TargetNullValue='Data Matrix'}" Margin="0,0,20,0"/>
                         <TextBlock Grid.Column="2" Text="Last barcode: " Foreground="{StaticResource TextSecondaryBrush}"/>
-                        <TextBlock Grid.Column="3" Text="{Binding State.Display.InspectionDryRunBarcode, TargetNullValue='—'}" ToolTip="{Binding State.Display.InspectionDryRunBarcode}" TextTrimming="CharacterEllipsis" Margin="0,0,20,0"/>
+                        <TextBlock Grid.Column="3" Text="{Binding DryRun.LastBarcode, TargetNullValue='—'}" ToolTip="{Binding DryRun.LastBarcode}" TextTrimming="CharacterEllipsis" Margin="0,0,20,0"/>
                         <TextBlock Grid.Column="4" Text="Last bolt: " Foreground="{StaticResource TextSecondaryBrush}"/>
                         <TextBlock Grid.Column="5">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Text" Value="—"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding State.Display.InspectionDryRunBoltPresent}" Value="True">
+                                        <DataTrigger Binding="{Binding DryRun.LastBoltPresent}" Value="True">
                                             <Setter Property="Text" Value="Present"/>
                                         </DataTrigger>
-                                        <DataTrigger Binding="{Binding State.Display.InspectionDryRunBoltPresent}" Value="False">
+                                        <DataTrigger Binding="{Binding DryRun.LastBoltPresent}" Value="False">
                                             <Setter Property="Text" Value="Missing"/>
                                         </DataTrigger>
                                     </Style.Triggers>

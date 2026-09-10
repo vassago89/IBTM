@@ -27,6 +27,57 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
+    [Fact]
+    public async Task ManualDryRunSelectionUsesSnapshotButExecutionRechecksUnits()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.MainConveyor);
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var manual = services.GetRequiredService<ManualHardwareViewModel>();
+        Assert.Null(manual.DryRun);
+        Assert.False(manual.CanRunDryRun);
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(CancellationToken.None);
+            manual.SelectedDryRun = DryRunTarget.MainConveyor;
+            await WaitUntilAsync(() => manual.CanRunDryRun);
+            foreach (var target in manual.DryRunTargets)
+            {
+                manual.SelectedDryRun = target;
+                Assert.NotNull(manual.DryRun);
+                Assert.Equal(target == DryRunTarget.MainConveyor, manual.CanRunDryRun);
+            }
+
+            manual.SelectedDryRun = DryRunTarget.MainConveyor;
+            var conveyor = services.GetRequiredService<MainConveyorDryRun>();
+            Assert.Equal(conveyor.State, manual.DryRun!.State);
+            Assert.Equal(conveyor.Destination, manual.DryRun.Destination);
+            Assert.Null(manual.DryRun.Pcb);
+            Assert.Null(manual.DryRun.LastBarcode);
+            var displayed = manual.DryRun;
+            var starts = 0;
+            io.OutputChanged += (output, on) =>
+            {
+                if (output == OutputIo.MainConveyorRun && on)
+                    Interlocked.Increment(ref starts);
+            };
+
+            settings.Units.MainConveyor = false;
+            await manual.RunDryRunCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.True(displayed.Ready); // A displayed snapshot is not permission to start.
+            Assert.Equal(0, starts);
+            Assert.False(state.IsRunning);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Trait("Category", "MachineFlow")]
     [Fact]
     public async Task BoltDryRunResumesCylinderAndPickupZStrokesWithoutVacuum()
@@ -455,11 +506,11 @@ public sealed partial class MachineLifecycleTests
         Assert.True(stoppedAtPickup);
         Assert.True(placement.VacuumDetected);
         Assert.NotEqual(PlacementPcbState.Secured, placement.Pcb);
-        await WaitUntilAsync(() => manual.DryRunPcb == heatSink);
+        await WaitUntilAsync(() => manual.DryRun?.Pcb == heatSink);
             manual.SelectedDryRunHeatSink = heatSink == HeatSinkSlot.HeatSink1
                 ? HeatSinkSlot.HeatSink2
                 : HeatSinkSlot.HeatSink1;
-        Assert.Equal(heatSink, manual.DryRunPcb);
+        Assert.Equal(heatSink, manual.DryRun?.Pcb);
 
         for (var pass = 0; pass < 4; pass++)
         {
@@ -563,7 +614,7 @@ public sealed partial class MachineLifecycleTests
         {
             await WaitUntilAsync(
                 () => !manual.CanRunDryRun || !manual.RunDryRunCommand.CanExecute(null));
-            Assert.Equal(MainConveyorDryRunState.Unavailable, manual.DryRunState);
+            Assert.Equal(MainConveyorDryRunState.Unavailable, manual.DryRun?.State);
         }
     }
 

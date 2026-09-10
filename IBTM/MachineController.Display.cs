@@ -104,51 +104,10 @@ public sealed partial class MachineController
             InspectionPcb = teachingReady && _units.Inspection && automatic
                 ? _inspectionStation.ActivePcb(bolts)
                 : null,
-            NgTransferDryRunState = _units.NgCarrierTransfer && _inspectionGantry.Motion.XyHomed
-                ? _ngTransferDryRun.State
-                : NgTransferState.Unavailable,
-            NgTransferDestination = _ngTransferDryRun.Destination,
-            NgTransferDryRunTransfers = _ngTransferDryRun.CompletedTransfers,
-            InspectionDryRunReady = _inspectionDryRun.Ready,
-            InspectionDryRunState = _units.Inspection && _inspectionGantry.Motion.XyHomed
-                ? _inspectionDryRun.State
-                : InspectionDryRunState.Unavailable,
-            InspectionDryRunDirection = _inspectionDryRun.Direction,
-            InspectionDryRunPasses = _inspectionDryRun.CompletedPasses,
-            InspectionDryRunPcb = _inspectionDryRun.ActivePcb,
-            InspectionDryRunBolt = _inspectionDryRun.ActiveBolt,
-            InspectionDryRunBarcode = _inspectionDryRun.LastBarcode,
-            InspectionDryRunBoltPresent = _inspectionDryRun.LastBoltPresent,
             MainConveyorPathBlock = conveyorPathBlock,
-            MainConveyorDryRunState = conveyorPathBlock == OutputBlockReason.None
-                ? _mainConveyorDryRun.State
-                : MainConveyorDryRunState.Unavailable,
-            MainConveyorDestination = _mainConveyorDryRun.Destination,
-            MainConveyorDryRunPasses = _mainConveyorDryRun.CompletedPasses,
-            PcbReturnState = PcbReturnNeedsCarrier && _mainConveyorDryRun.ReturningToStation1
-                ? _mainConveyorDryRun.State
-                : _pcbReturn.State,
-            PcbReturnDestination = PcbReturnNeedsCarrier && _mainConveyorDryRun.ReturningToStation1
-                ? _mainConveyorDryRun.Destination
-                : _pcbReturn.Destination,
-            PcbReturnCount = _pcbReturn.CompletedReturns,
-            PcbReturnHeatSink = _pcbReturn.HeatSink,
-            PcbDryRunState = _pcbDryRun.State,
-            PcbDryRunDirection = _pcbDryRun.Direction,
-            PcbDryRunHeatSink = _pcbDryRun.HeatSink,
-            PcbDryRunCycles = _pcbDryRun.CompletedCycles,
-            NgConveyorDryRunState = _ngConveyorDryRun.State,
-            NgConveyorDestination = _ngConveyorDryRun.Destination,
-            NgConveyorDryRunPasses = _ngConveyorDryRun.CompletedPasses,
-            NgConveyorDryRunReady = _ngConveyorDryRun.Ready,
-            BoltRouteReady = _boltRoute.Ready,
-            BoltRouteState = _units.BoltFastening && _fasteningGantry.Motion.XyHomed
-                ? _boltRoute.State
-                : BoltRouteState.Unavailable,
-            BoltRouteDirection = _boltRoute.Direction,
-            BoltRouteTarget = _boltRoute.ActiveBolt,
-            BoltRoutePass = _boltRoute.ActivePass,
-            BoltRoutePasses = _boltRoute.CompletedPasses,
+            DryRuns = Enum.GetValues<DryRunTarget>().ToDictionary(
+                target => target,
+                target => ReadDryRunDisplay(target, conveyorPathBlock)),
         };
     }
 }

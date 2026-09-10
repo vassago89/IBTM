@@ -76,7 +76,17 @@ internal static partial class CAXM
         return result;
     }
 
-    // Any unexpected movement during a status/initialization test must fail immediately.
+    // Commands must be explicitly configured; status/initialization tests cannot move axes.
+    private static uint Command(AjinSdk.Call call)
+    {
+        if (!AjinSdk.Results.ContainsKey(call))
+        {
+            throw new NotSupportedException($"Unexpected motion command: {call.Operation}");
+        }
+
+        return AjinSdk.Record(call);
+    }
+
     public static uint AxmMoveMultiPos(
         int count,
         int[] axes,
@@ -95,7 +105,7 @@ internal static partial class CAXM
         double acceleration,
         double deceleration)
     {
-        throw new NotSupportedException();
+        return Command(new(nameof(AxmMovePos), Axis: axis));
     }
 
     public static uint AxmMoveVel(int axis, double velocity, double acceleration, double deceleration)
@@ -116,7 +126,7 @@ internal static partial class CAXM
 
     public static uint AxmMoveSStop(int axis)
     {
-        throw new NotSupportedException();
+        return Command(new(nameof(AxmMoveSStop), Axis: axis));
     }
 
     public static uint AxmStatusReadInMotion(int axis, ref uint value)
@@ -136,7 +146,7 @@ internal static partial class CAXM
 
     public static uint AxmHomeSetResult(int axis, uint result)
     {
-        throw new NotSupportedException();
+        return Command(new(nameof(AxmHomeSetResult), Axis: axis, Value: result));
     }
 
     public static uint AxmHomeSetVel(
@@ -148,11 +158,11 @@ internal static partial class CAXM
         double firstAcceleration,
         double secondAcceleration)
     {
-        throw new NotSupportedException();
+        return Command(new(nameof(AxmHomeSetVel), Axis: axis));
     }
 
     public static uint AxmHomeSetStart(int axis)
     {
-        throw new NotSupportedException();
+        return Command(new(nameof(AxmHomeSetStart), Axis: axis));
     }
 }

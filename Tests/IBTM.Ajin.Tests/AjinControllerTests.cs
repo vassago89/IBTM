@@ -72,6 +72,55 @@ public sealed class AjinControllerTests
         AjinSdk.Reset();
     }
 
+    [Theory]
+    [InlineData(nameof(CAXM.AxmMovePos))]
+    [InlineData(nameof(CAXM.AxmHomeSetStart))]
+    public async Task MotionFailureSurvivesStopFeedbackAndFinalPositionFailures(string command)
+    {
+        using var controller = new AjinController(new());
+        controller.Initialize();
+        AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        var operations = new OperationCancellation();
+        var motion = new AjinMotionService(
+            controller,
+            new() { Number = 9, Maximum = 100 },
+            null,
+            null,
+            0.01,
+            new(),
+            new(),
+            operations,
+            null);
+        AjinSdk.Results[new(command, Axis: 9)] =
+            (uint)AXT_FUNC_RESULT.AXT_RT_MOTION_ERROR_IN_ALARM;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 9)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmHomeSetResult), Axis: 9, Value: 0xFF)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: 9)] = 0;
+        AjinSdk.BeforeCall = call =>
+        {
+            if (call.Operation == command)
+            {
+                AjinSdk.Results[new(nameof(CAXM.AxmStatusReadMechanical), Axis: 9)] =
+                    (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+                AjinSdk.Results[new(nameof(CAXM.AxmStatusGetActPos), Axis: 9)] =
+                    (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+            }
+        };
+
+        var error = await Assert.ThrowsAsync<MotionException>(() =>
+            command == nameof(CAXM.AxmMovePos)
+                ? motion.MoveAxisAsync(MotionAxis.X, 10, 1)
+                : motion.HomeAsync(MotionAxis.X, 1));
+
+        var details = error.ToString();
+        Assert.Contains(command, details);
+        Assert.Contains(nameof(CAXM.AxmStatusReadMechanical), details);
+        Assert.Contains(nameof(CAXM.AxmStatusGetActPos), details);
+        Assert.Single(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMoveSStop));
+        Assert.Equal(MotionCommand.None, motion.Command);
+        Assert.False(operations.HasActiveOperations);
+    }
+
     [Fact]
     public void InitializationReopensAFailedSessionWithoutResettingHealthyHardware()
     {
