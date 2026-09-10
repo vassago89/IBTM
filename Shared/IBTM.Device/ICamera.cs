@@ -13,6 +13,7 @@ public interface ICamera
 
     // Connect/recover the device and leave acquisition stopped.
     void Initialize();
+    // During live view, capture a fresh frame without stopping or changing live exposure/gain.
     ImageFrame Capture(double exposureMicroseconds, double gain);
     void StartLiveView(double exposureMicroseconds, double gain);
     void StopLiveView();

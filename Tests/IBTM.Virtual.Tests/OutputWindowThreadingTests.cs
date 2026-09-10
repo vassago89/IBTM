@@ -611,7 +611,15 @@ public sealed class OutputWindowThreadingTests
             Assert.Single(teaching.CarrierImages);
             var gantry = services.GetRequiredService<InspectionGantry>();
             await gantry.MoveAxisAsync(MotionAxis.X, 10, 10_000);
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+            Assert.True(teaching.Inspector.IsLiveView);
+            var liveLightOnCalls = light.OnCalls;
             await teaching.CaptureCarrierImageCommand.ExecuteAsync(null);
+            Assert.True(teaching.Inspector.IsLiveView);
+            Assert.Equal(liveLightOnCalls, light.OnCalls);
+            Assert.Equal(0, teaching.SelectedCameraTab);
+            Assert.True(light.IsOn);
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
             Assert.Equal(2, teaching.CarrierImages.Count);
             Assert.Equal(0, teaching.CarrierImages[0].Center.X);
             Assert.Equal(10, teaching.CarrierImages[1].Center.X);

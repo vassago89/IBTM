@@ -321,7 +321,7 @@ public sealed class BoltInspector
 
                     var position = feedback.GetPosition();
                     var center = new AxisPosition { X = position.X, Y = position.Y };
-                    var frame = Capture();
+                    var frame = camera.IsLiveView ? CaptureFrame() : Capture();
                     if (!gantry.IsAt(center))
                         throw new InvalidOperationException("The gantry moved during capture. Stop jogging and capture the map image again.");
                     return new CarrierImage(center, frame);

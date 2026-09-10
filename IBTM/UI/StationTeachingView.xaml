@@ -80,6 +80,9 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
+                                    <Button Content="Add Current Image" Command="{Binding CaptureCarrierImageCommand}" Margin="0,0,6,6"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            ToolTip="Jog while watching live, stop, then add a fresh image and current XY to the map. Live view stays on."/>
                                     <Button Content="Move &amp; Inspect" Command="{Binding CaptureInspectionCommand}"
                                             Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"/>
                                     <Button Content="Reinspect" Command="{Binding ReinspectImageCommand}"
@@ -109,9 +112,6 @@
                             <Grid Margin="0,8,0,0">
                                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                                 <WrapPanel Margin="0,0,0,6">
-                                    <Button Content="Add Current Image" Command="{Binding CaptureCarrierImageCommand}" Margin="0,0,8,6"
-                                            Style="{StaticResource PrimaryButtonStyle}"
-                                            ToolTip="Capture one image here and add it to the map. Does not move any axis."/>
                                     <Button Content="Clear Map" Command="{Binding ClearCarrierImagesCommand}" Margin="0,0,8,6"
                                             Style="{StaticResource SecondaryButtonStyle}"/>
                                     <TextBlock Text="mm/px" VerticalAlignment="Center" Margin="0,0,4,6"/>
@@ -131,7 +131,7 @@
                                           Cursor="Cross"
                                           ToolTip="Teach PCB 1 bounds, then click the matching upper-left corner on PCB 2. Bolts and barcode share one PCB pattern. Esc: cancel. Wheel: zoom. Right drag: pan."
                                           RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                                    <TextBlock Text="Jog to each position, stop, then Add Current Image. Each image is saved to the map." TextWrapping="Wrap" Margin="12"
+                                    <TextBlock Text="In Live / Inspect: jog, stop, then Add Current Image. Saved images appear here." TextWrapping="Wrap" Margin="12"
                                                HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
                                                Foreground="{StaticResource TextMutedBrush}">
                                         <TextBlock.Style>

@@ -95,6 +95,10 @@ public sealed class HikCameraTests
             {
                 camera.StartLiveView(500, 0);
                 Assert.True(frameReceived.Wait(TimeSpan.FromSeconds(2)));
+                Assert.Equal(1, camera.Capture(500, 0).Width);
+                Assert.True(camera.IsLiveView);
+                Assert.Single(sdk.Calls.ToArray(), call => call == "Start");
+                Assert.DoesNotContain("Stop", sdk.Calls.ToArray());
             }
             finally
             {
@@ -117,6 +121,24 @@ public sealed class HikCameraTests
 
         camera.Capture(500, 0);
         Assert.Equal(["Start", "Read", "Free", "Stop"], sdk.Calls.ToArray());
+    }
+
+    [Fact]
+    public void LiveSnapshotTimesOutWithoutStoppingTheStream()
+    {
+        var sdk = new CameraSdk { NoData = true };
+        using var camera = sdk.CreateCamera(frameTimeoutMilliseconds: 100);
+        camera.StartLiveView(500, 0);
+        try
+        {
+            Assert.Throws<TimeoutException>(() => camera.Capture(500, 0));
+            Assert.True(camera.IsLiveView);
+            Assert.DoesNotContain("Stop", sdk.Calls.ToArray());
+        }
+        finally
+        {
+            camera.StopLiveView();
+        }
     }
 
     [Fact]
@@ -289,7 +311,7 @@ public sealed class HikCameraTests
         private bool _grabbing;
         private bool _bufferHeld;
 
-        public HikCamera CreateCamera()
+        public HikCamera CreateCamera(int frameTimeoutMilliseconds = 1_000)
         {
             var image = Stub<IImage>(
                 (method, _) => method.Name switch
@@ -394,7 +416,10 @@ public sealed class HikCameraTests
                         _ => throw new NotSupportedException(method.Name)
                     };
                 });
-            var camera = new HikCamera(new InspectionCameraSettings());
+            var camera = new HikCamera(new InspectionCameraSettings
+            {
+                FrameTimeoutMilliseconds = frameTimeoutMilliseconds,
+            });
             // Inject SDK interfaces without opening physical hardware or initializing the native SDK.
             typeof(HikCamera).GetField("_device", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(
                 camera,

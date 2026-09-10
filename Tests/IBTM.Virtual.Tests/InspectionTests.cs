@@ -99,8 +99,10 @@ public sealed class InspectionTests
             () => BoltImageInput.Create(image, region with { X = 390 }));
     }
 
-    [Fact]
-    public async Task CarrierMapCaptureUsesCurrentPositionWithoutMoving()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CarrierMapCaptureUsesCurrentPositionWithoutMoving(bool live)
     {
         var reference = new CarrierReferenceSettings
         {
@@ -153,6 +155,9 @@ public sealed class InspectionTests
         var inspections = new List<BoltInspectionImage>();
         inspector.Inspected += inspections.Add;
 
+        if (live)
+            await inspector.StartLiveViewAsync();
+
         var movements = 0;
         motion.PositionChanged += (_, _, _) => movements++;
         foreach (var center in new[] { new AxisPosition { X = 12, Y = 9 }, new AxisPosition { X = 27, Y = 16 } })
@@ -162,6 +167,7 @@ public sealed class InspectionTests
             var image = await inspector.CaptureCarrierImageAsync();
             Assert.Equal((center.X, center.Y), (image.Center.X, image.Center.Y));
             Assert.True(gantry.IsAt(center));
+            Assert.Equal(live, inspector.IsLiveView);
             Assert.Equal(0, movements);
             Assert.NotEmpty(image.Frame.Pixels);
         }

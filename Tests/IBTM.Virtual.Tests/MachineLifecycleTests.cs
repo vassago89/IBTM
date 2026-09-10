@@ -27,6 +27,81 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
+    [Theory]
+    [InlineData("arrive")]
+    [InlineData("stop")]
+    [InlineData("timeout")]
+    public async Task StartLowersAllBackupPlatesBeforeStartingUnits(string outcome)
+    {
+        var settings = new MachineSettings
+        {
+            Units = EnableOnly(MachineUnit.MainConveyor),
+            Options = new() { TimeoutMilliseconds = 500 },
+        };
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await WaitUntilAsync(() => state.Display.CanStart);
+        io.AutoResponseEnabled = false;
+        OutputIo[] plates =
+        [
+            OutputIo.PcbPlacementBackupPlateDown,
+            OutputIo.BoltFasteningBackupPlateDown,
+            OutputIo.InspectionBackupPlateDown,
+        ];
+        var conveyorStarted = false;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.MainConveyorReadyToFront2 && on)
+                conveyorStarted = true;
+        };
+
+        var run = machine.StartAsync();
+        try
+        {
+            await WaitUntilAsync(() => plates.All(io.GetOutput));
+            foreach (var plate in plates.Take(2))
+            {
+                var feedback = io.GetOutputFeedback(plate)!;
+                io.SetInput(feedback.OffInput, false);
+                io.SetInput(feedback.OnInput, true);
+            }
+            Assert.False(conveyorStarted);
+            Assert.False(state.AutomaticRunning);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+
+            if (outcome == "arrive")
+            {
+                var feedback = io.GetOutputFeedback(plates[2])!;
+                io.SetInput(feedback.OffInput, false);
+                io.SetInput(feedback.OnInput, true);
+                await WaitUntilAsync(() => conveyorStarted);
+                Assert.True(state.AutomaticRunning);
+                machine.Stop();
+            }
+            else if (outcome == "stop")
+            {
+                machine.Stop();
+            }
+
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(outcome == "arrive", conveyorStarted);
+            Assert.Equal(outcome == "timeout" ? MachineAlarm.MainConveyor : MachineAlarm.None, state.Alarm);
+            if (outcome == "timeout")
+                Assert.Contains("Inspection Backup Plate Down=ON timeout", state.AlarmMessage);
+            Assert.False(state.IsRunning);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public async Task DataMatrixFailureStopsInspectionAndResetAllowsARealRead()
     {

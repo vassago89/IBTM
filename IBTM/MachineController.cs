@@ -1306,6 +1306,29 @@ public sealed partial class MachineController
                 return;
             }
 
+            if (_units.MainConveyor)
+            {
+                try
+                {
+                    await Task.WhenAll(
+                        _io.SetOutputAndWaitAsync(
+                            OutputIo.PcbPlacementBackupPlateDown, true, operation.Token),
+                        _io.SetOutputAndWaitAsync(
+                            OutputIo.BoltFasteningBackupPlateDown, true, operation.Token),
+                        _io.SetOutputAndWaitAsync(
+                            OutputIo.InspectionBackupPlateDown, true, operation.Token));
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    if (!_state.IsError)
+                        _state.SetError(MachineAlarm.MainConveyor, exception);
+                    else
+                        _log?.Error("Main conveyor startup plate lowering failed while stopping.", exception);
+                    return;
+                }
+            }
+
+            operation.Token.ThrowIfCancellationRequested();
             _state.SetAutomaticRunning(true);
             if (repeat)
             {

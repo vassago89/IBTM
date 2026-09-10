@@ -159,7 +159,6 @@ public partial class StationTeachingViewModel
     [RelayCommand(CanExecute = nameof(CanCaptureCarrierImage))]
     private Task CaptureCarrierImageAsync(CancellationToken cancellationToken)
     {
-        SelectedCameraTab = 1;
         return RunInspectionAsync(
             async token =>
             {
@@ -177,10 +176,10 @@ public partial class StationTeachingViewModel
                 {
                     CarrierImages = images;
                     SelectedFov = images[^1];
-                    SelectedCameraTab = 2;
                 }
             },
-            cancellationToken);
+            cancellationToken,
+            stopLiveView: false);
     }
 
     private bool CanCaptureCarrierImage()
@@ -393,7 +392,10 @@ public partial class StationTeachingViewModel
                 .All(Inspector.HasPosition);
     }
 
-    private async Task RunInspectionAsync(Func<CancellationToken, Task> action, CancellationToken token)
+    private async Task RunInspectionAsync(
+        Func<CancellationToken, Task> action,
+        CancellationToken token,
+        bool stopLiveView = true)
     {
         var activeCancellation = token;
         try
@@ -403,7 +405,8 @@ public partial class StationTeachingViewModel
                 async ct =>
                 {
                     activeCancellation = ct;
-                    await StopCameraLiveAsync();
+                    if (stopLiveView)
+                        await StopCameraLiveAsync();
                     ct.ThrowIfCancellationRequested();
                     CameraError = null;
                     await action(ct);

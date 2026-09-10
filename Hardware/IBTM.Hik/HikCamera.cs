@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading;
+using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
 using MvCameraControl;
@@ -108,7 +109,7 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
         {
             if (_liveView)
             {
-                throw new InvalidOperationException("Stop Hik live view before single-frame capture.");
+                return CaptureLiveFrame();
             }
 
             // Teaching may use the camera before machine-wide initialization reaches vision.
@@ -145,6 +146,33 @@ public sealed class HikCamera(InspectionCameraSettings settings) : ICamera, IDis
             if (failure is not null)
                 ExceptionDispatchInfo.Throw(failure);
             return image!;
+        }
+    }
+
+    private ImageFrame CaptureLiveFrame()
+    {
+        var captured = new TaskCompletionSource<ImageFrame>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnFrame(ImageFrame frame)
+        {
+            captured.TrySetResult(frame);
+        }
+        void OnFailure(Exception exception)
+        {
+            captured.TrySetException(exception);
+        }
+
+        FrameReady += OnFrame;
+        LiveViewFailed += OnFailure;
+        try
+        {
+            return captured.Task
+                .WaitAsync(TimeSpan.FromMilliseconds(settings.FrameTimeoutMilliseconds))
+                .GetAwaiter().GetResult();
+        }
+        finally
+        {
+            FrameReady -= OnFrame;
+            LiveViewFailed -= OnFailure;
         }
     }
 
