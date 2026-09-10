@@ -499,7 +499,7 @@ Settings and recipes are JSON records in SQLite; original carrier PNGs are BLOBs
 Recapture and Save As commit images and recipe metadata in one transaction.
 Previous data remains intact on a failed save. Image numbering restarts at 1 for
 each replacement scan. No loose recipe images or settings JSON files are written.
-See [settings ownership, migration and backup](docs/SETTINGS_STORAGE.md).
+See [whole-class JSON storage, initialization and backup](docs/SETTINGS_STORAGE.md).
 The recipe toolbar stays disabled throughout teaching, capture and recipe
 commands, including their stationary imaging/saving intervals.
 Recipe Save/Load also hold an operation scope until DB work finishes, keeping

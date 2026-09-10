@@ -218,5 +218,4 @@ public sealed class MachineStore
         return new(
             new SqliteConnectionStringBuilder { DataSource = Path.GetFullPath(path), Mode = mode, Pooling = false }.ToString());
     }
-
 }

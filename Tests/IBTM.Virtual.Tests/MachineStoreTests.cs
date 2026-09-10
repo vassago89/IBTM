@@ -30,8 +30,13 @@ public sealed class MachineStoreTests
             Assert.Equal((long)settings.Sections.Length, (long)command.ExecuteScalar()!);
             command.CommandText = "SELECT Value FROM Settings WHERE Key = 'MachineHardwareSettings'";
             using var json = JsonDocument.Parse((string)command.ExecuteScalar()!);
-            Assert.Equal(37, json.RootElement.GetProperty("Inputs").GetProperty("AirPressureHigh").GetInt32());
-            Assert.Equal(4, json.RootElement.GetProperty("Outputs").GetProperty("MachineLight").GetProperty("Number").GetInt32());
+            Assert.Equal(
+                37,
+                json.RootElement.GetProperty("Inputs").GetProperty("AirPressureHigh").GetInt32());
+            Assert.Equal(
+                4,
+                json.RootElement.GetProperty("Outputs").GetProperty("MachineLight")
+                    .GetProperty("Number").GetInt32());
 
             command.CommandText = """
                 UPDATE Settings SET Value = '{"RotationZ":17,"RemovedProperty":123}'
@@ -51,7 +56,9 @@ public sealed class MachineStoreTests
         Assert.NotNull(loaded.PcbSupply.Motion);
         var recipe = reopened.LoadRecipe<Recipe>("Part");
         Assert.Equal(90, recipe.BoltInspection.LightLevel);
-        Assert.Equal(new Recipe().BoltInspection.ExposureMicroseconds, recipe.BoltInspection.ExposureMicroseconds);
+        Assert.Equal(
+            new Recipe().BoltInspection.ExposureMicroseconds,
+            recipe.BoltInspection.ExposureMicroseconds);
     }
 
     [Fact]

@@ -42,10 +42,11 @@ the machine mode selector or create new automatic-run conditions.
 
 ## Saved settings
 
-`IoMap260901` updates affected IO fields once when the machine database is opened.
-It removes the old independent NG P3 input and renames Supply Nest to Supply Gripper.
-Axis mapping, travel ranges, teaching positions, camera settings and recipes are retained.
-Later IO edits are not overwritten on every startup. The source workbook is unchanged.
+Fresh hardware settings use the current mappings declared by each unit. Saved
+settings are whole-class JSON; startup does not migrate old wiring or overwrite
+saved channel numbers. Older layouts are not converted automatically. Configure
+the current mapping in Settings when starting with a fresh DB. The source workbook
+is unchanged.
 
 ## NG behavior
 

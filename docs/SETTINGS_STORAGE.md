@@ -70,43 +70,32 @@ preference, so failure to save that preference does not leave the UI on the old
 recipe. New/Save/Load use idle-Manual availability, not Home status; these are data
 operations and do not relax motion or output interlocks.
 
-### Renaming code without changing saved I/O mappings
+## JSON storage and fresh installations
 
-`InputIo`, `OutputIo` and `MachineAxis` declare fixed JSON keys with
-`JsonStringEnumMemberName`. Rename the C# member and its `Description` as needed,
-but keep the attribute's string unchanged. It is the DB identity, not a UI label
-or the physical channel/axis number. Do not replace it with `nameof(...)`.
+Each concrete settings class is serialized in full into one `Settings` row:
+the class name is `Key`, and its JSON text is `Value`. I/O mappings are members
+of that JSON object, not separate DB rows or tables. Each recipe is likewise
+one complete JSON value in `Recipes`. Original PNGs remain in `RecipeImages`
+so image data is not repeatedly encoded into the recipe JSON.
 
-For example, `AirPressureHigh` keeps `[JsonStringEnumMemberName("AirPressureHigh")]`
-even if its C# name changes later. The input converter also accepts the earlier
-`AirPressureLow` name, including output-feedback references. Loading preserves
-the saved channel; the next save writes the fixed `AirPressureHigh` key. No DB
-migration or manual database edit is required for this compatibility conversion.
+`MachineStore` creates these three tables automatically with `EnsureCreated`
+when the database is absent. Adding a setting or recipe property does not change
+the table schema and does not require an EF migration. The old migration files
+and legacy JSON/PNG importer have been removed; existing files are never deleted
+or silently replaced at startup.
 
-Ordinary channel, axis-number, speed and teaching-value changes only require Save.
-Restart after hardware mapping changes so device objects use the saved mapping.
-Changing an input's physical meaning still requires checking its polarity and
-safety logic; stable DB keys only preserve the mapping.
+Loading uses ordinary `JsonSerializer.Deserialize`. Missing settings sections
+use `new T()`. Missing class properties keep constructor/initializer defaults;
+unknown class properties are ignored. Renamed properties do not inherit old
+values. There is no old-name alias, fixed-name annotation or data-conversion layer.
+Unknown enum dictionary keys and invalid value types still fail loading rather
+than being guessed. Backward compatibility with older saved data is not maintained.
+For an incompatible installation, archive the old DB while the application is
+closed and start with a fresh DB, then configure the equipment again.
 
-Schema changes use EF migrations. Other JSON field/type renames still require an
-explicit data upgrade or a preserved JSON name; EF cannot infer semantic changes
-inside JSON. Do not rename a section type without migrating its persisted key
-(`MachineStore` uses the section type name). Missing sections on a fresh installation
-use their declared defaults. Invalid saved JSON fails loading rather than resetting
-the machine silently. Startup storage errors are displayed before hardware is initialized.
-
-## Existing installations
-
-On startup, an empty machine DB can import the former `Settings/*.json`,
-`Recipes/*/Recipe.json` and referenced carrier PNGs. `LegacyMachineImport` is the
-only remaining reader for that format. It moves former camera exposure/gain,
-light level, scan overlap, ROI size and minimum mask area ratio into each recipe only
-where that recipe does not already specify them.
-
-Import is a single transaction. Images are read and inserted one at a time, with
-tracking cleared between images. A missing image or invalid configuration aborts
-the entire import. A populated database is never merged with the old files again.
-Original files are not changed or deleted. Runtime saves go only to the database.
+Channel, axis-number, speed and teaching-value edits only require Save. Restart
+after hardware mapping changes so device objects use the saved mapping. Changing
+an input's physical meaning also requires checking its polarity and safety logic.
 
 ## Backup and restore
 
@@ -130,4 +119,4 @@ The original selected backup is untouched. Back up the training DB separately wh
 the application is closed; SQLite may also have journal/WAL/SHM sidecars.
 
 The Virtual build has its own output directory and therefore its own databases.
-It seeds demo data only when neither imported nor saved machine data exists.
+It seeds demo data only when no saved machine data exists.
