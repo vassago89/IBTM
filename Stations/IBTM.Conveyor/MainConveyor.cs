@@ -325,7 +325,23 @@ public sealed class MainConveyor : AutoUnit
 
     private Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        switch (State)
+        var state = State;
+        if (state != MainConveyorState.CarrierPositionUnknown)
+        {
+            // Empty stations wait with their plates down. CanReceive also keeps
+            // Station 3 unchanged until the NG pickup is clear.
+            if (_placementWork.CanReceive && _placement.BackupPlate != StationCylinderState.Down)
+                return _io.SetOutputAndWaitAsync(
+                    OutputIo.PcbPlacementBackupPlateDown, true, cancellationToken);
+            if (_boltFasteningWork.CanReceive && _boltFastening.BackupPlate != StationCylinderState.Down)
+                return _io.SetOutputAndWaitAsync(
+                    OutputIo.BoltFasteningBackupPlateDown, true, cancellationToken);
+            if (_inspectionWork.CanReceive && _inspection.BackupPlate != StationCylinderState.Down)
+                return _io.SetOutputAndWaitAsync(
+                    OutputIo.InspectionBackupPlateDown, true, cancellationToken);
+        }
+
+        switch (state)
         {
             case MainConveyorState.CarrierPositionUnknown:
                 ResetSmema();
@@ -531,11 +547,7 @@ public sealed class MainConveyor : AutoUnit
             }
         }
 
-        await Task.WhenAll(
-            _repeat && source == _placement
-                ? Task.CompletedTask
-                : source.RaiseBackupPlateAsync(cancellationToken),
-            destination.SeatAsync(cancellationToken));
+        await destination.SeatAsync(cancellationToken);
         _transfer = ConveyorTransfer.None;
     }
 
@@ -591,7 +603,6 @@ public sealed class MainConveyor : AutoUnit
             _io.SetOutput(OutputIo.MainConveyorAvailableToRear, false);
         }
 
-        await _inspection.RaiseBackupPlateAsync(cancellationToken);
         _transfer = ConveyorTransfer.None;
     }
 

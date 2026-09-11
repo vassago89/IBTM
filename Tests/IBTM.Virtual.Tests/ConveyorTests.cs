@@ -60,6 +60,7 @@ public sealed class ConveyorTests
         var elapsed = new Stopwatch();
         var stopped = new TaskCompletionSource<TimeSpan>(TaskCreationOptions.RunContinuationsAsynchronously);
         var raisedWhileRunning = false;
+        var raisedEmptyPlate = false;
         var stopperLoweredWhileRunning = false;
         io.OutputChanged += (output, value) =>
         {
@@ -67,6 +68,18 @@ public sealed class ConveyorTests
                 stopped.TrySetResult(elapsed.Elapsed);
             if (output == backupPlate && !value && io.GetOutput(OutputIo.MainConveyorRun))
                 raisedWhileRunning = true;
+            if (!value && output is OutputIo.PcbPlacementBackupPlateDown
+                or OutputIo.BoltFasteningBackupPlateDown
+                or OutputIo.InspectionBackupPlateDown)
+            {
+                var carrier = output switch
+                {
+                    OutputIo.PcbPlacementBackupPlateDown => InputIo.PcbPlacementCarrierPresent,
+                    OutputIo.BoltFasteningBackupPlateDown => InputIo.BoltFasteningCarrierPresent,
+                    _ => InputIo.InspectionCarrierPresent,
+                };
+                raisedEmptyPlate |= !io.GetInput(carrier);
+            }
             if (output == stopper && value && io.GetOutput(OutputIo.MainConveyorRun))
                 stopperLoweredWhileRunning = true;
         };
@@ -83,6 +96,9 @@ public sealed class ConveyorTests
             Assert.True(io.GetOutput(OutputIo.MainConveyorForward));
             Assert.True(io.GetOutput(backupPlate));
             Assert.False(io.GetOutput(stopper));
+            io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
+            io.SetInput(InputIo.PcbPlacementCarrierPresent, false);
+            io.SetInput(InputIo.BoltFasteningCarrierPresent, false);
             elapsed.Start();
             io.SetInput(destination, true);
 
@@ -91,7 +107,44 @@ public sealed class ConveyorTests
             Assert.False(conveyor.RunCommandOn);
             await WaitForOutputAsync(io, backupPlate, false);
             Assert.False(raisedWhileRunning);
+            Assert.False(raisedEmptyPlate);
             Assert.False(stopperLoweredWhileRunning);
+        }
+        finally
+        {
+            conveyor.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
+    public async Task EmptyBackupPlatesStayDownAndInspectionWaitsForPickupClearance()
+    {
+        var io = CreateIo();
+        io.Initialize();
+        io.SetInput(InputIo.NgCarrierPickupUp, false);
+        io.SetInput(InputIo.NgCarrierPickupDown, true);
+        var conveyor = CreateConveyor(io);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var run = conveyor.RunAsync(cancellation.Token);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.PcbPlacementBackupPlateDown, true);
+            await WaitForOutputAsync(io, OutputIo.BoltFasteningBackupPlateDown, true);
+            Assert.False(io.GetOutput(OutputIo.InspectionBackupPlateDown));
+
+            io.SetInput(InputIo.NgCarrierDetected, true);
+            io.SetInput(InputIo.NgCarrierPickupDown, false);
+            io.SetInput(InputIo.NgCarrierPickupUp, true);
+            await ((IIoService)io).WaitForInputAsync(InputIo.BoltFasteningBackupPlateDown, true);
+            Assert.False(io.GetOutput(OutputIo.InspectionBackupPlateDown));
+
+            io.SetInput(InputIo.NgCarrierDetected, false);
+            await ((IIoService)io).WaitForInputAsync(InputIo.InspectionBackupPlateDown, true);
+            Assert.True(io.GetOutput(OutputIo.PcbPlacementBackupPlateDown));
+            Assert.True(io.GetOutput(OutputIo.BoltFasteningBackupPlateDown));
+            Assert.True(io.GetOutput(OutputIo.InspectionBackupPlateDown));
+            Assert.False(conveyor.RunCommandOn);
         }
         finally
         {
@@ -781,6 +834,7 @@ public sealed class ConveyorTests
 
         cancellation.Cancel();
         await finalRun.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(io.GetOutput(OutputIo.InspectionBackupPlateDown));
     }
 
     [Fact]

@@ -79,6 +79,7 @@ public sealed partial class MachineLifecycleTests
                 io.SetInput(feedback.OnInput, true);
                 await WaitUntilAsync(() => conveyorStarted);
                 Assert.True(state.AutomaticRunning);
+                Assert.All(plates, plate => Assert.True(io.GetOutput(plate)));
                 machine.Stop();
             }
             else if (outcome == "stop")
