@@ -784,14 +784,18 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task FasteningTeachingAdjustsOneAxisWithHeadsDownAndPreservesPositioningRules()
     {
-        using var services = CreateServices(FlowSettings());
+        var settings = FlowSettings();
+        settings.Units.Inspection = false;
+        using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var gantry = services.GetRequiredService<BoltFasteningGantry>();
         var teaching = services.GetRequiredService<StationTeachingViewModel>();
         await machine.InitializeAsync();
-        await machine.HomeAsync(CancellationToken.None);
+        await gantry.RaiseCylindersAsync();
+        Assert.True(await gantry.HomeAxisAsync(MotionAxis.Z));
+        Assert.True(await gantry.HomeHorizontalAsync());
         await gantry.MoveToXYAsync(20, 20);
         await gantry.MoveZAsync(10);
         await Task.WhenAll(

@@ -39,7 +39,10 @@ public sealed class MotionSafetyTests
         };
         await motion.AdjustAxisAsync(axis, target, 10_000);
 
-        Assert.Equal((x, y, z), motion.GetPosition());
+        var position = motion.GetPosition();
+        Assert.Equal(x, position.X, 6);
+        Assert.Equal(y, position.Y, 6);
+        Assert.Equal(z, position.Z, 6);
         Assert.False(motion.IsMoving);
         Assert.Equal(MotionCommand.None, motion.Command);
     }

@@ -674,7 +674,10 @@ public sealed class OutputWindowThreadingTests
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
             Assert.True(teaching.Inspector.IsLiveView);
             var liveLightOnCalls = light.OnCalls;
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => teaching.CaptureCarrierImageCommand.CanExecute(null), TimeSpan.FromSeconds(2)));
             await teaching.CaptureCarrierImageCommand.ExecuteAsync(null);
+            Assert.Null(teaching.CameraError);
             Assert.True(teaching.Inspector.IsLiveView);
             Assert.Equal(liveLightOnCalls, light.OnCalls);
             Assert.Equal(0, teaching.SelectedCameraTab);
