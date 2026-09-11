@@ -130,6 +130,7 @@ public sealed partial class MachineController
             {
                 var carriers = CarrierInputs.Count(input =>
                     input != InputIo.NgCarrierDetected
+                    && (_units.NgShuttle || input != InputIo.NgShuttleCarrierDetected)
                     && (_units.NgConveyor
                         || input is not (InputIo.NgConveyorPosition1Occupied or InputIo.NgConveyorPosition2Occupied))
                     && _io.GetInput(input));

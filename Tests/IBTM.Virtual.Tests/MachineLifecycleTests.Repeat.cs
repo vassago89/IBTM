@@ -34,6 +34,12 @@ public sealed partial class MachineLifecycleTests
         var gantry = services.GetRequiredService<InspectionGantry>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
+        if (!shuttleEnabled)
+        {
+            io.SetInput(InputIo.NgShuttleUp, false);
+            io.SetInput(InputIo.NgShuttleDown, false);
+            io.SetInput(InputIo.NgShuttleCarrierDetected, true);
+        }
         io.SetInput(InputIo.InspectionCarrierPresent, true);
         state.RepeatEnabled = true;
         var shuttleOutputs = new ConcurrentQueue<bool>();
@@ -53,7 +59,8 @@ public sealed partial class MachineLifecycleTests
                 loweredWhileHolding = true;
             }
 
-            if (io.GetInput(InputIo.NgShuttleCarrierDetected)
+            if (gantry.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition)
+                && io.GetInput(InputIo.NgShuttleCarrierDetected)
                 && pickup.IsRaised
                 && pickup.Gripper == NgTransferGripperState.Open
                 && !pickup.CarrierDetected)

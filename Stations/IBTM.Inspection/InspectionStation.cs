@@ -102,7 +102,8 @@ public sealed class InspectionStation : AutoUnit
         if (!_isTransferEnabled())
             return NgTransferState.Idle;
 
-        var canReceive = _shuttle.CanReceive(useConveyor: !repeat || _isConveyorEnabled());
+        var canReceive = holdAtShuttle
+            || _shuttle.CanReceive(useConveyor: !repeat || _isConveyorEnabled());
         return _move.State(
             NgTransferDestination.Shuttle,
             canPickUp: _work.CarrierSeated

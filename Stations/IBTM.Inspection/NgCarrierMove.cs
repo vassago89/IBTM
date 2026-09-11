@@ -97,13 +97,14 @@ public sealed class NgCarrierMove(
         var sourcePosition = Position(source);
         var atDestination = destinationPosition is not null && gantry.IsAt(destinationPosition);
         var atSource = sourcePosition is not null && gantry.IsAt(sourcePosition);
-        var destinationPresent = CarrierPresent(destination);
-        var sourcePresent = CarrierPresent(source);
+        // Transfer-only repeat keeps the carrier gripped; the disabled shuttle is not a support.
+        var holdAtShuttle = holdAtDestination && destination == NgTransferDestination.Shuttle;
+        var destinationPresent = !holdAtShuttle && CarrierPresent(destination);
         var down = pickup.Lift == NgTransferLiftState.Down;
         var open = pickup.Gripper == NgTransferGripperState.Open;
         if (holdAtDestination && atDestination && down)
         {
-            if (!SupportReady(destination))
+            if (!holdAtShuttle && !SupportReady(destination))
                 return SupportNotReady(destination);
             if (pickup.Gripper != NgTransferGripperState.Closed)
                 return NgTransferState.Closing;
@@ -118,7 +119,7 @@ public sealed class NgCarrierMove(
         if (atDestination
             && open
             && !pickup.IsRaised
-            && (pickup.CarrierDetected || !sourcePresent))
+            && (pickup.CarrierDetected || !CarrierPresent(source)))
             return NgTransferState.WaitingForPlacement;
         if (atDestination && down && destinationPresent)
             return SupportReady(destination) ? NgTransferState.Opening : SupportNotReady(destination);
@@ -129,7 +130,7 @@ public sealed class NgCarrierMove(
                 return NgTransferState.Closing;
             if (!atDestination && !pickup.IsRaised)
                 return NgTransferState.Raising;
-            if (!SupportReady(destination))
+            if (!holdAtShuttle && !SupportReady(destination))
                 return SupportNotReady(destination);
             if (atDestination && !pickup.IsRaised)
                 return down ? NgTransferState.Opening : NgTransferState.LoweringAtDestination;
@@ -146,13 +147,13 @@ public sealed class NgCarrierMove(
             return NgTransferState.Raising;
         if (!canPickUp)
             return open ? NgTransferState.Idle : NgTransferState.Opening;
-        if (!sourcePresent)
+        if (!CarrierPresent(source))
             return NgTransferState.WaitingForCarrier;
         if (destinationPresent)
             return NgTransferState.WaitingForDestination;
         if (!SupportReady(source))
             return SupportNotReady(source);
-        if (!SupportReady(destination))
+        if (!holdAtShuttle && !SupportReady(destination))
             return SupportNotReady(destination);
         if (atSource)
             return down

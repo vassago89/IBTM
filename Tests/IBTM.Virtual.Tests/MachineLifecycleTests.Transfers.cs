@@ -293,8 +293,16 @@ public sealed partial class MachineLifecycleTests
         AssertState(NgTransferState.Opening);
         if (destination == NgTransferDestination.Shuttle)
         {
+            io.SetInput(InputIo.NgShuttleUp, false);
+            io.SetInput(InputIo.NgShuttleDown, false);
             Assert.Equal(NgTransferState.HoldingAtDestination,
                 move.State(destination, canPickUp: true, holdAtDestination: true));
+            AssertState(NgTransferState.ShuttleNotReady);
+            io.SetInput(InputIo.NgCarrierDetected, false);
+            Assert.Equal(NgTransferState.WaitingForGrip,
+                move.State(destination, canPickUp: true, holdAtDestination: true));
+            io.SetInput(InputIo.NgCarrierDetected, true);
+            io.SetInput(InputIo.NgShuttleUp, true);
             var gripperOutput = io.GetOutput(OutputIo.NgCarrierGripperOpen);
             Assert.Null(move.ExecuteAsync(
                 destination, NgTransferState.HoldingAtDestination, CancellationToken.None));
