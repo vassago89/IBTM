@@ -332,7 +332,7 @@ public sealed partial class MachineLifecycleTests
             var name = method!.Name;
             if (name == "get_IsReady")
                 return ReportReady || _initialized;
-            if ((!method.IsSpecialName && name != nameof(IMotionFeedback.GetRange))
+            if (!method.IsSpecialName
                 || name is "get_IsAtHorizontalZ" or "get_IsMoving" or "get_IsMovingHorizontal")
             {
                 Interlocked.Increment(ref HardwareCalls);

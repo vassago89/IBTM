@@ -859,11 +859,6 @@ public sealed class BoltFasteningTests
         var shootingHead = new AdcBoltHead(bus, connection, 2);
         using var motion = new VirtualMotionService(
             settings.Motion,
-            xRange: (0, 100),
-            yRange: (0, 100),
-            zRange: (
-                0,
-                100),
             horizontalZ: () => settings.SafeZ,
             operationCancellation: new());
         var gantry = new BoltFasteningGantry(
@@ -1024,11 +1019,6 @@ public sealed class BoltFasteningTests
         { AutoResponseEnabled = false };
         using var motion = new VirtualMotionService(
             settings.Motion,
-            xRange: (0, 100),
-            yRange: (0, 100),
-            zRange: (
-                0,
-                100),
             horizontalZ: () => settings.SafeZ,
             operationCancellation: new OperationCancellation());
         var bus = new VirtualAdcBus();

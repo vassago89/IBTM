@@ -118,13 +118,7 @@ public sealed class InspectionTests
         using var motion = new VirtualMotionService(
             settings.Motion,
             operations,
-            hasZ: false,
-            xRange: (
-                0,
-                40),
-            yRange: (
-                0,
-                30));
+            hasZ: false);
         var io = new VirtualIoService(new NgCarrierTransferHardwareSettings().Outputs, new());
         io.Initialize();
         motion.Initialize();
@@ -221,13 +215,7 @@ public sealed class InspectionTests
         using var motion = new VirtualMotionService(
             gantrySettings.Motion,
             operations,
-            hasZ: false,
-            xRange: (
-                0,
-                40),
-            yRange: (
-                0,
-                30));
+            hasZ: false);
         var transfer = new NgCarrierTransfer(io);
         var gantry = new InspectionGantry(motion, transfer, operations, gantrySettings);
         BoltTarget[] bolts = [

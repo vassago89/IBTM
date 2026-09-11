@@ -18,6 +18,10 @@ public sealed class MotionSafetyTests
     [InlineData(MotionAxis.X, 2, 0, 0)]
     [InlineData(MotionAxis.Y, 0, 2, 0)]
     [InlineData(MotionAxis.Z, 0, 0, 2)]
+    [InlineData(MotionAxis.X, -56.561, 0, 0)]
+    [InlineData(MotionAxis.Y, 0, -292.227, 0)]
+    [InlineData(MotionAxis.Z, 0, 0, -10)]
+    [InlineData(MotionAxis.X, 201, 0, 0)]
     public async Task SingleAxisAdjustmentMovesOnlyTheRequestedAxis(
         MotionAxis axis,
         double x,
@@ -27,7 +31,13 @@ public sealed class MotionSafetyTests
         using var motion = new VirtualMotionService(new MotionSettings(), new OperationCancellation());
         motion.Initialize();
 
-        await motion.AdjustAxisAsync(axis, 2, 1_000);
+        var target = axis switch
+        {
+            MotionAxis.X => x,
+            MotionAxis.Y => y,
+            _ => z,
+        };
+        await motion.AdjustAxisAsync(axis, target, 10_000);
 
         Assert.Equal((x, y, z), motion.GetPosition());
         Assert.False(motion.IsMoving);
@@ -159,9 +169,7 @@ public sealed class MotionSafetyTests
         using var motion = new VirtualMotionService(
             new MotionSettings(),
             new OperationCancellation(),
-            zRange: (
-                0,
-                100));
+            zPositiveLimitPosition: 100);
         motion.Initialize();
 
         await motion.MoveZToPositiveLimitAsync(1_000);
@@ -177,13 +185,7 @@ public sealed class MotionSafetyTests
         var io = CreateIo();
         using var motion = new VirtualMotionService(
             new MotionSettings(),
-            xRange: (0, 200),
-            yRange: (
-                0,
-                200),
-            zRange: (
-                0,
-                100),
+            zPositiveLimitPosition: 100,
             horizontalZ: () => 0,
             operationCancellation: new OperationCancellation());
         var supply = new PcbSupplyHandler(

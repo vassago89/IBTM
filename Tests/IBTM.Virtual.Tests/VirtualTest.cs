@@ -32,9 +32,6 @@ internal static class VirtualTest
     {
         return new(
             settings,
-            xRange: (0, 100),
-            yRange: (0, 100),
-            zRange: (0, 100),
             horizontalZ: () => 0,
             operationCancellation: operations);
     }

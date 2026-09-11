@@ -83,7 +83,7 @@ public sealed class AjinControllerTests
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
             controller,
-            new() { Number = 9, Maximum = 100 },
+            new() { Number = 9 },
             null,
             null,
             0.01,

@@ -831,14 +831,18 @@ public sealed partial class MachineLifecycleTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.MoveToXYAsync(30, 30));
         await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.HomeHorizontalAsync());
 
-        var maximum = gantry.Feedback.GetRange(MotionAxis.X)!.Value.Maximum;
-        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
-            () => gantry.AdjustAxisAsync(MotionAxis.X, maximum + 1, 100));
+        await gantry.AdjustAxisAsync(MotionAxis.X, -56.561, 10_000);
+        Assert.Equal(-56.561, gantry.Feedback.GetPosition().X, 6);
         Assert.Equal(MotionCommand.None, gantry.Feedback.Command);
-        await gantry.AdjustAxisAsync(MotionAxis.X, maximum - 0.1, 1000);
-        await gantry.JogAsync(MotionAxis.X, 10).WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.Equal((maximum, stopped.Y, stopped.Z), gantry.Feedback.GetPosition());
-        await WaitUntilAsync(() => !teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+        await gantry.AdjustAxisAsync(MotionAxis.X, 201, 10_000);
+        using var jogStop = new CancellationTokenSource();
+        var beyondOldMaximum = gantry.JogAsync(MotionAxis.X, 10, jogStop.Token);
+        await WaitUntilAsync(() => gantry.Feedback.GetPosition().X > 201.1);
+        jogStop.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => beyondOldMaximum);
+        Assert.Equal(stopped.Y, gantry.Feedback.GetPosition().Y);
+        Assert.Equal(stopped.Z, gantry.Feedback.GetPosition().Z);
+        await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
 
         await gantry.RaiseCylindersAsync();
         await WaitUntilAsync(() => teaching.MoveToPointCommand.CanExecute(null));
@@ -848,7 +852,7 @@ public sealed partial class MachineLifecycleTests
             if (moving)
                 positioning = gantry.Feedback.Command;
         };
-        await gantry.MoveToXYAsync(maximum - 1, stopped.Y);
+        await gantry.MoveToXYAsync(200, stopped.Y);
         Assert.Equal(MotionCommand.Positioning, positioning);
         Assert.Equal(MotionCommand.None, gantry.Feedback.Command);
 

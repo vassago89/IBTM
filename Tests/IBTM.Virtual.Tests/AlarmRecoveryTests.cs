@@ -490,14 +490,10 @@ public sealed class AlarmRecoveryTests
             var runningOutput = services.GetRequiredService<IReadOnlyDictionary<OutputIo, OutputHardware>>()
                 [OutputIo.PcbPlacementStopperDown];
             var originalOutput = (runningOutput.Number, runningOutput.OffNumber, runningOutput.Feedback!.OnInput);
-            var runningMotion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
-            var originalRange = runningMotion.GetRange(MotionAxis.X);
             output.Number = 80;
             output.OffNumber = 81;
             output.Feedback!.OnInput = InputIo.InspectionStopperUp;
             axis.Number = 12;
-            axis.Minimum = -5;
-            axis.Maximum = 150;
 
             view.Settings.AlphaMotion.ControllerNumber = 3;
             var motion = view.Settings.InspectionGantry.Motion;
@@ -522,10 +518,9 @@ public sealed class AlarmRecoveryTests
             var savedAxis = saved.Get<InspectionGantryHardwareSettings>().Axes[MachineAxis.InspectionGantryX];
             Assert.Equal((80, (int?)81, InputIo.InspectionStopperUp),
                 (savedOutput.Number, savedOutput.OffNumber, savedOutput.Feedback!.OnInput));
-            Assert.Equal((12, -5d, 150d), (savedAxis.Number, savedAxis.Minimum, savedAxis.Maximum));
+            Assert.Equal(12, savedAxis.Number);
             Assert.Equal(originalOutput,
                 (runningOutput.Number, runningOutput.OffNumber, runningOutput.Feedback.OnInput));
-            Assert.Equal(originalRange, runningMotion.GetRange(MotionAxis.X));
             Assert.Equal(MachineAlarm.Inspection, state.Alarm);
             Assert.False(io.GetInput(InputIo.ResetButton));
         }
