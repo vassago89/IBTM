@@ -76,6 +76,7 @@ public sealed class RecipeStore(MachineStore database)
                         Center = image.Center,
                         Region = image.Region,
                         BoltNumber = image.BoltNumber,
+                        IsBarcode = image.IsBarcode,
                         HeatSink = image.HeatSink,
                     })
                     .ToList();

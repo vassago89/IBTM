@@ -62,9 +62,16 @@
                 <Grid>
                     <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <TabControl SelectedIndex="{Binding SelectedCameraTab}">
-                        <TabItem Header="Live / Inspect">
+                        <TabItem Header="Teaching / Inspect">
                             <Grid Margin="0,8,0,0">
-                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*" MinHeight="100"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*" MinHeight="100"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
                                 <WrapPanel Margin="0,0,0,6">
                                     <Button Command="{Binding ToggleLiveViewCommand}" Margin="0,0,6,6" MinWidth="70">
                                         <Button.Style>
@@ -82,7 +89,7 @@
                                     </Button>
                                     <Button Content="Add Current Image" Command="{Binding CaptureCarrierImageCommand}" Margin="0,0,6,6"
                                             Style="{StaticResource PrimaryButtonStyle}"
-                                            ToolTip="Jog while watching live, stop, then add a fresh image and current XY to the map. Live view stays on."/>
+                                            ToolTip="Jog while watching live, stop, then save a fresh FOV image and current XY. Live view stays on."/>
                                     <Button Content="Move &amp; Inspect" Command="{Binding CaptureInspectionCommand}"
                                             Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"/>
                                     <Button Content="Reinspect" Command="{Binding ReinspectImageCommand}"
@@ -106,62 +113,8 @@
                                 </Border>
                                 <TextBlock Grid.Row="2" Text="{Binding Preview.Result}" TextWrapping="Wrap"
                                            Margin="0,8,0,0" FontSize="16" FontWeight="SemiBold"/>
-                            </Grid>
-                        </TabItem>
-                        <TabItem Header="Carrier Map">
-                            <Grid Margin="0,8,0,0">
-                                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-                                <WrapPanel Margin="0,0,0,6">
-                                    <Button Content="Clear Map" Command="{Binding ClearCarrierImagesCommand}" Margin="0,0,8,6"
-                                            Style="{StaticResource SecondaryButtonStyle}"/>
-                                    <TextBlock Text="mm/px" VerticalAlignment="Center" Margin="0,0,4,6"/>
-                                    <TextBox Text="{Binding MillimetersPerPixel, UpdateSourceTrigger=LostFocus}" Width="60" Margin="0,0,8,6"
-                                             IsEnabled="{Binding CanEditInspectionRecipe}"/>
-                                </WrapPanel>
-                                <Grid Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
-                                    <ui:ImageTeachingView x:Name="ImageMap"
-                                          Tiles="{Binding CarrierImages}"
-                                          MillimetersPerPixel="{Binding MillimetersPerPixel}"
-                                          Markers="{Binding ImageMarkers}"
-                                          CameraFieldOfView="{Binding CameraFieldOfView}"
-                                          CoordinateOrigin="{Binding ImageOrigin}"
-                                          ClickCommand="{Binding TeachImagePointCommand}"
-                                          RegionCommand="{Binding TeachImageRegionCommand}"
-                                          Regions="{Binding TeachingRegions}"
-                                          Cursor="Cross"
-                                          ToolTip="Teach PCB 1 bounds, then click the matching upper-left corner on PCB 2. Bolts and barcode share one PCB pattern. Esc: cancel. Wheel: zoom. Right drag: pan."
-                                          RenderOptions.BitmapScalingMode="NearestNeighbor"/>
-                                    <TextBlock Text="In Live / Inspect: jog, stop, then Add Current Image. Saved images appear here." TextWrapping="Wrap" Margin="12"
-                                               HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
-                                               Foreground="{StaticResource TextMutedBrush}">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasCarrierImages}" Value="False">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                    <TextBlock Text="{Binding HoverPositionText, ElementName=ImageMap}" Margin="8" Padding="6"
-                                               HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False"
-                                               Background="{StaticResource EquipBgBrush}" FontFamily="Consolas"/>
-                                </Grid>
-                                <WrapPanel Grid.Row="2" Margin="0,8,0,0">
-                                    <ComboBox ItemsSource="{Binding FasteningHeads}" SelectedItem="{Binding NewFasteningHead}" MinWidth="145" Margin="0,0,6,6"/>
-                                    <Button Content="Add Bolt" Command="{Binding AddBoltPointCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"/>
-                                    <Button Content="Remove Bolt" Command="{Binding RemoveBoltPointCommand}" Style="{StaticResource DangerButtonStyle}" Margin="0,0,0,6"/>
-                                </WrapPanel>
-                            </Grid>
-                        </TabItem>
-                        <TabItem Header="FOV / ROI">
-                            <Grid Margin="0,8,0,0">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <WrapPanel Margin="0,0,0,8">
+                                <WrapPanel Grid.Row="3" Margin="0,8,0,0">
+                                    <TextBlock Text="Saved FOV / ROI" VerticalAlignment="Center" Margin="0,0,8,6"/>
                                     <ComboBox ItemsSource="{Binding CarrierImages}" SelectedItem="{Binding SelectedFov}" MinWidth="120" Margin="0,0,12,6">
                                         <ComboBox.ItemTemplate>
                                             <DataTemplate DataType="{x:Type ui:CarrierImageTileView}">
@@ -172,17 +125,21 @@
                                     <TextBlock Text="Resolution (mm/px)" VerticalAlignment="Center" Margin="0,0,6,6"/>
                                     <TextBox Text="{Binding MillimetersPerPixel, UpdateSourceTrigger=LostFocus}" Width="80" Margin="0,0,8,6"
                                              IsEnabled="{Binding CanEditInspectionRecipe}"/>
-                                    <Button Content="Apply ROI Center" Command="{Binding TeachFovRegionCommand}" CommandParameter="{Binding FovRegion}"
+                                    <Button Content="Apply ROI" Command="{Binding TeachFovRegionCommand}" CommandParameter="{Binding FovRegion}"
                                             Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,6"
-                                            ToolTip="Recalculate the selected bolt from this ROI using the entered resolution, then save."/>
+                                            ToolTip="Save this ROI for the selected bolt or Data Matrix. Bolt coordinates use the entered resolution; captured XY does not change."/>
+                                    <ComboBox ItemsSource="{Binding FasteningHeads}" SelectedItem="{Binding NewFasteningHead}" MinWidth="145" Margin="6,0,6,6"/>
+                                    <Button Content="Add Bolt" Command="{Binding AddBoltPointCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"/>
+                                    <Button Content="Remove Bolt" Command="{Binding RemoveBoltPointCommand}" Style="{StaticResource DangerButtonStyle}" Margin="0,0,6,6"/>
+                                    <Button Content="Clear Images" Command="{Binding ClearCarrierImagesCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,6"/>
                                 </WrapPanel>
-                                <ui:ImageTeachingView Grid.Row="1" Source="{Binding SelectedFov.Image}"
+                                <ui:ImageTeachingView Grid.Row="4" Source="{Binding SelectedFov.Image}"
                                                       SourceRegion="{Binding FovRegion}" RegionCommand="{Binding TeachFovRegionCommand}"
                                                       Cursor="Cross" ToolTip="Drag one ROI. Drawing again replaces it. Capture XY does not change. Esc cancels."/>
-                                <StackPanel Grid.Row="2" Margin="0,8,0,0">
+                                <StackPanel Grid.Row="5" Margin="0,8,0,0">
                                     <TextBlock Text="{Binding SelectedPoint.Name, StringFormat=Draw ROI for · {0}}" TextWrapping="Wrap" Margin="0,0,0,4"/>
                                     <TextBlock Text="{Binding FovRoiLabel}" TextWrapping="Wrap"/>
-                                    <TextBlock Text="ROI center sets the bolt coordinate. Inspection returns to the original capture XY." TextWrapping="Wrap"
+                                    <TextBlock Text="Bolt: ROI center sets its coordinate. Data Matrix: read only this ROI. Both return to the original capture XY." TextWrapping="Wrap"
                                                Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMutedBrush}">
                                         <Run Text="Capture XY · "/><Run Text="{Binding SelectedFov.Center.X, StringFormat={}{0:F3}}"/>
@@ -219,7 +176,7 @@
                                 <Setter Property="Margin" Value="0,0,0,8"/>
                             </Style>
                         </Grid.Resources>
-                        <TextBlock Text="Draw one ROI per image in FOV / ROI." Grid.Row="0" Grid.ColumnSpan="2"/>
+                        <TextBlock Text="Draw one ROI on each saved FOV image." Grid.Row="0" Grid.ColumnSpan="2"/>
                         <TextBlock Text="Minimum Mask (%)" Grid.Row="1"/>
                         <TextBox x:Name="InspectionMaskRatioInput" Grid.Row="1" Grid.Column="1"
                                  IsEnabled="{Binding Preview.IsBolt}"

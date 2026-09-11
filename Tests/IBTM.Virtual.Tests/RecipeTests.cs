@@ -23,17 +23,14 @@ namespace IBTM.Virtual.Tests;
 public sealed class RecipeTests
 {
     [Fact]
-    public async Task PcbPatternIsSharedAndStoredOnceWhileTargetsUseEachPcbOrigin()
+    public async Task HeatSinkBoltTeachingAndStorageAreIndependent()
     {
-        var recipe = new Recipe { Name = "Shared PCB" };
+        var recipe = new Recipe { Name = "Independent heat sinks" };
         var layout = recipe.Pcb;
-        layout.Width = layout.Height = 40;
-        layout.Origins[HeatSinkSlot.HeatSink1] = new() { X = 10, Y = 20 };
-        layout.Origins[HeatSinkSlot.HeatSink2] = new() { X = 70, Y = 25 };
-        layout.BoltPoints.Add(new() { Number = 1, X = 3, Y = 4 });
-        layout.DataMatrix = new(7, 8, 4, 4);
+        layout.BoltPoints.Add(new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 13, Y = 24 });
+        layout.BoltPoints.Add(new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink2, X = 73, Y = 29 });
         var targets = layout.GetBolts().ToArray();
-        Assert.Same(targets[0].Point, targets[1].Point);
+        Assert.NotSame(targets[0].Point, targets[1].Point);
         Assert.Equal((13d, 24d), (targets[0].X, targets[0].Y));
         Assert.Equal((73d, 29d), (targets[1].X, targets[1].Y));
 
@@ -52,33 +49,29 @@ public sealed class RecipeTests
             },
         };
         var second = inspection.GetBoltTeachingPositions([targets[1]], pins).Single();
-        second.Apply(new() { X = 175, Y = 230 }); // PCB 2 local (5, 5), also updates PCB 1.
-        Assert.Equal((5d, 5d), (layout.BoltPoints[0].X, layout.BoltPoints[0].Y));
+        second.Apply(new() { X = 175, Y = 230 });
+        Assert.Equal((13d, 24d), (targets[0].X, targets[0].Y));
+        Assert.Equal((75d, 30d), (targets[1].X, targets[1].Y));
         var firstCamera = inspection.GetBoltPosition(targets[0], pins);
         var secondHead = fastening.GetBoltPosition(targets[1], pins);
-        Assert.Equal((115, 225), (firstCamera.X, firstCamera.Y));
+        Assert.Equal((113, 224), (firstCamera.X, firstCamera.Y));
         Assert.Equal(270, secondHead.X, 6);
         Assert.Equal(475, secondHead.Y, 6);
-
-        layout.Origins[HeatSinkSlot.HeatSink2] = new() { X = 80, Y = 30 };
-        layout.Width = 50; // Extents never scale the shared pattern.
-        Assert.Equal((85d, 35d), (targets[1].X, targets[1].Y));
-        Assert.Equal(new PcbRegion(87, 38, 4, 4), layout.GetDataMatrix(HeatSinkSlot.HeatSink2));
-        Assert.Equal((5d, 5d), (layout.BoltPoints[0].X, layout.BoltPoints[0].Y));
 
         var (_, store) = CreateStore();
         var editor = new RecipeEditor(store, new(), recipe, new());
         await editor.SaveAsync();
         var loaded = await store.LoadRecipeAsync(recipe.Name);
-        Assert.Single(loaded.Pcb.BoltPoints);
+        Assert.Equal(2, loaded.Pcb.BoltPoints.Count);
         Assert.Equal(2, loaded.Pcb.GetBolts().Count());
-        Assert.Equal(layout.DataMatrix, loaded.Pcb.DataMatrix);
-        Assert.Equal(
-            layout.GetRegion(HeatSinkSlot.HeatSink2),
-            loaded.Pcb.GetRegion(HeatSinkSlot.HeatSink2));
-        layout.Origins.Remove(HeatSinkSlot.HeatSink2);
-        Assert.False(layout.IsDefined);
-        Assert.Null(targets[1].X); // No guessed zero-origin target for an untaught PCB.
+        Assert.Equal(13d, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().X);
+        Assert.Equal(75d, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().X);
+        layout.BoltPoints.Remove(targets[1].Point);
+        Assert.Empty(layout.GetBolts(HeatSinkSlot.HeatSink2));
+        Assert.Single(layout.GetBolts(HeatSinkSlot.HeatSink1));
+        var oldLayout = System.Text.Json.JsonSerializer.Deserialize<PcbLayout>(
+            """{"BoltPoints":[{"Number":1,"X":5,"Y":6}],"Origins":{"HeatSink1":{"X":100,"Y":200}}}""");
+        Assert.Empty(oldLayout!.BoltPoints);
     }
 
     [Fact]
@@ -158,7 +151,7 @@ public sealed class RecipeTests
             },
         };
         var bolt = new BoltPoint { Number = 1 };
-        var recipe = VirtualTest.TaughtPcbLayout();
+        var recipe = new PcbLayout();
         recipe.BoltPoints = [bolt];
         var target = recipe.GetBolts(HeatSinkSlot.HeatSink1).Single();
         var image = new TeachingPoint(inspection.GetBoltTeachingPositions([target], reference).Single());
@@ -329,7 +322,7 @@ public sealed class RecipeTests
         CarrierImageTileView[] Images(double x, byte value)
         {
             return [new(1, new() { X = x }, Image(value), new(0, 0, 1, 1), 3, HeatSinkSlot.HeatSink2),
-                new(2, new() { X = x + 1 }, Image(value))];
+                new(2, new() { X = x + 1 }, Image(value), new(0, 0, 1, 1), IsBarcode: true)];
         }
 
         static BitmapSource Image(byte value)
@@ -353,6 +346,11 @@ public sealed class RecipeTests
         Assert.Equal(3, savedFov.BoltNumber);
         Assert.Equal(HeatSinkSlot.HeatSink2, savedFov.HeatSink);
         Assert.Equal(savedFov.Region, (await sourceEditor.LoadCarrierImagesAsync())[0].Region);
+        var savedBarcode = (await store.LoadRecipeAsync("Source")).CarrierImages[1];
+        Assert.True(savedBarcode.IsBarcode);
+        Assert.Null(savedBarcode.BoltNumber);
+        Assert.Equal(new PixelRegion(0, 0, 1, 1), savedBarcode.Region);
+        Assert.True((await sourceEditor.LoadCarrierImagesAsync())[1].IsBarcode);
         Assert.Equal("Source", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
         Assert.True(await targetEditor.SaveCarrierImagesAsync(Images(10, 100)));
         Assert.Equal("Target", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);

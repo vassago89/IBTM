@@ -108,7 +108,6 @@ public partial class MainViewModel : ObservableObject
             supplyTeachingViewModel.SetOutputOnCommand,
             supplyTeachingViewModel.SetOutputOffCommand,
             stationTeachingViewModel.TeachCurrentPositionCommand,
-            stationTeachingViewModel.TeachImagePointCommand,
             stationTeachingViewModel.MoveToPointCommand,
             stationTeachingViewModel.ReturnFromPickupCommand,
             stationTeachingViewModel.SetOutputOnCommand,
@@ -118,7 +117,7 @@ public partial class MainViewModel : ObservableObject
             stationTeachingViewModel.CaptureInspectionCommand,
             stationTeachingViewModel.ReinspectImageCommand,
             stationTeachingViewModel.CollectBoltImagesCommand,
-            stationTeachingViewModel.TeachImageRegionCommand,
+            stationTeachingViewModel.TeachFovRegionCommand,
         ];
         foreach (var command in _recipeEditingCommands)
         {

@@ -19,11 +19,8 @@ public sealed class BoltInspector
     private readonly ILightController light;
     private readonly BoltPresenceDetector presenceDetector;
     private readonly InspectionGantrySettings gantrySettings;
-    private readonly CarrierReferenceSettings carrierReference;
     private readonly LightingSettings lightingSettings;
     private readonly Func<BoltInspectionRecipe> getRecipe;
-    private readonly Func<PcbLayout> getPcb;
-    private readonly Func<double> getMillimetersPerPixel;
     private readonly Func<IReadOnlyList<CarrierImageTile>> getFovs;
     private readonly SemaphoreSlim _visionGate = new(1, 1);
     private int? _lightChannel;
@@ -34,11 +31,8 @@ public sealed class BoltInspector
         ILightController light,
         BoltPresenceDetector presenceDetector,
         InspectionGantrySettings gantrySettings,
-        CarrierReferenceSettings carrierReference,
         LightingSettings lightingSettings,
         Func<BoltInspectionRecipe> getRecipe,
-        Func<PcbLayout> getPcb,
-        Func<double> getMillimetersPerPixel,
         Func<IReadOnlyList<CarrierImageTile>> getFovs)
     {
         this.gantry = gantry;
@@ -46,11 +40,8 @@ public sealed class BoltInspector
         this.light = light;
         this.presenceDetector = presenceDetector;
         this.gantrySettings = gantrySettings;
-        this.carrierReference = carrierReference;
         this.lightingSettings = lightingSettings;
         this.getRecipe = getRecipe;
-        this.getPcb = getPcb;
-        this.getMillimetersPerPixel = getMillimetersPerPixel;
         this.getFovs = getFovs;
         camera.LiveViewFailed += OnCameraLiveViewFailed;
     }
@@ -134,44 +125,32 @@ public sealed class BoltInspector
         return presenceDetector.Predict(image, region);
     }
 
-    public (double Width, double Height) FieldOfView
-    {
-        get
-        {
-            return GetFieldOfView(camera.FrameSize);
-        }
-    }
-
-    public (double Width, double Height) GetFieldOfView((int Width, int Height) frameSize)
-    {
-        return (frameSize.Width * getMillimetersPerPixel(), frameSize.Height * getMillimetersPerPixel());
-    }
-
     public bool HasBarcodeRegion(HeatSinkSlot pcb)
     {
-        return carrierReference.IsDefined
-            && getPcb().GetDataMatrix(pcb) is { } region
-            && region.Width > 0
-            && region.Height > 0
-            && region.Width <= FieldOfView.Width
-            && region.Height <= FieldOfView.Height;
+        var size = camera.FrameSize;
+        var fovs = getFovs().Where(fov => fov.IsBarcode && fov.HeatSink == pcb).ToArray();
+        return fovs.Length == 1
+            && fovs[0].Region is { } region
+            && region.IsInside(size.Width, size.Height);
     }
 
-    public AxisPosition BarcodePosition(HeatSinkSlot pcb)
+    public CarrierImageTile GetBarcodeFov(HeatSinkSlot pcb)
     {
-        return CarrierCoordinates.ToMachine(
-            getPcb().GetDataMatrix(pcb)!.Center,
-            carrierReference.UpperLeftLocatingPin!);
+        var fov = getFovs().SingleOrDefault(item => item.IsBarcode && item.HeatSink == pcb);
+        var size = camera.FrameSize;
+        if (fov?.Region is not { } region || !region.IsInside(size.Width, size.Height))
+            throw new InvalidOperationException($"Teach a FOV and ROI for {pcb.GetDescription()} Data Matrix.");
+        return fov;
     }
 
     public bool IsAtBarcode(HeatSinkSlot pcb)
     {
-        return gantry.IsAt(BarcodePosition(pcb));
+        return gantry.IsAt(GetBarcodeFov(pcb).Center);
     }
 
     public Task MoveToBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken = default)
     {
-        return MoveToAsync(BarcodePosition(pcb), cancellationToken);
+        return MoveToAsync(GetBarcodeFov(pcb).Center, cancellationToken);
     }
 
     public async Task<ImageFrame> CaptureBarcodeAsync(
@@ -180,20 +159,6 @@ public sealed class BoltInspector
     {
         await MoveToBarcodeAsync(pcb, cancellationToken);
         return await CaptureCurrentAsync(cancellationToken);
-    }
-
-    public string? ReadBarcode(ImageFrame image)
-    {
-        var (width, height) = BarcodePixelSize();
-        return DataMatrixReader.Read(image, width, height);
-    }
-
-    public (int Width, int Height) BarcodePixelSize()
-    {
-        var region = getPcb().DataMatrix!;
-        return (
-            (int)Math.Ceiling(region.Width / getMillimetersPerPixel()),
-            (int)Math.Ceiling(region.Height / getMillimetersPerPixel()));
     }
 
     public async Task<ImageFrame> CaptureCurrentAsync(CancellationToken cancellationToken = default)
@@ -213,8 +178,9 @@ public sealed class BoltInspector
 
     internal async Task<string> ReadBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken)
     {
+        var region = GetBarcodeFov(pcb).Region!;
         var image = await CaptureCurrentAsync(cancellationToken);
-        var text = await Task.Run(() => ReadBarcode(image), cancellationToken);
+        var text = await Task.Run(() => DataMatrixReader.Read(image, region), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         return !string.IsNullOrEmpty(text)
             ? text
@@ -225,7 +191,8 @@ public sealed class BoltInspector
     public bool HasPosition(BoltTarget point)
     {
         return getFovs().Count(fov =>
-            fov.BoltNumber == point.Number
+            !fov.IsBarcode
+            && fov.BoltNumber == point.Number
             && fov.HeatSink == point.HeatSink
             && fov.Region is not null) == 1;
     }
@@ -233,7 +200,8 @@ public sealed class BoltInspector
     public CarrierImageTile GetFov(BoltTarget point)
     {
         return getFovs().SingleOrDefault(fov =>
-            fov.BoltNumber == point.Number
+            !fov.IsBarcode
+            && fov.BoltNumber == point.Number
             && fov.HeatSink == point.HeatSink
             && fov.Region is not null)
             ?? throw new InvalidOperationException(

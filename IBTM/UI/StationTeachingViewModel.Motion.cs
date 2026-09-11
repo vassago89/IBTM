@@ -198,6 +198,8 @@ public partial class StationTeachingViewModel
                     => _ngCarrierMove.MoveToCarrierAsync(NgTransferDestination.Station, token),
                 MotionGroup.InspectionGantry when point.Position.Bolt is { } bolt
                     => Inspector.MoveToAsync(bolt, token),
+                MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.DataMatrix
+                    => Inspector.MoveToBarcodeAsync(SelectedPcb, token),
                 MotionGroup.InspectionGantry => _inspectionGantry.MoveToAsync(
                     new AxisPosition { X = point.X, Y = point.Y },
                     TeachingXySpeed,
@@ -249,8 +251,6 @@ public partial class StationTeachingViewModel
         CaptureInspectionCommand.NotifyCanExecuteChanged();
         ReinspectImageCommand.NotifyCanExecuteChanged();
         CollectBoltImagesCommand.NotifyCanExecuteChanged();
-        TeachImageRegionCommand.NotifyCanExecuteChanged();
-        TeachImagePointCommand.NotifyCanExecuteChanged();
         AddBoltPointCommand.NotifyCanExecuteChanged();
         RemoveBoltPointCommand.NotifyCanExecuteChanged();
     }

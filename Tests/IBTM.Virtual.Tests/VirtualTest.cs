@@ -28,21 +28,6 @@ internal static class VirtualTest
         }
     }
 
-    public static PcbLayout TaughtPcbLayout()
-    {
-        return new()
-        {
-            Width = 18,
-            Height = 26,
-            Origins = new()
-            {
-                [HeatSinkSlot.HeatSink1] = new(),
-                [HeatSinkSlot.HeatSink2] = new() { X = 18 },
-            },
-            DataMatrix = new(9, 11, 4, 4),
-        };
-    }
-
     public static VirtualMotionService Motion(MotionSettings settings, OperationCancellation operations)
     {
         return new(

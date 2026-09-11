@@ -15,7 +15,8 @@ public sealed record CarrierImageTileView(
     BitmapSource Image,
     PixelRegion? Region = null,
     int? BoltNumber = null,
-    HeatSinkSlot HeatSink = HeatSinkSlot.HeatSink1);
+    HeatSinkSlot HeatSink = HeatSinkSlot.HeatSink1,
+    bool IsBarcode = false);
 
 public sealed record ImageMarker(double X, double Y, string Label, bool Selected = false);
 

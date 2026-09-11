@@ -20,7 +20,7 @@ public partial class InspectionPreview(
     private BoltPrediction? _prediction;
     private BitmapSource? _input;
     private HeatSinkSlot? _pcb;
-    private PixelRegion? _boltRegion;
+    private PixelRegion? _sourceRegion;
     [ObservableProperty]
     private BitmapSource? _image;
     [ObservableProperty]
@@ -65,7 +65,7 @@ public partial class InspectionPreview(
     public void Clear(HeatSinkSlot? pcb = null)
     {
         _pcb = pcb;
-        _boltRegion = null;
+        _sourceRegion = null;
         _frame = null;
         Image = null;
         Region = null;
@@ -80,7 +80,7 @@ public partial class InspectionPreview(
         var image = await Task.Run(() => CreateBitmap(frame), token);
         token.ThrowIfCancellationRequested();
         _frame = frame;
-        _boltRegion = region;
+        _sourceRegion = region;
         Image = image;
         ClearPrediction();
         RefreshRegion();
@@ -91,15 +91,15 @@ public partial class InspectionPreview(
     {
         ClearPrediction();
         var frame = _frame!;
+        var region = _sourceRegion ?? throw new InvalidOperationException("Draw the FOV ROI before inspecting.");
         if (_pcb is not null)
         {
-            var text = await Task.Run(() => inspector.ReadBarcode(frame), token);
+            var text = await Task.Run(() => DataMatrixReader.Read(frame, region), token);
             token.ThrowIfCancellationRequested();
             Result = string.IsNullOrEmpty(text) ? "Not Read" : text;
             return;
         }
 
-        var region = _boltRegion ?? throw new InvalidOperationException("Draw the FOV ROI before inspecting.");
         var prediction = await Task.Run(() => inspector.Predict(frame, region), token);
         var input = await Task.Run(() => CreateBitmap(prediction.Input), token);
         token.ThrowIfCancellationRequested();
@@ -134,33 +134,11 @@ public partial class InspectionPreview(
                 training.MaskThreshold);
     }
 
-    public void RefreshBarcodeRegion()
-    {
-        if (IsBolt)
-            return;
-        Result = null;
-        RefreshRegion();
-    }
-
     private void RefreshRegion()
     {
-        if (_frame is null)
-            return;
-        if (!IsBolt && inspector.GetFieldOfView((_frame.Width, _frame.Height)).Width <= 0)
-        {
-            Region = null;
-            return;
-        }
-
-        if (IsBolt)
-        {
-            Region = _boltRegion is { } region
-                ? new Rect(region.X, region.Y, region.Width, region.Height)
-                : null;
-            return;
-        }
-        var (width, height) = inspector.BarcodePixelSize();
-        Region = new Rect((_frame.Width - width) / 2, (_frame.Height - height) / 2, width, height);
+        Region = _sourceRegion is { } region
+            ? new Rect(region.X, region.Y, region.Width, region.Height)
+            : null;
     }
 
     public static BitmapSource CreateBitmap(ImageFrame frame)

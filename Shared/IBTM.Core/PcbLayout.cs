@@ -1,70 +1,36 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
 
 namespace IBTM.Core;
-// One PCB pattern, placed twice relative to the carrier's upper-left locating pin.
+// Each heat sink owns its taught bolts; coordinates are relative to the carrier reference pin.
 public sealed class PcbLayout
 {
-    public double Width { get; set; }
-    public double Height { get; set; }
-    public Dictionary<HeatSinkSlot, AxisPosition> Origins { get; set; } = [];
+    // Old shared PCB-local coordinates must not be read as independent carrier coordinates.
+    [JsonPropertyName("TaughtBolts")]
     public List<BoltPoint> BoltPoints { get; set; } = [];
-    public PcbRegion? DataMatrix { get; set; }
-
-    [JsonIgnore]
-    public bool IsDefined
-    {
-        get
-        {
-            return Width > 0
-                && Height > 0
-                && Enum.GetValues<HeatSinkSlot>().All(Origins.ContainsKey);
-        }
-    }
 
     public IEnumerable<BoltTarget> GetBolts()
     {
-        return Enum.GetValues<HeatSinkSlot>().SelectMany(GetBolts);
+        return BoltPoints.Select(point => new BoltTarget(point));
     }
 
     public IEnumerable<BoltTarget> GetBolts(HeatSinkSlot pcb)
     {
-        return BoltPoints.Select(point => new BoltTarget(point, pcb, this));
+        return GetBolts().Where(bolt => bolt.HeatSink == pcb);
     }
 
-    public PcbRegion? GetRegion(HeatSinkSlot pcb)
-    {
-        return Width > 0 && Height > 0 && Origins.TryGetValue(pcb, out var origin)
-            ? new(origin.X, origin.Y, Width, Height)
-            : null;
-    }
-
-    public PcbRegion? GetDataMatrix(HeatSinkSlot pcb)
-    {
-        return DataMatrix is { } region && Origins.TryGetValue(pcb, out var origin)
-            ? region with { X = region.X + origin.X, Y = region.Y + origin.Y }
-
-            : null;
-    }
 }
 
-public sealed record PcbRegion(double X, double Y, double Width, double Height)
+public sealed record BoltTarget(BoltPoint Point)
 {
-    [JsonIgnore]
-    public AxisPosition Center
+    public HeatSinkSlot HeatSink
     {
         get
         {
-            return new() { X = X + Width / 2, Y = Y + Height / 2 };
+            return Point.HeatSink;
         }
     }
-}
-
-// A physical target reads the shared point and PCB origin; it stores no copied coordinates.
-public sealed record BoltTarget(BoltPoint Point, HeatSinkSlot HeatSink, PcbLayout Layout)
-{
     public int Number
     {
         get
@@ -85,7 +51,7 @@ public sealed record BoltTarget(BoltPoint Point, HeatSinkSlot HeatSink, PcbLayou
     {
         get
         {
-            return Point.X + Layout.Origins.GetValueOrDefault(HeatSink)?.X;
+            return Point.X;
         }
     }
 
@@ -93,7 +59,7 @@ public sealed record BoltTarget(BoltPoint Point, HeatSinkSlot HeatSink, PcbLayou
     {
         get
         {
-            return Point.Y + Layout.Origins.GetValueOrDefault(HeatSink)?.Y;
+            return Point.Y;
         }
     }
 }

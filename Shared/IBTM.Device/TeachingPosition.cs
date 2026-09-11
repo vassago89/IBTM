@@ -114,9 +114,6 @@ public enum TeachingTarget
     [Description("Bolt Reference")]
     BoltReference,
 
-    [Description("PCB Region")]
-    PcbRegion,
-
     [Description("Data Matrix")]
     DataMatrix,
 

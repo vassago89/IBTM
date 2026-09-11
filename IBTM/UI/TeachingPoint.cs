@@ -111,7 +111,7 @@ public enum TeachingSaveBehavior
     [Description("Teach with Head 1 down; saves automatically. Move To lowers Head 1 at pickup XY, then moves Z. Vacuum is unchanged.")]
     BoltPickup,
 
-    [Description("Calculated from the PCB image and head reference pins. Move to verify at Safe Z; teach bolt positions in Inspection.")]
+    [Description("Calculated from this heat sink's bolt teaching and head reference pins. Move to verify at Safe Z; teach bolt positions in Inspection.")]
     BoltPosition,
 
     [Description("Align the pin with the live camera center, then Teach. Saves automatically.")]
@@ -123,12 +123,8 @@ public enum TeachingSaveBehavior
     Recipe,
     [Description("Buffer setup · Apply & Save Buffer before leaving this page; otherwise staged changes are discarded.")]
     Buffer,
-    [Description("Image point · Click the image to teach and save automatically.")]
+    [Description("Add Current Image, then draw the bolt ROI on the saved FOV. This heat sink is taught independently. Saves automatically.")]
     Image,
-    [Description("Drag the barcode region on the carrier image. Saves automatically. Esc cancels the drag.")]
-    ImageRegion,
-    [Description("Drag the PCB 1 rectangle. The upper-left corner is the shared pattern origin. Esc cancels.")]
-    PcbRegion,
-    [Description("Click the same upper-left corner on PCB 2. Size, bolts and barcode are shared with PCB 1.")]
-    PcbOrigin,
+    [Description("Live: jog, stop, Add Current Image. Draw the barcode ROI on the saved FOV for this heat sink. Reading returns to the captured XY. Saves automatically.")]
+    BarcodeFov,
 }

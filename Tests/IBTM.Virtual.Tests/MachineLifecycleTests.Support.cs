@@ -178,7 +178,7 @@ public sealed partial class MachineLifecycleTests
         var probe = (DisplayReadMotion)motion;
         feedback = probe;
         return new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
-            .AddIbtmApplication(FlowSettings(), new Recipe { Pcb = VirtualTest.TaughtPcbLayout() })
+            .AddIbtmApplication(FlowSettings(), new Recipe())
             .AddSingleton(
                 provider =>
                 {
@@ -239,7 +239,7 @@ public sealed partial class MachineLifecycleTests
     private static ServiceProvider CreateServices(MachineSettings settings)
     {
         return new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
-            .AddIbtmApplication(settings, new Recipe { Pcb = VirtualTest.TaughtPcbLayout() })
+            .AddIbtmApplication(settings, new Recipe())
             .BuildServiceProvider(
                 new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true, });
     }
@@ -261,7 +261,7 @@ public sealed partial class MachineLifecycleTests
         }
 
         return new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
-            .AddIbtmApplication(settings, new Recipe { Pcb = VirtualTest.TaughtPcbLayout() })
+            .AddIbtmApplication(settings, new Recipe())
             .AddSingleton(
                 provider =>
                     new PcbSupplyHandler(
@@ -468,9 +468,11 @@ public sealed partial class MachineLifecycleTests
         settings.CarrierReference.LowerRightLocatingPin = new() { X = 100, Y = 0 };
         settings.BoltFastening.PickupHead = HeadSettings();
         settings.BoltFastening.ShootingHead = HeadSettings();
-        recipe.Pcb = VirtualTest.TaughtPcbLayout();
+        recipe.Pcb = new();
         recipe.Pcb.BoltPoints.Add(
             new BoltPoint { Number = 1, Head = FasteningHead.Shooting, X = 10, Y = 10, });
+        recipe.Pcb.BoltPoints.Add(
+            new BoltPoint { Number = 1, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 28, Y = 10 });
         TeachInspectionFovs(settings, recipe);
     }
 
@@ -484,6 +486,17 @@ public sealed partial class MachineLifecycleTests
             BoltNumber = bolt.Number,
             HeatSink = bolt.HeatSink,
         }).ToList();
+        foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
+        {
+            recipe.CarrierImages.Add(new()
+            {
+                Number = recipe.CarrierImages.Count + 1,
+                Center = new() { X = pcb == HeatSinkSlot.HeatSink1 ? 10 : 28, Y = 17 },
+                Region = new(180, 40, 80, 80),
+                IsBarcode = true,
+                HeatSink = pcb,
+            });
+        }
     }
 
     public enum MachineUnit

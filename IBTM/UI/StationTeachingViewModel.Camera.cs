@@ -34,9 +34,11 @@ public partial class StationTeachingViewModel
     {
         get
         {
+            if (SelectedFov is { IsBarcode: true } barcode)
+                return $"{barcode.HeatSink.GetDescription()} · Data Matrix · Drag to replace ROI";
             return SelectedFov?.BoltNumber is { } number
                 ? $"{SelectedFov.HeatSink.GetDescription()} · Bolt {number} · Drag to replace ROI"
-                : "Select a bolt on the left, then drag one ROI in this FOV.";
+                : "Select a bolt or Data Matrix on the left, then drag one ROI in this FOV.";
         }
     }
 
@@ -45,7 +47,9 @@ public partial class StationTeachingViewModel
     {
         var fov = SelectedFov!;
         var point = SelectedPoint!;
-        var bolt = point.Position.Bolt!;
+        var barcode = SelectedBarcode;
+        var bolt = point.Position.Bolt;
+        var pcb = SelectedPcb;
         var left = (int)Math.Floor(bounds.Left);
         var top = (int)Math.Floor(bounds.Top);
         var region = new PixelRegion(left, top,
@@ -56,30 +60,44 @@ public partial class StationTeachingViewModel
         await Machine.RunTeachingEditAsync(
             async token =>
             {
-                var x = fov.Center.X
-                    + (region.X + region.Width / 2.0 - fov.Image.PixelWidth / 2.0) * MillimetersPerPixel;
-                var y = fov.Center.Y
-                    + (region.Y + region.Height / 2.0 - fov.Image.PixelHeight / 2.0) * MillimetersPerPixel;
-                point.Teach(x, y, 0);
-                point.Apply();
+                if (bolt is not null)
+                {
+                    var x = fov.Center.X
+                        + (region.X + region.Width / 2.0 - fov.Image.PixelWidth / 2.0) * MillimetersPerPixel;
+                    var y = fov.Center.Y
+                        + (region.Y + region.Height / 2.0 - fov.Image.PixelHeight / 2.0) * MillimetersPerPixel;
+                    point.Teach(x, y, 0);
+                    point.Apply();
+                }
                 foreach (var tile in RecipeEditor.Recipe.CarrierImages)
                 {
                     if (tile.Number == fov.Number)
                     {
                         tile.Region = region;
-                        tile.BoltNumber = bolt.Number;
-                        tile.HeatSink = bolt.HeatSink;
+                        tile.BoltNumber = bolt?.Number;
+                        tile.IsBarcode = barcode is not null;
+                        tile.HeatSink = pcb;
                     }
-                    else if (tile.BoltNumber == bolt.Number && tile.HeatSink == bolt.HeatSink)
+                    else if (tile.HeatSink == pcb
+                        && (barcode is not null
+                            ? tile.IsBarcode
+                            : !tile.IsBarcode && tile.BoltNumber == bolt!.Number))
                     {
                         tile.Region = null;
                         tile.BoltNumber = null;
+                        tile.IsBarcode = false;
                     }
                 }
                 CarrierImages = CarrierImages.Select(image =>
                 {
                     var tile = RecipeEditor.Recipe.CarrierImages.Single(tile => tile.Number == image.Number);
-                    return image with { Region = tile.Region, BoltNumber = tile.BoltNumber, HeatSink = tile.HeatSink };
+                    return image with
+                    {
+                        Region = tile.Region,
+                        BoltNumber = tile.BoltNumber,
+                        IsBarcode = tile.IsBarcode,
+                        HeatSink = tile.HeatSink,
+                    };
                 }).ToArray();
                 RefreshPointPositions();
                 await RecipeEditor.SaveAsync(token);
@@ -94,11 +112,11 @@ public partial class StationTeachingViewModel
         return CanEditInspectionRecipe
             && RecipeEditor.CanSave
             && SelectedFov is not null
-            && double.IsFinite(MillimetersPerPixel)
-            && MillimetersPerPixel > 0
-            && _carrierReference.IsDefined
-            && SelectedPoint?.Position.Bolt is { } bolt
-            && bolt.Layout.Origins.ContainsKey(bolt.HeatSink)
+            && (SelectedBarcode is not null
+                || double.IsFinite(MillimetersPerPixel)
+                    && MillimetersPerPixel > 0
+                    && _carrierReference.IsDefined
+                    && SelectedPoint?.Position.Bolt is not null)
             && (bounds.IsEmpty || bounds.Width >= 1 && bounds.Height >= 1);
     }
 
@@ -165,7 +183,7 @@ public partial class StationTeachingViewModel
                 await _recipeImageUpdate;
                 token.ThrowIfCancellationRequested();
                 if (CarrierImages.Count != RecipeEditor.Recipe.CarrierImages.Count)
-                    throw new InvalidOperationException("Load the existing map images before adding another image.");
+                    throw new InvalidOperationException("Load the saved FOV images before adding another image.");
                 var captured = await Inspector.CaptureCarrierImageAsync(token);
                 var image = await Task.Run(
                     () => InspectionPreview.CreateBitmap(captured.Frame),
@@ -210,99 +228,6 @@ public partial class StationTeachingViewModel
         return IsInspectionSelected && CanEditTeaching && HasCarrierImages && RecipeEditor.CanSave;
     }
 
-    [RelayCommand(CanExecute = nameof(CanTeachImagePoint))]
-    private async Task TeachImagePointAsync(Point imagePoint)
-    {
-        if (!CanEditRecipe())
-            return;
-        if (SelectedPoint!.Position.Target == TeachingTarget.BoltReference)
-            SelectedPcb = FindPcb(new Rect(imagePoint, new Size()))!.Value;
-        var point = SelectedPoint!;
-        point.Teach(imagePoint.X, imagePoint.Y, 0);
-        point.Apply();
-        RefreshPointPositions();
-        await RecipeEditor.SaveAsync(ViewCancellation);
-        NotifyManualTeachingCommands();
-    }
-
-    private bool CanTeachImagePoint(Point point)
-    {
-        return CanEditInspectionRecipe
-            && RecipeEditor.CanSave
-            && HasCarrierImages
-            && !Inspector.IsLiveView
-            && _carrierReference.IsDefined
-            && (SelectedPoint?.Position.Target == TeachingTarget.BoltReference
-                && FindPcb(new Rect(point, new Size())) is not null
-                || SelectedPoint?.Position.Target == TeachingTarget.PcbRegion
-                && SelectedPcb == HeatSinkSlot.HeatSink2
-                && RecipeEditor.Recipe.Pcb.GetRegion(HeatSinkSlot.HeatSink1) is not null);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanTeachImageRegion))]
-    private async Task TeachImageRegionAsync(Rect bounds)
-    {
-        if (!CanEditRecipe())
-            return;
-        CameraError = null;
-        var pin = _carrierReference.UpperLeftLocatingPin!;
-        var layout = RecipeEditor.Recipe.Pcb;
-        if (SelectedPoint!.Position.Target == TeachingTarget.PcbRegion)
-        {
-            layout.Width = bounds.Width;
-            layout.Height = bounds.Height;
-            layout.Origins[SelectedPcb] = new() { X = bounds.X - pin.X, Y = bounds.Y - pin.Y };
-        }
-        else
-        {
-            var (width, height) = ImageFieldOfView;
-            if (bounds.Width > width || bounds.Height > height)
-            {
-                CameraError = "Data Matrix region must fit inside one camera FOV.";
-                return;
-            }
-
-            SelectedPcb = FindPcb(bounds)!.Value;
-            var origin = layout.Origins[SelectedPcb];
-            layout.DataMatrix = new(
-                bounds.X - pin.X - origin.X,
-                bounds.Y - pin.Y - origin.Y,
-                bounds.Width,
-                bounds.Height);
-        }
-
-        RefreshPointPositions();
-        await RecipeEditor.SaveAsync(ViewCancellation);
-        NotifyManualTeachingCommands();
-    }
-
-    private bool CanTeachImageRegion(Rect bounds)
-    {
-        return CanEditInspectionRecipe
-            && RecipeEditor.CanSave
-            && HasCarrierImages
-            && !Inspector.IsLiveView
-            && _carrierReference.IsDefined
-            && (SelectedPoint?.Position.Target == TeachingTarget.PcbRegion
-                && SelectedPcb == HeatSinkSlot.HeatSink1
-                || SelectedBarcode is not null
-                && (bounds.IsEmpty
-                    ? Enum.GetValues<HeatSinkSlot>()
-                        .Any(pcb => RecipeEditor.Recipe.Pcb.GetRegion(pcb) is not null)
-                    : FindPcb(bounds) is not null));
-    }
-
-    private HeatSinkSlot? FindPcb(Rect bounds)
-    {
-        var pin = _carrierReference.UpperLeftLocatingPin!;
-        foreach (var pcb in Enum.GetValues<HeatSinkSlot>())
-            if (RecipeEditor.Recipe.Pcb.GetRegion(pcb) is { } region
-                && new Rect(region.X + pin.X, region.Y + pin.Y, region.Width, region.Height).Contains(
-                    bounds))
-                return pcb;
-        return null;
-    }
-
     [RelayCommand(CanExecute = nameof(CanCaptureInspection))]
     private Task CaptureInspectionAsync(CancellationToken token)
     {
@@ -312,7 +237,9 @@ public partial class StationTeachingViewModel
             {
                 var pcb = SelectedBarcode;
                 var bolt = SelectedPoint!.Position.Bolt;
-                var region = pcb is null ? Inspector.GetFov(bolt!).Region : null;
+                var region = pcb is { } target
+                    ? Inspector.GetBarcodeFov(target).Region
+                    : Inspector.GetFov(bolt!).Region;
                 Preview.Clear(pcb);
                 var frame = pcb is { } barcode
                     ? await Inspector.CaptureBarcodeAsync(barcode, ct)
@@ -473,8 +400,6 @@ public partial class StationTeachingViewModel
 
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
         CaptureCarrierImageCommand.NotifyCanExecuteChanged();
-        TeachImagePointCommand.NotifyCanExecuteChanged();
-        TeachImageRegionCommand.NotifyCanExecuteChanged();
     }
 
     private async Task HandlePreviewFailureAsync(Exception exception)

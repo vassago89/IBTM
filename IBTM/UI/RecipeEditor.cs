@@ -207,7 +207,8 @@ public partial class RecipeEditor(
                         store.LoadRecipeImage(name, tile.Number),
                         tile.Region,
                         tile.BoltNumber,
-                        tile.HeatSink);
+                        tile.HeatSink,
+                        tile.IsBarcode);
                 })
                 .ToArray(),
             cancellationToken);

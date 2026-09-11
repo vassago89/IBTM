@@ -699,9 +699,6 @@ public sealed class BoltFasteningTests
         var work = new BoltFasteningWork(ConveyorStation.BoltFastening(io));
         var layout = new PcbLayout
         {
-            Width = 50,
-            Height = 50,
-            Origins = new() { [HeatSinkSlot.HeatSink1] = new() },
             BoltPoints = [Bolt(1, FasteningHead.Pickup, 0, 0)],
         };
         var station = new BoltFasteningStation(
@@ -891,14 +888,12 @@ public sealed class BoltFasteningTests
 
         {
 
-            Width = 50,
-            Height = 50,
-            Origins = new()
-            {
-                [HeatSinkSlot.HeatSink1] = new(),
-                [HeatSinkSlot.HeatSink2] = new() { X = 10, Y = 10 },
-            },
-            BoltPoints = [Bolt(1, FasteningHead.Pickup, 20, 30), Bolt(2, FasteningHead.Shooting, 20, 30),],
+            BoltPoints = [
+                Bolt(1, FasteningHead.Pickup, 20, 30),
+                Bolt(2, FasteningHead.Shooting, 20, 30),
+                new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Pickup, X = 30, Y = 40 },
+                new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink2, Head = FasteningHead.Shooting, X = 30, Y = 40 },
+            ],
         };
         var station = new BoltFasteningStation(gantry, work, pickupFeeder, shootingFeeder, () => layout);
         var recipe = new BoltFasteningRecipe { PcbPreset = 4, IpmSeatingPreset = 3, IpmFinalPreset = 5 };
@@ -1046,9 +1041,6 @@ public sealed class BoltFasteningTests
             new CarrierReferenceSettings { UpperLeftLocatingPin = new(), LowerRightLocatingPin = new() { X = 100 }, });
         var layout = new PcbLayout
         {
-            Width = 50,
-            Height = 50,
-            Origins = new() { [HeatSinkSlot.HeatSink1] = new() },
             BoltPoints = [Bolt(1, head, 10, 10)],
         };
         var feederSettings = new BoltFeederSettings();

@@ -18,10 +18,10 @@ public sealed class InspectionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void DataMatrixReadsOriginalCentralRegion(bool inverted)
+    public void DataMatrixReadsOnlyTheDrawnOffCenterRegion(bool inverted)
     {
         var camera = new VirtualCamera(
-            () => (13, 15, 0),
+            () => (10, 17, 0),
             () => [],
             () => [new(new() { X = 13, Y = 15 }, 4, 4, "PCB-000123")]);
         var image = camera.Capture(500, 0);
@@ -33,8 +33,9 @@ public sealed class InspectionTests
                     ? (byte)(255 - image.Pixels[row * image.Stride + column])
                     : image.Pixels[row * image.Stride + column];
         var padded = new ImageFrame(image.Width, image.Height, stride, pixels);
-        Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, 80, 80));
-        Assert.Null(DataMatrixReader.Read(padded, 20, 20));
+        Assert.Equal("PCB-000123", DataMatrixReader.Read(padded, new(180, 40, 80, 80)));
+        Assert.Null(DataMatrixReader.Read(padded, new(120, 80, 80, 80)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DataMatrixReader.Read(padded, new(300, 0, 80, 80)));
     }
 
     [Fact]
@@ -129,9 +130,7 @@ public sealed class InspectionTests
         motion.Initialize();
         var gantry = new InspectionGantry(motion, new NgCarrierTransfer(io), operations, settings);
         Assert.True(await gantry.HomeHorizontalAsync());
-        var scale = 0.05;
         var recipe = new BoltInspectionRecipe();
-        var pcb = TaughtPcbLayout();
         var fov = new CarrierImageTile
         {
             Number = 1,
@@ -142,15 +141,15 @@ public sealed class InspectionTests
         };
         var inspector = new BoltInspector(
             gantry,
-            new VirtualCamera(motion.GetPosition, () => []),
+            new VirtualCamera(
+                motion.GetPosition,
+                () => [],
+                () => [new(new() { X = 15, Y = 7 }, 4, 4, "PCB-000123")]),
             new VirtualLightController(),
             new BoltPresenceDetector(() => new(), new VirtualBoltRecessSegmenter(), () => 0.5f),
             settings,
-            reference,
             new LightingSettings(),
             () => recipe,
-            () => pcb,
-            () => scale,
             () => [fov]);
         var inspections = new List<BoltInspectionImage>();
         inspector.Inspected += inspections.Add;
@@ -173,7 +172,7 @@ public sealed class InspectionTests
         }
         Assert.Empty(inspections); // Carrier teaching images are not automatic bolt inspections.
 
-        var bolt = new BoltTarget(new() { Number = 1, X = 999, Y = 999 }, HeatSinkSlot.HeatSink1, pcb);
+        var bolt = new BoltTarget(new() { Number = 1, X = 999, Y = 999 });
         var capturedFov = await inspector.CaptureAsync(bolt);
         Assert.True(gantry.IsAt(fov.Center)); // Never move the camera center to the bolt / ROI center.
         Assert.Equal(128, inspector.Predict(capturedFov, fov.Region!).Input.Width);
@@ -183,13 +182,21 @@ public sealed class InspectionTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.CaptureAsync(bolt));
         Assert.Equal(0, movements);
 
-        pcb.DataMatrix = new(0, 0, 10, 4);
-        Assert.Equal((16, 12), inspector.FieldOfView);
+        fov.IsBarcode = true;
+        fov.BoltNumber = null;
+        fov.Region = new(180, 40, 80, 80);
+        var barcodeImage = await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink1);
+        Assert.True(gantry.IsAt(fov.Center));
+        Assert.Equal("PCB-000123", DataMatrixReader.Read(barcodeImage, fov.Region));
         Assert.True(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
-        scale = 0.025;
-        Assert.Equal((8, 6), inspector.FieldOfView);
-        Assert.Equal((400, 160), inspector.BarcodePixelSize());
+        Assert.False(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink2));
+        Assert.Equal(new PixelRegion(180, 40, 80, 80), inspector.GetBarcodeFov(HeatSinkSlot.HeatSink1).Region);
+        fov.Region = new(310, 30, 60, 80);
         Assert.False(inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
+        movements = 0;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink1));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink2));
+        Assert.Equal(0, movements);
     }
 
     [Trait("Category", "MachineFlow")]
@@ -246,19 +253,27 @@ public sealed class InspectionTests
             new VirtualLightController(),
             new BoltPresenceDetector(() => new BoltInspectionRecipe(), segmenter, () => 0.5f),
             gantrySettings,
-            carrierReference,
             new LightingSettings(),
             () => new(),
-            TaughtPcbLayout,
-            () => 0.05,
-            () => bolts.Select((bolt, index) => new CarrierImageTile
+            () => [.. bolts.Select((bolt, index) => new CarrierImageTile
             {
                 Number = index + 1,
                 Center = gantrySettings.GetBoltPosition(bolt, carrierReference),
                 Region = new(96, 56, 128, 128),
                 BoltNumber = bolt.Number,
                 HeatSink = bolt.HeatSink,
-            }).ToArray());
+            }),
+                new()
+                {
+                    Number = 5, Center = new() { X = 10, Y = 17 },
+                    IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1, Region = new(180, 40, 80, 80),
+                },
+                new()
+                {
+                    Number = 6, Center = new() { X = 28, Y = 17 },
+                    IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Region = new(180, 40, 80, 80),
+                },
+            ]);
         var inspections = new List<BoltInspectionImage>();
         inspector.Inspected += inspections.Add;
         var shuttleFeedback = new NgShuttleFeedback(io);
@@ -285,7 +300,7 @@ public sealed class InspectionTests
 
         var barcodeImage = await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink2);
         Assert.True(inspector.IsAtBarcode(HeatSinkSlot.HeatSink2));
-        Assert.Equal("PCB-2", inspector.ReadBarcode(barcodeImage));
+        Assert.Equal("PCB-2", DataMatrixReader.Read(barcodeImage, inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2).Region!));
         var boltImage = await inspector.CaptureAsync(bolts[0]);
         Assert.True(gantry.IsAt(gantrySettings.GetBoltPosition(bolts[0], carrierReference)));
         Assert.NotEmpty(boltImage.Pixels);
@@ -435,10 +450,7 @@ public sealed class InspectionTests
         var position = CarrierCoordinates.FromMachine(
             new AxisPosition { X = x, Y = y },
             reference.UpperLeftLocatingPin!);
-        return new BoltTarget(
-            new BoltPoint { Number = number, X = position.X, Y = position.Y, },
-            heatSink,
-            new PcbLayout { Origins = new() { [heatSink] = new() } });
+        return new BoltTarget(new BoltPoint { Number = number, HeatSink = heatSink, X = position.X, Y = position.Y });
     }
 
     private sealed class CountingSegmenter : IBoltRecessSegmenter

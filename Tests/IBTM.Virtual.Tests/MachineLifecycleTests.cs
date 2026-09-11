@@ -112,6 +112,7 @@ public sealed partial class MachineLifecycleTests
         recipe.Pcb.BoltPoints = [new() { Number = 1, X = 10, Y = 10 }
 
         ];
+        TeachInspectionFovs(settings, recipe);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var work = services.GetRequiredService<InspectionWork>();
@@ -120,28 +121,26 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
 
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
-        teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
-        teaching.SelectedPoint = teaching.FilteredPoints.Single(
-            point => point.Position.Target == TeachingTarget.DataMatrix);
-        await WaitUntilAsync(() => teaching.CaptureInspectionCommand.CanExecute(null));
-        await teaching.CaptureInspectionCommand.ExecuteAsync(null);
-        Assert.Null(teaching.CameraError);
-        Assert.Equal("PCB-2", teaching.Preview.Result);
-        Assert.True(services.GetRequiredService<BoltInspector>().IsAtBarcode(HeatSinkSlot.HeatSink2));
+        var inspector = services.GetRequiredService<BoltInspector>();
+        var barcodeImage = await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink2);
+        Assert.Equal("PCB-2", DataMatrixReader.Read(barcodeImage, inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2).Region!));
+        Assert.True(inspector.IsAtBarcode(HeatSinkSlot.HeatSink2));
 
         var frame = camera.Capture(500, 0);
         camera.SourceImage = frame with { Pixels = new byte[frame.Pixels.Length] };
         io.SetInput(InputIo.InspectionCarrierPresent, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.InspectionBackupPlateDown, false);
+        io.SetInput(InputIo.InspectionStopperDown, true);
+        io.SetInput(InputIo.InspectionStopperUp, false);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.AutoMode, false);
         Assert.True(work.CarrierSeated);
+        await WaitUntilAsync(() => state.Display.Homed);
         Assert.True(machine.CanStart);
         using var failureStop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         await machine.StartAsync(failureStop.Token);
-        Assert.Equal(MachineAlarm.Inspection, state.Alarm);
+        Assert.True(state.Alarm == MachineAlarm.Inspection, $"{state.Alarm}: {state.AlarmDetail} {state.AlarmMessage}");
         Assert.Contains("Data Matrix", state.AlarmDetail);
         Assert.StartsWith("Data Matrix could not be read", state.AlarmMessage);
         Assert.False(work.Completed);
@@ -151,6 +150,7 @@ public sealed partial class MachineLifecycleTests
 
         camera.SourceImage = null;
         await machine.ResetAsync();
+        await WaitUntilAsync(() => state.Display.Homed);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var run = machine.StartAsync(stop.Token);
         try
@@ -341,7 +341,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units = EnableOnly(MachineUnit.Inspection);
         settings.Drivers.Inspection = InspectionAlgorithm.TinyUnet;
         using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
-            .AddIbtmApplication(settings, new Recipe { Pcb = VirtualTest.TaughtPcbLayout() })
+            .AddIbtmApplication(settings, new Recipe())
             .AddSingleton(
                 new BoltTrainingStore(
                     Path.Combine(Path.GetTempPath(), $"IBTM-empty-training-{Guid.NewGuid():N}.db")))

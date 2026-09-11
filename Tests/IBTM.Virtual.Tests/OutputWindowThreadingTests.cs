@@ -51,6 +51,9 @@ public sealed class OutputWindowThreadingTests
                             try
                             {
                                 await VerifyWindowsAsync(app);
+                                var lifecycle = new MachineLifecycleTests();
+                                await lifecycle.VerifyTeachingSelectionIgnoresLateCameraCompletionAsync(false);
+                                await lifecycle.VerifyTeachingSelectionIgnoresLateCameraCompletionAsync(true);
                             }
                             catch (Exception error)
                             {
@@ -604,7 +607,8 @@ public sealed class OutputWindowThreadingTests
                 if (args.PropertyName == nameof(RecipeEditor.ActiveName))
                     teaching.SelectedPoint = next;
             };
-            Assert.True(teaching.CaptureCarrierImageCommand.CanExecute(null));
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => teaching.CaptureCarrierImageCommand.CanExecute(null), TimeSpan.FromSeconds(2)));
             await teaching.CaptureCarrierImageCommand.ExecuteAsync(null);
             Assert.Same(next, teaching.SelectedPoint);
             Assert.True(teaching.HasCarrierImages);
@@ -632,7 +636,6 @@ public sealed class OutputWindowThreadingTests
                 services.GetRequiredService<MachineStore>()
                     .LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
             Assert.Null(teaching.CameraError);
-            teaching.RecipeEditor.Recipe.Pcb.Origins[teaching.SelectedPcb] = new() { X = 2, Y = 3 };
             teaching.AddBoltPointCommand.Execute(null);
             var roiBolt = teaching.SelectedPoint!;
             var fov = teaching.SelectedFov!;
@@ -657,20 +660,70 @@ public sealed class OutputWindowThreadingTests
             Assert.Equal(fov.Center.X, roiFov.Center.X);
             Assert.Equal(fov.Center.Y, roiFov.Center.Y);
             Assert.Equal(0.04, saved.CarrierImageMillimetersPerPixel);
-            var origin = saved.Pcb.Origins[roiFov.HeatSink];
             var savedBolt = saved.Pcb.BoltPoints.Single(bolt => bolt.Number == roiBolt.BoltNumber);
             Assert.Equal(
-                fov.Center.X + (235 - fov.Image.PixelWidth / 2.0) * 0.04 - reference.UpperLeftLocatingPin.X - origin.X,
+                fov.Center.X + (235 - fov.Image.PixelWidth / 2.0) * 0.04 - reference.UpperLeftLocatingPin.X,
                 savedBolt.X!.Value, 6);
             Assert.Equal(
-                fov.Center.Y + (70 - fov.Image.PixelHeight / 2.0) * 0.04 - reference.UpperLeftLocatingPin.Y - origin.Y,
+                fov.Center.Y + (70 - fov.Image.PixelHeight / 2.0) * 0.04 - reference.UpperLeftLocatingPin.Y,
                 savedBolt.Y!.Value, 6);
             Assert.Equal(10, gantry.Feedback.GetPosition().X);
             Assert.True(teaching.Inspector.HasPosition(roiBolt.Position.Bolt!));
+            teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
+            teaching.AddBoltPointCommand.Execute(null);
+            var secondBolt = teaching.SelectedPoint!;
+            Assert.Equal(roiBolt.BoltNumber, secondBolt.BoltNumber);
+            teaching.SelectedFov = teaching.CarrierImages[0];
+            await teaching.TeachFovRegionCommand.ExecuteAsync(new Rect(40, 60, 80, 80));
+            Assert.True(teaching.Inspector.HasPosition(roiBolt.Position.Bolt!));
+            Assert.True(teaching.Inspector.HasPosition(secondBolt.Position.Bolt!));
+            teaching.SelectedPcb = HeatSinkSlot.HeatSink1;
             teaching.SelectedPoint = roiBolt;
             teaching.RemoveBoltPointCommand.Execute(null);
-            Assert.All(teaching.CarrierImages, image => Assert.Null(image.Region));
             Assert.False(teaching.Inspector.HasPosition(roiBolt.Position.Bolt!));
+            Assert.True(teaching.Inspector.HasPosition(secondBolt.Position.Bolt!));
+            teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
+            teaching.SelectedPoint = secondBolt;
+            teaching.RemoveBoltPointCommand.Execute(null);
+            Assert.All(teaching.CarrierImages, image => Assert.Null(image.Region));
+            teaching.SelectedPcb = HeatSinkSlot.HeatSink1;
+            teaching.SelectedFov = teaching.CarrierImages[1];
+
+            // Barcode teaching uses the frozen FOV while live remains visible above it.
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(
+                point => point.Position.Target == TeachingTarget.DataMatrix);
+            Assert.Equal(0, teaching.SelectedCameraTab);
+            Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
+            Assert.True(teaching.TeachFovRegionCommand.CanExecute(Rect.Empty));
+            await teaching.TeachFovRegionCommand.ExecuteAsync(new Rect(20, 30, 60, 80));
+            Assert.True(teaching.Inspector.IsLiveView);
+            Assert.Equal(fov.Center, teaching.Inspector.GetBarcodeFov(HeatSinkSlot.HeatSink1).Center);
+            Assert.Equal(new PixelRegion(20, 30, 60, 80), teaching.SelectedFov!.Region);
+            saved = await services.GetRequiredService<RecipeStore>()
+                .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
+            var barcode = Assert.Single(saved.CarrierImages, image => image.IsBarcode);
+            Assert.Null(barcode.BoltNumber);
+            Assert.Equal(HeatSinkSlot.HeatSink1, barcode.HeatSink);
+            Assert.Equal(fov.Center.X, barcode.Center.X);
+
+            // Reassigning a barcode clears only its previous FOV; the other heat sink stays independent.
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(
+                point => point.Position.Target == TeachingTarget.DataMatrix);
+            teaching.SelectedFov = teaching.CarrierImages[0];
+            await teaching.TeachFovRegionCommand.ExecuteAsync(new Rect(30, 40, 70, 80));
+            Assert.Single(teaching.CarrierImages, image => image.IsBarcode);
+            teaching.SelectedPcb = HeatSinkSlot.HeatSink2;
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(
+                point => point.Position.Target == TeachingTarget.DataMatrix);
+            teaching.SelectedFov = teaching.CarrierImages[1];
+            await teaching.TeachFovRegionCommand.ExecuteAsync(new Rect(100, 80, 80, 80));
+            Assert.True(teaching.Inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
+            Assert.True(teaching.Inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink2));
+            Assert.Equal(0, teaching.SelectedCameraTab);
+            Assert.True(teaching.Inspector.IsLiveView);
+            Assert.Equal(10, gantry.Feedback.GetPosition().X);
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
             foreach (var closeTeaching in new[] { false, true })
             {
                 var captureStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

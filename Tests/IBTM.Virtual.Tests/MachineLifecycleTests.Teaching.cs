@@ -628,18 +628,18 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task TeachingSelectionIgnoresLateCameraCompletion(bool cameraFails)
+    // Runs inside the existing WPF test host; this view model requires its UI Dispatcher.
+    internal async Task VerifyTeachingSelectionIgnoresLateCameraCompletionAsync(bool cameraFails)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
         var capturing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using var release = new ManualResetEventSlim();
+        var recipe = new Recipe();
+        TeachInspectionFovs(settings, recipe);
         using var services = new ServiceCollection().AddIbtmApplication(
             settings,
-            new Recipe { Pcb = VirtualTest.TaughtPcbLayout() })
+            recipe)
             .AddSingleton<ICamera>(
                 new VirtualCamera(
                     () =>
@@ -705,7 +705,7 @@ public sealed partial class MachineLifecycleTests
         var store = VirtualTest.OpenMachineStore(
             Path.Combine(Path.GetTempPath(), $"IBTM-buffer-teaching-{Guid.NewGuid():N}.db"));
         using var services = new ServiceCollection().AddSingleton(store)
-            .AddIbtmApplication(settings, new Recipe { Pcb = VirtualTest.TaughtPcbLayout() })
+            .AddIbtmApplication(settings, new Recipe())
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var teaching = services.GetRequiredService<SupplyTeachingViewModel>();

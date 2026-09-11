@@ -280,11 +280,8 @@ public static class DependencyInjection
                     provider.GetRequiredService<ILightController>(),
                     provider.GetRequiredService<BoltPresenceDetector>(),
                     settings.InspectionGantry,
-                    settings.CarrierReference,
                     settings.Lighting,
                     () => currentRecipe.BoltInspection,
-                    () => currentRecipe.Pcb,
-                    () => currentRecipe.CarrierImageMillimetersPerPixel,
                     () => currentRecipe.CarrierImages);
                 inspector.Inspected += provider.GetRequiredService<BoltImageCollector>().Collect;
                 return inspector;
@@ -450,18 +447,11 @@ public static class DependencyInjection
                                 bolt => settings.InspectionGantry.GetBoltPosition(
                                     bolt,
                                     settings.CarrierReference)),
-                        () => Enum.GetValues<HeatSinkSlot>()
-                            .Select(pcb => (Pcb: pcb, Region: recipe.Pcb.GetDataMatrix(pcb)))
-                            .Where(item => item.Region is not null)
-                            .Select(
-                                item =>
-                                    new VirtualDataMatrix(
-                                        CarrierCoordinates.ToMachine(
-                                            item.Region!.Center,
-                                            settings.CarrierReference.UpperLeftLocatingPin!),
-                                        item.Region.Width,
-                                        item.Region.Height,
-                                        item.Pcb == HeatSinkSlot.HeatSink1 ? "PCB-1" : "PCB-2"))));
+                        // Fixed virtual labels are independent of taught FOVs and ROIs.
+                        () => [
+                            new(new() { X = 13, Y = 15 }, 4, 4, "PCB-1"),
+                            new(new() { X = 31, Y = 15 }, 4, 4, "PCB-2"),
+                        ]));
             services.AddSingleton<ICamera>(provider => provider.GetRequiredService<VirtualCamera>());
         }
         else

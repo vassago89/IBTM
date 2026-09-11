@@ -315,8 +315,7 @@ public sealed partial class MachineController
         {
             return !_units.BoltFastening
                 && !_units.Inspection
-                || _recipe.Pcb.IsDefined
-                && _recipe.Pcb.BoltPoints.Count > 0
+                || _recipe.Pcb.BoltPoints.Count > 0
                 && CarrierCoordinates.IsDefined(
                     _carrierReference.UpperLeftLocatingPin,
                     _carrierReference.LowerRightLocatingPin)
