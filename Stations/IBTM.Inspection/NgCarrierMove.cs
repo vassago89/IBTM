@@ -114,9 +114,10 @@ public sealed class NgCarrierMove(
         }
 
         // Released carriers may still be visible to the pickup's presence sensor.
-        if (atDestination && open && destinationPresent)
+        if (!holdAtShuttle && atDestination && open && destinationPresent)
             return pickup.IsRaised ? NgTransferState.Completed : NgTransferState.Raising;
-        if (atDestination
+        if (!holdAtShuttle
+            && atDestination
             && open
             && !pickup.IsRaised
             && (pickup.CarrierDetected || !CarrierPresent(source)))
