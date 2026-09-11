@@ -377,10 +377,7 @@ public abstract partial class TeachingMotionViewModel(
         };
         if (current is null)
             return false;
-        var target = current.Value + sign * StepDistance;
-        return Motion.Feedback.GetRange(axis) is not { } range
-            || target >= range.Minimum
-            && target <= range.Maximum;
+        return double.IsFinite(current.Value + sign * StepDistance);
     }
 
     protected static (MotionAxis Axis, int Sign) Resolve(TeachingDirection direction)

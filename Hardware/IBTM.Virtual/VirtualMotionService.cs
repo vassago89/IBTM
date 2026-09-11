@@ -11,9 +11,7 @@ public sealed class VirtualMotionService(
     OperationCancellation operationCancellation,
     bool hasY = true,
     bool hasZ = true,
-    (double Minimum, double Maximum)? xRange = null,
-    (double Minimum, double Maximum)? yRange = null,
-    (double Minimum, double Maximum)? zRange = null,
+    double zPositiveLimitPosition = 100,
     double resolutionMillimeters = MotionHardwareSettings.DefaultMillimetersPerUnit,
     Func<double>? horizontalZ = null,
     Func<bool>? servoPowerOn = null,
@@ -22,10 +20,7 @@ public sealed class VirtualMotionService(
         operationCancellation,
         hasY,
         hasZ,
-        horizontalZ,
-        xRange,
-        yRange,
-        zRange), IDisposable, IMotionDiagnostics
+        horizontalZ), IDisposable, IMotionDiagnostics
 {
     private static readonly TimeSpan UpdateInterval = TimeSpan.FromMilliseconds(10);
     private static readonly int AxisCount = Enum.GetValues<MotionAxis>().Length;
@@ -88,11 +83,10 @@ public sealed class VirtualMotionService(
         double velocity,
         CancellationToken cancellationToken)
     {
-        var maximum = GetRange(MotionAxis.Z)?.Maximum ?? throw new InvalidOperationException("Virtual Z maximum is not configured.");
         _seekingZPositiveLimit = true;
         try
         {
-            await SimulateMoveAsync(_x, _y, maximum, velocity, false, cancellationToken);
+            await SimulateMoveAsync(_x, _y, zPositiveLimitPosition, velocity, false, cancellationToken);
         }
         finally
         {
@@ -261,9 +255,9 @@ public sealed class VirtualMotionService(
                 await Task.Delay(UpdateInterval, movement.Token).ConfigureAwait(false);
                 var distance = velocity * stopwatch.Elapsed.TotalSeconds;
                 SetPosition(
-                    axis == MotionAxis.X ? ClampToRange(axis, startX + distance) : startX,
-                    axis == MotionAxis.Y ? ClampToRange(axis, startY + distance) : startY,
-                    axis == MotionAxis.Z ? ClampToRange(axis, startZ + distance) : startZ);
+                    axis == MotionAxis.X ? startX + distance : startX,
+                    axis == MotionAxis.Y ? startY + distance : startY,
+                    axis == MotionAxis.Z ? startZ + distance : startZ);
             }
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -308,16 +302,13 @@ public sealed class VirtualMotionService(
         _x = Quantize(x, _resolution.X);
         _y = Quantize(y, _resolution.Y);
         _z = Quantize(z, _resolution.Z);
-        var zMaximum = GetRange(MotionAxis.Z)?.Maximum;
         if (_seekingZPositiveLimit
-            && zMaximum is not null
-            && Math.Abs(_z - zMaximum.Value) <= _resolution.Z / 2)
+            && Math.Abs(_z - zPositiveLimitPosition) <= _resolution.Z / 2)
         {
             _zPositiveLimit = true;
         }
         else if (_zPositiveLimit
-            && zMaximum is not null
-            && _z < zMaximum.Value - _resolution.Z / 2)
+            && _z < zPositiveLimitPosition - _resolution.Z / 2)
         {
             _zPositiveLimit = false;
         }

@@ -83,7 +83,6 @@ internal static class DevelopmentProfile
             UpperLeftLocatingPin = new() { X = 10, Y = 2 },
             LowerRightLocatingPin = new() { X = 46, Y = 28 },
         };
-        settings.BoltFasteningHardware.Axes[MachineAxis.BoltFasteningY].Minimum = -100;
         settings.InspectionGantry.Motion.HorizontalSpeed = 25;
         settings.CarrierReference.UpperLeftLocatingPin = new() { X = 2, Y = 2 };
         settings.CarrierReference.LowerRightLocatingPin = new() { X = 38, Y = 28 };
@@ -91,8 +90,6 @@ internal static class DevelopmentProfile
         settings.NgCarrierTransfer.PickupSafeX = 13.48275862;
         settings.NgCarrierTransfer.ShuttlePlacePosition = new() { X = 26.05172414, Y = 55.625 };
         settings.NgCarrierTransfer.Speed = 25;
-        settings.InspectionGantryHardware.Axes[MachineAxis.InspectionGantryX].Maximum = 40;
-        settings.InspectionGantryHardware.Axes[MachineAxis.InspectionGantryY].Maximum = 65;
         return settings;
     }
 

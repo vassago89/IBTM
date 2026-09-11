@@ -18,18 +18,15 @@ public sealed class PcbSupplyHardwareSettings : MotionHardwareSettings
         (
             MotionAxis.X,
             MachineAxis.PcbSupplyX,
-            0,
-            200),
+            0),
         (
             MotionAxis.Y,
             MachineAxis.PcbSupplyY,
-            1,
-            200),
+            1),
         (
             MotionAxis.Z,
             MachineAxis.PcbSupplyZ,
-            2,
-            100))
+            2))
     {
         Inputs = new()
         {

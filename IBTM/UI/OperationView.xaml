@@ -38,30 +38,19 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
-        <Style x:Key="SideScaleTextStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
-            <Setter Property="FontSize" Value="10"/>
-        </Style>
         <Style x:Key="SideAxisLabelStyle"
                TargetType="TextBlock"
                BasedOn="{StaticResource EquipmentRoleLabelStyle}">
             <Setter Property="HorizontalAlignment" Value="Left"/>
             <Setter Property="TextAlignment" Value="Left"/>
         </Style>
-        <DataTemplate x:Key="ZAxisScaleTemplate" DataType="{x:Type device:MotionStatus}">
+        <DataTemplate x:Key="ZAxisIconTemplate" DataType="{x:Type device:MotionStatus}">
             <Grid Height="62">
                 <Border Height="3" Margin="18,5,18,0" VerticalAlignment="Top"
                         Background="{StaticResource CardBorderBrush}"/>
                 <Border Width="2" Height="51" Margin="0,5,0,0"
                         HorizontalAlignment="Center" VerticalAlignment="Top"
                         Background="{StaticResource DividerBrush}"/>
-                <TextBlock Margin="2,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
-                           Text="{Binding ZMinimum, StringFormat=F0}"
-                           Style="{StaticResource SideScaleTextStyle}"/>
-                <TextBlock Margin="2,46,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
-                           Text="{Binding ZMaximum, StringFormat=F0}"
-                           Style="{StaticResource SideScaleTextStyle}"/>
                 <Border Height="3" Margin="12,56,12,0" VerticalAlignment="Top"
                         Background="{StaticResource CardBorderBrush}"/>
             </Grid>
@@ -118,13 +107,10 @@
                                 </StackPanel>
                                 <Grid Grid.Column="1" Width="155" Height="62">
                                     <ContentPresenter Content="{Binding Supply.Motion}"
-                                                      ContentTemplate="{StaticResource ZAxisScaleTemplate}"/>
-                                    <Grid HorizontalAlignment="Center" VerticalAlignment="Top"
+                                                      ContentTemplate="{StaticResource ZAxisIconTemplate}"/>
+                                    <Grid HorizontalAlignment="Center" VerticalAlignment="Center"
                                           Visibility="{Binding SupplyPositionKnown, Converter={StaticResource BoolToVis}}"
                                           Width="42" Height="18">
-                                        <Grid.RenderTransform>
-                                            <TranslateTransform Y="{Binding PcbSupplyZTop, TargetNullValue=0}"/>
-                                        </Grid.RenderTransform>
                                         <Border Width="42"
                                                 Tag="{Binding Supply.Motion.IsMoving}"
                                                 Style="{StaticResource SideCarriageStyle}"/>
@@ -162,13 +148,10 @@
                                 </StackPanel>
                                 <Grid Grid.Column="1" Width="155" Height="62">
                                     <ContentPresenter Content="{Binding Placement.Motion}"
-                                                      ContentTemplate="{StaticResource ZAxisScaleTemplate}"/>
-                                    <Grid HorizontalAlignment="Center" VerticalAlignment="Top"
+                                                      ContentTemplate="{StaticResource ZAxisIconTemplate}"/>
+                                    <Grid HorizontalAlignment="Center" VerticalAlignment="Center"
                                           Visibility="{Binding PlacementPositionKnown, Converter={StaticResource BoolToVis}}"
                                           Width="42" Height="18">
-                                        <Grid.RenderTransform>
-                                            <TranslateTransform Y="{Binding PcbPlacementZTop, TargetNullValue=0}"/>
-                                        </Grid.RenderTransform>
                                         <Border Width="42"
                                                 Tag="{Binding Placement.Motion.IsMoving}"
                                                 Style="{StaticResource SideCarriageStyle}"/>
@@ -207,13 +190,10 @@
                                 </StackPanel>
                                 <Grid Grid.Column="1" Width="240" Height="62">
                                     <ContentPresenter Content="{Binding Fastening.Motion}"
-                                                      ContentTemplate="{StaticResource ZAxisScaleTemplate}"/>
-                                    <Grid HorizontalAlignment="Center" VerticalAlignment="Top"
+                                                      ContentTemplate="{StaticResource ZAxisIconTemplate}"/>
+                                    <Grid HorizontalAlignment="Center" VerticalAlignment="Center"
                                           Visibility="{Binding FasteningPositionKnown, Converter={StaticResource BoolToVis}}"
                                           Width="68" Height="18">
-                                        <Grid.RenderTransform>
-                                            <TranslateTransform Y="{Binding BoltFasteningZTop, TargetNullValue=0}"/>
-                                        </Grid.RenderTransform>
                                         <Border Width="68"
                                                 Tag="{Binding Fastening.Motion.IsMoving}"
                                                 Style="{StaticResource SideCarriageStyle}"/>

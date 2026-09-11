@@ -22,8 +22,6 @@ namespace IBTM.UI;
 
 public partial class OperationViewModel : ObservableObject
 {
-    private const double ZSideViewTop = 7;
-    private const double ZSideViewTravel = 33;
 
     private readonly MachineController _machine;
     private readonly MachineOptions _options;
@@ -125,30 +123,6 @@ public partial class OperationViewModel : ObservableObject
     public PcbPlacementHandler Placement { get; }
     public BoltFasteningGantry Fastening { get; }
     public InspectionGantry InspectionGantry { get; }
-
-    public double? PcbSupplyZTop
-    {
-        get
-        {
-            return ZTop(Supply.Motion);
-        }
-    }
-
-    public double? PcbPlacementZTop
-    {
-        get
-        {
-            return ZTop(Placement.Motion);
-        }
-    }
-
-    public double? BoltFasteningZTop
-    {
-        get
-        {
-            return ZTop(Fastening.Motion);
-        }
-    }
 
     public double? PcbSupplyMapLeft
     {
@@ -636,13 +610,10 @@ public partial class OperationViewModel : ObservableObject
     {
         _active = true;
         State.RequestDisplayRefresh();
-        OnPropertyChanged(nameof(PcbSupplyZTop));
         OnPropertyChanged(nameof(PcbSupplyMapLeft));
         OnPropertyChanged(nameof(PcbSupplyMapTop));
-        OnPropertyChanged(nameof(PcbPlacementZTop));
         OnPropertyChanged(nameof(PcbPlacementMapLeft));
         OnPropertyChanged(nameof(PcbPlacementMapTop));
-        OnPropertyChanged(nameof(BoltFasteningZTop));
         OnPropertyChanged(nameof(BoltFasteningMapLeft));
         OnPropertyChanged(nameof(BoltFasteningMapTop));
         OnPropertyChanged(nameof(InspectionGantryMapLeft));
@@ -836,17 +807,6 @@ public partial class OperationViewModel : ObservableObject
             : BoltTargetState.Pending;
     }
 
-    private static double? ZTop(MotionStatus motion)
-    {
-        if (motion.Position.Z is not { } z || motion.ZMaximum <= motion.ZMinimum)
-            return null;
-        var ratio = Math.Clamp(
-            (z - motion.ZMinimum) / (motion.ZMaximum - motion.ZMinimum),
-            0,
-            1);
-        return ZSideViewTop + (ratio * ZSideViewTravel);
-    }
-
     private void OnPcbSupplyMotionChanged(object? _, PropertyChangedEventArgs e)
     {
         if (!_active)
@@ -858,7 +818,6 @@ public partial class OperationViewModel : ObservableObject
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
             OnPropertyChanged(nameof(SupplyPositionKnown));
-            OnPropertyChanged(nameof(PcbSupplyZTop));
             OnPropertyChanged(nameof(PcbSupplyMapLeft));
             OnPropertyChanged(nameof(PcbSupplyMapTop));
         }
@@ -875,7 +834,6 @@ public partial class OperationViewModel : ObservableObject
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
             OnPropertyChanged(nameof(PlacementPositionKnown));
-            OnPropertyChanged(nameof(PcbPlacementZTop));
             OnPropertyChanged(nameof(PcbPlacementMapLeft));
             OnPropertyChanged(nameof(PcbPlacementMapTop));
         }
@@ -892,7 +850,6 @@ public partial class OperationViewModel : ObservableObject
         if (e.PropertyName == nameof(MotionStatus.Position))
         {
             OnPropertyChanged(nameof(FasteningPositionKnown));
-            OnPropertyChanged(nameof(BoltFasteningZTop));
             OnPropertyChanged(nameof(BoltFasteningMapLeft));
             OnPropertyChanged(nameof(BoltFasteningMapTop));
         }

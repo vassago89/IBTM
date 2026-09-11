@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -606,21 +607,68 @@ public sealed class OutputWindowThreadingTests
                 point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
             var next = teaching.FilteredPoints.Single(
                 point => point.Position.Target == TeachingTarget.CarrierLowerRightLocatingPin);
-            teaching.RecipeEditor.PropertyChanged += (_, args) =>
+            void SelectNextOnSave(object? sender, PropertyChangedEventArgs args)
             {
                 if (args.PropertyName == nameof(RecipeEditor.ActiveName))
                     teaching.SelectedPoint = next;
-            };
+            }
+            teaching.RecipeEditor.PropertyChanged += SelectNextOnSave;
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => teaching.CaptureCarrierImageCommand.CanExecute(null), TimeSpan.FromSeconds(2)));
             await teaching.CaptureCarrierImageCommand.ExecuteAsync(null);
             Assert.Same(next, teaching.SelectedPoint);
+            teaching.RecipeEditor.PropertyChanged -= SelectNextOnSave;
             Assert.True(teaching.HasCarrierImages);
             Assert.Single(teaching.CarrierImages);
             teaching.Activate();
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => teaching.CarrierImages.Count == 1, TimeSpan.FromSeconds(2)));
             Assert.True(teaching.CarrierImages[0].Image.IsFrozen);
+            var teachingView = (StationTeachingView)page.Child;
+            var roiView = (ImageTeachingView)teachingView.FindName("FovImageView");
+            var addBolt = (Button)teachingView.FindName("AddBoltButton");
+            var pointsList = (TeachingPointList)teachingView.FindName("TeachingPointsList");
+            page.UpdateLayout();
+            Assert.Same(teaching.DrawFovRegionCommand, roiView.RegionCommand);
+            Assert.Empty(teaching.RecipeEditor.Recipe.Pcb.GetBolts(teaching.SelectedPcb));
+            var boltStep = Assert.Single(pointsList.Items.Cast<TeachingPoint>(),
+                point => point.Position.Target == TeachingTarget.BoltTeaching);
+            Assert.Equal("Bolt", boltStep.Name);
+            pointsList.SelectedItem = boltStep;
+            Assert.Same(boltStep, teaching.SelectedPoint);
+            Assert.Equal(TeachingSaveBehavior.AddBolt, teaching.SaveBehavior);
+            Assert.False(teaching.MoveToPointCommand.CanExecute(null));
+            Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
+            Assert.False(teaching.RemoveBoltPointCommand.CanExecute(null));
+            var upperPin = reference.UpperLeftLocatingPin;
+            var lowerPin = reference.LowerRightLocatingPin;
+            reference.UpperLeftLocatingPin = null;
+            reference.LowerRightLocatingPin = null;
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(
+                point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
+            var drawnRoi = new Rect(200, 30, 60, 80);
+            Assert.True(roiView.RegionCommand!.CanExecute(Rect.Empty));
+            await teaching.DrawFovRegionCommand.ExecuteAsync(drawnRoi);
+            Assert.Equal(drawnRoi, teaching.FovRegion);
+            Assert.Null(teaching.SelectedFov!.Region);
+            Assert.Contains("ROI not saved", teaching.FovRoiLabel);
+            Assert.True(addBolt.Command.CanExecute(null));
+            addBolt.Command.Execute(null);
+            Assert.Equal(TeachingTarget.BoltReference, teaching.SelectedPoint!.Position.Target);
+            Assert.Equal(1, teaching.SelectedPoint.BoltNumber);
+            Assert.False(teaching.TeachFovRegionCommand.CanExecute(drawnRoi));
+            Assert.Contains("reference pins", teaching.FovRoiLabel);
+            Assert.Null(teaching.SelectedPoint.Position.Bolt!.X);
+            reference.UpperLeftLocatingPin = upperPin;
+            reference.LowerRightLocatingPin = lowerPin;
+            Assert.True(teaching.TeachFovRegionCommand.CanExecute(drawnRoi));
+            await teaching.TeachFovRegionCommand.ExecuteAsync(drawnRoi);
+            Assert.Equal(new PixelRegion(200, 30, 60, 80), teaching.SelectedFov.Region);
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(
+                point => point.Position.Target == TeachingTarget.BoltReference);
+            teaching.RemoveBoltPointCommand.Execute(null);
+            Assert.Contains(teaching.FilteredPoints,
+                point => point.Position.Target == TeachingTarget.BoltTeaching);
             var gantry = services.GetRequiredService<InspectionGantry>();
             await gantry.MoveAxisAsync(MotionAxis.X, 10, 10_000);
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
@@ -705,6 +753,7 @@ public sealed class OutputWindowThreadingTests
             Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
             Assert.True(teaching.TeachFovRegionCommand.CanExecute(Rect.Empty));
             await teaching.TeachFovRegionCommand.ExecuteAsync(new Rect(20, 30, 60, 80));
+            Assert.Equal("Not Read", teaching.DataMatrixResult);
             Assert.True(teaching.Inspector.IsLiveView);
             Assert.Equal(fov.Center, teaching.Inspector.GetBarcodeFov(HeatSinkSlot.HeatSink1).Center);
             Assert.Equal(new PixelRegion(20, 30, 60, 80), teaching.SelectedFov!.Region);
@@ -729,6 +778,34 @@ public sealed class OutputWindowThreadingTests
             Assert.True(teaching.Inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink1));
             Assert.True(teaching.Inspector.HasBarcodeRegion(HeatSinkSlot.HeatSink2));
             Assert.Equal(0, teaching.SelectedCameraTab);
+            Assert.True(teaching.Inspector.IsLiveView);
+            Assert.Equal(10, gantry.Feedback.GetPosition().X);
+
+            var readDataMatrix = (Button)teachingView.FindName("ReadDataMatrixButton");
+            var dataMatrixResult = (TextBox)teachingView.FindName("DataMatrixResultBox");
+            Assert.Same(teaching.ReadDataMatrixCommand, readDataMatrix.Command);
+            var savedFovs = teaching.CarrierImages;
+            var barcodeCamera = new VirtualCamera(
+                () => (10, 17, 0),
+                () => [],
+                () => [new(new() { X = 13, Y = 15 }, 4, 4, "PCB-000123")]);
+            var barcodeImage = await Task.Run(
+                () => InspectionPreview.CreateBitmap(barcodeCamera.Capture(500, 0)));
+            teaching.CarrierImages = [savedFovs[1] with { Image = barcodeImage }];
+            teaching.FovRegion = new Rect(180, 40, 80, 80);
+            Assert.Null(teaching.DataMatrixResult);
+            Assert.True(readDataMatrix.Command.CanExecute(null));
+            await teaching.ReadDataMatrixCommand.ExecuteAsync(null);
+            Assert.Equal("PCB-000123", teaching.DataMatrixResult);
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => dataMatrixResult.Text == "PCB-000123", TimeSpan.FromSeconds(2)));
+            Assert.True(dataMatrixResult.IsReadOnly);
+            teaching.FovRegion = new Rect(120, 80, 80, 80);
+            Assert.Null(teaching.DataMatrixResult);
+            await teaching.ReadDataMatrixCommand.ExecuteAsync(null);
+            Assert.Equal("Not Read", teaching.DataMatrixResult);
+            teaching.CarrierImages = savedFovs;
+            Assert.Null(teaching.DataMatrixResult);
             Assert.True(teaching.Inspector.IsLiveView);
             Assert.Equal(10, gantry.Feedback.GetPosition().X);
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);

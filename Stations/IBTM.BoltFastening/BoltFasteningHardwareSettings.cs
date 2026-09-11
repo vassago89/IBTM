@@ -43,18 +43,15 @@ public sealed class BoltFasteningHardwareSettings : MotionHardwareSettings
         (
             MotionAxis.X,
             MachineAxis.BoltFasteningX,
-            6,
-            200),
+            6),
         (
             MotionAxis.Y,
             MachineAxis.BoltFasteningY,
-            7,
-            200),
+            7),
         (
             MotionAxis.Z,
             MachineAxis.BoltFasteningZ,
-            8,
-            200))
+            8))
     {
         Inputs = new()
         {

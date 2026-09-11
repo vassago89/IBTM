@@ -22,16 +22,7 @@ public class AjinMotionService(
         operationCancellation,
         hasY: axisY is not null,
         hasZ: axisZ is not null,
-        horizontalZ: horizontalZ,
-        xRange: (
-            axisX.Minimum,
-            axisX.Maximum),
-        yRange: axisY is null ? null : (
-            axisY.Minimum,
-            axisY.Maximum),
-        zRange: axisZ is null ? null : (
-            axisZ.Minimum,
-            axisZ.Maximum)), IMotionDiagnostics
+        horizontalZ: horizontalZ), IMotionDiagnostics
 {
     private const uint HomeSuccess = 0x01;
     private const uint HomeSearching = 0x02;

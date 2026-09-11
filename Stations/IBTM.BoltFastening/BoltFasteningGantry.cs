@@ -240,12 +240,7 @@ public sealed class BoltFasteningGantry
 
     public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
     {
-        var range = _motion.GetRange(axis) ?? throw new InvalidOperationException("Set the axis range before jogging.");
-        return AdjustAxisAsync(
-            axis,
-            velocity < 0 ? range.Minimum : range.Maximum,
-            Math.Abs(velocity),
-            cancellationToken);
+        return _motion.JogAsync(axis, velocity, cancellationToken, atCurrentHeight: true);
     }
 
     public Task AdjustAxisAsync(

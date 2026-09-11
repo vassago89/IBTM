@@ -119,6 +119,9 @@ public enum TeachingTarget
 
     [Description("NG Pickup Safe X")]
     NgPickupSafeX,
+
+    [Description("Bolt")]
+    BoltTeaching,
 }
 
 public sealed class TeachingPosition(

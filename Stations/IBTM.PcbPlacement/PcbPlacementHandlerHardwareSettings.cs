@@ -18,18 +18,15 @@ public sealed class PcbPlacementHandlerHardwareSettings : MotionHardwareSettings
         (
             MotionAxis.X,
             MachineAxis.PcbPlacementHandlerX,
-            3,
-            200),
+            3),
         (
             MotionAxis.Y,
             MachineAxis.PcbPlacementHandlerY,
-            4,
-            400),
+            4),
         (
             MotionAxis.Z,
             MachineAxis.PcbPlacementHandlerZ,
-            5,
-            200))
+            5))
     {
         Inputs = new()
         {

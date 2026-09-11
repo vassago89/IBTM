@@ -22,9 +22,6 @@ public sealed class MotionStatus : INotifyPropertyChanged
         Axes = motion.Axes.ToDictionary(axis => axis, _ => new AxisStatus());
         MonitorAxes = motion.Axes.ToDictionary(axis => axis, _ => new MotionDiagnostics());
 
-        var zRange = motion.GetRange(MotionAxis.Z);
-        ZMinimum = zRange?.Minimum ?? 0;
-        ZMaximum = zRange?.Maximum ?? 0;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -154,8 +151,6 @@ public sealed class MotionStatus : INotifyPropertyChanged
         }
     }
 
-    public double ZMinimum { get; }
-    public double ZMaximum { get; }
 
     public void RefreshControlFeedback(bool available = true)
     {

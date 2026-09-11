@@ -548,15 +548,7 @@ public static class DependencyInjection
             cancellation,
             hasY: y is not null,
             hasZ: z is not null,
-            xRange: (
-                x.Minimum,
-                x.Maximum),
-            yRange: y is null ? null : (
-                y.Minimum,
-                y.Maximum),
-            zRange: z is null ? null : (
-                z.Minimum,
-                z.Maximum),
+            zPositiveLimitPosition: hardware.Group == MotionGroup.PcbSupply ? 100 : 200,
             resolutionMillimeters: hardware.MillimetersPerUnit,
             horizontalZ: horizontalZ,
             servoPowerOn: () => io.GetInput(InputIo.ServoMainContactorOn),

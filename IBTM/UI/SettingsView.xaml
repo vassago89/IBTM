@@ -145,8 +145,6 @@
                     <ColumnDefinition Width="110"/>
                     <ColumnDefinition Width="110"/>
                     <ColumnDefinition Width="110"/>
-                    <ColumnDefinition Width="140"/>
-                    <ColumnDefinition Width="140"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
                                                            ToolTip="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
@@ -160,8 +158,6 @@
                          Text="{Binding Axis.MovePulse, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                          ToolTip="AxmMotSetMoveUnitPerPulse: third argument (nPulse). Positive integer; default 1."
                          Margin="4,0"/>
-                <TextBox Grid.Column="4" Text="{Binding Axis.Minimum, UpdateSourceTrigger=LostFocus}" Margin="4,0"/>
-                <TextBox Grid.Column="5" Text="{Binding Axis.Maximum, UpdateSourceTrigger=LostFocus}" Margin="4,0"/>
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
@@ -341,15 +337,11 @@
                                         <ColumnDefinition Width="110"/>
                                         <ColumnDefinition Width="110"/>
                                         <ColumnDefinition Width="110"/>
-                                        <ColumnDefinition Width="140"/>
-                                        <ColumnDefinition Width="140"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="Axis" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBlock Grid.Column="1" Text="Axis Number" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBlock Grid.Column="2" Text="SDK Unit" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBlock Grid.Column="3" Text="SDK Pulse" Style="{StaticResource SettingFieldLabel}"/>
-                                    <TextBlock Grid.Column="4" Text="Minimum (mm)" Style="{StaticResource SettingFieldLabel}"/>
-                                    <TextBlock Grid.Column="5" Text="Maximum (mm)" Style="{StaticResource SettingFieldLabel}"/>
                                 </Grid>
                                 <ListBox IsEnabled="{Binding CanEditSettings}" ItemsSource="{Binding CurrentAxisMappings}" Style="{StaticResource PanelListStyle}"
                                          ItemContainerStyle="{StaticResource HardwareListItem}"

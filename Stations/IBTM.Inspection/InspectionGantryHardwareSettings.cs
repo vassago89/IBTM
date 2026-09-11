@@ -18,13 +18,11 @@ public sealed class InspectionGantryHardwareSettings : MotionHardwareSettings
         (
             MotionAxis.X,
             MachineAxis.InspectionGantryX,
-            9,
-            200),
+            9),
         (
             MotionAxis.Y,
             MachineAxis.InspectionGantryY,
-            10,
-            200))
+            10))
     {
     }
 }

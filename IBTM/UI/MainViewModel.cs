@@ -117,6 +117,7 @@ public partial class MainViewModel : ObservableObject
             stationTeachingViewModel.CaptureInspectionCommand,
             stationTeachingViewModel.ReinspectImageCommand,
             stationTeachingViewModel.CollectBoltImagesCommand,
+            stationTeachingViewModel.DrawFovRegionCommand,
             stationTeachingViewModel.TeachFovRegionCommand,
         ];
         foreach (var command in _recipeEditingCommands)

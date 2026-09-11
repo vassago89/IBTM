@@ -53,8 +53,6 @@ public sealed class AxisHardware
         }
     }
 
-    public double Minimum { get; set; }
-    public double Maximum { get; set; }
 }
 
 public abstract class HardwareSettings : Setting
@@ -115,7 +113,7 @@ public abstract class IoHardwareSettings : InputHardwareSettings
 
 public abstract class MotionHardwareSettings(
     MotionGroup group,
-    params (MotionAxis Axis, MachineAxis Signal, int Number, double Maximum)[] axes) : IoHardwareSettings
+    params (MotionAxis Axis, MachineAxis Signal, int Number)[] axes) : IoHardwareSettings
 {
     public const double DefaultMillimetersPerUnit = 0.001;
 
@@ -128,7 +126,7 @@ public abstract class MotionHardwareSettings(
         axis => axis.Signal);
     public Dictionary<MachineAxis, AxisHardware> Axes { get; set; } = axes.ToDictionary(
         axis => axis.Signal,
-        axis => new AxisHardware { Number = axis.Number, Maximum = axis.Maximum });
+        axis => new AxisHardware { Number = axis.Number });
     [JsonPropertyName("MillimetersPerPulse")]
     public double MillimetersPerUnit { get; set; } = DefaultMillimetersPerUnit;
 

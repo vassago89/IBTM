@@ -247,6 +247,7 @@ public partial class StationTeachingViewModel
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
         CaptureCarrierImageCommand.NotifyCanExecuteChanged();
         ClearCarrierImagesCommand.NotifyCanExecuteChanged();
+        DrawFovRegionCommand.NotifyCanExecuteChanged();
         TeachFovRegionCommand.NotifyCanExecuteChanged();
         CaptureInspectionCommand.NotifyCanExecuteChanged();
         ReinspectImageCommand.NotifyCanExecuteChanged();

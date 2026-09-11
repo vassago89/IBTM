@@ -144,6 +144,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 return;
             CaptureCarrierImageCommand.NotifyCanExecuteChanged();
             ClearCarrierImagesCommand.NotifyCanExecuteChanged();
+            DrawFovRegionCommand.NotifyCanExecuteChanged();
             TeachFovRegionCommand.NotifyCanExecuteChanged();
         };
 
@@ -159,6 +160,14 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         get
         {
             return SelectedPoint?.Position.Target == TeachingTarget.DataMatrix ? SelectedPcb : null;
+        }
+    }
+
+    public bool IsDataMatrixSelected
+    {
+        get
+        {
+            return SelectedBarcode is not null;
         }
     }
 
@@ -216,6 +225,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             {
                 { Target: TeachingTarget.BoltPickup } => TeachingSaveBehavior.BoltPickup,
                 { Target: TeachingTarget.DataMatrix } => TeachingSaveBehavior.BarcodeFov,
+                { Target: TeachingTarget.BoltTeaching } => TeachingSaveBehavior.AddBolt,
                 { CanTeach: false } => TeachingSaveBehavior.BoltPosition,
                 {
                     Target: TeachingTarget.CarrierUpperLeftLocatingPin
@@ -379,7 +389,9 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 ClearCarrierImagesCommand,
                 CaptureInspectionCommand,
                 ReinspectImageCommand,
+                ReadDataMatrixCommand,
                 CollectBoltImagesCommand,
+                DrawFovRegionCommand,
                 TeachFovRegionCommand,
                 TeachCurrentPositionCommand);
         }
@@ -423,6 +435,13 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                         : new(),
                     apply: null,
                     isDefined: () => Inspector.HasBarcodeRegion(SelectedPcb)),
+                new(
+                    TeachingTarget.BoltTeaching,
+                    MotionGroup.InspectionGantry,
+                    TeachMode.Image,
+                    () => new(),
+                    apply: null,
+                    isDefined: () => false),
                 .. _inspectionGantrySettings.GetBoltTeachingPositions(
                     RecipeEditor.Recipe.Pcb.GetBolts(SelectedPcb),
                     _carrierReference),
@@ -465,8 +484,13 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     protected override void OnTeachingPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
     {
         Preview.Clear(SelectedBarcode);
+        ReadDataMatrixCommand.Cancel();
+        DataMatrixResult = null;
         OnPropertyChanged(nameof(SelectedBarcode));
+        OnPropertyChanged(nameof(IsDataMatrixSelected));
+        ReadDataMatrixCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(FovRegion));
+        OnPropertyChanged(nameof(FovRoiLabel));
         CaptureInspectionCommand.NotifyCanExecuteChanged();
         RemoveBoltPointCommand.NotifyCanExecuteChanged();
         TeachFovRegionCommand.NotifyCanExecuteChanged();
@@ -479,6 +503,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         CaptureInspectionCommand.NotifyCanExecuteChanged();
         TeachFovRegionCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(FovRegion));
+        OnPropertyChanged(nameof(FovRoiLabel));
     }
 
     partial void OnCarrierImagesChanged(IReadOnlyList<CarrierImageTileView> value)

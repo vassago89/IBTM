@@ -40,7 +40,6 @@ public interface IMotionFeedback
     bool IsAtHorizontalZ { get; }
 
     (double X, double Y, double Z) GetPosition();
-    (double Minimum, double Maximum)? GetRange(MotionAxis axis);
     AxisState GetAxisState(MotionAxis axis);
 }
 
@@ -64,7 +63,11 @@ public interface IAxisMotion : IMotionFeedback
         double velocity,
         CancellationToken cancellationToken = default);
     Task<bool> HomeAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default);
-    Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default);
+    Task JogAsync(
+        MotionAxis axis,
+        double velocity,
+        CancellationToken cancellationToken = default,
+        bool atCurrentHeight = false);
     void Reset();
     void SetServo(MotionAxis axis, bool on);
 }
@@ -90,10 +93,7 @@ public abstract class MotionService(
     OperationCancellation operationCancellation,
     bool hasY = true,
     bool hasZ = true,
-    Func<double>? horizontalZ = null,
-    (double Minimum, double Maximum)? xRange = null,
-    (double Minimum, double Maximum)? yRange = null,
-    (double Minimum, double Maximum)? zRange = null) : IXyMotion
+    Func<double>? horizontalZ = null) : IXyMotion
 {
     public const double PositionToleranceMillimeters = 0.05;
     protected MotionSettings Settings { get; } = settings;
@@ -356,7 +356,8 @@ public abstract class MotionService(
     public async Task JogAsync(
         MotionAxis axis,
         double velocity,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool atCurrentHeight = false)
     {
         if (axis is not (MotionAxis.X or MotionAxis.Y or MotionAxis.Z))
             throw new ArgumentOutOfRangeException(nameof(axis));
@@ -366,9 +367,19 @@ public abstract class MotionService(
         if (axis == MotionAxis.Z)
             EnsureHasZ();
         EnsureStopped();
-        if (axis != MotionAxis.Z)
+        if (axis != MotionAxis.Z && !atCurrentHeight)
             EnsureHorizontalZ();
-        await JogCoreAsync(axis, velocity, operation.Token);
+        if (atCurrentHeight)
+            _command = MotionCommand.Adjustment;
+        try
+        {
+            await JogCoreAsync(axis, velocity, operation.Token);
+        }
+        finally
+        {
+            if (Volatile.Read(ref _activeMotions) == 0)
+                _command = MotionCommand.Positioning;
+        }
     }
 
     public abstract void SetServo(MotionAxis axis, bool on);
@@ -489,12 +500,6 @@ public abstract class MotionService(
         }
     }
 
-    protected double ClampToRange(MotionAxis axis, double position)
-    {
-        var range = GetRange(axis);
-        return range is null ? position : Math.Clamp(position, range.Value.Minimum, range.Value.Maximum);
-    }
-
     private void EnsureHorizontalZ()
     {
         if (!IsAtHorizontalZ)
@@ -532,25 +537,12 @@ public abstract class MotionService(
 
     private void ValidateTarget(MotionAxis axis, double position)
     {
-        var range = GetRange(axis);
-        if (range is not null
-            && (position < range.Value.Minimum || position > range.Value.Maximum))
+        if (!double.IsFinite(position))
         {
             throw new ArgumentOutOfRangeException(
                 axis.ToString(),
                 position,
-                $"{axis} target must be between " + $"{range.Value.Minimum:F2} and {range.Value.Maximum:F2} mm.");
+                $"{axis} target must be a finite coordinate.");
         }
-    }
-
-    public (double Minimum, double Maximum)? GetRange(MotionAxis axis)
-    {
-        return axis switch
-        {
-            MotionAxis.X => xRange,
-            MotionAxis.Y => yRange,
-            MotionAxis.Z => zRange,
-            _ => throw new ArgumentOutOfRangeException(nameof(axis)),
-        };
     }
 }

@@ -42,6 +42,8 @@ public partial class TeachingPoint : ObservableObject
     {
         get
         {
+            if (Position.Target == TeachingTarget.BoltTeaching)
+                return "Add Bolt → Add Current Image → Draw ROI";
             var origin = Position.HasPosition ? Position.CoordinateOrigin?.Invoke() : null;
             return Position.Mode switch
             {
@@ -108,6 +110,9 @@ public partial class TeachingPoint : ObservableObject
 
 public enum TeachingSaveBehavior
 {
+    [Description("Add Bolt below the teaching list. Jog to the bolt, Add Current Image, then draw its ROI on the saved image.")]
+    AddBolt,
+
     [Description("Teach with Head 1 down; saves automatically. Move To lowers Head 1 at pickup XY, then moves Z. Vacuum is unchanged.")]
     BoltPickup,
 

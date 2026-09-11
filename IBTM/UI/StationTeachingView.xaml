@@ -20,6 +20,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*" MinHeight="80" MaxHeight="260"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="3*" MinHeight="270"/>
                     </Grid.RowDefinitions>
                     <StackPanel Margin="0,0,0,8">
@@ -30,7 +31,7 @@
                         <ComboBox ItemsSource="{Binding HeatSinkSlots}" SelectedItem="{Binding SelectedPcb}" Margin="0,6,0,0"
                                   Visibility="{Binding BoltPointEditorVisible, Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
-                    <ui:TeachingPointList Grid.Row="1" ItemsSource="{Binding FilteredPoints}" SelectedItem="{Binding SelectedPoint}"
+                    <ui:TeachingPointList x:Name="TeachingPointsList" Grid.Row="1" ItemsSource="{Binding FilteredPoints}" SelectedItem="{Binding SelectedPoint}"
                                           Background="{StaticResource EquipBgBrush}" BorderThickness="1" BorderBrush="{StaticResource DividerBrush}"
                                           ItemContainerStyle="{StaticResource FlatListItemStyle}">
                         <ListBox.ItemTemplate>
@@ -43,7 +44,15 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ui:TeachingPointList>
-                    <ScrollViewer Grid.Row="2" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Grid.Row="2" Margin="0,8,0,0"
+                                Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
+                        <ComboBox ItemsSource="{Binding FasteningHeads}" SelectedItem="{Binding NewFasteningHead}" Margin="0,0,0,6"/>
+                        <UniformGrid Columns="2">
+                            <Button x:Name="AddBoltButton" Content="Add Bolt" Command="{Binding AddBoltPointCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,3,0"/>
+                            <Button Content="Remove Bolt" Command="{Binding RemoveBoltPointCommand}" Style="{StaticResource DangerButtonStyle}" Margin="3,0,0,0"/>
+                        </UniformGrid>
+                    </StackPanel>
+                    <ScrollViewer Grid.Row="3" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Margin="0,0,12,0">
                         <TextBlock Text="{Binding SelectedPoint.Name}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,4"/>
                         <TextBlock Text="{Binding HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
@@ -128,23 +137,29 @@
                                     <Button Content="Apply ROI" Command="{Binding TeachFovRegionCommand}" CommandParameter="{Binding FovRegion}"
                                             Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,6"
                                             ToolTip="Save this ROI for the selected bolt or Data Matrix. Bolt coordinates use the entered resolution; captured XY does not change."/>
-                                    <ComboBox ItemsSource="{Binding FasteningHeads}" SelectedItem="{Binding NewFasteningHead}" MinWidth="145" Margin="6,0,6,6"/>
-                                    <Button Content="Add Bolt" Command="{Binding AddBoltPointCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"/>
-                                    <Button Content="Remove Bolt" Command="{Binding RemoveBoltPointCommand}" Style="{StaticResource DangerButtonStyle}" Margin="0,0,6,6"/>
                                     <Button Content="Clear Images" Command="{Binding ClearCarrierImagesCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,6"/>
+                                    <Button x:Name="ReadDataMatrixButton" Content="Read Data Matrix" Command="{Binding ReadDataMatrixCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}" Margin="6,0,0,6"
+                                            ToolTip="Read the ROI on the saved image. Does not move axes or stop live view."
+                                            Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}"/>
                                 </WrapPanel>
-                                <ui:ImageTeachingView Grid.Row="4" Source="{Binding SelectedFov.Image}"
-                                                      SourceRegion="{Binding FovRegion}" RegionCommand="{Binding TeachFovRegionCommand}"
-                                                      Cursor="Cross" ToolTip="Drag one ROI. Drawing again replaces it. Capture XY does not change. Esc cancels."/>
+                                <ui:ImageTeachingView x:Name="FovImageView" Grid.Row="4" Source="{Binding SelectedFov.Image}"
+                                                      SourceRegion="{Binding FovRegion}" RegionCommand="{Binding DrawFovRegionCommand}"
+                                                      Cursor="Cross" ToolTip="Drag one ROI. Without a ready teaching target, it remains unsaved until Apply ROI. Esc cancels the drag."/>
                                 <StackPanel Grid.Row="5" Margin="0,8,0,0">
-                                    <TextBlock Text="{Binding SelectedPoint.Name, StringFormat=Draw ROI for · {0}}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <StackPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}" Margin="0,0,0,6">
+                                        <TextBlock Text="Data Matrix · saved FOV / ROI" FontWeight="SemiBold"/>
+                                        <TextBox x:Name="DataMatrixResultBox" Text="{Binding DataMatrixResult, Mode=OneWay}" IsReadOnly="True"
+                                                 TextWrapping="Wrap" FontSize="16" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                    <TextBlock Text="Drag ROI on the saved image" TextWrapping="Wrap" Margin="0,0,0,4"/>
                                     <TextBlock Text="{Binding FovRoiLabel}" TextWrapping="Wrap"/>
                                     <TextBlock Text="Bolt: ROI center sets its coordinate. Data Matrix: read only this ROI. Both return to the original capture XY." TextWrapping="Wrap"
                                                Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMutedBrush}">
                                         <Run Text="Capture XY · "/><Run Text="{Binding SelectedFov.Center.X, StringFormat={}{0:F3}}"/>
                                         <Run Text=", "/><Run Text="{Binding SelectedFov.Center.Y, StringFormat={}{0:F3}}"/>
-                                        <Run Text=" mm · ROI saves automatically"/>
+                                        <Run Text=" mm · Drawing saves when the selected target is ready"/>
                                     </TextBlock>
                                 </StackPanel>
                             </Grid>

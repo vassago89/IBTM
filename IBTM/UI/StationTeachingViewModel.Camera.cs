@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Core;
@@ -15,31 +17,128 @@ namespace IBTM.UI;
 public partial class StationTeachingViewModel
 {
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FovRegion))]
     [NotifyPropertyChangedFor(nameof(FovRoiLabel))]
+    [NotifyCanExecuteChangedFor(nameof(DrawFovRegionCommand))]
     [NotifyCanExecuteChangedFor(nameof(TeachFovRegionCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ReadDataMatrixCommand))]
     private CarrierImageTileView? _selectedFov;
 
-    public Rect? FovRegion
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FovRoiLabel))]
+    [NotifyCanExecuteChangedFor(nameof(ReadDataMatrixCommand))]
+    private Rect? _fovRegion;
+
+    [ObservableProperty]
+    private string? _dataMatrixResult;
+
+    partial void OnSelectedFovChanged(CarrierImageTileView? value)
     {
-        get
+        ReadDataMatrixCommand.Cancel();
+        DataMatrixResult = null;
+        FovRegion = value?.Region is { } region
+            ? new Rect(region.X, region.Y, region.Width, region.Height)
+            : null;
+    }
+
+    partial void OnFovRegionChanged(Rect? value)
+    {
+        ReadDataMatrixCommand.Cancel();
+        DataMatrixResult = null;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanReadDataMatrix))]
+    private async Task ReadDataMatrixAsync(CancellationToken cancellationToken)
+    {
+        var fov = SelectedFov!;
+        var bounds = FovRegion!.Value;
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, ViewCancellation);
+        DataMatrixResult = "Reading…";
+        CameraError = null;
+        try
         {
-            return SelectedFov?.Region is { } region
-                ? new Rect(region.X, region.Y, region.Width, region.Height)
-                : null;
+            var text = await Task.Run(
+                () =>
+                {
+                    var image = fov.Image;
+                    if (image.Format != PixelFormats.Bgr24)
+                        image = new FormatConvertedBitmap(image, PixelFormats.Bgr24, null, 0);
+                    var stride = image.PixelWidth * ImageFrame.ColorChannelCount;
+                    var pixels = new byte[stride * image.PixelHeight];
+                    image.CopyPixels(pixels, stride, 0);
+                    var frame = new ImageFrame(image.PixelWidth, image.PixelHeight, stride, pixels);
+                    var left = (int)Math.Floor(bounds.Left);
+                    var top = (int)Math.Floor(bounds.Top);
+                    var region = new PixelRegion(
+                        left, top,
+                        (int)Math.Ceiling(bounds.Right) - left,
+                        (int)Math.Ceiling(bounds.Bottom) - top);
+                    return DataMatrixReader.Read(frame, region);
+                },
+                cancellation.Token);
+            cancellation.Token.ThrowIfCancellationRequested();
+            DataMatrixResult = string.IsNullOrEmpty(text) ? "Not Read" : text;
         }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            DataMatrixResult = null;
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Trace.TraceError("Teaching Data Matrix read failed. {0}", exception);
+            DataMatrixResult = null;
+            CameraError = exception.Message;
+        }
+    }
+
+    private bool CanReadDataMatrix()
+    {
+        return IsInspectionSelected
+            && SelectedBarcode is not null
+            && SelectedFov is { } fov
+            && FovRegion is { Width: >= 1, Height: >= 1 } bounds
+            && bounds.Left >= 0 && bounds.Top >= 0
+            && bounds.Right <= fov.Image.PixelWidth
+            && bounds.Bottom <= fov.Image.PixelHeight;
     }
 
     public string FovRoiLabel
     {
         get
         {
+            var saved = SelectedFov?.Region is { } region
+                ? new Rect(region.X, region.Y, region.Width, region.Height)
+                : (Rect?)null;
+            if (FovRegion is not null && FovRegion != saved)
+            {
+                if (SelectedBarcode is null && SelectedPoint?.Position.Bolt is null)
+                    return "ROI not saved · Add/select a bolt or select Data Matrix, then Apply ROI.";
+                if (SelectedBarcode is null && !_carrierReference.IsDefined)
+                    return "ROI not saved · Teach both backup plate reference pins, then Apply ROI.";
+                return "ROI not saved · Set the resolution and Apply ROI.";
+            }
             if (SelectedFov is { IsBarcode: true } barcode)
                 return $"{barcode.HeatSink.GetDescription()} · Data Matrix · Drag to replace ROI";
             return SelectedFov?.BoltNumber is { } number
                 ? $"{SelectedFov.HeatSink.GetDescription()} · Bolt {number} · Drag to replace ROI"
-                : "Select a bolt or Data Matrix on the left, then drag one ROI in this FOV.";
+                : "Drag one ROI. Select a bolt or Data Matrix to save it.";
         }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDrawFovRegion))]
+    private async Task DrawFovRegionAsync(Rect bounds)
+    {
+        FovRegion = bounds;
+        if (CanTeachFovRegion(bounds))
+            await TeachFovRegionAsync(bounds);
+    }
+
+    private bool CanDrawFovRegion(Rect bounds)
+    {
+        return CanEditInspectionRecipe
+            && RecipeEditor.CanSave
+            && SelectedFov is not null
+            && (bounds.IsEmpty || bounds.Width >= 1 && bounds.Height >= 1);
     }
 
     [RelayCommand(CanExecute = nameof(CanTeachFovRegion))]
@@ -105,6 +204,9 @@ public partial class StationTeachingViewModel
             },
             CancellationToken.None,
             ViewCancellation);
+
+        if (barcode is not null && ReadDataMatrixCommand.CanExecute(null))
+            await ReadDataMatrixCommand.ExecuteAsync(null);
     }
 
     private bool CanTeachFovRegion(Rect bounds)
