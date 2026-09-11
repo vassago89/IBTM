@@ -460,6 +460,10 @@ public sealed class OutputWindowThreadingTests
         page.SetBinding(
             UIElement.IsEnabledProperty,
             new Binding(nameof(MainViewModel.CurrentPageEnabled)) { Source = main });
+        page.Child = new StationTeachingView { DataContext = teaching };
+        page.Measure(new Size(1600, 900));
+        page.Arrange(new Rect(0, 0, 1600, 900));
+        page.UpdateLayout();
         var preview = new Image();
         preview.SetBinding(
             Image.SourceProperty,
@@ -613,6 +617,10 @@ public sealed class OutputWindowThreadingTests
             Assert.Same(next, teaching.SelectedPoint);
             Assert.True(teaching.HasCarrierImages);
             Assert.Single(teaching.CarrierImages);
+            teaching.Activate();
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => teaching.CarrierImages.Count == 1, TimeSpan.FromSeconds(2)));
+            Assert.True(teaching.CarrierImages[0].Image.IsFrozen);
             var gantry = services.GetRequiredService<InspectionGantry>();
             await gantry.MoveAxisAsync(MotionAxis.X, 10, 10_000);
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
@@ -724,6 +732,34 @@ public sealed class OutputWindowThreadingTests
             Assert.True(teaching.Inspector.IsLiveView);
             Assert.Equal(10, gantry.Feedback.GetPosition().X);
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+
+            var originalName = teaching.RecipeEditor.ActiveName;
+            var originalFovs = teaching.CarrierImages.ToArray();
+            teaching.RecipeEditor.Name = "ThreadingScanCopy";
+            await teaching.RecipeEditor.SaveAsync();
+            Assert.Null(teaching.RecipeEditor.Error);
+            await teaching.RecipeEditor.LoadCommand.ExecuteAsync("ThreadingScanCopy");
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => teaching.CarrierImages.Count == 2, TimeSpan.FromSeconds(2)));
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+            await teaching.CaptureCarrierImageCommand.ExecuteAsync(null);
+            Assert.Null(teaching.CameraError);
+            Assert.Null(teaching.RecipeEditor.Error);
+            Assert.True(teaching.Inspector.IsLiveView);
+            Assert.Equal(3, teaching.CarrierImages.Count);
+            Assert.Same(teaching.CarrierImages[2], teaching.SelectedFov);
+            Assert.All(teaching.CarrierImages, image => Assert.True(image.Image.IsFrozen));
+            for (var index = 0; index < originalFovs.Length; index++)
+            {
+                var original = originalFovs[index];
+                var reloaded = teaching.CarrierImages[index];
+                Assert.Equal(original.Number, reloaded.Number);
+                Assert.Equal((original.Center.X, original.Center.Y), (reloaded.Center.X, reloaded.Center.Y));
+                Assert.Equal(original.Region, reloaded.Region);
+                Assert.Equal(original.IsBarcode, reloaded.IsBarcode);
+                Assert.Equal(original.HeatSink, reloaded.HeatSink);
+            }
+            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
             foreach (var closeTeaching in new[] { false, true })
             {
                 var captureStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -742,14 +778,14 @@ public sealed class OutputWindowThreadingTests
                 await Task.WhenAll(capture, closing).WaitAsync(TimeSpan.FromSeconds(2));
                 saved = await services.GetRequiredService<RecipeStore>()
                     .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
-                Assert.Equal(2, saved.CarrierImages.Count);
+                Assert.Equal(3, saved.CarrierImages.Count);
                 Assert.Null(teaching.CameraError);
                 Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
                 light.BeforeOn = null;
                 io.SetInput(InputIo.AutoMode, true);
                 teaching.Activate();
                 Assert.True(await VirtualTest.WaitUntilAsync(
-                    () => teaching.CarrierImages.Count == 2 && teaching.CaptureCarrierImageCommand.CanExecute(null),
+                    () => teaching.CarrierImages.Count == 3 && teaching.CaptureCarrierImageCommand.CanExecute(null),
                     TimeSpan.FromSeconds(2)));
             }
             await teaching.ClearCarrierImagesCommand.ExecuteAsync(null);
@@ -757,6 +793,8 @@ public sealed class OutputWindowThreadingTests
             saved = await services.GetRequiredService<RecipeStore>()
                 .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
             Assert.Empty(saved.CarrierImages);
+            var originalRecipe = await services.GetRequiredService<RecipeStore>().LoadRecipeAsync(originalName);
+            Assert.Equal(2, originalRecipe.CarrierImages.Count);
         }
         finally
         {

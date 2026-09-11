@@ -334,13 +334,28 @@ public sealed class RecipeTests
                 96,
                 PixelFormats.Bgr24,
                 null,
-                new byte[] { value, value, value },
+                new byte[] { value, (byte)(value + 1), (byte)(value + 2) },
                 3);
             image.Freeze();
             return image;
         }
 
         Assert.True(await sourceEditor.SaveCarrierImagesAsync(Images(1, 10)));
+        var reloaded = await Task.Factory.StartNew(
+            () => Images(1, 10).Select(tile => tile with
+            {
+                Image = store.LoadRecipeImage("Source", tile.Number),
+            }).ToArray(),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
+        Assert.All(reloaded, tile => Assert.True(tile.Image.IsFrozen));
+        Assert.Equal("FOV 1", reloaded[0].ToString());
+        await store.SaveRecipeImagesAsync(
+            source, source.Name, reloaded, new() { LastRecipeName = source.Name });
+        var pixels = new byte[3];
+        store.LoadRecipeImage("Source", 1).CopyPixels(pixels, 3, 0);
+        Assert.Equal(new byte[] { 10, 11, 12 }, pixels);
         var savedFov = (await store.LoadRecipeAsync("Source")).CarrierImages[0];
         Assert.Equal(new PixelRegion(0, 0, 1, 1), savedFov.Region);
         Assert.Equal(3, savedFov.BoltNumber);

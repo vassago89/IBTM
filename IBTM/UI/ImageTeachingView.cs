@@ -16,7 +16,13 @@ public sealed record CarrierImageTileView(
     PixelRegion? Region = null,
     int? BoltNumber = null,
     HeatSinkSlot HeatSink = HeatSinkSlot.HeatSink1,
-    bool IsBarcode = false);
+    bool IsBarcode = false)
+{
+    public override string ToString()
+    {
+        return $"FOV {Number}";
+    }
+}
 
 public sealed record ImageMarker(double X, double Y, string Label, bool Selected = false);
 

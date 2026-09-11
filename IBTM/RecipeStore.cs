@@ -86,7 +86,9 @@ public sealed class RecipeStore(MachineStore database)
                         cancellationToken.ThrowIfCancellationRequested();
                         using var stream = new MemoryStream();
                         var encoder = new PngBitmapEncoder();
-                        encoder.Frames.Add(BitmapFrame.Create(image.Image));
+                        // FOVs need pixels only. A frozen frame's decoder metadata
+                        // still belongs to the thread that loaded the image.
+                        encoder.Frames.Add(BitmapFrame.Create(image.Image, null, null, null));
                         encoder.Save(stream);
                         return new RecipeImage(index + 1, stream.ToArray());
                     });
