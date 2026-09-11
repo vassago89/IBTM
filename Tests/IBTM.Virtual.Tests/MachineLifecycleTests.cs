@@ -119,6 +119,23 @@ public sealed partial class MachineLifecycleTests
         var work = services.GetRequiredService<InspectionWork>();
         var camera = services.GetRequiredService<VirtualCamera>();
         var io = services.GetRequiredService<VirtualIoService>();
+        settings.CarrierReference.UpperLeftLocatingPin = null;
+        settings.CarrierReference.LowerRightLocatingPin = null;
+        foreach (var bolt in recipe.Pcb.BoltPoints)
+        {
+            bolt.X = null;
+            bolt.Y = null;
+        }
+        Assert.True(machine.TeachingReady);
+        settings.Units.BoltFastening = true;
+        Assert.False(machine.TeachingReady);
+        settings.Units.BoltFastening = false;
+        var boltFov = recipe.CarrierImages.First(fov => fov.BoltNumber is not null);
+        var boltRegion = boltFov.Region;
+        boltFov.Region = null;
+        Assert.False(machine.TeachingReady);
+        boltFov.Region = boltRegion;
+        Assert.True(machine.TeachingReady);
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
 

@@ -138,7 +138,6 @@ public sealed class TeachingPosition(
     public TeachMode Mode { get; } = mode;
     public Setting? Setting { get; } = setting;
     public BoltTarget? Bolt { get; init; }
-    public Func<AxisPosition>? CoordinateOrigin { get; init; }
     public bool Staged { get; init; }
 
     public TeachingStorage Storage

@@ -226,7 +226,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 { Target: TeachingTarget.BoltPickup } => TeachingSaveBehavior.BoltPickup,
                 { Target: TeachingTarget.DataMatrix } => TeachingSaveBehavior.BarcodeFov,
                 { Target: TeachingTarget.BoltTeaching } => TeachingSaveBehavior.AddBolt,
-                { CanTeach: false } => TeachingSaveBehavior.BoltPosition,
+                { Target: TeachingTarget.BoltPosition } => TeachingSaveBehavior.BoltPosition,
                 {
                     Target: TeachingTarget.CarrierUpperLeftLocatingPin
                         or TeachingTarget.CarrierLowerRightLocatingPin
@@ -442,9 +442,15 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                     () => new(),
                     apply: null,
                     isDefined: () => false),
-                .. _inspectionGantrySettings.GetBoltTeachingPositions(
-                    RecipeEditor.Recipe.Pcb.GetBolts(SelectedPcb),
-                    _carrierReference),
+                .. RecipeEditor.Recipe.Pcb.GetBolts(SelectedPcb).Select(bolt =>
+                    new TeachingPosition(
+                        TeachingTarget.BoltReference,
+                        MotionGroup.InspectionGantry,
+                        TeachMode.Image,
+                        () => Inspector.HasPosition(bolt) ? Inspector.GetFov(bolt).Center : new(),
+                        apply: null,
+                        isDefined: () => Inspector.HasPosition(bolt))
+                    { Bolt = bolt }),
             ],
             HardwareArea.NgCarrierTransfer => _ngTransferSettings.GetTeachingPositions(),
             _ => throw new ArgumentOutOfRangeException(nameof(SelectedTeachingUnit)),
@@ -463,16 +469,10 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             return null;
         }
 
-        if (_carrierReference.UpperLeftLocatingPin is null)
+        if (!Inspector.HasBarcodeRegion(SelectedPcb))
         {
             return FilteredPoints.FirstOrDefault(
-                point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
-        }
-
-        if (_carrierReference.LowerRightLocatingPin is null)
-        {
-            return FilteredPoints.FirstOrDefault(
-                point => point.Position.Target == TeachingTarget.CarrierLowerRightLocatingPin);
+                point => point.Position.Target == TeachingTarget.DataMatrix);
         }
 
         return RecipeEditor.Recipe.CarrierImages.Count == 0

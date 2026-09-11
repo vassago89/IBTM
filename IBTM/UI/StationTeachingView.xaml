@@ -102,7 +102,8 @@
                                     <Button Content="Move &amp; Inspect" Command="{Binding CaptureInspectionCommand}"
                                             Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"/>
                                     <Button Content="Reinspect" Command="{Binding ReinspectImageCommand}"
-                                            Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"/>
+                                            Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"
+                                            ToolTip="Inspect the last captured image, or the selected saved FOV. Does not move axes."/>
                                     <Button Content="Collect Bolt Images" Command="{Binding CollectBoltImagesCommand}"
                                             Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"/>
                                 </WrapPanel>
@@ -124,7 +125,7 @@
                                            Margin="0,8,0,0" FontSize="16" FontWeight="SemiBold"/>
                                 <WrapPanel Grid.Row="3" Margin="0,8,0,0">
                                     <TextBlock Text="Saved FOV / ROI" VerticalAlignment="Center" Margin="0,0,8,6"/>
-                                    <ComboBox ItemsSource="{Binding CarrierImages}" SelectedItem="{Binding SelectedFov}" MinWidth="120" Margin="0,0,12,6">
+                                    <ComboBox x:Name="SavedFovComboBox" ItemsSource="{Binding CarrierImages}" SelectedItem="{Binding SelectedFov}" MinWidth="120" Margin="0,0,12,6">
                                         <ComboBox.ItemTemplate>
                                             <DataTemplate DataType="{x:Type ui:CarrierImageTileView}">
                                                 <TextBlock Text="{Binding Number, StringFormat=FOV {0}}"/>
@@ -145,6 +146,7 @@
                                 </WrapPanel>
                                 <ui:ImageTeachingView x:Name="FovImageView" Grid.Row="4" Source="{Binding SelectedFov.Image}"
                                                       SourceRegion="{Binding FovRegion}" RegionCommand="{Binding DrawFovRegionCommand}"
+                                                      ShowCrosshair="False"
                                                       Cursor="Cross" ToolTip="Drag one ROI. Without a ready teaching target, it remains unsaved until Apply ROI. Esc cancels the drag."/>
                                 <StackPanel Grid.Row="5" Margin="0,8,0,0">
                                     <StackPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}" Margin="0,0,0,6">

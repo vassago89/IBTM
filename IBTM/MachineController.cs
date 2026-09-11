@@ -313,19 +313,18 @@ public sealed partial class MachineController
     {
         get
         {
-            return !_units.BoltFastening
-                && !_units.Inspection
-                || _recipe.Pcb.BoltPoints.Count > 0
-                && CarrierCoordinates.IsDefined(
-                    _carrierReference.UpperLeftLocatingPin,
-                    _carrierReference.LowerRightLocatingPin)
-                && _recipe.Pcb.GetBolts()
-                    .All(
-                        bolt =>
-                            bolt is { X: not null, Y: not null }
-                                && (!_units.BoltFastening || _fasteningGantry.HasReference(bolt.Head)))
-                && (!_units.Inspection
-                    || Enum.GetValues<HeatSinkSlot>().All(_boltInspector.HasBarcodeRegion));
+            if (_units.BoltFastening
+                && (_recipe.Pcb.BoltPoints.Count == 0
+                    || !_carrierReference.IsDefined
+                    || _recipe.Pcb.GetBolts().Any(bolt =>
+                        bolt.X is null || bolt.Y is null || !_fasteningGantry.HasReference(bolt.Head))))
+            {
+                return false;
+            }
+
+            return !_units.Inspection
+                || _recipe.Pcb.GetBolts().All(_boltInspector.HasPosition)
+                    && Enum.GetValues<HeatSinkSlot>().All(_boltInspector.HasBarcodeRegion);
         }
     }
 

@@ -155,4 +155,14 @@ public partial class InspectionPreview(
         image.Freeze();
         return image;
     }
+
+    public static ImageFrame CreateFrame(BitmapSource image)
+    {
+        if (image.Format != PixelFormats.Bgr24)
+            image = new FormatConvertedBitmap(image, PixelFormats.Bgr24, null, 0);
+        var stride = image.PixelWidth * ImageFrame.ColorChannelCount;
+        var pixels = new byte[stride * image.PixelHeight];
+        image.CopyPixels(pixels, stride, 0);
+        return new ImageFrame(image.PixelWidth, image.PixelHeight, stride, pixels);
+    }
 }

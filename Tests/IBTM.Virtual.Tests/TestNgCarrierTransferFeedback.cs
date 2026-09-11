@@ -28,7 +28,15 @@ internal sealed class TestNgCarrierTransferFeedback : INgCarrierTransferFeedback
     {
         get
         {
-            return IsRaised && !_io.GetInput(InputIo.NgCarrierDetected);
+            return IsRaised && !CarrierDetected;
+        }
+    }
+
+    public bool CarrierDetected
+    {
+        get
+        {
+            return _io.GetInput(InputIo.NgCarrierDetected);
         }
     }
 

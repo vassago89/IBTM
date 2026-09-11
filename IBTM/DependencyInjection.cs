@@ -442,7 +442,8 @@ public static class DependencyInjection
                     new VirtualCamera(
                         provider.GetRequiredService<InspectionGantry>().Feedback.GetPosition,
                         () => recipe.Pcb.GetBolts()
-                            .Where(bolt => bolt.X is not null && bolt.Y is not null)
+                            .Where(bolt => settings.CarrierReference.IsDefined
+                                && bolt.X is not null && bolt.Y is not null)
                             .Select(
                                 bolt => settings.InspectionGantry.GetBoltPosition(
                                     bolt,

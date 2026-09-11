@@ -48,8 +48,9 @@ public sealed class RecipeTests
                 LowerRightLocatingPin = new() { X = 200, Y = 500 },
             },
         };
-        var second = inspection.GetBoltTeachingPositions([targets[1]], pins).Single();
-        second.Apply(new() { X = 175, Y = 230 });
+        var second = CarrierCoordinates.FromMachine(new() { X = 175, Y = 230 }, pins.UpperLeftLocatingPin);
+        targets[1].Point.X = second.X;
+        targets[1].Point.Y = second.Y;
         Assert.Equal((13d, 24d), (targets[0].X, targets[0].Y));
         Assert.Equal((75d, 30d), (targets[1].X, targets[1].Y));
         var firstCamera = inspection.GetBoltPosition(targets[0], pins);
@@ -153,22 +154,16 @@ public sealed class RecipeTests
         var bolt = new BoltPoint { Number = 1 };
         var recipe = new PcbLayout();
         recipe.BoltPoints = [bolt];
-        var target = recipe.GetBolts(HeatSinkSlot.HeatSink1).Single();
-        var image = new TeachingPoint(inspection.GetBoltTeachingPositions([target], reference).Single());
         var position = new TeachingPoint(
             fastening.GetTeachingPositions(recipe, HeatSinkSlot.HeatSink1, reference)
                 .Single(p => p.Target == TeachingTarget.BoltPosition));
-        Assert.False(image.Position.HasPosition);
-        Assert.Equal("—", image.PositionLabel);
         Assert.False(position.Position.HasPosition);
         Assert.False(position.Position.CanTeach);
         Assert.Equal(TeachMode.XYOnly, position.Position.Mode);
-        image.Teach(110, 220, 0);
-        image.Apply();
-        image.Refresh();
-        Assert.Equal($"{10d:F3}, {20d:F3}", image.PositionLabel);
+        var relative = CarrierCoordinates.FromMachine(new() { X = 110, Y = 220 }, reference.UpperLeftLocatingPin);
+        bolt.X = relative.X;
+        bolt.Y = relative.Y;
         Assert.Equal((10d, 20d), (bolt.X, bolt.Y));
-        Assert.True(image.Position.HasPosition);
         position.Refresh();
         Assert.True(position.Position.HasPosition);
         Assert.Equal(280, position.X, 6);
@@ -186,9 +181,9 @@ public sealed class RecipeTests
             pins.Single(p => p.Target == TeachingTarget.CarrierUpperLeftLocatingPin));
         upperLeft.Teach(105, 205, 0);
         upperLeft.Apply();
-        image.Refresh();
         Assert.Same(lowerRight, reference.LowerRightLocatingPin);
-        Assert.Equal((115, 225), (image.X, image.Y));
+        var camera = inspection.GetBoltPosition(recipe.GetBolts(HeatSinkSlot.HeatSink1).Single(), reference);
+        Assert.Equal((115, 225), (camera.X, camera.Y));
         Assert.Equal((10d, 20d), (bolt.X, bolt.Y));
         Assert.Same(reference, upperLeft.Position.Setting);
         var transfer = new NgCarrierTransferSettings();

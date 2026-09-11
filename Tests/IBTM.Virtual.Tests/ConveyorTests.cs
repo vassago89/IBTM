@@ -118,32 +118,36 @@ public sealed class ConveyorTests
     }
 
     [Fact]
-    public async Task EmptyBackupPlatesStayDownAndInspectionWaitsForPickupClearance()
+    public async Task InspectionReceivingIgnoresPickupHeightButWaitsForHeldCarrier()
     {
         var io = CreateIo();
         io.Initialize();
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
-        var conveyor = CreateConveyor(io);
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        io.SetInput(InputIo.NgCarrierDetected, true);
+        await SetSeatedCarrierAsync(
+            io, io, InputIo.BoltFasteningCarrierPresent, OutputIo.BoltFasteningBackupPlateDown);
+        var conveyor = CreateConveyor(io, boltFasteningEnabled: false);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var run = conveyor.RunAsync(cancellation.Token);
         try
         {
             await WaitForOutputAsync(io, OutputIo.PcbPlacementBackupPlateDown, true);
-            await WaitForOutputAsync(io, OutputIo.BoltFasteningBackupPlateDown, true);
             Assert.False(io.GetOutput(OutputIo.InspectionBackupPlateDown));
-
-            io.SetInput(InputIo.NgCarrierDetected, true);
-            io.SetInput(InputIo.NgCarrierPickupDown, false);
-            io.SetInput(InputIo.NgCarrierPickupUp, true);
-            await ((IIoService)io).WaitForInputAsync(InputIo.BoltFasteningBackupPlateDown, true);
-            Assert.False(io.GetOutput(OutputIo.InspectionBackupPlateDown));
+            Assert.False(conveyor.RunCommandOn);
 
             io.SetInput(InputIo.NgCarrierDetected, false);
-            await ((IIoService)io).WaitForInputAsync(InputIo.InspectionBackupPlateDown, true);
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
             Assert.True(io.GetOutput(OutputIo.PcbPlacementBackupPlateDown));
             Assert.True(io.GetOutput(OutputIo.BoltFasteningBackupPlateDown));
             Assert.True(io.GetOutput(OutputIo.InspectionBackupPlateDown));
+            Assert.False(io.GetInput(InputIo.NgCarrierPickupUp));
+            Assert.True(io.GetInput(InputIo.NgCarrierPickupDown));
+
+            io.SetInput(InputIo.BoltFasteningCarrierPresent, false);
+            io.SetInput(InputIo.InspectionCarrierPresent, true);
+            await ((IIoService)io).WaitForInputAsync(InputIo.InspectionBackupPlateUp, true);
+            await ((IIoService)io).WaitForInputAsync(InputIo.InspectionStopperDown, true);
             Assert.False(conveyor.RunCommandOn);
         }
         finally

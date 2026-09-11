@@ -329,7 +329,7 @@ public sealed class MainConveyor : AutoUnit
         if (state != MainConveyorState.CarrierPositionUnknown)
         {
             // Empty stations wait with their plates down. CanReceive also keeps
-            // Station 3 unchanged until the NG pickup is clear.
+            // Station 3 unchanged while the NG pickup holds a carrier.
             if (_placementWork.CanReceive && _placement.BackupPlate != StationCylinderState.Down)
                 return _io.SetOutputAndWaitAsync(
                     OutputIo.PcbPlacementBackupPlateDown, true, cancellationToken);

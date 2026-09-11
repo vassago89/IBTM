@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
 using IBTM.Core;
 using IBTM.Device;
 
@@ -29,35 +27,6 @@ public sealed class InspectionGantrySettings : Setting
                 reference,
                 () => reference.LowerRightLocatingPin is not null),
         ];
-    }
-
-    public IEnumerable<TeachingPosition> GetBoltTeachingPositions(
-        IEnumerable<BoltTarget> bolts,
-        CarrierReferenceSettings reference)
-    {
-        return bolts.Select(
-            bolt =>
-                new TeachingPosition(
-                    TeachingTarget.BoltReference,
-                    MotionGroup.InspectionGantry,
-                    TeachMode.Image,
-                    () => HasTeachingPosition(bolt, reference) ? GetBoltPosition(bolt, reference) : new(),
-                    p =>
-                    {
-                        var position = CarrierCoordinates.FromMachine(p, reference.UpperLeftLocatingPin!);
-                        bolt.Point.X = position.X;
-                        bolt.Point.Y = position.Y;
-                    },
-                    isDefined: () => HasTeachingPosition(bolt, reference))
-                {
-                    Bolt = bolt,
-                    CoordinateOrigin = () => reference.UpperLeftLocatingPin!,
-                });
-    }
-
-    private static bool HasTeachingPosition(BoltTarget bolt, CarrierReferenceSettings reference)
-    {
-        return reference.IsDefined && bolt is { X: not null, Y: not null };
     }
 
     public AxisPosition GetBoltPosition(BoltTarget bolt, CarrierReferenceSettings reference)

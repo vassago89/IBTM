@@ -110,6 +110,11 @@ public sealed class ImageTeachingView : FrameworkElement
         nameof(SourceOverlay),
         typeof(BitmapSource),
         OnMapChanged);
+    public static readonly DependencyProperty ShowCrosshairProperty = Register(
+        nameof(ShowCrosshair),
+        typeof(bool),
+        OnCameraChanged,
+        true);
 
     public ImageTeachingView()
     {
@@ -278,6 +283,19 @@ public sealed class ImageTeachingView : FrameworkElement
         }
     }
 
+    public bool ShowCrosshair
+    {
+        get
+        {
+            return (bool)GetValue(ShowCrosshairProperty);
+        }
+
+        set
+        {
+            SetValue(ShowCrosshairProperty, value);
+        }
+    }
+
     protected override int VisualChildrenCount
     {
         get
@@ -399,6 +417,8 @@ public sealed class ImageTeachingView : FrameworkElement
         using var drawingContext = _cameraVisual.RenderOpen();
         if (Source is { } source)
         {
+            if (!ShowCrosshair)
+                return;
             var fitted = Fit(source.PixelWidth, source.PixelHeight);
             var center = new Point(fitted.X + fitted.Width / 2, fitted.Y + fitted.Height / 2);
             var arm = Math.Min(24, Math.Min(fitted.Width, fitted.Height) / 2);

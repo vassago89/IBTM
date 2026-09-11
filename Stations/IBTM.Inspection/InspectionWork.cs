@@ -22,7 +22,7 @@ public sealed class InspectionWork : StationWork
     {
         get
         {
-            return base.CanReceive && _transferFeedback.IsClear;
+            return base.CanReceive && !_transferFeedback.CarrierDetected;
         }
     }
 

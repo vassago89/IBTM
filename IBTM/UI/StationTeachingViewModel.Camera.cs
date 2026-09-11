@@ -4,8 +4,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Core;
@@ -33,11 +31,24 @@ public partial class StationTeachingViewModel
 
     partial void OnSelectedFovChanged(CarrierImageTileView? value)
     {
+        CaptureInspectionCommand.Cancel();
+        ReinspectImageCommand.Cancel();
+        if (IsInspectionSelected && value is { Region: not null }
+            && (value.IsBarcode || value.BoltNumber is not null))
+        {
+            SelectedPcb = value.HeatSink;
+            SelectedPoint = FilteredPoints.FirstOrDefault(point => value.IsBarcode
+                ? point.Position.Target == TeachingTarget.DataMatrix
+                : point.Position.Bolt?.Number == value.BoltNumber);
+        }
+
+        Preview.Clear(SelectedBarcode);
         ReadDataMatrixCommand.Cancel();
         DataMatrixResult = null;
         FovRegion = value?.Region is { } region
             ? new Rect(region.X, region.Y, region.Width, region.Height)
             : null;
+        NotifyManualTeachingCommands();
     }
 
     partial void OnFovRegionChanged(Rect? value)
@@ -60,13 +71,7 @@ public partial class StationTeachingViewModel
             var text = await Task.Run(
                 () =>
                 {
-                    var image = fov.Image;
-                    if (image.Format != PixelFormats.Bgr24)
-                        image = new FormatConvertedBitmap(image, PixelFormats.Bgr24, null, 0);
-                    var stride = image.PixelWidth * ImageFrame.ColorChannelCount;
-                    var pixels = new byte[stride * image.PixelHeight];
-                    image.CopyPixels(pixels, stride, 0);
-                    var frame = new ImageFrame(image.PixelWidth, image.PixelHeight, stride, pixels);
+                    var frame = InspectionPreview.CreateFrame(fov.Image);
                     var left = (int)Math.Floor(bounds.Left);
                     var top = (int)Math.Floor(bounds.Top);
                     var region = new PixelRegion(
@@ -113,8 +118,6 @@ public partial class StationTeachingViewModel
             {
                 if (SelectedBarcode is null && SelectedPoint?.Position.Bolt is null)
                     return "ROI not saved · Add/select a bolt or select Data Matrix, then Apply ROI.";
-                if (SelectedBarcode is null && !_carrierReference.IsDefined)
-                    return "ROI not saved · Teach both backup plate reference pins, then Apply ROI.";
                 return "ROI not saved · Set the resolution and Apply ROI.";
             }
             if (SelectedFov is { IsBarcode: true } barcode)
@@ -159,14 +162,23 @@ public partial class StationTeachingViewModel
         await Machine.RunTeachingEditAsync(
             async token =>
             {
-                if (bolt is not null)
+                if (bolt is not null && _carrierReference.IsDefined)
                 {
                     var x = fov.Center.X
                         + (region.X + region.Width / 2.0 - fov.Image.PixelWidth / 2.0) * MillimetersPerPixel;
                     var y = fov.Center.Y
                         + (region.Y + region.Height / 2.0 - fov.Image.PixelHeight / 2.0) * MillimetersPerPixel;
-                    point.Teach(x, y, 0);
-                    point.Apply();
+                    var position = CarrierCoordinates.FromMachine(
+                        new AxisPosition { X = x, Y = y },
+                        _carrierReference.UpperLeftLocatingPin!);
+                    bolt.Point.X = position.X;
+                    bolt.Point.Y = position.Y;
+                }
+                else if (bolt is not null)
+                {
+                    // Inspection uses the captured XY. Fastening coordinates need the reference pins.
+                    bolt.Point.X = null;
+                    bolt.Point.Y = null;
                 }
                 foreach (var tile in RecipeEditor.Recipe.CarrierImages)
                 {
@@ -217,7 +229,6 @@ public partial class StationTeachingViewModel
             && (SelectedBarcode is not null
                 || double.IsFinite(MillimetersPerPixel)
                     && MillimetersPerPixel > 0
-                    && _carrierReference.IsDefined
                     && SelectedPoint?.Position.Bolt is not null)
             && (bounds.IsEmpty || bounds.Width >= 1 && bounds.Height >= 1);
     }
@@ -365,9 +376,24 @@ public partial class StationTeachingViewModel
     private async Task ReinspectImageAsync(CancellationToken token)
     {
         CameraError = null;
+        var fov = SelectedFov;
         try
         {
-            await Machine.RunTeachingEditAsync(Preview.InspectAsync, token, ViewCancellation);
+            await Machine.RunTeachingEditAsync(
+                async cancellationToken =>
+                {
+                    if (!Preview.HasImage)
+                    {
+                        var frame = await Task.Run(
+                            () => InspectionPreview.CreateFrame(fov!.Image),
+                            cancellationToken);
+                        Preview.Clear(fov!.IsBarcode ? fov.HeatSink : null);
+                        await Preview.SetImageAsync(frame, cancellationToken, fov.Region);
+                    }
+                    await Preview.InspectAsync(cancellationToken);
+                },
+                token,
+                ViewCancellation);
         }
         catch (OperationCanceledException) when (
             token.IsCancellationRequested
@@ -383,7 +409,8 @@ public partial class StationTeachingViewModel
 
     private bool CanReinspectImage()
     {
-        return CanEditInspectionRecipe && Preview.HasImage;
+        return CanEditInspectionRecipe
+            && (Preview.HasImage || SelectedFov?.Region is not null);
     }
 
     [RelayCommand(CanExecute = nameof(CanCollectBoltImages))]

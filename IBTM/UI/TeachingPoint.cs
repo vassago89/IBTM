@@ -44,12 +44,11 @@ public partial class TeachingPoint : ObservableObject
         {
             if (Position.Target == TeachingTarget.BoltTeaching)
                 return "Add Bolt → Add Current Image → Draw ROI";
-            var origin = Position.HasPosition ? Position.CoordinateOrigin?.Invoke() : null;
             return Position.Mode switch
             {
                 TeachMode.Image
                     => Position.HasPosition
-                        ? $"{X - (origin?.X ?? 0):F3}, {Y - (origin?.Y ?? 0):F3}"
+                        ? $"{X:F3}, {Y:F3}"
                         : "—",
                 TeachMode.XYOnly => Position.HasPosition ? $"{X:F3}, {Y:F3}" : "—",
                 TeachMode.XZOnly => $"{X:F3}, {Z:F3}",
