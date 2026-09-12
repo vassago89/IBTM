@@ -202,13 +202,8 @@ public partial class RecipeEditor(
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     return new CarrierImageTileView(
-                        tile.Number,
-                        tile.Center,
-                        store.LoadRecipeImage(name, tile.Number),
-                        tile.Region,
-                        tile.BoltNumber,
-                        tile.HeatSink,
-                        tile.IsBarcode);
+                        tile,
+                        store.LoadRecipeImage(name, tile.Number));
                 })
                 .ToArray(),
             cancellationToken);

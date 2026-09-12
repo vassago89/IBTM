@@ -316,8 +316,23 @@ public sealed class RecipeTests
         var targetEditor = new RecipeEditor(store, targetSelection, target, new());
         CarrierImageTileView[] Images(double x, byte value)
         {
-            return [new(1, new() { X = x }, Image(value), new(0, 0, 1, 1), 3, HeatSinkSlot.HeatSink2),
-                new(2, new() { X = x + 1 }, Image(value), new(0, 0, 1, 1), IsBarcode: true)];
+            return [
+                new(new CarrierImageTile
+                {
+                    Number = 1,
+                    Center = new() { X = x },
+                    Region = new(0, 0, 1, 1),
+                    BoltNumber = 3,
+                    HeatSink = HeatSinkSlot.HeatSink2,
+                }, Image(value)),
+                new(new CarrierImageTile
+                {
+                    Number = 2,
+                    Center = new() { X = x + 1 },
+                    Region = new(0, 0, 1, 1),
+                    IsBarcode = true,
+                }, Image(value)),
+            ];
         }
 
         static BitmapSource Image(byte value)
@@ -335,11 +350,14 @@ public sealed class RecipeTests
             return image;
         }
 
-        Assert.True(await sourceEditor.SaveCarrierImagesAsync(Images(1, 10)));
+        var sourceImages = Images(1, 10);
+        Assert.True(await sourceEditor.SaveCarrierImagesAsync(sourceImages));
+        Assert.Same(sourceImages[0].Metadata, source.CarrierImages[0]);
+        Assert.Same(sourceImages[1].Metadata, source.CarrierImages[1]);
         var reloaded = await Task.Factory.StartNew(
             () => Images(1, 10).Select(tile => tile with
             {
-                Image = store.LoadRecipeImage("Source", tile.Number),
+                Image = store.LoadRecipeImage("Source", tile.Metadata.Number),
             }).ToArray(),
             CancellationToken.None,
             TaskCreationOptions.LongRunning,
@@ -355,12 +373,15 @@ public sealed class RecipeTests
         Assert.Equal(new PixelRegion(0, 0, 1, 1), savedFov.Region);
         Assert.Equal(3, savedFov.BoltNumber);
         Assert.Equal(HeatSinkSlot.HeatSink2, savedFov.HeatSink);
-        Assert.Equal(savedFov.Region, (await sourceEditor.LoadCarrierImagesAsync())[0].Region);
+        var loadedImages = await sourceEditor.LoadCarrierImagesAsync();
+        Assert.Same(source.CarrierImages[0], loadedImages[0].Metadata);
+        Assert.Equal(savedFov.Region, loadedImages[0].Metadata.Region);
         var savedBarcode = (await store.LoadRecipeAsync("Source")).CarrierImages[1];
         Assert.True(savedBarcode.IsBarcode);
         Assert.Null(savedBarcode.BoltNumber);
         Assert.Equal(new PixelRegion(0, 0, 1, 1), savedBarcode.Region);
-        Assert.True((await sourceEditor.LoadCarrierImagesAsync())[1].IsBarcode);
+        Assert.Same(source.CarrierImages[1], loadedImages[1].Metadata);
+        Assert.True(loadedImages[1].Metadata.IsBarcode);
         Assert.Equal("Source", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
         Assert.True(await targetEditor.SaveCarrierImagesAsync(Images(10, 100)));
         Assert.Equal("Target", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);

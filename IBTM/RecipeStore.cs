@@ -69,19 +69,9 @@ public sealed class RecipeStore(MachineStore database)
         return Task.Run(
             () =>
             {
-                var tiles = images.Select(
-                    (image, index) => new CarrierImageTile
-                    {
-                        Number = index + 1,
-                        Center = image.Center,
-                        Region = image.Region,
-                        BoltNumber = image.BoltNumber,
-                        IsBarcode = image.IsBarcode,
-                        HeatSink = image.HeatSink,
-                    })
-                    .ToList();
+                var tiles = images.Select(image => image.Metadata).ToList();
                 var encoded = images.Select(
-                    (image, index) =>
+                    image =>
                     {
                         cancellationToken.ThrowIfCancellationRequested();
                         using var stream = new MemoryStream();
@@ -90,7 +80,7 @@ public sealed class RecipeStore(MachineStore database)
                         // still belongs to the thread that loaded the image.
                         encoder.Frames.Add(BitmapFrame.Create(image.Image, null, null, null));
                         encoder.Save(stream);
-                        return new RecipeImage(index + 1, stream.ToArray());
+                        return new RecipeImage(image.Metadata.Number, stream.ToArray());
                     });
                 var document = JsonSerializer.SerializeToNode(recipe)!;
                 document[nameof(Recipe.Name)] = name;

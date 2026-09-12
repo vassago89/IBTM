@@ -103,7 +103,7 @@ public sealed class InspectionTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task CarrierMapCaptureUsesCurrentPositionWithoutMoving(bool live)
+    public async Task FovCaptureUsesCurrentPositionWithoutMoving(bool live)
     {
         var reference = new CarrierReferenceSettings
         {
@@ -200,7 +200,7 @@ public sealed class InspectionTests
         var io = new VirtualIoService(
             new NgCarrierTransferHardwareSettings().Outputs,
             new MachineOptions());
-        var transferFeedback = new TestNgCarrierTransferFeedback(io);
+        var transferFeedback = new NgCarrierTransfer(io);
         var work = new InspectionWork(ConveyorStation.Inspection(io), transferFeedback);
         var carrierReference = new CarrierReferenceSettings
         {

@@ -142,8 +142,7 @@ public abstract partial class TeachingMotionViewModel(
                         new TeachingIoGroup(
                             io,
                             TeachingOutputs,
-                            SetOutputOnCommand,
-                            SetOutputOffCommand))
+                            ToggleOutputCommand))
                     .ToArray();
                 _teachingIoGroups.Add(ActiveTeachingUnit, groups);
             }
@@ -307,33 +306,21 @@ public abstract partial class TeachingMotionViewModel(
         SelectNextPointCommand.NotifyCanExecuteChanged();
     }
 
-    [RelayCommand(CanExecute = nameof(CanSetOutput))]
-    private Task SetOutputOnAsync(TeachingOutput output, CancellationToken cancellationToken)
-    {
-        return SetOutputAsync(output, true, cancellationToken);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanSetOutput))]
-    private Task SetOutputOffAsync(TeachingOutput output, CancellationToken cancellationToken)
-    {
-        return SetOutputAsync(output, false, cancellationToken);
-    }
-
-    private bool CanSetOutput(TeachingOutput? output)
+    private bool CanToggleOutput(TeachingOutput? output)
     {
         return output is not null
             && TeachingOutputs.ContainsKey(output.Signal)
             && Machine.CanSetTeachingOutput(output, live: false);
     }
 
-    private async Task SetOutputAsync(
+    [RelayCommand(CanExecute = nameof(CanToggleOutput))]
+    private async Task ToggleOutputAsync(
         TeachingOutput output,
-        bool value,
         CancellationToken cancellationToken)
     {
         try
         {
-            await Machine.RunTeachingOutputAsync(output, value, cancellationToken, ViewCancellation);
+            await Machine.ToggleTeachingOutputAsync(output, cancellationToken, ViewCancellation);
         }
         finally
         {
@@ -444,8 +431,7 @@ public abstract partial class TeachingMotionViewModel(
         JogCommand.NotifyCanExecuteChanged();
         StepCommand.NotifyCanExecuteChanged();
         MoveToHorizontalZCommand.NotifyCanExecuteChanged();
-        SetOutputOnCommand.NotifyCanExecuteChanged();
-        SetOutputOffCommand.NotifyCanExecuteChanged();
+        ToggleOutputCommand.NotifyCanExecuteChanged();
         TeachCurrentPositionCommand.NotifyCanExecuteChanged();
         MoveToPointCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(ManualBlock));

@@ -1,19 +1,26 @@
 <UserControl x:Class="IBTM.UI.StationTeachingView"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:ui="clr-namespace:IBTM.UI" mc:Ignorable="d"
-             d:DataContext="{d:DesignInstance Type=ui:StationTeachingViewModel, IsDesignTimeCreatable=False}"
-             Foreground="{StaticResource TextPrimaryBrush}" Background="{StaticResource AppBgBrush}">
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="clr-namespace:IBTM.UI"
+    mc:Ignorable="d"
+    d:DataContext="{d:DesignInstance Type=ui:StationTeachingViewModel, IsDesignTimeCreatable=False}"
+    Foreground="{StaticResource TextPrimaryBrush}"
+    Background="{StaticResource AppBgBrush}">
     <Grid Margin="16">
-        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
         <TextBlock Text="Station Teaching" Style="{StaticResource TitleStyle}" Margin="0,0,0,10"/>
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="1.15*" MinWidth="330" MaxWidth="420"/>
-                <ColumnDefinition Width="10"/><ColumnDefinition Width="2*" MinWidth="280"/>
-                <ColumnDefinition Width="10"/><ColumnDefinition Width="*" MinWidth="270"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="2*" MinWidth="280"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*" MinWidth="270"/>
             </Grid.ColumnDefinitions>
             <Border Style="{StaticResource CardStyle}" Padding="12">
                 <Grid>
@@ -26,50 +33,64 @@
                     <StackPanel Margin="0,0,0,8">
                         <TextBlock Text="Teaching Unit" Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,6"/>
                         <ComboBox ItemsSource="{Binding TeachingUnits}" SelectedItem="{Binding SelectedTeachingUnit}"/>
-                        <TextBlock Text="{Binding ActiveMotionGroup, Converter={StaticResource EnumDescriptionConverter}, StringFormat=Axes · {0}}"
-                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
-                        <ComboBox ItemsSource="{Binding HeatSinkSlots}" SelectedItem="{Binding SelectedPcb}" Margin="0,6,0,0"
-                                  Visibility="{Binding BoltPointEditorVisible, Converter={StaticResource BoolToVis}}"/>
+                        <TextBlock
+                            Text="{Binding ActiveMotionGroup, Converter={StaticResource EnumDescriptionConverter}, StringFormat=Axes · {0}}"
+                            Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                        <ComboBox ItemsSource="{Binding HeatSinkSlots}"
+                            SelectedItem="{Binding SelectedPcb}"
+                            Margin="0,6,0,0"
+                            Visibility="{Binding BoltPointEditorVisible, Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
-                    <ui:TeachingPointList x:Name="TeachingPointsList" Grid.Row="1" ItemsSource="{Binding FilteredPoints}" SelectedItem="{Binding SelectedPoint}"
-                                          Background="{StaticResource EquipBgBrush}" BorderThickness="1" BorderBrush="{StaticResource DividerBrush}"
-                                          ItemContainerStyle="{StaticResource FlatListItemStyle}">
+                    <ui:TeachingPointList x:Name="TeachingPointsList" Grid.Row="1"
+                        ItemsSource="{Binding FilteredPoints}"
+                        SelectedItem="{Binding SelectedPoint}"
+                        Background="{StaticResource EquipBgBrush}" BorderThickness="1" BorderBrush="{StaticResource DividerBrush}"
+                        ItemContainerStyle="{StaticResource FlatListItemStyle}">
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type ui:TeachingPoint}">
                                 <StackPanel Margin="4,4">
                                     <TextBlock Text="{Binding Name}" TextWrapping="Wrap" FontWeight="SemiBold"/>
-                                    <TextBlock Text="{Binding PositionLabel}" FontFamily="Consolas" FontSize="12"
-                                               Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
+                                    <TextBlock Text="{Binding PositionLabel}"
+                                        FontFamily="Consolas" FontSize="12" Foreground="{StaticResource TextMutedBrush}" Margin="0,2,0,0"/>
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ui:TeachingPointList>
                     <StackPanel Grid.Row="2" Margin="0,8,0,0"
-                                Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
+                        Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
                         <ComboBox ItemsSource="{Binding FasteningHeads}" SelectedItem="{Binding NewFasteningHead}" Margin="0,0,0,6"/>
                         <UniformGrid Columns="2">
-                            <Button x:Name="AddBoltButton" Content="Add Bolt" Command="{Binding AddBoltPointCommand}" Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,3,0"/>
-                            <Button Content="Remove Bolt" Command="{Binding RemoveBoltPointCommand}" Style="{StaticResource DangerButtonStyle}" Margin="3,0,0,0"/>
+                            <Button x:Name="AddBoltButton" Content="Add Bolt"
+                                Command="{Binding AddBoltPointCommand}"
+                                Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,3,0"/>
+                            <Button Content="Remove Bolt"
+                                Command="{Binding RemoveBoltPointCommand}"
+                                Style="{StaticResource DangerButtonStyle}" Margin="3,0,0,0"/>
                         </UniformGrid>
                     </StackPanel>
-                    <ScrollViewer Grid.Row="3" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel Margin="0,0,12,0">
-                        <TextBlock Text="{Binding SelectedPoint.Name}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,4"/>
-                        <TextBlock Text="{Binding HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
-                                   Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap"/>
-                        <ui:TeachingMotionView/>
-                        <Button Content="Return from Pickup" Command="{Binding ReturnFromPickupCommand}" Margin="0,6,0,0"
-                                Style="{StaticResource SecondaryButtonStyle}"
+                    <ScrollViewer Grid.Row="3" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto"
+                        HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="0,0,12,0">
+                            <TextBlock Text="{Binding SelectedPoint.Name}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                            <TextBlock Text="{Binding HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
+                                Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap"/>
+                            <ui:TeachingMotionView/>
+                            <Button Content="Return from Pickup"
+                                Command="{Binding ReturnFromPickupCommand}"
+                                Margin="0,6,0,0" Style="{StaticResource SecondaryButtonStyle}"
                                 ToolTip="Raise Z to Safe Z, then raise Head 1. XY and vacuum remain unchanged."
                                 Visibility="{Binding BoltPresetEditorVisible, Converter={StaticResource BoolToVis}}"/>
-                    </StackPanel>
+                        </StackPanel>
                     </ScrollViewer>
                 </Grid>
             </Border>
             <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="8"
-                    Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
+                Visibility="{Binding IsInspectionSelected, Converter={StaticResource BoolToVis}}">
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
                     <TabControl SelectedIndex="{Binding SelectedCameraTab}">
                         <TabItem Header="Teaching / Inspect">
                             <Grid Margin="0,8,0,0">
@@ -96,16 +117,20 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Content="Add Current Image" Command="{Binding CaptureCarrierImageCommand}" Margin="0,0,6,6"
-                                            Style="{StaticResource PrimaryButtonStyle}"
-                                            ToolTip="Jog while watching live, stop, then save a fresh FOV image and current XY. Live view stays on."/>
-                                    <Button Content="Move &amp; Inspect" Command="{Binding CaptureInspectionCommand}"
-                                            Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"/>
-                                    <Button Content="Reinspect" Command="{Binding ReinspectImageCommand}"
-                                            Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"
-                                            ToolTip="Inspect the last captured image, or the selected saved FOV. Does not move axes."/>
-                                    <Button Content="Collect Bolt Images" Command="{Binding CollectBoltImagesCommand}"
-                                            Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"/>
+                                    <Button Content="Add Current Image"
+                                        Command="{Binding CaptureCarrierImageCommand}"
+                                        Margin="0,0,6,6" Style="{StaticResource PrimaryButtonStyle}"
+                                        ToolTip="Jog while watching live, stop, then save a fresh FOV image and current XY. Live view stays on."/>
+                                    <Button Content="Move &amp; Inspect"
+                                        Command="{Binding CaptureInspectionCommand}"
+                                        Style="{StaticResource PrimaryButtonStyle}" Margin="0,0,6,6"/>
+                                    <Button Content="Reinspect"
+                                        Command="{Binding ReinspectImageCommand}"
+                                        Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"
+                                        ToolTip="Inspect the last captured image, or the selected saved FOV. Does not move axes."/>
+                                    <Button Content="Collect Bolt Images"
+                                        Command="{Binding CollectBoltImagesCommand}"
+                                        Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,6,6"/>
                                 </WrapPanel>
                                 <Border Grid.Row="1" Background="{StaticResource ImageBackgroundBrush}">
                                     <ui:ImageTeachingView SourceRegion="{Binding Preview.Region}" SourceOverlay="{Binding Preview.Overlay}">
@@ -121,46 +146,61 @@
                                         </ui:ImageTeachingView.Style>
                                     </ui:ImageTeachingView>
                                 </Border>
-                                <TextBlock Grid.Row="2" Text="{Binding Preview.Result}" TextWrapping="Wrap"
-                                           Margin="0,8,0,0" FontSize="16" FontWeight="SemiBold"/>
+                                <TextBlock Grid.Row="2"
+                                    Text="{Binding Preview.Result}"
+                                    TextWrapping="Wrap" Margin="0,8,0,0" FontSize="16" FontWeight="SemiBold"/>
                                 <WrapPanel Grid.Row="3" Margin="0,8,0,0">
                                     <TextBlock Text="Saved FOV / ROI" VerticalAlignment="Center" Margin="0,0,8,6"/>
-                                    <ComboBox x:Name="SavedFovComboBox" ItemsSource="{Binding CarrierImages}" SelectedItem="{Binding SelectedFov}" MinWidth="120" Margin="0,0,12,6">
+                                    <ComboBox x:Name="SavedFovComboBox"
+                                        ItemsSource="{Binding CarrierImages}"
+                                        SelectedItem="{Binding SelectedFov}"
+                                        MinWidth="120" Margin="0,0,12,6">
                                         <ComboBox.ItemTemplate>
                                             <DataTemplate DataType="{x:Type ui:CarrierImageTileView}">
-                                                <TextBlock Text="{Binding Number, StringFormat=FOV {0}}"/>
+                                                <TextBlock Text="{Binding Metadata.Number, StringFormat=FOV {0}}"/>
                                             </DataTemplate>
                                         </ComboBox.ItemTemplate>
                                     </ComboBox>
                                     <TextBlock Text="Resolution (mm/px)" VerticalAlignment="Center" Margin="0,0,6,6"/>
-                                    <TextBox Text="{Binding MillimetersPerPixel, UpdateSourceTrigger=LostFocus}" Width="80" Margin="0,0,8,6"
-                                             IsEnabled="{Binding CanEditInspectionRecipe}"/>
-                                    <Button Content="Apply ROI" Command="{Binding TeachFovRegionCommand}" CommandParameter="{Binding FovRegion}"
-                                            Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,6"
-                                            ToolTip="Save this ROI for the selected bolt or Data Matrix. Bolt coordinates use the entered resolution; captured XY does not change."/>
-                                    <Button Content="Clear Images" Command="{Binding ClearCarrierImagesCommand}" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,6"/>
-                                    <Button x:Name="ReadDataMatrixButton" Content="Read Data Matrix" Command="{Binding ReadDataMatrixCommand}"
-                                            Style="{StaticResource SecondaryButtonStyle}" Margin="6,0,0,6"
-                                            ToolTip="Read the ROI on the saved image. Does not move axes or stop live view."
-                                            Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}"/>
+                                    <TextBox Text="{Binding MillimetersPerPixel, UpdateSourceTrigger=LostFocus}"
+                                        Width="80" Margin="0,0,8,6"
+                                        IsEnabled="{Binding CanEditInspectionRecipe}"/>
+                                    <Button Content="Apply ROI"
+                                        Command="{Binding TeachFovRegionCommand}"
+                                        CommandParameter="{Binding FovRegion}"
+                                        Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,6"
+                                        ToolTip="Save this ROI for the selected bolt or Data Matrix. Bolt coordinates use the entered resolution; captured XY does not change."/>
+                                    <Button Content="Clear Images"
+                                        Command="{Binding ClearCarrierImagesCommand}"
+                                        Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,0,6"/>
+                                    <Button x:Name="ReadDataMatrixButton" Content="Read Data Matrix"
+                                        Command="{Binding ReadDataMatrixCommand}"
+                                        Style="{StaticResource SecondaryButtonStyle}" Margin="6,0,0,6"
+                                        ToolTip="Read the ROI on the saved image. Does not move axes or stop live view."
+                                        Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}"/>
                                 </WrapPanel>
-                                <ui:ImageTeachingView x:Name="FovImageView" Grid.Row="4" Source="{Binding SelectedFov.Image}"
-                                                      SourceRegion="{Binding FovRegion}" RegionCommand="{Binding DrawFovRegionCommand}"
-                                                      ShowCrosshair="False"
-                                                      Cursor="Cross" ToolTip="Drag one ROI. Without a ready teaching target, it remains unsaved until Apply ROI. Esc cancels the drag."/>
+                                <ui:ImageTeachingView x:Name="FovImageView" Grid.Row="4"
+                                    Source="{Binding SelectedFov.Image}"
+                                    SourceRegion="{Binding FovRegion}"
+                                    RegionCommand="{Binding DrawFovRegionCommand}"
+                                    ShowCrosshair="False" Cursor="Cross"
+                                    ToolTip="Drag one ROI. Without a ready teaching target, it remains unsaved until Apply ROI. Esc cancels the drag."/>
                                 <StackPanel Grid.Row="5" Margin="0,8,0,0">
-                                    <StackPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}" Margin="0,0,0,6">
+                                    <StackPanel Visibility="{Binding IsDataMatrixSelected, Converter={StaticResource BoolToVis}}"
+                                        Margin="0,0,0,6">
                                         <TextBlock Text="Data Matrix · saved FOV / ROI" FontWeight="SemiBold"/>
-                                        <TextBox x:Name="DataMatrixResultBox" Text="{Binding DataMatrixResult, Mode=OneWay}" IsReadOnly="True"
-                                                 TextWrapping="Wrap" FontSize="16" Margin="0,4,0,0"/>
+                                        <TextBox x:Name="DataMatrixResultBox"
+                                            Text="{Binding DataMatrixResult, Mode=OneWay}"
+                                            IsReadOnly="True" TextWrapping="Wrap" FontSize="16" Margin="0,4,0,0"/>
                                     </StackPanel>
                                     <TextBlock Text="Drag ROI on the saved image" TextWrapping="Wrap" Margin="0,0,0,4"/>
                                     <TextBlock Text="{Binding FovRoiLabel}" TextWrapping="Wrap"/>
-                                    <TextBlock Text="Bolt: ROI center sets its coordinate. Data Matrix: read only this ROI. Both return to the original capture XY." TextWrapping="Wrap"
-                                               Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                    <TextBlock
+                                        Text="Bolt: ROI center sets its coordinate. Data Matrix: read only this ROI. Both return to the original capture XY."
+                                        TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                                     <TextBlock Margin="0,4,0,0" Foreground="{StaticResource TextMutedBrush}">
-                                        <Run Text="Capture XY · "/><Run Text="{Binding SelectedFov.Center.X, StringFormat={}{0:F3}}"/>
-                                        <Run Text=", "/><Run Text="{Binding SelectedFov.Center.Y, StringFormat={}{0:F3}}"/>
+                                        <Run Text="Capture XY · "/><Run Text="{Binding SelectedFov.Metadata.Center.X, StringFormat={}{0:F3}}"/>
+                                        <Run Text=", "/><Run Text="{Binding SelectedFov.Metadata.Center.Y, StringFormat={}{0:F3}}"/>
                                         <Run Text=" mm · Drawing saves when the selected target is ready"/>
                                     </TextBlock>
                                 </StackPanel>
@@ -171,89 +211,91 @@
                                 <StackPanel Margin="0,0,12,0">
                                     <TextBlock Text="Camera / Inspection" Style="{StaticResource PanelTitleStyle}" Margin="0,12,0,0"/>
                                     <Grid Margin="0,12,0,0" IsEnabled="{Binding CanEditInspectionRecipe}">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="0.7*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <Grid.Resources>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
-                                <Setter Property="VerticalAlignment" Value="Center"/>
-                                <Setter Property="TextWrapping" Value="Wrap"/>
-                                <Setter Property="Margin" Value="0,0,8,8"/>
-                            </Style>
-                            <Style TargetType="TextBox" BasedOn="{StaticResource FieldTextBoxStyle}">
-                                <Setter Property="Margin" Value="0,0,0,8"/>
-                            </Style>
-                        </Grid.Resources>
-                        <TextBlock Text="Draw one ROI on each saved FOV image." Grid.Row="0" Grid.ColumnSpan="2"/>
-                        <TextBlock Text="Minimum Mask (%)" Grid.Row="1"/>
-                        <TextBox x:Name="InspectionMaskRatioInput" Grid.Row="1" Grid.Column="1"
-                                 IsEnabled="{Binding Preview.IsBolt}"
-                                 Text="{Binding Preview.MinimumMaskPercent, StringFormat={}{0:G6}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
-                                 ToolTip="Required percentage of ROI pixels. Applies immediately without another camera capture."/>
-                        <TextBlock Text="Exposure (us)" Grid.Row="2"/>
-                        <TextBox x:Name="InspectionExposureInput" Grid.Row="2" Grid.Column="1"
-                                 Text="{Binding InspectionRecipe.ExposureMicroseconds, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="Applies on the next capture or live preview start."/>
-                        <TextBlock Text="Gain" Grid.Row="3"/>
-                        <TextBox x:Name="InspectionGainInput" Grid.Row="3" Grid.Column="1"
-                                 Text="{Binding InspectionRecipe.Gain, UpdateSourceTrigger=PropertyChanged}"/>
-                        <TextBlock Text="Light Level" Grid.Row="4"/>
-                        <TextBox x:Name="InspectionLightInput" Grid.Row="4" Grid.Column="1"
-                                 Text="{Binding InspectionRecipe.LightLevel, UpdateSourceTrigger=PropertyChanged}"
-                                 ToolTip="0 to 255. Applies on the next capture or live preview start."/>
-                    </Grid>
-                                    <TextBlock Text="Exposure, gain and light apply on the next capture or Live start. Save Recipe to keep changes."
-                                               TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0"/>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="0.7*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.Resources>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                <Setter Property="VerticalAlignment" Value="Center"/>
+                                                <Setter Property="TextWrapping" Value="Wrap"/>
+                                                <Setter Property="Margin" Value="0,0,8,8"/>
+                                            </Style>
+                                            <Style TargetType="TextBox" BasedOn="{StaticResource FieldTextBoxStyle}">
+                                                <Setter Property="Margin" Value="0,0,0,8"/>
+                                            </Style>
+                                        </Grid.Resources>
+                                        <TextBlock Text="Draw one ROI on each saved FOV image." Grid.Row="0" Grid.ColumnSpan="2"/>
+                                        <TextBlock Text="Minimum Mask (%)" Grid.Row="1"/>
+                                        <TextBox x:Name="InspectionMaskRatioInput" Grid.Row="1" Grid.Column="1"
+                                            IsEnabled="{Binding Preview.IsBolt}"
+                                            Text="{Binding Preview.MinimumMaskPercent, StringFormat={}{0:G6}, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
+                                            ToolTip="Required percentage of ROI pixels. Applies immediately without another camera capture."/>
+                                        <TextBlock Text="Exposure (us)" Grid.Row="2"/>
+                                        <TextBox x:Name="InspectionExposureInput" Grid.Row="2" Grid.Column="1"
+                                            Text="{Binding InspectionRecipe.ExposureMicroseconds, UpdateSourceTrigger=PropertyChanged}"
+                                            ToolTip="Applies on the next capture or live preview start."/>
+                                        <TextBlock Text="Gain" Grid.Row="3"/>
+                                        <TextBox x:Name="InspectionGainInput" Grid.Row="3" Grid.Column="1"
+                                            Text="{Binding InspectionRecipe.Gain, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <TextBlock Text="Light Level" Grid.Row="4"/>
+                                        <TextBox x:Name="InspectionLightInput" Grid.Row="4" Grid.Column="1"
+                                            Text="{Binding InspectionRecipe.LightLevel, UpdateSourceTrigger=PropertyChanged}"
+                                            ToolTip="0 to 255. Applies on the next capture or live preview start."/>
+                                    </Grid>
+                                    <TextBlock
+                                        Text="Exposure, gain and light apply on the next capture or Live start. Save Recipe to keep changes."
+                                        TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0"/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
                     </TabControl>
-                    <TextBlock Grid.Row="1" Text="{Binding CameraError}" TextWrapping="Wrap"
-                               Foreground="{StaticResource AccentRedBrush}" Margin="4"/>
+                    <TextBlock Grid.Row="1"
+                        Text="{Binding CameraError}"
+                        TextWrapping="Wrap" Foreground="{StaticResource AccentRedBrush}" Margin="4"/>
                 </Grid>
             </Border>
             <Border Padding="12">
                 <Border.Style>
                     <Style TargetType="Border" BasedOn="{StaticResource CardStyle}">
-                        <Setter Property="Grid.Column" Value="2"/><Setter Property="Grid.ColumnSpan" Value="3"/>
+                        <Setter Property="Grid.Column" Value="2"/>
+                        <Setter Property="Grid.ColumnSpan" Value="3"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsInspectionSelected}" Value="True">
-                                <Setter Property="Grid.Column" Value="4"/><Setter Property="Grid.ColumnSpan" Value="1"/>
+                                <Setter Property="Grid.Column" Value="4"/>
+                                <Setter Property="Grid.ColumnSpan" Value="1"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
                 <Grid>
-                    <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
                     <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IoStatusTemplate}"/>
-                    <StackPanel Grid.Row="1" Visibility="{Binding BoltPresetEditorVisible, Converter={StaticResource BoolToVis}}"
-                                IsEnabled="{Binding CanEditInspectionRecipe}">
+                    <StackPanel Grid.Row="1"
+                        Visibility="{Binding BoltPresetEditorVisible, Converter={StaticResource BoolToVis}}"
+                        IsEnabled="{Binding CanEditInspectionRecipe}">
                         <TextBlock Text="Bolt presets" FontWeight="SemiBold" Margin="0,12,0,4"/>
-                        <StackPanel Orientation="Horizontal"
-                                    Margin="0,6,0,0"
-                                    Visibility="{Binding BoltPresetEditorVisible,
-                                                         Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="PCB" VerticalAlignment="Center"
-                                       Foreground="{StaticResource TextMutedBrush}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock Text="PCB" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
                             <TextBox Text="{Binding BoltRecipe.PcbPreset, UpdateSourceTrigger=PropertyChanged}"
-                                      FontSize="11" Width="36" Margin="4,0,10,0"/>
-                            <TextBlock Text="IPM 1" VerticalAlignment="Center"
-                                       Foreground="{StaticResource TextMutedBrush}"/>
+                                FontSize="11" Width="36" Margin="4,0,10,0"/>
+                            <TextBlock Text="IPM 1" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
                             <TextBox Text="{Binding BoltRecipe.IpmSeatingPreset, UpdateSourceTrigger=PropertyChanged}"
-                                      FontSize="11" Width="36" Margin="4,0,10,0"/>
-                            <TextBlock Text="IPM 2" VerticalAlignment="Center"
-                                       Foreground="{StaticResource TextMutedBrush}"/>
+                                FontSize="11" Width="36" Margin="4,0,10,0"/>
+                            <TextBlock Text="IPM 2" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
                             <TextBox Text="{Binding BoltRecipe.IpmFinalPreset, UpdateSourceTrigger=PropertyChanged}"
-                                      FontSize="11" Width="36" Margin="4,0,0,0"/>
+                                FontSize="11" Width="36" Margin="4,0,0,0"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>

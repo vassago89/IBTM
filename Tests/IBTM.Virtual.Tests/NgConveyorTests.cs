@@ -313,7 +313,7 @@ public sealed class NgConveyorTests
             io,
             new NgConveyorSettings { AlarmCarrierCount = alarmCarrierCount, },
             shuttleFeedback);
-        var shuttle = new NgShuttle(io, conveyor, shuttleFeedback, new TestNgCarrierTransferFeedback(io));
+        var shuttle = new NgShuttle(io, conveyor, shuttleFeedback, new NgCarrierTransfer(io));
         io.Initialize();
         return new TestSystem(io, conveyor, shuttle);
     }

@@ -1,26 +1,25 @@
 <Window x:Class="IBTM.UI.MainWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:ui="clr-namespace:IBTM.UI"
-        xmlns:training="clr-namespace:IBTM.Inspection.Training;assembly=IBTM.Inspection.Training"
-        mc:Ignorable="d"
-        d:DataContext="{d:DesignInstance Type=ui:MainViewModel, IsDesignTimeCreatable=False}"
-        Title="IBTM - Inline Assembly Control"
-        Width="1920"
-        Height="1080"
-        Icon="{StaticResource AppIcon}"
-        ResizeMode="CanResize"
-        WindowState="Maximized"
-        WindowStartupLocation="CenterScreen"
-        UseLayoutRounding="True"
-        SnapsToDevicePixels="True"
-        TextOptions.TextFormattingMode="Display"
-        TextOptions.TextRenderingMode="ClearType"
-        FontFamily="Segoe UI Variable Text, Segoe UI"
-        Background="{StaticResource AppBgBrush}">
-
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="clr-namespace:IBTM.UI"
+    xmlns:training="clr-namespace:IBTM.Inspection.Training;assembly=IBTM.Inspection.Training"
+    mc:Ignorable="d"
+    d:DataContext="{d:DesignInstance Type=ui:MainViewModel, IsDesignTimeCreatable=False}"
+    Title="IBTM - Inline Assembly Control"
+    Width="1920"
+    Height="1080"
+    Icon="{StaticResource AppIcon}"
+    ResizeMode="CanResize"
+    WindowState="Maximized"
+    WindowStartupLocation="CenterScreen"
+    UseLayoutRounding="True"
+    SnapsToDevicePixels="True"
+    TextOptions.TextFormattingMode="Display"
+    TextOptions.TextRenderingMode="ClearType"
+    FontFamily="Segoe UI Variable Text, Segoe UI"
+    Background="{StaticResource AppBgBrush}">
     <Window.Resources>
         <DataTemplate DataType="{x:Type ui:OperationViewModel}">
             <ui:OperationView/>
@@ -40,9 +39,7 @@
         <DataTemplate DataType="{x:Type training:BoltTrainingViewModel}">
             <training:BoltTrainingView/>
         </DataTemplate>
-        <Style x:Key="SidebarToolButtonStyle"
-               TargetType="Button"
-               BasedOn="{StaticResource SecondaryButtonStyle}">
+        <Style x:Key="SidebarToolButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
             <Setter Property="Padding" Value="12,6"/>
             <Setter Property="Height" Value="36"/>
             <Setter Property="Margin" Value="8,6,8,0"/>
@@ -65,35 +62,26 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <Border Grid.Column="0"
-                Background="{StaticResource SidebarBgBrush}"
-                BorderThickness="0,0,1,0"
-                BorderBrush="{StaticResource DividerBrush}">
+        <Border Grid.Column="0" Background="{StaticResource SidebarBgBrush}" BorderThickness="0,0,1,0"
+            BorderBrush="{StaticResource DividerBrush}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0"
-                        Padding="20,20,20,16"
-                        BorderBrush="{StaticResource DividerBrush}"
-                        BorderThickness="0,0,0,1">
-                    <TextBlock Text="IBTM"
-                               FontSize="19"
-                               FontWeight="Bold"
-                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                <Border Grid.Row="0" Padding="20,20,20,16" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
+                    <TextBlock Text="IBTM" FontSize="19" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
                 </Border>
 
                 <StackPanel Grid.Row="1" Margin="0,8">
                     <Button Content="{Binding Source={x:Static ui:AppPage.Operation}, Converter={StaticResource EnumDescriptionConverter}}"
-                                 Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.Operation}">
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="{x:Static ui:AppPage.Operation}">
                         <Button.Style>
-                            <Style TargetType="Button"
-                                   BasedOn="{StaticResource NavButtonStyle}">
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedPage}"
-                                                 Value="{x:Static ui:AppPage.Operation}">
+                                    <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.Operation}">
                                         <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -101,15 +89,15 @@
                         </Button.Style>
                     </Button>
 
-                    <Button Content="{Binding Source={x:Static ui:AppPage.SupplyTeaching}, Converter={StaticResource EnumDescriptionConverter}}"
-                                 Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.SupplyTeaching}"
-                                 Margin="0,12,0,0">
+                    <Button
+                        Content="{Binding Source={x:Static ui:AppPage.SupplyTeaching}, Converter={StaticResource EnumDescriptionConverter}}"
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="{x:Static ui:AppPage.SupplyTeaching}"
+                        Margin="0,12,0,0">
                         <Button.Style>
-                            <Style TargetType="Button"
-                                   BasedOn="{StaticResource NavButtonStyle}">
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedPage}"
-                                                 Value="{x:Static ui:AppPage.SupplyTeaching}">
+                                    <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.SupplyTeaching}">
                                         <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -117,14 +105,14 @@
                         </Button.Style>
                     </Button>
 
-                    <Button Content="{Binding Source={x:Static ui:AppPage.StationTeaching}, Converter={StaticResource EnumDescriptionConverter}}"
-                                 Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.StationTeaching}">
+                    <Button
+                        Content="{Binding Source={x:Static ui:AppPage.StationTeaching}, Converter={StaticResource EnumDescriptionConverter}}"
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="{x:Static ui:AppPage.StationTeaching}">
                         <Button.Style>
-                            <Style TargetType="Button"
-                                   BasedOn="{StaticResource NavButtonStyle}">
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedPage}"
-                                                 Value="{x:Static ui:AppPage.StationTeaching}">
+                                    <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.StationTeaching}">
                                         <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -132,14 +120,14 @@
                         </Button.Style>
                     </Button>
 
-                    <Button Content="{Binding Source={x:Static ui:AppPage.BoltTraining}, Converter={StaticResource EnumDescriptionConverter}}"
-                                 Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.BoltTraining}">
+                    <Button
+                        Content="{Binding Source={x:Static ui:AppPage.BoltTraining}, Converter={StaticResource EnumDescriptionConverter}}"
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="{x:Static ui:AppPage.BoltTraining}">
                         <Button.Style>
-                            <Style TargetType="Button"
-                                   BasedOn="{StaticResource NavButtonStyle}">
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedPage}"
-                                                 Value="{x:Static ui:AppPage.BoltTraining}">
+                                    <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.BoltTraining}">
                                         <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -148,13 +136,12 @@
                     </Button>
 
                     <Button Content="{Binding Source={x:Static ui:AppPage.Settings}, Converter={StaticResource EnumDescriptionConverter}}"
-                                 Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.Settings}">
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="{x:Static ui:AppPage.Settings}">
                         <Button.Style>
-                            <Style TargetType="Button"
-                                   BasedOn="{StaticResource NavButtonStyle}">
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedPage}"
-                                                 Value="{x:Static ui:AppPage.Settings}">
+                                    <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.Settings}">
                                         <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -162,15 +149,15 @@
                         </Button.Style>
                     </Button>
 
-                    <Button Content="{Binding Source={x:Static ui:AppPage.ManualHardware}, Converter={StaticResource EnumDescriptionConverter}}"
-                                 Command="{Binding NavigateCommand}" CommandParameter="{x:Static ui:AppPage.ManualHardware}"
-                                 Margin="0,12,0,0">
+                    <Button
+                        Content="{Binding Source={x:Static ui:AppPage.ManualHardware}, Converter={StaticResource EnumDescriptionConverter}}"
+                        Command="{Binding NavigateCommand}"
+                        CommandParameter="{x:Static ui:AppPage.ManualHardware}"
+                        Margin="0,12,0,0">
                         <Button.Style>
-                            <Style TargetType="Button"
-                                   BasedOn="{StaticResource NavButtonStyle}">
+                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding SelectedPage}"
-                                                 Value="{x:Static ui:AppPage.ManualHardware}">
+                                    <DataTrigger Binding="{Binding SelectedPage}" Value="{x:Static ui:AppPage.ManualHardware}">
                                         <Setter Property="Tag" Value="Selected"/>
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -178,32 +165,21 @@
                         </Button.Style>
                     </Button>
 
-                    <Button Content="INPUTS"
-                            Margin="8,8,8,0"
-                            Style="{StaticResource SidebarToolButtonStyle}"
-                            Click="OnOpenInputs"/>
+                    <Button Content="INPUTS" Margin="8,8,8,0" Style="{StaticResource SidebarToolButtonStyle}" Click="OnOpenInputs"/>
 
-                    <Button Content="OUTPUTS"
-                            Style="{StaticResource SidebarToolButtonStyle}"
-                            IsEnabled="{Binding OutputsWindowEnabled}"
-                            ToolTip="Open in MANUAL only. Individual controls remain safety-interlocked."
-                            ToolTipService.ShowOnDisabled="True"
-                            Click="OnOpenOutputs"/>
+                    <Button Content="OUTPUTS" Style="{StaticResource SidebarToolButtonStyle}"
+                        IsEnabled="{Binding OutputsWindowEnabled}"
+                        ToolTip="Open in MANUAL only. Individual controls remain safety-interlocked." ToolTipService.ShowOnDisabled="True"
+                        Click="OnOpenOutputs"/>
 
-                    <Button Content="MOTION"
-                            Style="{StaticResource SidebarToolButtonStyle}"
-                            ToolTip="Axis numbers, positions and feedback. Controls remain safety-interlocked."
-                            Click="OnOpenMotion"/>
+                    <Button Content="MOTION" Style="{StaticResource SidebarToolButtonStyle}"
+                        ToolTip="Axis numbers, positions and feedback. Controls remain safety-interlocked." Click="OnOpenMotion"/>
 
-                    <Button Content="ADC TEST"
-                            Style="{StaticResource SidebarToolButtonStyle}"
-                            IsEnabled="{Binding AdcProtocolEnabled}"
-                            Click="OnOpenAdcProtocol"/>
-                    <Button Content="LOGS"
-                            Style="{StaticResource SidebarToolButtonStyle}"
-                            Click="OnOpenLogs"/>
+                    <Button Content="ADC TEST" Style="{StaticResource SidebarToolButtonStyle}"
+                        IsEnabled="{Binding AdcProtocolEnabled}"
+                        Click="OnOpenAdcProtocol"/>
+                    <Button Content="LOGS" Style="{StaticResource SidebarToolButtonStyle}" Click="OnOpenLogs"/>
                 </StackPanel>
-
             </Grid>
         </Border>
 
@@ -214,9 +190,7 @@
                 <RowDefinition Height="64"/>
             </Grid.RowDefinitions>
 
-            <Border Background="{StaticResource PanelBgBrush}"
-                    BorderBrush="{StaticResource DividerBrush}"
-                    BorderThickness="0,0,0,1">
+            <Border Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1">
                 <Grid Margin="18,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -228,38 +202,32 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Orientation="Horizontal"
-                                VerticalAlignment="Center">
-                        <Border Tag="{Binding Operation.MachineDisplayState}"
-                                Style="{StaticResource MachineStateBadgeStyle}">
-                            <TextBlock Text="{Binding Operation.MachineDisplayState,
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Tag="{Binding Operation.MachineDisplayState}" Style="{StaticResource MachineStateBadgeStyle}">
+                            <TextBlock
+                                Text="{Binding Operation.MachineDisplayState,
                                                      Converter={StaticResource EnumDescriptionConverter}}"
-                                       Foreground="{StaticResource TextPrimaryBrush}"
-                                       FontSize="16"
-                                       FontWeight="SemiBold"/>
+                                Foreground="{StaticResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold"/>
                         </Border>
-                        <TextBlock Text="{Binding Operation.Alarm,
+                        <TextBlock
+                            Text="{Binding Operation.Alarm,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
-                                   ToolTip="{Binding Operation.AlarmDetail}"
-                                   Margin="10,0,0,0"
-                                   VerticalAlignment="Center"
-                                   Foreground="{StaticResource AccentRedBrush}"
-                                   FontSize="16"
-                                   FontWeight="SemiBold"
-                                   Visibility="{Binding Operation.HasAlarm,
+                            ToolTip="{Binding Operation.AlarmDetail}"
+                            Margin="10,0,0,0" VerticalAlignment="Center" Foreground="{StaticResource AccentRedBrush}" FontSize="16"
+                            FontWeight="SemiBold"
+                            Visibility="{Binding Operation.HasAlarm,
                                                         Converter={StaticResource BoolToVis}}"/>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="2"
-                                Orientation="Horizontal"
-                                VerticalAlignment="Center">
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                         <Border x:Name="ModeBadge" Width="90" Margin="0,0,8,0">
                             <Border.Style>
                                 <Style TargetType="Border" BasedOn="{StaticResource StateBadgeStyle}">
                                     <Setter Property="BorderThickness" Value="1"/>
                                     <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
                                     <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
-                                    <Setter Property="ToolTip" Value="Hardware selector · ON = MANUAL / OFF = AUTO. Change the mode with the physical switch."/>
+                                    <Setter Property="ToolTip"
+                                        Value="Hardware selector · ON = MANUAL / OFF = AUTO. Change the mode with the physical switch."/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Operation.State.Display.AutoMode}" Value="True">
                                             <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
@@ -274,15 +242,13 @@
                                 </Style>
                             </Border.Style>
                             <TextBlock Text="{Binding Operation.ModeText}"
-                                       FontSize="13" FontWeight="Bold"
-                                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                                FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Foreground" Value="{StaticResource AppBgBrush}"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Operation.State.Display.Available}" Value="False">
-                                                <Setter Property="Foreground"
-                                                        Value="{StaticResource TextMutedBrush}"/>
+                                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -291,56 +257,40 @@
                         </Border>
                         <Border>
                             <Border.Style>
-                                <Style TargetType="Border"
-                                       BasedOn="{StaticResource StateBadgeStyle}">
-                                    <Setter Property="BorderBrush"
-                                            Value="{StaticResource AccentAmberBrush}"/>
+                                <Style TargetType="Border" BasedOn="{StaticResource StateBadgeStyle}">
+                                    <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Environment}"
-                                                     Value="{x:Static ui:MachineEnvironmentDisplay.Physical}">
+                                            Value="{x:Static ui:MachineEnvironmentDisplay.Physical}">
                                             <Setter Property="Opacity" Value="0.55"/>
-                                            <Setter Property="BorderBrush"
-                                                    Value="{StaticResource CardBorderBrush}"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </Border.Style>
-                            <TextBlock Text="{Binding Environment,
+                            <TextBlock
+                                Text="{Binding Environment,
                                                      Converter={StaticResource EnumDescriptionConverter}}"
-                                       Style="{StaticResource MapHintStyle}"/>
+                                Style="{StaticResource MapHintStyle}"/>
                         </Border>
-                        <Border Style="{StaticResource StateBadgeStyle}"
-                                Margin="8,0,0,0"
-                                BorderBrush="{StaticResource AccentAmberBrush}"
-                                Visibility="{Binding Operation.SafetyBypass,
+                        <Border Style="{StaticResource StateBadgeStyle}" Margin="8,0,0,0" BorderBrush="{StaticResource AccentAmberBrush}"
+                            Visibility="{Binding Operation.SafetyBypass,
                                                      Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="SAFETY BYPASS"
-                                       Foreground="{StaticResource AccentAmberBrush}"
-                                       FontSize="11"
-                                       FontWeight="SemiBold"/>
+                            <TextBlock Text="SAFETY BYPASS" Foreground="{StaticResource AccentAmberBrush}" FontSize="11"
+                                FontWeight="SemiBold"/>
                         </Border>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="4"
-                                Orientation="Horizontal"
-                                VerticalAlignment="Center">
-                        <TextBlock Text="RECIPE"
-                                   Style="{StaticResource SectionHeaderStyle}"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,8,0"/>
+                    <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="RECIPE" Style="{StaticResource SectionHeaderStyle}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBlock Text="{Binding RecipeEditor.ActiveName}"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                   FontSize="14"
-                                   FontWeight="SemiBold"
-                                   VerticalAlignment="Center"
-                                   MaxWidth="180"
-                                   TextTrimming="CharacterEllipsis"
-                                   ToolTip="{Binding RecipeEditor.ActiveName}">
+                            Foreground="{StaticResource TextPrimaryBrush}" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"
+                            MaxWidth="180" TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding RecipeEditor.ActiveName}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding RecipeToolsVisible}"
-                                                     Value="True">
+                                        <DataTrigger Binding="{Binding RecipeToolsVisible}" Value="True">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -348,18 +298,17 @@
                             </TextBlock.Style>
                         </TextBlock>
                         <StackPanel Orientation="Horizontal"
-                                    IsEnabled="{Binding RecipeEditingEnabled}"
-                                    Visibility="{Binding RecipeToolsVisible,
+                            IsEnabled="{Binding RecipeEditingEnabled}"
+                            Visibility="{Binding RecipeToolsVisible,
                                                          Converter={StaticResource BoolToVis}}">
-                            <TextBox Text="{Binding RecipeEditor.Name,
+                            <TextBox
+                                Text="{Binding RecipeEditor.Name,
                                                    UpdateSourceTrigger=PropertyChanged}"
-                                     Width="200"
-                                     Margin="0,0,6,0">
+                                Width="200" Margin="0,0,6,0">
                             </TextBox>
                             <Button Command="{Binding RecipeEditor.SaveCommand}"
-                                    ToolTip="Save this recipe, including inspection thresholds. Training images, labels and model are saved separately."
-                                    Padding="10,5"
-                                    Margin="0,0,6,0">
+                                ToolTip="Save this recipe, including inspection thresholds. Training images, labels and model are saved separately."
+                                Padding="10,5" Margin="0,0,6,0">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                                         <Setter Property="Content" Value="Save Recipe"/>
@@ -373,31 +322,22 @@
                             </Button>
                             <StackPanel Orientation="Horizontal">
                                 <Button Content="New"
-                                        Command="{Binding RecipeEditor.NewCommand}"
-                                        Style="{StaticResource SecondaryButtonStyle}"
-                                        Padding="10,5"
-                                        Margin="0,0,4,0"/>
-                                <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}"
-                                          Width="156"
-                                          SelectionChanged="RecipeFile_Selected"/>
+                                    Command="{Binding RecipeEditor.NewCommand}"
+                                    Style="{StaticResource SecondaryButtonStyle}" Padding="10,5" Margin="0,0,4,0"/>
+                                <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" Width="156" SelectionChanged="RecipeFile_Selected"/>
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="6"
-                                Orientation="Horizontal"
-                                VerticalAlignment="Center">
+                    <StackPanel Grid.Column="6" Orientation="Horizontal" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                            <Ellipse Tag="{Binding Operation.State.Display.ServoPowerOn}"
-                                     Style="{StaticResource SetupLedStyle}"/>
+                            <Ellipse Tag="{Binding Operation.State.Display.ServoPowerOn}" Style="{StaticResource SetupLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
-                                    <Style TargetType="TextBlock"
-                                           BasedOn="{StaticResource IndicatorTextStyle}">
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="SERVO OFF"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.State.Display.ServoPowerOn}"
-                                                         Value="True">
+                                            <DataTrigger Binding="{Binding Operation.State.Display.ServoPowerOn}" Value="True">
                                                 <Setter Property="Text" Value="SERVO ON"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -406,16 +346,13 @@
                             </TextBlock>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                            <Ellipse Tag="{Binding Operation.State.Display.Homed}"
-                                     Style="{StaticResource SetupLedStyle}"/>
+                            <Ellipse Tag="{Binding Operation.State.Display.Homed}" Style="{StaticResource SetupLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
-                                    <Style TargetType="TextBlock"
-                                           BasedOn="{StaticResource IndicatorTextStyle}">
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="NOT HOMED"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.State.Display.Homed}"
-                                                         Value="True">
+                                            <DataTrigger Binding="{Binding Operation.State.Display.Homed}" Value="True">
                                                 <Setter Property="Text" Value="HOMED"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -424,16 +361,13 @@
                             </TextBlock>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,16,0">
-                            <Ellipse Tag="{Binding Operation.State.Display.EmergencyStopReleased}"
-                                     Style="{StaticResource SafetyLedStyle}"/>
+                            <Ellipse Tag="{Binding Operation.State.Display.EmergencyStopReleased}" Style="{StaticResource SafetyLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
-                                    <Style TargetType="TextBlock"
-                                           BasedOn="{StaticResource IndicatorTextStyle}">
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="E-STOP PRESSED"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.State.Display.EmergencyStopReleased}"
-                                                         Value="True">
+                                            <DataTrigger Binding="{Binding Operation.State.Display.EmergencyStopReleased}" Value="True">
                                                 <Setter Property="Text" Value="E-STOP OK"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -442,17 +376,14 @@
                             </TextBlock>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,16,0"
-                                    ToolTip="Door contacts: ON = CLOSED / OFF = OPEN. All six door inputs must be ON.">
-                            <Ellipse Tag="{Binding Operation.State.Display.DoorClosed}"
-                                     Style="{StaticResource SafetyLedStyle}"/>
+                            ToolTip="Door contacts: ON = CLOSED / OFF = OPEN. All six door inputs must be ON.">
+                            <Ellipse Tag="{Binding Operation.State.Display.DoorClosed}" Style="{StaticResource SafetyLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
-                                    <Style TargetType="TextBlock"
-                                           BasedOn="{StaticResource IndicatorTextStyle}">
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="DOORS OPEN"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.State.Display.DoorClosed}"
-                                                         Value="True">
+                                            <DataTrigger Binding="{Binding Operation.State.Display.DoorClosed}" Value="True">
                                                 <Setter Property="Text" Value="DOORS CLOSED"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -461,16 +392,13 @@
                             </TextBlock>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Tag="{Binding Operation.State.Display.AirPressureOk}"
-                                     Style="{StaticResource SafetyLedStyle}"/>
+                            <Ellipse Tag="{Binding Operation.State.Display.AirPressureOk}" Style="{StaticResource SafetyLedStyle}"/>
                             <TextBlock>
                                 <TextBlock.Style>
-                                    <Style TargetType="TextBlock"
-                                           BasedOn="{StaticResource IndicatorTextStyle}">
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource IndicatorTextStyle}">
                                         <Setter Property="Text" Value="AIR LOW"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operation.State.Display.AirPressureOk}"
-                                                         Value="True">
+                                            <DataTrigger Binding="{Binding Operation.State.Display.AirPressureOk}" Value="True">
                                                 <Setter Property="Text" Value="AIR OK"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -489,77 +417,65 @@
                 </Grid.RowDefinitions>
                 <StackPanel>
                     <TextBlock Text="{Binding ResetError}"
-                               Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
+                        Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
                     <TextBlock Text="{Binding NavigationError}"
-                               Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
-                    <TextBlock x:Name="RecipeError" Text="{Binding RecipeEditor.Error}"
-                               Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"
-                               ToolTip="Your edits remain in memory. Resolve the storage problem, then retry the recipe operation."/>
-                    <TextBlock x:Name="ImageCollectionError" Text="{Binding ImageCollector.Error}"
-                               Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentAmberBrush}"
-                               ToolTip="Inspection continues. Resolve the storage problem, then Apply the collection mode in Bolt Training to resume."/>
+                        Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"/>
+                    <TextBlock x:Name="RecipeError"
+                        Text="{Binding RecipeEditor.Error}"
+                        Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentRedBrush}"
+                        ToolTip="Your edits remain in memory. Resolve the storage problem, then retry the recipe operation."/>
+                    <TextBlock x:Name="ImageCollectionError"
+                        Text="{Binding ImageCollector.Error}"
+                        Style="{StaticResource NotificationTextStyle}" Foreground="{StaticResource AccentAmberBrush}"
+                        ToolTip="Inspection continues. Resolve the storage problem, then Apply the collection mode in Bolt Training to resume."/>
                 </StackPanel>
-                <Grid Grid.Row="1"
-                            IsEnabled="{Binding CurrentPageEnabled}">
-                    <ContentPresenter
-                            Content="{Binding CurrentPage}"/>
+                <Grid Grid.Row="1" IsEnabled="{Binding CurrentPageEnabled}">
+                    <ContentPresenter Content="{Binding CurrentPage}"/>
                 </Grid>
             </Grid>
 
-            <Border Grid.Row="2"
-                    Background="{StaticResource PanelBgBrush}"
-                    BorderBrush="{StaticResource DividerBrush}"
-                    BorderThickness="0,1,0,0">
+            <Border Grid.Row="2" Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}"
+                BorderThickness="0,1,0,0">
                 <Grid Margin="16,0">
-                    <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
                         <StackPanel.Style>
                             <Style TargetType="StackPanel">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                                 <Style.Triggers>
                                     <MultiDataTrigger>
                                         <MultiDataTrigger.Conditions>
-                                            <Condition Binding="{Binding OperationPageSelected}"
-                                                       Value="True"/>
-                                            <Condition Binding="{Binding Operation.StartBlocked}"
-                                                       Value="True"/>
+                                            <Condition Binding="{Binding OperationPageSelected}" Value="True"/>
+                                            <Condition Binding="{Binding Operation.StartBlocked}" Value="True"/>
                                         </MultiDataTrigger.Conditions>
                                         <Setter Property="Visibility" Value="Visible"/>
                                     </MultiDataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </StackPanel.Style>
-                        <Ellipse Width="10" Height="10"
-                                 Margin="0,0,8,0"
-                                 Fill="{StaticResource AccentAmberBrush}"/>
-                        <TextBlock Text="{Binding Operation.StartBlock,
+                        <Ellipse Width="10" Height="10" Margin="0,0,8,0" Fill="{StaticResource AccentAmberBrush}"/>
+                        <TextBlock
+                            Text="{Binding Operation.StartBlock,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
-                                   VerticalAlignment="Center"
-                                   Foreground="{StaticResource AccentAmberBrush}"
-                                   FontSize="15"
-                                   FontWeight="SemiBold"/>
+                            VerticalAlignment="Center" Foreground="{StaticResource AccentAmberBrush}" FontSize="15" FontWeight="SemiBold"/>
                     </StackPanel>
 
-                    <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal"
-                                    Visibility="{Binding OperationPageSelected,
+                            Visibility="{Binding OperationPageSelected,
                                                          Converter={StaticResource BoolToVis}}">
                             <StackPanel Margin="0,0,18,0" VerticalAlignment="Center">
                                 <CheckBox x:Name="RepeatMode" Content="REPEAT (DRY RUN)"
-                                          ToolTip="Run repeat in TEACHING (MANUAL) mode. Normal production requires AUTO."
-                                          IsChecked="{Binding Operation.State.RepeatEnabled}"
-                                          IsEnabled="{Binding Operation.State.Display.SetupEditingEnabled}"/>
+                                    ToolTip="Run repeat in TEACHING (MANUAL) mode. Normal production requires AUTO."
+                                    IsChecked="{Binding Operation.State.RepeatEnabled}"
+                                    IsEnabled="{Binding Operation.State.Display.SetupEditingEnabled}"/>
                                 <TextBlock Text="{Binding Operation.State.Display.RepeatCycles, StringFormat='Cycles: {0}'}"
-                                           Foreground="{StaticResource TextSecondaryBrush}"
-                                           Visibility="{Binding Operation.State.RepeatEnabled, Converter={StaticResource BoolToVis}}"/>
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Visibility="{Binding Operation.State.RepeatEnabled, Converter={StaticResource BoolToVis}}"/>
                             </StackPanel>
                             <Button Command="{Binding Operation.RaiseCylindersCommand}"
-                                    IsEnabled="{Binding Operation.State.Display.CanRaiseCylinders}"
-                                    ToolTip="Raise cylinders for the homing units only. Does not move or home axes."
-                                    MinWidth="156" Height="40" Margin="0,0,6,0">
+                                IsEnabled="{Binding Operation.State.Display.CanRaiseCylinders}"
+                                ToolTip="Raise cylinders for the homing units only. Does not move or home axes." MinWidth="156" Height="40"
+                                Margin="0,0,6,0">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                         <Setter Property="Content" Value="RAISE CYLINDERS"/>
@@ -572,20 +488,16 @@
                                 </Button.Style>
                             </Button>
                             <Button Content="HOME ALL"
-                                    Command="{Binding Operation.HomeCommand}"
-                                    IsEnabled="{Binding Operation.State.Display.CanHome}"
-                                    ToolTip="{Binding Operation.State.Display.HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
-                                    ToolTipService.ShowOnDisabled="True"
-                                    MinWidth="104"
-                                    Height="40"
-                                    Margin="0,0,6,0">
+                                Command="{Binding Operation.HomeCommand}"
+                                IsEnabled="{Binding Operation.State.Display.CanHome}"
+                                ToolTip="{Binding Operation.State.Display.HomeBlock, Converter={StaticResource EnumDescriptionConverter}}"
+                                ToolTipService.ShowOnDisabled="True" MinWidth="104" Height="40" Margin="0,0,6,0">
                                 <Button.Style>
-                                    <Style TargetType="Button"
-                                           BasedOn="{StaticResource PrimaryButtonStyle}">
+                                    <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
                                         <Setter Property="Visibility" Value="Collapsed"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding Operation.MachineDisplayState}"
-                                                         Value="{x:Static ui:MachineDisplayState.HomeRequired}">
+                                                Value="{x:Static ui:MachineDisplayState.HomeRequired}">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
                                         </Style.Triggers>
@@ -593,36 +505,27 @@
                                 </Button.Style>
                             </Button>
                             <Button Content="STOP HOME"
-                                    Command="{Binding Operation.StopHomeCommand}"
-                                    MinWidth="104"
-                                    Height="40"
-                                    Margin="0,0,6,0"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    Visibility="{Binding Operation.HomeCommand.IsRunning,
+                                Command="{Binding Operation.StopHomeCommand}"
+                                MinWidth="104" Height="40" Margin="0,0,6,0" Style="{StaticResource SecondaryButtonStyle}"
+                                Visibility="{Binding Operation.HomeCommand.IsRunning,
                                                          Converter={StaticResource BoolToVis}}"/>
                             <Button Content="START"
-                                    Command="{Binding Operation.StartCommand}"
-                                    IsEnabled="{Binding Operation.State.Display.CanStart}"
-                                    ToolTip="{Binding Operation.StartBlock,
+                                Command="{Binding Operation.StartCommand}"
+                                IsEnabled="{Binding Operation.State.Display.CanStart}"
+                                ToolTip="{Binding Operation.StartBlock,
                                                       Converter={StaticResource EnumDescriptionConverter}}"
-                                    MinWidth="144"
-                                    Height="48"
-                                    Margin="0,0,8,0">
+                                MinWidth="144" Height="48" Margin="0,0,8,0">
                                 <Button.Style>
-                                    <Style TargetType="Button"
-                                           BasedOn="{StaticResource SecondaryButtonStyle}">
+                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                         <Style.Triggers>
                                             <MultiDataTrigger>
                                                 <MultiDataTrigger.Conditions>
                                                     <Condition Binding="{Binding Operation.MachineDisplayState}"
-                                                               Value="{x:Static ui:MachineDisplayState.Ready}"/>
-                                                    <Condition Binding="{Binding Operation.StartBlocked}"
-                                                               Value="False"/>
+                                                        Value="{x:Static ui:MachineDisplayState.Ready}"/>
+                                                    <Condition Binding="{Binding Operation.StartBlocked}" Value="False"/>
                                                 </MultiDataTrigger.Conditions>
-                                                <Setter Property="Background"
-                                                        Value="{StaticResource AccentBlueBrush}"/>
-                                                <Setter Property="BorderBrush"
-                                                        Value="{StaticResource AccentBlueBrush}"/>
+                                                <Setter Property="Background" Value="{StaticResource AccentBlueBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                                                 <Setter Property="Foreground" Value="White"/>
                                             </MultiDataTrigger>
                                         </Style.Triggers>
@@ -631,10 +534,9 @@
                             </Button>
                         </StackPanel>
                         <Button x:Name="AlarmResetButton"
-                                Command="{Binding ResetCommand}"
-                                ToolTip="Silences the buzzer even while an alarm remains. Hardware recovery runs only when stopped and safety conditions allow; it may enable servos but does not home axes or start automatic operation."
-                                ToolTipService.ShowOnDisabled="True"
-                                MinWidth="120" Height="48" Margin="0,0,8,0">
+                            Command="{Binding ResetCommand}"
+                            ToolTip="Silences the buzzer even while an alarm remains. Hardware recovery runs only when stopped and safety conditions allow; it may enable servos but does not home axes or start automatic operation."
+                            ToolTipService.ShowOnDisabled="True" MinWidth="120" Height="48" Margin="0,0,8,0">
                             <Button.Style>
                                 <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                     <Setter Property="Content" Value="RESET"/>
@@ -647,19 +549,14 @@
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <Button Content="STOP"
-                                Command="{Binding Operation.StopCommand}"
-                                MinWidth="144"
-                                Height="48">
+                        <Button Content="STOP" Command="{Binding Operation.StopCommand}" MinWidth="144" Height="48">
                             <Button.Style>
-                                <Style TargetType="Button"
-                                       BasedOn="{StaticResource SecondaryButtonStyle}">
+                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Operation.MachineDisplayState}"
-                                                     Value="{x:Static ui:MachineDisplayState.Running}">
+                                            Value="{x:Static ui:MachineDisplayState.Running}">
                                             <Setter Property="Background" Value="{StaticResource AttentionBackgroundBrush}"/>
-                                            <Setter Property="BorderBrush"
-                                                    Value="{StaticResource AccentAmberBrush}"/>
+                                            <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                                             <Setter Property="Foreground" Value="White"/>
                                         </DataTrigger>
                                     </Style.Triggers>

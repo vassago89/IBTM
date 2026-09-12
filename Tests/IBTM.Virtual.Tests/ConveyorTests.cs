@@ -416,7 +416,7 @@ public sealed class ConveyorTests
         var source = new BoltFasteningWork(ConveyorStation.BoltFastening(io));
         var destination = new InspectionWork(
             ConveyorStation.Inspection(io),
-            new TestNgCarrierTransferFeedback(io));
+            new NgCarrierTransfer(io));
         io.Initialize();
         io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
@@ -505,7 +505,7 @@ public sealed class ConveyorTests
         var boltWork = new BoltFasteningWork(ConveyorStation.BoltFastening(io));
         var inspectionWork = new InspectionWork(
             ConveyorStation.Inspection(io),
-            new TestNgCarrierTransferFeedback(io));
+            new NgCarrierTransfer(io));
         var conveyor = new MainConveyor(
             io,
             new ConveyorSettings { CarrierStopDelaySeconds = 0 },
@@ -562,7 +562,7 @@ public sealed class ConveyorTests
         _ = new VirtualMachine(virtualIo, []);
         var inspectionWork = new InspectionWork(
             ConveyorStation.Inspection(io),
-            new TestNgCarrierTransferFeedback(io));
+            new NgCarrierTransfer(io));
         var ngTransferEnabled = true;
         var conveyor = new MainConveyor(
             io,
@@ -734,7 +734,7 @@ public sealed class ConveyorTests
             new OperationCancellation(),
             placementWork,
             boltWork,
-            new InspectionWork(ConveyorStation.Inspection(io), new TestNgCarrierTransferFeedback(io)),
+            new InspectionWork(ConveyorStation.Inspection(io), new NgCarrierTransfer(io)),
             routeInspectionToNg: () => false);
 
         io.Initialize();
@@ -778,7 +778,7 @@ public sealed class ConveyorTests
         var placementWork = new PcbPlacementWork(ConveyorStation.PcbPlacement(io));
         var inspectionWork = new InspectionWork(
             ConveyorStation.Inspection(io),
-            new TestNgCarrierTransferFeedback(io));
+            new NgCarrierTransfer(io));
         var conveyor = new MainConveyor(
             io,
             new ConveyorSettings { CarrierStopDelaySeconds = 0 },
@@ -854,7 +854,7 @@ public sealed class ConveyorTests
             new OperationCancellation(),
             placementWork,
             boltWork,
-            new InspectionWork(ConveyorStation.Inspection(io), new TestNgCarrierTransferFeedback(io)),
+            new InspectionWork(ConveyorStation.Inspection(io), new NgCarrierTransfer(io)),
             routeInspectionToNg: () => false);
 
         io.Initialize();
@@ -911,7 +911,7 @@ public sealed class ConveyorTests
 
         var work = new InspectionWork(
             ConveyorStation.Inspection(io),
-            new TestNgCarrierTransferFeedback(io),
+            new NgCarrierTransfer(io),
             isEnabled: () => false);
 
         Assert.True(work.CarrierSeated);
@@ -946,7 +946,7 @@ public sealed class ConveyorTests
             new BoltFasteningWork(ConveyorStation.BoltFastening(io), () => boltFasteningEnabled),
             new InspectionWork(
                 ConveyorStation.Inspection(io),
-                new TestNgCarrierTransferFeedback(io),
+                new NgCarrierTransfer(io),
                 () => inspectionEnabled),
             routeInspectionToNg: () => false);
     }

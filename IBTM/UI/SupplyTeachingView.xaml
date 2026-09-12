@@ -1,15 +1,14 @@
 <UserControl x:Class="IBTM.UI.SupplyTeachingView"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:ui="clr-namespace:IBTM.UI"
-             xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
-             mc:Ignorable="d"
-             d:DataContext="{d:DesignInstance Type=ui:SupplyTeachingViewModel, IsDesignTimeCreatable=False}"
-             Foreground="{StaticResource TextPrimaryBrush}"
-             Background="{StaticResource AppBgBrush}">
-
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="clr-namespace:IBTM.UI"
+    xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
+    mc:Ignorable="d"
+    d:DataContext="{d:DesignInstance Type=ui:SupplyTeachingViewModel, IsDesignTimeCreatable=False}"
+    Foreground="{StaticResource TextPrimaryBrush}"
+    Background="{StaticResource AppBgBrush}">
     <UserControl.Resources>
         <CollectionViewSource x:Key="GroupedPoints" Source="{Binding Points}">
             <CollectionViewSource.GroupDescriptions>
@@ -24,9 +23,7 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <TextBlock Text="Supply Teaching"
-                   Style="{StaticResource TitleStyle}"
-                   Margin="0,0,0,10"/>
+        <TextBlock Text="Supply Teaching" Style="{StaticResource TitleStyle}" Margin="0,0,0,10"/>
 
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
@@ -43,24 +40,23 @@
 
             <Border Grid.Column="0" Style="{StaticResource CardStyle}" Padding="16">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <!-- Match the scrollbar gutter used by Station Teaching. -->
-                <StackPanel Margin="0,0,20,8">
-                    <TextBlock Text="{Binding ActiveMotionGroup, Converter={StaticResource EnumDescriptionConverter}}"
-                               Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,16"/>
-                    <ui:TeachingMotionView/>
-                    <StackPanel Margin="0,12,0,0">
-                        <TextBlock Text="{Binding Source={x:Static device:TeachingTarget.SafeZ}, Converter={StaticResource EnumDescriptionConverter}}"
-                                   Foreground="{StaticResource TextSecondaryBrush}"/>
-                        <TextBlock Text="{Binding HorizontalZ, StringFormat={}{0:F3} mm}"
-                                   Foreground="{StaticResource TextSecondaryBrush}" FontFamily="Cascadia Mono, Consolas"/>
+                    <!-- Match the scrollbar gutter used by Station Teaching. -->
+                    <StackPanel Margin="0,0,20,8">
+                        <TextBlock Text="{Binding ActiveMotionGroup, Converter={StaticResource EnumDescriptionConverter}}"
+                            Style="{StaticResource PanelTitleStyle}" Margin="0,0,0,16"/>
+                        <ui:TeachingMotionView/>
+                        <StackPanel Margin="0,12,0,0">
+                            <TextBlock
+                                Text="{Binding Source={x:Static device:TeachingTarget.SafeZ}, Converter={StaticResource EnumDescriptionConverter}}"
+                                Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Text="{Binding HorizontalZ, StringFormat={}{0:F3} mm}"
+                                Foreground="{StaticResource TextSecondaryBrush}" FontFamily="Cascadia Mono, Consolas"/>
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
                 </ScrollViewer>
             </Border>
 
-            <Border Grid.Column="2"
-                    Style="{StaticResource CardStyle}"
-                    Padding="16">
+            <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="16">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -69,33 +65,27 @@
                     </Grid.RowDefinitions>
 
                     <StackPanel Margin="0,0,0,14">
-                        <TextBlock Text="Positions"
-                                   Style="{StaticResource PanelTitleStyle}"/>
+                        <TextBlock Text="Positions" Style="{StaticResource PanelTitleStyle}"/>
                     </StackPanel>
 
                     <ui:TeachingPointList Grid.Row="1"
-                             ItemsSource="{Binding Source={StaticResource GroupedPoints}}"
-                             SelectedItem="{Binding SelectedPoint}"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             ItemContainerStyle="{StaticResource FlatListItemStyle}"
-                             HorizontalContentAlignment="Stretch">
+                        ItemsSource="{Binding Source={StaticResource GroupedPoints}}"
+                        SelectedItem="{Binding SelectedPoint}"
+                        Background="Transparent" BorderThickness="0" ItemContainerStyle="{StaticResource FlatListItemStyle}"
+                        HorizontalContentAlignment="Stretch">
                         <ListBox.GroupStyle>
                             <GroupStyle>
                                 <GroupStyle.HeaderTemplate>
                                     <DataTemplate DataType="{x:Type CollectionViewGroup}">
                                         <TextBlock Text="{Binding Name, Converter={StaticResource EnumDescriptionConverter}}"
-                                                   Style="{StaticResource SectionHeaderStyle}"
-                                                   Margin="2,14,0,8"/>
+                                            Style="{StaticResource SectionHeaderStyle}" Margin="2,14,0,8"/>
                                     </DataTemplate>
                                 </GroupStyle.HeaderTemplate>
                             </GroupStyle>
                         </ListBox.GroupStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type ui:TeachingPoint}">
-                                <Border BorderBrush="{StaticResource DividerBrush}"
-                                        BorderThickness="0,0,0,1"
-                                        Padding="10,7">
+                                <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,0,0,1" Padding="10,7">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -103,17 +93,13 @@
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Grid.Column="0"
-                                                   Text="{Binding Name}"
-                                                   FontSize="13"
-                                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                                   VerticalAlignment="Center"/>
+                                            Text="{Binding Name}"
+                                            FontSize="13" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
                                         <TextBlock Grid.Column="1"
-                                                   Text="{Binding PositionLabel}"
-                                                   FontFamily="Cascadia Mono, Consolas"
-                                                   FontSize="13"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                                   HorizontalAlignment="Right"
-                                                   VerticalAlignment="Center"/>
+                                            Text="{Binding PositionLabel}"
+                                            FontFamily="Cascadia Mono, Consolas" FontSize="13"
+                                            Foreground="{StaticResource TextSecondaryBrush}" HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"/>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
@@ -122,15 +108,13 @@
 
                     <StackPanel Grid.Row="2" Margin="0,14,0,0">
                         <WrapPanel HorizontalAlignment="Right">
-                        <Button Content="Apply &amp; Save Buffer"
+                            <Button Content="Apply &amp; Save Buffer"
                                 Command="{Binding SaveBufferSetupCommand}"
-                                Style="{StaticResource PrimaryButtonStyle}"
-                                MinWidth="140"/>
+                                Style="{StaticResource PrimaryButtonStyle}" MinWidth="140"/>
                         </WrapPanel>
                     </StackPanel>
                 </Grid>
             </Border>
         </Grid>
-
     </Grid>
 </UserControl>

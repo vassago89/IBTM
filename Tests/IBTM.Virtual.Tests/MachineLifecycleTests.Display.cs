@@ -82,7 +82,7 @@ public sealed partial class MachineLifecycleTests
                         }
 
                         foreach (var output in teaching.TeachingOutputs.Values)
-                            _ = teaching.SetOutputOnCommand.CanExecute(output);
+                            _ = teaching.ToggleOutputCommand.CanExecute(output);
                     }
 
                     for (var index = 0; index < 1000; index++)

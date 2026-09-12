@@ -1,57 +1,40 @@
-# Confirmed IO
+# IO 번호와 극성 확인
 
-Source: `TMED2_IO_MAP_260901(S4T 변경사항 기재).xlsx`, including the user's corrections.
-This is the existing machine configuration, not a request for additional IO.
+기준: 2026-09-11. **실행 중 Settings의 저장된 매핑이 우선**이며,
+신규 DB의 기본값은 각 유닛의 `*HardwareSettings.cs`에 있다.
+이전 엑셀 주소 표기는 프로그램의 현재 표시 채널 번호와 혼용하지 않는다.
 
-## Corrections
+## 변경 위치
 
-- DI-146 does not exist. NG P3 and the shuttle carrier use the same DI-142.
-- NG P1/P2 use DI-144/145. Shuttle down/up use DI-140/141.
-- NG eject and eject-complete buttons use DI-149/14A. Emergency stop is separate.
-- Both main and NG emergency stops inhibit all motion in Auto and Teaching.
-- Auto door opening drops motion through the electrical circuit; Teaching permits
-  motion with the doors open. Existing software cancellation observes device state.
-- Both conveyors are IO driven. No conveyor alarm input or Start/Stop button is added.
-- Ignore the escape sensors' "install later" note; keep DI-122/123 in the configured IO.
-- Z axes are brake types. The fastening table cylinder remains excluded.
-- Head 1 is pickup; Head 2 is shooting, regardless of the reversed AXIS IO labels.
+| 대상 | 기본값 소스 |
+| --- | --- |
+| E-Stop, 도어, Air, 램프·부저 | `Shared/IBTM.Device/MachineHardwareSettings.cs` |
+| 메인 벨트·SMEMA | `Stations/IBTM.Conveyor/ConveyorHardwareSettings.cs` |
+| Station 1 | `Stations/IBTM.PcbPlacement/PcbPlacementStationHardwareSettings.cs` |
+| Station 2 | `Stations/IBTM.BoltFastening/BoltFasteningStationHardwareSettings.cs` |
+| Station 3 | `Stations/IBTM.Inspection/InspectionStationHardwareSettings.cs` |
+| NG 픽업·그리퍼 | `Stations/IBTM.Inspection/NgCarrierTransferHardwareSettings.cs` |
+| NG 셔틀 | `Stations/IBTM.NgConveyor/NgShuttleHardwareSettings.cs` |
+| NG 벨트·스토퍼 | `Stations/IBTM.NgConveyor/NgConveyorHardwareSettings.cs` |
 
-## Changed addresses
+화면 번호는 설정에 있는 채널을 10진수로 표시한다.
+AJIN 카드/모듈 내 비트 번호와 프로그램 채널을 비교할 때는
+`Hardware/IBTM.Ajin/AjinController.cs`와 AJIN 입력/출력 모듈 목록까지 확인한다.
 
-| Unit / signal | DI | DO |
-| --- | --- | --- |
-| Supply rotation / unrotated | 104 / 105 | 104 / 105 |
-| Supply gripper closed / open | 106 / 107 | 106 / 107 |
-| Supply IPM fixer forward / backward | 108 / 109 | 108 / 109 |
-| Main conveyor mode | 125 | — |
-| Main conveyor entry / exit | 14B / 14C | — |
-| NG transfer pickup down / up | 13B / 13C | 130 / 131 |
-| NG transfer gripper closed / open | 13D / 13E | 132 / 133 |
-| NG shuttle down / up | 140 / 141 | 134 / 135 |
-| NG shuttle carrier / P3 | 142 | — |
-| NG conveyor mode | 143 | — |
-| NG conveyor P1 / P2 | 144 / 145 | — |
-| NG stopper up / down | 147 / 148 | 136 / 137 |
-| NG run / direction / normal speed | — | 138 / 139 / 13A |
-| NG eject / eject complete button and lamp | 149 / 14A | 13B / 13C |
+## 현재 소스의 의미
 
-Supply 10A/10B are unused. The duplicated "forward/up" text in paired worksheet
-rows does not add actuators; retain the established forward/backward and up/down pairs.
-The conveyor mode inputs are available in IO diagnostics; they do not replace
-the machine mode selector or create new automatic-run conditions.
+- AirPressureHigh 입력 ON은 공압 정상이다. 발생했던 알람의 래치는 별도로 확인한다.
+- 각 스테이션의 BackupPlateDown / StopperDown 출력 ON은 하강 명령이다.
+- MainConveyorForward ON은 메인 벨트 정방향이다. NG는 Reverse 명칭을 쓴다.
+  두 벨트의 Normal Speed 출력은 사용하지 않는다.
+- NgCarrierPickupUp ON은 픽업 상승, NgCarrierGripperOpen ON은 그리퍼 열기다.
+- 현재 셔틀 소스는 `NgShuttleUp` ON을 상승으로 매핑한다.
+  현장 동작이 반대라면 설정과 소스의 출력/피드백 쌍을 함께 대조한다.
+- 출력의 현재 ON/OFF와 실린더가 도착한 위치는 다르다. 완료는 연결된 DI로 확인한다.
+- 피드백 없음은 OFF가 아니라 unknown이다.
 
-## Saved settings
-
-Fresh hardware settings use the current mappings declared by each unit. Saved
-settings are whole-class JSON; startup does not migrate old wiring or overwrite
-saved channel numbers. Older layouts are not converted automatically. Configure
-the current mapping in Settings when starting with a fresh DB. The source workbook
-is unchanged.
-
-## NG behavior
-
-The shuttle feedback owns P3 for the conveyor, transfer, UI and home checks.
-A carrier remains detected through shuttle up/down motion. Virtual transfers it
-onto the lower belt only when the shuttle is down; no second sensor is synthesized.
-At capacity, the raised shuttle retains its carrier while P1 ejects and P2 compacts.
-After operator confirmation, the retained carrier can be lowered and moved forward.
+번호만 바꾸는 작업과 신호 의미/극성을 바꾸는 작업은 다르다.
+후자는 enum 표시명, 출력의 ON/OFF 채널, 대응 입력, 유닛 완료 조건,
+Virtual 동작과 해당 회귀 검사를 같이 확인한다.
+코드 기본값을 바꿔도 이미 저장된 설정은 덮어쓰지 않는다. 매핑 저장 후 재시작한다.
+원본 엑셀 파일과 실장비 DB는 이번 문서 정리에서 수정하지 않았다.

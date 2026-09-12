@@ -209,10 +209,10 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(beforeStep.Y, gantry.Feedback.GetPosition().Y);
 
         var shuttle = teaching.TeachingOutputs[OutputIo.NgShuttleUp];
-        await WaitUntilAsync(() => teaching.SetOutputOffCommand.CanExecute(shuttle));
-        await teaching.SetOutputOffCommand.ExecuteAsync(shuttle);
+        await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(shuttle));
+        await teaching.ToggleOutputCommand.ExecuteAsync(shuttle);
         Assert.True(io.GetInput(InputIo.NgShuttleDown));
-        await teaching.SetOutputOnCommand.ExecuteAsync(shuttle);
+        await teaching.ToggleOutputCommand.ExecuteAsync(shuttle);
         Assert.True(io.GetInput(InputIo.NgShuttleUp));
 
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
@@ -364,40 +364,40 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         var state = services.GetRequiredService<MachineState>();
         var gripper = teaching.TeachingOutputs[OutputIo.PcbSupplyGripperClosed];
-        await WaitUntilAsync(() => !teaching.SetOutputOnCommand.CanExecute(gripper));
+        await WaitUntilAsync(() => !teaching.ToggleOutputCommand.CanExecute(gripper));
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var handler = services.GetRequiredService<PcbSupplyHandler>();
         var rotation = teaching.TeachingOutputs[OutputIo.PcbSupplyRotate];
         await handler.MoveTeachingZAsync(5);
-        await WaitUntilAsync(() => teaching.SetOutputOffCommand.CanExecute(rotation));
-        await teaching.SetOutputOffCommand.ExecuteAsync(rotation);
+        await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(rotation));
+        await teaching.ToggleOutputCommand.ExecuteAsync(rotation);
         Assert.Equal(0, handler.Feedback.GetPosition().Z);
         Assert.Equal(PcbSupplyRotationState.Unrotated, handler.Rotation);
-        await teaching.SetOutputOnCommand.ExecuteAsync(rotation);
+        await teaching.ToggleOutputCommand.ExecuteAsync(rotation);
         await handler.MoveXAsync(80);
-        await WaitUntilAsync(() => !teaching.SetOutputOffCommand.CanExecute(rotation));
+        await WaitUntilAsync(() => !teaching.ToggleOutputCommand.CanExecute(rotation));
         await WaitUntilAsync(() => !teaching.StepCommand.CanExecute(TeachingDirection.ZPlus));
         await handler.MoveXAsync(0);
         io.AutoResponseEnabled = false;
-        await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(gripper));
+        await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(gripper));
 
-        var pending = teaching.SetOutputOnCommand.ExecuteAsync(gripper);
+        var pending = teaching.ToggleOutputCommand.ExecuteAsync(gripper);
         Assert.True(io.GetOutput(gripper.Signal));
         Assert.False(pending.IsCompleted);
-        await WaitUntilAsync(() => !teaching.SetOutputOffCommand.CanExecute(gripper));
+        await WaitUntilAsync(() => !teaching.ToggleOutputCommand.CanExecute(gripper));
         Assert.True(state.IsRunning); // The feedback wait owns a machine operation.
         var feedback = io.GetOutputFeedback(gripper.Signal)!;
         io.SetInput(feedback.OnInput, true);
         Assert.False(pending.IsCompleted); // Both inputs ON is not completion.
         io.SetInput(feedback.OffInput, false);
         await pending.WaitAsync(TimeSpan.FromSeconds(2));
-        await teaching.SetOutputOnCommand.ExecuteAsync(gripper); // ON again is allowed.
+        await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(gripper));
 
         teaching.SelectedPoint = teaching.Points.Last(
             point => point.Position.MotionGroup == MotionGroup.PcbSupply);
         var beforeSelection = handler.Feedback.GetPosition();
-        var releasing = teaching.SetOutputOffCommand.ExecuteAsync(gripper);
+        var releasing = teaching.ToggleOutputCommand.ExecuteAsync(gripper);
         Assert.False(releasing.IsCompleted);
         teaching.SelectNextPointCommand.Execute(null);
         await releasing.WaitAsync(TimeSpan.FromSeconds(2));
@@ -406,10 +406,10 @@ public sealed partial class MachineLifecycleTests
         Assert.False(io.GetOutput(gripper.Signal));
         Assert.True(io.GetInput(feedback.OnInput));
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        await WaitUntilAsync(() => !teaching.SetOutputOnCommand.CanExecute(gripper));
+        await WaitUntilAsync(() => !teaching.ToggleOutputCommand.CanExecute(gripper));
 
         var lift = teaching.TeachingOutputs[OutputIo.PcbPlacementHandlerDown];
-        var lowering = teaching.SetOutputOnCommand.ExecuteAsync(lift);
+        var lowering = teaching.ToggleOutputCommand.ExecuteAsync(lift);
         await teaching.ShutdownAsync().WaitAsync(TimeSpan.FromSeconds(2));
         await lowering;
         Assert.True(io.GetOutput(lift.Signal));
@@ -431,15 +431,15 @@ public sealed partial class MachineLifecycleTests
         Assert.True(state.Ready, state.AlarmDetail);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         var lift = teaching.TeachingOutputs[OutputIo.PcbPlacementHandlerDown];
-        await teaching.SetOutputOnCommand.ExecuteAsync(lift);
+        await teaching.ToggleOutputCommand.ExecuteAsync(lift);
         await WaitUntilAsync(() => !teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
         await WaitUntilAsync(
-            () => !teaching.SetOutputOnCommand.CanExecute(
+            () => !teaching.ToggleOutputCommand.CanExecute(
                 teaching.TeachingOutputs[OutputIo.PcbPlacementHandlerRotate]));
-        await teaching.SetOutputOffCommand.ExecuteAsync(lift);
+        await teaching.ToggleOutputCommand.ExecuteAsync(lift);
         await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
         var ipm = teaching.TeachingOutputs[OutputIo.PcbPlacementIpmDown];
-        await teaching.SetOutputOnCommand.ExecuteAsync(ipm);
+        await teaching.ToggleOutputCommand.ExecuteAsync(ipm);
         await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
 
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
@@ -448,11 +448,11 @@ public sealed partial class MachineLifecycleTests
         foreach (var output in new[] { OutputIo.PickupHeadUp, OutputIo.ShootingHeadUp })
         {
             var head = teaching.TeachingOutputs[output];
-            await teaching.SetOutputOffCommand.ExecuteAsync(head);
+            await teaching.ToggleOutputCommand.ExecuteAsync(head);
             Assert.False(io.GetOutput(output));
             Assert.False(services.GetRequiredService<BoltFasteningGantry>().CanMoveHorizontal);
             await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
-            await teaching.SetOutputOnCommand.ExecuteAsync(head);
+            await teaching.ToggleOutputCommand.ExecuteAsync(head);
             Assert.True(io.GetOutput(output));
             Assert.True(services.GetRequiredService<BoltFasteningGantry>().CanMoveHorizontal);
         }
@@ -460,17 +460,18 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
         var ngLift = teaching.TeachingOutputs[OutputIo.NgCarrierPickupUp];
         settings.Units.NgCarrierTransfer = false;
-        await WaitUntilAsync(() => teaching.SetOutputOffCommand.CanExecute(ngLift));
+        await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(ngLift));
         settings.Units.NgCarrierTransfer = true;
         io.AutoResponseEnabled = false;
-        var pending = teaching.SetOutputOffCommand.ExecuteAsync(ngLift);
+        var pending = teaching.ToggleOutputCommand.ExecuteAsync(ngLift);
         teaching.JogStopCommand.Execute(null);
         await pending.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.False(io.GetOutput(ngLift.Signal));
 
         settings.Options.TimeoutMilliseconds = 50;
-        await teaching.SetOutputOffCommand.ExecuteAsync(ngLift);
+        io.SetOutput(ngLift.Signal, true); // External output change; toggle must read the current DO.
+        await teaching.ToggleOutputCommand.ExecuteAsync(ngLift);
         Assert.Equal(MachineAlarm.NgCarrierTransfer, state.Alarm);
     }
 
@@ -534,11 +535,11 @@ public sealed partial class MachineLifecycleTests
             var stopper = teaching.TeachingOutputs[output];
             Assert.Contains(teaching.TeachingIoGroups.SelectMany(group => group.Outputs),
                 row => row.Output == stopper);
-            await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(stopper));
-            await teaching.SetOutputOnCommand.ExecuteAsync(stopper);
+            await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(stopper));
+            await teaching.ToggleOutputCommand.ExecuteAsync(stopper);
             Assert.True(io.GetInput(down));
             Assert.False(io.GetInput(up));
-            await teaching.SetOutputOffCommand.ExecuteAsync(stopper);
+            await teaching.ToggleOutputCommand.ExecuteAsync(stopper);
             Assert.False(io.GetInput(down));
             Assert.True(io.GetInput(up));
             Assert.All(changed, signal => Assert.Equal(output, signal));
@@ -586,8 +587,8 @@ public sealed partial class MachineLifecycleTests
             teaching.SelectedTeachingUnit = group;
             teaching.SelectedPoint = teaching.FilteredPoints.Single(point => point.Position.Target == target);
             var plate = teaching.TeachingOutputs[output];
-            await WaitUntilAsync(() => teaching.SetOutputOffCommand.CanExecute(plate));
-            await teaching.SetOutputOffCommand.ExecuteAsync(plate);
+            await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(plate));
+            await teaching.ToggleOutputCommand.ExecuteAsync(plate);
             Assert.True(io.GetInput(up));
             Assert.False(io.GetInput(down));
             foreach (var other in stations.Where(station => station.Group != group))
@@ -596,7 +597,7 @@ public sealed partial class MachineLifecycleTests
                 Assert.False(io.GetInput(other.Up));
             }
 
-            await teaching.SetOutputOnCommand.ExecuteAsync(plate);
+            await teaching.ToggleOutputCommand.ExecuteAsync(plate);
             Assert.False(io.GetInput(up));
             Assert.True(io.GetInput(down));
         }
@@ -610,20 +611,20 @@ public sealed partial class MachineLifecycleTests
         Assert.True(state.SupplyInBufferArea);
         await WaitUntilAsync(() => !teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
         var placementPlate = teaching.TeachingOutputs[OutputIo.PcbPlacementBackupPlateDown];
-        await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(placementPlate));
-        await teaching.SetOutputOnCommand.ExecuteAsync(placementPlate);
-        await teaching.SetOutputOffCommand.ExecuteAsync(placementPlate);
+        await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(placementPlate));
+        await teaching.ToggleOutputCommand.ExecuteAsync(placementPlate);
+        await teaching.ToggleOutputCommand.ExecuteAsync(placementPlate);
         supply.SetServo(MotionAxis.X, false);
         Assert.False(state.ManualControlsEnabled);
-        await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(placementPlate));
+        await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(placementPlate));
         io.SetInput(InputIo.AutoMode, false);
-        await WaitUntilAsync(() => !teaching.SetOutputOnCommand.CanExecute(placementPlate));
+        await WaitUntilAsync(() => !teaching.ToggleOutputCommand.CanExecute(placementPlate));
         io.SetInput(InputIo.AutoMode, true);
 
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         settings.Options.TimeoutMilliseconds = 50;
         io.AutoResponseEnabled = false;
-        await teaching.SetOutputOffCommand.ExecuteAsync(
+        await teaching.ToggleOutputCommand.ExecuteAsync(
             teaching.TeachingOutputs[OutputIo.InspectionBackupPlateDown]);
         Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
     }

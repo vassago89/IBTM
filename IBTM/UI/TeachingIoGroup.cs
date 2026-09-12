@@ -10,8 +10,7 @@ public sealed class TeachingIoGroup
     public TeachingIoGroup(
         IoStatus io,
         IReadOnlyDictionary<OutputIo, TeachingOutput> outputs,
-        IAsyncRelayCommand<TeachingOutput> onCommand,
-        IAsyncRelayCommand<TeachingOutput> offCommand)
+        IAsyncRelayCommand<TeachingOutput> toggleCommand)
     {
         Area = io.Area;
         Sensors = io.Sensors;
@@ -20,8 +19,7 @@ public sealed class TeachingIoGroup
                 new TeachingOutputRow(
                     signal,
                     outputs.GetValueOrDefault(signal.Signal),
-                    onCommand,
-                    offCommand))
+                    toggleCommand))
             .ToArray();
     }
 
@@ -33,5 +31,4 @@ public sealed class TeachingIoGroup
 public sealed record TeachingOutputRow(
     IoOutputStatus Io,
     TeachingOutput? Output,
-    IAsyncRelayCommand<TeachingOutput> SetOutputOnCommand,
-    IAsyncRelayCommand<TeachingOutput> SetOutputOffCommand);
+    IAsyncRelayCommand<TeachingOutput> ToggleOutputCommand);

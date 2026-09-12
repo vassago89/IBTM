@@ -1,5 +1,9 @@
 # Machine Layout
 
+> 기구 배치 참고 문서다. 아래의 과거 IO 번호·동작 설명을 현재 제어 사양으로 사용하지 않는다.
+> 현재 주소/극성은 실행 중 Settings와 [IO 안내](IO_MAP.md),
+> 운전·Repeat는 [현장 확인 안내](STATION3_COMMISSIONING.md)를 먼저 확인한다.
+
 This document defines the mechanical groups shown by the operator UI. It is based on
 the component hierarchy read from the TMED2 EASM assembly.
 

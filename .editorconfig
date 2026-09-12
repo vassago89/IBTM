@@ -27,5 +27,5 @@ csharp_style_expression_bodied_indexers = false:suggestion
 csharp_style_expression_bodied_accessors = false:suggestion
 csharp_style_expression_bodied_local_functions = false:suggestion
 
-[*.{csproj,slnx,xaml}]
+[*.{csproj,slnx}]
 indent_size = 2

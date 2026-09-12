@@ -1,14 +1,14 @@
 <UserControl x:Class="IBTM.UI.PcbPlacementView"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:sys="clr-namespace:System;assembly=System.Runtime"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:ui="clr-namespace:IBTM.UI"
-             mc:Ignorable="d"
-             d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
-             Width="566"
-             Height="650">
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="clr-namespace:IBTM.UI"
+    mc:Ignorable="d"
+    d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
+    Width="566"
+    Height="650">
     <UserControl.Resources>
         <Style x:Key="BufferLocatingPinStyle" TargetType="Ellipse">
             <Setter Property="Width" Value="6"/>
@@ -20,77 +20,59 @@
     <Grid>
         <Canvas>
             <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
-                       Text="PCB Supply / Placement"
-                       Style="{StaticResource TitleStyle}"
-                       FontWeight="Bold"/>
+                Text="PCB Supply / Placement" Style="{StaticResource TitleStyle}" FontWeight="Bold"/>
             <Button Canvas.Right="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
-                    Content="RESUME WORK"
-                    Command="{Binding OpenPcbPlacementRecoveryCommand}"
-                    IsEnabled="{Binding PcbPlacementRecoveryAvailable}"
-                    Style="{StaticResource SecondaryButtonStyle}"
-                    MinWidth="92"
-                    Height="30"
-                    Visibility="{Binding PcbPlacementRecoveryAvailable,
+                Content="RESUME WORK"
+                Command="{Binding OpenPcbPlacementRecoveryCommand}"
+                IsEnabled="{Binding PcbPlacementRecoveryAvailable}"
+                Style="{StaticResource SecondaryButtonStyle}" MinWidth="92" Height="30"
+                Visibility="{Binding PcbPlacementRecoveryAvailable,
                                          Converter={StaticResource BoolToVis}}"/>
 
             <StackPanel Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.StatusTop}"
-                        Orientation="Horizontal">
-                <Border Tag="{Binding SupplyDisplayState}"
-                        Style="{StaticResource HandlerStateBadgeStyle}"
-                        Margin="0,0,10,0">
+                Orientation="Horizontal">
+                <Border Tag="{Binding SupplyDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}" Margin="0,0,10,0">
                     <StackPanel>
-                        <TextBlock Text="SUPPLY"
-                                   Style="{StaticResource EquipmentRoleLabelStyle}"
-                                   HorizontalAlignment="Left"/>
-                        <TextBlock Text="{Binding SupplyDisplayState,
+                        <TextBlock Text="SUPPLY" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
+                        <TextBlock
+                            Text="{Binding SupplyDisplayState,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
-                                   Margin="0,4,0,0"
-                                   Style="{StaticResource PrimaryStateTextStyle}"/>
+                            Margin="0,4,0,0" Style="{StaticResource PrimaryStateTextStyle}"/>
                     </StackPanel>
                 </Border>
-                <Border Tag="{Binding PlacementDisplayState}"
-                        Style="{StaticResource HandlerStateBadgeStyle}">
+                <Border Tag="{Binding PlacementDisplayState}" Style="{StaticResource HandlerStateBadgeStyle}">
                     <StackPanel>
-                        <TextBlock Text="PLACEMENT"
-                                   Style="{StaticResource EquipmentRoleLabelStyle}"
-                                   HorizontalAlignment="Left"/>
-                        <TextBlock Text="{Binding PlacementStatus,
+                        <TextBlock Text="PLACEMENT" Style="{StaticResource EquipmentRoleLabelStyle}" HorizontalAlignment="Left"/>
+                        <TextBlock
+                            Text="{Binding PlacementStatus,
                                                   Converter={StaticResource EnumDescriptionConverter}}"
-                                   Margin="0,4,0,0"
-                                   Style="{StaticResource PrimaryStateTextStyle}"/>
+                            Margin="0,4,0,0" Style="{StaticResource PrimaryStateTextStyle}"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
 
-            <TextBlock Canvas.Left="54" Canvas.Top="142"
-                       Width="220"
-                       Text="PCB In"
-                       Style="{StaticResource EquipmentRoleLabelStyle}"/>
+            <TextBlock Canvas.Left="54" Canvas.Top="142" Width="220" Text="PCB In" Style="{StaticResource EquipmentRoleLabelStyle}"/>
 
             <Border Canvas.Left="{x:Static ui:MachinePlan.SupplyRailLeft}" Canvas.Top="{x:Static ui:MachinePlan.SupplyRailTop}"
-                    Width="{x:Static ui:MachinePlan.SupplyRailWidth}" Height="{x:Static ui:MachinePlan.SupplyRailHeight}"
-                    Style="{StaticResource DeviceBodyStyle}">
+                Width="{x:Static ui:MachinePlan.SupplyRailWidth}" Height="{x:Static ui:MachinePlan.SupplyRailHeight}"
+                Style="{StaticResource DeviceBodyStyle}">
                 <Grid Width="{x:Static ui:MachinePlan.SupplyCarrierFrameWidth}" Height="{x:Static ui:MachinePlan.SupplyCarrierHeight}"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center">
-                    <Border Width="{x:Static ui:MachinePlan.SupplyCarrierWidth}"
-                            HorizontalAlignment="Left"
-                            Tag="{Binding Supply.UpstreamCarrierAvailable}">
+                    HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border Width="{x:Static ui:MachinePlan.SupplyCarrierWidth}" HorizontalAlignment="Left"
+                        Tag="{Binding Supply.UpstreamCarrierAvailable}">
                         <Border.Style>
                             <Style TargetType="Border">
-                                <Setter Property="Background"
-                                        Value="{StaticResource EquipBgBrush}"/>
-                                <Setter Property="BorderBrush"
-                                        Value="{StaticResource DividerBrush}"/>
+                                <Setter Property="Background" Value="{StaticResource EquipBgBrush}"/>
+                                <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
                                 <Setter Property="BorderThickness" Value="{x:Static ui:MachinePlan.CarrierBorderThickness}"/>
                                 <Setter Property="CornerRadius" Value="2"/>
                                 <Style.Triggers>
                                     <Trigger Property="Tag">
-                                        <Trigger.Value><sys:Boolean>True</sys:Boolean></Trigger.Value>
-                                        <Setter Property="Background"
-                                                Value="{StaticResource MapActiveBackgroundBrush}"/>
-                                        <Setter Property="BorderBrush"
-                                                Value="{StaticResource CarrierBrush}"/>
+                                        <Trigger.Value>
+                                            <sys:Boolean>True</sys:Boolean>
+                                        </Trigger.Value>
+                                        <Setter Property="Background" Value="{StaticResource MapActiveBackgroundBrush}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource CarrierBrush}"/>
                                     </Trigger>
                                 </Style.Triggers>
                             </Style>
@@ -102,70 +84,43 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Border Style="{StaticResource UnknownPcbFootprintStyle}"/>
-                            <Border Grid.Column="2"
-                                    Style="{StaticResource UnknownPcbFootprintStyle}"/>
+                            <Border Grid.Column="2" Style="{StaticResource UnknownPcbFootprintStyle}"/>
                         </Grid>
                     </Border>
-                    <Ellipse HorizontalAlignment="Right"
-                             VerticalAlignment="Center"
-                             Tag="{Binding Supply.UpstreamCarrierAvailable}"
-                             Style="{StaticResource PresenceLedStyle}"/>
+                    <Ellipse HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Tag="{Binding Supply.UpstreamCarrierAvailable}"
+                        Style="{StaticResource PresenceLedStyle}"/>
                 </Grid>
             </Border>
             <Grid Width="{x:Static ui:MachinePlan.SupplyWidth}" Height="{x:Static ui:MachinePlan.SupplyHeight}"
-                  Visibility="{Binding SupplyPositionKnown, Converter={StaticResource BoolToVis}}"
-                  Panel.ZIndex="20">
+                Visibility="{Binding SupplyPositionKnown, Converter={StaticResource BoolToVis}}"
+                Panel.ZIndex="20">
                 <Grid.RenderTransform>
-                    <TranslateTransform X="{Binding PcbSupplyMapLeft, TargetNullValue=0}"
-                                        Y="{Binding PcbSupplyMapTop, TargetNullValue=0}"/>
+                    <TranslateTransform X="{Binding PcbSupplyMapLeft, TargetNullValue=0}" Y="{Binding PcbSupplyMapTop, TargetNullValue=0}"/>
                 </Grid.RenderTransform>
-                <Grid Width="92" Height="72"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Bottom">
-                    <Border Tag="{Binding Supply.Motion.IsMoving}"
-                            Style="{StaticResource OverheadBodyStyle}"/>
-                    <Grid Width="18" Height="18"
-                          HorizontalAlignment="Center"
-                          VerticalAlignment="Top"
-                          Margin="0,4,0,0">
-                        <Ellipse Width="12" Height="12"
-                                 VerticalAlignment="Top"
-                                 Fill="{StaticResource EquipBgBrush}"
-                                 Stroke="{StaticResource TextMutedBrush}"
-                                 StrokeThickness="2"/>
-                        <Border Width="2" Height="7"
-                                VerticalAlignment="Bottom"
-                                Background="{StaticResource TextMutedBrush}"/>
+                <Grid Width="92" Height="72" HorizontalAlignment="Center" VerticalAlignment="Bottom">
+                    <Border Tag="{Binding Supply.Motion.IsMoving}" Style="{StaticResource OverheadBodyStyle}"/>
+                    <Grid Width="18" Height="18" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,4,0,0">
+                        <Ellipse Width="12" Height="12" VerticalAlignment="Top" Fill="{StaticResource EquipBgBrush}"
+                            Stroke="{StaticResource TextMutedBrush}" StrokeThickness="2"/>
+                        <Border Width="2" Height="7" VerticalAlignment="Bottom" Background="{StaticResource TextMutedBrush}"/>
                     </Grid>
-                    <Border Width="66" Height="20"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Bottom"
-                            Margin="0,0,0,2"
-                            Background="{StaticResource MachineStructureBrush}"
-                            BorderBrush="{StaticResource TextMutedBrush}"
-                            BorderThickness="1"
-                            CornerRadius="2"
-                            Visibility="{Binding PcbSupplyGripperClosed,
+                    <Border Width="66" Height="20" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,2"
+                        Background="{StaticResource MachineStructureBrush}" BorderBrush="{StaticResource TextMutedBrush}"
+                        BorderThickness="1" CornerRadius="2"
+                        Visibility="{Binding PcbSupplyGripperClosed,
                                                  Converter={StaticResource BoolToVis}}"/>
-                    <Grid Width="{StaticResource PcbWidth}"
-                          Height="{StaticResource PcbHeight}"
-                          HorizontalAlignment="Center"
-                          VerticalAlignment="Bottom"
-                          Margin="0,0,0,1"
-                          Visibility="{Binding PcbSupplyPcbDetected,
+                    <Grid Width="{StaticResource PcbWidth}" Height="{StaticResource PcbHeight}" HorizontalAlignment="Center"
+                        VerticalAlignment="Bottom" Margin="0,0,0,1"
+                        Visibility="{Binding PcbSupplyPcbDetected,
                                                Converter={StaticResource BoolToVis}}">
                         <Border Style="{StaticResource PcbFootprintStyle}"/>
-                        <Border Width="22" Height="4"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Top"
-                                Margin="0,2,0,0"
-                                Background="{StaticResource MaterialIpmBrush}"
-                                CornerRadius="1">
+                        <Border Width="22" Height="4" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,2,0,0"
+                            Background="{StaticResource MaterialIpmBrush}" CornerRadius="1">
                             <Border.Style>
                                 <Style TargetType="Border">
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding PcbSupplyRotated}"
-                                                     Value="True">
+                                        <DataTrigger Binding="{Binding PcbSupplyRotated}" Value="True">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -173,124 +128,90 @@
                             </Border.Style>
                         </Border>
                     </Grid>
-                    <Border Tag="{Binding PcbSupplyIpmFixed}"
-                            Style="{StaticResource LeftGripperJawStyle}"/>
-                    <Border Tag="{Binding PcbSupplyIpmFixed}"
-                            Style="{StaticResource RightGripperJawStyle}"/>
+                    <Border Tag="{Binding PcbSupplyIpmFixed}" Style="{StaticResource LeftGripperJawStyle}"/>
+                    <Border Tag="{Binding PcbSupplyIpmFixed}" Style="{StaticResource RightGripperJawStyle}"/>
                 </Grid>
             </Grid>
 
             <Border Canvas.Left="{x:Static ui:MachinePlan.BufferLeft}" Canvas.Top="{x:Static ui:MachinePlan.BufferTop}"
-                    Width="{x:Static ui:MachinePlan.BufferWidth}" Height="{x:Static ui:MachinePlan.BufferHeight}"
-                    Style="{StaticResource BufferStyle}">
-                <Grid Width="104" Height="66"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center">
-                    <Border Background="{StaticResource EquipBgBrush}"
-                            BorderBrush="{StaticResource DividerBrush}"
-                            BorderThickness="2"
-                            CornerRadius="2"/>
+                Width="{x:Static ui:MachinePlan.BufferWidth}" Height="{x:Static ui:MachinePlan.BufferHeight}"
+                Style="{StaticResource BufferStyle}">
+                <Grid Width="104" Height="66" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="2"
+                        CornerRadius="2"/>
                     <Border Style="{StaticResource PcbSlotStyle}"/>
-                    <Border Style="{StaticResource PcbFootprintStyle}"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Visibility="{Binding Buffer.PcbPresent,
+                    <Border Style="{StaticResource PcbFootprintStyle}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        Visibility="{Binding Buffer.PcbPresent,
                                                  Converter={StaticResource BoolToVis}}"/>
-                    <Ellipse HorizontalAlignment="Left"
-                             VerticalAlignment="Top"
-                             Style="{StaticResource BufferLocatingPinStyle}"/>
-                    <Ellipse HorizontalAlignment="Right"
-                             VerticalAlignment="Top"
-                             Style="{StaticResource BufferLocatingPinStyle}"/>
-                    <Ellipse HorizontalAlignment="Left"
-                             VerticalAlignment="Bottom"
-                             Style="{StaticResource BufferLocatingPinStyle}"/>
-                    <Ellipse HorizontalAlignment="Right"
-                             VerticalAlignment="Bottom"
-                             Style="{StaticResource BufferLocatingPinStyle}"/>
+                    <Ellipse HorizontalAlignment="Left" VerticalAlignment="Top" Style="{StaticResource BufferLocatingPinStyle}"/>
+                    <Ellipse HorizontalAlignment="Right" VerticalAlignment="Top" Style="{StaticResource BufferLocatingPinStyle}"/>
+                    <Ellipse HorizontalAlignment="Left" VerticalAlignment="Bottom" Style="{StaticResource BufferLocatingPinStyle}"/>
+                    <Ellipse HorizontalAlignment="Right" VerticalAlignment="Bottom" Style="{StaticResource BufferLocatingPinStyle}"/>
                 </Grid>
             </Border>
 
             <Grid Width="{x:Static ui:MachinePlan.PlacementWidth}" Height="{x:Static ui:MachinePlan.PlacementHeight}"
-                  Visibility="{Binding PlacementPositionKnown, Converter={StaticResource BoolToVis}}"
-                  Panel.ZIndex="21">
+                Visibility="{Binding PlacementPositionKnown, Converter={StaticResource BoolToVis}}"
+                Panel.ZIndex="21">
                 <Grid.RenderTransform>
                     <TranslateTransform X="{Binding PcbPlacementMapLeft, TargetNullValue=0}"
-                                        Y="{Binding PcbPlacementMapTop, TargetNullValue=0}"/>
+                        Y="{Binding PcbPlacementMapTop, TargetNullValue=0}"/>
                 </Grid.RenderTransform>
-                <Grid Width="92" Height="72"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Bottom"
-                      Margin="{x:Static ui:MachinePlan.PlacementToolMargin}">
-                    <Border Tag="{Binding Placement.Motion.IsMoving}"
-                            Style="{StaticResource PlacementBodyStyle}"/>
-                    <Grid Width="24" Height="18"
-                          HorizontalAlignment="Center"
-                          VerticalAlignment="Top"
-                          Margin="0,4,0,0">
-                        <Border Width="20" Height="3"
-                                VerticalAlignment="Top"
-                                Background="{StaticResource TextMutedBrush}"
-                                CornerRadius="1"/>
-                        <Border Width="3" Height="10"
-                                VerticalAlignment="Center"
-                                Background="{StaticResource TextMutedBrush}"/>
-                        <Ellipse Width="9" Height="5"
-                                 VerticalAlignment="Bottom"
-                                 Fill="{StaticResource EquipBgBrush}"
-                                 Stroke="{StaticResource TextMutedBrush}"
-                                 StrokeThickness="1"/>
+                <Grid Width="92" Height="72" HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                    Margin="{x:Static ui:MachinePlan.PlacementToolMargin}">
+                    <Border Tag="{Binding Placement.Motion.IsMoving}" Style="{StaticResource PlacementBodyStyle}"/>
+                    <Grid Width="24" Height="18" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,4,0,0">
+                        <Border Width="20" Height="3" VerticalAlignment="Top" Background="{StaticResource TextMutedBrush}"
+                            CornerRadius="1"/>
+                        <Border Width="3" Height="10" VerticalAlignment="Center" Background="{StaticResource TextMutedBrush}"/>
+                        <Ellipse Width="9" Height="5" VerticalAlignment="Bottom" Fill="{StaticResource EquipBgBrush}"
+                            Stroke="{StaticResource TextMutedBrush}" StrokeThickness="1"/>
                     </Grid>
-                    <Border HorizontalAlignment="Center"
-                            VerticalAlignment="Bottom"
-                            Margin="0"
-                            Style="{StaticResource PcbFootprintStyle}"
-                            Visibility="{Binding PcbPlacementPcbDetected,
+                    <Border HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0" Style="{StaticResource PcbFootprintStyle}"
+                        Visibility="{Binding PcbPlacementPcbDetected,
                                                  Converter={StaticResource BoolToVis}}"/>
-                    <Ellipse Width="9" Height="9"
-                             HorizontalAlignment="Center"
-                             VerticalAlignment="Bottom"
-                             Margin="0,0,0,7"
-                             Fill="{StaticResource EquipBgBrush}"
-                             Stroke="{StaticResource AccentGreenBrush}"
-                             StrokeThickness="2"
-                             Panel.ZIndex="2"
-                             Visibility="{Binding Placement.VacuumDetected,
+                    <Ellipse Width="9" Height="9" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,7"
+                        Fill="{StaticResource EquipBgBrush}" Stroke="{StaticResource AccentGreenBrush}" StrokeThickness="2"
+                        Panel.ZIndex="2"
+                        Visibility="{Binding Placement.VacuumDetected,
                                                   Converter={StaticResource BoolToVis}}"/>
-                    <Border Width="24" Height="6"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Bottom"
-                            Margin="0,0,0,10"
-                            Background="{StaticResource MaterialIpmBrush}"
-                            CornerRadius="1"
-                            Visibility="{Binding PcbPlacementIpmDown,
+                    <Border Width="24" Height="6" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,10"
+                        Background="{StaticResource MaterialIpmBrush}" CornerRadius="1"
+                        Visibility="{Binding PcbPlacementIpmDown,
                                                  Converter={StaticResource BoolToVis}}"/>
-                    <Border Tag="{Binding PcbPlacementIpmGripperClosed}"
-                            Style="{StaticResource LeftGripperJawStyle}"/>
-                    <Border Tag="{Binding PcbPlacementIpmGripperClosed}"
-                            Style="{StaticResource RightGripperJawStyle}"/>
+                    <Border Tag="{Binding PcbPlacementIpmGripperClosed}" Style="{StaticResource LeftGripperJawStyle}"/>
+                    <Border Tag="{Binding PcbPlacementIpmGripperClosed}" Style="{StaticResource RightGripperJawStyle}"/>
                 </Grid>
             </Grid>
 
             <Border Canvas.Left="20" Canvas.Top="292" Width="230" Style="{StaticResource MapIoCardStyle}">
                 <StackPanel>
                     <TextBlock Text="FRONT 1 · PCB SMEMA" Style="{StaticResource MapIoTitleStyle}"/>
-                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                        <TextBlock Text="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].IsOn, Converter={StaticResource SignalTextConverter}}"
-                                   Style="{StaticResource MapIoInputStyle}"/>
-                        <TextBlock Text="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                    <DockPanel Margin="0,0,0,4"
+                        ToolTip="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock
+                            Text="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].IsOn, Converter={StaticResource SignalTextConverter}}"
+                            Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].Address}"
+                            Style="{StaticResource MapIoAddressStyle}"/>
                         <TextBlock Text="DI Available from front" Style="{StaticResource MapIoLabelStyle}"/>
                     </DockPanel>
-                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Outputs[PcbSupplyReadyToFront1].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                        <TextBlock Text="{Binding Signals.Outputs[PcbSupplyReadyToFront1].IsOn, Converter={StaticResource SignalTextConverter}}"
-                                   Style="{StaticResource MapIoOutputStyle}"/>
-                        <TextBlock Text="{Binding Signals.Outputs[PcbSupplyReadyToFront1].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                    <DockPanel Margin="0,0,0,4"
+                        ToolTip="{Binding Signals.Outputs[PcbSupplyReadyToFront1].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock
+                            Text="{Binding Signals.Outputs[PcbSupplyReadyToFront1].IsOn, Converter={StaticResource SignalTextConverter}}"
+                            Style="{StaticResource MapIoOutputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Outputs[PcbSupplyReadyToFront1].Address}"
+                            Style="{StaticResource MapIoAddressStyle}"/>
                         <TextBlock Text="DO Ready to front" Style="{StaticResource MapIoLabelStyle}"/>
                     </DockPanel>
-                    <DockPanel Margin="0,0,0,4" ToolTip="{Binding Signals.Inputs[PcbSupplyPcbDetected].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                        <TextBlock Text="{Binding Signals.Inputs[PcbSupplyPcbDetected].IsOn, Converter={StaticResource SignalTextConverter}}"
-                                   Style="{StaticResource MapIoInputStyle}"/>
-                        <TextBlock Text="{Binding Signals.Inputs[PcbSupplyPcbDetected].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                    <DockPanel Margin="0,0,0,4"
+                        ToolTip="{Binding Signals.Inputs[PcbSupplyPcbDetected].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        <TextBlock
+                            Text="{Binding Signals.Inputs[PcbSupplyPcbDetected].IsOn, Converter={StaticResource SignalTextConverter}}"
+                            Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[PcbSupplyPcbDetected].Address}"
+                            Style="{StaticResource MapIoAddressStyle}"/>
                         <TextBlock Text="DI PCB detected" Style="{StaticResource MapIoLabelStyle}"/>
                     </DockPanel>
                 </StackPanel>

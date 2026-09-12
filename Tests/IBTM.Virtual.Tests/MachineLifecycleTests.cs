@@ -204,8 +204,8 @@ public sealed partial class MachineLifecycleTests
         var shoot = teaching.TeachingOutputs[OutputIo.ShootBolt];
         var outputs = new List<OutputIo>();
         io.OutputChanged += (output, _) => outputs.Add(output);
-        await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(shoot));
-        await teaching.SetOutputOnCommand.ExecuteAsync(shoot).WaitAsync(TimeSpan.FromSeconds(2));
+        await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(shoot));
+        await teaching.ToggleOutputCommand.ExecuteAsync(shoot).WaitAsync(TimeSpan.FromSeconds(2));
         Assert.True(io.GetOutput(OutputIo.ShootBolt));
         Assert.True(state.ManualSetupEnabled);
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
@@ -216,22 +216,22 @@ public sealed partial class MachineLifecycleTests
         Assert.Single(outputs);
 
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
-        await WaitUntilAsync(() => teaching.SetOutputOffCommand.CanExecute(shoot));
-        await teaching.SetOutputOffCommand.ExecuteAsync(shoot);
+        await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(shoot));
+        await teaching.ToggleOutputCommand.ExecuteAsync(shoot);
         Assert.False(io.GetOutput(OutputIo.ShootBolt));
         Assert.All(outputs, output => Assert.Equal(OutputIo.ShootBolt, output));
 
-        await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(shoot));
-        await teaching.SetOutputOnCommand.ExecuteAsync(shoot);
+        await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(shoot));
+        await teaching.ToggleOutputCommand.ExecuteAsync(shoot);
         machine.Stop();
         Assert.False(io.GetOutput(OutputIo.ShootBolt));
 
-        await WaitUntilAsync(() => teaching.SetOutputOnCommand.CanExecute(shoot));
-        await teaching.SetOutputOnCommand.ExecuteAsync(shoot);
+        await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(shoot));
+        await teaching.ToggleOutputCommand.ExecuteAsync(shoot);
         io.SetInput(InputIo.AutoMode, false);
         Assert.False(io.GetOutput(OutputIo.ShootBolt));
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        await WaitUntilAsync(() => !teaching.SetOutputOnCommand.CanExecute(shoot));
+        await WaitUntilAsync(() => !teaching.ToggleOutputCommand.CanExecute(shoot));
     }
 
     [Fact]

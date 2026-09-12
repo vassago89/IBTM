@@ -143,8 +143,7 @@ public partial class SupplyTeachingViewModel : TeachingMotionViewModel
             HomeCommand,
             MoveToHorizontalZCommand,
             MoveToPointCommand,
-            SetOutputOnCommand,
-            SetOutputOffCommand,
+            ToggleOutputCommand,
             TeachCurrentPositionCommand,
             SaveBufferSetupCommand);
     }

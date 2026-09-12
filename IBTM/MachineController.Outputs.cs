@@ -226,17 +226,17 @@ public sealed partial class MachineController
         };
     }
 
-    internal Task RunTeachingOutputAsync(
+    internal Task ToggleTeachingOutputAsync(
         TeachingOutput output,
-        bool value,
         CancellationToken cancellationToken,
         CancellationToken viewCancellation)
     {
-        Task SetOutput(CancellationToken token)
+        Task ToggleOutput(CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
+            var value = !_io.GetOutput(output.Signal);
             if (output.Signal == OutputIo.ShootBolt)
             {
-                token.ThrowIfCancellationRequested();
                 _io.SetOutput(output.Signal, value);
                 return Task.CompletedTask;
             }
@@ -274,7 +274,7 @@ public sealed partial class MachineController
         }
 
         return RunManualAsync(
-            SetOutput,
+            ToggleOutput,
             output.Owner switch
             {
                 HardwareArea.MainConveyor => MachineAlarm.MainConveyor,

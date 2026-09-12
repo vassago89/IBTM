@@ -1,121 +1,62 @@
-# Settings ownership and persistence
+# 설정·레시피 저장
 
-## Ownership
+## 저장 위치와 책임
 
-| Owner | Machine configuration | Product recipe |
+| 데이터 | 위치 | 구현 |
 | --- | --- | --- |
-| Host / Device | Drivers, enabled units, safety options, Home, last recipe selection | Recipe name and captured carrier image placement/scale |
-| Each hardware unit | Its own DI/DO/feedback map, axis numbers, ranges, pulse scale | None |
-| PCB Supply | Motion speeds, Rotation Z, carrier rail Y, buffer handoff and clearance | PCB 1/2 pickup X/Z |
-| PCB Buffer | Shared handoff boundaries | None |
-| PCB Placement | Motion speeds, Buffer Entry Z, buffer handoff | Heat Sink 1/2 placement coordinates |
-| Bolt Fastening | Motion speeds, Safe Z, bolt pickup, each head's locating pins | Bolt positions, head/heat sink selection and three ADC presets |
-| Bolt Feeder | Pickup/shooting supply timeouts | None |
-| Inspection | Gantry speeds, shared NG transfer pickup/place positions and speed | ROI, minimum mask area ratio, exposure, gain, light level and scan overlap |
-| Core coordinates | Shared upper-left/lower-right physical locating pins | Carrier-relative work points remain product data |
-| NG Conveyor | Full/alarm carrier count | None |
-| Hardware drivers | Independent light driver and COM/baud/data bits/parity/stop bits/write timeout/channel; camera ID/timeout/preview rate, ADC serial bus, AJIN/AlphaMotion configuration | Drivers receive acquisition values for each capture/live start; they do not know Recipe |
-| Inspection Training | Separate training DB and model | Model mask threshold, dataset ROI/polygon, inspection image collection mode and epoch/batch/optimizer settings are training data, not machine or product recipes |
+| 장비 설정, 레시피, 촬영 이미지 | 실행 폴더의 `Data/Machine.db` | `Shared/IBTM.Storage/MachineStore.cs` |
+| 학습 데이터·모델·자동 수집 이미지 | 실행 폴더의 `TrainingData/BoltTraining.db` | `Stations/IBTM.Inspection.Training/` |
+| BitmapSource ↔ PNG | Machine.db 이미지 경계 | `IBTM/RecipeStore.cs` |
+| 레시피 선택·저장·이미지 교체 | UI와 저장소 경계 | `IBTM/UI/RecipeEditor.cs` |
 
-Physical clearances, limits and fixed handoff/pin coordinates stay machine-owned.
-Changing a product does not replace these safety/geometry values. Carrier image
-millimetres-per-pixel remains with the saved images so an existing image layout
-retains its scale. No coordinate or mechanical sequence was changed by this move.
+장치 루프는 DB를 조회하지 않는다. 호스트가 읽은 타입 있는 설정을 각 장치에 전달한다.
+축/IO 매핑·속도·간섭 좌표는 장비 설정, 제품별 볼트·Heat Sink·FOV/ROI·촬영 조건은 레시피다.
+설비의 현재 위치나 동작 완료 상태를 설정에 저장하지 않는다.
 
-## Boundaries
+## JSON 방식
 
-`IBTM.Storage` references only `IBTM.Core` and the SQLite/EF packages. Unit projects
-do not reference Storage or EF. Their existing typed settings objects are unchanged
-apart from moving product acquisition values to `BoltInspectionRecipe`.
+- `Settings`: **설정 클래스 전체**를 JSON으로 저장한다. Key는 클래스 이름이다.
+  IO 하나당 DB 행이나 테이블을 만들지 않는다.
+- `Recipes`: 레시피 전체를 JSON으로 저장한다.
+- `RecipeImages`: 이미지 번호와 원본 PNG BLOB. FOV 좌표·ROI·대상은 레시피 JSON에 둔다.
+- 일반 설정/레시피 속성 추가는 DB 테이블 구조를 바꾸지 않으므로 EF migration이 필요 없다.
+- DB가 없으면 `EnsureCreated`로 테이블을 만든다. 기존 파일을 임의 삭제하지 않는다.
 
-`Setting` identifies a machine-owned section but has no file/DB methods. The host
-loads sections and injects each into its owner. `MachineStore` owns persistence,
-short-lived DbContexts and transactions. `RecipeStore` is the host's WPF bitmap/PNG
-conversion boundary. It does not own directories or loose image files anymore.
-The common teaching view model saves machine sections; `RecipeEditor` saves product
-recipes and its last-selection preference. Neither unit loops nor motion/IO calls
-query the database. Actual material/axis state is not persisted as configuration.
+역직렬화는 일반 `JsonSerializer.Deserialize`다.
 
-## Databases
+| 소스 변경 | 기존 JSON을 읽을 때 |
+| --- | --- |
+| 클래스 속성 추가 | 생성자/초기값 사용 |
+| 클래스 속성 이름 변경 | 옛 값은 이관하지 않고 새 속성 기본값 사용 |
+| 알 수 없는 클래스 속성 | 무시 |
+| 설정 섹션 없음 | 새 설정 객체 기본값 사용 |
+| enum 사전 키가 잘못됨 / 값 타입이 틀림 | 로드 오류. 임의 변환 없음 |
 
-- `Data/Machine.db`: Settings (section key + JSON), Recipes (name + JSON),
-  RecipeImages (recipe name + image number + lossless PNG BLOB).
-- `TrainingData/BoltTraining.db`: existing independent training database.
+과거 저장 형식과의 호환 변환은 유지하지 않는다.
+**enum을 사전 키로 쓰는 IO 이름 변경은 일반 클래스 속성 이름 변경과 다르다.**
+호환되지 않는 DB는 프로그램을 닫고 별도 보관한 뒤 새 DB로 장비를 재설정한다.
 
-The training DB also holds optional automatic inspection originals. Collection
-mode (`Off` / `All` / `NgOnly`) belongs to its training settings row. Per-sample
-inspection metadata is separate from the user's annotation and is not a label.
-The host connects inspection completion to the training-owned collector; no unit
-or inspection project gains a reverse reference to Training/EF/Storage.
+## 저장과 반영
 
-Recipe names are case-insensitive. Image metadata stays in recipe JSON; the image
-table contains only identity and bytes. Image lists load metadata, not every BLOB.
-Save As copies the referenced images, recapture replaces the image set, and a normal
-save removes images no longer referenced. Recapture encodes and inserts one image
-at a time, clearing EF tracking after each insert. Save As copies PNG BLOBs inside
-SQLite, without loading the source image set into application memory. Each
-operation commits the recipe and its image changes together; cancellation during
-replacement rolls back the entire set. The capture token continues through saving.
-The live recipe's name/image list changes only after
-successful storage. Setting batches, including multi-unit buffer teaching, use one
-SaveChanges transaction. Bulk load/save, image conversion and backup work run off
-the UI thread; recipe-name enumeration remains a small metadata-only query.
-Contexts are never retained for the lifetime of a screen or unit.
+Settings에서 Save하고, 하드웨어 매핑·드라이버 설정 변경 후에는 재시작한다.
+코드의 기본값 수정은 이미 저장된 DB 값을 변경하지 않는다.
+티칭의 저장 메시지와 오류를 확인하고, 일반 카메라 조건 변경은 Save Recipe로 남긴다.
+FOV/ROI는 Heat Sink별로 독립적이며 캐리어 전체 맵/공유 PCB 영역은 사용하지 않는다.
 
-Changing recipes stops live preview so the previous product's optical conditions
-are not presented under the new recipe. The next preview/capture applies the current
-recipe's exposure, gain and lighting.
-Recipe replacement notifies its views before persisting the last-selection
-preference, so failure to save that preference does not leave the UI on the old
-recipe. New/Save/Load use idle-Manual availability, not Home status; these are data
-operations and do not relax motion or output interlocks.
+이미지는 PNG BLOB으로 저장되며 레시피 이미지 교체는 트랜잭션으로 처리한다.
+화면에서 쓰는 십자선·ROI 테두리는 저장 이미지 픽셀에 합성하지 않는다.
 
-## JSON storage and fresh installations
+## 백업과 복원
 
-Each concrete settings class is serialized in full into one `Settings` row:
-the class name is `Key`, and its JSON text is `Value`. I/O mappings are members
-of that JSON object, not separate DB rows or tables. Each recipe is likewise
-one complete JSON value in `Recipes`. Original PNGs remain in `RecipeImages`
-so image data is not repeatedly encoded into the recipe JSON.
+Settings의 **Back Up Database**는 SQLite 백업 API로 저장된 Machine.db 내용을 백업한다.
+미저장 편집과 별도 학습 DB는 포함하지 않는다. 열린 DB 파일을 탐색기에서 단순 복사하는 것으로 대신하지 않는다.
 
-`MachineStore` creates these three tables automatically with `EnsureCreated`
-when the database is absent. Adding a setting or recipe property does not change
-the table schema and does not require an EF migration. The old migration files
-and legacy JSON/PNG importer have been removed; existing files are never deleted
-or silently replaced at startup.
+**Restore and Exit**는 복원 파일을 준비한 뒤 정상 종료한다.
+다음 시작에서 현재 DB를 `Machine.db.previous`로 보관하고 준비된 백업을 적용한다.
+이미 만들어진 장치 객체의 설정을 실행 중 갑자기 교체하지 않는다.
 
-Loading uses ordinary `JsonSerializer.Deserialize`. Missing settings sections
-use `new T()`. Missing class properties keep constructor/initializer defaults;
-unknown class properties are ignored. Renamed properties do not inherit old
-values. There is no old-name alias, fixed-name annotation or data-conversion layer.
-Unknown enum dictionary keys and invalid value types still fail loading rather
-than being guessed. Backward compatibility with older saved data is not maintained.
-For an incompatible installation, archive the old DB while the application is
-closed and start with a fresh DB, then configure the equipment again.
+학습 DB는 프로그램 종료 후 별도로 백업한다. SQLite journal/WAL/SHM 파일 존재도 확인한다.
+AJIN은 `AxlOpenNoReset`을 쓰고 시작 시 .mot를 로드하지 않는다.
+기존 제조사 설정 파일은 별도 백업 대상이며 임의 삭제하지 않는다.
 
-Channel, axis-number, speed and teaching-value edits only require Save. Restart
-after hardware mapping changes so device objects use the saved mapping. Changing
-an input's physical meaning also requires checking its polarity and safety logic.
-
-## Backup and restore
-
-Settings provides **Back Up Database** and **Restore and Exit**, available only in
-idle Manual mode. They hold an operation scope so Auto Start cannot race storage
-work. Backup uses SQLite's backup API, not a copy of an open DB file. It contains
-saved settings/recipes/images, not unsaved edits or the separate training database.
-
-AJIN now opens with `AxlOpenNoReset`; startup does not load a `.mot` file.
-There is no motion-parameter-file setting. Any existing vendor file is neither
-rewritten nor embedded. Back it up separately if still needed.
-Do not delete the old Settings directory indiscriminately; it may contain this file.
-
-Restore validates the selected machine database, prepares `Machine.db.restore`,
-and queues the normal window close after the restore command finishes. The next
-startup keeps the current DB as `Machine.db.previous`, applies the prepared backup
-through SQLite, removes the applied staging file, then loads configuration normally.
-It never switches the live application's settings underneath existing unit objects.
-The original selected backup is untouched. Back up the training DB separately while
-the application is closed; SQLite may also have journal/WAL/SHM sidecars.
-
-The Virtual build has its own output directory and therefore its own databases.
-It seeds demo data only when no saved machine data exists.
+Virtual 구성은 별도 출력 폴더와 DB를 사용한다. 데모 설정을 실장비에 복사하지 않는다.

@@ -337,9 +337,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             fov.BoltNumber = null;
             fov.Region = null;
         }
-        CarrierImages = CarrierImages.Select(image => !image.IsBarcode && image.BoltNumber == number && image.HeatSink == SelectedPcb
-            ? image with { BoltNumber = null, Region = null }
-            : image).ToArray();
+        OnSelectedFovChanged(SelectedFov);
         RefreshTeachingPoints();
     }
 
@@ -383,8 +381,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 MoveToHorizontalZCommand,
                 MoveToPointCommand,
                 ReturnFromPickupCommand,
-                SetOutputOnCommand,
-                SetOutputOffCommand,
+                ToggleOutputCommand,
                 CaptureCarrierImageCommand,
                 ClearCarrierImagesCommand,
                 CaptureInspectionCommand,
@@ -508,7 +505,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     partial void OnCarrierImagesChanged(IReadOnlyList<CarrierImageTileView> value)
     {
-        SelectedFov = value.FirstOrDefault(image => image.Number == SelectedFov?.Number) ?? value.FirstOrDefault();
+        SelectedFov = value.FirstOrDefault(image => image.Metadata.Number == SelectedFov?.Metadata.Number) ?? value.FirstOrDefault();
     }
 
     private void OnRecipeChanged()
