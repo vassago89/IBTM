@@ -139,6 +139,11 @@ public sealed class VirtualIoService(
         }
     }
 
+    public void RefreshInputs()
+    {
+        // Virtual equipment publishes input feedback when its simulated state changes.
+    }
+
     public void Initialize()
     {
         CheckReady();

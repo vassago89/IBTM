@@ -177,6 +177,6 @@ public partial class MotionWindowViewModel : ObservableObject
 
     public Task ShutdownAsync()
     {
-        return CommandShutdown.StopAsync(HomeAxisCommand.Cancel, HomeAxisCommand);
+        return CommandShutdown.StopAsync(null, HomeAxisCommand);
     }
 }

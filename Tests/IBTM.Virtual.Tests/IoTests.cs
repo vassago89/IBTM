@@ -179,12 +179,14 @@ public sealed class IoTests
     {
         public IIoService Io = null!;
         public int Reads;
+        public Action? BeforeRead;
         public Exception? Error;
 
         protected override object? Invoke(MethodInfo? method, object?[]? args)
         {
             if (method!.Name == nameof(IIoService.GetOutput))
             {
+                BeforeRead?.Invoke();
                 Reads++;
                 if (Error is { } error)
                     throw error;

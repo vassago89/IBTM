@@ -115,12 +115,10 @@ public sealed class InspectionGantry
         return _motion.JogAsync(axis, velocity, cancellationToken);
     }
 
-    public bool IsAt(AxisPosition position)
+    public bool IsAt(AxisPosition position, bool live = true)
     {
-        var current = _motion.GetPosition();
-        return !_motion.IsMoving
-            && _motion.GetAxisState(MotionAxis.X).InPosition
-            && _motion.GetAxisState(MotionAxis.Y).InPosition
+        var current = Motion.ReadPosition(live);
+        return Motion.IsSettled(live, MotionAxis.X, MotionAxis.Y)
             && Math.Abs(current.X - position.X) <= MotionService.PositionToleranceMillimeters
             && Math.Abs(current.Y - position.Y) <= MotionService.PositionToleranceMillimeters;
     }

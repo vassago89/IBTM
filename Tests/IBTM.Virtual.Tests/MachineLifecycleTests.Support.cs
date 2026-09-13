@@ -172,13 +172,15 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    private static ServiceProvider CreateDisplayServices(out DisplayReadMotion feedback)
+    private static ServiceProvider CreateDisplayServices(
+        out DisplayReadMotion feedback,
+        MachineSettings? settings = null)
     {
         var motion = DispatchProxy.Create<IXyMotion, DisplayReadMotion>();
         var probe = (DisplayReadMotion)motion;
         feedback = probe;
         return new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
-            .AddIbtmApplication(FlowSettings(), new Recipe())
+            .AddIbtmApplication(settings ?? FlowSettings(), new Recipe())
             .AddSingleton(
                 provider =>
                 {
@@ -205,13 +207,19 @@ public sealed partial class MachineLifecycleTests
 
         public Action? BeforeRead;
         public Action? BeforePositionRead;
+        public Exception? DiagnosticReadError;
+        public Action<MotionAxis>? AfterDiagnosticStateRead;
         public MotionAxis? LastMovedAxis { get; private set; }
         public double? LastMoveVelocity { get; private set; }
         public List<(MotionAxis Axis, double Position)> AxisMoves { get; } = [];
 
         public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
         {
-            return ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
+            if (DiagnosticReadError is { } error)
+                return (null, error);
+            var read = ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
+            AfterDiagnosticStateRead?.Invoke(axis);
+            return read;
         }
 
         public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
@@ -246,7 +254,8 @@ public sealed partial class MachineLifecycleTests
 
     private static ServiceProvider CreateMotionScopeServices(
         MachineSettings settings,
-        out Dictionary<MotionGroup, ScopedMotionProbe> probes)
+        out Dictionary<MotionGroup, ScopedMotionProbe> probes,
+        Action<IServiceCollection>? configure = null)
     {
         var captured = new Dictionary<MotionGroup, ScopedMotionProbe>();
         probes = captured;
@@ -260,7 +269,7 @@ public sealed partial class MachineLifecycleTests
             return wrapper;
         }
 
-        return new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
+        var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings, new Recipe())
             .AddSingleton(
                 provider =>
@@ -298,8 +307,9 @@ public sealed partial class MachineLifecycleTests
                             provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry)),
                         provider.GetRequiredService<NgCarrierTransfer>(),
                         provider.GetRequiredService<OperationCancellation>(),
-                        settings.InspectionGantry))
-            .BuildServiceProvider();
+                        settings.InspectionGantry));
+        configure?.Invoke(services);
+        return services.BuildServiceProvider();
     }
 
     public class ScopedMotionProbe : DispatchProxy, IMotionDiagnostics
@@ -309,11 +319,16 @@ public sealed partial class MachineLifecycleTests
         public bool ReportReady;
         public bool FailHardwareCalls;
         public int HardwareCalls;
+        public int InitializationCalls;
         public int ResetCalls;
+        public Action? BeforeHardwareRead;
         public Func<AxisState, AxisState>? OverrideState;
+        public Exception? DiagnosticReadError;
 
         public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
         {
+            if (DiagnosticReadError is { } error)
+                return (null, error);
             if (FailHardwareCalls)
                 return (null, new IOException("Unavailable diagnostic state."));
             var read = ((IMotionDiagnostics)Motion).ReadDiagnosticState(axis);
@@ -322,6 +337,8 @@ public sealed partial class MachineLifecycleTests
 
         public (double? Position, Exception? Error) ReadDiagnosticPosition(MotionAxis axis)
         {
+            if (DiagnosticReadError is { } error)
+                return (null, error);
             if (FailHardwareCalls)
                 return (null, new IOException("Unavailable diagnostic position."));
             return ((IMotionDiagnostics)Motion).ReadDiagnosticPosition(axis);
@@ -331,10 +348,14 @@ public sealed partial class MachineLifecycleTests
         {
             var name = method!.Name;
             if (name == "get_IsReady")
+            {
+                BeforeHardwareRead?.Invoke();
                 return ReportReady || _initialized;
+            }
             if (!method.IsSpecialName
                 || name is "get_IsAtHorizontalZ" or "get_IsMoving" or "get_IsMovingHorizontal")
             {
+                BeforeHardwareRead?.Invoke();
                 Interlocked.Increment(ref HardwareCalls);
                 if (name == nameof(IAxisMotion.Reset))
                     Interlocked.Increment(ref ResetCalls);
@@ -344,7 +365,10 @@ public sealed partial class MachineLifecycleTests
 
             var result = method.Invoke(Motion, arguments);
             if (name == nameof(IAxisMotion.Initialize))
+            {
                 _initialized = true;
+                Interlocked.Increment(ref InitializationCalls);
+            }
             if (name == nameof(IMotionFeedback.GetAxisState)
                 && OverrideState is { } transform)
                 return transform((AxisState)result!);

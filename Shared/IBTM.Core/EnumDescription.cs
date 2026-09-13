@@ -14,6 +14,7 @@ public static class EnumDescription
         return Descriptions.GetOrAdd(
             value,
             static item =>
-                item.GetType().GetField(item.ToString())!.GetCustomAttribute<DescriptionAttribute>()!.Description);
+                item.GetType().GetField(item.ToString())?.GetCustomAttribute<DescriptionAttribute>()?.Description
+                    ?? item.ToString());
     }
 }

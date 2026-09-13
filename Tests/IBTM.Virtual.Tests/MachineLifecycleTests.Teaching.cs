@@ -369,16 +369,16 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         var handler = services.GetRequiredService<PcbSupplyHandler>();
         var rotation = teaching.TeachingOutputs[OutputIo.PcbSupplyRotate];
-        await handler.MoveTeachingZAsync(5);
+        await handler.MoveAxisAsync(MotionAxis.Z, 5);
         await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(rotation));
         await teaching.ToggleOutputCommand.ExecuteAsync(rotation);
         Assert.Equal(0, handler.Feedback.GetPosition().Z);
         Assert.Equal(PcbSupplyRotationState.Unrotated, handler.Rotation);
         await teaching.ToggleOutputCommand.ExecuteAsync(rotation);
-        await handler.MoveXAsync(80);
+        await handler.MoveAxisAsync(MotionAxis.X, 80);
         await WaitUntilAsync(() => !teaching.ToggleOutputCommand.CanExecute(rotation));
         await WaitUntilAsync(() => !teaching.StepCommand.CanExecute(TeachingDirection.ZPlus));
-        await handler.MoveXAsync(0);
+        await handler.MoveAxisAsync(MotionAxis.X, 0);
         io.AutoResponseEnabled = false;
         await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(gripper));
 
@@ -608,7 +608,7 @@ public sealed partial class MachineLifecycleTests
         var supply = services.GetRequiredKeyedService<IAxisMotion>(MotionGroup.PcbSupply);
         await supply.MoveAxisAsync(MotionAxis.X, settings.PcbSupply.BufferHandoffPosition.X, 1_000);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
-        Assert.True(state.SupplyInBufferArea);
+        Assert.True(state.Buffer.IsSupplyInside());
         await WaitUntilAsync(() => !teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
         var placementPlate = teaching.TeachingOutputs[OutputIo.PcbPlacementBackupPlateDown];
         await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(placementPlate));

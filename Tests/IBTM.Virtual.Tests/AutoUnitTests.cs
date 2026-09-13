@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -8,6 +10,39 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class AutoUnitTests
 {
+    [Fact]
+    public async Task StepTraceKeepsWaitReasonAndTargetWithoutRepeatingUnchangedFeedback()
+    {
+        var unit = new TestUnit();
+        var messages = new List<string>();
+        unit.Trace += messages.Add;
+        using var stop = new CancellationTokenSource();
+        var rounds = 0;
+        Task Execute(CancellationToken token)
+        {
+            unit.ReportStep();
+            if (++rounds < 4)
+                unit.NotifyChanged();
+            return unit.WaitAsync(token);
+        }
+
+        var run = unit.RunAsync(Execute, stop.Token);
+        try
+        {
+            Assert.Equal(4, rounds);
+            Assert.Single(messages, text => text.StartsWith("Waiting for"));
+            Assert.Single(messages, text => text.StartsWith("TestUnit: Friday"));
+            Assert.Contains(messages, text => text.Contains("target=PCB 2") && text.Contains("work=17"));
+            Assert.Contains(messages, text => text.Contains("waitFor=CarrierPresent=ON"));
+        }
+        finally
+        {
+            stop.Cancel();
+            await run;
+        }
+        Assert.Contains("cancelled=True", messages.Last());
+    }
+
     [Fact]
     public async Task ChangesCoalesceWithoutOverlappingActions()
     {
@@ -104,6 +139,11 @@ public sealed class AutoUnitTests
         public void NotifyChanged()
         {
             Changed?.Invoke();
+        }
+
+        public void ReportStep()
+        {
+            TraceStep(DayOfWeek.Friday, "PCB 2", 17, "CarrierPresent=ON");
         }
 
         public Task WaitAsync(CancellationToken token)

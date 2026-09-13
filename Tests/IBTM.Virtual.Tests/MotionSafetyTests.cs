@@ -269,8 +269,8 @@ public sealed class MotionSafetyTests
             },
             io,
             placementHandler,
-            supply,
-            placement,
+            new MotionStatus(supply),
+            placementHandler.Motion,
             handoff,
             handoff,
             () => 0);
@@ -281,25 +281,25 @@ public sealed class MotionSafetyTests
         await Task.WhenAll(HomeAsync(supply, 1_000), HomeAsync(placement, 1_000));
 
         await placement.MoveToAsync(10, 10, 0);
-        Assert.True(buffer.CanSupplyEnter);
+        Assert.True(buffer.CanEnterSupply());
         await placement.MoveAxisAsync(MotionAxis.Z, 8, settings.ZSpeed);
-        Assert.False(buffer.CanSupplyEnter);
-        Assert.False(buffer.CanSupplyLower);
+        Assert.False(buffer.CanEnterSupply());
+        Assert.False(buffer.CanLowerSupply());
         await placement.MoveToAsync(0, 0, 0);
 
         await supply.MoveToAsync(20, 10, 8);
         io.SetInput(InputIo.PcbBufferPcbPresent, true);
-        Assert.False(buffer.CanPlacementEnter);
+        Assert.False(buffer.CanEnterPlacement());
 
         await placement.MoveToAsync(15, 10, 8);
-        Assert.True(buffer.Conflict);
+        Assert.True(buffer.HasConflict());
         await placement.MoveToAsync(0, 0, 0);
 
         await supply.MoveToAsync(10, 10, 8);
-        Assert.True(buffer.CanPlacementEnter);
+        Assert.True(buffer.CanEnterPlacement());
 
         await placement.MoveToAsync(10, 10, 8);
-        Assert.False(buffer.Conflict);
+        Assert.False(buffer.HasConflict());
     }
 
     [Fact]
@@ -336,6 +336,7 @@ public sealed class MotionSafetyTests
         await HomeAsync(motion, 1_000);
 
         var xMovedBeforeY = false;
+        var yMovedInsideBuffer = false;
         motion.PositionChanged += (x, y, _) =>
         {
             if (x > MotionService.PositionToleranceMillimeters
@@ -343,6 +344,9 @@ public sealed class MotionSafetyTests
             {
                 xMovedBeforeY = true;
             }
+
+            yMovedInsideBuffer |= x is >= 10 and <= 30
+                && Math.Abs(y - 15) > MotionService.PositionToleranceMillimeters;
         };
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => supply.MoveToHandoffZAsync(default));
@@ -356,6 +360,17 @@ public sealed class MotionSafetyTests
         Assert.False(xMovedBeforeY);
         Assert.Equal((20, 15, 7), motion.GetPosition());
         Assert.Equal(5, settings.BufferHandoffPosition.Z);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => supply.MoveAxisAsync(MotionAxis.Y, 0));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => supply.MoveAxisAsync(MotionAxis.Z, 0));
+        Assert.Equal((20, 15, 7), motion.GetPosition());
+
+        // Leaving the buffer must move X out before Y is allowed to move.
+        await supply.MoveHorizontalAsync(0, 0);
+        Assert.False(yMovedInsideBuffer);
+        Assert.Equal((0, 0, settings.RotationZ), motion.GetPosition());
     }
 
     private static VirtualIoService CreateIo()

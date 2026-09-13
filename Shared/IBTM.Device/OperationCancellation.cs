@@ -36,6 +36,23 @@ public sealed class OperationCancellation
         CancellationToken cancellationToken = default,
         CancellationToken additionalCancellationToken = default)
     {
+        return Register(cancellationToken, additionalCancellationToken, requireIdle: false)!;
+    }
+
+    // Only top-level commands acquire idle ownership. Child device/cleanup scopes
+    // still use Link, and a cancelled owner remains busy until its cleanup drains.
+    public Operation? TryBegin(
+        CancellationToken cancellationToken = default,
+        CancellationToken additionalCancellationToken = default)
+    {
+        return Register(cancellationToken, additionalCancellationToken, requireIdle: true);
+    }
+
+    private Operation? Register(
+        CancellationToken cancellationToken,
+        CancellationToken additionalCancellationToken,
+        bool requireIdle)
+    {
         Operation operation;
         bool becameActive;
         lock (_gate)
@@ -47,6 +64,8 @@ public sealed class OperationCancellation
 
             cancellationToken.ThrowIfCancellationRequested();
             additionalCancellationToken.ThrowIfCancellationRequested();
+            if (requireIdle && _activeOperations != 0)
+                return null;
             var source = CancellationTokenSource.CreateLinkedTokenSource(
                 cancellationToken,
                 additionalCancellationToken,
@@ -61,9 +80,17 @@ public sealed class OperationCancellation
                 ActivityChanged?.Invoke();
             return operation;
         }
-        catch
+        catch (Exception failure)
         {
-            operation.Dispose();
+            try
+            {
+                operation.Dispose();
+            }
+            catch (Exception cleanupFailure)
+            {
+                throw new AggregateException(failure, cleanupFailure);
+            }
+
             throw;
         }
     }
@@ -191,13 +218,26 @@ public sealed class OperationCancellation
                 _users++;
             }
 
+            Exception? failure = null;
             try
             {
                 source.Cancel();
             }
+            catch (Exception exception)
+            {
+                failure = exception;
+                throw;
+            }
             finally
             {
-                Release();
+                try
+                {
+                    Release();
+                }
+                catch (Exception cleanupFailure) when (failure is not null)
+                {
+                    throw new AggregateException(failure, cleanupFailure);
+                }
             }
         }
 

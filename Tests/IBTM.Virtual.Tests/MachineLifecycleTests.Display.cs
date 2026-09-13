@@ -28,6 +28,76 @@ namespace IBTM.Virtual.Tests;
 public sealed partial class MachineLifecycleTests
 {
     [Fact]
+    public async Task DisplayUsesAcquiredFeedbackForAllStationsAndNeverFallsBackToHardware()
+    {
+        var settings = FlowSettings();
+        var readingDisplay = new AsyncLocal<bool>();
+        var unexpectedRead = new InvalidOperationException("Display attempted a hardware read.");
+        void BeforeHardwareRead()
+        {
+            if (readingDisplay.Value)
+                throw unexpectedRead;
+        }
+
+        using var services = CreateMotionScopeServices(settings, out var probes, registrations =>
+            registrations.AddSingleton<IIoService>(provider =>
+            {
+                var wrapper = System.Reflection.DispatchProxy.Create<IIoService, IoTests.OutputReadProbe>();
+                var probe = (IoTests.OutputReadProbe)wrapper;
+                probe.Io = provider.GetRequiredService<VirtualIoService>();
+                probe.BeforeRead = BeforeHardwareRead;
+                return wrapper;
+            }));
+        PrepareCarrierTeaching(settings, services.GetRequiredService<Recipe>());
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        await WaitUntilAsync(() => state.Display.Homed);
+        await state.StopDisplayUpdatesAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        foreach (var probe in probes.Values)
+            probe.BeforeHardwareRead = BeforeHardwareRead;
+        try
+        {
+            foreach (var station in new[] { "PcbPlacement", "BoltFastening", "Inspection" })
+            {
+                io.SetInput(Enum.Parse<InputIo>(station + "CarrierPresent"), true);
+                io.SetInput(Enum.Parse<InputIo>(station + "BackupPlateDown"), false);
+                io.SetInput(Enum.Parse<InputIo>(station + "BackupPlateUp"), true);
+                io.SetInput(Enum.Parse<InputIo>(station + "StopperUp"), false);
+                io.SetInput(Enum.Parse<InputIo>(station + "StopperDown"), true);
+                io.SetInput(Enum.Parse<InputIo>(station + "HeatSink1Present"), true);
+            }
+
+            Assert.True(machine.TeachingReady);
+            Assert.True(services.GetRequiredService<BoltFasteningWork>().CarrierSeated);
+            Assert.True(services.GetRequiredService<InspectionWork>().CarrierSeated);
+            state.SetAutomaticRunning(true);
+            readingDisplay.Value = true;
+            var display = machine.ReadDisplay();
+            Assert.True(display.Available);
+            Assert.NotEqual(BoltFasteningState.Waiting, display.FasteningState);
+            Assert.NotEqual(InspectionStationState.Waiting, display.InspectionState);
+            Assert.NotNull(display.FasteningBolt);
+            Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(() => state.Buffer.HasConflict()));
+            Assert.Same(unexpectedRead, Assert.Throws<InvalidOperationException>(
+                () => services.GetRequiredService<MainConveyor>().RunCommandOn));
+
+            // Unavailable sampled feedback must remain unknown instead of reading the SDK.
+            services.GetRequiredService<PcbPlacementHandler>().Motion.InvalidateFeedback(new IOException("Lost sample."));
+            Assert.Throws<IOException>(machine.ReadDisplay);
+        }
+        finally
+        {
+            readingDisplay.Value = false;
+            state.SetAutomaticRunning(false);
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task DisplayReadsCoalesceWithoutBlockingViewsAndSurviveMachineStop()
     {
         using var services = CreateDisplayServices(out var feedback);
@@ -36,6 +106,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await WaitUntilAsync(() => state.Display.ManualControlsEnabled);
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
         using var entered = new ManualResetEventSlim();
         using var released = new ManualResetEventSlim();
         var readingView = new AsyncLocal<bool>();
@@ -44,12 +115,17 @@ public sealed partial class MachineLifecycleTests
         feedback.BeforeRead = () =>
         {
             Assert.False(readingView.Value);
+        };
+        void OnDisplayChanged()
+        {
+            Interlocked.Increment(ref updates);
             if (Interlocked.Exchange(ref blocked, 1) != 0)
                 return;
             entered.Set();
             released.Wait();
-        };
-        state.DisplayChanged += () => Interlocked.Increment(ref updates);
+        }
+
+        state.DisplayChanged += OnDisplayChanged;
         try
         {
             state.RequestDisplayRefresh();
@@ -58,32 +134,16 @@ public sealed partial class MachineLifecycleTests
                 () =>
                 {
                     readingView.Value = true;
-                    var manual = services.GetRequiredService<MotionWindowViewModel>();
-                    foreach (var row in manual.Axes)
+                    var motion = services.GetRequiredService<InspectionGantry>().Motion;
+                    foreach (var axis in motion.Axes.Values)
                     {
-                        _ = row.Diagnostics.Snapshot.Condition;
-                        _ = manual.HomeAxisCommand.CanExecute(row);
+                        _ = axis.Condition;
+                        _ = axis.ServoOn;
                     }
 
-                    var supply = services.GetRequiredService<SupplyTeachingViewModel>();
-                    var station = services.GetRequiredService<StationTeachingViewModel>();
-                    foreach (var unit in station.TeachingUnits.Prepend(HardwareArea.PcbSupply))
-                    {
-                        if (unit != HardwareArea.PcbSupply)
-                            station.SelectedTeachingUnit = unit;
-                        TeachingMotionViewModel teaching = unit == HardwareArea.PcbSupply ? supply : station;
-                        _ = teaching.ManualBlock;
-                        _ = teaching.CanEditTeaching;
-                        _ = teaching.MotionHint;
-                        foreach (var direction in Enum.GetValues<TeachingDirection>())
-                        {
-                            _ = teaching.JogCommand.CanExecute(direction);
-                            _ = teaching.StepCommand.CanExecute(direction);
-                        }
-
-                        foreach (var output in teaching.TeachingOutputs.Values)
-                            _ = teaching.ToggleOutputCommand.CanExecute(output);
-                    }
+                    _ = motion.Position;
+                    _ = state.Display.CanStart;
+                    _ = state.Display.ManualBlock;
 
                     for (var index = 0; index < 1000; index++)
                         state.RequestDisplayRefresh();
@@ -94,7 +154,7 @@ public sealed partial class MachineLifecycleTests
             var light = services.GetRequiredService<IoSignals>().Outputs[OutputIo.MachineLight];
             Assert.False(light.IsOn);
             io.SetOutput(light.Signal, true);
-            Assert.False(light.IsOn); // Display acquisition is still blocked.
+            Assert.False(light.IsOn); // Feedback acquisition was stopped above.
             var row = new OutputWindowRow(light, machine);
             row.ToggleCommand.Execute(null);
             Assert.False(io.GetOutput(light.Signal)); // Toggle the real ON, not the displayed OFF.
@@ -118,14 +178,16 @@ public sealed partial class MachineLifecycleTests
         {
             released.Set();
             await machine.ShutdownAsync();
+            state.DisplayChanged -= OnDisplayChanged;
         }
     }
 
     [Theory]
     [InlineData("Alarm")]
     [InlineData("ServoOff")]
+    [InlineData("HomeLost")]
     [InlineData("ReadFailure")]
-    public async Task AutomaticPollingStopsOnSilentEnabledMotionFaultWithoutMonitorWindow(string fault)
+    public async Task AutomaticFeedbackStopsOnSilentMotionFaultAfterDisplayStops(string fault)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
@@ -147,58 +209,109 @@ public sealed partial class MachineLifecycleTests
         {
             await machine.InitializeAsync();
             await machine.HomeAsync(CancellationToken.None);
-            io.AutoResponseEnabled = false;
             io.SetInput(InputIo.AutoMode, false);
             Assert.True(machine.CanStart);
             run = machine.StartAsync();
-            await WaitUntilAsync(() => state.Display.AutomaticRunning && state.Display.Homed);
-            var scans = 0;
-            void CountScan()
-            {
-                Interlocked.Increment(ref scans);
-            }
-
-            state.DisplayChanged += CountScan;
-            try
-            {
-                await WaitUntilAsync(() => Volatile.Read(ref scans) >= 2);
-                Assert.False(run.IsCompleted);
-                Assert.Equal(MachineAlarm.None, state.Alarm);
-                if (fault == "ReadFailure")
-                    active.FailHardwareCalls = true;
-                else
-                    active.OverrideState = value =>
-                        fault == "Alarm"
-                            ? value with { Alarm = true }
-
-                            : value with { ServoOn = false };
-                // No StateChanged, DI changes, UI timer or explicit refresh request accompanies this fault.
-                await run.WaitAsync(TimeSpan.FromSeconds(2));
-                Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
-                Assert.False(state.AutomaticRunning);
-                Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-                Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
-                Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
-                await WaitUntilAsync(
-                    () => !services.GetRequiredService<OperationCancellation>().HasActiveOperations);
-                Assert.All(
-                    probes.Where(item => item.Key != MotionGroup.InspectionGantry),
-                    item => Assert.Equal(0, item.Value.HardwareCalls));
-                active.FailHardwareCalls = false;
-                active.OverrideState = null;
-                state.RequestDisplayRefresh();
-                await WaitUntilAsync(() => state.Display.Available && !state.Display.MotionFaulted);
-                Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm); // Recovery never restarts AUTO.
-            }
-            finally
-            {
-                state.DisplayChanged -= CountScan;
-            }
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => state.AutomaticRunning, TimeSpan.FromSeconds(2)),
+                $"AUTO did not start: block={machine.StartBlock}, alarm={state.Alarm}. {state.AlarmDetail}");
+            await state.StopDisplayUpdatesAsync();
+            var display = state.Display;
+            Assert.False(run.IsCompleted);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            if (fault == "ReadFailure")
+                // Isolate the monitor: a simultaneous command read failure has its own unit alarm.
+                active.DiagnosticReadError = new IOException("Unavailable diagnostic feedback.");
+            else
+                active.OverrideState = value => fault switch
+                {
+                    "Alarm" => value with { Alarm = true },
+                    "HomeLost" => value with { Homed = false },
+                    _ => value with { ServoOn = false },
+                };
+            // No StateChanged, DI changes, UI timer or explicit refresh request accompanies this fault.
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+            Assert.False(state.AutomaticRunning);
+            Assert.Same(display, state.Display);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
+            await WaitUntilAsync(
+                () => !services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+            Assert.All(
+                probes.Where(item => item.Key != MotionGroup.InspectionGantry),
+                item => Assert.Equal(0, item.Value.HardwareCalls));
+            active.DiagnosticReadError = null;
+            active.OverrideState = null;
+            await WaitUntilAsync(() => !state.FeedbackReadiness.Faulted);
+            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm); // Recovery never restarts AUTO.
         }
         finally
         {
-            active.FailHardwareCalls = false;
+            active.DiagnosticReadError = null;
             active.OverrideState = null;
+            await machine.ShutdownAsync();
+            if (run is not null)
+                await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
+    [Fact]
+    public async Task HomeAndAutomaticStartIgnorePreStartSampleAndStoppedDisplay()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        using var services = CreateDisplayServices(out var motion, settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var feedback = services.GetRequiredService<MachineFeedbackMonitor>();
+        await machine.InitializeAsync();
+        Assert.False(state.Display.Homed);
+        await state.StopDisplayUpdatesAsync();
+        var display = state.Display;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var released = new ManualResetEventSlim();
+        var blocked = 0;
+        motion.AfterDiagnosticStateRead = axis =>
+        {
+            if (axis != MotionAxis.X || Interlocked.Exchange(ref blocked, 1) != 0)
+                return;
+            entered.TrySetResult();
+            released.Wait();
+        };
+        var sampled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void ObserveAutomaticSample(MotionGroup group, MotionFeedbackSample sample)
+        {
+            if (state.AutomaticRunning
+                && group == MotionGroup.InspectionGantry
+                && sample.Readiness.Homed)
+                sampled.TrySetResult();
+        }
+
+        Task? run = null;
+        feedback.Sampled += ObserveAutomaticSample;
+        try
+        {
+            // The X sample says not homed, but its delivery is delayed across Home and Start.
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.HomeAsync(CancellationToken.None);
+            await WaitUntilAsync(() => machine.CanStart);
+            run = machine.StartAsync();
+            await WaitUntilAsync(() => state.AutomaticRunning);
+            released.Set();
+            await sampled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(state.AutomaticRunning);
+            Assert.False(run.IsCompleted);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.Same(display, state.Display);
+            Assert.False(state.Display.Homed);
+        }
+        finally
+        {
+            released.Set();
+            motion.AfterDiagnosticStateRead = null;
+            feedback.Sampled -= ObserveAutomaticSample;
             await machine.ShutdownAsync();
             if (run is not null)
                 await run.WaitAsync(TimeSpan.FromSeconds(2));
@@ -215,6 +328,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(state.Display.Available);
         var error = new IOException("Display feedback unavailable.");
         feedback.BeforeRead = () => throw error;
+        feedback.DiagnosticReadError = error;
         // A ready display is not permission to operate when the actual read fails.
         Assert.Throws<IOException>(() => machine.CanHome);
         state.RequestDisplayRefresh();
@@ -228,6 +342,7 @@ public sealed partial class MachineLifecycleTests
             axis => Assert.Equal(AxisCondition.Unavailable, axis.Condition));
 
         feedback.BeforeRead = null;
+        feedback.DiagnosticReadError = null;
         state.RequestDisplayRefresh();
         await WaitUntilAsync(() => state.Display.Available);
         Assert.Null(state.Display.ReadError);
@@ -238,21 +353,29 @@ public sealed partial class MachineLifecycleTests
     [InlineData(false)]
     public async Task DisplayProgrammingErrorsAreReportedAndNotRetried(bool duringInitialization)
     {
-        var services = CreateDisplayServices(out var feedback);
+        var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var error = new InvalidOperationException("Display calculation failed.");
+        var fail = duringInitialization;
+        var reads = 0;
+        MachineDisplay ReadDisplay()
+        {
+            Interlocked.Increment(ref reads);
+            return fail ? throw error : new MachineDisplay();
+        }
+
         try
         {
             if (!duringInitialization)
-                await machine.InitializeAsync();
-            feedback.BeforeRead = () => throw error;
+                await state.StartDisplayUpdatesAsync(ReadDisplay);
+            fail = true;
             if (duringInitialization)
             {
                 Assert.Same(
                     error,
                     await Assert.ThrowsAsync<InvalidOperationException>(
-                        () => machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(2))));
+                        () => state.StartDisplayUpdatesAsync(ReadDisplay).WaitAsync(TimeSpan.FromSeconds(2))));
             }
             else
             {
@@ -260,12 +383,14 @@ public sealed partial class MachineLifecycleTests
                 await WaitUntilAsync(() => ReferenceEquals(error, state.Display.ReadError));
             }
 
-            feedback.BeforeRead = null;
+            var failedReads = Volatile.Read(ref reads);
+            fail = false;
             state.RequestDisplayRefresh();
             Assert.Same(
                 error,
                 await Assert.ThrowsAsync<InvalidOperationException>(machine.ShutdownAsync));
             Assert.Same(error, state.Display.ReadError);
+            Assert.Equal(failedReads, Volatile.Read(ref reads));
         }
         finally
         {

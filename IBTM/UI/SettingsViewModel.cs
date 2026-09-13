@@ -200,7 +200,9 @@ public partial class SettingsViewModel : ObservableObject
         DatabaseMessage = null;
         try
         {
-            using var operation = _operations.Link();
+            using var operation = _operations.TryBegin();
+            if (operation is null)
+                return;
             foreach (var row in InputMappings)
             {
                 var hardware = (InputHardwareSettings)row.Hardware;
@@ -275,7 +277,11 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
     private async Task BackupDatabaseAsync()
     {
-        using var operation = _operations.Link();
+        if (!CanEditSettings)
+            return;
+        using var operation = _operations.TryBegin();
+        if (operation is null)
+            return;
         var dialog = new SaveFileDialog
         {
             Title = "Back Up Machine Settings and Recipes",
@@ -303,7 +309,11 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
     private async Task RestoreDatabaseAsync()
     {
-        using var operation = _operations.Link();
+        if (!CanEditSettings)
+            return;
+        using var operation = _operations.TryBegin();
+        if (operation is null)
+            return;
         var dialog = new OpenFileDialog { Title = "Restore Machine Settings and Recipes", Filter = "SQLite database|*.db" };
         if (dialog.ShowDialog() != true
             || MessageBox.Show(
@@ -332,6 +342,8 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanChangeVirtualImage))]
     private async Task LoadVirtualImageAsync(string? path, CancellationToken cancellationToken)
     {
+        if (!CanChangeVirtualImage())
+            return;
         if (path is null)
         {
             var dialog = new OpenFileDialog
@@ -376,6 +388,8 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanClearVirtualImage))]
     private void ClearVirtualImage()
     {
+        if (!CanClearVirtualImage())
+            return;
         _virtualCamera!.SourceImage = null;
         VirtualImageName = null;
         VirtualImageError = null;
@@ -397,11 +411,7 @@ public partial class SettingsViewModel : ObservableObject
         try
         {
             await CommandShutdown.StopAsync(
-                () =>
-                {
-                    LoadVirtualImageCommand.Cancel();
-                    TestLightCommand.Cancel();
-                },
+                null,
                 SaveSettingsCommand,
                 LoadVirtualImageCommand,
                 BackupDatabaseCommand,

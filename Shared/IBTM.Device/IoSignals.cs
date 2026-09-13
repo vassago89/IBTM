@@ -43,12 +43,8 @@ public sealed class IoSignals : INotifyPropertyChanged
                                 output.Value.OffNumber)))
             .ToDictionary(row => row.Signal);
 
-        io.InputChanged += (input, _) =>
-        {
-            if (Inputs.TryGetValue(input, out var row))
-                row.Refresh();
-        };
-        io.Faulted += _ => RefreshInputs();
+        io.InputChanged += OnInputChanged;
+        io.Faulted += OnIoFaulted;
     }
 
     public bool InputsAvailable
@@ -60,7 +56,7 @@ public sealed class IoSignals : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
-    // On reconnection the initial scan can replace the cache without DI change events.
+    // Availability changes refresh every input, including levels unchanged on recovery.
     public void RefreshInputs()
     {
         var available = _io.IsReady ? 1 : 0;
@@ -74,7 +70,7 @@ public sealed class IoSignals : INotifyPropertyChanged
     public IReadOnlyDictionary<InputIo, IoInputStatus> Inputs { get; }
     public IReadOnlyDictionary<OutputIo, IoOutputStatus> Outputs { get; }
 
-    // Called by the shared display worker, never by a binding getter.
+    // Called by the feedback monitor, never by a display worker or binding getter.
     public void RefreshOutputs()
     {
         try
@@ -89,10 +85,27 @@ public sealed class IoSignals : INotifyPropertyChanged
         }
         catch (IOException)
         {
-            foreach (var output in Outputs.Values)
-                output.Update(null);
+            InvalidateOutputs();
             throw;
         }
+    }
+
+    public void InvalidateOutputs()
+    {
+        foreach (var output in Outputs.Values)
+            output.Update(null);
+    }
+
+    private void OnInputChanged(InputIo input, bool value)
+    {
+        if (Inputs.TryGetValue(input, out var row))
+            row.Refresh();
+    }
+
+    private void OnIoFaulted(Exception error)
+    {
+        RefreshInputs();
+        InvalidateOutputs();
     }
 
     public IoStatus Select(HardwareArea area, IEnumerable<InputIo> inputs, IEnumerable<OutputIo> outputs)

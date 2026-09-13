@@ -51,11 +51,23 @@ and applies home speeds when homing; the driver's mm conversion is unchanged.
 Initialization does not send Servo ON or reset axis alarms. Once initialized,
 position and signal feedback remain readable with servos OFF or axis alarms active.
 Read-only diagnostic getters also work for motion groups that have not been initialized,
-using the already-open AXL connection without changing parameters or servo state. Each
-motion status object owns a continuous position/signal monitor until machine shutdown;
-individual query failures are reported without hiding another axis's feedback.
+using the already-open AXL connection without changing parameters or servo state.
+`MachineFeedbackMonitor` owns the input, output and motion monitoring lifetimes.
+`PhysicalIoService.RefreshInputs` performs one complete two-provider scan; it does not
+start a background task. Recovery publishes input changes against the last complete
+snapshot; a failed recovery read cannot partially overwrite that snapshot. Initial
+startup levels are not reported as new input edges. Input polling remains at 10 ms; outputs and motion use 250 ms
+polling with device notifications requesting an earlier read. Individual motion query
+failures are reported without hiding another axis's feedback. The monitors remain alive
+through operation cleanup and stop together before hardware disposal.
 Explicit Servo ON failures do not invalidate communication readiness. The existing
 operator RESET sequence still resets axis alarms before requesting Servo ON.
+
+Motion STOP checks every `AxmMoveSStop` return code and continues to the remaining
+axes after a failure. Interrupted homing also attempts to clear the home result,
+even if STOP fails. Errors identify the SDK call and axis, and remain attached to
+the original operation error alongside stop-feedback or final-position failures.
+`MotionFailureSurvivesStopFeedbackAndFinalPositionFailures` covers this with the SDK stand-in.
 
 `IBTM.Ajin.Tests` compiles the real controller, motion wrapper and manufacturer constants against
 a test-only in-memory SDK stand-in. It never loads AXL.dll or operates equipment.

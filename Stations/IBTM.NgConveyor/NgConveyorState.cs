@@ -79,9 +79,3 @@ public enum NgShuttleLiftState
     [Description("Down")]
     Down,
 }
-
-internal enum NgConveyorPosition
-{
-    Position1 = 1,
-    Position2 = 2,
-}

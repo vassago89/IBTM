@@ -7,17 +7,33 @@ namespace IBTM.UI;
 
 internal static class CommandShutdown
 {
-    public static async Task StopAsync(Action stop, params IAsyncRelayCommand[] commands)
+    public static async Task StopAsync(Action? stop, params IAsyncRelayCommand[] commands)
     {
         var pending = Capture(commands);
         try
         {
-            stop();
+            stop?.Invoke();
         }
-        finally
+        catch (Exception exception)
         {
-            await WaitAsync(pending);
+            pending = [Task.FromException(exception), .. pending];
         }
+
+        foreach (var command in commands)
+        {
+            if (!command.IsRunning)
+                continue;
+            try
+            {
+                command.Cancel();
+            }
+            catch (Exception exception)
+            {
+                pending = [.. pending, Task.FromException(exception)];
+            }
+        }
+
+        await WaitAsync(pending);
     }
 
     public static Task[] Capture(params IAsyncRelayCommand[] commands)
@@ -37,6 +53,12 @@ internal static class CommandShutdown
         }
         catch (OperationCanceledException) when (completion.IsCanceled)
         {
+        }
+        catch (Exception)
+        {
+            if (completion.Exception is { InnerExceptions.Count: > 1 } failures)
+                throw failures;
+            throw;
         }
     }
 }

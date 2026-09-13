@@ -33,11 +33,11 @@ public sealed class NgShuttle : AutoUnit
 
     public NgShuttleFeedback Feedback { get; }
 
-    public bool CanReceive(bool useConveyor)
+    public bool CanReceive(bool useConveyor, bool? conveyorRunning = null)
     {
         return Feedback.Lift == NgShuttleLiftState.Up
             && !Feedback.CarrierDetected
-            && (!useConveyor || _conveyor.CanAcceptCarrier);
+            && (!useConveyor || _conveyor.CanAcceptCarrier(conveyorRunning));
     }
 
     public NgShuttleState State
@@ -67,7 +67,7 @@ public sealed class NgShuttle : AutoUnit
                     return NgShuttleState.WaitingForCarrierPickupUp;
                 }
 
-                return _conveyor.CanAcceptCarrier
+                return _conveyor.CanAcceptCarrier()
                     ? NgShuttleState.Lowering
                     : NgShuttleState.WaitingForConveyor;
             }
@@ -85,7 +85,9 @@ public sealed class NgShuttle : AutoUnit
 
     private Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        return State switch
+        var state = State;
+        TraceStep(state);
+        return state switch
         {
             NgShuttleState.Lowering => SetUpAsync(false, cancellationToken),
             NgShuttleState.Raising => SetUpAsync(true, cancellationToken),
@@ -109,6 +111,11 @@ public sealed class NgShuttle : AutoUnit
         {
             await SetUpAsync(false, cancellationToken);
             _cycleReturnPending = true;
+        }
+
+        if (!Feedback.CarrierDetected || !_transfer.IsRaised)
+        {
+            throw new InvalidOperationException("Shuttle repeat lost its carrier or raised pickup feedback before ascent.");
         }
 
         await SetUpAsync(true, cancellationToken);

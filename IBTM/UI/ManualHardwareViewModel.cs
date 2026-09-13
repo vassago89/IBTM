@@ -17,13 +17,9 @@ public sealed class ManualHardwareViewModel : ObservableObject
 
     public ManualConveyorRow[] Conveyors { get; }
 
-    public async Task ShutdownAsync()
+    public Task ShutdownAsync()
     {
         // Application shutdown only. Leaving the page does not operate equipment.
-        var commands = Conveyors.Select(row => row.RunCommand).ToArray();
-        var pending = CommandShutdown.Capture(commands);
-        foreach (var command in commands)
-            command.Cancel();
-        await CommandShutdown.WaitAsync(pending);
+        return CommandShutdown.StopAsync(null, Conveyors.Select(row => row.RunCommand).ToArray());
     }
 }

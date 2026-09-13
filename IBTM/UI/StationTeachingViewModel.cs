@@ -370,27 +370,28 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     public async Task ShutdownAsync()
     {
+        var commandsStopped = CommandShutdown.StopAsync(
+            Deactivate,
+            ToggleLiveViewCommand,
+            JogCommand,
+            HomeCommand,
+            StepCommand,
+            MoveToHorizontalZCommand,
+            MoveToPointCommand,
+            ReturnFromPickupCommand,
+            ToggleOutputCommand,
+            CaptureCarrierImageCommand,
+            ClearCarrierImagesCommand,
+            CaptureInspectionCommand,
+            ReinspectImageCommand,
+            ReadDataMatrixCommand,
+            CollectBoltImagesCommand,
+            DrawFovRegionCommand,
+            TeachFovRegionCommand,
+            TeachCurrentPositionCommand);
         try
         {
-            await CommandShutdown.StopAsync(
-                Deactivate,
-                ToggleLiveViewCommand,
-                JogCommand,
-                HomeCommand,
-                StepCommand,
-                MoveToHorizontalZCommand,
-                MoveToPointCommand,
-                ReturnFromPickupCommand,
-                ToggleOutputCommand,
-                CaptureCarrierImageCommand,
-                ClearCarrierImagesCommand,
-                CaptureInspectionCommand,
-                ReinspectImageCommand,
-                ReadDataMatrixCommand,
-                CollectBoltImagesCommand,
-                DrawFovRegionCommand,
-                TeachFovRegionCommand,
-                TeachCurrentPositionCommand);
+            await commandsStopped;
         }
         finally
         {
@@ -400,7 +401,9 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 imageUpdate = _liveImageUpdate;
             }
 
-            await Task.WhenAll(imageUpdate, _recipeImageUpdate, _cameraStop);
+            // Commands can queue image work while stopping. Capture it after they drain,
+            // and preserve their failure alongside any image/camera shutdown failures.
+            await CommandShutdown.WaitAsync(commandsStopped, imageUpdate, _recipeImageUpdate, _cameraStop);
         }
     }
 

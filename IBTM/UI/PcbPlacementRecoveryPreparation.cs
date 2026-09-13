@@ -2,15 +2,17 @@ using System;
 using System.Linq;
 using System.Windows;
 using IBTM.Core;
+using IBTM.Device;
 using IBTM.PcbPlacement;
 
 namespace IBTM.UI;
 
 public sealed class PcbPlacementRecoveryPreparation(
     MachineState state,
-    PcbPlacementWork work) : StartPreparation(state, work)
+    PcbPlacementWork work,
+    IIoService io) : StartPreparation(state, work, io)
 {
-    protected override bool Show(Window owner)
+    protected override bool Show(Window owner, int version)
     {
         var items = Enum.GetValues<HeatSinkSlot>()
             .Where(work.HeatSinkPresent)
@@ -26,7 +28,7 @@ public sealed class PcbPlacementRecoveryPreparation(
         {
             Owner = owner,
         };
-        if (window.ShowDialog() != true)
+        if (window.ShowDialog() != true || !CanApply(version))
         {
             return false;
         }

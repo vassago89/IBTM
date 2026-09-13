@@ -259,8 +259,8 @@ public static class DependencyInjection
                     settings.PcbBuffer,
                     provider.GetRequiredService<IIoService>(),
                     placement,
-                    supply.Feedback,
-                    placement.Feedback,
+                    supply.Motion,
+                    placement.Motion,
                     settings.PcbSupply.BufferHandoffPosition,
                     settings.PcbPlacementHandler.BufferHandoffPosition,
                     () => settings.PcbPlacementHandler.BufferEntryZ,
@@ -326,6 +326,7 @@ public static class DependencyInjection
                     provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening),
                     settings.BoltFastening,
                     settings.CarrierReference));
+        services.AddSingleton<MachineFeedbackMonitor>();
         services.AddSingleton<MachineState>();
         services.AddSingleton<MachineController>();
         services.AddSingleton<PcbSupplier>();

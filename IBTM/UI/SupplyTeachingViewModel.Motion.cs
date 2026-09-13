@@ -87,17 +87,13 @@ public partial class SupplyTeachingViewModel
             token =>
             {
                 var (axis, target) = StepTarget(direction, Motion.Feedback.GetPosition());
-                return (ActiveMotionGroup, axis) switch
+                return ActiveMotionGroup switch
                 {
-                    (MotionGroup.PcbSupply, MotionAxis.X)
-                        => _supplyHandler.MoveXAsync(target, token),
-                    (MotionGroup.PcbSupply, MotionAxis.Y)
-                        => _supplyHandler.MoveYAsync(target, token),
-                    (MotionGroup.PcbSupply, MotionAxis.Z)
-                        => _supplyHandler.MoveTeachingZAsync(target, token),
-                    (MotionGroup.PcbPlacementHandler, _)
+                    MotionGroup.PcbSupply
+                        => _supplyHandler.MoveAxisAsync(axis, target, token),
+                    MotionGroup.PcbPlacementHandler
                         => _placementHandler.MoveAxisAsync(axis, target, token),
-                    _ => throw new ArgumentOutOfRangeException(nameof(axis)),
+                    _ => throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup)),
                 };
             },
             cancellationToken,

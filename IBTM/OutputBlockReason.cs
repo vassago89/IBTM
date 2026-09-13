@@ -31,4 +31,7 @@ public enum OutputBlockReason
     NgPickupNotRaised,
     [Description("Clear the carrier detected at the NG pickup.")]
     NgCarrierDetected,
+
+    [Description("Wait for the current machine operation and its stop cleanup to finish.")]
+    Busy,
 }

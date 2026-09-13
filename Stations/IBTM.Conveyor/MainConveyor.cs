@@ -20,9 +20,11 @@ public sealed class MainConveyor : AutoUnit
     private readonly ConveyorStation _boltFastening;
     private readonly ConveyorStation _inspection;
     private readonly Func<bool> _routeInspectionToNg;
-    private OperationCancellation.Operation? _automaticCancellation;
-    private OperationCancellation.Operation? _manualCancellation;
+    private OperationCancellation.Operation? _runCancellation;
     private volatile ConveyorTransfer _transfer;
+    private StationWork.Job? _transferJob;
+    // An uninterrupted timed push, not a physical carrier/plate position.
+    private bool _seatingPushCompleted;
     private bool _repeat;
 
     public MainConveyor(
@@ -82,125 +84,122 @@ public sealed class MainConveyor : AutoUnit
     {
         get
         {
-            // The destination is transfer history, not proof of a carrier's location.
-            // After a stop between sensors, wait for presence feedback before resuming.
-            if (!RunCommandOn
-                && (_transfer switch
-                {
-                    ConveyorTransfer.ReceivingAfterEntry =>
-                        !EntryCarrierDetected && !_placementWork.CarrierPresent,
-                    ConveyorTransfer.PcbPlacementToBoltFastening =>
-                        !_placementWork.CarrierPresent && !_boltFasteningWork.CarrierPresent,
-                    ConveyorTransfer.BoltFasteningToInspection =>
-                        !_boltFasteningWork.CarrierPresent && !_inspectionWork.CarrierPresent,
-                    ConveyorTransfer.DischargingInspectionToExit =>
-                        !_inspectionWork.CarrierPresent && !ExitCarrierDetected,
-                    _ => false,
-                }))
-            {
-                return MainConveyorState.CarrierPositionUnknown;
-            }
-
-            if (ExitCarrierDetected)
-            {
-                return _io.GetInput(InputIo.MainConveyorReadyFromRear)
-                    ? MainConveyorState.DischargingInspectionCarrier
-                    : MainConveyorState.WaitingForRearEquipment;
-            }
-
-            if (_placementWork.CanReceive && EntryCarrierDetected)
-            {
-                return MainConveyorState.ReceivingFrontCarrier;
-            }
-
-            switch (_transfer)
-            {
-                case ConveyorTransfer.DischargingInspectionFromExit:
-                    return MainConveyorState.DischargingInspectionCarrier;
-
-                case ConveyorTransfer.DischargingInspectionToExit:
-                    return _io.GetInput(InputIo.MainConveyorReadyFromRear)
-                        ? MainConveyorState.DischargingInspectionCarrier
-                        : MainConveyorState.WaitingForRearEquipment;
-
-                case ConveyorTransfer.ReceivingBeforeEntry:
-                case ConveyorTransfer.ReceivingAfterEntry:
-                    return MainConveyorState.ReceivingFrontCarrier;
-
-                case ConveyorTransfer.BoltFasteningToInspection:
-                    return MainConveyorState.MovingBoltFasteningToInspection;
-
-                case ConveyorTransfer.PcbPlacementToBoltFastening:
-                    return MainConveyorState.MovingPcbPlacementToBoltFastening;
-            }
-
-            if (_inspectionWork.CarrierPresent && !_inspectionWork.CarrierSeated)
-            {
-                return MainConveyorState.SeatingInspectionCarrier;
-            }
-
-            if (_boltFasteningWork.CarrierPresent && !_boltFasteningWork.CarrierSeated)
-            {
-                return MainConveyorState.SeatingBoltFasteningCarrier;
-            }
-
-            if (_placementWork.CarrierPresent
-                && !_placementWork.CarrierSeated
-                && !_repeat)
-            {
-                return MainConveyorState.SeatingPcbPlacementCarrier;
-            }
-
-            if (CanDischargeInspection)
-            {
-                return MainConveyorState.DischargingInspectionCarrier;
-            }
-
-            if (CanMoveBoltFasteningToInspection)
-            {
-                return MainConveyorState.MovingBoltFasteningToInspection;
-            }
-
-            if (CanMovePlacementToBoltFastening)
-            {
-                return MainConveyorState.MovingPcbPlacementToBoltFastening;
-            }
-
-            if (CanReceiveAtPlacement)
-            {
-                return MainConveyorState.ReceivingFrontCarrier;
-            }
-
-            if (CanOfferToRear)
-            {
-                return MainConveyorState.WaitingForRearEquipment;
-            }
-
-            return _placementWork.CarrierPresent
-                ? MainConveyorState.Idle
-                : MainConveyorState.WaitingForFrontCarrier;
+            return ReadState(RunCommandOn);
         }
     }
 
-    public async Task RunMotorAsync(CancellationToken cancellationToken = default)
+    public MainConveyorState ReadState(bool runCommandOn)
     {
-        Stop();
-        using var runCancellation = _operations.Link(cancellationToken);
-        _manualCancellation = runCancellation;
-        cancellationToken = runCancellation.Token;
-        try
+        // The destination is transfer history, not proof of a carrier's location.
+        // After a stop between sensors, wait for presence feedback before resuming.
+        if (!runCommandOn
+            && (_transfer switch
+            {
+                ConveyorTransfer.ReceivingAfterEntry =>
+                    !EntryCarrierDetected && !_placementWork.CarrierPresent,
+                ConveyorTransfer.PcbPlacementToBoltFastening =>
+                    !_placementWork.CarrierPresent && !_boltFasteningWork.CarrierPresent,
+                ConveyorTransfer.BoltFasteningToInspection =>
+                    !_boltFasteningWork.CarrierPresent && !_inspectionWork.CarrierPresent,
+                ConveyorTransfer.DischargingInspectionToExit =>
+                    !_inspectionWork.CarrierPresent && !ExitCarrierDetected,
+                _ => false,
+            }))
         {
-            using var stopRegistration = cancellationToken.Register(StopMotor);
-            StartMotor(cancellationToken);
-            await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+            return MainConveyorState.CarrierPositionUnknown;
         }
-        finally
+
+        if (ExitCarrierDetected)
         {
-            if (ReferenceEquals(_manualCancellation, runCancellation))
-                _manualCancellation = null;
-            StopMotor();
-            ResetSmema();
+            return _io.GetInput(InputIo.MainConveyorReadyFromRear)
+                ? MainConveyorState.DischargingInspectionCarrier
+                : MainConveyorState.WaitingForRearEquipment;
         }
+
+        // Finish the selected transfer before a new front arrival can replace its
+        // destination and the production results that still belong to that transfer.
+        switch (_transfer)
+        {
+            case ConveyorTransfer.DischargingInspectionFromExit:
+                return MainConveyorState.DischargingInspectionCarrier;
+
+            case ConveyorTransfer.DischargingInspectionToExit:
+                return _io.GetInput(InputIo.MainConveyorReadyFromRear)
+                    ? MainConveyorState.DischargingInspectionCarrier
+                    : MainConveyorState.WaitingForRearEquipment;
+
+            case ConveyorTransfer.ReceivingBeforeEntry:
+            case ConveyorTransfer.ReceivingAfterEntry:
+                return MainConveyorState.ReceivingFrontCarrier;
+
+            case ConveyorTransfer.BoltFasteningToInspection:
+                return MainConveyorState.MovingBoltFasteningToInspection;
+
+            case ConveyorTransfer.PcbPlacementToBoltFastening:
+                return MainConveyorState.MovingPcbPlacementToBoltFastening;
+        }
+
+        if (_placementWork.CanReceive && EntryCarrierDetected)
+        {
+            return MainConveyorState.ReceivingFrontCarrier;
+        }
+
+        if (_inspectionWork.CarrierPresent && !_inspectionWork.CarrierSeated)
+        {
+            return MainConveyorState.SeatingInspectionCarrier;
+        }
+
+        if (_boltFasteningWork.CarrierPresent && !_boltFasteningWork.CarrierSeated)
+        {
+            return MainConveyorState.SeatingBoltFasteningCarrier;
+        }
+
+        if (_placementWork.CarrierPresent
+            && !_placementWork.CarrierSeated
+            && !_repeat)
+        {
+            return MainConveyorState.SeatingPcbPlacementCarrier;
+        }
+
+        if (CanDischargeInspection)
+        {
+            return MainConveyorState.DischargingInspectionCarrier;
+        }
+
+        if (CanMoveBoltFasteningToInspection)
+        {
+            return MainConveyorState.MovingBoltFasteningToInspection;
+        }
+
+        if (CanMovePlacementToBoltFastening)
+        {
+            return MainConveyorState.MovingPcbPlacementToBoltFastening;
+        }
+
+        if (CanReceiveAtPlacement)
+        {
+            return MainConveyorState.ReceivingFrontCarrier;
+        }
+
+        if (CanOfferToRear)
+        {
+            return MainConveyorState.WaitingForRearEquipment;
+        }
+
+        return _placementWork.CarrierPresent
+            ? MainConveyorState.Idle
+            : MainConveyorState.WaitingForFrontCarrier;
+    }
+
+    public Task RunMotorAsync(CancellationToken cancellationToken = default)
+    {
+        return RunControlledAsync(
+            async token =>
+            {
+                StartMotor(token);
+                await Task.Delay(Timeout.Infinite, token).ConfigureAwait(false);
+            },
+            cancellationToken);
     }
 
     public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
@@ -227,6 +226,7 @@ public sealed class MainConveyor : AutoUnit
 
         // Reverse travel does not transfer production results to stations it passes.
         _transfer = ConveyorTransfer.None;
+        _transferJob = null;
         _repeat = true;
         try
         {
@@ -257,14 +257,20 @@ public sealed class MainConveyor : AutoUnit
         if (_placement.CarrierPresent)
             return;
 
+        Exception? failure = null;
         try
         {
             StartMotor(cancellationToken, reverse: true);
             await _placement.WaitForCarrierAsync(cancellationToken);
         }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
         finally
         {
-            StopMotor();
+            StopOutputs(failure, OutputIo.MainConveyorRun);
         }
     }
 
@@ -274,126 +280,162 @@ public sealed class MainConveyor : AutoUnit
     {
         Stop();
         using var runCancellation = _operations.Link(cancellationToken);
-        _automaticCancellation = runCancellation;
+        _runCancellation = runCancellation;
         cancellationToken = runCancellation.Token;
-        using var stopRegistration = cancellationToken.Register(StopMotor);
-        List<Exception>? failures = null;
+        Exception? failure = null;
         try
         {
+            using var stopRegistration = cancellationToken.Register(StopMotor);
             await run(cancellationToken);
         }
         catch (Exception exception)
         {
-            failures = [exception];
+            failure = exception;
         }
         finally
         {
             try
             {
-                StopMotor();
+                StopOutputs(null,
+                    OutputIo.MainConveyorRun,
+                    OutputIo.MainConveyorReadyToFront2,
+                    OutputIo.MainConveyorAvailableToRear);
             }
             catch (Exception exception)
             {
-                (failures ??= []).Add(exception);
+                failure = failure is null ? exception : new AggregateException(failure, exception);
             }
 
-            try
+            if (ReferenceEquals(_runCancellation, runCancellation))
             {
-                ResetSmema();
-            }
-            catch (Exception exception)
-            {
-                (failures ??= []).Add(exception);
-            }
-
-            if (ReferenceEquals(_automaticCancellation, runCancellation))
-            {
-                _automaticCancellation = null;
+                _runCancellation = null;
             }
         }
 
-        if (failures?.Count == 1)
-        {
-            ExceptionDispatchInfo.Throw(failures[0]);
-        }
-
-        if (failures is not null)
-        {
-            throw new AggregateException("Conveyor operation or cleanup failed.", failures);
-        }
+        if (failure is not null)
+            ExceptionDispatchInfo.Throw(failure);
     }
 
-    private Task ExecuteAsync(CancellationToken cancellationToken)
+    public Task PrepareEmptyStationsAsync(CancellationToken cancellationToken)
     {
-        var state = State;
-        if (state != MainConveyorState.CarrierPositionUnknown)
-        {
-            // Empty stations wait with their plates down. CanReceive also keeps
-            // Station 3 unchanged while the NG pickup holds a carrier.
-            if (_placementWork.CanReceive && _placement.BackupPlate != StationCylinderState.Down)
-                return _io.SetOutputAndWaitAsync(
-                    OutputIo.PcbPlacementBackupPlateDown, true, cancellationToken);
-            if (_boltFasteningWork.CanReceive && _boltFastening.BackupPlate != StationCylinderState.Down)
-                return _io.SetOutputAndWaitAsync(
-                    OutputIo.BoltFasteningBackupPlateDown, true, cancellationToken);
-            if (_inspectionWork.CanReceive && _inspection.BackupPlate != StationCylinderState.Down)
-                return _io.SetOutputAndWaitAsync(
-                    OutputIo.InspectionBackupPlateDown, true, cancellationToken);
-        }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (State == MainConveyorState.CarrierPositionUnknown)
+            return Task.CompletedTask;
 
+        // Preserve the support under an interrupted placement/fastening operation.
+        // Station 3 also stays supported while the pickup still detects a carrier.
+        var preparation = new List<Task>(3);
+        if (_placementWork.CanReceive && _placement.BackupPlate != StationCylinderState.Down)
+            preparation.Add(_io.SetOutputAndWaitAsync(
+                OutputIo.PcbPlacementBackupPlateDown, true, cancellationToken));
+        if (_boltFasteningWork.CanReceive && _boltFastening.BackupPlate != StationCylinderState.Down)
+            preparation.Add(_io.SetOutputAndWaitAsync(
+                OutputIo.BoltFasteningBackupPlateDown, true, cancellationToken));
+        if (_inspectionWork.CanReceive && _inspection.BackupPlate != StationCylinderState.Down)
+            preparation.Add(_io.SetOutputAndWaitAsync(
+                OutputIo.InspectionBackupPlateDown, true, cancellationToken));
+        return Task.WhenAll(preparation);
+    }
+
+    private async Task ExecuteAsync(CancellationToken cancellationToken)
+    {
+        await PrepareEmptyStationsAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var state = State;
+        TraceStep(state, workId: _transferJob?.Id, waitingFor: state switch
+        {
+            MainConveyorState.WaitingForFrontCarrier => "MainConveyorAvailableFromFront2=ON",
+            MainConveyorState.WaitingForRearEquipment => "MainConveyorReadyFromRear=ON",
+            MainConveyorState.Idle => "station work complete and destination vacant",
+            MainConveyorState.CarrierPositionUnknown => "confirm carrier position before resuming",
+            _ => null,
+        });
         switch (state)
         {
             case MainConveyorState.CarrierPositionUnknown:
-                ResetSmema();
-                return WaitForChangeAsync(cancellationToken);
+                StopOutputs(null, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
+                await WaitForChangeAsync(cancellationToken);
+                break;
             case MainConveyorState.SeatingInspectionCarrier:
-                return _inspection.SeatAsync(cancellationToken);
+                await _inspection.SeatAsync(cancellationToken);
+                break;
             case MainConveyorState.SeatingBoltFasteningCarrier:
-                return _boltFastening.SeatAsync(cancellationToken);
+                await _boltFastening.SeatAsync(cancellationToken);
+                break;
             case MainConveyorState.SeatingPcbPlacementCarrier:
-                return _placement.SeatAsync(cancellationToken);
+                await _placement.SeatAsync(cancellationToken);
+                break;
             case MainConveyorState.DischargingInspectionCarrier:
-                return DischargeInspectionAsync(cancellationToken);
+                await DischargeInspectionAsync(cancellationToken);
+                break;
             case MainConveyorState.MovingBoltFasteningToInspection:
-                return MoveCarrierAsync(
+                await MoveCarrierAsync(
                     ConveyorTransfer.BoltFasteningToInspection,
                     _boltFastening,
                     _inspection,
                     cancellationToken);
+                break;
             case MainConveyorState.MovingPcbPlacementToBoltFastening:
-                return MoveCarrierAsync(
+                await MoveCarrierAsync(
                     ConveyorTransfer.PcbPlacementToBoltFastening,
                     _placement,
                     _boltFastening,
                     cancellationToken);
+                break;
             case MainConveyorState.ReceivingFrontCarrier:
-                return ReceiveAtPlacementAsync(cancellationToken);
+                await ReceiveAtPlacementAsync(cancellationToken);
+                break;
             default:
                 UpdateSmema();
-                return WaitForChangeAsync(cancellationToken);
+                await WaitForChangeAsync(cancellationToken);
+                break;
         }
     }
 
     public void Stop()
     {
-        var manual = _manualCancellation;
-        _manualCancellation = null;
+        var run = _runCancellation;
+        _runCancellation = null;
+        Exception? failure = null;
         try
         {
-            _automaticCancellation?.Cancel();
-            manual?.Cancel();
+            run?.Cancel();
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
         }
         finally
         {
-            StopMotor();
-            ResetSmema();
+            StopOutputs(failure,
+                OutputIo.MainConveyorRun,
+                OutputIo.MainConveyorReadyToFront2,
+                OutputIo.MainConveyorAvailableToRear);
         }
     }
 
-    private void ResetSmema()
+    private void StopOutputs(Exception? operationFailure, params OutputIo[] outputs)
     {
-        _io.SetOutput(OutputIo.MainConveyorReadyToFront2, false);
-        _io.SetOutput(OutputIo.MainConveyorAvailableToRear, false);
+        List<Exception>? failures = null;
+        foreach (var output in outputs)
+        {
+            try
+            {
+                _io.SetOutput(output, false);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+
+        if (failures is not null && operationFailure is not null)
+            failures.Insert(0, operationFailure);
+        if (failures?.Count == 1)
+            ExceptionDispatchInfo.Throw(failures[0]);
+        if (failures is not null)
+            throw new AggregateException("Main conveyor outputs could not all be stopped.", failures);
     }
 
     private void StopMotor()
@@ -470,50 +512,49 @@ public sealed class MainConveyor : AutoUnit
         if (_transfer is not ConveyorTransfer.ReceivingBeforeEntry
             and not ConveyorTransfer.ReceivingAfterEntry)
         {
+            _seatingPushCompleted = false;
             _transfer = EntryCarrierDetected
                 ? ConveyorTransfer.ReceivingAfterEntry
                 : ConveyorTransfer.ReceivingBeforeEntry;
         }
 
         _io.SetOutput(OutputIo.MainConveyorAvailableToRear, false);
+        Exception? failure = null;
         try
         {
-            await _placement.PrepareToReceiveAsync(cancellationToken);
-            if (!_repeat && _transfer == ConveyorTransfer.ReceivingBeforeEntry)
+            if (!_seatingPushCompleted)
             {
-                _io.SetOutput(OutputIo.MainConveyorReadyToFront2, true);
-            }
+                if (!_placement.CarrierPresent)
+                    await _placement.PrepareToReceiveAsync(cancellationToken);
+                else
+                    _transfer = ConveyorTransfer.ReceivingAfterEntry;
 
-            if (!_placementWork.CarrierPresent)
-            {
-                try
+                RequireSeatingPushPosition(_placement);
+                if (!_repeat && _transfer == ConveyorTransfer.ReceivingBeforeEntry)
+                    _io.SetOutput(OutputIo.MainConveyorReadyToFront2, true);
+
+                StartMotor(cancellationToken);
+                if (_transfer == ConveyorTransfer.ReceivingBeforeEntry)
                 {
-                    StartMotor(cancellationToken);
-                    if (_transfer == ConveyorTransfer.ReceivingBeforeEntry)
-                    {
-                        await _io.WaitForInputAsync(
-                            InputIo.MainConveyorEntryCarrierDetected,
-                            true,
-                            cancellationToken);
-                        _transfer = ConveyorTransfer.ReceivingAfterEntry;
-                    }
-
-                    _io.SetOutput(OutputIo.MainConveyorReadyToFront2, false);
-                    await _placement.WaitForCarrierAsync(cancellationToken, Timeout.Infinite);
-                    // Keep pushing against the raised stopper after carrier detection.
-                    await Task.Delay(
-                        TimeSpan.FromSeconds(_settings.CarrierStopDelaySeconds),
+                    await _io.WaitForInputAsync(
+                        InputIo.MainConveyorEntryCarrierDetected,
+                        true,
                         cancellationToken);
+                    _transfer = ConveyorTransfer.ReceivingAfterEntry;
                 }
-                finally
-                {
-                    StopMotor();
-                }
+
+                _io.SetOutput(OutputIo.MainConveyorReadyToFront2, false);
+                await CompleteSeatingPushAsync(_placement, cancellationToken);
             }
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
         }
         finally
         {
-            _io.SetOutput(OutputIo.MainConveyorReadyToFront2, false);
+            StopOutputs(failure, OutputIo.MainConveyorRun, OutputIo.MainConveyorReadyToFront2);
         }
 
         _transfer = ConveyorTransfer.None;
@@ -525,30 +566,100 @@ public sealed class MainConveyor : AutoUnit
         ConveyorStation destination,
         CancellationToken cancellationToken)
     {
-        _transfer = transfer;
-        ResetSmema();
-        if (!destination.CarrierPresent)
+        if (_transfer != transfer)
         {
-            await Task.WhenAll(
-                source.ReleaseAsync(cancellationToken),
-                destination.PrepareToReceiveAsync(cancellationToken));
+            _seatingPushCompleted = false;
+            _transferJob = transfer == ConveyorTransfer.PcbPlacementToBoltFastening
+                ? _placementWork.CurrentJob
+                : _boltFasteningWork.CurrentJob;
+        }
+        _transfer = transfer;
+        TraceStep(transfer, workId: _transferJob?.Id, waitingFor:
+            transfer == ConveyorTransfer.PcbPlacementToBoltFastening
+                ? "BoltFasteningCarrierPresent=ON"
+                : "InspectionCarrierPresent=ON");
+        StopOutputs(null, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
+        if (!_seatingPushCompleted)
+        {
+            if (!destination.CarrierPresent)
+            {
+                await Task.WhenAll(
+                    source.ReleaseAsync(cancellationToken),
+                    destination.PrepareToReceiveAsync(cancellationToken));
+            }
+            RequireSeatingPushPosition(destination);
+            // A new front carrier must be caught while the interrupted transfer finishes.
+            if (_placementWork.CanReceive && EntryCarrierDetected)
+            {
+                await _placement.PrepareToReceiveAsync(cancellationToken);
+            }
+
+            Exception? failure = null;
             try
             {
                 StartMotor(cancellationToken);
-                await destination.WaitForCarrierAsync(cancellationToken, Timeout.Infinite);
-                // Arrival starts the seating delay; it is not a travel timeout.
-                await Task.Delay(
-                    TimeSpan.FromSeconds(_settings.CarrierStopDelaySeconds),
-                    cancellationToken);
+                await CompleteSeatingPushAsync(destination, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+                throw;
             }
             finally
             {
-                StopMotor();
+                StopOutputs(failure, OutputIo.MainConveyorRun);
             }
         }
 
+        if (!destination.CarrierPresent)
+            throw new InvalidOperationException("Carrier presence was lost before raising the backup plate.");
         await destination.SeatAsync(cancellationToken);
         _transfer = ConveyorTransfer.None;
+    }
+
+    private static void RequireSeatingPushPosition(ConveyorStation destination)
+    {
+        // A stopped carrier may have been lifted manually. Do not lower its support
+        // just to replay an unfinished belt push.
+        if (destination.BackupPlate != StationCylinderState.Down
+            || destination.Stopper != StationCylinderState.Up)
+        {
+            throw new InvalidOperationException(
+                "Seating push requires backup plate DOWN and stopper UP feedback. Check the stopped carrier position.");
+        }
+    }
+
+    private async Task CompleteSeatingPushAsync(
+        ConveyorStation destination,
+        CancellationToken cancellationToken)
+    {
+        await destination.WaitForCarrierAsync(cancellationToken, Timeout.Infinite);
+        using var presence = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        destination.CarrierChanged += StopWhenCarrierLeaves;
+        try
+        {
+            if (!destination.CarrierPresent)
+                presence.Cancel();
+            // Arrival starts the push duration. STOP leaves it unfinished; resume
+            // requires the full uninterrupted duration before raising the plate.
+            await Task.Delay(TimeSpan.FromSeconds(_settings.CarrierStopDelaySeconds), presence.Token);
+            presence.Token.ThrowIfCancellationRequested();
+            _seatingPushCompleted = true;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new InvalidOperationException("Carrier presence was lost during the seating push.");
+        }
+        finally
+        {
+            destination.CarrierChanged -= StopWhenCarrierLeaves;
+        }
+
+        void StopWhenCarrierLeaves(bool present)
+        {
+            if (!present)
+                presence.Cancel();
+        }
     }
 
     private async Task DischargeInspectionAsync(CancellationToken cancellationToken)
@@ -565,6 +676,7 @@ public sealed class MainConveyor : AutoUnit
             OutputIo.MainConveyorAvailableToRear,
             _transfer == ConveyorTransfer.DischargingInspectionToExit
                 || ExitCarrierDetected);
+        Exception? failure = null;
         try
         {
             if (_inspectionWork.CarrierPresent)
@@ -575,32 +687,30 @@ public sealed class MainConveyor : AutoUnit
             if (_transfer == ConveyorTransfer.DischargingInspectionToExit
                 || ExitCarrierDetected)
             {
-                try
+                StartMotor(cancellationToken);
+                if (_transfer == ConveyorTransfer.DischargingInspectionToExit)
                 {
-                    StartMotor(cancellationToken);
-                    if (_transfer == ConveyorTransfer.DischargingInspectionToExit)
-                    {
-                        await _io.WaitForInputAsync(
-                            InputIo.MainConveyorExitCarrierDetected,
-                            true,
-                            cancellationToken);
-                        _transfer = ConveyorTransfer.DischargingInspectionFromExit;
-                    }
-
                     await _io.WaitForInputAsync(
                         InputIo.MainConveyorExitCarrierDetected,
-                        false,
+                        true,
                         cancellationToken);
+                    _transfer = ConveyorTransfer.DischargingInspectionFromExit;
                 }
-                finally
-                {
-                    StopMotor();
-                }
+
+                await _io.WaitForInputAsync(
+                    InputIo.MainConveyorExitCarrierDetected,
+                    false,
+                    cancellationToken);
             }
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
         }
         finally
         {
-            _io.SetOutput(OutputIo.MainConveyorAvailableToRear, false);
+            StopOutputs(failure, OutputIo.MainConveyorRun, OutputIo.MainConveyorAvailableToRear);
         }
 
         _transfer = ConveyorTransfer.None;
@@ -646,20 +756,16 @@ public sealed class MainConveyor : AutoUnit
             return;
         }
 
-        if (station == StationPosition.PcbPlacement
-            && (_transfer is ConveyorTransfer.ReceivingBeforeEntry or ConveyorTransfer.ReceivingAfterEntry))
-        {
-            _transfer = ConveyorTransfer.None;
-        }
-
         switch (station)
         {
             case StationPosition.BoltFastening when _transfer == ConveyorTransfer.PcbPlacementToBoltFastening:
-                _placementWork.TransferAssembliesTo(_boltFasteningWork);
+                if (Interlocked.Exchange(ref _transferJob, null) is { } placementJob)
+                    _placementWork.TransferAssembliesTo(_boltFasteningWork, placementJob);
                 break;
 
             case StationPosition.Inspection when _transfer == ConveyorTransfer.BoltFasteningToInspection:
-                _boltFasteningWork.TransferAssembliesTo(_inspectionWork);
+                if (Interlocked.Exchange(ref _transferJob, null) is { } fasteningJob)
+                    _boltFasteningWork.TransferAssembliesTo(_inspectionWork, fasteningJob);
                 break;
         }
     }

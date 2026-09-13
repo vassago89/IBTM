@@ -31,7 +31,7 @@ public sealed partial class MachineLifecycleTests
     [InlineData("arrive")]
     [InlineData("stop")]
     [InlineData("timeout")]
-    public async Task StartLowersAllBackupPlatesBeforeStartingUnits(string outcome)
+    public async Task StartPreparesEmptyBackupPlatesBeforeStartingUnits(string outcome)
     {
         var settings = new MachineSettings
         {
@@ -51,6 +51,12 @@ public sealed partial class MachineLifecycleTests
             OutputIo.BoltFasteningBackupPlateDown,
             OutputIo.InspectionBackupPlateDown,
         ];
+        foreach (var plate in plates)
+        {
+            var feedback = io.GetOutputFeedback(plate)!;
+            io.SetInput(feedback.OnInput, false);
+            io.SetInput(feedback.OffInput, true);
+        }
         var conveyorStarted = false;
         io.OutputChanged += (output, on) =>
         {
@@ -415,7 +421,7 @@ public sealed partial class MachineLifecycleTests
         var assembly = work.Assembly(HeatSinkSlot.HeatSink1);
         assembly.RecordBoltPresence(1, true);
         assembly.CompleteInspection();
-        work.Complete();
+        work.Complete(work.CurrentJob);
 
         Assert.Equal(expectNg, inspection.State([]) == InspectionStationState.MovingTransferToCarrier);
         Assert.Equal(!expectNg, conveyor.State == MainConveyorState.DischargingInspectionCarrier);
@@ -479,26 +485,43 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateDown, false);
+        io.SetInput(InputIo.BoltFasteningStopperUp, false);
+        io.SetInput(InputIo.BoltFasteningStopperDown, true);
         io.SetInput(InputIo.ShootingHeadVacuumDetected, true);
         io.SetInput(InputIo.AutoMode, false);
+        await WaitUntilAsync(() => state.Display.CanStart);
+        Assert.True(services.GetRequiredService<BoltFasteningWork>().CarrierSeated);
 
         var run = machine.StartAsync();
-        await head.Started.Task.WaitAsync(TimeSpan.FromSeconds(3));
-        io.SetInput(InputIo.AirPressureHigh, false);
-        await head.Stopping.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        try
+        {
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => head.Started.Task.IsCompleted, TimeSpan.FromSeconds(3)),
+                $"Fastening did not start: block={machine.StartBlock}, alarm={state.Alarm}, "
+                    + $"station={services.GetRequiredService<BoltFasteningStation>().State()}. {state.AlarmDetail}");
+            io.SetInput(InputIo.AirPressureHigh, false);
+            await head.Stopping.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
-        Assert.False(run.IsCompleted);
-        Assert.True(state.AutomaticRunning);
-        Assert.True(state.IsRunning);
-        Assert.False(machine.CanReset);
-        Assert.Equal(MachineAlarm.AirPressureLow, state.Alarm);
+            Assert.False(run.IsCompleted);
+            Assert.True(state.AutomaticRunning);
+            Assert.True(state.IsRunning);
+            Assert.False(machine.CanReset);
+            Assert.Equal(MachineAlarm.AirPressureLow, state.Alarm);
 
-        head.Stopped.SetException(new InvalidOperationException("Head stop failed."));
-        await run.WaitAsync(TimeSpan.FromSeconds(2));
+            head.Stopped.SetException(new InvalidOperationException("Head stop failed."));
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
 
-        Assert.False(state.IsRunning);
-        Assert.Equal(MachineAlarm.AirPressureLow, state.Alarm);
-        Assert.Null(state.AlarmMessage);
+            Assert.False(state.IsRunning);
+            Assert.Equal(MachineAlarm.AirPressureLow, state.Alarm);
+            Assert.Null(state.AlarmMessage);
+        }
+        finally
+        {
+            machine.Stop();
+            head.Stopped.TrySetResult();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]
@@ -581,6 +604,53 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task StopDuringMotionInitializationSkipsLaterUnitsAndCanRetry()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        settings.Units.PcbPlacement = true;
+        settings.Units.NgCarrierTransfer = true;
+        using var services = CreateMotionScopeServices(settings, out var probes);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var supply = probes[MotionGroup.PcbSupply];
+        void StopAfterSupplyInitialization()
+        {
+            supply.Motion.StateChanged -= StopAfterSupplyInitialization;
+            machine.Stop();
+        }
+
+        supply.Motion.StateChanged += StopAfterSupplyInitialization;
+        try
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(2)));
+
+            Assert.Equal(1, supply.InitializationCalls);
+            Assert.All(
+                probes.Where(item => item.Key != MotionGroup.PcbSupply),
+                item => Assert.Equal(0, item.Value.InitializationCalls));
+            Assert.False(state.IsRunning);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.DoesNotContain(
+                services.GetRequiredService<ApplicationLog>().Snapshot(),
+                entry => entry.Level == "ERROR");
+
+            await machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(2, supply.InitializationCalls);
+            Assert.Equal(1, probes[MotionGroup.PcbPlacementHandler].InitializationCalls);
+            Assert.Equal(1, probes[MotionGroup.InspectionGantry].InitializationCalls);
+            Assert.Equal(0, probes[MotionGroup.BoltFastening].InitializationCalls);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+        }
+        finally
+        {
+            supply.Motion.StateChanged -= StopAfterSupplyInitialization;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task StopDuringHardwareReadinessPreventsStartAndAllowsRestart()
     {
         var settings = new MachineSettings
@@ -632,12 +702,16 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
+    [InlineData(false, false, false, false)]
+    [InlineData(true, false, false, false)]
+    [InlineData(true, true, false, false)]
+    [InlineData(true, false, true, false)]
+    [InlineData(true, false, true, true)]
     public async Task StopOrFailureDuringFirstUnitOutputPreventsLaterStarts(
         bool failure,
-        bool stopBeforeFailure)
+        bool stopBeforeFailure,
+        bool motionFailure,
+        bool combinedFailure)
     {
         var settings = new MachineSettings
         {
@@ -653,7 +727,11 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
         var stopped = false;
         var feederStarted = false;
-        var error = new InvalidOperationException("Conveyor start failed.");
+        Exception error = motionFailure
+            ? new MotionException("Conveyor start", new IOException("Motion controller disconnected."))
+            : new InvalidOperationException("Conveyor start failed.");
+        if (combinedFailure)
+            error = new AggregateException(new IOException("Output cleanup failed."), new AggregateException(error));
         io.OutputChanged += (output, value) =>
         {
             feederStarted |= output == OutputIo.ShootingFeederRunSignal && value;
@@ -672,10 +750,21 @@ public sealed partial class MachineLifecycleTests
         Assert.True(stopped);
         Assert.False(feederStarted);
         Assert.False(state.IsRunning);
-        Assert.Equal(failure ? MachineAlarm.MainConveyor : MachineAlarm.None, state.Alarm);
+        var expectedAlarm = motionFailure
+            ? MachineAlarm.MotionUnavailable
+            : failure ? MachineAlarm.MainConveyor : MachineAlarm.None;
+        Assert.Equal(expectedAlarm, state.Alarm);
         Assert.Equal(failure ? error.Message : null, state.AlarmMessage);
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
         Assert.False(io.GetOutput(OutputIo.ShootingFeederRunSignal));
+        if (failure)
+        {
+            var entries = services.GetRequiredService<ApplicationLog>().Snapshot();
+            Assert.Contains(entries, entry => entry.Message == $"Automatic unit MainConveyor failed. {error.Message}");
+            var alarm = Assert.Single(entries, entry => entry.Detail == error.ToString());
+            Assert.Equal($"Machine alarm: {expectedAlarm}.", alarm.Message);
+            Assert.Equal(error.ToString(), state.AlarmDetail);
+        }
     }
 
     [Fact]

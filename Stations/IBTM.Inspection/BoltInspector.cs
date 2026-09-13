@@ -143,9 +143,9 @@ public sealed class BoltInspector
         return fov;
     }
 
-    public bool IsAtBarcode(HeatSinkSlot pcb)
+    public bool IsAtBarcode(HeatSinkSlot pcb, bool live = true)
     {
-        return gantry.IsAt(GetBarcodeFov(pcb).Center);
+        return gantry.IsAt(GetBarcodeFov(pcb).Center, live);
     }
 
     public Task MoveToBarcodeAsync(HeatSinkSlot pcb, CancellationToken cancellationToken = default)
@@ -208,9 +208,9 @@ public sealed class BoltInspector
                 $"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Number}.");
     }
 
-    internal bool IsAt(BoltTarget point)
+    internal bool IsAt(BoltTarget point, bool live = true)
     {
-        return gantry.IsAt(GetFov(point).Center);
+        return gantry.IsAt(GetFov(point).Center, live);
     }
 
     public Task MoveToAsync(BoltTarget point, CancellationToken cancellationToken = default)

@@ -17,6 +17,10 @@ public interface IIoService
 
     void Initialize();
     void CheckReady();
+    // One complete input scan. The application owns the polling lifetime.
+    // An unavailable driver waits for explicit initialization; a failed scan
+    // invalidates its cache and reports Faulted before throwing.
+    void RefreshInputs();
     bool GetInput(InputIo input);
     bool GetOutput(OutputIo output);
     OutputFeedback? GetOutputFeedback(OutputIo output);

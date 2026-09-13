@@ -42,12 +42,9 @@ public sealed class PcbSupplyHandler
         }
     }
 
-    public bool IsAtRotationZ
+    public bool IsAtRotationZ(bool live = true)
     {
-        get
-        {
-            return _motion.IsAtHorizontalZ;
-        }
+        return live ? _motion.IsAtHorizontalZ : Motion.IsAtZ(_settings.RotationZ);
     }
 
     public bool UpstreamCarrierAvailable
@@ -168,13 +165,13 @@ public sealed class PcbSupplyHandler
 
     public Task MoveToHandoffZAsync(CancellationToken cancellationToken, double? z = null)
     {
-        return Rotation != PcbSupplyRotationState.Rotated
-            ? throw new InvalidOperationException("Supply must be rotated before lowering into the buffer.")
-            : _motion.MoveAxisAsync(
-                MotionAxis.Z,
-                z ?? _settings.BufferHandoffPosition.Z,
-                _settings.Motion.ZSpeed,
-                cancellationToken);
+        if (Rotation != PcbSupplyRotationState.Rotated)
+            throw new InvalidOperationException("Supply must be rotated before lowering into the buffer.");
+        return _motion.MoveAxisAsync(
+            MotionAxis.Z,
+            z ?? _settings.BufferHandoffPosition.Z,
+            _settings.Motion.ZSpeed,
+            cancellationToken);
     }
 
     internal async Task PickAsync(
@@ -189,15 +186,10 @@ public sealed class PcbSupplyHandler
         }
     }
 
-    public async Task SecurePcbAsync(CancellationToken cancellationToken = default)
-    {
-        await SetGripperClosedAsync(true, cancellationToken);
-        await SetIpmFixerAsync(true, cancellationToken);
-    }
-
     public bool CanMoveToTeachingPosition(TeachingPosition point, bool live = true)
     {
-        return (IsInsideBuffer(live) == false || point.Mode == TeachMode.XOnly && AtRotationZ(live))
+        return (IsInsideBuffer(live) == false
+            || point.Mode == TeachMode.XOnly && IsAtRotationZ(live))
             && point.Target switch
             {
                 TeachingTarget.SupplyBufferHandoff => Rotation == PcbSupplyRotationState.Rotated,
@@ -215,13 +207,13 @@ public sealed class PcbSupplyHandler
         switch (point.Mode)
         {
             case TeachMode.XOnly:
-                await MoveXAsync(position.X, cancellationToken);
+                await MoveAxisAsync(MotionAxis.X, position.X, cancellationToken);
                 break;
             case TeachMode.YOnly:
-                await MoveYAsync(position.Y, cancellationToken);
+                await MoveAxisAsync(MotionAxis.Y, position.Y, cancellationToken);
                 break;
             case TeachMode.ZOnly:
-                await MoveTeachingZAsync(position.Z, cancellationToken);
+                await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
                 break;
             case TeachMode.XZOnly:
             case TeachMode.Full:
@@ -229,7 +221,7 @@ public sealed class PcbSupplyHandler
                 if (point.Target == TeachingTarget.SupplyBufferHandoff)
                     await MoveToHandoffZAsync(cancellationToken, position.Z);
                 else
-                    await MoveTeachingZAsync(position.Z, cancellationToken);
+                    await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(point));
@@ -241,21 +233,21 @@ public sealed class PcbSupplyHandler
         double y,
         CancellationToken cancellationToken = default)
     {
-        if (InsideBuffer)
+        if (IsInsideBuffer(live: true) == true)
         {
-            await MoveXAsync(x, cancellationToken);
+            await MoveAxisAsync(MotionAxis.X, x, cancellationToken);
             if (_motion.GetAxisState(MotionAxis.Y).InPosition
                 && Math.Abs(_motion.GetPosition().Y - y) <= MotionService.PositionToleranceMillimeters)
             {
                 return;
             }
 
-            await MoveYAsync(y, cancellationToken);
+            await MoveAxisAsync(MotionAxis.Y, y, cancellationToken);
         }
         else
         {
-            await MoveYAsync(y, cancellationToken);
-            await MoveXAsync(x, cancellationToken);
+            await MoveAxisAsync(MotionAxis.Y, y, cancellationToken);
+            await MoveAxisAsync(MotionAxis.X, x, cancellationToken);
         }
     }
 
@@ -316,31 +308,24 @@ public sealed class PcbSupplyHandler
             cancellationToken);
     }
 
-    public Task MoveXAsync(double x, CancellationToken cancellationToken = default)
+    public Task MoveAxisAsync(
+        MotionAxis axis,
+        double position,
+        CancellationToken cancellationToken = default)
     {
-        return _motion.MoveAxisAsync(MotionAxis.X, x, _settings.Motion.HorizontalSpeed, cancellationToken);
-    }
-
-    public Task MoveYAsync(double y, CancellationToken cancellationToken = default)
-    {
-        return InsideBuffer
-            ? throw new InvalidOperationException("Supply Y cannot move inside the buffer.")
-            : _motion.MoveAxisAsync(MotionAxis.Y, y, _settings.Motion.HorizontalSpeed, cancellationToken);
-    }
-
-    public Task MoveTeachingZAsync(double z, CancellationToken cancellationToken = default)
-    {
-        return InsideBuffer
-            ? throw new InvalidOperationException("Supply Z cannot move inside the buffer.")
-            : _motion.MoveAxisAsync(MotionAxis.Z, z, _settings.Motion.ZSpeed, cancellationToken);
+        if (axis is MotionAxis.Y or MotionAxis.Z
+            && IsInsideBuffer(live: true) == true)
+            throw new InvalidOperationException($"Supply {axis} cannot move inside the buffer.");
+        var speed = axis == MotionAxis.Z ? _settings.Motion.ZSpeed : _settings.Motion.HorizontalSpeed;
+        return _motion.MoveAxisAsync(axis, position, speed, cancellationToken);
     }
 
     public bool CanJog(MotionAxis axis, bool live = true)
     {
         return axis switch
         {
-            MotionAxis.X => AtRotationZ(live),
-            MotionAxis.Y => _motion.HasY && IsInsideBuffer(live) == false && AtRotationZ(live),
+            MotionAxis.X => IsAtRotationZ(live),
+            MotionAxis.Y => _motion.HasY && IsInsideBuffer(live) == false && IsAtRotationZ(live),
             MotionAxis.Z => _motion.HasZ && IsInsideBuffer(live) == false,
             _ => false,
         };
@@ -348,28 +333,16 @@ public sealed class PcbSupplyHandler
 
     public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
     {
-        if (axis is MotionAxis.Y or MotionAxis.Z && InsideBuffer)
+        if (axis is MotionAxis.Y or MotionAxis.Z
+            && IsInsideBuffer(live: true) == true)
             throw new InvalidOperationException($"Supply {axis} cannot jog inside the buffer.");
         return _motion.JogAsync(axis, velocity, cancellationToken);
-    }
-
-    private bool InsideBuffer
-    {
-        get
-        {
-            return IsInsideBuffer(live: true) == true;
-        }
     }
 
     public bool? IsInsideBuffer(bool live)
     {
         var x = live ? _motion.GetPosition().X : Motion.Position.X;
         return x is { } position ? _bufferSettings.ContainsSupplyX(position) : null;
-    }
-
-    private bool AtRotationZ(bool live)
-    {
-        return live ? IsAtRotationZ : Motion.IsAtZ(_settings.RotationZ);
     }
 
     public Task MoveToRotationZAsync(CancellationToken cancellationToken = default)
@@ -379,7 +352,7 @@ public sealed class PcbSupplyHandler
 
     public async Task SetRotatedAsync(bool rotated, CancellationToken cancellationToken = default)
     {
-        if (InsideBuffer)
+        if (IsInsideBuffer(live: true) == true)
         {
             throw new InvalidOperationException("Supply cannot rotate inside the buffer.");
         }

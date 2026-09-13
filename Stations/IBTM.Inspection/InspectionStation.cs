@@ -43,10 +43,12 @@ public sealed class InspectionStation : AutoUnit
     public InspectionStationState State(
         IReadOnlyList<BoltTarget> bolts,
         bool repeat = false,
-        bool holdAtShuttle = false)
+        bool holdAtShuttle = false,
+        bool live = true,
+        bool? conveyorRunning = null)
     {
-        return TransferState(CurrentTransferState(repeat, holdAtShuttle))
-            ?? NextInspectionState(NextBolt(bolts));
+        return TransferState(CurrentTransferState(repeat, holdAtShuttle, live, conveyorRunning))
+            ?? NextInspectionState(NextBolt(bolts), live);
     }
 
     public BoltTarget? ActiveBolt(IReadOnlyList<BoltTarget> bolts)
@@ -71,6 +73,8 @@ public sealed class InspectionStation : AutoUnit
         bool repeat = false,
         bool holdAtShuttle = false)
     {
+        if (cancellationToken.IsCancellationRequested)
+            return;
         if (_work.Enabled && _work.CarrierPresent && !_work.Completed)
         {
             _work.RestartInspection();
@@ -79,7 +83,7 @@ public sealed class InspectionStation : AutoUnit
         await RunLoopAsync(token => ExecuteAsync(bolts, repeat, holdAtShuttle, token), cancellationToken);
     }
 
-    private Task ExecuteAsync(
+    private async Task ExecuteAsync(
         IReadOnlyList<BoltTarget> bolts,
         bool repeat,
         bool holdAtShuttle,
@@ -87,23 +91,48 @@ public sealed class InspectionStation : AutoUnit
     {
         var transferState = CurrentTransferState(repeat, holdAtShuttle);
         if (TransferState(transferState) is not null)
-            return _move.ExecuteAsync(NgTransferDestination.Shuttle, transferState, cancellationToken) ?? WaitForChangeAsync(
+        {
+            var transfer = _move.ExecuteAsync(
+                NgTransferDestination.Shuttle,
+                transferState,
                 cancellationToken);
+            if (transfer is null)
+            {
+                await WaitForChangeAsync(cancellationToken);
+            }
+            else
+            {
+                await transfer;
+            }
 
-        return NextInspectionState(NextBolt(bolts)) is InspectionStationState.Waiting
+            return;
+        }
+
+        var inspectionState = NextInspectionState(NextBolt(bolts));
+        TraceStep(inspectionState, workId: _work.CurrentJob.Id,
+            waitingFor: inspectionState == InspectionStationState.Waiting ? _work.State.ToString() : null);
+        if (inspectionState is InspectionStationState.Waiting
             or InspectionStationState.BarcodeTeachingRequired
-            or InspectionStationState.FovTeachingRequired
-            ? WaitForChangeAsync(cancellationToken)
-            : ExecuteInspectionAsync(bolts, cancellationToken);
+            or InspectionStationState.FovTeachingRequired)
+        {
+            await WaitForChangeAsync(cancellationToken);
+            return;
+        }
+
+        await ExecuteInspectionAsync(bolts, cancellationToken);
     }
 
-    private NgTransferState CurrentTransferState(bool repeat, bool holdAtShuttle)
+    private NgTransferState CurrentTransferState(
+        bool repeat,
+        bool holdAtShuttle,
+        bool live = true,
+        bool? conveyorRunning = null)
     {
         if (!_isTransferEnabled())
             return NgTransferState.Idle;
 
         var canReceive = holdAtShuttle
-            || _shuttle.CanReceive(useConveyor: !repeat || _isConveyorEnabled());
+            || _shuttle.CanReceive(useConveyor: !repeat || _isConveyorEnabled(), conveyorRunning);
         return _move.State(
             NgTransferDestination.Shuttle,
             canPickUp: _work.CarrierSeated
@@ -111,7 +140,8 @@ public sealed class InspectionStation : AutoUnit
                 && (repeat || _work.RouteToNg)
                 && canReceive,
             canReceive: canReceive,
-            holdAtDestination: holdAtShuttle);
+            holdAtDestination: holdAtShuttle,
+            live: live);
     }
 
     // Inspection's display enum describes the same shared transfer states.
@@ -141,6 +171,7 @@ public sealed class InspectionStation : AutoUnit
         IReadOnlyList<BoltTarget> bolts,
         CancellationToken cancellationToken)
     {
+        var job = _work.CurrentJob;
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckWorkPosition()
         {
@@ -161,25 +192,29 @@ public sealed class InspectionStation : AutoUnit
             while (!operation.IsCancellationRequested)
             {
                 var bolt = NextBolt(bolts);
-                switch (NextInspectionState(bolt))
+                var inspectionState = NextInspectionState(bolt);
+                TraceStep(inspectionState, bolt?.ToString() ?? NextBarcode()?.ToString(), job.Id);
+                switch (inspectionState)
                 {
                     case InspectionStationState.MovingToBarcode:
                         await _inspector.MoveToBarcodeAsync(NextBarcode()!.Value, operation.Token);
                         break;
                     case InspectionStationState.ReadingBarcode:
-                        var pcb = NextBarcode()!.Value;
-                        var barcode = await _inspector.ReadBarcodeAsync(pcb, operation.Token);
+                        var barcodeAssembly = _work.Assembly(job, NextBarcode()!.Value);
+                        var barcode = await _inspector.ReadBarcodeAsync(barcodeAssembly.HeatSink, operation.Token);
                         operation.Token.ThrowIfCancellationRequested();
-                        _work.Assembly(pcb).RecordBarcode(barcode);
+                        _work.RequireCurrentJob(job);
+                        barcodeAssembly.RecordBarcode(barcode);
                         NotifyChanged();
                         break;
                     case InspectionStationState.MovingToBolt:
                         await _inspector.MoveToAsync(bolt!, operation.Token);
                         break;
                     case InspectionStationState.InspectingBolt:
-                        var assembly = _work.Assembly(bolt!.HeatSink);
+                        var assembly = _work.Assembly(job, bolt!.HeatSink);
                         var present = await _inspector.InspectAsync(bolt, operation.Token);
                         operation.Token.ThrowIfCancellationRequested();
+                        _work.RequireCurrentJob(job);
                         assembly.RecordBoltPresence(bolt.Number, present);
                         NotifyChanged();
                         break;
@@ -187,10 +222,10 @@ public sealed class InspectionStation : AutoUnit
                         operation.Token.ThrowIfCancellationRequested();
                         foreach (var heatSink in targets)
                         {
-                            _work.Assembly(heatSink).CompleteInspection();
+                            _work.Assembly(job, heatSink).CompleteInspection();
                         }
 
-                        _work.Complete();
+                        _work.Complete(job);
                         return;
                     default:
                         return;
@@ -209,7 +244,7 @@ public sealed class InspectionStation : AutoUnit
         }
     }
 
-    private InspectionStationState NextInspectionState(BoltTarget? bolt)
+    private InspectionStationState NextInspectionState(BoltTarget? bolt, bool live = true)
     {
         if (!_work.Enabled || _work.State != InspectionWorkState.ReadyToInspect)
         {
@@ -220,7 +255,7 @@ public sealed class InspectionStation : AutoUnit
         {
             if (!_inspector.HasBarcodeRegion(pcb))
                 return InspectionStationState.BarcodeTeachingRequired;
-            return _inspector.IsAtBarcode(pcb)
+            return _inspector.IsAtBarcode(pcb, live)
                 ? InspectionStationState.ReadingBarcode
                 : InspectionStationState.MovingToBarcode;
         }
@@ -232,7 +267,7 @@ public sealed class InspectionStation : AutoUnit
 
         if (!_inspector.HasPosition(bolt))
             return InspectionStationState.FovTeachingRequired;
-        return _inspector.IsAt(bolt)
+        return _inspector.IsAt(bolt, live)
             ? InspectionStationState.InspectingBolt
             : InspectionStationState.MovingToBolt;
     }
@@ -241,7 +276,8 @@ public sealed class InspectionStation : AutoUnit
     {
         return Enum.GetValues<HeatSinkSlot>()
             .Where(pcb => _runTargets?.Contains(pcb) ?? _work.HeatSinkPresent(pcb))
-            .Where(pcb => _work.Assembly(pcb).PcbBarcode is null)
+            .Where(pcb =>
+                _work.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == pcb)?.PcbBarcode is null)
             .Select(pcb => (HeatSinkSlot?)pcb)
             .FirstOrDefault();
     }

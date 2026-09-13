@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading;
@@ -31,96 +30,6 @@ public sealed partial class MachineController
     // An unfinished route destination survives STOP; carrier position still comes from I/O.
     private volatile RepeatPhase _repeatPhase;
     private int _repeatCycles;
-
-    private async Task RunAutomaticUnitsAsync(CancellationTokenSource cycle, bool repeat)
-    {
-        var runningUnits = new List<Task>();
-        void StartUnit(bool enabled, MachineAlarm alarm, Func<Task> start)
-        {
-            if (enabled && !cycle.IsCancellationRequested)
-            {
-                runningUnits.Add(RunUnitAsync(alarm, start));
-            }
-        }
-
-        async Task RunUnitAsync(MachineAlarm alarm, Func<Task> start)
-        {
-            try
-            {
-                await start();
-                if (!cycle.IsCancellationRequested && !_state.IsError)
-                {
-                    _state.SetError(alarm);
-                }
-            }
-            catch (OperationCanceledException) when (cycle.IsCancellationRequested)
-            {
-            }
-            catch (Exception exception)
-            {
-                if (!_state.IsError)
-                {
-                    _state.SetError(
-                        exception is MotionException ? MachineAlarm.MotionUnavailable : alarm,
-                        exception);
-                }
-                else
-                {
-                    _log?.Error(
-                        $"Automatic unit {alarm} failed while stopping; existing alarm={_state.Alarm}.",
-                        exception);
-                }
-            }
-            finally
-            {
-                cycle.Cancel();
-            }
-        }
-
-        StartUnit(
-            _units.MainConveyor,
-            MachineAlarm.MainConveyor,
-            () => _conveyor.RunAsync(cycle.Token, repeat));
-        // TEMP: repeat turns around at Station 1 until the front sensor is installed.
-        StartUnit(
-            _units.PcbSupply && !repeat,
-            MachineAlarm.PcbSupply,
-            () => _pcbSupply.RunAsync(_recipe.PcbSupply, cycle.Token));
-        StartUnit(
-            _units.PcbPlacement && !repeat,
-            MachineAlarm.PcbPlacement,
-            () => _pcbPlacement.RunAsync(_recipe.PcbPlacement, cycle.Token));
-        StartUnit(
-            _units.PickupBoltFeeder,
-            MachineAlarm.PickupBoltFeeder,
-            () => _pickupBoltFeeder.RunAsync(cycle.Token));
-        StartUnit(
-            _units.ShootingBoltFeeder,
-            MachineAlarm.ShootingBoltFeeder,
-            () => _shootingBoltFeeder.RunAsync(cycle.Token));
-        StartUnit(
-            _units.BoltFastening,
-            MachineAlarm.BoltFastening,
-            () => _fasteningStation.RunAsync(_recipe.BoltFastening, cycle.Token));
-        StartUnit(
-            InspectionGantryEnabled,
-            _units.Inspection ? MachineAlarm.Inspection : MachineAlarm.NgCarrierTransfer,
-            () => _inspectionStation.RunAsync(
-                _recipe.Pcb.GetBolts().ToArray(),
-                cycle.Token,
-                repeat,
-                holdAtShuttle: repeat && !_units.NgShuttle));
-        StartUnit(
-            _units.NgShuttle && (!repeat || _units.NgConveyor),
-            MachineAlarm.NgShuttle,
-            () => _ngShuttle.RunAsync(cycle.Token));
-        StartUnit(
-            _units.NgConveyor,
-            MachineAlarm.NgConveyor,
-            () => _ngConveyor.RunAsync(cycle.Token, repeat));
-
-        await Task.WhenAll(runningUnits).ConfigureAwait(false);
-    }
 
     private async Task RunRepeatAsync(CancellationToken cancellationToken)
     {
@@ -192,7 +101,7 @@ public sealed partial class MachineController
         }
         catch (Exception exception)
         {
-            var alarm = exception is MotionException
+            var alarm = IsMotionFailure(exception)
                 ? MachineAlarm.MotionUnavailable
                 : _repeatPhase switch
                 {
@@ -247,7 +156,7 @@ public sealed partial class MachineController
 
     private async Task ReturnNgCarrierAsync(CancellationToken cancellationToken)
     {
-        await _ngTransfer.RaiseAsync(cancellationToken);
+        await _ngTransfer.SetLiftUpAsync(true, cancellationToken);
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckPickup()
         {
@@ -273,12 +182,41 @@ public sealed partial class MachineController
         }
     }
 
+    private OutputBlockReason GetMainConveyorReturnBlock()
+    {
+        if (_units.PcbPlacement)
+        {
+            if (!_placementHandler.CanMoveHorizontal)
+                return OutputBlockReason.PlacementNotRaised;
+            if (!_placementHandler.IsAtHorizontalZ())
+                return OutputBlockReason.PlacementNotAtSafeZ;
+        }
+
+        if (_units.BoltFastening)
+        {
+            if (!_fasteningGantry.CanMoveHorizontal)
+                return OutputBlockReason.FasteningNotRaised;
+            if (!_fasteningGantry.IsAtSafeZ())
+                return OutputBlockReason.FasteningNotAtSafeZ;
+        }
+
+        if (_units.Inspection || _units.NgCarrierTransfer)
+        {
+            if (!_ngTransfer.IsRaised)
+                return OutputBlockReason.NgPickupNotRaised;
+            if (_ngTransfer.CarrierDetected)
+                return OutputBlockReason.NgCarrierDetected;
+        }
+
+        return OutputBlockReason.None;
+    }
+
     private async Task ReturnMainCarrierAsync(CancellationToken cancellationToken)
     {
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckPath()
         {
-            if (!MainConveyorPathClear)
+            if (GetMainConveyorReturnBlock() != OutputBlockReason.None)
                 operation.Cancel();
         }
 

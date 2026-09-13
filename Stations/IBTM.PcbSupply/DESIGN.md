@@ -34,8 +34,10 @@ The live handler and Buffer states always take priority over this step. `Pcb1`
 and `Pcb2` only select the source position. After the PCB 2 check,
 `WaitingForCarrierExit` keeps the existing Board Available signal from being
 mistaken for a new carrier. Board Available OFF returns the step to `Pcb1`.
-Stop does not retain the step, so Start begins from PCB 1 after resolving the
-current physical state.
+STOP retains completed slot checks for the same carrier. Board Available OFF
+resets the step even while stopped. If it occurs during a pickup, that pickup
+is canceled and its late completion cannot advance the replacement carrier.
+On restart, current handler and Buffer feedback still take priority over the slot step.
 
 ## Horizontal movement
 
@@ -170,9 +172,8 @@ PCB 1 Pick X/Z
 PCB 2 Pick X/Z
 ```
 
-Positive Z points downward, so Clear Z must be greater than Place Z. The only
-horizontal path below Rotation Z is between Buffer and the X home position at
-Clear Z: the empty exit in production and its reverse entry in PCB return.
+Positive Z points downward, so Clear Z must be greater than Place Z. The production
+horizontal path below Rotation Z is the empty Buffer exit to X home at Clear Z.
 Buffer Y stays fixed and the handler remains rotated.
 
 While Supply is inside its Buffer collision range, manual Y, Z, and rotation
@@ -336,19 +337,6 @@ Automatic recovery is not yet defined for:
 - automatic recovery after a Buffer PCB-present timeout;
 - additional Buffer Stage clearance inputs; or
 - any Buffer Stage clamp, lift, or other actuator.
-
-Stop does not retain `PickStep`. Every Start begins at PCB 1 or waits for a
-carrier, while current handler and Buffer state always take priority:
-
-```text
-Start
-  -> resolve a held PCB first
-  -> resolve a rotated or Buffer-area handler first
-  -> otherwise begin the accepted carrier at PCB 1
-```
-
-After resolving the current physical state, the handler checks PCB 1 and PCB 2 from
-live detection inputs. It does not restore or guess a previous software step.
 
 Do not add speculative recovery or defensive branches until the real machine
 behavior is confirmed.

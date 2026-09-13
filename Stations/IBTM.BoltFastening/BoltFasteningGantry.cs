@@ -110,24 +110,15 @@ public sealed class BoltFasteningGantry
         }
     }
 
-    internal bool HasPendingResult(FasteningHead head)
+    public bool IsAtSafeZ(bool live = true)
     {
-        return GetHead(head).HasPendingResult;
+        return Motion.IsSettled(live, MotionAxis.Z)
+            && (live ? _motion.IsAtHorizontalZ : Motion.IsAtZ(_settings.SafeZ));
     }
 
-    public bool AtSafeZ
+    internal bool IsAt(BoltTarget bolt, bool live = true)
     {
-        get
-        {
-            return !_motion.IsMoving
-                && _motion.GetAxisState(MotionAxis.Z).InPosition
-                && _motion.IsAtHorizontalZ;
-        }
-    }
-
-    internal bool IsAt(BoltTarget bolt)
-    {
-        return IsAt(_settings.GetBoltPosition(bolt, _carrierReference));
+        return IsAt(_settings.GetBoltPosition(bolt, _carrierReference), live);
     }
 
     internal bool HasPosition(BoltTarget bolt)
@@ -143,20 +134,18 @@ public sealed class BoltFasteningGantry
             reference.LowerRightLocatingPin);
     }
 
-    internal bool AtPickupPosition
+    internal bool IsAtPickupPosition(bool live = true)
     {
-        get
-        {
-            return IsAt(_settings.PickupPosition);
-        }
+        return IsAt(_settings.PickupPosition, live);
     }
 
-    internal bool AtPickupXY
+    internal bool IsAtPickupXY(bool live = true)
     {
-        get
-        {
-            return IsAtXY(_settings.PickupPosition);
-        }
+        var target = _settings.PickupPosition;
+        var current = Motion.ReadPosition(live);
+        return Motion.IsSettled(live, MotionAxis.X, MotionAxis.Y)
+            && Math.Abs(current.X - target.X) <= MotionService.PositionToleranceMillimeters
+            && Math.Abs(current.Y - target.Y) <= MotionService.PositionToleranceMillimeters;
     }
 
     public void InitializeMotion()
@@ -203,14 +192,14 @@ public sealed class BoltFasteningGantry
     public async Task MoveToPickupPositionAsync(CancellationToken cancellationToken = default)
     {
         await MoveToPickupXYAsync(cancellationToken);
-        await SetPickupHeadDownAsync(true, cancellationToken);
+        await SetHeadDownAsync(FasteningHead.Pickup, true, cancellationToken);
         await MoveToPickupZAsync(cancellationToken);
     }
 
     public async Task ReturnFromPickupAsync(CancellationToken cancellationToken = default)
     {
         await MoveToSafeZAsync(cancellationToken);
-        await SetPickupHeadDownAsync(false, cancellationToken);
+        await SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken);
     }
 
     public Task MoveToTeachingPositionAsync(
@@ -290,28 +279,6 @@ public sealed class BoltFasteningGantry
         return MoveToXYAsync(position.X, position.Y, cancellationToken);
     }
 
-    internal Task<BoltResult> TightenHeadAsync(
-        FasteningHead head,
-        CancellationToken cancellationToken = default)
-    {
-        return GetHead(head).TightenAsync(cancellationToken);
-    }
-
-    internal Task<BoltResult?> ReadPendingResultAsync(
-        FasteningHead head,
-        CancellationToken cancellationToken)
-    {
-        return GetHead(head).ReadPendingResultAsync(cancellationToken);
-    }
-
-    internal Task SelectPresetAsync(
-        FasteningHead head,
-        ushort preset,
-        CancellationToken cancellationToken = default)
-    {
-        return GetHead(head).SelectPresetAsync(preset, cancellationToken);
-    }
-
     internal async Task FinishFasteningAsync(
         FasteningHead head,
         CancellationToken cancellationToken = default)
@@ -326,56 +293,39 @@ public sealed class BoltFasteningGantry
         bool down,
         CancellationToken cancellationToken = default)
     {
-        return head switch
+        var output = head switch
         {
-            FasteningHead.Pickup => SetPickupHeadDownAsync(down, cancellationToken),
-            FasteningHead.Shooting
-                => _io.SetOutputAndWaitAsync(OutputIo.ShootingHeadUp, !down, cancellationToken),
+            FasteningHead.Pickup => OutputIo.PickupHeadUp,
+            FasteningHead.Shooting => OutputIo.ShootingHeadUp,
             _ => throw new ArgumentOutOfRangeException(nameof(head)),
         };
-    }
-
-    internal Task RaiseShootingHeadAsync(CancellationToken cancellationToken = default)
-    {
-        return _io.SetOutputAndWaitAsync(OutputIo.ShootingHeadUp, true, cancellationToken);
+        return _io.SetOutputAndWaitAsync(output, !down, cancellationToken);
     }
 
     public Task RaiseCylindersAsync(CancellationToken cancellationToken = default)
     {
         return Task.WhenAll(
-            SetPickupHeadDownAsync(false, cancellationToken),
-            RaiseShootingHeadAsync(cancellationToken));
+            SetHeadDownAsync(FasteningHead.Pickup, false, cancellationToken),
+            SetHeadDownAsync(FasteningHead.Shooting, false, cancellationToken));
     }
 
     internal async Task MoveToPickupXYAsync(CancellationToken cancellationToken = default)
     {
         await RaiseCylindersAsync(cancellationToken);
-        EnsureCanMoveHorizontal(cancellationToken);
-        await _motion.MoveToXYAsync(
+        await MoveToXYAsync(
             _settings.PickupPosition.X,
             _settings.PickupPosition.Y,
-            _settings.Motion.HorizontalSpeed,
             cancellationToken);
     }
 
     internal Task MoveToPickupZAsync(CancellationToken cancellationToken = default)
     {
-        return _motion.MoveAxisAsync(MotionAxis.Z, _settings.PickupPosition.Z, _settings.Motion.ZSpeed, cancellationToken);
+        return MoveZAsync(_settings.PickupPosition.Z, cancellationToken);
     }
 
-    internal Task PickUpBoltAsync(CancellationToken cancellationToken = default)
+    internal Task SetShootingEscapeForwardAsync(bool forward, CancellationToken cancellationToken = default)
     {
-        return SetVacuumAsync(FasteningHead.Pickup, true, cancellationToken);
-    }
-
-    public Task SetPickupHeadDownAsync(bool down, CancellationToken cancellationToken = default)
-    {
-        return _io.SetOutputAndWaitAsync(OutputIo.PickupHeadUp, !down, cancellationToken);
-    }
-
-    internal Task AdvanceShootingEscapeAsync(CancellationToken cancellationToken = default)
-    {
-        return _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, true, cancellationToken);
+        return _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, forward, cancellationToken);
     }
 
     internal async Task ShootBoltAsync(CancellationToken cancellationToken = default)
@@ -384,6 +334,7 @@ public sealed class BoltFasteningGantry
         _io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
         using var passage = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var boltPassed = _io.WaitForInputAsync(InputIo.ShootingTubeBoltDetected, true, passage.Token);
+        Exception? failure = null;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -391,11 +342,16 @@ public sealed class BoltFasteningGantry
             await boltPassed;
             await _io.WaitForInputAsync(InputIo.ShootingHeadVacuumDetected, true, cancellationToken);
         }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
         finally
         {
             try
             {
-                _io.SetOutput(OutputIo.ShootBolt, false);
+                StopShooting(failure);
             }
             finally
             {
@@ -410,19 +366,21 @@ public sealed class BoltFasteningGantry
         return _io.WaitForInputAsync(InputIo.ShootingTubeBoltDetected, false, cancellationToken);
     }
 
-    internal Task RetractShootingEscapeAsync(CancellationToken cancellationToken = default)
-    {
-        return _io.SetOutputAndWaitAsync(OutputIo.ShootingEscapeForward, false, cancellationToken);
-    }
-
     public Task MoveToSafeZAsync(CancellationToken cancellationToken = default)
     {
         return _motion.MoveToHorizontalZAsync(cancellationToken);
     }
 
-    public void StopShooting()
+    public void StopShooting(Exception? operationFailure = null)
     {
-        _io.SetOutput(OutputIo.ShootBolt, false);
+        try
+        {
+            _io.SetOutput(OutputIo.ShootBolt, false);
+        }
+        catch (Exception cleanupFailure) when (operationFailure is not null)
+        {
+            throw new AggregateException(operationFailure, cleanupFailure);
+        }
     }
 
     internal void DiscardPendingResults()
@@ -431,7 +389,7 @@ public sealed class BoltFasteningGantry
         _pickupHead.DiscardPendingResult();
     }
 
-    private IBoltHead GetHead(FasteningHead head)
+    internal IBoltHead GetHead(FasteningHead head)
     {
         return head switch
         {
@@ -441,32 +399,14 @@ public sealed class BoltFasteningGantry
         };
     }
 
-    private bool IsAt(AxisPosition target)
+    private bool IsAt(AxisPosition target, bool live = true)
     {
-        var current = _motion.GetPosition();
-        return HorizontalInPosition
-            && _motion.GetAxisState(MotionAxis.Z).InPosition
+        var current = Motion.ReadPosition(live);
+        return Motion.IsSettled(live, MotionAxis.X, MotionAxis.Y)
+            && Motion.ReadAxisState(MotionAxis.Z, live).InPosition
             && Math.Abs(current.X - target.X) <= MotionService.PositionToleranceMillimeters
             && Math.Abs(current.Y - target.Y) <= MotionService.PositionToleranceMillimeters
             && Math.Abs(current.Z - target.Z) <= MotionService.PositionToleranceMillimeters;
-    }
-
-    private bool IsAtXY(AxisPosition target)
-    {
-        var current = _motion.GetPosition();
-        return HorizontalInPosition
-            && Math.Abs(current.X - target.X) <= MotionService.PositionToleranceMillimeters
-            && Math.Abs(current.Y - target.Y) <= MotionService.PositionToleranceMillimeters;
-    }
-
-    private bool HorizontalInPosition
-    {
-        get
-        {
-            return !_motion.IsMoving
-                && _motion.GetAxisState(MotionAxis.X).InPosition
-                && _motion.GetAxisState(MotionAxis.Y).InPosition;
-        }
     }
 
     private BoltCylinderState CylinderState(InputIo up, InputIo down)

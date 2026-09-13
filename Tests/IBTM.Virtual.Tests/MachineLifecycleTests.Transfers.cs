@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
+using IBTM.PcbSupply;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -14,6 +16,120 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
+    [Fact]
+    public async Task FasteningCompletionCannotCompleteAReplacementCarrier()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var station = services.GetRequiredService<BoltFasteningStation>();
+        var work = services.GetRequiredService<BoltFasteningWork>();
+        var gantry = services.GetRequiredService<BoltFasteningGantry>();
+        var operations = services.GetRequiredService<OperationCancellation>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+        await work.Station.SeatAsync(CancellationToken.None);
+        var previousAssembly = work.Assembly(HeatSinkSlot.HeatSink1);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var replaced = false;
+        void ReplaceAfterFinalMove()
+        {
+            if (replaced || operations.HasActiveOperations)
+                return;
+            replaced = true;
+            io.SetInput(InputIo.BoltFasteningCarrierPresent, false);
+            io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+            stop.Cancel();
+        }
+
+        operations.ActivityChanged += ReplaceAfterFinalMove;
+        try
+        {
+            Assert.Equal(BoltFasteningState.CompletingCarrier, station.State());
+            await station.RunAsync(new(), stop.Token).WaitAsync(TimeSpan.FromSeconds(4));
+            Assert.True(replaced);
+            Assert.NotEqual(AssemblyResult.Pending, previousAssembly.FasteningResult);
+            Assert.Empty(work.Assemblies);
+            Assert.False(work.Completed);
+            Assert.False(gantry.Feedback.IsMoving);
+        }
+        finally
+        {
+            operations.ActivityChanged -= ReplaceAfterFinalMove;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task SupplyDoesNotAdvanceTheNewCarrierWhenAnOldPickupFinishes()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var supply = services.GetRequiredService<PcbSupplier>();
+        var motion = services.GetRequiredService<PcbSupplyHandler>().Feedback;
+        var recipe = new PcbSupplyRecipe
+        {
+            Pcb1PickPosition = new() { X = 10, Z = 5 },
+            Pcb2PickPosition = new() { X = 20, Z = 5 },
+        };
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.AutoResponseEnabled = false;
+        io.SetInput(InputIo.PcbSupplyRotated, false);
+        io.SetInput(InputIo.PcbSupplyUnrotated, true);
+        io.SetInput(InputIo.PcbSupplyPcbDetected, false);
+        io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var firstSlotVisits = 0;
+        var atFirstSlot = false;
+        var skippedFirstSlot = false;
+        void ChangeCarrierAtPickup(double x, double y, double z)
+        {
+            var atPickup = Math.Abs(x - 10) < 0.01
+                && Math.Abs(y - settings.PcbSupply.CarrierY) < 0.01
+                && Math.Abs(z - 5) < 0.01;
+            if (atPickup && !atFirstSlot)
+            {
+                firstSlotVisits++;
+                if (firstSlotVisits == 1)
+                {
+                    io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+                    io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+                }
+                else
+                    stop.Cancel();
+            }
+            atFirstSlot = atPickup;
+            if (firstSlotVisits == 1 && x > 15)
+            {
+                skippedFirstSlot = true;
+                stop.Cancel();
+            }
+        }
+
+        motion.PositionChanged += ChangeCarrierAtPickup;
+        try
+        {
+            await supply.RunAsync(recipe, stop.Token).WaitAsync(TimeSpan.FromSeconds(4));
+            Assert.False(skippedFirstSlot);
+            Assert.Equal(2, firstSlotVisits);
+            Assert.False(motion.IsMoving);
+            Assert.False(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+        }
+        finally
+        {
+            motion.PositionChanged -= ChangeCarrierAtPickup;
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -146,9 +262,10 @@ public sealed partial class MachineLifecycleTests
         Assert.True(gantry.IsAt(settings.ShuttlePlacePosition));
     }
 
-    [Trait("Category", "MachineFlow")]
-    [Fact]
-    public async Task PlacementOpensAndRaisesIpmBeforePressingAndResumesWithoutReopening()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlacementDoesNotPressAfterCarrierChangesDuringGripperClose(bool replaceCarrier)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
@@ -163,7 +280,86 @@ public sealed partial class MachineLifecycleTests
         recipe.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await handler.MoveToXYAsync(20, 100);
+        await handler.MoveToXYAsync(recipe.HeatSink1PcbPlacementPosition);
+        await handler.MoveAxisAsync(MotionAxis.Z, 10);
+        io.AutoResponseEnabled = false;
+        foreach (var input in new[]
+        {
+            InputIo.PcbPlacementCarrierPresent,
+            InputIo.PcbPlacementBackupPlateUp,
+            InputIo.PcbPlacementStopperDown,
+            InputIo.PcbPlacementHeatSink1Present,
+            InputIo.PcbPlacementPcbDetected,
+            InputIo.PcbPlacementIpmGripperOpen,
+            InputIo.PcbPlacementHandlerRotated,
+            InputIo.PcbPlacementHandlerDown,
+            InputIo.PcbPlacementIpmUp,
+        })
+            io.SetInput(input, true);
+        foreach (var input in new[]
+        {
+            InputIo.PcbPlacementBackupPlateDown,
+            InputIo.PcbPlacementStopperUp,
+            InputIo.PcbPlacementIpmGripperClosed,
+            InputIo.PcbPlacementHandlerUnrotated,
+            InputIo.PcbPlacementHandlerUp,
+            InputIo.PcbPlacementIpmDown,
+        })
+            io.SetInput(input, false);
+        var pressed = false;
+        void ChangeCarrierOnClose(OutputIo output, bool on)
+        {
+            pressed |= output == OutputIo.PcbPlacementIpmDown && on;
+            if (output != OutputIo.PcbPlacementIpmGripperClose || !on)
+                return;
+            io.SetInput(InputIo.PcbPlacementIpmGripperOpen, false);
+            io.SetInput(InputIo.PcbPlacementIpmGripperClosed, true);
+            if (replaceCarrier)
+            {
+                io.SetInput(InputIo.PcbPlacementCarrierPresent, false);
+                io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+            }
+            else
+                io.SetInput(InputIo.PcbPlacementBackupPlateUp, false);
+        }
+
+        io.OutputChanged += ChangeCarrierOnClose;
+        try
+        {
+            Assert.Equal(PcbPlacementState.PressingPcb, placer.State(recipe));
+            var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, CancellationToken.None)!);
+            Assert.Contains("carrier", failure.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.False(pressed);
+            Assert.Empty(work.Assemblies);
+        }
+        finally
+        {
+            io.OutputChanged -= ChangeCarrierOnClose;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Trait("Category", "MachineFlow")]
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlacementResumesPressOnlyForTheSameCarrier(bool replaceCarrier)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.Units.PcbSupply = true;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var handler = services.GetRequiredService<PcbPlacementHandler>();
+        var placer = services.GetRequiredService<PcbPlacer>();
+        var work = services.GetRequiredService<PcbPlacementWork>();
+        var recipe = services.GetRequiredService<Recipe>().PcbPlacement;
+        recipe.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 10 };
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        await handler.MoveToXYAsync(recipe.HeatSink1PcbPlacementPosition);
         io.AutoResponseEnabled = false;
         io.SetOutput(OutputIo.PcbPlacementIpmGripperClose, true);
         io.SetOutput(OutputIo.PcbPlacementIpmDown, true);
@@ -238,8 +434,21 @@ public sealed partial class MachineLifecycleTests
         Assert.Empty(work.Assemblies);
         io.SetInput(InputIo.PcbPlacementIpmDown, true);
         Assert.Equal(PcbPlacementState.RecordingPlacement, placer.State(recipe));
-        await placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, CancellationToken.None)!;
-        Assert.Single(work.Assemblies);
+        if (replaceCarrier)
+        {
+            io.SetInput(InputIo.PcbPlacementCarrierPresent, false);
+            io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+            Assert.Equal(PcbPlacementState.OpeningGripper, placer.State(recipe));
+            Assert.Empty(work.Assemblies);
+        }
+        else
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, pressing.Token)!);
+            Assert.Empty(work.Assemblies);
+            await placer.PlaceStepAsync(recipe, HeatSinkSlot.HeatSink1, CancellationToken.None)!;
+            Assert.Single(work.Assemblies);
+        }
         Assert.Equal(
             new[] { (OutputIo.PcbPlacementIpmGripperClose, false), (
                 OutputIo.PcbPlacementIpmDown,

@@ -34,19 +34,34 @@ public abstract class BoltFeeder : AutoUnit
 
     public async Task RunAsync(CancellationToken cancellationToken = default)
     {
+        Exception? failure = null;
         try
         {
             await RunLoopAsync(ExecuteAsync, cancellationToken);
         }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
         finally
         {
-            SetFeeding(false);
+            try
+            {
+                SetFeeding(false);
+            }
+            catch (Exception cleanupFailure) when (failure is not null)
+            {
+                throw new AggregateException(failure, cleanupFailure);
+            }
         }
     }
 
     private Task ExecuteAsync(CancellationToken cancellationToken)
     {
-        var waitingForBolt = State == BoltFeederState.WaitingForBolt;
+        var state = State;
+        TraceStep(state, _boltDetected.ToString());
+        var waitingForBolt = state == BoltFeederState.WaitingForBolt;
         SetFeeding(waitingForBolt);
         return waitingForBolt
             ? Io.WaitForInputAsync(_boltDetected, true, TimeoutMilliseconds, cancellationToken)

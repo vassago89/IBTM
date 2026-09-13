@@ -19,5 +19,10 @@
     <Compile Include="../../Hardware/IBTM.Ajin/AjinMotionService.cs" Link="Driver/AjinMotionService.cs" />
     <Compile Include="../../Hardware/IBTM.Ajin/AjinSettings.cs" Link="Driver/AjinSettings.cs" />
     <Compile Include="../../Hardware/IBTM.Ajin/AXHS.cs" Link="Driver/AXHS.cs" />
+    <Compile Include="../../IBTM/PhysicalIoService.cs" Link="Driver/PhysicalIoService.cs" />
+    <Compile Include="../../Hardware/IBTM.AlphaMotion/AlphaMotionController.cs" Link="Driver/AlphaMotionController.cs" />
+    <Compile Include="../../Hardware/IBTM.AlphaMotion/AlphaMotionSettings.cs" Link="Driver/AlphaMotionSettings.cs" />
+    <Compile Include="../../Hardware/IBTM.AlphaMotion/tmcDApiDef.cs" Link="Driver/tmcDApiDef.cs" />
+    <Compile Include="../IBTM.AlphaMotion.Tests/ManufacturerApiStub.cs" Link="AlphaMotionApiStub.cs" />
   </ItemGroup>
 </Project>

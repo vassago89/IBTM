@@ -10,8 +10,31 @@ namespace IBTM.Device;
 public abstract class StationWork
 {
     private readonly Func<bool> _isEnabled;
-    private volatile ConcurrentDictionary<HeatSinkSlot, HeatSinkAssembly> _assemblies = new();
-    private bool _completed;
+    // Protect only result ownership changes, never device calls or notifications.
+    private static readonly Lock JobGate = new();
+    private volatile Job _job = new();
+
+    public sealed class Job
+    {
+        private static long _nextId;
+        internal readonly ConcurrentDictionary<HeatSinkSlot, HeatSinkAssembly> Assemblies = new();
+        internal bool Completed;
+
+        internal Job(long? id = null)
+        {
+            Id = id ?? Interlocked.Increment(ref _nextId);
+        }
+
+        public long Id { get; }
+    }
+
+    public Job CurrentJob
+    {
+        get
+        {
+            return _job;
+        }
+    }
 
     protected StationWork(ConveyorStation station, Func<bool>? isEnabled = null)
     {
@@ -71,7 +94,7 @@ public abstract class StationWork
         get
         {
             return Enabled
-                ? Volatile.Read(ref _completed)
+                ? Volatile.Read(ref _job.Completed)
                 : CarrierPresent && BackupPlate == StationCylinderState.Up;
         }
     }
@@ -80,7 +103,7 @@ public abstract class StationWork
     {
         get
         {
-            return _assemblies.Select(item => item.Value);
+            return _job.Assemblies.Values.ToArray();
         }
     }
 
@@ -115,45 +138,66 @@ public abstract class StationWork
 
     public HeatSinkAssembly Assembly(HeatSinkSlot heatSink)
     {
-        return _assemblies.GetOrAdd(heatSink, static slot => new HeatSinkAssembly(slot));
+        return Assembly(CurrentJob, heatSink);
+    }
+
+    public HeatSinkAssembly Assembly(Job job, HeatSinkSlot heatSink)
+    {
+        lock (JobGate)
+        {
+            RequireCurrentJob(job);
+            return job.Assemblies.GetOrAdd(heatSink, static slot => new HeatSinkAssembly(slot));
+        }
+    }
+
+    public void RequireCurrentJob(Job job)
+    {
+        if (!ReferenceEquals(_job, job))
+            throw new InvalidOperationException(
+                $"Carrier work changed from {job.Id} to {_job.Id}; the previous work cannot update this carrier.");
     }
 
     protected void RemoveAssembly(HeatSinkSlot heatSink)
     {
-        _assemblies.TryRemove(heatSink, out _);
+        lock (JobGate)
+            _job.Assemblies.TryRemove(heatSink, out _);
     }
 
-    public void TransferAssembliesTo(StationWork destination)
+    public void TransferAssembliesTo(StationWork destination, Job job)
     {
-        var assemblies = _assemblies;
-        _assemblies = new();
-        destination.SetAssemblies(assemblies.Select(item => item.Value));
-        Changed?.Invoke();
-    }
-
-    protected void SetAssemblies(IEnumerable<HeatSinkAssembly> assemblies)
-    {
-        _assemblies = new(
-            assemblies.Select(
-                assembly => new KeyValuePair<HeatSinkSlot, HeatSinkAssembly>(assembly.HeatSink, assembly)));
-        Volatile.Write(ref _completed, false);
-        Changed?.Invoke();
-    }
-
-    public void Complete()
-    {
-        if (!Enabled || Completed)
+        lock (JobGate)
         {
-            return;
+            // The carrier keeps its trace number; each station gets a new completion owner.
+            var received = new Job(job.Id);
+            foreach (var assembly in job.Assemblies.Values)
+                received.Assemblies[assembly.HeatSink] = assembly;
+            destination._job = received;
+            // A new carrier may already occupy the source. Only release the load
+            // captured when this physical transfer started, never the new load.
+            if (ReferenceEquals(_job, job))
+                _job = new();
         }
 
-        Volatile.Write(ref _completed, true);
+        destination.Changed?.Invoke();
+        Changed?.Invoke();
+    }
+
+    public void Complete(Job job)
+    {
+        lock (JobGate)
+        {
+            RequireCurrentJob(job);
+            if (!Enabled || job.Completed)
+                return;
+            Volatile.Write(ref job.Completed, true);
+        }
         Changed?.Invoke();
     }
 
     protected void Restart()
     {
-        Volatile.Write(ref _completed, false);
+        lock (JobGate)
+            Volatile.Write(ref _job.Completed, false);
         Changed?.Invoke();
     }
 
@@ -171,8 +215,8 @@ public abstract class StationWork
     {
         if (present)
         {
-            Volatile.Write(ref _completed, false);
-            _assemblies = new();
+            lock (JobGate)
+                _job = new();
         }
     }
 }

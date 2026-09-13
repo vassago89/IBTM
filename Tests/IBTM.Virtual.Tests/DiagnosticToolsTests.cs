@@ -96,6 +96,7 @@ public sealed class DiagnosticToolsTests
             Assert.Equal(2, settings.PendingLightOffChannel);
 
             // Keep another command pending so shutdown must handle its failure before retrying OFF.
+            services.GetRequiredService<VirtualIoService>().SetInput(InputIo.AutoMode, true);
             var commandFailed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             using var releaseCommand = new ManualResetEventSlim();
             var commandFailure = new InvalidOperationException("Simulated command failure.");
@@ -311,9 +312,7 @@ public sealed class DiagnosticToolsTests
             Assert.False(view.HomeAxisCommand.CanExecute(x));
 
             await machine.ShutdownAsync();
-            Assert.True(
-                services.GetRequiredService<IBTM.Inspection.InspectionGantry>()
-                    .Motion.MonitoringCompletion.IsCompletedSuccessfully);
+            Assert.True(services.GetRequiredService<MachineFeedbackMonitor>().Completion.IsCompletedSuccessfully);
         }
         finally
         {

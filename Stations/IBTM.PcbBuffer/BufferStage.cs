@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -11,8 +12,8 @@ public sealed class BufferStage
     private readonly PcbBufferSettings _settings;
     private readonly IIoService _io;
     private readonly IBufferPlacementState _placementState;
-    private readonly IMotionFeedback _supplyMotion;
-    private readonly IMotionFeedback _placementMotion;
+    private readonly MotionStatus _supplyMotion;
+    private readonly MotionStatus _placementMotion;
     private readonly AxisPosition _supplyHandoff;
     private readonly AxisPosition _placementHandoff;
     private readonly Func<double> _placementEntryZ;
@@ -23,8 +24,8 @@ public sealed class BufferStage
         PcbBufferSettings settings,
         IIoService io,
         IBufferPlacementState placementState,
-        IMotionFeedback supplyMotion,
-        IMotionFeedback placementMotion,
+        MotionStatus supplyMotion,
+        MotionStatus placementMotion,
         AxisPosition supplyHandoff,
         AxisPosition placementHandoff,
         Func<double> placementEntryZ,
@@ -41,10 +42,10 @@ public sealed class BufferStage
         _placementEntryZ = placementEntryZ;
         _supplyEnabled = supplyEnabled ?? (() => true);
         _placementEnabled = placementEnabled ?? (() => true);
-        supplyMotion.PositionChanged += (_, _, _) => PositionChanged?.Invoke();
-        placementMotion.PositionChanged += (_, _, _) => PositionChanged?.Invoke();
-        supplyMotion.MovingChanged += _ => StateChanged?.Invoke();
-        placementMotion.MovingChanged += _ => StateChanged?.Invoke();
+        supplyMotion.Feedback.PositionChanged += (_, _, _) => PositionChanged?.Invoke();
+        placementMotion.Feedback.PositionChanged += (_, _, _) => PositionChanged?.Invoke();
+        supplyMotion.Feedback.MovingChanged += _ => StateChanged?.Invoke();
+        placementMotion.Feedback.MovingChanged += _ => StateChanged?.Invoke();
         placementState.Changed += () => StateChanged?.Invoke();
         io.InputChanged += (input, _) =>
         {
@@ -66,149 +67,116 @@ public sealed class BufferStage
         }
     }
 
-    private bool PositionKnown
+    private bool IsPositionKnown(bool live = true)
     {
-        get
-        {
-            return _supplyEnabled()
-                && _placementEnabled()
-                && _supplyMotion.IsReady
-                && _placementMotion.IsReady
-                && _supplyMotion.GetAxisState(MotionAxis.X).Homed
-                && _placementMotion.GetAxisState(MotionAxis.X).Homed
-                && _placementMotion.GetAxisState(MotionAxis.Y).Homed
-                && _placementMotion.GetAxisState(MotionAxis.Z).Homed;
-        }
+        return _supplyEnabled()
+            && _placementEnabled()
+            && _supplyMotion.IsReady(live)
+            && _placementMotion.IsReady(live)
+            && _supplyMotion.ReadAxisState(MotionAxis.X, live).Homed
+            && _placementMotion.ReadAxisState(MotionAxis.X, live).Homed
+            && _placementMotion.ReadAxisState(MotionAxis.Y, live).Homed
+            && _placementMotion.ReadAxisState(MotionAxis.Z, live).Homed;
     }
 
-    public bool SupplyInside
+    public bool IsSupplyInside(bool live = true)
     {
-        get
-        {
-            return _supplyEnabled()
-                && _supplyMotion.IsReady
-                && _supplyMotion.GetAxisState(MotionAxis.X).Homed
-                && _settings.ContainsSupplyX(_supplyMotion.GetPosition().X);
-        }
+        return _supplyEnabled()
+            && _supplyMotion.IsReady(live)
+            && _supplyMotion.ReadAxisState(MotionAxis.X, live).Homed
+            && _settings.ContainsSupplyX(_supplyMotion.ReadPosition(live).X);
     }
 
-    public bool PlacementInside
+    public bool IsPlacementInside(bool live = true)
     {
-        get
-        {
-            return _placementEnabled()
-                && _placementMotion.IsReady
-                && _placementMotion.GetAxisState(MotionAxis.X).Homed
-                && _placementMotion.GetAxisState(MotionAxis.Y).Homed
-                && IsInsidePlacement(_placementMotion.GetPosition());
-        }
+        return _placementEnabled()
+            && _placementMotion.IsReady(live)
+            && _placementMotion.ReadAxisState(MotionAxis.X, live).Homed
+            && _placementMotion.ReadAxisState(MotionAxis.Y, live).Homed
+            && IsInsidePlacement(_placementMotion.ReadPosition(live));
     }
 
-    private bool PlacementBlocksSupply
+    private bool BlocksSupply(bool live = true)
     {
-        get
+        if (!_placementMotion.ReadAxisState(MotionAxis.X, live).Homed
+            || !_placementMotion.ReadAxisState(MotionAxis.Y, live).Homed)
         {
-            if (!_placementMotion.GetAxisState(MotionAxis.X).Homed
-                || !_placementMotion.GetAxisState(MotionAxis.Y).Homed)
-            {
-                return false;
-            }
-
-            var position = _placementMotion.GetPosition();
-            return IsInsidePlacement(position) && position.Z > _placementEntryZ();
+            return false;
         }
+
+        var position = _placementMotion.ReadPosition(live);
+        return IsInsidePlacement(position) && position.Z > _placementEntryZ();
     }
 
-    public bool SupplyAtHandoff
+    public bool IsSupplyAtHandoff(bool live = true)
     {
-        get
-        {
-            return _supplyEnabled()
-                && _supplyMotion.IsReady
-                && IsSettled(_supplyMotion)
-                && IsAt(_supplyMotion.GetPosition(), _supplyHandoff);
-        }
+        return _supplyEnabled()
+            && _supplyMotion.IsReady(live)
+            && _supplyMotion.IsSettled(live, _supplyMotion.Feedback.Axes.ToArray())
+            && IsAt(_supplyMotion.ReadPosition(live), _supplyHandoff);
     }
 
-    public bool PlacementSecuredAtHandoff
+    public bool IsPlacementSecuredAtHandoff(bool live = true)
     {
-        get
-        {
-            return PlacementAtHandoff && _placementState.PcbSecured;
-        }
+        return IsPlacementAtHandoff(live) && _placementState.PcbSecured;
     }
 
-    public bool PlacementAtHandoff
+    public bool IsPlacementAtHandoff(bool live = true)
     {
-        get
-        {
-            return _placementEnabled()
-                && _placementMotion.IsReady
-                && IsSettled(_placementMotion)
-                && IsAt(_placementMotion.GetPosition(), _placementHandoff);
-        }
+        return _placementEnabled()
+            && _placementMotion.IsReady(live)
+            && _placementMotion.IsSettled(live, _placementMotion.Feedback.Axes.ToArray())
+            && IsAt(_placementMotion.ReadPosition(live), _placementHandoff);
     }
 
     // Shared-buffer transfers still require both handlers to be enabled and
     // homed; ignoring an unused drive is not permission to enter an unknown zone.
-    public bool CanSupplyLower
+    public bool CanLowerSupply(bool live = true)
     {
-        get
-        {
-            return PositionKnown && !PlacementBlocksSupply;
-        }
+        return IsPositionKnown(live) && !BlocksSupply(live);
     }
 
-    public bool CanSupplyEnter
+    public bool CanEnterSupply(bool live = true)
     {
-        get
-        {
-            return CanSupplyLower && !PcbPresent;
-        }
+        return CanLowerSupply(live) && !PcbPresent;
     }
 
-    public bool CanPlacementEnter
+    public bool CanEnterPlacement(bool live = true)
     {
-        get
-        {
-            return PositionKnown && PcbPresent && (!SupplyInside || SupplyAtHandoff);
-        }
+        return IsPositionKnown(live) && PcbPresent && (!IsSupplyInside(live) || IsSupplyAtHandoff(live));
     }
 
-    public bool Conflict
+    public bool HasConflict(bool live = true)
     {
-        get
+        if (!_supplyEnabled()
+            || !_placementEnabled()
+            || !_supplyMotion.IsReady(live)
+            || !_placementMotion.IsReady(live)
+            || !_supplyMotion.ReadAxisState(MotionAxis.X, live).Homed)
         {
-            if (!_supplyEnabled()
-                || !_placementEnabled()
-                || !_supplyMotion.IsReady
-                || !_placementMotion.IsReady
-                || !_supplyMotion.GetAxisState(MotionAxis.X).Homed)
-            {
-                return false;
-            }
-
-            var supplyPosition = _supplyMotion.GetPosition();
-            if (!_settings.ContainsSupplyX(supplyPosition.X)
-                || !_placementMotion.GetAxisState(MotionAxis.X).Homed
-                || !_placementMotion.GetAxisState(MotionAxis.Y).Homed)
-            {
-                return false;
-            }
-
-            var placementPosition = _placementMotion.GetPosition();
-            if (!IsInsidePlacement(placementPosition)
-                || placementPosition.Z <= _placementEntryZ())
-            {
-                return false;
-            }
-
-            var supplyAtHandoff = IsSettled(_supplyMotion) && IsAt(supplyPosition, _supplyHandoff);
-            var placementAtHandoff = IsSettled(_placementMotion) && IsAt(
-                placementPosition,
-                _placementHandoff);
-            return !supplyAtHandoff && !placementAtHandoff;
+            return false;
         }
+
+        var supplyPosition = _supplyMotion.ReadPosition(live);
+        if (!_settings.ContainsSupplyX(supplyPosition.X)
+            || !_placementMotion.ReadAxisState(MotionAxis.X, live).Homed
+            || !_placementMotion.ReadAxisState(MotionAxis.Y, live).Homed)
+        {
+            return false;
+        }
+
+        var placementPosition = _placementMotion.ReadPosition(live);
+        if (!IsInsidePlacement(placementPosition)
+            || placementPosition.Z <= _placementEntryZ())
+        {
+            return false;
+        }
+
+        var supplyAtHandoff = _supplyMotion.IsSettled(live, _supplyMotion.Feedback.Axes.ToArray()) && IsAt(supplyPosition, _supplyHandoff);
+        var placementAtHandoff = _placementMotion.IsSettled(live, _placementMotion.Feedback.Axes.ToArray()) && IsAt(
+            placementPosition,
+            _placementHandoff);
+        return !supplyAtHandoff && !placementAtHandoff;
     }
 
     public Task WaitForPcbAsync(CancellationToken cancellationToken = default)
@@ -227,7 +195,7 @@ public sealed class BufferStage
         StateChanged += OnStateChanged;
         try
         {
-            while (SupplyInside)
+            while (IsSupplyInside())
             {
                 await changed.WaitAsync(cancellationToken);
             }
@@ -257,21 +225,4 @@ public sealed class BufferStage
             && value <= Math.Max(boundary1, boundary2);
     }
 
-    private static bool IsSettled(IMotionFeedback motion)
-    {
-        if (motion.IsMoving)
-        {
-            return false;
-        }
-
-        foreach (var axis in motion.Axes)
-        {
-            if (!motion.GetAxisState(axis).InPosition)
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
 }

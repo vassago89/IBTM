@@ -90,13 +90,14 @@ public sealed class NgCarrierMove(
         NgTransferDestination destination,
         bool canPickUp,
         bool canReceive = true,
-        bool holdAtDestination = false)
+        bool holdAtDestination = false,
+        bool live = true)
     {
         var source = Opposite(destination);
         var destinationPosition = Position(destination);
         var sourcePosition = Position(source);
-        var atDestination = destinationPosition is not null && gantry.IsAt(destinationPosition);
-        var atSource = sourcePosition is not null && gantry.IsAt(sourcePosition);
+        var atDestination = destinationPosition is not null && gantry.IsAt(destinationPosition, live);
+        var atSource = sourcePosition is not null && gantry.IsAt(sourcePosition, live);
         // Transfer-only repeat keeps the carrier gripped; the disabled shuttle is not a support.
         var holdAtShuttle = holdAtDestination && destination == NgTransferDestination.Shuttle;
         var destinationPresent = !holdAtShuttle && CarrierPresent(destination);
@@ -203,9 +204,10 @@ public sealed class NgCarrierMove(
         NgTransferState state,
         CancellationToken cancellationToken)
     {
+        TraceStep(state, destination.ToString(), station.CurrentJob.Id);
         return state switch
         {
-            NgTransferState.Raising => pickup.RaiseAsync(cancellationToken),
+            NgTransferState.Raising => pickup.SetLiftUpAsync(true, cancellationToken),
             NgTransferState.Opening => pickup.SetGripperOpenAsync(true, cancellationToken),
             NgTransferState.Closing => pickup.SetGripperOpenAsync(false, cancellationToken),
             NgTransferState.LoweringToCarrier or NgTransferState.LoweringAtDestination

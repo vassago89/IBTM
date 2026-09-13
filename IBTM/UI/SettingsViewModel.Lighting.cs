@@ -120,10 +120,15 @@ public partial class SettingsViewModel
 
         var channel = LightTestChannel;
         var level = LightTestLevel;
-        OperationCancellation.Operation operation;
+        OperationCancellation.Operation? operation;
         try
         {
-            operation = _operations.Link(cancellationToken);
+            operation = _operations.TryBegin(cancellationToken);
+            if (operation is null)
+            {
+                LightTestMessage = "Wait for the current machine operation to finish.";
+                return;
+            }
         }
         catch (OperationCanceledException)
         {

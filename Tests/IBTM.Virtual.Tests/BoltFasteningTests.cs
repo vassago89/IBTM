@@ -440,7 +440,7 @@ public sealed class BoltFasteningTests
         first.RecordIpmSeating(2, seatingOk);
         first.RecordIpmFinal(2, finalNg);
         second.RecordPcbBolt(3, secondPcbOk);
-        work.Complete();
+        work.Complete(work.CurrentJob);
 
         (HeatSinkSlot HeatSink, int Number, FasteningPass Pass, bool Completed)[] items = [
             (
@@ -713,6 +713,7 @@ public sealed class BoltFasteningTests
         io.SetInput(InputIo.BoltFasteningStopperDown, true);
         io.SetInput(InputIo.BoltFasteningStopperUp, false);
         io.SetInput(InputIo.ShootingHeadUp, true);
+        io.SetInput(InputIo.PickupHeadUp, false);
         io.SetInput(InputIo.PickupHeadDown, true);
         io.SetInput(InputIo.PickupHeadVacuumDetected, true);
         var originalAssembly = work.Assembly(HeatSinkSlot.HeatSink1);
@@ -901,9 +902,8 @@ public sealed class BoltFasteningTests
         bus.SetNextFasteningResult(2, AdcEventStatus.FasteningNg);
         io.SetInput(InputIo.ShootingFeederBoltDetected, true);
         io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
-        io.SetOutput(OutputIo.BoltFasteningBackupPlateDown, false);
-        io.SetInput(InputIo.BoltFasteningBackupPlateDown, false);
-        io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
+        await work.Station.SeatAsync(CancellationToken.None);
+        Assert.True(work.CarrierSeated);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningHeatSink2Present, true);
 
@@ -931,7 +931,9 @@ public sealed class BoltFasteningTests
                     io.InputChanged -= StopWithPickedBolt;
                 }
 
-                Assert.True(gantry.PickupBoltLoaded);
+                Assert.True(
+                    gantry.PickupBoltLoaded,
+                    $"State={station.State()}, Seated={work.CarrierSeated}, Position={motion.GetPosition()}");
                 Assert.True(io.GetOutput(OutputIo.PickupHeadVacuumPump));
                 Assert.Equal(BoltCylinderState.Down, gantry.PickupHeadPosition);
                 Assert.Equal(settings.PickupPosition.Z, motion.GetPosition().Z);

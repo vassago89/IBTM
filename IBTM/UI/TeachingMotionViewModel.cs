@@ -421,8 +421,14 @@ public abstract partial class TeachingMotionViewModel(
     {
         var cancellation = _viewCancellation;
         _viewCancellation = new CancellationTokenSource();
-        cancellation.Cancel();
-        cancellation.Dispose();
+        try
+        {
+            cancellation.Cancel();
+        }
+        finally
+        {
+            cancellation.Dispose();
+        }
     }
 
     protected void NotifyMotionCommands()

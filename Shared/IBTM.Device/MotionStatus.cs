@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace IBTM.Device;
 
@@ -12,10 +10,6 @@ public sealed record MotionPosition(double? X, double? Y, double? Z);
 
 public sealed class MotionStatus : INotifyPropertyChanged
 {
-    private Task? _monitoring;
-    private readonly TaskCompletionSource _firstMonitorRead = new(
-        TaskCreationOptions.RunContinuationsAsynchronously);
-
     public MotionStatus(IMotionFeedback motion)
     {
         Feedback = motion;
@@ -31,62 +25,43 @@ public sealed class MotionStatus : INotifyPropertyChanged
     // Independent raw monitoring continues for disabled, servo-off and alarmed axes.
     public IReadOnlyDictionary<MotionAxis, MotionDiagnostics> MonitorAxes { get; }
 
-    public Task MonitoringCompletion
+    // The caller chooses the source explicitly. Cached reads never fall back to the SDK.
+    public bool IsReady(bool live)
     {
-        get
-        {
-            return _monitoring ?? Task.CompletedTask;
-        }
+        return live ? Feedback.IsReady : Axes.Values.All(axis => axis.State is not null);
     }
 
-    // Startup awaits the first sample; MonitoringCompletion owns the lifetime of the loop.
-    public Task StartMonitoringAsync(
-        CancellationToken lifetime,
-        Action refreshed,
-        Action<MotionAxis, Exception> reportError)
+    public AxisState ReadAxisState(MotionAxis axis, bool live)
     {
-        if (Feedback is not IMotionDiagnostics)
-            return Task.CompletedTask;
-        if (_monitoring is not null)
-            return _firstMonitorRead.Task;
-        _monitoring = Task.Run(() => MonitorAsync(lifetime, refreshed, reportError));
-        return _firstMonitorRead.Task;
+        return live ? Feedback.GetAxisState(axis)
+            : Axes[axis].State ?? throw new IOException($"Axis {axis} feedback is unavailable.");
     }
 
-    private async Task MonitorAsync(
-        CancellationToken lifetime,
-        Action refreshed,
-        Action<MotionAxis, Exception> reportError)
+    public (double X, double Y, double Z) ReadPosition(bool live)
     {
-        try
-        {
-            while (true)
-            {
-                lifetime.ThrowIfCancellationRequested();
-                RefreshMonitorFeedback(reportError);
-                refreshed();
-                _firstMonitorRead.TrySetResult();
-                await Task.Delay(TimeSpan.FromMilliseconds(250), lifetime).ConfigureAwait(false);
-            }
-        }
-        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
-        {
-            _firstMonitorRead.TrySetCanceled(lifetime);
-        }
-        catch (Exception error)
-        {
-            foreach (var (axis, status) in MonitorAxes)
-            {
-                status.Invalidate(error);
-                reportError(axis, error);
-            }
+        if (live)
+            return Feedback.GetPosition();
+        var position = Position;
+        if (position.X is null
+            || Feedback.HasY && position.Y is null
+            || Feedback.HasZ && position.Z is null)
+            throw new IOException("Motion position feedback is unavailable.");
+        return (position.X.Value, position.Y ?? 0, position.Z ?? 0);
+    }
 
-            PropertyChanged?.Invoke(this, new(nameof(IsMoving)));
-            PropertyChanged?.Invoke(this, new(nameof(Position)));
-            refreshed();
-            _firstMonitorRead.TrySetException(error);
-            throw;
-        }
+    public bool IsSettled(bool live, params MotionAxis[] axes)
+    {
+        return !(live ? Feedback.IsMoving : IsMoving)
+            && axes.All(axis => ReadAxisState(axis, live).InPosition);
+    }
+
+    public void InvalidateFeedback(Exception error)
+    {
+        foreach (var status in MonitorAxes.Values)
+            status.Invalidate(error);
+        RefreshControlFeedback(available: false);
+        PropertyChanged?.Invoke(this, new(nameof(IsMoving)));
+        PropertyChanged?.Invoke(this, new(nameof(Position)));
     }
 
     public void RefreshMonitorFeedback(Action<MotionAxis, Exception>? reportError = null)

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using IBTM.Ajin;
 using IBTM.AlphaMotion;
 using IBTM.Core;
@@ -21,15 +20,14 @@ public sealed class PhysicalIoService(
 {
     // Persisted logical address boundary, not the detected AlphaMotion board size.
     private const int AlphaMotionChannelCount = AlphaMotionController.ChannelCount;
-    private static readonly TimeSpan InputPollInterval = TimeSpan.FromMilliseconds(10);
     private static readonly InputIo[] Inputs = Enum.GetValues<InputIo>();
     private readonly bool[] _inputs = new bool[Inputs.Max(input => (int)input) + 1];
     private readonly bool[] _inputScan = new bool[Inputs.Max(input => (int)input) + 1];
     private readonly InputIo[] _changedInputs = new InputIo[Inputs.Length];
     private readonly uint[] _rtexInputs = new uint[ajin.RtexInputWordCount];
     private readonly Lock _lifecycleGate = new();
-    private CancellationTokenSource? _inputMonitor;
-    private Task? _inputMonitorTask;
+    // Notification history only: initial levels are not edges; recovered changes are.
+    private bool _hasInputSnapshot;
     private volatile bool _ready;
 
     public event Action<InputIo, bool>? InputChanged;
@@ -60,11 +58,9 @@ public sealed class PhysicalIoService(
                 return;
             }
 
-            var stage = "Stopping previous input scan";
+            var stage = "AlphaMotion initialization";
             try
             {
-                StopInputMonitor();
-                stage = "AlphaMotion initialization";
                 log?.Write(stage + " started.");
                 alphaMotion.Initialize();
                 log?.Write(stage + " completed.");
@@ -76,18 +72,17 @@ public sealed class PhysicalIoService(
                 {
                     stage = $"Initial DI read: {input}, channel={inputMap[input]}";
                     var value = ReadInput(inputMap[input]);
-                    _inputs[(int)input] = value;
+                    _inputScan[(int)input] = value;
                     log?.Write($"{stage}: {(value ? "ON" : "OFF")}");
                 }
 
-                _ready = true;
-                _inputMonitor = new CancellationTokenSource();
-                var cancellationToken = _inputMonitor.Token;
-                _inputMonitorTask = Task.Run(() => MonitorInputsAsync(cancellationToken));
+                stage = "Initial DI cache update / change notification";
+                PublishInputScan(_hasInputSnapshot);
             }
             catch (Exception exception)
             {
-                log?.Error($"{stage} failed. Input scan is not running. {exception.Message}");
+                _ready = false;
+                log?.Error($"{stage} failed. Input feedback is unavailable. {exception.Message}");
                 throw;
             }
         }
@@ -132,7 +127,7 @@ public sealed class PhysicalIoService(
     {
         if (!_ready)
         {
-            throw new IOException($"DI {input} is unavailable: the input scan is not running.");
+            throw new IOException($"DI {input} is unavailable: no valid input scan.");
         }
 
         return Volatile.Read(ref _inputs[(int)input]);
@@ -179,19 +174,8 @@ public sealed class PhysicalIoService(
     {
         lock (_lifecycleGate)
         {
-            StopInputMonitor();
             _ready = false;
         }
-    }
-
-    private void StopInputMonitor()
-    {
-        _inputMonitor?.Cancel();
-        // Monitor failures have already been reported through Faulted.
-        _inputMonitorTask?.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing).GetAwaiter().GetResult();
-        _inputMonitor?.Dispose();
-        _inputMonitor = null;
-        _inputMonitorTask = null;
     }
 
     private bool ReadInput(int channel)
@@ -219,28 +203,20 @@ public sealed class PhysicalIoService(
         ajin.WriteRtexOutput(channel - AlphaMotionChannelCount, value);
     }
 
-    private async Task MonitorInputsAsync(CancellationToken cancellationToken)
+    public void RefreshInputs()
     {
-        var stage = "Starting input scan";
-        try
+        // Initialization/recovery and a scan cannot replace the cache concurrently.
+        lock (_lifecycleGate)
         {
-            log?.Write("Input scan started (10 ms interval).");
-            var firstScan = true;
-            while (true)
+            if (!_ready)
+                return;
+
+            var stage = "AlphaMotion input read";
+            try
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                stage = "AlphaMotion input read";
                 var alphaInputs = alphaMotion.ReadInputs();
                 stage = "AJIN input read";
                 ajin.ReadRtexInputs(_rtexInputs);
-                if (firstScan)
-                {
-                    log?.Write(
-                        $"First input scan completed. AlphaMotion=0x{alphaInputs:X8}; AJIN words={string.Join(
-                            ", ",
-                            _rtexInputs.Select(word => $"0x{word:X8}"))}.");
-                    firstScan = false;
-                }
 
                 stage = "Input address mapping";
                 foreach (var input in Inputs)
@@ -248,44 +224,48 @@ public sealed class PhysicalIoService(
                     _inputScan[(int)input] = ReadMonitoredInput(inputMap[input], alphaInputs);
                 }
 
-                var changedCount = 0;
-                foreach (var input in Inputs)
-                {
-                    var index = (int)input;
-                    var value = _inputScan[index];
-                    if (Volatile.Read(ref _inputs[index]) == value)
-                    {
-                        continue;
-                    }
-
-                    Volatile.Write(ref _inputs[index], value);
-                    _changedInputs[changedCount++] = input;
-                }
-
-                for (var index = 0; index < changedCount; index++)
-                {
-                    var input = _changedInputs[index];
-                    stage = $"Input change notification: {input}, channel={inputMap[input]}";
-                    log?.Write(
-                        $"DI {input}, channel={inputMap[input]}: {(_inputScan[(int)input] ? "ON" : "OFF")}");
-                    InputChanged?.Invoke(input, _inputScan[(int)input]);
-                }
-
-                await Task.Delay(InputPollInterval, cancellationToken).ConfigureAwait(false);
+                stage = "Input cache update / change notification";
+                PublishInputScan(notifyChanges: true);
+            }
+            catch (Exception exception)
+            {
+                _ready = false;
+                log?.Error(
+                    $"Input scan failed during {stage}. Inputs remain unavailable until initialization succeeds.",
+                    exception);
+                Faulted?.Invoke(exception);
+                throw;
             }
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+    }
+
+    private void PublishInputScan(bool notifyChanges)
+    {
+        var changedCount = 0;
+        foreach (var input in Inputs)
         {
-            log?.Write("Input scan stopped.");
+            var index = (int)input;
+            var value = _inputScan[index];
+            if (Volatile.Read(ref _inputs[index]) == value)
+            {
+                continue;
+            }
+
+            Volatile.Write(ref _inputs[index], value);
+            _changedInputs[changedCount++] = input;
         }
-        catch (Exception exception)
+
+        _hasInputSnapshot = true;
+        _ready = true;
+        if (!notifyChanges)
+            return;
+
+        for (var index = 0; index < changedCount; index++)
         {
-            _ready = false;
-            log?.Error(
-                $"Input scan stopped by error during {stage}. Inputs will no longer update until initialization succeeds.",
-                exception);
-            Faulted?.Invoke(exception);
-            throw;
+            var input = _changedInputs[index];
+            log?.Write(
+                $"DI {input}, channel={inputMap[input]}: {(_inputScan[(int)input] ? "ON" : "OFF")}");
+            InputChanged?.Invoke(input, _inputScan[(int)input]);
         }
     }
 

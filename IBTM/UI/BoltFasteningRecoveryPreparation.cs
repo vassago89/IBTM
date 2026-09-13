@@ -3,6 +3,7 @@ using System.Linq;
 using System.Windows;
 using IBTM.BoltFastening;
 using IBTM.Core;
+using IBTM.Device;
 
 namespace IBTM.UI;
 
@@ -10,9 +11,10 @@ public sealed class BoltFasteningRecoveryPreparation(
     MachineState state,
     BoltFasteningWork work,
     BoltFasteningStation fastening,
-    Recipe recipe) : StartPreparation(state, work)
+    Recipe recipe,
+    IIoService io) : StartPreparation(state, work, io)
 {
-    protected override bool Show(Window owner)
+    protected override bool Show(Window owner, int version)
     {
         var items = new List<BoltFasteningRecoveryItem>();
         foreach (var bolt in recipe.Pcb.GetBolts().Where(bolt => work.HeatSinkPresent(bolt.HeatSink)))
@@ -39,7 +41,7 @@ public sealed class BoltFasteningRecoveryPreparation(
         {
             Owner = owner,
         };
-        if (window.ShowDialog() != true)
+        if (window.ShowDialog() != true || !CanApply(version))
         {
             return false;
         }

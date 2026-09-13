@@ -619,14 +619,8 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(InspectionGantryMapLeft));
         OnPropertyChanged(nameof(InspectionGantryMapTop));
         OnMachineDisplayChanged();
-        OnMainConveyorChanged();
+        OnPropertyChanged(nameof(Conveyor));
         OnPropertyChanged(nameof(Units));
-        OnPropertyChanged(nameof(ConveyorStatus));
-        OnPropertyChanged(nameof(SupplyPositionKnown));
-        OnPropertyChanged(nameof(PlacementPositionKnown));
-        OnPropertyChanged(nameof(FasteningPositionKnown));
-        OnPropertyChanged(nameof(InspectionPositionKnown));
-        OnPropertyChanged(nameof(BoltFeederPositionKnown));
         OnPropertyChanged(nameof(BoltPickupFeederMapLeft));
         OnPropertyChanged(nameof(BoltPickupFeederMapTop));
         OnPropertyChanged(nameof(SafetyBypass));
@@ -640,13 +634,7 @@ public partial class OperationViewModel : ObservableObject
     public Task ShutdownAsync()
     {
         return CommandShutdown.StopAsync(
-            () =>
-            {
-                Deactivate();
-                StartCommand.Cancel();
-                HomeCommand.Cancel();
-                RaiseCylindersCommand.Cancel();
-            },
+            Deactivate,
             StartCommand,
             HomeCommand,
             RaiseCylindersCommand);
@@ -668,7 +656,10 @@ public partial class OperationViewModel : ObservableObject
     private async Task StartAsync(CancellationToken cancellationToken)
     {
         var owner = Application.Current.MainWindow;
-        if (!_pcbPlacementRecovery.Prepare(owner) || !_boltFasteningRecovery.Prepare(owner))
+        if (!_pcbPlacementRecovery.Prepare(owner)
+            || !_boltFasteningRecovery.Prepare(owner)
+            || !_pcbPlacementRecovery.Prepared
+            || !_boltFasteningRecovery.Prepared)
         {
             return;
         }
@@ -886,17 +877,7 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(FasteningPositionKnown));
         OnPropertyChanged(nameof(InspectionPositionKnown));
         OnPropertyChanged(nameof(BoltFeederPositionKnown));
-        OnPropertyChanged(nameof(PlacementStatus));
         OnPropertyChanged(nameof(ConveyorStatus));
-        OnPropertyChanged(nameof(PcbPlacementRecoveryAvailable));
-        OnPropertyChanged(nameof(BoltFasteningRecoveryAvailable));
-        OnPropertyChanged(nameof(SupplyDisplayState));
-        OnPropertyChanged(nameof(PlacementDisplayState));
-        OnPropertyChanged(nameof(BoltDisplayState));
-        OnPropertyChanged(nameof(InspectionDisplayState));
-        OnPropertyChanged(nameof(InspectionStatus));
-        OnPropertyChanged(nameof(FasteningStateVisible));
-        OnPropertyChanged(nameof(InspectionStateVisible));
         OnPcbPlacementChanged();
         OnBoltFasteningChanged();
         OnInspectionChanged();

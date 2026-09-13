@@ -11,6 +11,127 @@ namespace IBTM.Ajin.Tests;
 
 public sealed class AjinControllerTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PhysicalInputScanPublishesBothProvidersAndRequiresExplicitRecovery(bool failAlphaMotion)
+    {
+        Shared.TMCAEDLL.Reset();
+        using var alpha = new IBTM.AlphaMotion.AlphaMotionController(new());
+        using var ajin = new AjinController(new());
+        var inputs = Enum.GetValues<InputIo>().ToDictionary(input => input, _ => 0);
+        inputs[InputIo.PcbSupplyPcbDetected] = IBTM.AlphaMotion.AlphaMotionController.ChannelCount;
+        using var io = new PhysicalIoService(
+            alpha,
+            ajin,
+            inputs,
+            new System.Collections.Generic.Dictionary<OutputIo, OutputHardware>(),
+            new());
+        io.Initialize();
+        var changes = 0;
+        void OnInputChanged(InputIo input, bool value)
+        {
+            changes++;
+            Assert.True(io.GetInput(InputIo.EmergencyStop1Pressed));
+            Assert.True(io.GetInput(InputIo.PcbSupplyPcbDetected));
+        }
+
+        io.InputChanged += OnInputChanged;
+        Shared.TMCAEDLL.Inputs = 1;
+        AjinSdk.Inputs[0] = 1;
+        io.RefreshInputs();
+        Assert.Equal(inputs.Count, changes);
+        io.InputChanged -= OnInputChanged;
+        io.InputChanged += (_, _) => changes++;
+
+        Shared.TMCAEDLL.Inputs = 0;
+        if (failAlphaMotion)
+            Shared.TMCAEDLL.Errors["AIO_GetDIDWord"] = Shared.tmcDef.ERR_INVALID_PARAMETER;
+        else
+            AjinSdk.Results[new("AxdiReadInportWord", 0, 0)] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        Exception? fault = null;
+        io.Faulted += error =>
+        {
+            fault = error;
+            Assert.False(io.IsReady);
+            Assert.Throws<IOException>(() => io.GetInput(InputIo.EmergencyStop1Pressed));
+        };
+        Assert.Same(Assert.Throws<IOException>(io.RefreshInputs), fault);
+        Assert.Equal(inputs.Count, changes); // A partial provider scan never publishes input changes.
+
+        Shared.TMCAEDLL.Errors.Clear();
+        AjinSdk.Results.Clear();
+        var reads = Shared.TMCAEDLL.Calls.Count + AjinSdk.Calls.Count;
+        io.RefreshInputs();
+        Assert.Equal(reads, Shared.TMCAEDLL.Calls.Count + AjinSdk.Calls.Count);
+        Assert.False(io.IsReady);
+        AjinSdk.Results[new("AxdiReadInportBit", 0, 0)] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        Assert.Throws<IOException>(io.Initialize);
+        Assert.False(io.IsReady);
+        Assert.Equal(inputs.Count, changes);
+        AjinSdk.Results.Clear();
+        io.Initialize();
+        Assert.True(io.IsReady);
+        Assert.False(io.GetInput(InputIo.EmergencyStop1Pressed));
+        Assert.True(io.GetInput(InputIo.PcbSupplyPcbDetected));
+        Assert.Equal(inputs.Count * 2 - 1, changes);
+        io.RefreshInputs();
+        Assert.Equal(inputs.Count * 2 - 1, changes);
+    }
+
+    [Fact]
+    public void RecoveredCarrierArrivalDoesNotReuseCompletedStationWork()
+    {
+        Shared.TMCAEDLL.Reset();
+        using var alpha = new IBTM.AlphaMotion.AlphaMotionController(new());
+        using var ajin = new AjinController(new());
+        var inputs = Enum.GetValues<InputIo>().ToDictionary(input => input, _ => 0);
+        var rtex = IBTM.AlphaMotion.AlphaMotionController.ChannelCount;
+        inputs[InputIo.InspectionCarrierPresent] = rtex;
+        inputs[InputIo.InspectionBackupPlateUp] = rtex + 1;
+        inputs[InputIo.InspectionStopperDown] = rtex + 2;
+        using var io = new PhysicalIoService(
+            alpha, ajin, inputs, new System.Collections.Generic.Dictionary<OutputIo, OutputHardware>(), new());
+        var work = new RecoveryWork(ConveyorStation.Inspection(io));
+        var arrivals = 0;
+        work.Station.CarrierChanged += present =>
+        {
+            if (present)
+            {
+                arrivals++;
+                Assert.True(work.CarrierSeated);
+            }
+        };
+        AjinSdk.Inputs[0] = 0b111;
+        io.Initialize();
+        Assert.Equal(0, arrivals); // Initial levels are not new input edges.
+        var assembly = work.Assembly(HeatSinkSlot.HeatSink1);
+        assembly.RecordPcbBolt(1, new BoltResult(false, 1.25));
+        work.Complete();
+        Assert.True(work.CanTransfer);
+        AjinSdk.Inputs[0] = 0b110;
+        io.RefreshInputs();
+        Assert.False(work.CarrierPresent);
+
+        Shared.TMCAEDLL.Errors["AIO_GetDIDWord"] = Shared.tmcDef.ERR_INVALID_PARAMETER;
+        Assert.Throws<IOException>(io.RefreshInputs);
+        AjinSdk.Inputs[0] = 0b111; // A new carrier arrives while feedback is unavailable.
+        Shared.TMCAEDLL.Errors.Clear();
+        io.Initialize();
+
+        Assert.True(work.CarrierSeated);
+        Assert.False(work.Completed);
+        Assert.False(work.CanTransfer);
+        Assert.Empty(work.Assemblies);
+        Assert.Equal(1, arrivals);
+        io.RefreshInputs();
+        Assert.Equal(1, arrivals);
+    }
+
+    private sealed class RecoveryWork(ConveyorStation station) : StationWork(station)
+    {
+    }
+
     [Fact]
     public void MotionUsesLiveMovementPositionAndUnitsWithoutLocalInitializationState()
     {
@@ -80,11 +201,12 @@ public sealed class AjinControllerTests
         using var controller = new AjinController(new());
         controller.Initialize();
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        AjinSdk.MotionAxes[10] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
             controller,
             new() { Number = 9 },
-            null,
+            new() { Number = 10 },
             null,
             0.01,
             new(),
@@ -93,7 +215,8 @@ public sealed class AjinControllerTests
             null);
         AjinSdk.Results[new(command, Axis: 9)] =
             (uint)AXT_FUNC_RESULT.AXT_RT_MOTION_ERROR_IN_ALARM;
-        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 9)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 9)] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 10)] = 0;
         AjinSdk.Results[new(nameof(CAXM.AxmHomeSetResult), Axis: 9, Value: 0xFF)] = 0;
         AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: 9)] = 0;
         AjinSdk.BeforeCall = call =>
@@ -114,9 +237,12 @@ public sealed class AjinControllerTests
 
         var details = error.ToString();
         Assert.Contains(command, details);
+        Assert.Contains(nameof(CAXM.AxmMoveSStop), details);
         Assert.Contains(nameof(CAXM.AxmStatusReadMechanical), details);
         Assert.Contains(nameof(CAXM.AxmStatusGetActPos), details);
-        Assert.Single(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMoveSStop));
+        Assert.Equal(
+            command == nameof(CAXM.AxmMovePos) ? new[] { 9, 10 } : new[] { 9 },
+            AjinSdk.Calls.Where(call => call.Operation == nameof(CAXM.AxmMoveSStop)).Select(call => call.Axis!.Value));
         Assert.Equal(MotionCommand.None, motion.Command);
         Assert.False(operations.HasActiveOperations);
     }

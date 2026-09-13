@@ -72,7 +72,7 @@ public sealed partial class MachineController
         OutputIo signal,
         CancellationToken cancellationToken)
     {
-        OperationCancellation.Operation operation;
+        OperationCancellation.Operation? operation;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -83,7 +83,9 @@ public sealed partial class MachineController
                 return block;
             }
 
-            operation = _operations.Link(cancellationToken);
+            operation = _operations.TryBegin(cancellationToken);
+            if (operation is null)
+                return OutputBlockReason.Busy;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -252,7 +254,8 @@ public sealed partial class MachineController
                     => _placementHandler.SetIpmGripperAsync(value, token),
                 OutputIo.PcbPlacementVacuumEjector => _placementHandler.SetVacuumAsync(value, token),
                 OutputIo.PcbPlacementHandlerRotate => _placementHandler.SetRotatedAsync(value, token),
-                OutputIo.PickupHeadUp => _fasteningGantry.SetPickupHeadDownAsync(!value, token),
+                OutputIo.PickupHeadUp
+                    => _fasteningGantry.SetHeadDownAsync(FasteningHead.Pickup, !value, token),
                 OutputIo.ShootingHeadUp
                     => _fasteningGantry.SetHeadDownAsync(FasteningHead.Shooting, !value, token),
                 OutputIo.PickupHeadVacuumPump

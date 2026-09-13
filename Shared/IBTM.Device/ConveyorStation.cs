@@ -56,7 +56,7 @@ public sealed class ConveyorStation
         io.InputChanged += OnInputChanged;
     }
 
-    internal event Action? Changed;
+    public event Action? Changed;
     public event Action<bool>? CarrierChanged;
 
     public static ConveyorStation PcbPlacement(IIoService io)

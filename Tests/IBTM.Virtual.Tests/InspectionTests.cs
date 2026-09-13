@@ -286,6 +286,11 @@ public sealed class InspectionTests
         io.SetInput(InputIo.InspectionStopperUp, false);
         io.SetInput(InputIo.InspectionCarrierPresent, true);
 
+        Assert.Empty(work.Assemblies);
+        Assert.Equal(HeatSinkSlot.HeatSink1, station.ActivePcb(bolts));
+        _ = station.State(bolts);
+        Assert.Empty(work.Assemblies);
+
         var barcodeImage = await inspector.CaptureBarcodeAsync(HeatSinkSlot.HeatSink2);
         Assert.True(inspector.IsAtBarcode(HeatSinkSlot.HeatSink2));
         Assert.Equal("PCB-2", DataMatrixReader.Read(barcodeImage, inspector.GetBarcodeFov(HeatSinkSlot.HeatSink2).Region!));
@@ -305,6 +310,11 @@ public sealed class InspectionTests
 
         Assert.False(work.Completed);
         Assert.Single(work.Assembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
+
+        var firstBarcode = work.Assembly(HeatSinkSlot.HeatSink1).PcbBarcode;
+        await station.RunAsync(bolts, firstStop.Token);
+        Assert.Single(work.Assembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
+        Assert.Equal(firstBarcode, work.Assembly(HeatSinkSlot.HeatSink1).PcbBarcode);
 
         io.SetInput(InputIo.InspectionHeatSink1Present, false);
         camera.AfterCapture = () =>

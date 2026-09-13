@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -107,17 +109,14 @@ public sealed class NgCarrierConveyor : AutoUnit
         }
     }
 
-    internal bool CanAcceptCarrier
+    internal bool CanAcceptCarrier(bool? runCommandOn = null)
     {
-        get
-        {
-            return _movement == Movement.None
-                && _ejectionPhase == EjectionPhase.Idle
-                && !Full
-                && !NeedsCompaction
-                && (_repeat || !EjectRequested)
-                && !RunCommandOn;
-        }
+        return _movement == Movement.None
+            && _ejectionPhase == EjectionPhase.Idle
+            && !Full
+            && !NeedsCompaction
+            && (_repeat || !EjectRequested)
+            && !(runCommandOn ?? RunCommandOn);
     }
 
     internal bool ShuttleCanRaise
@@ -136,118 +135,145 @@ public sealed class NgCarrierConveyor : AutoUnit
     {
         get
         {
-            // A stopped transfer with no presence feedback has no known physical location.
-            // The saved destination is work history, not permission to guess and resume.
-            if (!RunCommandOn
-                && (_movement switch
-                {
-                    Movement.ToPosition1 => !Position1Occupied && !Position3Occupied,
-                    Movement.ToPosition2 => !Position2Occupied && !Position3Occupied,
-                    Movement.Compacting => !Position1Occupied && !Position2Occupied,
-                    _ => false,
-                }))
-            {
-                return NgConveyorState.CarrierPositionUnknown;
-            }
-
-            switch (_ejectionPhase)
-            {
-                case EjectionPhase.Ejecting:
-                    return NgConveyorState.EjectingCarrier;
-                case EjectionPhase.WaitingForConfirmation:
-                    if (!_io.GetInput(InputIo.NgConveyorStopperUp)
-                        || _io.GetInput(InputIo.NgConveyorStopperDown))
-                    {
-                        return NgConveyorState.SecuringEjectStopper;
-                    }
-
-                    if (NeedsCompaction)
-                    {
-                        return NgConveyorState.CompactingCarriers;
-                    }
-
-                    return EjectConfirmed
-                        ? NgConveyorState.AcknowledgingEject
-                        : NgConveyorState.WaitingForEjectConfirmation;
-                case EjectionPhase.WaitingForButtonRelease:
-                    return NgConveyorState.WaitingForEjectButtonRelease;
-            }
-
-            if (Position1Occupied
-                && !_repeat
-                && EjectRequested
-                && _shuttle.Lift == NgShuttleLiftState.Up)
-            {
-                return NgConveyorState.EjectingCarrier;
-            }
-
-            switch (_movement)
-            {
-                case Movement.ToPosition1:
-                    return Position1Occupied && !Position3Occupied
-                        ? NgConveyorState.WaitingForShuttleUp
-                        : NgConveyorState.MovingToPosition1;
-                case Movement.ToPosition2:
-                    return Position2Occupied && !Position3Occupied
-                        ? NgConveyorState.WaitingForShuttleUp
-                        : NgConveyorState.MovingToPosition2;
-                case Movement.Compacting:
-                    return NgConveyorState.CompactingCarriers;
-            }
-
-            if (NeedsCompaction)
-            {
-                return NgConveyorState.CompactingCarriers;
-            }
-
-            if (Position3Occupied)
-            {
-                if (Full)
-                {
-                    return NgConveyorState.Full;
-                }
-
-                return _shuttle.Lift == NgShuttleLiftState.Down
-                    ? TargetState()
-                    : NgConveyorState.WaitingForShuttleDown;
-            }
-
-            return Position1Occupied ? NgConveyorState.ReadyToEject : NgConveyorState.WaitingForCarrier;
+            return ReadState(RunCommandOn);
         }
     }
 
-    public async Task RunMotorAsync(CancellationToken cancellationToken)
+    public NgConveyorState ReadState(bool runCommandOn)
     {
+        // A stopped transfer with no presence feedback has no known physical location.
+        // The saved destination is work history, not permission to guess and resume.
+        if (!runCommandOn
+            && (_movement switch
+            {
+                Movement.ToPosition1 => !Position1Occupied && !Position3Occupied,
+                Movement.ToPosition2 => !Position2Occupied && !Position3Occupied,
+                Movement.Compacting => !Position1Occupied && !Position2Occupied,
+                _ => false,
+            }))
+        {
+            return NgConveyorState.CarrierPositionUnknown;
+        }
+
+        switch (_ejectionPhase)
+        {
+            case EjectionPhase.Ejecting:
+                return NgConveyorState.EjectingCarrier;
+            case EjectionPhase.WaitingForConfirmation:
+                if (!_io.GetInput(InputIo.NgConveyorStopperUp)
+                    || _io.GetInput(InputIo.NgConveyorStopperDown))
+                {
+                    return NgConveyorState.SecuringEjectStopper;
+                }
+
+                if (NeedsCompaction)
+                {
+                    return NgConveyorState.CompactingCarriers;
+                }
+
+                return EjectConfirmed
+                    ? NgConveyorState.AcknowledgingEject
+                    : NgConveyorState.WaitingForEjectConfirmation;
+            case EjectionPhase.WaitingForButtonRelease:
+                return NgConveyorState.WaitingForEjectButtonRelease;
+        }
+
+        if (Position1Occupied
+            && !_repeat
+            && EjectRequested
+            && _shuttle.Lift == NgShuttleLiftState.Up)
+        {
+            return NgConveyorState.EjectingCarrier;
+        }
+
+        switch (_movement)
+        {
+            case Movement.ToPosition1:
+                return Position1Occupied && !Position3Occupied
+                    ? NgConveyorState.WaitingForShuttleUp
+                    : NgConveyorState.MovingToPosition1;
+            case Movement.ToPosition2:
+                return Position2Occupied && !Position3Occupied
+                    ? NgConveyorState.WaitingForShuttleUp
+                    : NgConveyorState.MovingToPosition2;
+            case Movement.Compacting:
+                return NgConveyorState.CompactingCarriers;
+        }
+
+        if (NeedsCompaction)
+        {
+            return NgConveyorState.CompactingCarriers;
+        }
+
+        if (Position3Occupied)
+        {
+            if (Full)
+            {
+                return NgConveyorState.Full;
+            }
+
+            return _shuttle.Lift == NgShuttleLiftState.Down
+                ? TargetState()
+                : NgConveyorState.WaitingForShuttleDown;
+        }
+
+        return Position1Occupied ? NgConveyorState.ReadyToEject : NgConveyorState.WaitingForCarrier;
+    }
+
+    public Task RunMotorAsync(CancellationToken cancellationToken)
+    {
+        return RunControlledAsync(
+            async token =>
+            {
+                StartConveyor(token);
+                await Task.Delay(Timeout.Infinite, token).ConfigureAwait(false);
+            },
+            cancellationToken);
+    }
+
+    public Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
+    {
+        _repeat = repeat;
+        return RunControlledAsync(
+            async token =>
+            {
+                if (!repeat && _ejectionPhase == EjectionPhase.Idle && EjectRequested)
+                {
+                    _ejectionPhase = EjectionPhase.WaitingForButtonRelease;
+                    Changed?.Invoke();
+                }
+
+                await RunLoopAsync(ExecuteAsync, token);
+            },
+            cancellationToken);
+    }
+
+    private async Task RunControlledAsync(
+        Func<CancellationToken, Task> run,
+        CancellationToken cancellationToken)
+    {
+        Exception? failure = null;
         try
         {
             using var stopRegistration = cancellationToken.Register(StopConveyor);
-            StartConveyor(cancellationToken);
-            await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+            await run(cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
         }
         finally
         {
-            Stop();
-        }
-    }
-
-    public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
-    {
-        _repeat = repeat;
-        using var stopRegistration = cancellationToken.Register(StopConveyor);
-        if (!repeat && _ejectionPhase == EjectionPhase.Idle && EjectRequested)
-        {
-            _ejectionPhase = EjectionPhase.WaitingForButtonRelease;
-            Changed?.Invoke();
-        }
-
-        try
-        {
-            await RunLoopAsync(ExecuteAsync, cancellationToken);
-        }
-        finally
-        {
-            Stop();
             _repeat = false;
+            try
+            {
+                Stop();
+            }
+            catch (Exception cleanupFailure) when (failure is not null)
+            {
+                throw new AggregateException(failure, cleanupFailure);
+            }
         }
     }
 
@@ -267,18 +293,14 @@ public sealed class NgCarrierConveyor : AutoUnit
     private Task ExecuteAsync(CancellationToken cancellationToken)
     {
         UpdateOperatorOutputs();
-        switch (State)
+        var state = State;
+        TraceStep(state);
+        switch (state)
         {
             case NgConveyorState.MovingToPosition1:
-                return MoveCarrierAsync(
-                    NgConveyorPosition.Position1,
-                    Movement.ToPosition1,
-                    cancellationToken);
+                return MoveCarrierAsync(Movement.ToPosition1, cancellationToken);
             case NgConveyorState.MovingToPosition2:
-                return MoveCarrierAsync(
-                    NgConveyorPosition.Position2,
-                    Movement.ToPosition2,
-                    cancellationToken);
+                return MoveCarrierAsync(Movement.ToPosition2, cancellationToken);
             case NgConveyorState.WaitingForShuttleUp:
                 if (_shuttle.Lift != NgShuttleLiftState.Up)
                 {
@@ -306,9 +328,28 @@ public sealed class NgCarrierConveyor : AutoUnit
 
     public void Stop()
     {
-        StopConveyor();
-        SetEjectLamp(false);
-        SetEjectCompleteLamp(false);
+        OutputIo[] outputs = [
+            OutputIo.NgConveyorRun,
+            OutputIo.NgCarrierEjectLamp,
+            OutputIo.NgCarrierEjectCompleteLamp,
+        ];
+        List<Exception>? failures = null;
+        foreach (var output in outputs)
+        {
+            try
+            {
+                _io.SetOutput(output, false);
+            }
+            catch (Exception exception)
+            {
+                (failures ??= []).Add(exception);
+            }
+        }
+
+        if (failures?.Count == 1)
+            ExceptionDispatchInfo.Throw(failures[0]);
+        if (failures is not null)
+            throw new AggregateException("NG conveyor outputs could not all be stopped.", failures);
     }
 
     private bool NeedsCompaction
@@ -330,13 +371,18 @@ public sealed class NgCarrierConveyor : AutoUnit
     }
 
     private async Task MoveCarrierAsync(
-        NgConveyorPosition destination,
         Movement movement,
         CancellationToken cancellationToken)
     {
+        var destination = movement switch
+        {
+            Movement.ToPosition1 => InputIo.NgConveyorPosition1Occupied,
+            Movement.ToPosition2 => InputIo.NgConveyorPosition2Occupied,
+            _ => throw new ArgumentOutOfRangeException(nameof(movement)),
+        };
         _movement = movement;
         await SetStopperDownAsync(false, cancellationToken);
-        await RunUntilAsync(PositionInput(destination), true, false, cancellationToken);
+        await RunUntilAsync(destination, true, false, cancellationToken);
 
         Changed?.Invoke();
     }
@@ -344,7 +390,7 @@ public sealed class NgCarrierConveyor : AutoUnit
     private async Task EjectCarrierAsync(CancellationToken cancellationToken)
     {
         _ejectionPhase = EjectionPhase.Ejecting;
-        SetEjectLamp(false);
+        _io.SetOutput(OutputIo.NgCarrierEjectLamp, false);
         if (Position1Occupied)
         {
             await SetStopperDownAsync(true, cancellationToken);
@@ -354,7 +400,7 @@ public sealed class NgCarrierConveyor : AutoUnit
         await SetStopperDownAsync(false, cancellationToken);
         _ejectionPhase = EjectionPhase.WaitingForConfirmation;
         Changed?.Invoke();
-        SetEjectCompleteLamp(true);
+        _io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, true);
     }
 
     private async Task CompactCarriersAsync(CancellationToken cancellationToken)
@@ -369,15 +415,17 @@ public sealed class NgCarrierConveyor : AutoUnit
     private void AcknowledgeEject()
     {
         _ejectionPhase = EjectionPhase.WaitingForButtonRelease;
-        SetEjectCompleteLamp(false);
+        _io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, false);
         Changed?.Invoke();
     }
 
     private void UpdateOperatorOutputs()
     {
         var alarm = AlarmRequired && _ejectionPhase == EjectionPhase.Idle;
-        SetEjectCompleteLamp(_ejectionPhase == EjectionPhase.WaitingForConfirmation);
-        SetEjectLamp(alarm);
+        _io.SetOutput(
+            OutputIo.NgCarrierEjectCompleteLamp,
+            _ejectionPhase == EjectionPhase.WaitingForConfirmation);
+        _io.SetOutput(OutputIo.NgCarrierEjectLamp, alarm);
     }
 
     private Task SetStopperDownAsync(bool down, CancellationToken cancellationToken)
@@ -396,25 +444,28 @@ public sealed class NgCarrierConveyor : AutoUnit
             return;
         }
 
+        Exception? failure = null;
         try
         {
             StartConveyor(cancellationToken, reverse);
             await _io.WaitForInputAsync(destination, occupied, cancellationToken);
         }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
         finally
         {
-            StopConveyor();
+            try
+            {
+                StopConveyor();
+            }
+            catch (Exception cleanupFailure) when (failure is not null)
+            {
+                throw new AggregateException(failure, cleanupFailure);
+            }
         }
-    }
-
-    private static InputIo PositionInput(NgConveyorPosition position)
-    {
-        return position switch
-        {
-            NgConveyorPosition.Position1 => InputIo.NgConveyorPosition1Occupied,
-            NgConveyorPosition.Position2 => InputIo.NgConveyorPosition2Occupied,
-            _ => throw new ArgumentOutOfRangeException(nameof(position)),
-        };
     }
 
     private void StartConveyor(CancellationToken cancellationToken, bool reverse = false)
@@ -428,16 +479,6 @@ public sealed class NgCarrierConveyor : AutoUnit
     private void StopConveyor()
     {
         _io.SetOutput(OutputIo.NgConveyorRun, false);
-    }
-
-    private void SetEjectLamp(bool on)
-    {
-        _io.SetOutput(OutputIo.NgCarrierEjectLamp, on);
-    }
-
-    private void SetEjectCompleteLamp(bool on)
-    {
-        _io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, on);
     }
 
     private void NotifyChanged()

@@ -61,17 +61,6 @@ public sealed record MachineDisplay
     public InspectionStationState InspectionState { get; init; }
     public BoltTarget? InspectionBolt { get; init; }
     public HeatSinkSlot? InspectionPcb { get; init; }
-    // Collision clearance only, not automatic-run or whole-machine readiness.
-    public OutputBlockReason MainConveyorPathBlock { get; init; } = OutputBlockReason.StateUnavailable;
-
-    public bool MainConveyorPathClear
-    {
-        get
-        {
-            return MainConveyorPathBlock == OutputBlockReason.None;
-        }
-    }
-
     public RepeatPhase RepeatPhase { get; init; }
     public int RepeatCycles { get; init; }
 }

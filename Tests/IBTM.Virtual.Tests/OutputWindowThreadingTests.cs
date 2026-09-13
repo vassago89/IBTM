@@ -10,9 +10,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Threading;
+using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
+using IBTM.PcbPlacement;
 using IBTM.Storage;
 using IBTM.UI;
 using IBTM.Virtual;
@@ -77,6 +79,118 @@ public sealed class OutputWindowThreadingTests
         await finished.Task.WaitAsync(TimeSpan.FromSeconds(20));
     }
 
+    private static void VerifyRecoveryConfirmations()
+    {
+        using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
+            .AddIbtmApplication(new MachineSettings
+            {
+                Drivers = new() { Inspection = InspectionAlgorithm.Virtual },
+            })
+            .BuildServiceProvider();
+        var io = services.GetRequiredService<VirtualIoService>();
+        io.Initialize();
+        _ = services.GetRequiredService<MachineController>();
+        services.GetRequiredService<Recipe>().Pcb.BoltPoints =
+            [new() { HeatSink = HeatSinkSlot.HeatSink1, Number = 1, Head = FasteningHead.Shooting }];
+        var placement = services.GetRequiredService<PcbPlacementRecoveryPreparation>();
+        var fastening = services.GetRequiredService<BoltFasteningRecoveryPreparation>();
+        (StartPreparation Preparation, StationWork Work, InputIo Carrier, InputIo HeatSink)[] stations =
+        [
+            (placement, services.GetRequiredService<PcbPlacementWork>(),
+                InputIo.PcbPlacementCarrierPresent, InputIo.PcbPlacementHeatSink1Present),
+            (fastening, services.GetRequiredService<BoltFasteningWork>(),
+                InputIo.BoltFasteningCarrierPresent, InputIo.BoltFasteningHeatSink1Present),
+        ];
+        foreach (var (preparation, work, carrier, heatSink) in stations)
+        {
+            io.SetInput(carrier, true);
+            io.SetInput(heatSink, true);
+            Assert.False(preparation.Prepared);
+
+            // The final presence values are identical, but the displayed carrier was replaced.
+            ApplyRecoveryDialog(() =>
+            {
+                io.SetInput(carrier, false);
+                io.SetInput(carrier, true);
+            });
+            Assert.False(preparation.Open(null!));
+            Assert.Empty(work.Assemblies);
+            Assert.False(preparation.Prepared);
+
+            ApplyRecoveryDialog(() =>
+            {
+                io.SetInput(heatSink, false);
+                io.SetInput(heatSink, true);
+            });
+            Assert.False(preparation.Open(null!));
+            Assert.Empty(work.Assemblies);
+
+            // A carrier change published while applying results must not cache a new confirmation.
+            void ReplaceCarrierOnApply()
+            {
+                work.Changed -= ReplaceCarrierOnApply;
+                io.SetInput(carrier, false);
+                io.SetInput(carrier, true);
+            }
+
+            work.Changed += ReplaceCarrierOnApply;
+            ApplyRecoveryDialog();
+            Assert.False(preparation.Open(null!));
+            Assert.Empty(work.Assemblies);
+            Assert.False(preparation.Prepared);
+
+            ApplyRecoveryDialog();
+            Assert.True(preparation.Open(null!));
+            Assert.True(preparation.Prepared);
+            Assert.Single(work.Assemblies);
+            Assert.True(preparation.Prepare(null!)); // The same confirmation does not open another dialog.
+
+            ApplyRecoveryDialog(() => io.SetConnected(false));
+            Assert.False(preparation.Open(null!));
+            Assert.False(preparation.Required);
+            Assert.False(preparation.Prepared);
+            io.SetConnected(true);
+            services.GetRequiredService<MachineState>().ClearError();
+            Assert.False(preparation.Prepared);
+            ApplyRecoveryDialog();
+            Assert.True(preparation.Open(null!));
+        }
+
+        // Confirmation at station 1 must be checked again after the station 2 dialog closes.
+        ApplyRecoveryDialog(() =>
+        {
+            io.SetInput(InputIo.PcbPlacementCarrierPresent, false);
+            io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+        });
+        Assert.True(fastening.Open(null!));
+        Assert.True(fastening.Prepared);
+        Assert.False(placement.Prepared);
+        Assert.Empty(services.GetRequiredService<PcbPlacementWork>().Assemblies);
+    }
+
+    private static void ApplyRecoveryDialog(Action? change = null)
+    {
+        _ = Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
+        {
+            var window = Application.Current.Windows.Cast<Window>()
+                .Single(window => window is PcbPlacementRecoveryWindow or BoltFasteningRecoveryWindow);
+            switch (window.DataContext)
+            {
+                case PcbPlacementRecoveryViewModel placement:
+                    foreach (var item in placement.Items)
+                        item.Completed = true;
+                    break;
+                case BoltFasteningRecoveryViewModel fastening:
+                    foreach (var item in fastening.Items)
+                        item.Completed = true;
+                    break;
+            }
+
+            change?.Invoke();
+            window.DialogResult = true;
+        }));
+    }
+
     private static async Task VerifyIndependentTeachingAsync(IServiceProvider services)
     {
         var units = services.GetRequiredService<UnitSettings>();
@@ -136,13 +250,14 @@ public sealed class OutputWindowThreadingTests
 
     private static async Task VerifyWindowsAsync(Application app)
     {
-        foreach (var resource in new[] { "AppStyles", "IoWindowStyles" })
+        foreach (var resource in new[] { "AppStyles", "MachineStyles", "IoWindowStyles" })
             app.Resources.MergedDictionaries.Add(
                 new ResourceDictionary
                 {
                     Source = new Uri($"pack://application:,,,/IBTM;component/UI/{resource}.xaml"),
                 });
         await VerifyLogBindingsAsync();
+        VerifyRecoveryConfirmations();
         using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(
                 new MachineSettings
@@ -513,6 +628,26 @@ public sealed class OutputWindowThreadingTests
             var failure = await Assert.ThrowsAsync<IOException>(teaching.ShutdownAsync);
             Assert.Same(light.OffFailure, failure);
             Assert.Contains(nameof(TestLight.TurnOff), failure.StackTrace);
+            var deactivateFailure = new InvalidOperationException("Teaching deactivation failed.");
+            teaching.CarrierImages = new List<CarrierImageTileView>();
+            void FailDeactivation(object? sender, PropertyChangedEventArgs args)
+            {
+                if (args.PropertyName == nameof(StationTeachingViewModel.CarrierImages))
+                    throw deactivateFailure;
+            }
+
+            teaching.PropertyChanged += FailDeactivation;
+            try
+            {
+                var combined = await Assert.ThrowsAsync<AggregateException>(teaching.ShutdownAsync);
+                Assert.Equal(
+                    new Exception[] { deactivateFailure, light.OffFailure },
+                    combined.Flatten().InnerExceptions);
+            }
+            finally
+            {
+                teaching.PropertyChanged -= FailDeactivation;
+            }
             light.FailOff = false;
             await main.NavigateCommand.ExecuteAsync(AppPage.Settings);
             Assert.Equal(AppPage.Settings, main.SelectedPage);

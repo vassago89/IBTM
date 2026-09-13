@@ -538,6 +538,10 @@ public sealed class AlarmRecoveryTests
         var state = services.GetRequiredService<MachineState>();
         var view = services.GetRequiredService<SettingsViewModel>();
         await machine.InitializeAsync();
+        var camera = Assert.IsType<VirtualCamera>(services.GetRequiredService<ICamera>());
+        var sourceImage = camera.Capture(1, 1);
+        camera.SourceImage = sourceImage;
+        view.VirtualImageName = "locked-input.png";
         SetAlarm(state, MachineAlarm.Inspection);
         try
         {
@@ -549,9 +553,21 @@ public sealed class AlarmRecoveryTests
                 // Direct command execution also rechecks the guard, not just the button.
                 await view.SaveSettingsCommand.ExecuteAsync(null);
                 Assert.False(services.GetRequiredService<MachineStore>().HasData);
+                Assert.False(view.ClearVirtualImageCommand.CanExecute(null));
+                view.ClearVirtualImageCommand.Execute(null);
+                Assert.Same(sourceImage, camera.SourceImage);
+                Assert.Equal("locked-input.png", view.VirtualImageName);
+                await view.LoadVirtualImageCommand.ExecuteAsync(null);
+                await view.BackupDatabaseCommand.ExecuteAsync(null);
+                await view.RestoreDatabaseCommand.ExecuteAsync(null);
             }
 
             Assert.True(view.CanEditSettings);
+            view.ClearVirtualImageCommand.Execute(null);
+            Assert.Null(camera.SourceImage);
+            Assert.Null(view.VirtualImageName);
+            camera.SourceImage = sourceImage;
+            view.VirtualImageName = "locked-input.png";
         }
         finally
         {
@@ -561,6 +577,12 @@ public sealed class AlarmRecoveryTests
         Assert.False(view.CanEditSettings);
         Assert.False(view.SaveSettingsCommand.CanExecute(null));
         Assert.Contains("closing", view.SettingsAccessMessage);
+        view.ClearVirtualImageCommand.Execute(null);
+        await view.LoadVirtualImageCommand.ExecuteAsync(null);
+        await view.BackupDatabaseCommand.ExecuteAsync(null);
+        await view.RestoreDatabaseCommand.ExecuteAsync(null);
+        Assert.Same(sourceImage, camera.SourceImage);
+        Assert.Equal("locked-input.png", view.VirtualImageName);
     }
 
     [Fact]

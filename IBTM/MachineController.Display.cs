@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using IBTM.BoltFastening;
 using IBTM.Conveyor;
@@ -13,7 +14,7 @@ namespace IBTM;
 public sealed partial class MachineController
 {
     // UI snapshots are display hints; commands must recheck live interlocks.
-    private MachineDisplay ReadDisplay()
+    internal MachineDisplay ReadDisplay()
     {
         // Preserve the initialization/connection fault without reading closed I/O.
         // The unavailable snapshot leaves all movement commands disabled.
@@ -34,16 +35,24 @@ public sealed partial class MachineController
             };
         }
 
-        var motion = _state.DisplayMotionReadiness;
-        var block = GetStartBlock(motion);
+        var mainRunning = _feedback.Io.Outputs[OutputIo.MainConveyorRun].IsOn
+            ?? throw new IOException("Main conveyor output feedback is unavailable.");
+        var ngRunning = _feedback.Io.Outputs[OutputIo.NgConveyorRun].IsOn
+            ?? throw new IOException("NG conveyor output feedback is unavailable.");
+        var motion = _state.FeedbackReadiness;
         var servoPower = _state.ServoMainContactorOn && motion.ServosOn;
-        var conflict = _state.BufferConflict;
-        var running = _state.IsRunning;
+        var conflict = _state.Buffer.HasConflict(live: false);
+        var block = GetStartBlock(motion, conflict);
+        var running = _state.GetIsRunning(mainRunning, ngRunning);
         var safetyReady = _state.SafetyReady;
         var teachingReady = TeachingReady;
         var bolts = _recipe.Pcb.GetBolts().ToArray();
         var automatic = _state.AutomaticRunning;
-        var conveyorPathBlock = GetMainConveyorPathBlock();
+        var setupEditing = !_operations.IsShuttingDown && _state.ManualMode && !running;
+        var manualSetup = setupEditing && safetyReady;
+        var fasteningState = teachingReady && _units.BoltFastening
+            ? _fasteningStation.State(live: false)
+            : BoltFasteningState.Waiting;
 
         return new()
         {
@@ -55,13 +64,13 @@ public sealed partial class MachineController
             HomeBlock = HomeBlock,
             IsHoming = _state.IsHoming,
             AutomaticRunning = automatic,
-            ConveyorState = _state.MainConveyorState,
-            NgConveyorState = _ngConveyor.State,
+            ConveyorState = _conveyor.ReadState(mainRunning),
+            NgConveyorState = _ngConveyor.ReadState(ngRunning),
             BufferConflict = conflict,
-            SupplyInBufferArea = _state.SupplyInBufferArea,
-            PlacementInBufferArea = _state.PlacementInBufferArea,
-            SupplyAtHandoff = _state.SupplyAtHandoff,
-            CanSupplyEnter = _state.CanSupplyEnter,
+            SupplyInBufferArea = _state.Buffer.IsSupplyInside(live: false),
+            PlacementInBufferArea = _state.Buffer.IsPlacementInside(live: false),
+            SupplyAtHandoff = _state.Buffer.IsSupplyAtHandoff(live: false),
+            CanSupplyEnter = _state.Buffer.CanEnterSupply(live: false),
             EmergencyStopReleased = _state.EmergencyStopReleased,
             DoorClosed = _state.DoorClosed,
             AirPressureOk = _state.AirPressureOk,
@@ -71,35 +80,37 @@ public sealed partial class MachineController
             AlarmMessage = _state.AlarmMessage,
             ServoPowerOn = servoPower,
             Homed = motion.Homed,
-            CanStart = IsStartAllowed(block),
-            CanHome = IsHomeAllowed(motion),
-            CanRaiseCylinders = CanRaiseCylinders,
+            CanStart = IsStartAllowed(block, running),
+            CanHome = IsHomeAllowed(motion, running),
+            CanRaiseCylinders = manualSetup
+                && (BufferHandlersEnabled || _units.BoltFastening || InspectionGantryEnabled)
+                && !Array.Exists(CarrierInputs, _io.GetInput),
             HomeableAxes = Enum.GetValues<MotionGroup>()
                 .SelectMany(
                     group => _state.GetMotionStatus(group).Feedback.Axes.Select(
                         axis => (
                             group,
                             axis)))
-                .Where(item => CanHomeAxis(item.group, item.axis, live: false))
+                .Where(item => CanHomeAxis(item.group, item.axis, live: false, running: running))
                 .ToHashSet(),
-            ManualBlock = _state.GetManualBlock(motion),
-            ManualSetupEnabled = _state.ManualSetupEnabled,
-            SetupEditingEnabled = _state.SetupEditingEnabled,
+            ManualBlock = _state.GetManualBlock(motion, conflict, running),
+            ManualSetupEnabled = manualSetup,
+            SetupEditingEnabled = setupEditing,
             PlacementState = _units.PcbPlacement
-                ? _pcbPlacement.State(_recipe.PcbPlacement)
+                ? _pcbPlacement.State(_recipe.PcbPlacement, live: false)
                 : PcbPlacementState.WaitingForBufferPcb,
             PlacementTarget = _pcbPlacement.TargetHeatSink,
-            FasteningState = teachingReady && _units.BoltFastening
-                ? _fasteningStation.State()
-                : BoltFasteningState.Waiting,
+            FasteningState = fasteningState,
             FasteningBolt = teachingReady && _units.BoltFastening && automatic
-                ? _fasteningStation.ActiveBolt()
+                ? _fasteningStation.ActiveBolt(fasteningState)
                 : null,
             InspectionState = teachingReady && _units.Inspection
                 ? _inspectionStation.State(
                     bolts,
                     _state.RepeatEnabled,
-                    holdAtShuttle: _state.RepeatEnabled && !_units.NgShuttle)
+                    holdAtShuttle: _state.RepeatEnabled && !_units.NgShuttle,
+                    live: false,
+                    conveyorRunning: ngRunning)
                 : InspectionStationState.Waiting,
             InspectionBolt = teachingReady && _units.Inspection && automatic
                 ? _inspectionStation.ActiveBolt(bolts)
@@ -107,7 +118,6 @@ public sealed partial class MachineController
             InspectionPcb = teachingReady && _units.Inspection && automatic
                 ? _inspectionStation.ActivePcb(bolts)
                 : null,
-            MainConveyorPathBlock = conveyorPathBlock,
             RepeatPhase = _repeatPhase,
             RepeatCycles = _repeatCycles,
         };

@@ -26,7 +26,7 @@ public sealed class PcbTransferTests
         io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
         var first = work.Assembly(HeatSinkSlot.HeatSink1);
         var hidden = work.Assembly(HeatSinkSlot.HeatSink2);
-        work.Complete();
+        work.Complete(work.CurrentJob);
         var displayed = Enum.GetValues<HeatSinkSlot>()
             .Where(work.HeatSinkPresent)
             .Select(heatSink => (HeatSink: heatSink, Completed: true))
@@ -184,11 +184,12 @@ public sealed class PcbTransferTests
         supplyMotion.Initialize();
         placementMotion.Initialize();
         await Task.WhenAll(HomeAsync(supplyMotion, 2_000), HomeAsync(placementMotion, 2_000));
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementBackupPlateDown, false);
+        await work.Station.SeatAsync(CancellationToken.None);
         io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
         io.SetInput(InputIo.PcbPlacementHeatSink2Present, false);
         io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
 
+        Assert.True(work.CarrierSeated);
         using var supplyCancellation = new CancellationTokenSource();
         var supplyRun = supply.RunAsync(supplyRecipe, supplyCancellation.Token);
         using var firstStop = new CancellationTokenSource();
@@ -216,12 +217,14 @@ public sealed class PcbTransferTests
                 () => placementHandler.Pcb == PlacementPcbState.Secured
                     && placement.State(placementRecipe) == PcbPlacementState.WaitingForCarrier,
                 TimeSpan.FromSeconds(10));
+        var stoppedState = placement.State(placementRecipe);
+        var stoppedTarget = placement.TargetHeatSink;
 
         resumed.Cancel();
         supplyCancellation.Cancel();
         await Task.WhenAll(resumedRun, supplyRun);
 
-        Assert.True(completed);
+        Assert.True(completed, $"Placement stopped at {stoppedState}, target={stoppedTarget}, position={placementMotion.GetPosition()}.");
         Assert.True(prefetched);
         Assert.False(movedWithLoweredCylinder);
         Assert.False(carriedWithIpmRaised);
@@ -234,18 +237,23 @@ public sealed class PcbTransferTests
         Assert.Equal(HeatSinkSlot.HeatSink2, assembly.HeatSink);
         Assert.Equal(PlacementCylinderState.Down, placementHandler.IpmLift);
         Assert.Equal(PlacementCylinderState.Up, placementHandler.Lift);
-        Assert.True(placementHandler.AtHorizontalZ);
+        Assert.True(placementHandler.IsAtHorizontalZ());
         Assert.Equal(5, placementPhase);
-        Assert.False(buffer.Conflict);
+        Assert.False(buffer.HasConflict());
         Assert.False(supplyMotion.IsMoving);
         Assert.False(placementMotion.IsMoving);
     }
 
     [Trait("Category", "MachineFlow")]
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task SupplyReleasesUpstreamAfterCheckingBothSlots(bool secondPcbPresent)
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(false, false, true)]
+    public async Task SupplyKeepsCheckedSlotsUntilUpstreamCarrierChanges(
+        bool secondPcbPresent,
+        bool replaceDuringStop,
+        bool stopOnPcbDetection)
     {
         var operations = new OperationCancellation();
         var supplySettings = new PcbSupplySettings
@@ -288,15 +296,29 @@ public sealed class PcbTransferTests
             buffer);
         var pcb1Visited = false;
         var pcb2Visited = false;
+        var pcb1Visits = 0;
+        var atPcb1 = false;
+        using var firstStop = new CancellationTokenSource();
         supplyMotion.PositionChanged += (x, y, z) =>
         {
-            pcb1Visited |= IsAt(
+            var nowAtPcb1 = IsAt(
                 x,
                 y,
                 z,
                 recipe.Pcb1PickPosition.X,
                 supplySettings.CarrierY,
                 recipe.Pcb1PickPosition.Z);
+            if (nowAtPcb1 && !atPcb1)
+                pcb1Visits++;
+            atPcb1 = nowAtPcb1;
+            pcb1Visited |= nowAtPcb1;
+            if (stopOnPcbDetection && nowAtPcb1 && !firstStop.IsCancellationRequested)
+            {
+                io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+                firstStop.Cancel();
+            }
+            if (pcb1Visited && !pcb2Visited && x > 15 && !firstStop.IsCancellationRequested)
+                firstStop.Cancel();
             pcb2Visited |= IsAt(
                 x,
                 y,
@@ -316,9 +338,20 @@ public sealed class PcbTransferTests
         await Task.WhenAll(HomeAsync(supplyMotion, 2_000), HomeAsync(placementMotion, 2_000));
         io.SetInput(InputIo.PcbBufferPcbPresent, secondPcbPresent);
         using var cancellation = new CancellationTokenSource();
-        var run = supply.RunAsync(recipe, cancellation.Token);
+        var run = supply.RunAsync(recipe, firstStop.Token);
         await WaitForOutputAsync(io, OutputIo.PcbSupplyReadyToFront1, true);
         io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        await run.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(firstStop.IsCancellationRequested);
+        // The detected PCB was removed during manual recovery; the upstream carrier stays.
+        if (stopOnPcbDetection)
+            io.SetInput(InputIo.PcbSupplyPcbDetected, false);
+        if (replaceDuringStop)
+        {
+            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        }
+        run = supply.RunAsync(recipe, cancellation.Token);
 
         var checkedBoth = await WaitUntilAsync(
             () => pcb1Visited && pcb2Visited && io.GetOutput(OutputIo.PcbSupplyReadyToFront1),
@@ -338,11 +371,27 @@ public sealed class PcbTransferTests
         await run;
 
         Assert.True(checkedBoth);
+        Assert.Equal(replaceDuringStop ? 2 : 1, pcb1Visits);
         Assert.True(atRotationZ);
         Assert.True(nextCarrierAccepted);
         Assert.Equal(secondPcbPresent, io.GetInput(InputIo.PcbSupplyPcbDetected));
         Assert.Equal(secondPcbPresent, io.GetInput(InputIo.PcbBufferPcbPresent));
         Assert.False(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+
+        if (!secondPcbPresent)
+        {
+            // The next carrier can arrive while automatic operation is stopped.
+            var visitsBeforeNextCarrier = pcb1Visits;
+            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+            using var nextStop = new CancellationTokenSource();
+            var nextRun = supply.RunAsync(recipe, nextStop.Token);
+            var restartedAtFirstSlot = await WaitUntilAsync(
+                () => pcb1Visits == visitsBeforeNextCarrier + 1, TimeSpan.FromSeconds(2));
+            nextStop.Cancel();
+            await nextRun;
+            Assert.True(restartedAtFirstSlot);
+        }
     }
 
     [Trait("Category", "MachineFlow")]
@@ -415,8 +464,8 @@ public sealed class PcbTransferTests
         };
         await supply.RunAsync(new PcbSupplyRecipe(), firstStop.Token);
         Assert.True(interrupted);
-        Assert.True(buffer.SupplyInside);
-        Assert.False(buffer.SupplyAtHandoff);
+        Assert.True(buffer.IsSupplyInside());
+        Assert.False(buffer.IsSupplyAtHandoff());
         Assert.Equal(descending, buffer.PcbPresent);
         var stoppedPosition = supplyMotion.GetPosition();
         await Assert.ThrowsAsync<InvalidOperationException>(() => supplyHandler.SetRotatedAsync(false));
@@ -425,13 +474,13 @@ public sealed class PcbTransferTests
 
         using var resumed = new CancellationTokenSource();
         var run = supply.RunAsync(new PcbSupplyRecipe(), resumed.Token);
-        var reachedHandoff = await WaitUntilAsync(() => buffer.SupplyAtHandoff, TimeSpan.FromSeconds(5));
+        var reachedHandoff = await WaitUntilAsync(() => buffer.IsSupplyAtHandoff(), TimeSpan.FromSeconds(5));
         resumed.Cancel();
         await run;
 
         Assert.True(reachedHandoff);
         Assert.False(enteredUnrotated);
-        Assert.False(buffer.Conflict);
+        Assert.False(buffer.HasConflict());
         Assert.Equal((50, 10, 8), supplyMotion.GetPosition());
     }
 
@@ -453,8 +502,8 @@ public sealed class PcbTransferTests
             },
             io,
             placementHandler,
-            supplyMotion,
-            placementMotion,
+            new MotionStatus(supplyMotion),
+            placementHandler.Motion,
             supplySettings.BufferHandoffPosition,
             placementSettings.BufferHandoffPosition,
             () => placementSettings.BufferEntryZ);

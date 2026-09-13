@@ -28,6 +28,97 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
+    [Fact]
+    public async Task EmergencyInputStopsConveyorBeforeReadingUnrelatedMotionFeedback()
+    {
+        var settings = new MachineSettings { Units = EnableOnly(MachineUnit.MainConveyor) };
+        settings.Units.NgCarrierTransfer = true;
+        using var services = CreateDisplayServices(out var feedback, settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        var run = machine.StartAsync();
+        var checkingTrip = new AsyncLocal<bool>();
+        var readsBeforeStop = 0;
+        try
+        {
+            await WaitUntilAsync(() => state.AutomaticRunning);
+            io.SetOutput(OutputIo.MainConveyorRun, true);
+            feedback.BeforeRead = () =>
+            {
+                if (checkingTrip.Value && io.GetOutput(OutputIo.MainConveyorRun))
+                    Interlocked.Increment(ref readsBeforeStop);
+            };
+            checkingTrip.Value = true;
+            io.SetInput(InputIo.EmergencyStop1Pressed, true);
+            checkingTrip.Value = false;
+            await run.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(0, readsBeforeStop);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.Equal(MachineAlarm.EmergencyStop, state.Alarm);
+        }
+        finally
+        {
+            checkingTrip.Value = false;
+            feedback.BeforeRead = null;
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(3));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ConcurrentManualAdmissionOnlyStartsOneDeviceCommand()
+    {
+        using var services = CreateDisplayServices(out var feedback);
+        var machine = services.GetRequiredService<MachineController>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var pauseAdmission = new AsyncLocal<bool>();
+        var starts = 0;
+        feedback.BeforeRead = () =>
+        {
+            if (pauseAdmission.Value)
+            {
+                entered.Set();
+                Assert.True(release.Wait(TimeSpan.FromSeconds(5)));
+            }
+        };
+        Task Move(CancellationToken token)
+        {
+            Interlocked.Increment(ref starts);
+            return Task.Delay(Timeout.Infinite, token);
+        }
+
+        var first = Task.Run(() =>
+        {
+            pauseAdmission.Value = true;
+            return machine.RunManualMotionAsync(MotionGroup.InspectionGantry, Move, default, default);
+        });
+        Task second = Task.CompletedTask;
+        try
+        {
+            Assert.True(await Task.Run(() => entered.Wait(TimeSpan.FromSeconds(3))));
+            second = machine.RunManualMotionAsync(MotionGroup.InspectionGantry, Move, default, default);
+            Assert.Equal(1, Volatile.Read(ref starts));
+            release.Set();
+            await first.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(1, Volatile.Read(ref starts));
+        }
+        finally
+        {
+            release.Set();
+            feedback.BeforeRead = null;
+            machine.Stop();
+            await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(3));
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Theory]
     [InlineData(true, MachineAlarm.Inspection)]
     [InlineData(false, MachineAlarm.NgCarrierTransfer)]
@@ -52,6 +143,70 @@ public sealed partial class MachineLifecycleTests
                 CancellationToken.None);
             Assert.Equal(expectedAlarm, state.Alarm);
             Assert.Equal("Manual gantry I/O failure.", state.AlarmMessage);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData("motion")]
+    [InlineData("canceled")]
+    [InlineData("programming")]
+    public async Task ManualCommandHandlesCombinedDeviceFailuresWithoutHidingProgrammingErrors(string failureKind)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        using var services = CreateServices(settings);
+        using var cancellation = new CancellationTokenSource();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        Exception operationFailure = failureKind switch
+        {
+            "motion" => new MotionException("Manual move", new IOException("Motion feedback failed.")),
+            "canceled" => new OperationCanceledException(cancellation.Token),
+            _ => new InvalidOperationException("Invalid command state."),
+        };
+        Exception cleanupFailure = failureKind == "programming"
+            ? new InvalidOperationException("Invalid cleanup state.")
+            : new IOException("Cleanup output failed.");
+        var failure = new AggregateException(operationFailure, new AggregateException(cleanupFailure));
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        try
+        {
+            Assert.True(machine.CanUseManualMotion(MotionGroup.InspectionGantry));
+            var command = machine.RunManualMotionAsync(
+                MotionGroup.InspectionGantry,
+                _ =>
+                {
+                    if (failureKind != "programming")
+                        io.SetOutput(OutputIo.MainConveyorReadyToFront2, true);
+                    if (failureKind == "canceled")
+                        cancellation.Cancel();
+                    return Task.FromException(failure);
+                },
+                cancellation.Token,
+                CancellationToken.None);
+
+            if (failureKind == "programming")
+            {
+                Assert.Same(failure, await Assert.ThrowsAsync<AggregateException>(() => command));
+                Assert.Equal(MachineAlarm.None, state.Alarm);
+            }
+            else
+            {
+                await command;
+                Assert.Equal(
+                    failureKind == "motion" ? MachineAlarm.MotionUnavailable : MachineAlarm.Inspection,
+                    state.Alarm);
+                Assert.Contains(operationFailure.ToString(), state.AlarmDetail);
+                Assert.Contains(cleanupFailure.ToString(), state.AlarmDetail);
+                Assert.False(io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            }
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
         }
         finally
         {
@@ -382,6 +537,58 @@ public sealed partial class MachineLifecycleTests
         Assert.False(state.Homed);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CylinderRaiseFailureAfterStopIsReportedWithoutReplacingSafetyAlarm(bool safetyStop)
+    {
+        var settings = new MachineSettings { Units = EnableOnly(MachineUnit.NgCarrierTransfer) };
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var failure = new IOException("Cylinder output failed after STOP.");
+        await machine.InitializeAsync();
+        io.SetOutput(OutputIo.NgCarrierPickupUp, false);
+        void FailAfterStop(OutputIo output, bool on)
+        {
+            if (output != OutputIo.NgCarrierPickupUp || !on)
+                return;
+            io.OutputChanged -= FailAfterStop;
+            if (safetyStop)
+                io.SetInput(InputIo.AirPressureHigh, false);
+            else
+                machine.Stop();
+            throw failure;
+        }
+
+        io.OutputChanged += FailAfterStop;
+        try
+        {
+            Assert.True(machine.CanRaiseCylinders);
+            await machine.RaiseCylindersAsync(CancellationToken.None);
+
+            Assert.Equal(
+                safetyStop ? MachineAlarm.AirPressureLow : MachineAlarm.NgCarrierTransfer,
+                state.Alarm);
+            if (safetyStop)
+                Assert.Null(state.AlarmDetail);
+            else
+                Assert.Equal(failure.ToString(), state.AlarmDetail);
+            var entry = Assert.Single(
+                services.GetRequiredService<ApplicationLog>().Snapshot(),
+                entry => entry.Detail == failure.ToString());
+            Assert.Contains(nameof(MachineAlarm.NgCarrierTransfer), entry.Message);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+            Assert.False(state.IsRunning);
+        }
+        finally
+        {
+            io.OutputChanged -= FailAfterStop;
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public async Task InspectionHomeRequiresReleasedCarrierAndRaisedPickupBeforeXy()
     {
@@ -477,7 +684,9 @@ public sealed partial class MachineLifecycleTests
         var feedback = isPlacement ? placement.Feedback : fastening.Feedback;
         Task MoveXY()
         {
-            return isPlacement ? placement.MoveToXYAsync(20, 20) : fastening.MoveToXYAsync(20, 20);
+            return isPlacement
+                ? placement.MoveToXYAsync(new() { X = 20, Y = 20 })
+                : fastening.MoveToXYAsync(20, 20);
         }
 
         await machine.InitializeAsync();
@@ -532,7 +741,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(placement.CanMoveHorizontal);
         Assert.True(io.GetInput(InputIo.PcbPlacementIpmDown));
 
-        var move = placement.MoveToXYAsync(20, 20);
+        var move = placement.MoveToXYAsync(new() { X = 20, Y = 20 });
         await WaitUntilAsync(() => placement.Feedback.IsMovingHorizontal);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, false);
         await move;
@@ -782,8 +991,8 @@ public sealed partial class MachineLifecycleTests
         if (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler)
         {
             var buffer = services.GetRequiredService<BufferStage>();
-            Assert.False(buffer.CanSupplyLower);
-            Assert.False(buffer.CanPlacementEnter);
+            Assert.False(buffer.CanLowerSupply());
+            Assert.False(buffer.CanEnterPlacement());
         }
 
         foreach (var row in manual.Axes.Where(row => row.Group != group))
