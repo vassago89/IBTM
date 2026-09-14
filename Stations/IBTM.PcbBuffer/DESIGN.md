@@ -1,44 +1,27 @@
-# PCB Buffer
+# PCB direct handoff
 
-`BufferStage` reads the Buffer PCB-present input and current axis positions. It
-does not store a lock or owner.
+There is no physical buffer. Supply holds the PCB while Placement takes it.
+`BufferStage` retains the existing collision coordinates and reads current motion
+and `IPcbHandoffState` feedback from both handlers. It stores no PCB owner or presence.
+The historical Buffer names in stored settings remain to preserve taught positions.
+The former buffer input is unmapped; its enum slot is reserved to keep other I/O IDs stable.
 
-The collision ranges, Placement Buffer Entry Z, and both handoff positions are
-taught values. Placement does not block Supply while it is at or above Buffer
-Entry Z, even when its X/Y position is still inside the Buffer area. Below that
-Z, the one permitted overlap is the physical PCB handoff:
+1. Supply secures the PCB with its gripper and IPM fixer, rotates and moves to its taught give X/Y at Rotation Z. It keeps that height while holding the PCB; there is no handoff descent.
+2. Placement may enter only while Supply is settled there and its PCB holding feedback is confirmed.
+3. Placement lowers to its taught pose, detects the PCB, applies vacuum and closes its IPM gripper.
+4. Supply requires all three recipient signals before retracting its fixer and again before opening its gripper.
+5. Supply moves to Clear Z and exits in X with Y unchanged. Placement stays at handoff until Supply is outside.
+6. Placement raises its handler and Z, keeping IPM down, and carries the PCB to the heat sink.
 
-```text
-Supply stops at its handoff position with the IPM fixer forward
-  -> Placement opens its IPM gripper and lowers its IPM before entering
-  -> Placement enters and stops at its handoff position
-  -> Placement vacuum and IPM gripper inputs turn on
-  -> Supply retracts the IPM fixer
-  -> Supply opens its gripper
-  -> Supply moves down to Clear Z and exits in X
-  -> Placement raises its Handler and Z, keeping IPM Down, and exits with the PCB assembly
-```
+Below Placement Entry Z, one handler must remain settled at its taught pose while
+the other enters or exits. Other overlap remains a collision fault. Both handlers
+must be enabled with known, homed feedback before entry. Missing Supply feedback
+is not proof that it has left.
+Supply handoff recognition reads the current Rotation Z setting and settled X/Y/Z
+feedback. A matching X/Y at a different height does not permit Placement entry.
 
-While Placement enters, Supply must remain at its taught handoff position.
-While Supply exits, Placement must remain at its taught handoff position. Any
-other simultaneous overlap below Placement Buffer Entry Z is a Buffer conflict.
-
-A handler is at Handoff only when every handler axis reports In Position, the
-motion command has ended, and X/Y/Z are within 0.05 mm of the taught position.
-Small stopped-position vibration therefore does not require exact coordinate
-equality.
-
-`PcbSupplier` and `PcbPlacer` do not read the Buffer PCB input directly. They
-use the live entry, handoff, and exit conditions from this object. Neither
-automatic unit references or calls the other.
-
-Manual teaching is stricter than automatic handoff: a handler cannot be moved
-manually while the other handler is inside the Buffer area.
-
-At startup no Buffer state is restored from a file or memory. Homed axis
-positions and live inputs are the only source of truth.
-
-The Buffer PCB input may turn ON before Supply finishes its Handoff Z descent.
-A stopped Supply already on that taught descent path may finish lowering while
-Placement remains clear. Placement must still wait for Supply to settle at the
-complete Handoff position. This does not permit a new entry into a filled Buffer.
+STOP retains no synthetic handoff step. Current holding and position feedback
+determine the next action. A remaining release requires recipient holding again;
+two fully retracted Supply actuators permit finishing the empty exit. Loss of Supply
+holding feedback inside the zone before its handoff pose stops automatic operation.
+Manual entry/rotation restrictions still apply.

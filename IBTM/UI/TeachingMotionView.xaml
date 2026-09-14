@@ -9,7 +9,7 @@
     xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
     Foreground="{StaticResource TextPrimaryBrush}"
     mc:Ignorable="d"
-    d:DataContext="{d:DesignInstance Type=ui:TeachingMotionViewModel, IsDesignTimeCreatable=False}">
+    d:DataContext="{d:DesignInstance Type=ui:TeachingViewModel, IsDesignTimeCreatable=False}">
     <UserControl.Resources>
         <x:Array x:Key="JogSpeeds" Type="{x:Type sys:Double}">
             <sys:Double>0.1</sys:Double>
@@ -48,10 +48,8 @@
     </UserControl.Resources>
     <StackPanel>
         <WrapPanel Margin="0,0,0,8">
-            <TextBlock Text="Saved · " Foreground="{StaticResource TextMutedBrush}"/>
-            <TextBlock Text="{Binding SelectedPoint.Position.Mode, Converter={StaticResource EnumDescriptionConverter}}"
-                Foreground="{StaticResource TextMutedBrush}" Margin="0,0,8,0"/>
-            <TextBlock Text="{Binding SelectedPoint.PositionLabel, TargetNullValue=—}" FontFamily="Consolas"/>
+            <TextBlock Text="Teaching position · " Foreground="{StaticResource TextMutedBrush}"/>
+            <TextBlock Text="{Binding SelectedPoint.PositionLabel, TargetNullValue=—}" FontFamily="Consolas" TextWrapping="Wrap"/>
             <TextBlock Text=" mm" Foreground="{StaticResource TextMutedBrush}"/>
         </WrapPanel>
         <DockPanel Margin="0,0,0,4">
@@ -225,8 +223,8 @@
             <Button Content="Move To"
                 Command="{Binding MoveToPointCommand}"
                 Style="{StaticResource SecondaryButtonStyle}" MinWidth="90" Margin="0,0,4,0"
-                ToolTip="Move to the saved position using the configured axis speed, not the jog speed."/>
-            <Button Content="{Binding Source={x:Static device:TeachingTarget.SafeZ}, Converter={StaticResource EnumDescriptionConverter}}"
+                ToolTip="Move to this teaching position using the configured axis speed. Staged handoff edits are used for this move."/>
+            <Button Content="{Binding HorizontalZName}"
                 Command="{Binding MoveToHorizontalZCommand}"
                 Style="{StaticResource SecondaryButtonStyle}" MinWidth="80"
                 Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}"/>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading;
@@ -12,8 +13,108 @@ using IBTM.Inspection;
 
 namespace IBTM.UI;
 
-public partial class StationTeachingViewModel
+public partial class TeachingViewModel
 {
+    private bool _selectingFovTarget;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(MeasureImageCommand))]
+    [NotifyCanExecuteChangedFor(nameof(DrawFovRegionCommand))]
+    [NotifyCanExecuteChangedFor(nameof(TeachFovRegionCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyRulerResolutionCommand))]
+    private bool _isMeasuring;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RulerResolution))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyRulerResolutionCommand))]
+    private ImageRuler? _ruler;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RulerResolution))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyRulerResolutionCommand))]
+    private double? _rulerMillimeters;
+
+    public double? RulerResolution
+    {
+        get
+        {
+            if (Ruler is not { PixelLength: >= 1 } ruler || RulerMillimeters is not > 0)
+                return null;
+            var resolution = RulerMillimeters.Value / ruler.PixelLength;
+            return double.IsFinite(resolution) && resolution > 0 ? resolution : null;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanMeasureImage))]
+    private void MeasureImage(ImageRuler ruler)
+    {
+        if (CanMeasureImage(ruler) && ruler.PixelLength >= 1)
+            Ruler = ruler;
+    }
+
+    private bool CanMeasureImage(ImageRuler ruler)
+    {
+        if (!IsInspectionSelected || !IsMeasuring || SelectedFov is not { } fov)
+            return false;
+        var bounds = new Rect(0, 0, fov.Image.PixelWidth, fov.Image.PixelHeight);
+        return bounds.Contains(ruler.Start) && bounds.Contains(ruler.End);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApplyRulerResolution))]
+    private async Task ApplyRulerResolutionAsync(CancellationToken cancellationToken)
+    {
+        if (!CanApplyRulerResolution())
+            return;
+        var resolution = RulerResolution!.Value;
+        CameraError = null;
+        try
+        {
+            await Machine.RunTeachingEditAsync(
+                async token =>
+                {
+                    // Calculate every saved bolt ROI before changing the recipe. Capture XY stays fixed.
+                    var positions = new List<(BoltPoint Bolt, AxisPosition? Position)>();
+                    foreach (var bolt in RecipeEditor.Recipe.Pcb.BoltPoints)
+                    {
+                        var fov = CarrierImages.SingleOrDefault(image =>
+                            !image.Metadata.IsBarcode
+                            && image.Metadata.HeatSink == bolt.HeatSink
+                            && image.Metadata.BoltNumber == bolt.Number);
+                        if (fov?.Metadata.Region is not { } region)
+                            continue;
+                        if (!region.IsInside(fov.Image.PixelWidth, fov.Image.PixelHeight))
+                            throw new InvalidOperationException($"Check the ROI of FOV {fov.Metadata.Number} before applying resolution.");
+                        positions.Add((bolt, GetBoltCoordinates(fov, region, resolution)));
+                    }
+                    MillimetersPerPixel = resolution;
+                    foreach (var (bolt, position) in positions)
+                    {
+                        bolt.X = position?.X;
+                        bolt.Y = position?.Y;
+                    }
+                    RefreshPointPositions();
+                    await RecipeEditor.SaveAsync(token);
+                },
+                cancellationToken,
+                ViewCancellation);
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested || ViewCancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            CameraError = exception.Message;
+        }
+    }
+
+    private bool CanApplyRulerResolution()
+    {
+        return CanEditInspectionRecipe && IsInspectionSelected && IsMeasuring
+            && SelectedFov is not null && RulerResolution is not null
+            && RecipeEditor.CanSave && CarrierImages.Count == RecipeEditor.Recipe.CarrierImages.Count;
+    }
+
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(DrawFovRegionCommand))]
     [NotifyCanExecuteChangedFor(nameof(TeachFovRegionCommand))]
@@ -30,32 +131,95 @@ public partial class StationTeachingViewModel
 
     partial void OnSelectedFovChanged(CarrierImageTileView? value)
     {
+        ApplyRulerResolutionCommand.Cancel();
+        Ruler = null;
+        RulerMillimeters = null;
         CaptureInspectionCommand.Cancel();
         ReinspectImageCommand.Cancel();
         var metadata = value?.Metadata;
         if (IsInspectionSelected && metadata is { Region: not null }
             && (metadata.IsBarcode || metadata.BoltNumber is not null))
         {
-            SelectedPcb = metadata.HeatSink;
-            SelectedPoint = FilteredPoints.FirstOrDefault(point => metadata.IsBarcode
-                ? point.Position.Target == TeachingTarget.DataMatrix
-                : point.Position.Bolt?.Number == metadata.BoltNumber);
+            _selectingFovTarget = true;
+            try
+            {
+                SelectedPcb = metadata.HeatSink;
+                SelectedPoint = FilteredPoints.FirstOrDefault(point => metadata.IsBarcode
+                    ? point.Position.Target == TeachingTarget.DataMatrix
+                    : point.Position.Bolt?.Number == metadata.BoltNumber);
+            }
+            finally
+            {
+                _selectingFovTarget = false;
+            }
         }
 
-        Preview.Clear(SelectedBarcode);
         ReadDataMatrixCommand.Cancel();
         DataMatrixResult = null;
-        FovRegion = metadata?.Region is { } region
+        var bounds = metadata?.Region is { } region
             ? new Rect(region.X, region.Y, region.Width, region.Height)
-            : null;
+            : (Rect?)null;
+        if (FovRegion == bounds)
+            RefreshSavedPreview();
+        else
+            FovRegion = bounds;
         OnPropertyChanged(nameof(FovRoiLabel));
+        MeasureImageCommand.NotifyCanExecuteChanged();
         NotifyManualTeachingCommands();
     }
 
     partial void OnFovRegionChanged(Rect? value)
     {
+        CaptureInspectionCommand.Cancel();
+        ReinspectImageCommand.Cancel();
         ReadDataMatrixCommand.Cancel();
         DataMatrixResult = null;
+        RefreshSavedPreview();
+    }
+
+    private void SelectFovForTeachingPoint()
+    {
+        var fov = IsInspectionSelected
+            ? CarrierImages.FirstOrDefault(image => image.Metadata.HeatSink == SelectedPcb
+                && (SelectedBarcode is not null
+                    ? image.Metadata.IsBarcode
+                    : IsBoltSelected && !image.Metadata.IsBarcode
+                        && image.Metadata.BoltNumber == SelectedPoint!.BoltNumber))
+            : null;
+        if (fov is null && IsInspectionSelected)
+        {
+            // Keep a captured, unassigned image available when adding a new bolt.
+            var drafts = CarrierImages.Where(image =>
+                !image.Metadata.IsBarcode && image.Metadata.BoltNumber is null);
+            fov = drafts.FirstOrDefault(image => image.Metadata.Number == SelectedFov?.Metadata.Number);
+        }
+
+        if (SelectedFov != fov)
+            SelectedFov = fov;
+        else
+            RefreshSavedPreview();
+    }
+
+    private void RefreshSavedPreview()
+    {
+        Preview.Clear(SelectedBarcode, SelectedPoint?.Position.Bolt);
+        if (!IsInspectionSelected || SelectedFov is not { } fov)
+            return;
+        try
+        {
+            var region = FovRegion is { Width: >= 1, Height: >= 1 } bounds
+                ? new PixelRegion(
+                    (int)Math.Floor(bounds.Left), (int)Math.Floor(bounds.Top),
+                    (int)Math.Ceiling(bounds.Right) - (int)Math.Floor(bounds.Left),
+                    (int)Math.Ceiling(bounds.Bottom) - (int)Math.Floor(bounds.Top))
+                : null;
+            Preview.SetSavedImage(fov.Image, region);
+            CameraError = null;
+        }
+        catch (Exception exception)
+        {
+            CameraError = exception.Message;
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanReadDataMatrix))]
@@ -141,6 +305,7 @@ public partial class StationTeachingViewModel
     private bool CanDrawFovRegion(Rect bounds)
     {
         return CanEditInspectionRecipe
+            && !IsMeasuring
             && RecipeEditor.CanSave
             && SelectedFov is not null
             && (bounds.IsEmpty || bounds.Width >= 1 && bounds.Height >= 1);
@@ -164,23 +329,11 @@ public partial class StationTeachingViewModel
         await Machine.RunTeachingEditAsync(
             async token =>
             {
-                if (bolt is not null && _carrierReference.IsDefined)
+                if (bolt is not null)
                 {
-                    var x = fov.Metadata.Center.X
-                        + (region.X + region.Width / 2.0 - fov.Image.PixelWidth / 2.0) * MillimetersPerPixel;
-                    var y = fov.Metadata.Center.Y
-                        + (region.Y + region.Height / 2.0 - fov.Image.PixelHeight / 2.0) * MillimetersPerPixel;
-                    var position = CarrierCoordinates.FromMachine(
-                        new AxisPosition { X = x, Y = y },
-                        _carrierReference.UpperLeftLocatingPin!);
-                    bolt.Point.X = position.X;
-                    bolt.Point.Y = position.Y;
-                }
-                else if (bolt is not null)
-                {
-                    // Inspection uses the captured XY. Fastening coordinates need the reference pins.
-                    bolt.Point.X = null;
-                    bolt.Point.Y = null;
+                    var position = GetBoltCoordinates(fov, region, MillimetersPerPixel);
+                    bolt.Point.X = position?.X;
+                    bolt.Point.Y = position?.Y;
                 }
                 foreach (var tile in RecipeEditor.Recipe.CarrierImages)
                 {
@@ -216,6 +369,7 @@ public partial class StationTeachingViewModel
     private bool CanTeachFovRegion(Rect bounds)
     {
         return CanEditInspectionRecipe
+            && !IsMeasuring
             && RecipeEditor.CanSave
             && SelectedFov is not null
             && (SelectedBarcode is not null
@@ -223,6 +377,19 @@ public partial class StationTeachingViewModel
                     && MillimetersPerPixel > 0
                     && SelectedPoint?.Position.Bolt is not null)
             && (bounds.IsEmpty || bounds.Width >= 1 && bounds.Height >= 1);
+    }
+
+    private AxisPosition? GetBoltCoordinates(CarrierImageTileView fov, PixelRegion region, double resolution)
+    {
+        // Inspection can use capture XY without reference pins; fastening coordinates remain unknown.
+        if (!_carrierReference.IsDefined)
+            return null;
+        var x = fov.Metadata.Center.X
+            + (region.X + region.Width / 2.0 - fov.Image.PixelWidth / 2.0) * resolution;
+        var y = fov.Metadata.Center.Y
+            + (region.Y + region.Height / 2.0 - fov.Image.PixelHeight / 2.0) * resolution;
+        return CarrierCoordinates.FromMachine(
+            new AxisPosition { X = x, Y = y }, _carrierReference.UpperLeftLocatingPin!);
     }
 
     private readonly object _liveImageGate = new();
@@ -247,7 +414,6 @@ public partial class StationTeachingViewModel
                 return;
             }
 
-            Preview.Clear(SelectedBarcode);
             CameraError = null;
             SelectedCameraTab = 0;
             await Inspector.StartLiveViewAsync(cancellation.Token);
@@ -269,8 +435,7 @@ public partial class StationTeachingViewModel
             || IsInspectionSelected
                 && _state.ManualMode
                 && !CaptureCarrierImageCommand.IsRunning
-                && !CaptureInspectionCommand.IsRunning
-                && !CollectBoltImagesCommand.IsRunning;
+                && !CaptureInspectionCommand.IsRunning;
     }
 
     private void OnInspectionCommandChanged(object? sender, PropertyChangedEventArgs e)
@@ -315,25 +480,6 @@ public partial class StationTeachingViewModel
             && RecipeEditor.CanSave;
     }
 
-    [RelayCommand(CanExecute = nameof(CanClearCarrierImages))]
-    private Task ClearCarrierImagesAsync(CancellationToken cancellationToken)
-    {
-        return Machine.RunTeachingEditAsync(
-            async token =>
-            {
-                await _recipeImageUpdate;
-                if (await RecipeEditor.SaveCarrierImagesAsync([], token))
-                    CarrierImages = [];
-            },
-            cancellationToken,
-            ViewCancellation);
-    }
-
-    private bool CanClearCarrierImages()
-    {
-        return IsInspectionSelected && CanEditTeaching && HasCarrierImages && RecipeEditor.CanSave;
-    }
-
     [RelayCommand(CanExecute = nameof(CanCaptureInspection))]
     private Task CaptureInspectionAsync(CancellationToken token)
     {
@@ -346,7 +492,7 @@ public partial class StationTeachingViewModel
                 var region = pcb is { } target
                     ? Inspector.GetBarcodeFov(target).Region
                     : Inspector.GetFov(bolt!).Region;
-                Preview.Clear(pcb);
+                Preview.Clear(pcb, bolt);
                 var frame = pcb is { } barcode
                     ? await Inspector.CaptureBarcodeAsync(barcode, ct)
                     : await Inspector.CaptureAsync(bolt!, ct);
@@ -369,22 +515,10 @@ public partial class StationTeachingViewModel
     private async Task ReinspectImageAsync(CancellationToken token)
     {
         CameraError = null;
-        var fov = SelectedFov;
         try
         {
             await Machine.RunTeachingEditAsync(
-                async cancellationToken =>
-                {
-                    if (!Preview.HasImage)
-                    {
-                        var frame = await Task.Run(
-                            () => InspectionPreview.CreateFrame(fov!.Image),
-                            cancellationToken);
-                        Preview.Clear(fov!.Metadata.IsBarcode ? fov.Metadata.HeatSink : null);
-                        await Preview.SetImageAsync(frame, cancellationToken, fov.Metadata.Region);
-                    }
-                    await Preview.InspectAsync(cancellationToken);
-                },
+                Preview.InspectAsync,
                 token,
                 ViewCancellation);
         }
@@ -403,42 +537,8 @@ public partial class StationTeachingViewModel
     private bool CanReinspectImage()
     {
         return CanEditInspectionRecipe
-            && (Preview.HasImage || SelectedFov?.Metadata.Region is not null);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanCollectBoltImages))]
-    private Task CollectBoltImagesAsync(CancellationToken token)
-    {
-        return RunInspectionAsync(
-            async ct =>
-            {
-                foreach (var point in RecipeEditor.Recipe.Pcb.GetBolts()
-                    .Where(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
-                    .OrderBy(point => point.HeatSink)
-                    .ThenBy(point => point.Number))
-                {
-                    var frame = await Inspector.CaptureAsync(point, ct);
-                    await Task.Run(
-                        () => _trainingStore.AddImage(
-                            $"{point.HeatSink.GetDescription()} · Bolt {point.Number}",
-                            BoltImageInput.Create(frame, Inspector.GetFov(point).Region!),
-                            IBoltRecessSegmenter.InputSize),
-                        ct);
-                }
-            },
-            token);
-    }
-
-    private bool CanCollectBoltImages()
-    {
-        return IsInspectionSelected
-            && Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
-            && _inspectionGantry.CanMove
-            && RecipeEditor.Recipe.Pcb.GetBolts()
-                .Any(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
-            && RecipeEditor.Recipe.Pcb.GetBolts()
-                .Where(point => _inspectionWork.HeatSinkPresent(point.HeatSink))
-                .All(Inspector.HasPosition);
+            && (IsBoltSelected || IsDataMatrixSelected)
+            && Preview.HasImage && Preview.Region is not null;
     }
 
     private async Task RunInspectionAsync(
@@ -504,6 +604,8 @@ public partial class StationTeachingViewModel
 
     private void OnLiveViewChanged()
     {
+        if (!PositionUpdatesActive)
+            return;
         Application.Current.Dispatcher.BeginInvoke(RefreshLiveView);
     }
 

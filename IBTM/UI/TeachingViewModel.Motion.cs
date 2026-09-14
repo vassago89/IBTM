@@ -9,8 +9,21 @@ using IBTM.Inspection;
 
 namespace IBTM.UI;
 
-public partial class StationTeachingViewModel
+public partial class TeachingViewModel
 {
+    public string HorizontalZName
+    {
+        get
+        {
+            return ActiveMotionGroup switch
+            {
+                MotionGroup.PcbSupply => "Transport / Rotation Z",
+                MotionGroup.PcbPlacementHandler => "Approach Z",
+                _ => "Safe Z",
+            };
+        }
+    }
+
     public override TeachingMotionHint MotionHint
     {
         get
@@ -30,11 +43,17 @@ public partial class StationTeachingViewModel
                 if (Motion.Axes.Values.Any(axis => axis.State is { Homed: false }))
                     return TeachingMotionHint.HomeRequired;
             }
-            if (SelectedTeachingUnit == HardwareArea.NgCarrierTransfer
+            if (ActiveTeachingUnit == HardwareArea.NgCarrierTransfer
                 && _ngTransferSettings.PickupSafeX is null)
                 return TeachingMotionHint.NgPickupSafeXRequired;
             return ActiveMotionGroup switch
             {
+                MotionGroup.PcbSupply when _state.Display.PlacementInBufferArea
+                    => TeachingMotionHint.PlacementInBuffer,
+                MotionGroup.PcbSupply when _state.Display.SupplyInBufferArea
+                    => TeachingMotionHint.SupplyInBufferRestricted,
+                MotionGroup.PcbSupply when CanEditTeaching && !CanJog(MotionAxis.X)
+                    => TeachingMotionHint.SafeZRequired,
                 MotionGroup.PcbPlacementHandler when _state.Display.SupplyInBufferArea
                     => TeachingMotionHint.SupplyInBuffer,
                 MotionGroup.PcbPlacementHandler when !_placementHandler.CanMoveHorizontal
@@ -61,7 +80,7 @@ public partial class StationTeachingViewModel
     {
         get
         {
-            return SelectedTeachingUnit == HardwareArea.NgCarrierTransfer
+            return ActiveTeachingUnit == HardwareArea.NgCarrierTransfer
                 ? _ngTransferSettings.Speed
                 : _inspectionGantrySettings.Motion.HorizontalSpeed;
         }
@@ -73,6 +92,7 @@ public partial class StationTeachingViewModel
         {
             return SelectedTeachingUnit switch
             {
+                HardwareArea.PcbSupply => MotionGroup.PcbSupply,
                 HardwareArea.PcbPlacementHandler => MotionGroup.PcbPlacementHandler,
                 HardwareArea.BoltFastening => MotionGroup.BoltFastening,
                 HardwareArea.InspectionGantry or HardwareArea.NgCarrierTransfer
@@ -95,6 +115,7 @@ public partial class StationTeachingViewModel
         return Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
             && ActiveMotionGroup switch
             {
+                MotionGroup.PcbSupply => _supplyHandler.CanJog(axis, live: false),
                 MotionGroup.PcbPlacementHandler => _placementHandler.CanJog(axis, live: false),
                 MotionGroup.BoltFastening => _fasteningGantry.CanJog(axis),
                 MotionGroup.InspectionGantry => _inspectionGantry.CanJog(axis),
@@ -109,6 +130,7 @@ public partial class StationTeachingViewModel
             ActiveMotionGroup,
             token => ActiveMotionGroup switch
             {
+                MotionGroup.PcbSupply => _supplyHandler.JogAsync(axis, sign * JogSpeed, token),
                 MotionGroup.PcbPlacementHandler
                     => _placementHandler.JogAsync(axis, sign * JogSpeed, token),
                 MotionGroup.BoltFastening
@@ -127,6 +149,7 @@ public partial class StationTeachingViewModel
             ActiveMotionGroup,
             token => ActiveMotionGroup switch
             {
+                MotionGroup.PcbSupply => _supplyHandler.MoveToRotationZAsync(token),
                 MotionGroup.PcbPlacementHandler => _placementHandler.MoveToHorizontalZAsync(token),
                 MotionGroup.BoltFastening => _fasteningGantry.MoveToSafeZAsync(token),
                 MotionGroup.InspectionGantry => Task.CompletedTask,
@@ -145,6 +168,7 @@ public partial class StationTeachingViewModel
                 var (axis, target) = StepTarget(direction, Motion.Feedback.GetPosition());
                 return ActiveMotionGroup switch
                 {
+                    MotionGroup.PcbSupply => _supplyHandler.MoveAxisAsync(axis, target, token),
                     MotionGroup.PcbPlacementHandler
                         => _placementHandler.MoveAxisAsync(axis, target, token),
                     MotionGroup.BoltFastening
@@ -184,6 +208,10 @@ public partial class StationTeachingViewModel
             ActiveMotionGroup,
             token => point.Position.MotionGroup switch
             {
+                MotionGroup.PcbSupply => _supplyHandler.MoveToTeachingPositionAsync(
+                    point.Position,
+                    point.Read(),
+                    token),
                 MotionGroup.PcbPlacementHandler => _placementHandler.MoveToTeachingPositionAsync(
                     point.Position,
                     point.Read(),
@@ -212,6 +240,13 @@ public partial class StationTeachingViewModel
 
     protected override bool CanMoveToPoint()
     {
+        if (ActiveMotionGroup == MotionGroup.PcbSupply)
+        {
+            return SelectedPoint is { } point
+                && Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
+                && _supplyHandler.CanMoveToTeachingPosition(point.Position, live: false);
+        }
+
         return SelectedPoint is not null
             && Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
             && (SelectedPoint.Position.Mode == TeachMode.ZOnly || CanMoveHorizontal())
@@ -243,15 +278,15 @@ public partial class StationTeachingViewModel
         }
 
         NotifyMotionCommands();
+        SaveHandoffSetupCommand.NotifyCanExecuteChanged();
         ReturnFromPickupCommand.NotifyCanExecuteChanged();
         ToggleLiveViewCommand.NotifyCanExecuteChanged();
         CaptureCarrierImageCommand.NotifyCanExecuteChanged();
-        ClearCarrierImagesCommand.NotifyCanExecuteChanged();
+        ApplyRulerResolutionCommand.NotifyCanExecuteChanged();
         DrawFovRegionCommand.NotifyCanExecuteChanged();
         TeachFovRegionCommand.NotifyCanExecuteChanged();
         CaptureInspectionCommand.NotifyCanExecuteChanged();
         ReinspectImageCommand.NotifyCanExecuteChanged();
-        CollectBoltImagesCommand.NotifyCanExecuteChanged();
         AddBoltPointCommand.NotifyCanExecuteChanged();
         RemoveBoltPointCommand.NotifyCanExecuteChanged();
     }

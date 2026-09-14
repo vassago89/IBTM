@@ -22,7 +22,7 @@ public sealed class LightingTests
             .AddSingleton(VirtualTest.OpenMachineStore())
             .AddIbtmApplication(new MachineSettings
             {
-                Drivers = new() { Inspection = InspectionAlgorithm.Virtual, Light = LightDriver.Virtual }
+                Drivers = new() { Light = LightDriver.Virtual }
             })
             .AddSingleton<ICamera>(camera)
             .BuildServiceProvider();
@@ -63,7 +63,6 @@ public sealed class LightingTests
         var light = new RecordingLight();
         var settings = new MachineSettings();
         light.OnStarted = () => settings.Lighting.InspectionChannel++;
-        settings.Drivers.Inspection = InspectionAlgorithm.Virtual;
         using var services = new ServiceCollection().AddSingleton(
             VirtualTest.OpenMachineStore(
                 Path.Combine(Path.GetTempPath(), $"IBTM-light-cleanup-{Guid.NewGuid():N}.db")))
@@ -140,10 +139,7 @@ public sealed class LightingTests
         var camera = new TestCamera();
         using var services = new ServiceCollection()
             .AddSingleton(VirtualTest.OpenMachineStore())
-            .AddIbtmApplication(new MachineSettings
-            {
-                Drivers = new() { Inspection = InspectionAlgorithm.Virtual }
-            })
+            .AddIbtmApplication(new MachineSettings())
             .AddSingleton<ILightController>(light)
             .AddSingleton<ICamera>(camera)
             .BuildServiceProvider();

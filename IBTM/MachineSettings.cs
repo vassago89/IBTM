@@ -36,7 +36,6 @@ public sealed class MachineSettings
     public PcbSupplySettings PcbSupply { get; set; } = new();
     public PcbSupplyHardwareSettings PcbSupplyHardware { get; set; } = new();
     public PcbBufferSettings PcbBuffer { get; set; } = new();
-    public PcbBufferHardwareSettings PcbBufferHardware { get; set; } = new();
     public PcbPlacementHandlerSettings PcbPlacementHandler { get; set; } = new();
     public PcbPlacementHandlerHardwareSettings PcbPlacementHandlerHardware { get; set; } = new();
     public PcbPlacementStationHardwareSettings PcbPlacementStationHardware { get; set; } = new();
@@ -75,7 +74,6 @@ public sealed class MachineSettings
             return [
                 MachineHardware,
                 PcbSupplyHardware,
-                PcbBufferHardware,
                 PcbPlacementHandlerHardware,
                 PcbPlacementStationHardware,
                 BoltFeederHardware,
@@ -152,7 +150,6 @@ public sealed class MachineSettings
             NgConveyor = values.Get<NgConveyorSettings>(),
             Conveyor = values.Get<ConveyorSettings>(),
             PcbBuffer = values.Get<PcbBufferSettings>(),
-            PcbBufferHardware = values.Get<PcbBufferHardwareSettings>(),
             PcbSupply = values.Get<PcbSupplySettings>(),
             PcbSupplyHardware = values.Get<PcbSupplyHardwareSettings>(),
             PcbPlacementHandler = values.Get<PcbPlacementHandlerSettings>(),

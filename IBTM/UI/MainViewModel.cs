@@ -7,7 +7,6 @@ using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Device;
-using IBTM.Inspection.Training;
 
 namespace IBTM.UI;
 
@@ -16,14 +15,8 @@ public enum AppPage
     [Description("Operation")]
     Operation,
 
-    [Description("Supply Teaching")]
-    SupplyTeaching,
-
-    [Description("Station Teaching")]
-    StationTeaching,
-
-    [Description("Bolt Training")]
-    BoltTraining,
+    [Description("Teaching")]
+    Teaching,
 
     [Description("Settings")]
     Settings,
@@ -46,9 +39,7 @@ public enum MachineEnvironmentDisplay
 
 public partial class MainViewModel : ObservableObject
 {
-    private readonly SupplyTeachingViewModel _supplyTeachingViewModel;
-    private readonly StationTeachingViewModel _stationTeachingViewModel;
-    private readonly BoltTrainingViewModel _boltTrainingViewModel;
+    private readonly TeachingViewModel _teachingViewModel;
     private readonly SettingsViewModel _settingsViewModel;
     private readonly ManualHardwareViewModel _manualHardwareViewModel;
     private readonly MachineState _state;
@@ -67,23 +58,16 @@ public partial class MainViewModel : ObservableObject
 
     public MainViewModel(
         OperationViewModel operationViewModel,
-        SupplyTeachingViewModel supplyTeachingViewModel,
-        StationTeachingViewModel stationTeachingViewModel,
-        BoltTrainingViewModel boltTrainingViewModel,
-        BoltImageCollector imageCollector,
+        TeachingViewModel teachingViewModel,
         SettingsViewModel settingsViewModel,
         ManualHardwareViewModel manualHardwareViewModel,
         RecipeEditor recipeEditor,
         MachineState state,
-        UnitSettings units,
         DriverSettings drivers,
         MachineController machine)
     {
         Operation = operationViewModel;
-        _supplyTeachingViewModel = supplyTeachingViewModel;
-        _stationTeachingViewModel = stationTeachingViewModel;
-        _boltTrainingViewModel = boltTrainingViewModel;
-        ImageCollector = imageCollector;
+        _teachingViewModel = teachingViewModel;
         _settingsViewModel = settingsViewModel;
         _manualHardwareViewModel = manualHardwareViewModel;
         RecipeEditor = recipeEditor;
@@ -92,31 +76,27 @@ public partial class MainViewModel : ObservableObject
         var controlVirtual = drivers.Control == ControlDriver.Virtual;
         var cameraVirtual = drivers.Camera == CameraDriver.Virtual;
         var boltVirtual = drivers.Bolt == BoltDriver.Virtual;
-        var inspectionSimulated = units.Inspection && drivers.Inspection == InspectionAlgorithm.Virtual;
         Environment = (controlVirtual, cameraVirtual, boltVirtual) switch
         {
             (true, true, true) => MachineEnvironmentDisplay.Virtual,
-            (false, false, false) when !inspectionSimulated => MachineEnvironmentDisplay.Physical,
+            (false, false, false) => MachineEnvironmentDisplay.Physical,
             _ => MachineEnvironmentDisplay.Mixed,
         };
         _recipeEditingCommands = [
             NavigateCommand,
             recipeEditor.SaveCommand,
             recipeEditor.LoadCommand,
-            supplyTeachingViewModel.TeachCurrentPositionCommand,
-            supplyTeachingViewModel.MoveToPointCommand,
-            supplyTeachingViewModel.ToggleOutputCommand,
-            stationTeachingViewModel.TeachCurrentPositionCommand,
-            stationTeachingViewModel.MoveToPointCommand,
-            stationTeachingViewModel.ReturnFromPickupCommand,
-            stationTeachingViewModel.ToggleOutputCommand,
-            stationTeachingViewModel.CaptureCarrierImageCommand,
-            stationTeachingViewModel.ClearCarrierImagesCommand,
-            stationTeachingViewModel.CaptureInspectionCommand,
-            stationTeachingViewModel.ReinspectImageCommand,
-            stationTeachingViewModel.CollectBoltImagesCommand,
-            stationTeachingViewModel.DrawFovRegionCommand,
-            stationTeachingViewModel.TeachFovRegionCommand,
+            teachingViewModel.SaveHandoffSetupCommand,
+            teachingViewModel.TeachCurrentPositionCommand,
+            teachingViewModel.MoveToPointCommand,
+            teachingViewModel.ReturnFromPickupCommand,
+            teachingViewModel.ToggleOutputCommand,
+            teachingViewModel.CaptureCarrierImageCommand,
+            teachingViewModel.ApplyRulerResolutionCommand,
+            teachingViewModel.CaptureInspectionCommand,
+            teachingViewModel.ReinspectImageCommand,
+            teachingViewModel.DrawFovRegionCommand,
+            teachingViewModel.TeachFovRegionCommand,
         ];
         foreach (var command in _recipeEditingCommands)
         {
@@ -129,7 +109,6 @@ public partial class MainViewModel : ObservableObject
 
     public OperationViewModel Operation { get; }
     public RecipeEditor RecipeEditor { get; }
-    public BoltImageCollector ImageCollector { get; }
     public MachineEnvironmentDisplay Environment { get; }
 
     public AppPage SelectedPage
@@ -144,7 +123,7 @@ public partial class MainViewModel : ObservableObject
     {
         get
         {
-            return SelectedPage is AppPage.SupplyTeaching or AppPage.StationTeaching;
+            return SelectedPage == AppPage.Teaching;
         }
     }
 
@@ -173,9 +152,7 @@ public partial class MainViewModel : ObservableObject
             return SelectedPage switch
             {
                 AppPage.Operation => Operation,
-                AppPage.SupplyTeaching => _supplyTeachingViewModel,
-                AppPage.StationTeaching => _stationTeachingViewModel,
-                AppPage.BoltTraining => _boltTrainingViewModel,
+                AppPage.Teaching => _teachingViewModel,
                 AppPage.Settings => _settingsViewModel,
                 AppPage.ManualHardware => _manualHardwareViewModel,
                 _ => throw new ArgumentOutOfRangeException(nameof(SelectedPage)),
@@ -223,10 +200,8 @@ public partial class MainViewModel : ObservableObject
         return Task.WhenAll(
             CommandShutdown.WaitAsync(CommandShutdown.Capture(ResetCommand, NavigateCommand)),
             Operation.ShutdownAsync(),
-            _supplyTeachingViewModel.ShutdownAsync(),
-            _stationTeachingViewModel.ShutdownAsync(),
+            _teachingViewModel.ShutdownAsync(),
             _manualHardwareViewModel.ShutdownAsync(),
-            _boltTrainingViewModel.ShutdownAsync(),
             _settingsViewModel.ShutdownAsync(),
             RecipeEditor.ShutdownAsync());
     }
@@ -302,7 +277,7 @@ public partial class MainViewModel : ObservableObject
                     && page switch
                     {
                         AppPage.Settings or AppPage.ManualHardware => true,
-                        AppPage.BoltTraining or AppPage.SupplyTeaching or AppPage.StationTeaching => _state.ManualMode,
+                        AppPage.Teaching => _state.ManualMode,
                         _ => false,
                     });
     }
@@ -314,14 +289,8 @@ public partial class MainViewModel : ObservableObject
             case AppPage.Operation:
                 Operation.Activate();
                 break;
-            case AppPage.SupplyTeaching:
-                _supplyTeachingViewModel.Activate();
-                break;
-            case AppPage.StationTeaching:
-                _stationTeachingViewModel.Activate();
-                break;
-            case AppPage.BoltTraining:
-                _boltTrainingViewModel.Activate();
+            case AppPage.Teaching:
+                _teachingViewModel.Activate();
                 break;
             case AppPage.Settings:
                 _settingsViewModel.RefreshCommands();
@@ -336,12 +305,8 @@ public partial class MainViewModel : ObservableObject
             case AppPage.Operation:
                 Operation.Deactivate();
                 return Task.CompletedTask;
-            case AppPage.SupplyTeaching:
-                return _supplyTeachingViewModel.ShutdownAsync();
-            case AppPage.StationTeaching:
-                return _stationTeachingViewModel.ShutdownAsync();
-            case AppPage.BoltTraining:
-                return _boltTrainingViewModel.ShutdownAsync();
+            case AppPage.Teaching:
+                return _teachingViewModel.ShutdownAsync();
             case AppPage.Settings:
                 return _settingsViewModel.ShutdownAsync();
         }
@@ -381,8 +346,7 @@ public partial class MainViewModel : ObservableObject
                 NavigateCommand.NotifyCanExecuteChanged();
                 var showOperation = _state.AutomaticRunning && SelectedPage != AppPage.Operation
                     || !_state.ManualMode
-                        && (SelectedPage is AppPage.SupplyTeaching or AppPage.StationTeaching
-                            || SelectedPage == AppPage.BoltTraining && !_boltTrainingViewModel.IsBusy);
+                        && SelectedPage == AppPage.Teaching;
                 if (showOperation
                     && NavigationError is null
                     && NavigateCommand.CanExecute(AppPage.Operation))

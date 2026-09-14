@@ -36,7 +36,7 @@ public enum TeachingStorage
     [Description("Machine")]
     Machine,
 
-    [Description("Buffer setup")]
+    [Description("Handoff setup")]
     Buffer,
 }
 
@@ -45,7 +45,7 @@ public enum TeachingTarget
     [Description("Safe Z")]
     SafeZ,
 
-    [Description("Supply Carrier Y")]
+    [Description("PCB Pickup Common Y")]
     SupplyCarrierY,
 
     [Description("PCB 1 Pick")]
@@ -54,25 +54,25 @@ public enum TeachingTarget
     [Description("PCB 2 Pick")]
     SupplyPcb2Pick,
 
-    [Description("Supply Buffer Handoff")]
+    [Description("PCB Give Position")]
     SupplyBufferHandoff,
 
-    [Description("Supply Buffer Clear Z")]
+    [Description("Post-release Clearance Z")]
     SupplyBufferClearZ,
 
-    [Description("Placement Buffer Handoff")]
+    [Description("PCB Receive Position")]
     PlacementBufferHandoff,
 
-    [Description("Supply Buffer Boundary 1")]
+    [Description("Interference X Boundary 1")]
     SupplyBufferBoundary1,
 
-    [Description("Supply Buffer Boundary 2")]
+    [Description("Interference X Boundary 2")]
     SupplyBufferBoundary2,
 
-    [Description("Placement Buffer Boundary 1")]
+    [Description("Interference Area Corner 1")]
     PlacementBufferBoundary1,
 
-    [Description("Placement Buffer Boundary 2")]
+    [Description("Interference Area Corner 2")]
     PlacementBufferBoundary2,
 
     [Description("Heat Sink 1 PCB Placement")]
@@ -120,8 +120,6 @@ public enum TeachingTarget
     [Description("NG Pickup Safe X")]
     NgPickupSafeX,
 
-    [Description("Bolt")]
-    BoltTeaching,
 }
 
 public sealed class TeachingPosition(

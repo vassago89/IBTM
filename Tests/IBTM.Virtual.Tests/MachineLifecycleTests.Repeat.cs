@@ -40,7 +40,7 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(InputIo.NgShuttleDown, false);
             io.SetInput(InputIo.NgShuttleCarrierDetected, true);
         }
-        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         state.RepeatEnabled = true;
         var shuttleOutputs = new ConcurrentQueue<bool>();
         var placedAndReleased = false;
@@ -157,7 +157,8 @@ public sealed partial class MachineLifecycleTests
             await machine.HomeAsync(CancellationToken.None);
             state.RepeatEnabled = repeat;
             Assert.Equal(repeat, state.RepeatEnabled);
-            io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+            VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
+            io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
 
             // The physical selector is ON in TEACHING/MANUAL, OFF in AUTO.
             if (repeat)
@@ -200,6 +201,48 @@ public sealed partial class MachineLifecycleTests
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
             Assert.Equal(repeat ? StartBlockReason.TeachingMode : StartBlockReason.None, machine.StartBlock);
             await WaitUntilAsync(() => state.Display.CanStart == !repeat);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(3));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task RepeatRejectsTwoOccupiedStationsAndAcceptsOneWithOnlyHeatSink2()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.MainConveyor);
+        settings.Units.NgCarrierTransfer = true;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        Task run = Task.CompletedTask;
+        try
+        {
+            await machine.InitializeAsync();
+            await machine.HomeAsync(CancellationToken.None);
+            state.RepeatEnabled = true;
+            io.SetInputs(
+                (InputIo.PcbPlacementHeatSink2Present, true),
+                (InputIo.BoltFasteningHeatSink2Present, true));
+            Assert.True(machine.CanStart, machine.StartBlock.ToString());
+            await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
+            Assert.Contains("one carrier", state.AlarmMessage);
+            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
+
+            io.SetInput(InputIo.BoltFasteningHeatSink2Present, false);
+            await machine.ResetAsync();
+            Assert.True(machine.CanStart, machine.StartBlock.ToString());
+            run = machine.StartAsync();
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => io.GetOutput(OutputIo.MainConveyorRun), TimeSpan.FromSeconds(3)),
+                state.AlarmDetail);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
         }
         finally
         {
@@ -307,7 +350,7 @@ public sealed partial class MachineLifecycleTests
             await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(8));
             await WaitUntilAsync(() => state.Display.RepeatPhase == RepeatPhase.ReturnToStart);
             Assert.Equal(MachineAlarm.None, state.Alarm);
-            Assert.True(io.GetInput(InputIo.InspectionCarrierPresent));
+            Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
 
             io.OutputChanged -= StopOnReverse;
@@ -351,7 +394,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
         io.InputChanged += (input, on) =>
         {
             if (on)
@@ -401,8 +444,8 @@ public sealed partial class MachineLifecycleTests
             Assert.True(ngReverse >= 2);
             Assert.True(mainReverse >= 2);
             Assert.True(visited.GetValueOrDefault(InputIo.NgConveyorPosition1Occupied) >= 2);
-            Assert.True(visited.GetValueOrDefault(InputIo.InspectionCarrierPresent) >= 4);
-            Assert.True(visited.GetValueOrDefault(InputIo.PcbPlacementCarrierPresent) >= 2);
+            Assert.True(visited.GetValueOrDefault(InputIo.InspectionHeatSink1Present) >= 4);
+            Assert.True(visited.GetValueOrDefault(InputIo.PcbPlacementHeatSink1Present) >= 2);
             Assert.Equal(0, visited.GetValueOrDefault(InputIo.MainConveyorEntryCarrierDetected));
             Assert.True(visited.GetValueOrDefault(InputIo.BoltFasteningBackupPlateUp) >= 2);
             Assert.True(visited.GetValueOrDefault(InputIo.InspectionBackupPlateUp) >= 2);

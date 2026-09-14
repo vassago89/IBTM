@@ -21,9 +21,9 @@ components are intentionally omitted.
 
 | CAD root assembly | Components | Control responsibility |
 | --- | ---: | --- |
-| PCB PICKUP TRANSFER | 565 | Receives the upstream two-PCB carrier and presents each PCB to the buffer |
+| PCB PICKUP TRANSFER | 565 | Receives the upstream two-PCB carrier and holds each PCB for direct handoff |
 | PCB BUFFER | 10 | Shared handoff and collision area between supply and placement |
-| PCB HANDLER & PLACE | 335 | Picks from the buffer and places the PCB into a heat sink |
+| PCB HANDLER & PLACE | 335 | Secures the PCB held by Supply and places it into a heat sink |
 | BELT CONVEYOR | 251 | Main production carrier conveyor and station backup plate hardware |
 | Fastening assembly | 279 | One shared motion group carrying two fastening heads |
 | NG TRANSFER | 102 | Shared Inspection Gantry and NG carrier pickup |
@@ -36,7 +36,7 @@ components are intentionally omitted.
 Upstream two-PCB carrier
    Front 1 SMEMA
         v
-PCB Supply Handler ---- PCB Buffer ---- PCB Placement Handler
+PCB Supply Handler ---- held PCB handoff ---- PCB Placement Handler
                                                    |
                                                    v
 Front 2 SMEMA --> [PCB Placement] --> [Bolt Fastening] --> [Inspection] --> Rear SMEMA
@@ -74,19 +74,19 @@ and sensor hardware. The operator view therefore shows:
 - the upstream carrier with PCB 1 and PCB 2;
 - the supply handler position, rotation, PCB-present input, gripper input, and output;
 - the supply-side SMEMA input and output;
-- the PCB Buffer as a compact shared handoff area.
+- the shared HANDOFF area, without a physical buffer or locating pins.
 
 PCB 1 and PCB 2 share one carrier Y and differ in X. The Buffer has the second
 Supply Y. Supply moves in X/Y between those two lines, then leaves the Buffer at
 Clear Z by moving X only while Buffer Y remains fixed.
 
-The PCB Buffer is not another motion station. Its UI state is PCB presence,
-handler position, and collision conflict. Supply and placement motion remain responsible
+There is no physical PCB buffer or buffer-present input. The HANDOFF area shows
+handler position and collision conflict. Supply and placement motion remain responsible
 for entering and leaving the configured buffer collision area.
 
 ## PCB placement
 
-PCB Placement Handler owns the moving XYZ handler. It picks the PCB from the Buffer,
+PCB Placement Handler owns the moving XYZ handler. It takes the PCB held by Supply after PCB detection, vacuum and IPM gripper closure,
 keeps the IPM Down, raises the Handler and Z to Buffer Entry Z, moves above Heat Sink 1,
 rotates, and waits. A confirmed carrier
 and raised Backup Plate allow work only at detected heat sinks. No placement-side
@@ -117,18 +117,14 @@ This allows the belt to move another carrier while a raised station continues
 working. Stopper and backup-plate state is confirmed by digital inputs; output state
 is displayed separately.
 
-Each carrier has two heat sink slots. The two heat sink inputs at a station describe
-which slots contain heat sinks; they do not confirm that a carrier has arrived.
-Every station uses the same slot mask: no heat sink skips work, heat sink 1 or 2 runs only
-that position, and both heat sinks run both positions. Station 1 may release the carrier
-carrier only after a PCB has been placed in every detected heat sink. An empty carrier
-skips placement but is still distinguished from an empty station by its carrier
-arrival input.
+Each carrier has two heat sink slots. Every station uses Heat Sink 1 OR Heat Sink 2
+as carrier presence; both inputs OFF means the station is empty. Carriers without
+heat sinks are outside the equipment's operating premise. The same inputs select
+work slots: one detected heat sink runs that position, and both run both positions.
+Station 1 releases a carrier after placing a PCB in every detected heat sink.
 
-The final I/O map assigns Carrier arrival inputs to PCB Placement (`DI-128`),
-Bolt Fastening (`DI-12F`), and Inspection (`DI-136`). The main conveyor entry and
-exit sensors are `DI-14B` and `DI-14C`. Their heat sink sensors remain only the
-work-slot mask.
+Dedicated station carrier inputs (`DI-128`, `DI-12F`, `DI-136`) are retired.
+The main conveyor entry and exit inputs remain `DI-14B` and `DI-14C`.
 
 Automatic transfer selection must be ordered
 from rear to front: Inspection to Rear, Bolt Fastening to Inspection, PCB Placement
@@ -150,16 +146,17 @@ detected heat sink finishes. A disabled station process is bypassed by the WPF h
 Main Conveyor can be validated independently. Inspection moves the camera to every
 recipe Bolt Point belonging to a detected heat sink and records bolt presence without
 stopping at the first missing bolt.
-Station work starts only after Carrier, Backup Plate Up, and Stopper Down inputs
-all confirm the final seated state.
+Station work starts only when either heat sink is detected, the Backup Plate is Up,
+and the Stopper is Down.
 
 Only the backup plates participating in a future transfer are lowered. A source
 Stopper is lowered to release its Carrier; a destination Stopper is raised before
 the belt starts so the arriving Carrier is physically stopped. The destination
-Carrier input stops the belt, then the Backup Plate rises and the Stopper returns down.
+Heat Sink 1 input starts the configured extra belt run to reach the stopper. Only
+after that duration does the belt stop, the Backup Plate rise, and the Stopper return down.
 Stop stops the belt and leaves pneumatic outputs at their current state. If the
-source Carrier input remains on, its completed work state remains valid and the
-same transfer can start again. When the destination Carrier input turns on, the
+source still detects either heat sink, its completed work remains valid and the
+same transfer can start again. When destination presence changes from absent to present, the
 previous station's process results move with it. The departed station retains those
 results only until its next Carrier arrives. A Carrier stopped between station
 sensors still requires manual recovery because no input identifies its position.
@@ -167,7 +164,8 @@ sensors still requires manual recovery because no input identifies its position.
 Front Available is the receive trigger. After it arrives, PCB Placement raises its
 Stopper and lowers its Backup Plate before Front Ready is asserted and both conveyors
 run. Front Ready turns off when the entry sensor turns on. The conveyor continues
-until the PCB Placement Carrier input turns on, then seats the carrier. Rear
+until PCB Placement detects Heat Sink 1, runs for the configured extra duration,
+then seats the carrier. Rear
 Available is advertised after Inspection work completes and Rear Ready is the
 discharge trigger. Rear wins when it is ready; a blocked Rear does not prevent an
 already-waiting Front carrier from entering. Front Ready and Rear Available are not
@@ -366,13 +364,14 @@ datum without referencing each other's projects. NG pickup and NG shuttle placem
 coordinates belong to the NG Carrier Transfer settings. The tile centres, millimetres per
 pixel, and original images belong to the recipe image set.
 
-Automatic inspection transforms the same carrier-relative Bolt Points through the
-Station 3 locating pins. The camera centres each point and crops the configured square
-ROI. A Tiny U-Net model segments the bolt recess, then the ratio of mask pixels above
-the mask threshold determines bolt presence. Results are retained by heat sink and bolt
-number. A missing bolt makes the carrier NG only after all remaining bolt points have
-also been inspected. A Carrier with neither heat sink present skips image capture
-and is completed as NG.
+Automatic inspection moves to each taught FOV centre and checks its saved rectangular
+ROI at original resolution. BGR luminance at or above the recipe brightness threshold
+becomes white. White pixels divided by ROI pixels gives the bright ratio; a ratio at
+or above the recipe minimum means the bolt is present. Teaching shows the binary
+ROI and percentage. There is no learned model or model-readiness step.
+Results remain attached to the carrier, heat sink and bolt number. A missing bolt
+makes the carrier NG after the remaining bolts are checked. PCB Data Matrix reading
+and the camera, light and NG transfer sequences remain in the Inspection project.
 
 NG Conveyor and NG Shuttle are separate mechanical assemblies below Station 3.
 The confirmed 260901 IO map, with the user's correction, has P1 at `DI-144`,
@@ -425,7 +424,7 @@ button; operator confirmation has no automatic timeout.
   child geometry relative to the taught-position map.
 - Show the machine as one continuous piece of equipment.
 - Show the machine state and the next operator action at the top of the screen.
-- Read the material flow from left to right as `PCB Supply -> Buffer -> Station 1
+- Read the material flow from left to right as `PCB Supply -> Handoff -> Station 1
   Place -> Station 2 Fasten -> Station 3 Inspect -> Exit / NG`.
 - Keep the physical station names `Station 1`, `Station 2`, and `Station 3`.
   Do not renumber the supply and buffer as extra stations.

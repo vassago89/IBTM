@@ -468,7 +468,7 @@ public sealed class DiagnosticToolsTests
 
                 {
 
-                    Drivers = new() { Inspection = InspectionAlgorithm.Virtual, Light = LightDriver.Virtual },
+                    Drivers = new() { Light = LightDriver.Virtual },
                     Units = new()
                     {
                         MainConveyor = true,

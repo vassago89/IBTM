@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
@@ -22,14 +23,16 @@ public sealed class IoStartupTests
         using var physical = new PhysicalIoService(
             new IBTM.AlphaMotion.AlphaMotionController(new()),
             new IBTM.Ajin.AjinController(new()),
-            new Dictionary<InputIo, int>(),
+            new Dictionary<InputIo, int> { [InputIo.PcbPlacementHeatSink1Present] = 54 },
             new Dictionary<OutputIo, OutputHardware>(),
             new());
         IIoService io = physical;
 
-        Assert.Throws<IOException>(() => io.GetInput(InputIo.PcbPlacementCarrierPresent));
+        Assert.Throws<IOException>(() => io.GetInput(InputIo.PcbPlacementHeatSink1Present));
+        Assert.Contains("no configured input address", Assert.Throws<IOException>(
+            () => io.GetInput(InputIo.PcbPlacementCarrierPresent)).Message);
         await Assert.ThrowsAsync<IOException>(
-            () => io.WaitForInputAsync(InputIo.PcbPlacementCarrierPresent, false));
+            () => io.WaitForInputAsync(InputIo.PcbPlacementHeatSink1Present, false));
     }
 
     [Fact]
@@ -182,7 +185,7 @@ public sealed class IoStartupTests
         if (step == "transfer")
         {
             var work = services.GetRequiredService<IBTM.PcbPlacement.PcbPlacementWork>();
-            physicalIo.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+            VirtualTest.SetCarrier(physicalIo, InputIo.PcbPlacementHeatSink1Present, true);
             await work.Station.SeatAsync(CancellationToken.None);
             work.Complete(work.CurrentJob);
         }
@@ -192,7 +195,7 @@ public sealed class IoStartupTests
             physicalIo.SetInput(InputIo.MainConveyorReadyFromRear, true);
         }
         if (step == "return")
-            physicalIo.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+            VirtualTest.SetCarrier(physicalIo, InputIo.BoltFasteningHeatSink1Present, true);
 
         var output = step switch
         {
@@ -302,7 +305,7 @@ public sealed class IoStartupTests
         var physicalIo = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<IBTM.BoltFastening.BoltFasteningWork>();
         io.Initialize();
-        physicalIo.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+        VirtualTest.SetCarrier(physicalIo, InputIo.BoltFasteningHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
         var runError = new InvalidOperationException("Fastening target lookup failed.");
         var stopError = new IOException("Shooting output OFF failed.");
@@ -471,17 +474,22 @@ public sealed class IoStartupTests
     {
         using var services = CreateServices();
         var io = services.GetRequiredService<StartupIo>();
-        var station = services.GetRequiredService<StationTeachingViewModel>();
-        var supply = services.GetRequiredService<SupplyTeachingViewModel>();
+        var station = services.GetRequiredService<TeachingViewModel>();
 
         foreach (var group in station.TeachingUnits)
         {
             station.SelectedTeachingUnit = group;
-            Assert.Equal(TeachingMotionHint.None, station.MotionHint);
+            Assert.Equal(
+                group == HardwareArea.InspectionGantry ? TeachingMotionHint.None : TeachingMotionHint.MotionUnavailable,
+                station.MotionHint);
             Assert.False(station.CaptureCarrierImageCommand.CanExecute(null));
-            Assert.False(station.CollectBoltImagesCommand.CanExecute(null));
+            foreach (var point in station.FilteredPoints.Where(point => point.Position.Storage == TeachingStorage.Buffer))
+            {
+                station.SelectedPoint = point;
+                Assert.Equal(TeachingMotionHint.MotionUnavailable, station.MotionHint);
+                Assert.False(station.CaptureCarrierImageCommand.CanExecute(null));
+            }
         }
-        Assert.Equal(TeachingMotionHint.None, supply.MotionHint);
         Assert.Equal(0, io.ReadsWhileUnavailable);
     }
 
@@ -729,7 +737,7 @@ public sealed class IoStartupTests
     private static ServiceProvider CreateServices()
     {
         return new ServiceCollection().AddIbtmApplication(
-            new MachineSettings { Drivers = new() { Inspection = InspectionAlgorithm.Virtual }, })
+            new MachineSettings())
             .AddSingleton<StartupIo>()
             .AddSingleton<IIoService>(provider => provider.GetRequiredService<StartupIo>())
             .BuildServiceProvider();

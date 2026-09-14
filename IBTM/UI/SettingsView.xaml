@@ -151,7 +151,7 @@
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <Button Content="Back Up Database"
                     Command="{Binding BackupDatabaseCommand}"
-                    ToolTip="Saved settings, recipes and carrier images only. Back up AJIN .mot files and training data separately."
+                    ToolTip="Saved settings, recipes and carrier images only. Back up AJIN .mot files separately."
                     Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
                 <Button Content="Restore and Exit"
                     Command="{Binding RestoreDatabaseCommand}"
@@ -211,12 +211,12 @@
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
                                 <TextBlock Text="Main Conveyor" Style="{StaticResource SettingSectionTitle}"/>
-                                <TextBlock Text="Run After Carrier Detection (s)" Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBlock Text="Run After Heat Sink 1 Detection (s)" Style="{StaticResource SettingFieldLabel}"/>
                                 <TextBox IsEnabled="{Binding CanEditSettings}"
                                     Text="{Binding Settings.Conveyor.CarrierStopDelaySeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                     MaxWidth="300" HorizontalAlignment="Left" MinWidth="180"/>
                                 <TextBlock
-                                    Text="Stations 1–3 · After sensor ON, keep running against the raised stopper, then stop and raise the backup plate."
+                                    Text="Stations 1–3 · After Heat Sink 1 turns ON, keep running for this duration to reach the raised stopper, then stop and raise the backup plate."
                                     Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0"/>
                             </StackPanel>
                         </Border>
@@ -260,7 +260,7 @@
                                 <StackPanel Grid.Column="1">
                                     <TextBlock Text="SDK Unit Length (mm/unit)" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBox IsEnabled="{Binding CanEditSettings}"
-                                        Text="{Binding CurrentMotionHardwareSettings.MillimetersPerUnit, UpdateSourceTrigger=LostFocus}"
+                                        Text="{Binding CurrentMotionHardwareSettings.MillimetersPerUnit, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                         ToolTip="Program conversion between mm and SDK units. 0.001 means one SDK unit is 1 µm. Per-axis SDK Unit / Pulse are set below."/>
                                 </StackPanel>
                             </Grid>
@@ -537,15 +537,6 @@
                                     <Run Text="Active: "/><Run Text="{Binding ActiveBoltDriver, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
                                 </TextBlock>
                                     </StackPanel>
-                                    <StackPanel Margin="0,0,12,0">
-                                        <TextBlock Text="Inspection" Style="{StaticResource SettingFieldLabel}"/>
-                                        <ComboBox IsEnabled="{Binding CanEditSettings}"
-                                            ItemsSource="{Binding InspectionAlgorithms}"
-                                            SelectedItem="{Binding Settings.Drivers.Inspection, Mode=TwoWay}"/>
-                                        <TextBlock Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
-                                    <Run Text="Active: "/><Run Text="{Binding ActiveInspectionAlgorithm, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
-                                </TextBlock>
-                                    </StackPanel>
                                 </UniformGrid>
                                 <TextBlock Text="Driver changes take effect after saving and restarting."
                                     Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
@@ -776,7 +767,7 @@
                                                 <Button Content="Use Generated" Command="{Binding ClearVirtualImageCommand}"/>
                                             </StackPanel>
                                             <TextBlock
-                                                Text="One fixed image for every capture. Select Tiny U-Net and restart to use the trained model."
+                                                Text="One fixed image for every capture. Uses the same binary checker as the physical camera."
                                                 TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"/>
                                             <TextBlock Text="{Binding VirtualImageError}" TextWrapping="Wrap" Margin="0,6,0,0"/>
                                         </StackPanel>

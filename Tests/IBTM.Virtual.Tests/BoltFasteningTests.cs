@@ -399,7 +399,7 @@ public sealed class BoltFasteningTests
                 statusReads++;
         };
         await head.SelectPresetAsync(3);
-        Assert.Equal(1, statusReads);
+        Assert.Equal(2, statusReads); // Selection is confirmed from the current preset register.
         Assert.Equal((ushort)3, (await bus.ReadControllerStatusAsync(1)).Preset);
 
         await bus.SetDirectionAsync(1, AdcDirection.Loosening);
@@ -410,6 +410,7 @@ public sealed class BoltFasteningTests
         Assert.Equal(AdcDirection.Loosening, running.Direction);
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.CheckReadyAsync());
         Assert.False(head.HasPendingResult); // No local operation, but the physical head is running.
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(3));
         await Assert.ThrowsAsync<InvalidOperationException>(() => head.SelectPresetAsync(4));
         Assert.Equal((ushort)3, (await bus.ReadControllerStatusAsync(1)).Preset);
         await Task.Delay(300);
@@ -427,7 +428,7 @@ public sealed class BoltFasteningTests
         var io = new VirtualIoService(Outputs(new ConveyorHardwareSettings()), new MachineOptions());
         var work = new BoltFasteningWork(ConveyorStation.BoltFastening(io));
         io.Initialize();
-        io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningHeatSink2Present, true);
         var first = work.Assembly(HeatSinkSlot.HeatSink1);
@@ -707,7 +708,7 @@ public sealed class BoltFasteningTests
             new PickupBoltFeeder(io, new()),
             new ShootingBoltFeeder(io, new()),
             () => layout);
-        io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
         io.SetInput(InputIo.BoltFasteningStopperDown, true);
@@ -761,13 +762,15 @@ public sealed class BoltFasteningTests
             () => station.RunAsync(new(), firstStop.Token)));
         Assert.True(pickupHead.HasPendingResult);
         Assert.Empty(originalAssembly.IpmFinalResults);
+        Assert.True(station.HasPendingResult);
         Assert.False((await ((IAdcBus)bus).ReadControllerStatusAsync(1)).Running);
 
         if (replaceCarrier)
         {
-            io.SetInput(InputIo.BoltFasteningCarrierPresent, false);
-            io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+            VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+            VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
             work.Assembly(HeatSinkSlot.HeatSink1).RecordIpmSeating(1, new(true, 1));
+            Assert.False(station.HasPendingResult);
         }
         else
         {
@@ -777,6 +780,7 @@ public sealed class BoltFasteningTests
                 (HeatSinkSlot.HeatSink1, 1, FasteningPass.IpmFinal, markCompleted),
             ]);
             Assert.Equal(!markCompleted, pickupHead.HasPendingResult);
+            Assert.Equal(!markCompleted, station.HasPendingResult);
             if (markCompleted)
             {
                 Assert.Equal(BoltResultSource.Manual, originalAssembly.IpmFinalResults[1].Source);
@@ -901,7 +905,7 @@ public sealed class BoltFasteningTests
         await gantry.CheckReadyAsync();
         bus.SetNextFasteningResult(2, AdcEventStatus.FasteningNg);
         io.SetInput(InputIo.ShootingFeederBoltDetected, true);
-        io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
         Assert.True(work.CarrierSeated);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
@@ -976,15 +980,15 @@ public sealed class BoltFasteningTests
                     5), },
                 tightenings);
             // A replaced carrier must never inherit the previous carrier's in-flight result.
-            io.SetInput(InputIo.BoltFasteningCarrierPresent, false);
+            VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
             io.SetInput(InputIo.BoltFasteningHeatSink2Present, false);
-            io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+            VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
             var previousAssembly = work.Assembly(HeatSinkSlot.HeatSink1);
             using var carrierChange = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             afterStop = () =>
             {
-                io.SetInput(InputIo.BoltFasteningCarrierPresent, false);
-                io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+                VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+                VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
                 carrierChange.Cancel();
             };
             await station.RunAsync(recipe, carrierChange.Token);
@@ -1061,7 +1065,7 @@ public sealed class BoltFasteningTests
             io.SetOutput(OutputIo.ShootingEscapeForward, true);
         }
 
-        io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
         io.SetInput(InputIo.BoltFasteningStopperDown, true);
         io.SetInput(InputIo.BoltFasteningStopperUp, false);

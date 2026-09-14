@@ -13,7 +13,6 @@ using IBTM.Core;
 using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
-using IBTM.Inspection.Training;
 using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
@@ -333,7 +332,7 @@ public sealed partial class MachineLifecycleTests
                 throw fault;
             }
         };
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
         await teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus)
@@ -381,9 +380,9 @@ public sealed partial class MachineLifecycleTests
         foreach (var input in new[]
         {
             InputIo.MainConveyorEntryCarrierDetected,
-            InputIo.PcbPlacementCarrierPresent,
-            InputIo.BoltFasteningCarrierPresent,
-            InputIo.InspectionCarrierPresent,
+            InputIo.PcbPlacementHeatSink1Present,
+            InputIo.BoltFasteningHeatSink1Present,
+            InputIo.InspectionHeatSink1Present,
             InputIo.MainConveyorExitCarrierDetected,
             InputIo.NgCarrierDetected,
             InputIo.NgShuttleCarrierDetected,
@@ -481,7 +480,14 @@ public sealed partial class MachineLifecycleTests
         await machine.RaiseCylindersAsync(CancellationToken.None);
         Assert.Empty(outputChanges);
         io.SetInput(InputIo.NgShuttleCarrierDetected, false);
+        io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+        Assert.False(machine.CanRaiseCylinders);
+        await machine.RaiseCylindersAsync(CancellationToken.None);
+        Assert.Empty(outputChanges);
+        await WaitUntilAsync(() => !state.Display.CanRaiseCylinders);
+        io.SetInput(InputIo.PcbPlacementPcbDetected, false);
         Assert.True(machine.CanRaiseCylinders);
+        await WaitUntilAsync(() => state.Display.CanRaiseCylinders);
         Assert.False(machine.CanHome);
 
         var raising = machine.RaiseCylindersAsync(CancellationToken.None);
@@ -501,6 +507,43 @@ public sealed partial class MachineLifecycleTests
         Assert.False(io.GetInput(InputIo.PcbPlacementIpmDown));
         await machine.RaiseCylindersAsync(CancellationToken.None);
         Assert.True(machine.CanHome);
+    }
+
+    [Fact]
+    public async Task CylinderRaiseStopsBeforeLiftingIpmWhenPlacementDetectsPcb()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        IIoService signals = io;
+        await signals.SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerDown, true);
+        await signals.SetOutputAndWaitAsync(OutputIo.PcbPlacementIpmDown, true);
+        void DetectPcb(OutputIo output, bool on)
+        {
+            if (output == OutputIo.PcbPlacementHandlerDown && !on)
+                io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+        }
+
+        io.OutputChanged += DetectPcb;
+        try
+        {
+            Assert.True(machine.CanRaiseCylinders);
+            await machine.RaiseCylindersAsync(CancellationToken.None);
+            Assert.True(io.GetInput(InputIo.PcbPlacementPcbDetected));
+            Assert.True(io.GetOutput(OutputIo.PcbPlacementIpmDown));
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.False(state.IsRunning);
+            Assert.False(machine.CanRaiseCylinders);
+        }
+        finally
+        {
+            io.OutputChanged -= DetectPcb;
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]
@@ -765,7 +808,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var gantry = services.GetRequiredService<BoltFasteningGantry>();
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await gantry.MoveZAsync(14);
@@ -858,7 +901,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var gantry = services.GetRequiredService<BoltFasteningGantry>();
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
@@ -979,7 +1022,7 @@ public sealed partial class MachineLifecycleTests
 
         if (group == MotionGroup.BoltFastening)
         {
-            var teaching = services.GetRequiredService<StationTeachingViewModel>();
+            var teaching = services.GetRequiredService<TeachingViewModel>();
             teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
             teaching.StepDistance = 0.1;
             await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
@@ -991,7 +1034,6 @@ public sealed partial class MachineLifecycleTests
         if (group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler)
         {
             var buffer = services.GetRequiredService<BufferStage>();
-            Assert.False(buffer.CanLowerSupply());
             Assert.False(buffer.CanEnterPlacement());
         }
 
@@ -1066,7 +1108,7 @@ public sealed partial class MachineLifecycleTests
         var fastening = services.GetRequiredService<BoltFasteningGantry>();
         await machine.InitializeAsync();
         await Task.WhenAll(placement.MoveAxisAsync(MotionAxis.Z, 50), fastening.MoveZAsync(50));
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
         var homing = teachingHome
@@ -1165,7 +1207,7 @@ public sealed partial class MachineLifecycleTests
 
         var axisRow = manual.Axes.Single(
             row => row.Group == MotionGroup.BoltFastening && row.Axis == MotionAxis.Z);
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         var homing = teachingHome
             ? teaching.HomeCommand.ExecuteAsync(null)

@@ -233,6 +233,16 @@ public sealed class VirtualIoService(
         }
     }
 
+    // Publish one input snapshot, as a physical DIO scan does.
+    public void SetInputs(params (InputIo Input, bool Value)[] inputs)
+    {
+        var changed = inputs.Where(item => _inputs[(int)item.Input] != item.Value).ToArray();
+        foreach (var (input, value) in changed)
+            _inputs[(int)input] = value;
+        foreach (var (input, value) in changed)
+            InputChanged?.Invoke(input, value);
+    }
+
     private async Task ApplyFeedbackAsync(
         OutputIo output,
         bool value,

@@ -59,7 +59,7 @@ public interface IIoService
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(timeoutMilliseconds);
-        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completion = new AsyncAutoResetEvent();
 
         void OnInputChanged(InputIo changedInput, bool changedValue)
         {
@@ -67,21 +67,25 @@ public interface IIoService
                 ? changedInput == input && changedValue == value
                 : (changedInput == input || changedInput == offInput) && Matches())
             {
-                completion.TrySetResult();
+                completion.Set();
             }
         }
 
         InputChanged += OnInputChanged;
-        using var registration = timeout.Token.Register(() => completion.TrySetCanceled(timeout.Token));
         try
         {
             if (Matches())
             {
-                completion.TrySetResult();
+                completion.Set();
             }
 
-            await completion.Task;
-            cancellationToken.ThrowIfCancellationRequested();
+            // Passage inputs retain a pulse; actuator completion requires the current pair.
+            do
+            {
+                await completion.WaitAsync(timeout.Token);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            while (offInput is not null && !Matches());
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {

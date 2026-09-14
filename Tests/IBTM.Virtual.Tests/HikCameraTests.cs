@@ -148,10 +148,7 @@ public sealed class HikCameraTests
         using var camera = sdk.CreateCamera();
         using var services = new ServiceCollection()
             .AddSingleton(VirtualTest.OpenMachineStore())
-            .AddIbtmApplication(new MachineSettings
-            {
-                Drivers = new() { Inspection = InspectionAlgorithm.Virtual }
-            })
+            .AddIbtmApplication(new MachineSettings())
             .AddSingleton<ICamera>(camera)
             .BuildServiceProvider();
         var inspector = services.GetRequiredService<BoltInspector>();

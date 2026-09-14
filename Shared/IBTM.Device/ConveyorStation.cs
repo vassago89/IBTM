@@ -21,7 +21,8 @@ public enum StationCylinderState
 public sealed class ConveyorStation
 {
     private readonly IIoService _io;
-    private readonly InputIo _carrier;
+    // Notification history only; CarrierPresent always reads the current inputs.
+    private bool? _lastNotifiedPresence;
     private readonly InputIo _backupPlateUp;
     private readonly InputIo _backupPlateDown;
     private readonly InputIo _stopperUp;
@@ -33,7 +34,6 @@ public sealed class ConveyorStation
 
     private ConveyorStation(
         IIoService io,
-        InputIo carrier,
         InputIo backupPlateUp,
         InputIo backupPlateDown,
         InputIo stopperUp,
@@ -44,7 +44,6 @@ public sealed class ConveyorStation
         OutputIo stopper)
     {
         _io = io;
-        _carrier = carrier;
         _backupPlateUp = backupPlateUp;
         _backupPlateDown = backupPlateDown;
         _stopperUp = stopperUp;
@@ -63,7 +62,6 @@ public sealed class ConveyorStation
     {
         return new(
             io,
-            InputIo.PcbPlacementCarrierPresent,
             InputIo.PcbPlacementBackupPlateUp,
             InputIo.PcbPlacementBackupPlateDown,
             InputIo.PcbPlacementStopperUp,
@@ -78,7 +76,6 @@ public sealed class ConveyorStation
     {
         return new(
             io,
-            InputIo.BoltFasteningCarrierPresent,
             InputIo.BoltFasteningBackupPlateUp,
             InputIo.BoltFasteningBackupPlateDown,
             InputIo.BoltFasteningStopperUp,
@@ -93,7 +90,6 @@ public sealed class ConveyorStation
     {
         return new(
             io,
-            InputIo.InspectionCarrierPresent,
             InputIo.InspectionBackupPlateUp,
             InputIo.InspectionBackupPlateDown,
             InputIo.InspectionStopperUp,
@@ -108,7 +104,9 @@ public sealed class ConveyorStation
     {
         get
         {
-            return _io.GetInput(_carrier);
+            var present = _io.GetInput(_heatSink1) || _io.GetInput(_heatSink2);
+            _lastNotifiedPresence ??= present;
+            return present;
         }
     }
 
@@ -117,7 +115,6 @@ public sealed class ConveyorStation
         return io.Select(
             area,
             [
-            _carrier,
             _backupPlateUp,
             _backupPlateDown,
             _stopperUp,
@@ -175,15 +172,46 @@ public sealed class ConveyorStation
         await _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken);
     }
 
-    public Task WaitForCarrierAsync(
+    public Task WaitForHeatSink1Async(
         CancellationToken cancellationToken,
         int? timeoutMilliseconds = null)
     {
         return _io.WaitForInputAsync(
-            _carrier,
+            _heatSink1,
             true,
             timeoutMilliseconds ?? _io.TimeoutMilliseconds,
             cancellationToken);
+    }
+
+    public async Task WaitForCarrierAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnCarrierChanged(bool present)
+        {
+            if (present)
+                arrived.TrySetResult();
+        }
+
+        CarrierChanged += OnCarrierChanged;
+        try
+        {
+            if (CarrierPresent)
+                return;
+            await arrived.Task.WaitAsync(TimeSpan.FromMilliseconds(_io.TimeoutMilliseconds), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+        catch (TimeoutException exception)
+        {
+            throw new TimeoutException(
+                $"Carrier arrival requires {_heatSink1} or {_heatSink2}=ON "
+                    + $"within {_io.TimeoutMilliseconds} ms.",
+                exception);
+        }
+        finally
+        {
+            CarrierChanged -= OnCarrierChanged;
+        }
     }
 
     private StationCylinderState CylinderState(InputIo up, InputIo down)
@@ -198,13 +226,16 @@ public sealed class ConveyorStation
 
     private void OnInputChanged(InputIo input, bool value)
     {
-        if (input == _carrier)
+        if (input == _heatSink1 || input == _heatSink2)
         {
-            CarrierChanged?.Invoke(value);
+            var previous = _lastNotifiedPresence;
+            var present = _io.GetInput(_heatSink1) || _io.GetInput(_heatSink2);
+            _lastNotifiedPresence = present;
+            if (previous != present)
+                CarrierChanged?.Invoke(present);
         }
 
-        if (input == _carrier
-            || input == _backupPlateUp
+        if (input == _backupPlateUp
             || input == _backupPlateDown
             || input == _stopperUp
             || input == _stopperDown

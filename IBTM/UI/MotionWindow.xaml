@@ -163,7 +163,7 @@
                             Text="{Binding Diagnostics.Snapshot.Faulted, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MotionFaultBit}" ToolTip="Axis alarm or emergency."/>
                         <StackPanel Grid.Column="10" Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Width="96" Margin="8,0,6,0" CommandParameter="{Binding}" Command="{Binding ToggleServoCommand}">
+                            <Button Width="96" Padding="8,7" Margin="8,0,6,0" CommandParameter="{Binding}" Command="{Binding ToggleServoCommand}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                         <Setter Property="Content" Value="Servo ON"/>

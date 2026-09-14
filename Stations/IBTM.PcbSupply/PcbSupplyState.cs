@@ -19,20 +19,14 @@ public enum PcbSupplyState
     [Description("Raising for Pickup")]
     RaisingForPickup,
 
-    [Description("Moving Above Buffer")]
-    MovingAboveBuffer,
+    [Description("Rotating for Handoff")]
+    RotatingForHandoff,
 
-    [Description("Rotating for Buffer")]
-    RotatingForBuffer,
+    [Description("Waiting for Handoff")]
+    WaitingForHandoff,
 
-    [Description("Waiting for Buffer")]
-    WaitingForBuffer,
-
-    [Description("Moving to Buffer")]
-    MovingToBuffer,
-
-    [Description("Waiting for Buffer PCB")]
-    WaitingForBufferPcb,
+    [Description("Moving to Handoff")]
+    MovingToHandoff,
 
     [Description("Waiting for Placement Handler")]
     WaitingForPlacement,

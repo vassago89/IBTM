@@ -84,7 +84,7 @@ public sealed partial class MachineController
             CanHome = IsHomeAllowed(motion, running),
             CanRaiseCylinders = manualSetup
                 && (BufferHandlersEnabled || _units.BoltFastening || InspectionGantryEnabled)
-                && !Array.Exists(CarrierInputs, _io.GetInput),
+                && IsCylinderRaiseClear(),
             HomeableAxes = Enum.GetValues<MotionGroup>()
                 .SelectMany(
                     group => _state.GetMotionStatus(group).Feedback.Axes.Select(
@@ -98,7 +98,7 @@ public sealed partial class MachineController
             SetupEditingEnabled = setupEditing,
             PlacementState = _units.PcbPlacement
                 ? _pcbPlacement.State(_recipe.PcbPlacement, live: false)
-                : PcbPlacementState.WaitingForBufferPcb,
+                : PcbPlacementState.WaitingForSupply,
             PlacementTarget = _pcbPlacement.TargetHeatSink,
             FasteningState = fasteningState,
             FasteningBolt = teachingReady && _units.BoltFastening && automatic

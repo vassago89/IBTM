@@ -14,7 +14,7 @@ public sealed partial class MachineController
     {
         get
         {
-            return _state.ManualSetupEnabled;
+            return _state.ManualSetupEnabled && !_fasteningStation.HasPendingResult;
         }
     }
 
@@ -248,6 +248,12 @@ public sealed partial class MachineController
         if (!AdcProtocolAvailable)
         {
             throw new InvalidOperationException("Bolt testing requires safe manual mode.");
+        }
+
+        if (_fasteningStation.HasPendingResult)
+        {
+            throw new InvalidOperationException(
+                "Resolve interrupted fastening results in Recovery before testing a bolt head.");
         }
 
         try

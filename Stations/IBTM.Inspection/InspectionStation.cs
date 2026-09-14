@@ -187,6 +187,12 @@ public sealed class InspectionStation : AutoUnit
             CheckWorkPosition();
             operation.Token.ThrowIfCancellationRequested();
             var targets = Enum.GetValues<HeatSinkSlot>().Where(_work.HeatSinkPresent).ToArray();
+            foreach (var heatSink in targets)
+            {
+                if (!bolts.Any(bolt => bolt.HeatSink == heatSink))
+                    throw new InvalidOperationException(
+                        $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before inspection.");
+            }
             _runTargets = targets;
 
             while (!operation.IsCancellationRequested)

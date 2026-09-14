@@ -9,7 +9,7 @@
 - [Station 3 / NG / Repeat 현장 확인](docs/STATION3_COMMISSIONING.md)
 - [IO 주소와 극성 확인](docs/IO_MAP.md)
 - [설정·레시피 저장과 백업](docs/SETTINGS_STORAGE.md)
-- [볼트 모델 학습](Stations/IBTM.Inspection.Training/README.md)
+- [밝은 면적 비율 검사](Stations/IBTM.Inspection/README.md)
 - [기구 배치 참고](docs/MACHINE_LAYOUT.md)
 
 ## 프로젝트

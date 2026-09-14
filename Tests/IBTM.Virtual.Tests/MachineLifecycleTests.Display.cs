@@ -12,7 +12,6 @@ using IBTM.Core;
 using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
-using IBTM.Inspection.Training;
 using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
@@ -427,7 +426,8 @@ public sealed partial class MachineLifecycleTests
     public async Task ManualCommandAfterShutdownDoesNotEscapeTheBoundary()
     {
         using var services = CreateServices(FlowSettings());
-        var teaching = services.GetRequiredService<SupplyTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
         var operations = services.GetRequiredService<OperationCancellation>();
         await operations.ShutdownAsync();
         await teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);

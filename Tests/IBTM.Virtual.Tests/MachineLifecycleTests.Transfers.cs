@@ -30,7 +30,7 @@ public sealed partial class MachineLifecycleTests
         var operations = services.GetRequiredService<OperationCancellation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
         var previousAssembly = work.Assembly(HeatSinkSlot.HeatSink1);
@@ -41,8 +41,8 @@ public sealed partial class MachineLifecycleTests
             if (replaced || operations.HasActiveOperations)
                 return;
             replaced = true;
-            io.SetInput(InputIo.BoltFasteningCarrierPresent, false);
-            io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+            VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+            VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
             stop.Cancel();
         }
 
@@ -165,7 +165,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(gripped);
         Assert.False(movedBeforeGrip);
         Assert.Empty(feedback.AxisMoves);
-        Assert.True(io.GetInput(InputIo.InspectionCarrierPresent));
+        Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
         Assert.False(io.GetInput(InputIo.NgShuttleCarrierDetected));
         Assert.True(pickup.IsRaised);
         Assert.Equal(NgTransferGripperState.Open, pickup.Gripper);
@@ -200,7 +200,7 @@ public sealed partial class MachineLifecycleTests
             new[] { (MotionAxis.X, 5d), (MotionAxis.Y, 40d), (MotionAxis.X, 30d) },
             feedback.AxisMoves);
         Assert.True(gantry.IsAt(firstFov));
-        Assert.True(io.GetInput(InputIo.InspectionCarrierPresent));
+        Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
         Assert.False(pickup.CarrierDetected);
     }
 
@@ -246,7 +246,7 @@ public sealed partial class MachineLifecycleTests
 
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleUp, true);
-        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         Assert.Equal(NgTransferState.LoweringToCarrier, move.State(NgTransferDestination.Shuttle, canPickUp: true));
         await move.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.LoweringToCarrier, CancellationToken.None)!;
         Assert.Equal(NgTransferState.Closing, move.State(NgTransferDestination.Shuttle, canPickUp: true));
@@ -285,7 +285,7 @@ public sealed partial class MachineLifecycleTests
         io.AutoResponseEnabled = false;
         foreach (var input in new[]
         {
-            InputIo.PcbPlacementCarrierPresent,
+            InputIo.PcbPlacementHeatSink1Present,
             InputIo.PcbPlacementBackupPlateUp,
             InputIo.PcbPlacementStopperDown,
             InputIo.PcbPlacementHeatSink1Present,
@@ -316,8 +316,8 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(InputIo.PcbPlacementIpmGripperClosed, true);
             if (replaceCarrier)
             {
-                io.SetInput(InputIo.PcbPlacementCarrierPresent, false);
-                io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+                VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, false);
+                VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
             }
             else
                 io.SetInput(InputIo.PcbPlacementBackupPlateUp, false);
@@ -365,7 +365,7 @@ public sealed partial class MachineLifecycleTests
         io.SetOutput(OutputIo.PcbPlacementIpmDown, true);
         foreach (var input in new[]
         {
-            InputIo.PcbPlacementCarrierPresent,
+            InputIo.PcbPlacementHeatSink1Present,
             InputIo.PcbPlacementBackupPlateUp,
             InputIo.PcbPlacementStopperDown,
             InputIo.PcbPlacementHeatSink1Present,
@@ -436,8 +436,8 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(PcbPlacementState.RecordingPlacement, placer.State(recipe));
         if (replaceCarrier)
         {
-            io.SetInput(InputIo.PcbPlacementCarrierPresent, false);
-            io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+            VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, false);
+            VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
             Assert.Equal(PcbPlacementState.OpeningGripper, placer.State(recipe));
             Assert.Empty(work.Assemblies);
         }
@@ -485,7 +485,7 @@ public sealed partial class MachineLifecycleTests
                 1_000);
         io.AutoResponseEnabled = false;
         var destinationSensor = destination == NgTransferDestination.Station
-            ? InputIo.InspectionCarrierPresent
+            ? InputIo.InspectionHeatSink1Present
             : InputIo.NgShuttleCarrierDetected;
         io.SetInput(InputIo.NgCarrierDetected, true);
         io.SetInput(InputIo.NgCarrierGripperOpen, false);

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -13,6 +14,7 @@ using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Virtual;
 using IBTM.UI;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using static IBTM.Virtual.Tests.VirtualTest;
 
@@ -20,6 +22,88 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class IoTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CylinderCompletionRequiresCurrentFeedback(bool oppositeTurnsOn)
+    {
+        var virtualIo = new VirtualIoService(
+            new NgShuttleHardwareSettings().Outputs,
+            new MachineOptions { TimeoutMilliseconds = 100 }) { AutoResponseEnabled = false };
+        IIoService io = virtualIo;
+        virtualIo.SetInput(InputIo.NgShuttleUp, false);
+        virtualIo.SetInput(InputIo.NgShuttleDown, false);
+        // Keep both input changes ahead of the waiting sequence's continuation.
+        var scheduler = new ConcurrentExclusiveSchedulerPair();
+        try
+        {
+            await Task.Factory.StartNew(async () =>
+            {
+                var completed = io.WaitForOutputFeedbackAsync(OutputIo.NgShuttleUp, true);
+                virtualIo.SetInput(InputIo.NgShuttleUp, true);
+                virtualIo.SetInput(
+                    oppositeTurnsOn ? InputIo.NgShuttleDown : InputIo.NgShuttleUp,
+                    oppositeTurnsOn);
+                await Assert.ThrowsAsync<IoTimeoutException>(() => completed);
+            }, CancellationToken.None, TaskCreationOptions.None, scheduler.ExclusiveScheduler).Unwrap();
+
+            virtualIo.SetInput(InputIo.NgShuttleDown, false);
+            virtualIo.SetInput(InputIo.NgShuttleUp, true);
+            await io.WaitForOutputFeedbackAsync(OutputIo.NgShuttleUp, true);
+        }
+        finally
+        {
+            scheduler.Complete();
+            await scheduler.Completion;
+        }
+    }
+
+    [Fact]
+    public async Task InputWaitRetainsAShortPassagePulse()
+    {
+        var virtualIo = new VirtualIoService(new Dictionary<OutputIo, OutputHardware>(), new());
+        IIoService io = virtualIo;
+        var scheduler = new ConcurrentExclusiveSchedulerPair();
+        try
+        {
+            await Task.Factory.StartNew(async () =>
+            {
+                var passed = io.WaitForInputAsync(InputIo.ShootingTubeBoltDetected, true);
+                virtualIo.SetInput(InputIo.ShootingTubeBoltDetected, true);
+                virtualIo.SetInput(InputIo.ShootingTubeBoltDetected, false);
+                await passed;
+            }, CancellationToken.None, TaskCreationOptions.None, scheduler.ExclusiveScheduler).Unwrap();
+        }
+        finally
+        {
+            scheduler.Complete();
+            await scheduler.Completion;
+        }
+    }
+
+    [Fact]
+    public void RetiredStationInputsAreRemovedFromSavedHardwareSettings()
+    {
+        var settings = new MachineSettings();
+        InputIo[] retired =
+        [
+            InputIo.PcbPlacementCarrierPresent,
+            InputIo.BoltFasteningCarrierPresent,
+            InputIo.InspectionCarrierPresent,
+        ];
+        foreach (var input in retired)
+            settings.ConveyorHardware.Inputs[input] = 999;
+        using var services = new ServiceCollection().AddIbtmApplication(settings).BuildServiceProvider();
+        var inputs = services.GetRequiredService<IReadOnlyDictionary<InputIo, int>>();
+        foreach (var input in retired)
+        {
+            Assert.False(settings.ConveyorHardware.Inputs.ContainsKey(input));
+            Assert.False(inputs.ContainsKey(input));
+        }
+        Assert.Equal(54, inputs[InputIo.PcbPlacementHeatSink1Present]);
+        Assert.Equal(55, inputs[InputIo.PcbPlacementHeatSink2Present]);
+    }
+
     [Fact]
     public void ConfirmedIoMapHasOneSignalPerInputAndNoSeparateP3Sensor()
     {
@@ -27,7 +111,14 @@ public sealed class IoTests
         var hardware = settings.HardwareSections.OfType<InputHardwareSettings>().ToArray();
         var inputs = hardware.SelectMany(section => section.Inputs)
             .ToDictionary(pair => pair.Key, pair => pair.Value);
-        Assert.Equal(Enum.GetValues<InputIo>().Order(), inputs.Keys.Order());
+        InputIo[] retiredInputs =
+        [
+            InputIo.PcbBufferPcbPresent,
+            InputIo.PcbPlacementCarrierPresent,
+            InputIo.BoltFasteningCarrierPresent,
+            InputIo.InspectionCarrierPresent,
+        ];
+        Assert.Equal(Enum.GetValues<InputIo>().Except(retiredInputs).Order(), inputs.Keys.Order());
         Assert.Equal(inputs.Count, inputs.Values.Distinct().Count());
         Assert.DoesNotContain(86, inputs.Values); // DI-146 is not installed; P3 is DI-142.
         Assert.Equal(82, inputs[InputIo.NgShuttleCarrierDetected]);

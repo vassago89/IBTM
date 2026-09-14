@@ -12,13 +12,15 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
     // Connection edits apply to a newly created head, together with its slave address.
     private readonly string _portName = connection.PortName;
     private readonly int _baudRate = connection.BaudRate;
-    private ushort? _fasteningEvent;
+    // Requested conditions and result ownership; never a substitute for controller feedback.
+    private ushort? _requestedPreset;
+    private (ushort EventCount, ushort Preset)? _pendingFastening;
 
     public bool HasPendingResult
     {
         get
         {
-            return _fasteningEvent is not null;
+            return _pendingFastening is not null;
         }
     }
 
@@ -43,13 +45,29 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
     public async Task SelectPresetAsync(ushort preset, CancellationToken cancellationToken = default)
     {
         var current = await bus.ReadControllerStatusAsync(slaveAddress, cancellationToken);
-        if (current.Preset == preset)
-        {
-            return;
-        }
-
         RequireReady(current);
-        await bus.SelectPresetAsync(slaveAddress, preset, cancellationToken);
+        if (current.Preset != preset)
+        {
+            await bus.SelectPresetAsync(slaveAddress, preset, cancellationToken);
+            current = await bus.ReadControllerStatusAsync(slaveAddress, cancellationToken);
+            RequireReady(current);
+            RequirePreset(current, preset);
+        }
+        _requestedPreset = preset;
+    }
+
+    private void RequirePreset(AdcControllerStatus status, ushort preset)
+    {
+        if (status.Preset != preset)
+            throw new InvalidOperationException(
+                $"ADC {slaveAddress} preset is {status.Preset}; this fastening requires preset {preset}.");
+    }
+
+    private void RequireDirection(AdcControllerStatus status, AdcDirection direction)
+    {
+        if (status.Direction != direction)
+            throw new InvalidOperationException(
+                $"ADC {slaveAddress} direction is {status.Direction}; expected {direction}.");
     }
 
     public async Task ResetAsync(CancellationToken cancellationToken = default)
@@ -57,7 +75,7 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
         cancellationToken.ThrowIfCancellationRequested();
         bus.Open(_portName, _baudRate);
         await bus.StopAsync(slaveAddress, cancellationToken);
-        var status = await bus.ReadControllerStatusAsync(slaveAddress, cancellationToken);
+        var status = await WaitForStoppedAsync(cancellationToken);
         if (status.Alarm != 0)
         {
             await bus.ResetAlarmAsync(slaveAddress, cancellationToken);
@@ -75,6 +93,9 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
         try
         {
             await bus.SetDirectionAsync(slaveAddress, AdcDirection.Loosening, cancellationToken);
+            var ready = await bus.ReadControllerStatusAsync(slaveAddress, cancellationToken);
+            RequireReady(ready);
+            RequireDirection(ready, AdcDirection.Loosening);
             await bus.StartAsync(slaveAddress, cancellationToken);
             while (true)
             {
@@ -105,26 +126,32 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
         {
             var current = await bus.ReadFasteningResultAsync(slaveAddress, cancellationToken);
             if (current.Status == AdcEventStatus.Error
-                || _fasteningEvent is { } activeEvent
-                && IsCompleted(current, activeEvent))
+                || _pendingFastening is { } pending
+                && IsCompleted(current, pending))
             {
                 completed = current;
             }
             else
             {
-                var previousEvent = _fasteningEvent ?? current.EventCount;
                 var status = await bus.ReadControllerStatusAsync(slaveAddress, cancellationToken);
+                var fastening = _pendingFastening
+                    ?? (EventCount: current.EventCount, Preset: _requestedPreset ?? status.Preset);
                 RequireReady(status);
+                RequirePreset(status, fastening.Preset);
                 await bus.SetDirectionAsync(slaveAddress, AdcDirection.Fastening, cancellationToken);
+                status = await bus.ReadControllerStatusAsync(slaveAddress, cancellationToken);
+                RequireReady(status);
+                RequirePreset(status, fastening.Preset);
+                RequireDirection(status, AdcDirection.Fastening);
 
                 timeout.CancelAfter(connection.FasteningTimeoutMilliseconds);
                 timeout.Token.ThrowIfCancellationRequested();
-                _fasteningEvent = previousEvent;
+                _pendingFastening = fastening;
                 await bus.StartAsync(slaveAddress, timeout.Token);
                 while (true)
                 {
                     var result = await bus.ReadFasteningResultAsync(slaveAddress, timeout.Token);
-                    if (IsCompleted(result, previousEvent))
+                    if (IsCompleted(result, fastening))
                     {
                         completed = result;
                         break;
@@ -166,18 +193,24 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
 
     public async Task<BoltResult?> ReadPendingResultAsync(CancellationToken cancellationToken = default)
     {
-        if (_fasteningEvent is not { } pendingEvent)
+        if (_pendingFastening is not { } pending)
         {
             return null;
         }
 
         var result = await bus.ReadFasteningResultAsync(slaveAddress, cancellationToken);
-        return IsCompleted(result, pendingEvent) ? Complete(result) : null;
+        if (!IsCompleted(result, pending))
+            return null;
+        // A previous STOP may have failed. Confirm RUN OFF before releasing ownership.
+        // Once a result is received, finish this bounded check even if the operator cancels.
+        await WaitForStoppedAsync(CancellationToken.None);
+        return Complete(result);
     }
 
     public void DiscardPendingResult()
     {
-        _fasteningEvent = null;
+        _pendingFastening = null;
+        _requestedPreset = null;
     }
 
     private async Task StopAfterOperationAsync(Exception? failure)
@@ -185,6 +218,7 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
         try
         {
             await bus.StopAsync(slaveAddress, CancellationToken.None);
+            await WaitForStoppedAsync(CancellationToken.None);
         }
         catch (Exception stopError) when (failure is not null)
         {
@@ -192,9 +226,34 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
         }
     }
 
+    private async Task<AdcControllerStatus> WaitForStoppedAsync(CancellationToken cancellationToken)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(connection.ResponseTimeoutMilliseconds);
+        try
+        {
+            while (true)
+            {
+                var status = await bus.ReadControllerStatusAsync(slaveAddress, timeout.Token);
+                timeout.Token.ThrowIfCancellationRequested();
+                if (!status.Running)
+                    return status;
+                await Task.Delay(ResultPollMilliseconds, timeout.Token);
+            }
+        }
+        catch (OperationCanceledException exception) when (
+            timeout.IsCancellationRequested
+            && !cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException(
+                $"ADC {slaveAddress} motor stop was not confirmed within {connection.ResponseTimeoutMilliseconds} ms.",
+                exception);
+        }
+    }
+
     private BoltResult Complete(AdcFasteningResult result)
     {
-        _fasteningEvent = null;
+        _pendingFastening = null;
         if (result.Status == AdcEventStatus.Error)
         {
             throw new InvalidOperationException($"ADC {slaveAddress} controller error: {result.Error}.");
@@ -203,11 +262,19 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
         return new BoltResult(result.Status == AdcEventStatus.FasteningOk, result.Torque);
     }
 
-    private static bool IsCompleted(AdcFasteningResult result, ushort previousEvent)
+    private bool IsCompleted(AdcFasteningResult result, (ushort EventCount, ushort Preset) pending)
     {
-        return result.Status == AdcEventStatus.Error
-            || result.EventCount != previousEvent
-            && result.Status is AdcEventStatus.FasteningOk or AdcEventStatus.FasteningNg;
+        if (result.Status == AdcEventStatus.Error)
+            return true;
+        if (result.EventCount == pending.EventCount
+            || result.Status is not (AdcEventStatus.FasteningOk or AdcEventStatus.FasteningNg))
+            return false;
+        if (result.Preset != pending.Preset
+            || result.Direction != AdcDirection.Fastening)
+            throw new InvalidOperationException(
+                $"ADC {slaveAddress} result event {result.EventCount} does not match this fastening: "
+                + $"preset {result.Preset}, direction {result.Direction}; expected preset {pending.Preset}, Fastening.");
+        return true;
     }
 
 }

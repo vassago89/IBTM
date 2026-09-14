@@ -91,8 +91,7 @@
                 ActiveHeatSink="{Binding State.Display.PlacementTarget}">
                 <ui:CarrierView.Style>
                     <Style TargetType="ui:CarrierView" BasedOn="{StaticResource CarrierStyle}">
-                        <Setter Property="Visibility"
-                            Value="{Binding Signals.Inputs[PcbPlacementCarrierPresent].IsOn, Converter={StaticResource BoolToVis}}"/>
+                        <Setter Property="Visibility" Value="Collapsed"/>
                         <Style.Triggers>
                             <Trigger Property="HeatSink1Present" Value="True">
                                 <Setter Property="Visibility" Value="Visible"/>
@@ -119,8 +118,7 @@
                 BoltTargets="{Binding BoltTargets}">
                 <ui:CarrierView.Style>
                     <Style TargetType="ui:CarrierView" BasedOn="{StaticResource CarrierStyle}">
-                        <Setter Property="Visibility"
-                            Value="{Binding Signals.Inputs[BoltFasteningCarrierPresent].IsOn, Converter={StaticResource BoolToVis}}"/>
+                        <Setter Property="Visibility" Value="Collapsed"/>
                         <Style.Triggers>
                             <Trigger Property="HeatSink1Present" Value="True">
                                 <Setter Property="Visibility" Value="Visible"/>
@@ -148,8 +146,7 @@
                 BoltTargets="{Binding InspectionTargets}">
                 <ui:CarrierView.Style>
                     <Style TargetType="ui:CarrierView" BasedOn="{StaticResource CarrierStyle}">
-                        <Setter Property="Visibility"
-                            Value="{Binding Signals.Inputs[InspectionCarrierPresent].IsOn, Converter={StaticResource BoolToVis}}"/>
+                        <Setter Property="Visibility" Value="Collapsed"/>
                         <Style.Triggers>
                             <Trigger Property="HeatSink1Present" Value="True">
                                 <Setter Property="Visibility" Value="Visible"/>
@@ -197,15 +194,6 @@
             <Border Canvas.Left="194" Canvas.Top="228" Width="284" Style="{StaticResource MapIoCardStyle}">
                 <StackPanel>
                     <TextBlock Text="STATION 1 · PCB PLACEMENT" Style="{StaticResource MapIoTitleStyle}"/>
-                    <DockPanel Margin="0,0,0,4"
-                        ToolTip="{Binding Signals.Inputs[PcbPlacementCarrierPresent].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                        <TextBlock
-                            Text="{Binding Signals.Inputs[PcbPlacementCarrierPresent].IsOn, Converter={StaticResource SignalTextConverter}}"
-                            Style="{StaticResource MapIoInputStyle}"/>
-                        <TextBlock Text="{Binding Signals.Inputs[PcbPlacementCarrierPresent].Address}"
-                            Style="{StaticResource MapIoAddressStyle}"/>
-                        <TextBlock Text="DI Carrier" Style="{StaticResource MapIoLabelStyle}"/>
-                    </DockPanel>
                     <DockPanel Margin="0,0,0,4"
                         ToolTip="{Binding Signals.Inputs[PcbPlacementStopperUp].Signal, Converter={StaticResource EnumDescriptionConverter}}">
                         <TextBlock
@@ -267,15 +255,6 @@
                 <StackPanel>
                     <TextBlock Text="STATION 2 · FASTENING" Style="{StaticResource MapIoTitleStyle}"/>
                     <DockPanel Margin="0,0,0,4"
-                        ToolTip="{Binding Signals.Inputs[BoltFasteningCarrierPresent].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                        <TextBlock
-                            Text="{Binding Signals.Inputs[BoltFasteningCarrierPresent].IsOn, Converter={StaticResource SignalTextConverter}}"
-                            Style="{StaticResource MapIoInputStyle}"/>
-                        <TextBlock Text="{Binding Signals.Inputs[BoltFasteningCarrierPresent].Address}"
-                            Style="{StaticResource MapIoAddressStyle}"/>
-                        <TextBlock Text="DI Carrier" Style="{StaticResource MapIoLabelStyle}"/>
-                    </DockPanel>
-                    <DockPanel Margin="0,0,0,4"
                         ToolTip="{Binding Signals.Inputs[BoltFasteningStopperUp].Signal, Converter={StaticResource EnumDescriptionConverter}}">
                         <TextBlock
                             Text="{Binding Signals.Inputs[BoltFasteningStopperUp].IsOn, Converter={StaticResource SignalTextConverter}}"
@@ -335,15 +314,6 @@
             <Border Canvas.Left="1014" Canvas.Top="228" Width="284" Style="{StaticResource MapIoCardStyle}">
                 <StackPanel>
                     <TextBlock Text="STATION 3 · INSPECTION" Style="{StaticResource MapIoTitleStyle}"/>
-                    <DockPanel Margin="0,0,0,4"
-                        ToolTip="{Binding Signals.Inputs[InspectionCarrierPresent].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                        <TextBlock
-                            Text="{Binding Signals.Inputs[InspectionCarrierPresent].IsOn, Converter={StaticResource SignalTextConverter}}"
-                            Style="{StaticResource MapIoInputStyle}"/>
-                        <TextBlock Text="{Binding Signals.Inputs[InspectionCarrierPresent].Address}"
-                            Style="{StaticResource MapIoAddressStyle}"/>
-                        <TextBlock Text="DI Carrier" Style="{StaticResource MapIoLabelStyle}"/>
-                    </DockPanel>
                     <DockPanel Margin="0,0,0,4"
                         ToolTip="{Binding Signals.Inputs[InspectionStopperUp].Signal, Converter={StaticResource EnumDescriptionConverter}}">
                         <TextBlock Text="{Binding Signals.Inputs[InspectionStopperUp].IsOn, Converter={StaticResource SignalTextConverter}}"

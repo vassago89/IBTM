@@ -12,7 +12,6 @@ using IBTM.Core;
 using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
-using IBTM.Inspection.Training;
 using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
@@ -45,7 +44,7 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(state.Homed);
         io.SetInput(InputIo.Door1Open, true);
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
         await gantry.MoveToAsync(new() { X = 10, Y = 7 }, 10_000);
         await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
@@ -101,7 +100,7 @@ public sealed partial class MachineLifecycleTests
         var positions = new ConcurrentQueue<(double X, double Y, double Z, bool ZHomed)>();
         motion.PositionChanged += (x, y, z) =>
             positions.Enqueue((x, y, z, motion.GetAxisState(MotionAxis.Z).Homed));
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = unit;
         await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
 
@@ -139,7 +138,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         var inspectionMotion = teaching.Motion;
         Assert.Equal(4, teaching.TeachingUnits.Length);
         Assert.DoesNotContain(teaching.FilteredPoints,
@@ -234,7 +233,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin);
@@ -275,7 +274,7 @@ public sealed partial class MachineLifecycleTests
         var gantry = services.GetRequiredService<InspectionGantry>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         await gantry.MoveToAsync(new() { X = 10, Y = 20 }, 10_000);
         teaching.StepDistance = 0.1;
         await WaitUntilAsync(() => teaching.StepCommand.CanExecute(direction));
@@ -304,24 +303,19 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        TeachingMotionViewModel teaching;
-        IMotionFeedback feedback;
-        if (group == MotionGroup.PcbSupply)
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.SelectedTeachingUnit = group switch
         {
-            teaching = services.GetRequiredService<SupplyTeachingViewModel>();
-            feedback = services.GetRequiredService<PcbSupplyHandler>().Feedback;
-        }
-        else
+            MotionGroup.PcbSupply => HardwareArea.PcbSupply,
+            MotionGroup.PcbPlacementHandler => HardwareArea.PcbPlacementHandler,
+            _ => HardwareArea.InspectionGantry,
+        };
+        IMotionFeedback feedback = group switch
         {
-            var station = services.GetRequiredService<StationTeachingViewModel>();
-            station.SelectedTeachingUnit = group == MotionGroup.PcbPlacementHandler
-                ? HardwareArea.PcbPlacementHandler
-                : HardwareArea.InspectionGantry;
-            teaching = station;
-            feedback = group == MotionGroup.PcbPlacementHandler
-                ? services.GetRequiredService<PcbPlacementHandler>().Feedback
-                : services.GetRequiredService<InspectionGantry>().Feedback;
-        }
+            MotionGroup.PcbSupply => services.GetRequiredService<PcbSupplyHandler>().Feedback,
+            MotionGroup.PcbPlacementHandler => services.GetRequiredService<PcbPlacementHandler>().Feedback,
+            _ => services.GetRequiredService<InspectionGantry>().Feedback,
+        };
 
         teaching.JogSpeed = 1;
         Action[] stops = [
@@ -356,11 +350,227 @@ public sealed partial class MachineLifecycleTests
 
 
     [Fact]
+    public async Task ImageRulerCalibratesBothHeatSinksWithoutMovingOrChangingRois()
+    {
+        using var services = CreateServices(FlowSettings());
+        await services.GetRequiredService<MachineController>().InitializeAsync();
+        var recipe = services.GetRequiredService<Recipe>();
+        var reference = services.GetRequiredService<CarrierReferenceSettings>();
+        reference.UpperLeftLocatingPin = new() { X = 2, Y = 3 };
+        reference.LowerRightLocatingPin = new() { X = 32, Y = 23 };
+        recipe.Pcb.BoltPoints.AddRange([
+            new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 999, Y = 999 },
+            new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink2, X = 999, Y = 999 },
+        ]);
+        CarrierImageTile[] metadata = [
+            new() { Number = 1, BoltNumber = 1, HeatSink = HeatSinkSlot.HeatSink1, Center = new() { X = 10, Y = 20 }, Region = new(60, 10, 20, 10) },
+            new() { Number = 2, BoltNumber = 1, HeatSink = HeatSinkSlot.HeatSink2, Center = new() { X = 30, Y = 40 }, Region = new(5, 45, 10, 10) },
+            new() { Number = 3, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1, Center = new() { X = 50, Y = 60 }, Region = new(10, 10, 20, 20) },
+        ];
+        var image = await Task.Run(() => InspectionPreview.CreateBitmap(new ImageFrame(100, 80, 300, new byte[24_000])));
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var images = metadata.Select(tile => new CarrierImageTileView(tile, image)).ToArray();
+        Assert.True(await teaching.RecipeEditor.SaveCarrierImagesAsync(images));
+        teaching.CarrierImages = images;
+        teaching.SelectedFov = images[0];
+        var roi = teaching.FovRegion;
+        var moves = 0;
+        services.GetRequiredService<InspectionGantry>().Feedback.PositionChanged += (_, _, _) => moves++;
+
+        teaching.IsMeasuring = true;
+        Assert.False(teaching.DrawFovRegionCommand.CanExecute(System.Windows.Rect.Empty));
+        Assert.False(teaching.TeachFovRegionCommand.CanExecute(roi));
+        var ruler = new ImageRuler(new(10, 10), new(40, 50)); // Diagonal 30/40/50 in source pixels.
+        teaching.MeasureImageCommand.Execute(ruler);
+        Assert.Equal(50, teaching.Ruler!.PixelLength);
+        foreach (var distance in new[] { 0d, -1, double.NaN, double.PositiveInfinity })
+        {
+            teaching.RulerMillimeters = distance;
+            Assert.Null(teaching.RulerResolution);
+            Assert.False(teaching.ApplyRulerResolutionCommand.CanExecute(null));
+        }
+        teaching.RulerMillimeters = 5;
+        Assert.Equal(0.1, teaching.RulerResolution);
+        Assert.Equal(Recipe.DefaultCarrierImageMillimetersPerPixel, recipe.CarrierImageMillimetersPerPixel);
+        Assert.True(teaching.ApplyRulerResolutionCommand.CanExecute(null));
+        await teaching.ApplyRulerResolutionCommand.ExecuteAsync(null);
+
+        Assert.Null(teaching.CameraError);
+        Assert.Null(teaching.RecipeEditor.Error);
+        Assert.Equal(roi, teaching.FovRegion);
+        Assert.Equal(0, moves);
+        var saved = await services.GetRequiredService<RecipeStore>().LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
+        Assert.Equal(0.1, saved.CarrierImageMillimetersPerPixel);
+        Assert.Equal((10d, 14.5), (saved.Pcb.BoltPoints[0].X, saved.Pcb.BoltPoints[0].Y));
+        Assert.Equal((24d, 38d), (saved.Pcb.BoltPoints[1].X, saved.Pcb.BoltPoints[1].Y));
+        Assert.Equal(metadata.Select(tile => tile.Region), saved.CarrierImages.Select(tile => tile.Region));
+        Assert.Equal(metadata.Select(tile => (tile.Center.X, tile.Center.Y)), saved.CarrierImages.Select(tile => (tile.Center.X, tile.Center.Y)));
+
+        teaching.SelectedFov = images[1];
+        Assert.Null(teaching.Ruler);
+        Assert.Null(teaching.RulerMillimeters);
+        Assert.False(teaching.ApplyRulerResolutionCommand.CanExecute(null));
+        teaching.IsMeasuring = false;
+        Assert.True(teaching.DrawFovRegionCommand.CanExecute(System.Windows.Rect.Empty));
+        Assert.False(teaching.MeasureImageCommand.CanExecute(ruler));
+    }
+
+    [Fact]
+    public async Task InspectionTargetSelectionOwnsFovRoiAndPerBoltPreview()
+    {
+        using var services = CreateServices(FlowSettings());
+        var recipe = services.GetRequiredService<Recipe>();
+        recipe.BoltInspection.BrightnessThreshold = 128;
+        recipe.BoltInspection.MinimumBrightRatio = 0.5;
+        recipe.Pcb.BoltPoints.AddRange([
+            new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1 },
+            new() { Number = 2, HeatSink = HeatSinkSlot.HeatSink1, BrightnessThreshold = 200, MinimumBrightRatio = 0.5 },
+            new() { Number = 3, HeatSink = HeatSinkSlot.HeatSink1 },
+            new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink2, BrightnessThreshold = 50, MinimumBrightRatio = 0.25 },
+        ]);
+        CarrierImageTile[] metadata = [
+            new() { Number = 1, BoltNumber = 1, HeatSink = HeatSinkSlot.HeatSink1, Center = new() { X = 10, Y = 20 }, Region = new(0, 0, 2, 1) },
+            new() { Number = 2, BoltNumber = 2, HeatSink = HeatSinkSlot.HeatSink1, Center = new() { X = 30, Y = 40 }, Region = new(1, 0, 1, 1) },
+            new() { Number = 3, IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink1, Center = new() { X = 50, Y = 60 }, Region = new(0, 0, 1, 1) },
+            new() { Number = 4, BoltNumber = 1, HeatSink = HeatSinkSlot.HeatSink2, Center = new() { X = 70, Y = 80 }, Region = new(0, 0, 2, 1) },
+        ];
+        recipe.CarrierImages.AddRange(metadata);
+        var image = await Task.Run(() => InspectionPreview.CreateBitmap(new ImageFrame(2, 1, 6, [80, 80, 80, 160, 160, 160])));
+        var otherImage = await Task.Run(() => InspectionPreview.CreateBitmap(new ImageFrame(2, 1, 6, [60, 60, 60, 160, 160, 160])));
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var moves = 0;
+        services.GetRequiredService<InspectionGantry>().Feedback.PositionChanged += (_, _, _) => moves++;
+        teaching.CarrierImages = metadata.Select(tile => new CarrierImageTileView(tile, tile.Number == 1 ? image : otherImage)).ToArray();
+        var first = teaching.FilteredPoints.Single(point => point.BoltNumber == 1);
+        var second = teaching.FilteredPoints.Single(point => point.BoltNumber == 2);
+        var untaught = teaching.FilteredPoints.Single(point => point.BoltNumber == 3);
+        var barcode = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.DataMatrix);
+
+        teaching.SelectedPoint = first;
+        Assert.Same(metadata[0], teaching.SelectedFov!.Metadata);
+        Assert.Same(image, teaching.Preview.Image);
+        Assert.Equal((10, 20), (first.X, first.Y));
+        Assert.Equal(new System.Windows.Rect(0, 0, 2, 1), teaching.FovRegion);
+        Assert.Equal("OK · Bright 50%", teaching.Preview.Result);
+        Assert.Equal(128, teaching.Preview.BrightnessThreshold); // Legacy recipe fallback.
+        teaching.Preview.BrightnessThreshold = 100;
+        teaching.Preview.MinimumBrightPercent = 75;
+        Assert.Equal("NG · Bright 50%", teaching.Preview.Result);
+        Assert.Equal(128, recipe.BoltInspection.BrightnessThreshold);
+        Assert.Equal(0.5, recipe.BoltInspection.MinimumBrightRatio);
+        teaching.FovRegion = new(1, 0, 1, 1);
+        Assert.Equal("OK · Bright 100%", teaching.Preview.Result);
+        Assert.Equal(new PixelRegion(0, 0, 2, 1), metadata[0].Region); // Preview does not save a draft ROI.
+
+        teaching.SelectedPoint = second;
+        Assert.Same(metadata[1], teaching.SelectedFov!.Metadata);
+        Assert.Same(otherImage, teaching.Preview.Image);
+        Assert.Equal(200, teaching.Preview.BrightnessThreshold);
+        Assert.Equal(50, teaching.Preview.MinimumBrightPercent);
+        Assert.Equal("NG · Bright 0%", teaching.Preview.Result);
+        Assert.Equal(1, teaching.Preview.Overlay!.PixelWidth);
+        var black = InspectionPreview.CreateFrame(teaching.Preview.Overlay);
+        Assert.All(black.Pixels, pixel => Assert.Equal(0, pixel));
+        teaching.Preview.BrightnessThreshold = 150;
+        Assert.Equal("OK · Bright 100%", teaching.Preview.Result);
+
+        teaching.SelectedPoint = barcode;
+        Assert.Same(metadata[2], teaching.SelectedFov!.Metadata);
+        Assert.Equal(new System.Windows.Rect(0, 0, 1, 1), teaching.FovRegion);
+        Assert.False(teaching.IsBoltSelected);
+        Assert.True(teaching.IsDataMatrixSelected);
+        Assert.Null(teaching.Preview.Overlay);
+        Assert.Null(teaching.Preview.Result);
+        teaching.SelectedPoint = untaught;
+        Assert.Null(teaching.SelectedFov);
+        Assert.Null(teaching.Preview.Image);
+        Assert.Null(teaching.FovRegion);
+
+        teaching.SelectedPoint = first;
+        Assert.Same(image, teaching.Preview.Image);
+        Assert.Equal(100, teaching.Preview.BrightnessThreshold);
+        Assert.Equal(75, teaching.Preview.MinimumBrightPercent);
+        Assert.Equal("NG · Bright 50%", teaching.Preview.Result);
+        teaching.SelectedFov = teaching.CarrierImages[3];
+        Assert.Equal(HeatSinkSlot.HeatSink2, teaching.SelectedPcb);
+        Assert.Equal(1, teaching.SelectedPoint!.BoltNumber);
+        Assert.Equal(50, teaching.Preview.BrightnessThreshold);
+        Assert.Equal("OK · Bright 100%", teaching.Preview.Result);
+        Assert.Equal((70, 80), (teaching.SelectedPoint.X, teaching.SelectedPoint.Y));
+        Assert.Equal(0, moves);
+        Assert.Null(teaching.CameraError);
+        Assert.Throws<ArgumentOutOfRangeException>(() => teaching.Preview.BrightnessThreshold = 256);
+        Assert.Throws<ArgumentOutOfRangeException>(() => teaching.Preview.MinimumBrightPercent = double.NaN);
+
+        await services.GetRequiredService<MachineController>().InitializeAsync();
+        var draft = new CarrierImageTileView(new() { Number = 5, Center = new() { X = 90, Y = 100 } }, image);
+        teaching.CarrierImages = [.. teaching.CarrierImages, draft];
+        teaching.SelectedFov = draft;
+        teaching.FovRegion = new(1, 0, 1, 1);
+        Assert.True(teaching.AddBoltPointCommand.CanExecute(null));
+        teaching.AddBoltPointCommand.Execute(null);
+        Assert.Equal(HeatSinkSlot.HeatSink2, teaching.SelectedPcb);
+        Assert.Equal(2, teaching.SelectedPoint!.BoltNumber);
+        Assert.Same(draft, teaching.SelectedFov);
+        Assert.Equal(new System.Windows.Rect(1, 0, 1, 1), teaching.FovRegion);
+    }
+
+    [Fact]
+    public async Task TeachingUnitSelectionOwnsHandoffAxesAndCancelsJog()
+    {
+        using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var supply = services.GetRequiredService<PcbSupplyHandler>();
+        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        Assert.True(services.GetRequiredService<MachineState>().Homed,
+            services.GetRequiredService<MachineState>().AlarmDetail);
+        teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
+        Assert.All(teaching.FilteredPoints, point => Assert.Equal(MotionGroup.PcbSupply, point.Position.MotionGroup));
+        teaching.JogSpeed = 1;
+        await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+        var jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);
+        Assert.True(supply.Feedback.IsMoving);
+
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(
+            point => point.Position.Target == TeachingTarget.SupplyBufferHandoff);
+        await jog.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(supply.Feedback.IsMoving);
+        Assert.Equal(MotionGroup.PcbSupply, teaching.ActiveMotionGroup);
+        Assert.Same(supply.Feedback, teaching.Motion.Feedback);
+        Assert.Contains(OutputIo.PcbSupplyGripperClosed, teaching.TeachingOutputs.Keys);
+
+        await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+        jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);
+        Assert.True(supply.Feedback.IsMoving);
+        teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
+        await jog.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.False(supply.Feedback.IsMoving);
+        Assert.False(placement.Feedback.IsMoving);
+        Assert.Equal(MotionGroup.PcbPlacementHandler, teaching.ActiveMotionGroup);
+        Assert.All(teaching.FilteredPoints, point => Assert.Equal(MotionGroup.PcbPlacementHandler, point.Position.MotionGroup));
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(
+            point => point.Position.Target == TeachingTarget.PlacementBufferHandoff);
+        Assert.Equal(HardwareArea.PcbPlacementHandler, teaching.ActiveTeachingUnit);
+        Assert.Same(placement.Feedback, teaching.Motion.Feedback);
+        Assert.Contains(OutputIo.PcbPlacementIpmGripperClose, teaching.TeachingOutputs.Keys);
+        Assert.DoesNotContain(OutputIo.PcbSupplyGripperClosed, teaching.TeachingOutputs.Keys);
+
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+        Assert.True(teaching.IsInspectionSelected);
+        Assert.Equal(MotionGroup.InspectionGantry, teaching.ActiveMotionGroup);
+        Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+    }
+
+    [Fact]
     public async Task TeachingOutputsWaitForFeedbackAndCancelWithoutReversingPneumatics()
     {
         using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
-        var teaching = services.GetRequiredService<SupplyTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
         var io = services.GetRequiredService<VirtualIoService>();
         var state = services.GetRequiredService<MachineState>();
         var gripper = teaching.TeachingOutputs[OutputIo.PcbSupplyGripperClosed];
@@ -368,6 +578,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         var handler = services.GetRequiredService<PcbSupplyHandler>();
+        Assert.True(state.Homed, state.AlarmDetail);
         var rotation = teaching.TeachingOutputs[OutputIo.PcbSupplyRotate];
         await handler.MoveAxisAsync(MotionAxis.Z, 5);
         await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(rotation));
@@ -394,12 +605,10 @@ public sealed partial class MachineLifecycleTests
         await pending.WaitAsync(TimeSpan.FromSeconds(2));
         await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(gripper));
 
-        teaching.SelectedPoint = teaching.Points.Last(
-            point => point.Position.MotionGroup == MotionGroup.PcbSupply);
         var beforeSelection = handler.Feedback.GetPosition();
         var releasing = teaching.ToggleOutputCommand.ExecuteAsync(gripper);
         Assert.False(releasing.IsCompleted);
-        teaching.SelectNextPointCommand.Execute(null);
+        teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         await releasing.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Equal(MotionGroup.PcbPlacementHandler, teaching.SelectedPoint!.Position.MotionGroup);
         Assert.Equal(beforeSelection, handler.Feedback.GetPosition());
@@ -427,7 +636,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         Assert.True(state.Ready, state.AlarmDetail);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         var lift = teaching.TeachingOutputs[OutputIo.PcbPlacementHandlerDown];
@@ -476,13 +685,13 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task StationTeachingReportsMotionAndHomeBlocks()
+    public async Task TeachingReportsMotionAndHomeBlocks()
     {
         var settings = FlowSettings();
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         await machine.InitializeAsync();
         await WaitUntilAsync(() => teaching.MotionHint == TeachingMotionHint.HomeRequired);
@@ -511,12 +720,12 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task StationTeachingControlsOnlyItsOwnStopper()
+    public async Task TeachingControlsOnlyItsOwnStopper()
     {
         using var services = CreateServices(FlowSettings());
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         await machine.InitializeAsync();
         (HardwareArea Unit, OutputIo Output, InputIo Down, InputIo Up)[] stoppers = [
             (HardwareArea.PcbPlacementHandler, OutputIo.PcbPlacementStopperDown,
@@ -548,7 +757,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task StationTeachingControlsOnlyItsOwnBackupPlate()
+    public async Task TeachingControlsOnlyItsOwnBackupPlate()
     {
         var settings = FlowSettings();
         settings.Units.NgCarrierTransfer = false;
@@ -556,7 +765,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         (HardwareArea Group, TeachingTarget Target, InputIo Up, InputIo Down, OutputIo Output)[] stations = [
             (
                 HardwareArea.PcbPlacementHandler,
@@ -654,7 +863,7 @@ public sealed partial class MachineLifecycleTests
                     () => []))
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
@@ -709,34 +918,45 @@ public sealed partial class MachineLifecycleTests
             .AddIbtmApplication(settings, new Recipe())
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
-        var teaching = services.GetRequiredService<SupplyTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await WaitUntilAsync(() => teaching.SaveBufferSetupCommand.CanExecute(null));
-        teaching.Points.Single(point => point.Position.Target == TeachingTarget.SupplyBufferBoundary1)
+        await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
+        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyBufferBoundary1)
             .Teach(70, 0, 0);
-        teaching.Points.Single(point => point.Position.Target == TeachingTarget.PlacementBufferBoundary1)
+        teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
+        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.PlacementBufferBoundary1)
             .Teach(75, 25, 0);
+
+        teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
+        await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+        Assert.Equal(70, teaching.FilteredPoints.Single(
+            point => point.Position.Target == TeachingTarget.SupplyBufferBoundary1).X);
+        teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
+        Assert.Equal(75, teaching.FilteredPoints.Single(
+            point => point.Position.Target == TeachingTarget.PlacementBufferBoundary1).X);
+        Assert.Equal(60, settings.PcbBuffer.SupplyBoundary1);
 
         using (services.GetRequiredService<OperationCancellation>().Link())
         {
-            await WaitUntilAsync(() => !teaching.SaveBufferSetupCommand.CanExecute(null));
-            await teaching.SaveBufferSetupCommand.ExecuteAsync(null);
+            await WaitUntilAsync(() => !teaching.SaveHandoffSetupCommand.CanExecute(null));
+            await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
             Assert.Equal(60, settings.PcbBuffer.SupplyBoundary1);
         }
 
-        await WaitUntilAsync(() => teaching.SaveBufferSetupCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
 
         io.SetInput(InputIo.AutoMode, false);
-        await WaitUntilAsync(() => !teaching.SaveBufferSetupCommand.CanExecute(null));
-        await teaching.SaveBufferSetupCommand.ExecuteAsync(null);
+        await WaitUntilAsync(() => !teaching.SaveHandoffSetupCommand.CanExecute(null));
+        await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
         Assert.Equal(60, settings.PcbBuffer.SupplyBoundary1);
 
         io.SetInput(InputIo.AutoMode, true);
-        await WaitUntilAsync(() => teaching.SaveBufferSetupCommand.CanExecute(null));
+        await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
         settings.Units.PcbSupply = false;
-        await teaching.SaveBufferSetupCommand.ExecuteAsync(null);
+        await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
 
         Assert.Null(teaching.SaveError);
         Assert.Equal(70, settings.PcbBuffer.SupplyBoundary1);
@@ -745,6 +965,34 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(70, saved.SupplyBoundary1);
         Assert.Equal(75, saved.PlacementBoundary1.X);
         Assert.Equal(25, saved.PlacementBoundary1.Y);
+
+        teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
+        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyBufferBoundary1)
+            .Teach(80, 0, 0);
+        teaching.SaveError = "Previous save failure";
+        void StopBeforeWriting(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+        {
+            if (args.PropertyName == nameof(TeachingViewModel.SaveError) && teaching.SaveError is null)
+                machine.Stop();
+        }
+
+        teaching.PropertyChanged += StopBeforeWriting;
+        try
+        {
+            await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
+        }
+        finally
+        {
+            teaching.PropertyChanged -= StopBeforeWriting;
+        }
+
+        Assert.Equal(80, settings.PcbBuffer.SupplyBoundary1);
+        Assert.Equal(70, store.LoadSettings().Get<PcbBufferSettings>().SupplyBoundary1);
+        Assert.Contains("cancelled", teaching.SaveError);
+        await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
+        await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
+        Assert.Null(teaching.SaveError);
+        Assert.Equal(80, store.LoadSettings().Get<PcbBufferSettings>().SupplyBoundary1);
     }
 
     [Theory]
@@ -755,12 +1003,13 @@ public sealed partial class MachineLifecycleTests
         var settings = FlowSettings();
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
-        var teaching = services.GetRequiredService<SupplyTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.SelectedTeachingUnit = HardwareArea.PcbSupply;
         var operations = services.GetRequiredService<OperationCancellation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        await WaitUntilAsync(() => teaching.SaveBufferSetupCommand.CanExecute(null));
-        teaching.Points.Single(point => point.Position.Target == TeachingTarget.SupplyBufferBoundary1)
+        await WaitUntilAsync(() => teaching.SaveHandoffSetupCommand.CanExecute(null));
+        teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SupplyBufferBoundary1)
             .Teach(70, 0, 0);
 
         void CancelWhenStarted()
@@ -774,7 +1023,7 @@ public sealed partial class MachineLifecycleTests
         }
 
         operations.ActivityChanged += CancelWhenStarted;
-        await teaching.SaveBufferSetupCommand.ExecuteAsync(null);
+        await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
         operations.ActivityChanged -= CancelWhenStarted;
 
         Assert.Equal(60, settings.PcbBuffer.SupplyBoundary1);
@@ -792,7 +1041,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var gantry = services.GetRequiredService<BoltFasteningGantry>();
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         await machine.InitializeAsync();
         await gantry.RaiseCylindersAsync();
         Assert.True(await gantry.HomeAxisAsync(MotionAxis.Z));

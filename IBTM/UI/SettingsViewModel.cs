@@ -14,7 +14,6 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
-using IBTM.Inspection.Training;
 using IBTM.Storage;
 using IBTM.Virtual;
 using Microsoft.Win32;
@@ -72,7 +71,6 @@ public partial class SettingsViewModel : ObservableObject
         ActiveCameraDriver = settings.Drivers.Camera;
         ActiveBoltDriver = settings.Drivers.Bolt;
         ActiveLightDriver = settings.Drivers.Light;
-        ActiveInspectionAlgorithm = settings.Drivers.Inspection;
         _motions = settings.MotionSections.ToDictionary(section => section.Hardware.Group);
         MotionGroups = _motions.Keys.ToArray();
         ControlDrivers = Enum.GetValues<ControlDriver>();
@@ -108,7 +106,6 @@ public partial class SettingsViewModel : ObservableObject
     public CameraDriver ActiveCameraDriver { get; }
     public BoltDriver ActiveBoltDriver { get; }
     public LightDriver ActiveLightDriver { get; }
-    public InspectionAlgorithm ActiveInspectionAlgorithm { get; }
 
     public bool IsVirtualDevelopment
     {
@@ -133,7 +130,6 @@ public partial class SettingsViewModel : ObservableObject
     public Parity[] LightParities { get; } = Enum.GetValues<Parity>();
     public StopBits[] LightStopBits { get; } = [StopBits.One, StopBits.OnePointFive, StopBits.Two];
     public int[] LightDataBits { get; } = [5, 6, 7, 8];
-    public InspectionAlgorithm[] InspectionAlgorithms { get; } = Enum.GetValues<InspectionAlgorithm>();
 
     public bool IsVirtualCamera
     {
@@ -293,7 +289,7 @@ public partial class SettingsViewModel : ObservableObject
         try
         {
             await Task.Run(() => _store.Backup(dialog.FileName), operation.Token);
-            DatabaseMessage = "Saved settings, recipes and carrier images backed up. Unsaved edits, AJIN .mot files and training data are not included.";
+            DatabaseMessage = "Saved settings, recipes and carrier images backed up. Unsaved edits and AJIN .mot files are not included.";
             Trace.TraceInformation("Machine database backed up to {0}.", dialog.FileName);
         }
         catch (OperationCanceledException)
@@ -317,7 +313,7 @@ public partial class SettingsViewModel : ObservableObject
         var dialog = new OpenFileDialog { Title = "Restore Machine Settings and Recipes", Filter = "SQLite database|*.db" };
         if (dialog.ShowDialog() != true
             || MessageBox.Show(
-                "Restore the selected machine database and close IBTM? Unsaved edits will be discarded. Training data is unchanged. The previous machine database is retained.",
+                "Restore the selected machine database and close IBTM? Unsaved edits will be discarded. The previous machine database is retained.",
                 "Restore Machine Database",
                 MessageBoxButton.OKCancel,
                 MessageBoxImage.Warning) != MessageBoxResult.OK)
@@ -363,7 +359,15 @@ public partial class SettingsViewModel : ObservableObject
         {
             VirtualImageError = null;
             var image = await Task.Run(
-                () => BoltTrainingImages.Decode(File.ReadAllBytes(path)),
+                () =>
+                {
+                    using var stream = File.OpenRead(path);
+                    var decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(
+                        stream,
+                        System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
+                        System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+                    return InspectionPreview.CreateFrame(decoder.Frames[0]);
+                },
                 cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (!CanChangeVirtualImage())

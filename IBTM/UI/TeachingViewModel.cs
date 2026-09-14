@@ -12,14 +12,19 @@ using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
-using IBTM.Inspection.Training;
+using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
+using IBTM.PcbSupply;
 using IBTM.Storage;
 
 namespace IBTM.UI;
 
-public partial class StationTeachingViewModel : TeachingMotionViewModel
+public partial class TeachingViewModel : TeachingMotionViewModel
 {
+    private readonly PcbSupplyHandler _supplyHandler;
+    private readonly PcbSupplySettings _supplySettings;
+    private readonly PcbBufferSettings _bufferSettings;
+    private IReadOnlyList<TeachingPoint> _handoffPoints = [];
     private readonly PcbPlacementHandler _placementHandler;
     private readonly BoltFasteningGantry _fasteningGantry;
     private readonly InspectionGantry _inspectionGantry;
@@ -30,12 +35,11 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     private readonly BoltFasteningSettings _fasteningSettings;
     private readonly NgCarrierTransferSettings _ngTransferSettings;
     private readonly NgCarrierMove _ngCarrierMove;
-    private readonly InspectionWork _inspectionWork;
-    private readonly BoltTrainingStore _trainingStore;
     private CancellationTokenSource _recipeImageCancellation = new();
     private Task _recipeImageUpdate = Task.CompletedTask;
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsInspectionSelected))]
+    [NotifyPropertyChangedFor(nameof(HandoffSaveVisible))]
     [NotifyPropertyChangedFor(nameof(ActiveMotionGroup))]
     [NotifyPropertyChangedFor(nameof(ActiveTeachingUnit))]
     [NotifyPropertyChangedFor(nameof(TeachingIoGroups))]
@@ -59,8 +63,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     private int _selectedCameraTab;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasCarrierImages))]
-    [NotifyCanExecuteChangedFor(nameof(ClearCarrierImagesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyRulerResolutionCommand))]
     private IReadOnlyList<CarrierImageTileView> _carrierImages = [];
 
     [ObservableProperty]
@@ -82,7 +85,10 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     public BoltInspector Inspector { get; }
 
-    public StationTeachingViewModel(
+    public TeachingViewModel(
+        PcbSupplyHandler supplyHandler,
+        PcbSupplySettings supplySettings,
+        PcbBufferSettings bufferSettings,
         PcbPlacementHandler placementHandler,
         BoltFasteningGantry fasteningGantry,
         InspectionGantry inspectionGantry,
@@ -96,9 +102,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         NgCarrierTransferSettings ngTransferSettings,
         NgCarrierMove ngCarrierMove,
         RecipeEditor recipeEditor,
-        InspectionWork inspectionWork,
-        BoltTrainingStore trainingStore,
-        BoltTrainingSettings trainingSettings,
         MachineStore store,
         IReadOnlyDictionary<HardwareArea, IoStatus[]> ioGroups,
         IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : base(
@@ -108,6 +111,9 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             ioGroups,
             teachingOutputs)
     {
+        _supplyHandler = supplyHandler;
+        _supplySettings = supplySettings;
+        _bufferSettings = bufferSettings;
         _placementHandler = placementHandler;
         _fasteningGantry = fasteningGantry;
         _inspectionGantry = inspectionGantry;
@@ -120,14 +126,11 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         _ngTransferSettings = ngTransferSettings;
         _ngCarrierMove = ngCarrierMove;
         RecipeEditor = recipeEditor;
-        _inspectionWork = inspectionWork;
-        _trainingStore = trainingStore;
-        Preview = new(boltInspector, recipeEditor.Recipe, trainingSettings);
+        Preview = new(boltInspector, recipeEditor.Recipe);
         Preview.PropertyChanged += (_, e) =>
         {
             ReinspectImageCommand.NotifyCanExecuteChanged();
         };
-        inspectionWork.Changed += QueueManualCommandRefresh;
 
         MillimetersPerPixel = RecipeEditor.Recipe.CarrierImageMillimetersPerPixel;
 
@@ -135,7 +138,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         boltInspector.LiveViewChanged += OnLiveViewChanged;
         CaptureCarrierImageCommand.PropertyChanged += OnInspectionCommandChanged;
         CaptureInspectionCommand.PropertyChanged += OnInspectionCommandChanged;
-        CollectBoltImagesCommand.PropertyChanged += OnInspectionCommandChanged;
         state.DisplayChanged += QueueManualCommandRefresh;
         recipeEditor.Changed += OnRecipeChanged;
         recipeEditor.PropertyChanged += (_, e) =>
@@ -143,11 +145,12 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             if (e.PropertyName != nameof(RecipeEditor.CanSave))
                 return;
             CaptureCarrierImageCommand.NotifyCanExecuteChanged();
-            ClearCarrierImagesCommand.NotifyCanExecuteChanged();
+            ApplyRulerResolutionCommand.NotifyCanExecuteChanged();
             DrawFovRegionCommand.NotifyCanExecuteChanged();
             TeachFovRegionCommand.NotifyCanExecuteChanged();
         };
 
+        RefreshHandoffPoints();
         RefreshTeachingPoints();
         ShowRecipeImages();
     }
@@ -180,6 +183,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     }
 
     public HardwareArea[] TeachingUnits { get; } = [
+        HardwareArea.PcbSupply,
         HardwareArea.PcbPlacementHandler,
         HardwareArea.BoltFastening,
         HardwareArea.InspectionGantry,
@@ -225,7 +229,11 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             {
                 { Target: TeachingTarget.BoltPickup } => TeachingSaveBehavior.BoltPickup,
                 { Target: TeachingTarget.DataMatrix } => TeachingSaveBehavior.BarcodeFov,
-                { Target: TeachingTarget.BoltTeaching } => TeachingSaveBehavior.AddBolt,
+                { Target: TeachingTarget.SupplyBufferHandoff } => TeachingSaveBehavior.SupplyHandoff,
+                { Target: TeachingTarget.PlacementBufferHandoff } => TeachingSaveBehavior.PlacementHandoff,
+                { Target: TeachingTarget.SupplyBufferClearZ } => TeachingSaveBehavior.SupplyClearance,
+                { Target: TeachingTarget.SupplyCarrierY } => TeachingSaveBehavior.SupplyCarrierY,
+                { Target: TeachingTarget.NgCarrierPickup } => TeachingSaveBehavior.NgPickup,
                 { Target: TeachingTarget.BoltPosition } => TeachingSaveBehavior.BoltPosition,
                 {
                     Target: TeachingTarget.CarrierUpperLeftLocatingPin
@@ -233,6 +241,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                 }
                     => TeachingSaveBehavior.CameraCenter,
                 { Mode: TeachMode.Image } => TeachingSaveBehavior.Image,
+                { Storage: TeachingStorage.Buffer } => TeachingSaveBehavior.Buffer,
                 { Storage: TeachingStorage.Machine } => TeachingSaveBehavior.Machine,
                 _ => TeachingSaveBehavior.Recipe,
             };
@@ -251,7 +260,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         get
         {
-            return SelectedTeachingUnit == HardwareArea.BoltFastening || IsInspectionSelected;
+            return BoltPresetEditorVisible || IsInspectionSelected;
         }
     }
 
@@ -263,11 +272,19 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         }
     }
 
-    public bool HasCarrierImages
+    public bool IsBoltSelected
     {
         get
         {
-            return CarrierImages.Count > 0;
+            return IsInspectionSelected && SelectedPoint?.Position.Bolt is not null;
+        }
+    }
+
+    public bool HandoffSaveVisible
+    {
+        get
+        {
+            return SelectedTeachingUnit is HardwareArea.PcbSupply or HardwareArea.PcbPlacementHandler;
         }
     }
 
@@ -287,6 +304,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         RefreshTeachingPoints();
         ShowRecipeImages();
         OnPropertyChanged(nameof(Motion));
+        OnPropertyChanged(nameof(HorizontalZName));
         OnPropertyChanged(nameof(BoltPointEditorVisible));
         OnPropertyChanged(nameof(BoltPresetEditorVisible));
         NotifyManualTeachingCommands();
@@ -306,17 +324,26 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     {
         if (!CanEditRecipe())
             return;
+        var draft = SelectedFov?.Metadata is { IsBarcode: false, BoltNumber: null } ? SelectedFov : null;
+        var draftRegion = FovRegion;
         var number = RecipeEditor.Recipe.Pcb.GetBolts(SelectedPcb).Select(bolt => bolt.Number).DefaultIfEmpty().Max() + 1;
         var bolt = new BoltPoint
         {
             Number = number,
             HeatSink = SelectedPcb,
             Head = NewFasteningHead,
+            BrightnessThreshold = InspectionRecipe.BrightnessThreshold,
+            MinimumBrightRatio = InspectionRecipe.MinimumBrightRatio,
         };
         RecipeEditor.Recipe.Pcb.BoltPoints.Add(bolt);
         RefreshTeachingPoints();
         SelectedPoint = FilteredPoints.First(
             point => point.BoltNumber == number && point.Position.Target == TeachingTarget.BoltReference);
+        if (draft is not null)
+        {
+            SelectedFov = draft;
+            FovRegion = draftRegion;
+        }
     }
 
     private bool CanAddBoltPoint()
@@ -351,6 +378,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
     public void Activate()
     {
         CameraError = null;
+        RefreshHandoffPoints();
         RecipeEditor.Refresh();
         RefreshTeachingPoints();
         ActivatePositionUpdates();
@@ -381,14 +409,14 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             ReturnFromPickupCommand,
             ToggleOutputCommand,
             CaptureCarrierImageCommand,
-            ClearCarrierImagesCommand,
+            ApplyRulerResolutionCommand,
             CaptureInspectionCommand,
             ReinspectImageCommand,
             ReadDataMatrixCommand,
-            CollectBoltImagesCommand,
             DrawFovRegionCommand,
             TeachFovRegionCommand,
-            TeachCurrentPositionCommand);
+            TeachCurrentPositionCommand,
+            SaveHandoffSetupCommand);
         try
         {
             await commandsStopped;
@@ -413,6 +441,8 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
         var selectedBolt = SelectedPoint?.BoltNumber;
         TeachingPosition[] positions = SelectedTeachingUnit switch
         {
+            HardwareArea.PcbSupply => _supplySettings.GetTeachingPositions(RecipeEditor.Recipe.PcbSupply)
+                .Where(position => position.Storage != TeachingStorage.Buffer).ToArray(),
             HardwareArea.PcbPlacementHandler
                 => [
                 .. _placementSettings.GetTeachingPositions(),
@@ -435,13 +465,6 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
                         : new(),
                     apply: null,
                     isDefined: () => Inspector.HasBarcodeRegion(SelectedPcb)),
-                new(
-                    TeachingTarget.BoltTeaching,
-                    MotionGroup.InspectionGantry,
-                    TeachMode.Image,
-                    () => new(),
-                    apply: null,
-                    isDefined: () => false),
                 .. RecipeEditor.Recipe.Pcb.GetBolts(SelectedPcb).Select(bolt =>
                     new TeachingPosition(
                         TeachingTarget.BoltReference,
@@ -455,7 +478,11 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
             HardwareArea.NgCarrierTransfer => _ngTransferSettings.GetTeachingPositions(),
             _ => throw new ArgumentOutOfRangeException(nameof(SelectedTeachingUnit)),
         };
-        FilteredPoints = positions.Select(position => new TeachingPoint(position)).ToArray();
+        FilteredPoints = positions.Select(position => new TeachingPoint(position))
+            .Concat(_handoffPoints.Where(point => point.Position.MotionGroup == ActiveMotionGroup))
+            .OrderBy(point => point.Group)
+            .ThenBy(point => point.Position.Target == TeachingTarget.PlacementBufferHandoff ? 0 : 1)
+            .ToArray();
         SelectedPoint = FilteredPoints.FirstOrDefault(
             point => point.Position.Target == selectedTarget && point.BoltNumber == selectedBolt)
             ?? NextTeachingPoint()
@@ -483,11 +510,16 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     protected override void OnTeachingPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
     {
-        Preview.Clear(SelectedBarcode);
+        NotifyManualTeachingCommands();
+        CaptureInspectionCommand.Cancel();
+        ReinspectImageCommand.Cancel();
         ReadDataMatrixCommand.Cancel();
         DataMatrixResult = null;
         OnPropertyChanged(nameof(SelectedBarcode));
         OnPropertyChanged(nameof(IsDataMatrixSelected));
+        OnPropertyChanged(nameof(IsBoltSelected));
+        if (!_selectingFovTarget)
+            SelectFovForTeachingPoint();
         ReadDataMatrixCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(FovRegion));
         OnPropertyChanged(nameof(FovRoiLabel));
@@ -508,7 +540,7 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     partial void OnCarrierImagesChanged(IReadOnlyList<CarrierImageTileView> value)
     {
-        SelectedFov = value.FirstOrDefault(image => image.Metadata.Number == SelectedFov?.Metadata.Number) ?? value.FirstOrDefault();
+        SelectFovForTeachingPoint();
     }
 
     private void OnRecipeChanged()
@@ -561,10 +593,38 @@ public partial class StationTeachingViewModel : TeachingMotionViewModel
 
     protected override void RefreshPointPositions()
     {
-        Preview.Clear(SelectedBarcode);
-        foreach (var point in FilteredPoints)
+        foreach (var point in FilteredPoints.Where(point => point.Position.Storage != TeachingStorage.Buffer))
             point.Refresh();
         OnPropertyChanged(nameof(FovRegion));
+    }
+
+    private void RefreshHandoffPoints()
+    {
+        TeachingPosition[] positions = [
+            .. _supplySettings.GetTeachingPositions(RecipeEditor.Recipe.PcbSupply)
+                .Where(position => position.Storage == TeachingStorage.Buffer),
+            _placementSettings.GetBufferTeachingPosition(),
+            .. _bufferSettings.GetTeachingPositions(),
+        ];
+        _handoffPoints = positions.OrderBy(position => position.MotionGroup)
+            .Select(position => new TeachingPoint(position)).ToArray();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanEditTeaching))]
+    private Task SaveHandoffSetupAsync(CancellationToken cancellationToken)
+    {
+        return Machine.RunTeachingEditAsync(
+            async token =>
+            {
+                foreach (var point in _handoffPoints)
+                    point.Apply();
+                await SaveSettingsAsync(
+                    token,
+                    _handoffPoints.Select(point => point.Position.Setting!).Distinct().ToArray());
+                NotifyManualTeachingCommands();
+            },
+            cancellationToken,
+            ViewCancellation);
     }
 
 }

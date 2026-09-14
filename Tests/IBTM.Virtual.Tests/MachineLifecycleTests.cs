@@ -1,4 +1,5 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -11,8 +12,8 @@ using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Conveyor;
 using IBTM.Device;
+using IBTM.Hantas;
 using IBTM.Inspection;
-using IBTM.Inspection.Training;
 using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
@@ -27,6 +28,67 @@ namespace IBTM.Virtual.Tests;
 
 public sealed partial class MachineLifecycleTests
 {
+    [Fact]
+    public void InspectionRequiresBoltsAsWellAsDataMatrixTeaching()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        using var services = CreateServices(settings);
+        var recipe = services.GetRequiredService<Recipe>();
+        TeachInspectionFovs(settings, recipe);
+        var machine = services.GetRequiredService<MachineController>();
+        Assert.False(machine.TeachingReady);
+
+        recipe.Pcb.BoltPoints.Add(new() { Number = 1, X = 10, Y = 10 });
+        TeachInspectionFovs(settings, recipe);
+        Assert.True(machine.TeachingReady);
+        settings.Units.Inspection = false;
+        recipe.Pcb.BoltPoints.Clear();
+        Assert.True(machine.TeachingReady);
+    }
+
+    [Theory]
+    [InlineData(MachineUnit.BoltFastening)]
+    [InlineData(MachineUnit.Inspection)]
+    public async Task UntaughtPresentHeatSinkDoesNotCompleteProduction(MachineUnit unit)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(unit);
+        using var services = CreateServices(settings);
+        var recipe = services.GetRequiredService<Recipe>();
+        PrepareCarrierTeaching(settings, recipe);
+        recipe.Pcb.BoltPoints.RemoveAll(bolt => bolt.HeatSink == HeatSinkSlot.HeatSink2);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        StationWork work = unit == MachineUnit.Inspection
+            ? services.GetRequiredService<InspectionWork>()
+            : services.GetRequiredService<BoltFasteningWork>();
+        var station = unit == MachineUnit.Inspection ? "Inspection" : "BoltFastening";
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(CancellationToken.None);
+            io.AutoResponseEnabled = false;
+            io.SetInput(Enum.Parse<InputIo>(station + "HeatSink2Present"), true);
+            io.SetInput(Enum.Parse<InputIo>(station + "BackupPlateDown"), false);
+            io.SetInput(Enum.Parse<InputIo>(station + "BackupPlateUp"), true);
+            io.SetInput(Enum.Parse<InputIo>(station + "StopperUp"), false);
+            io.SetInput(Enum.Parse<InputIo>(station + "StopperDown"), true);
+            Assert.True(machine.CanStart);
+            using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            await machine.StartAsync(stop.Token);
+            Assert.False(work.Completed);
+            Assert.Equal(unit == MachineUnit.Inspection ? MachineAlarm.Inspection : MachineAlarm.BoltFastening, state.Alarm);
+            Assert.Contains("no taught bolts", state.AlarmMessage);
+            Assert.Empty(work.Assemblies);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Theory]
     [InlineData("arrive")]
     [InlineData("stop")]
@@ -152,7 +214,7 @@ public sealed partial class MachineLifecycleTests
 
         var frame = camera.Capture(500, 0);
         camera.SourceImage = frame with { Pixels = new byte[frame.Pixels.Length] };
-        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.InspectionBackupPlateDown, false);
         io.SetInput(InputIo.InspectionStopperDown, true);
@@ -199,7 +261,7 @@ public sealed partial class MachineLifecycleTests
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         var io = services.GetRequiredService<VirtualIoService>();
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
@@ -252,7 +314,7 @@ public sealed partial class MachineLifecycleTests
         var gantry = services.GetRequiredService<InspectionGantry>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateDown, false);
         io.SetInput(InputIo.AutoMode, false);
         void StopDuringTransfer(double x, double y, double z)
@@ -359,22 +421,19 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task MissingInspectionModelAllowsSetupButBlocksAutomaticStart()
+    public async Task BinaryInspectionStartsWithoutTrainingOrModel()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
-        settings.Drivers.Inspection = InspectionAlgorithm.TinyUnet;
         using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings, new Recipe())
-            .AddSingleton(
-                new BoltTrainingStore(
-                    Path.Combine(Path.GetTempPath(), $"IBTM-empty-training-{Guid.NewGuid():N}.db")))
             .BuildServiceProvider();
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         services.GetRequiredService<Recipe>()
             .Pcb.BoltPoints.Add(new BoltPoint { Number = 1, X = 10, Y = 10 });
+        TeachInspectionFovs(settings, services.GetRequiredService<Recipe>());
 
         await machine.InitializeAsync();
         Assert.Equal(MachineAlarm.None, state.Alarm);
@@ -384,9 +443,17 @@ public sealed partial class MachineLifecycleTests
 
         io.SetInput(InputIo.AutoMode, false);
         Assert.True(machine.CanStart);
-        await machine.StartAsync();
-        Assert.Equal(MachineAlarm.Inspection, state.Alarm);
-        Assert.False(state.IsRunning);
+        var run = machine.StartAsync();
+        try
+        {
+            await WaitUntilAsync(() => state.AutomaticRunning);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
 
         io.SetInput(InputIo.AutoMode, true);
         await machine.ResetAsync();
@@ -414,7 +481,7 @@ public sealed partial class MachineLifecycleTests
         var conveyor = services.GetRequiredService<MainConveyor>();
         var inspection = services.GetRequiredService<InspectionStation>();
         await services.GetRequiredService<MachineController>().InitializeAsync();
-        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.MainConveyorReadyFromRear, true);
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateDown, false);
@@ -425,6 +492,90 @@ public sealed partial class MachineLifecycleTests
 
         Assert.Equal(expectNg, inspection.State([]) == InspectionStationState.MovingTransferToCarrier);
         Assert.Equal(!expectNg, conveyor.State == MainConveyorState.DischargingInspectionCarrier);
+    }
+
+    [Theory]
+    [InlineData(FasteningHead.Pickup)]
+    [InlineData(FasteningHead.Shooting)]
+    public async Task ManualBoltTestPreservesInterruptedProductionResult(FasteningHead selected)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var station = services.GetRequiredService<BoltFasteningStation>();
+        var recipe = services.GetRequiredService<Recipe>();
+        recipe.Pcb.BoltPoints = [new() { Number = 1, Head = selected, X = 0, Y = 0 }];
+        var productionHead = services.GetRequiredKeyedService<IBoltHead>(selected);
+        var bus = services.GetRequiredService<IAdcBus>();
+        var slave = selected == FasteningHead.Pickup
+            ? settings.Hantas.PickupSlaveAddress
+            : settings.Hantas.ShootingSlaveAddress;
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.AutoResponseEnabled = false;
+        io.SetInputs(
+            (InputIo.BoltFasteningHeatSink1Present, true),
+            (InputIo.BoltFasteningBackupPlateUp, true),
+            (InputIo.BoltFasteningBackupPlateDown, false),
+            (InputIo.BoltFasteningStopperUp, false),
+            (InputIo.BoltFasteningStopperDown, true),
+            (InputIo.PickupHeadUp, selected != FasteningHead.Pickup),
+            (InputIo.PickupHeadDown, selected == FasteningHead.Pickup),
+            (InputIo.ShootingHeadUp, selected != FasteningHead.Shooting),
+            (InputIo.ShootingHeadDown, selected == FasteningHead.Shooting),
+            (InputIo.PickupHeadVacuumDetected, true),
+            (InputIo.ShootingHeadVacuumDetected, true));
+        using var stop = new CancellationTokenSource();
+        void StopWhenStarted(AdcFrameDirection direction, byte[] frame)
+        {
+            if (direction == AdcFrameDirection.Transmit
+                && frame[1] == (byte)AdcFunctionCode.WriteSingleRegister
+                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(2)) == (ushort)AdcRemoteRegister.RemoteStart
+                && BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(4)) != 0)
+                stop.Cancel();
+        }
+
+        bus.FrameTransferred += StopWhenStarted;
+        try
+        {
+            await station.RunAsync(recipe.BoltFastening, stop.Token).WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            stop.Cancel();
+            bus.FrameTransferred -= StopWhenStarted;
+        }
+
+        Assert.True(productionHead.HasPendingResult);
+        Assert.True(station.HasPendingResult);
+        var interruptedEvent = (await bus.ReadFasteningResultAsync(slave)).EventCount;
+
+        var manualHead = new AdcBoltHead(bus, settings.Hantas, slave);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => machine.RunAdcProtocolAsync(
+            token => machine.RunBoltTestAsync(testToken => manualHead.TightenAsync(testToken), token),
+            CancellationToken.None));
+        Assert.False(machine.CanTestBoltHead);
+        Assert.True(machine.CanUseAdcProtocol);
+        Assert.False(state.IsRunning);
+        Assert.Equal(MachineAlarm.None, state.Alarm);
+        Assert.True(productionHead.HasPendingResult);
+        Assert.Equal(interruptedEvent, (await bus.ReadFasteningResultAsync(slave)).EventCount);
+        Assert.Null(await productionHead.ReadPendingResultAsync());
+
+        // Recovery explicitly retires the interrupted operation before testing the driver.
+        station.PrepareRecovery([
+            (HeatSinkSlot.HeatSink1, 1,
+                selected == FasteningHead.Pickup ? FasteningPass.IpmSeating : FasteningPass.Pcb, true),
+        ]);
+        Assert.True(machine.CanTestBoltHead);
+        await machine.RunAdcProtocolAsync(
+            token => machine.RunBoltTestAsync(testToken => manualHead.TightenAsync(testToken), token),
+            CancellationToken.None);
+        Assert.False(productionHead.HasPendingResult);
+        Assert.Equal(interruptedEvent + 1, (await bus.ReadFasteningResultAsync(slave)).EventCount);
     }
 
     [Fact]
@@ -481,7 +632,7 @@ public sealed partial class MachineLifecycleTests
 
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
-        io.SetInput(InputIo.BoltFasteningCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
         io.SetInput(InputIo.BoltFasteningBackupPlateDown, false);

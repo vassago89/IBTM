@@ -23,6 +23,14 @@ public sealed class BoltFasteningStation(
     private sealed record PendingFastening(
         BoltTarget Bolt, StationWork.Job Job, HeatSinkAssembly Assembly, FasteningPass Pass);
 
+    public bool HasPendingResult
+    {
+        get
+        {
+            return PendingResult is not null;
+        }
+    }
+
     private PendingFastening? PendingResult
     {
         get
@@ -118,6 +126,13 @@ public sealed class BoltFasteningStation(
         try
         {
             CheckCarrier();
+            carrierOperation.Token.ThrowIfCancellationRequested();
+            foreach (var heatSink in _runTargets)
+            {
+                if (!getPcb().GetBolts(heatSink).Any())
+                    throw new InvalidOperationException(
+                        $"{heatSink.GetDescription()} has no taught bolts. Complete bolt teaching before fastening.");
+            }
             while (work.State == BoltFasteningWorkState.ReadyToFasten)
             {
                 carrierOperation.Token.ThrowIfCancellationRequested();

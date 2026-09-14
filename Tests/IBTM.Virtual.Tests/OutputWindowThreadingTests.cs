@@ -82,10 +82,7 @@ public sealed class OutputWindowThreadingTests
     private static void VerifyRecoveryConfirmations()
     {
         using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
-            .AddIbtmApplication(new MachineSettings
-            {
-                Drivers = new() { Inspection = InspectionAlgorithm.Virtual },
-            })
+            .AddIbtmApplication(new MachineSettings())
             .BuildServiceProvider();
         var io = services.GetRequiredService<VirtualIoService>();
         io.Initialize();
@@ -97,9 +94,9 @@ public sealed class OutputWindowThreadingTests
         (StartPreparation Preparation, StationWork Work, InputIo Carrier, InputIo HeatSink)[] stations =
         [
             (placement, services.GetRequiredService<PcbPlacementWork>(),
-                InputIo.PcbPlacementCarrierPresent, InputIo.PcbPlacementHeatSink1Present),
+                InputIo.PcbPlacementHeatSink1Present, InputIo.PcbPlacementHeatSink1Present),
             (fastening, services.GetRequiredService<BoltFasteningWork>(),
-                InputIo.BoltFasteningCarrierPresent, InputIo.BoltFasteningHeatSink1Present),
+                InputIo.BoltFasteningHeatSink1Present, InputIo.BoltFasteningHeatSink1Present),
         ];
         foreach (var (preparation, work, carrier, heatSink) in stations)
         {
@@ -159,8 +156,8 @@ public sealed class OutputWindowThreadingTests
         // Confirmation at station 1 must be checked again after the station 2 dialog closes.
         ApplyRecoveryDialog(() =>
         {
-            io.SetInput(InputIo.PcbPlacementCarrierPresent, false);
-            io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+            VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, false);
+            VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, true);
         });
         Assert.True(fastening.Open(null!));
         Assert.True(fastening.Prepared);
@@ -195,7 +192,7 @@ public sealed class OutputWindowThreadingTests
     {
         var units = services.GetRequiredService<UnitSettings>();
         var state = services.GetRequiredService<MachineState>();
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         var unrelated = (VirtualMotionService)services.GetRequiredKeyedService<IAxisMotion>(
             MotionGroup.PcbSupply);
         var inspection = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(
@@ -262,7 +259,6 @@ public sealed class OutputWindowThreadingTests
             .AddIbtmApplication(
                 new MachineSettings
                 {
-                    Drivers = new() { Inspection = InspectionAlgorithm.Virtual },
                     Units = new()
                     {
                         MainConveyor = true,
@@ -484,7 +480,7 @@ public sealed class OutputWindowThreadingTests
         foreach (var (path, signal) in new[]
         {
             ("Conveyor.EntryCarrierDetected", InputIo.MainConveyorEntryCarrierDetected),
-            ("PcbPlacementWork.CarrierPresent", InputIo.PcbPlacementCarrierPresent),
+            ("PcbPlacementWork.CarrierPresent", InputIo.PcbPlacementHeatSink1Present),
             ("NgTransfer.CarrierDetected", InputIo.NgCarrierDetected),
             ("NgShuttle.Feedback.CarrierDetected", InputIo.NgShuttleCarrierDetected),
         })
@@ -568,9 +564,9 @@ public sealed class OutputWindowThreadingTests
             bus.Close();
         }
 
-        var teaching = services.GetRequiredService<StationTeachingViewModel>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
         var main = services.GetRequiredService<MainViewModel>();
-        await main.NavigateCommand.ExecuteAsync(AppPage.StationTeaching);
+        await main.NavigateCommand.ExecuteAsync(AppPage.Teaching);
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         var teachingOutput = teaching.TeachingIoGroups.SelectMany(group => group.Outputs)
             .First(row => row.Output is not null);
@@ -585,14 +581,14 @@ public sealed class OutputWindowThreadingTests
         page.SetBinding(
             UIElement.IsEnabledProperty,
             new Binding(nameof(MainViewModel.CurrentPageEnabled)) { Source = main });
-        page.Child = new StationTeachingView { DataContext = teaching };
+        page.Child = new TeachingView { DataContext = teaching };
         page.Measure(new Size(1600, 900));
         page.Arrange(new Rect(0, 0, 1600, 900));
         page.UpdateLayout();
         var preview = new Image();
         preview.SetBinding(
             Image.SourceProperty,
-            new Binding(nameof(StationTeachingViewModel.LiveImage)) { Source = teaching });
+            new Binding(nameof(TeachingViewModel.LiveImage)) { Source = teaching });
         var light = Assert.IsType<TestLight>(services.GetRequiredService<ILightController>());
         using var releaseStop = new ManualResetEventSlim();
         var stopEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -612,7 +608,7 @@ public sealed class OutputWindowThreadingTests
             var stopping = main.NavigateCommand.ExecuteAsync(AppPage.Settings);
             await stopEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(stopping.IsCompleted);
-            Assert.Equal(AppPage.StationTeaching, main.SelectedPage);
+            Assert.Equal(AppPage.Teaching, main.SelectedPage);
             Assert.False(page.IsEnabled);
             Assert.False(main.RecipeEditingEnabled);
             Assert.False(main.NavigateCommand.CanExecute(AppPage.Settings));
@@ -622,7 +618,7 @@ public sealed class OutputWindowThreadingTests
             releaseStop.Set();
             await stopping;
             Assert.False(teaching.Inspector.IsLiveView);
-            Assert.Equal(AppPage.StationTeaching, main.SelectedPage);
+            Assert.Equal(AppPage.Teaching, main.SelectedPage);
             Assert.Contains(light.OffFailure.Message, main.NavigationError);
             Assert.True(await VirtualTest.WaitUntilAsync(() => page.IsEnabled, TimeSpan.FromSeconds(2)));
             var failure = await Assert.ThrowsAsync<IOException>(teaching.ShutdownAsync);
@@ -632,7 +628,7 @@ public sealed class OutputWindowThreadingTests
             teaching.CarrierImages = new List<CarrierImageTileView>();
             void FailDeactivation(object? sender, PropertyChangedEventArgs args)
             {
-                if (args.PropertyName == nameof(StationTeachingViewModel.CarrierImages))
+                if (args.PropertyName == nameof(TeachingViewModel.CarrierImages))
                     throw deactivateFailure;
             }
 
@@ -658,7 +654,7 @@ public sealed class OutputWindowThreadingTests
             Assert.True(await VirtualTest.WaitUntilAsync(() => settings.LightTestOn, TimeSpan.FromSeconds(2)));
             releaseStop.Reset();
             stopEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            var returning = main.NavigateCommand.ExecuteAsync(AppPage.StationTeaching);
+            var returning = main.NavigateCommand.ExecuteAsync(AppPage.Teaching);
             await stopEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Equal(AppPage.Settings, main.SelectedPage);
             Assert.False(page.IsEnabled);
@@ -671,7 +667,7 @@ public sealed class OutputWindowThreadingTests
             Assert.False(light.IsOn);
             Assert.False(settings.LightTestOn);
             io.SetInput(InputIo.AutoMode, true);
-            await main.NavigateCommand.ExecuteAsync(AppPage.StationTeaching);
+            await main.NavigateCommand.ExecuteAsync(AppPage.Teaching);
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
             Assert.True(light.IsOn);
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
@@ -762,28 +758,18 @@ public sealed class OutputWindowThreadingTests
             await teaching.CaptureCarrierImageCommand.ExecuteAsync(null);
             Assert.Same(next, teaching.SelectedPoint);
             teaching.RecipeEditor.PropertyChanged -= SelectNextOnSave;
-            Assert.True(teaching.HasCarrierImages);
             Assert.Single(teaching.CarrierImages);
             teaching.Activate();
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => teaching.CarrierImages.Count == 1, TimeSpan.FromSeconds(2)));
             Assert.True(teaching.CarrierImages[0].Image.IsFrozen);
-            var teachingView = (StationTeachingView)page.Child;
+            teaching.SelectedFov = teaching.CarrierImages[0]; // Choose the unassigned capture explicitly.
+            var teachingView = (TeachingView)page.Child;
             var roiView = (ImageTeachingView)teachingView.FindName("FovImageView");
             var addBolt = (Button)teachingView.FindName("AddBoltButton");
-            var pointsList = (TeachingPointList)teachingView.FindName("TeachingPointsList");
             page.UpdateLayout();
             Assert.Same(teaching.DrawFovRegionCommand, roiView.RegionCommand);
             Assert.Empty(teaching.RecipeEditor.Recipe.Pcb.GetBolts(teaching.SelectedPcb));
-            var boltStep = Assert.Single(pointsList.Items.Cast<TeachingPoint>(),
-                point => point.Position.Target == TeachingTarget.BoltTeaching);
-            Assert.Equal("Bolt", boltStep.Name);
-            pointsList.SelectedItem = boltStep;
-            Assert.Same(boltStep, teaching.SelectedPoint);
-            Assert.Equal(TeachingSaveBehavior.AddBolt, teaching.SaveBehavior);
-            Assert.False(teaching.MoveToPointCommand.CanExecute(null));
-            Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
-            Assert.False(teaching.RemoveBoltPointCommand.CanExecute(null));
             var upperPin = reference.UpperLeftLocatingPin;
             var lowerPin = reference.LowerRightLocatingPin;
             reference.UpperLeftLocatingPin = null;
@@ -828,8 +814,7 @@ public sealed class OutputWindowThreadingTests
             teaching.SelectedPoint = teaching.FilteredPoints.Single(
                 point => point.Position.Target == TeachingTarget.BoltReference);
             teaching.RemoveBoltPointCommand.Execute(null);
-            Assert.Contains(teaching.FilteredPoints,
-                point => point.Position.Target == TeachingTarget.BoltTeaching);
+            Assert.Empty(teaching.RecipeEditor.Recipe.Pcb.GetBolts(teaching.SelectedPcb));
             var gantry = services.GetRequiredService<InspectionGantry>();
             await gantry.MoveAxisAsync(MotionAxis.X, 10, 10_000);
             await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
@@ -1047,11 +1032,6 @@ public sealed class OutputWindowThreadingTests
                     () => teaching.CarrierImages.Count == 3 && teaching.CaptureCarrierImageCommand.CanExecute(null),
                     TimeSpan.FromSeconds(2)));
             }
-            await teaching.ClearCarrierImagesCommand.ExecuteAsync(null);
-            Assert.Empty(teaching.CarrierImages);
-            saved = await services.GetRequiredService<RecipeStore>()
-                .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
-            Assert.Empty(saved.CarrierImages);
             var originalRecipe = await services.GetRequiredService<RecipeStore>().LoadRecipeAsync(originalName);
             Assert.Equal(2, originalRecipe.CarrierImages.Count);
         }

@@ -168,9 +168,7 @@ public partial class OperationViewModel
 
             if (State.Display.SupplyAtHandoff)
             {
-                return Buffer.PcbPresent
-                    ? HandlerDisplayState.WaitingForPlacement
-                    : HandlerDisplayState.WaitingForBufferPcb;
+                return HandlerDisplayState.WaitingForPlacement;
             }
 
             if (PcbSupplyPcbSecured && !State.Display.CanSupplyEnter)
@@ -210,9 +208,9 @@ public partial class OperationViewModel
 
             return State.Display.PlacementState switch
             {
-                PcbPlacementState.WaitingForBufferPcb => HandlerDisplayState.WaitingForBufferPcb,
+                PcbPlacementState.WaitingForSupply => HandlerDisplayState.WaitingForSupply,
                 PcbPlacementState.WaitingForCarrier => HandlerDisplayState.WaitingForMainCarrier,
-                PcbPlacementState.WaitingForSupplyExit => HandlerDisplayState.WaitingForSupply,
+                PcbPlacementState.WaitingForSupplyExit => HandlerDisplayState.WaitingForSupplyExit,
                 _ => HandlerDisplayState.Working,
             };
         }
@@ -250,11 +248,6 @@ public partial class OperationViewModel
             if (BoltFasteningWork.Completed)
             {
                 return StationDisplayState.WaitingForTransfer;
-            }
-
-            if (!BoltFasteningHeatSink1Present && !BoltFasteningHeatSink2Present)
-            {
-                return StationDisplayState.EmptyCarrier;
             }
 
             return FasteningStateVisible
@@ -317,11 +310,6 @@ public partial class OperationViewModel
             if (InspectionWork.Completed)
             {
                 return StationDisplayState.WaitingForTransfer;
-            }
-
-            if (!InspectionHeatSink1Present && !InspectionHeatSink2Present)
-            {
-                return StationDisplayState.EmptyCarrier;
             }
 
             return InspectionStateVisible

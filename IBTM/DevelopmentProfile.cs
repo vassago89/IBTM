@@ -48,7 +48,6 @@ internal static class DevelopmentProfile
     {
         var settings = new MachineSettings();
         UseVirtualHardware(settings);
-        settings.Drivers.Inspection = InspectionAlgorithm.Virtual;
         foreach (var section in settings.MotionSections)
         {
             section.Settings.HorizontalHome.SearchSpeed = 200;
@@ -57,7 +56,7 @@ internal static class DevelopmentProfile
 
         settings.PcbSupply.CarrierY = 10;
         settings.PcbSupply.RotationZ = 0;
-        settings.PcbSupply.BufferHandoffPosition = new() { X = 80, Y = 30, Z = 10 };
+        settings.PcbSupply.BufferHandoffPosition = new() { X = 80, Y = 30 };
         settings.PcbSupply.BufferClearZ = 20;
         settings.PcbSupply.Motion.HorizontalSpeed = 100;
         settings.PcbSupply.Motion.ZSpeed = 30;

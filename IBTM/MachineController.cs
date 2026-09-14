@@ -19,9 +19,12 @@ public sealed partial class MachineController
 {
     private static readonly InputIo[] CarrierInputs = [
         InputIo.MainConveyorEntryCarrierDetected,
-        InputIo.PcbPlacementCarrierPresent,
-        InputIo.BoltFasteningCarrierPresent,
-        InputIo.InspectionCarrierPresent,
+        InputIo.PcbPlacementHeatSink1Present,
+        InputIo.PcbPlacementHeatSink2Present,
+        InputIo.BoltFasteningHeatSink1Present,
+        InputIo.BoltFasteningHeatSink2Present,
+        InputIo.InspectionHeatSink1Present,
+        InputIo.InspectionHeatSink2Present,
         InputIo.MainConveyorExitCarrierDetected,
         InputIo.NgCarrierDetected,
         InputIo.NgShuttleCarrierDetected,
@@ -262,7 +265,8 @@ public sealed partial class MachineController
         }
 
         if (Array.IndexOf(CarrierInputs, input) >= 0
-            || input is InputIo.PcbPlacementHandlerUp
+            || input is InputIo.PcbPlacementPcbDetected
+                or InputIo.PcbPlacementHandlerUp
                 or InputIo.PcbPlacementHandlerDown
                 or InputIo.PcbPlacementIpmUp
                 or InputIo.PcbPlacementIpmDown

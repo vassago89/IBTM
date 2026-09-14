@@ -7,7 +7,7 @@ using IBTM.PcbBuffer;
 
 namespace IBTM.PcbSupply;
 
-public sealed class PcbSupplyHandler
+public sealed class PcbSupplyHandler : IPcbHandoffState
 {
     private const double XHome = 0;
 
@@ -100,6 +100,14 @@ public sealed class PcbSupplyHandler
         }
     }
 
+    public bool PcbSecured
+    {
+        get
+        {
+            return Pcb == PcbSupplyPcbState.Secured;
+        }
+    }
+
     public bool CanPrepareHome
     {
         get
@@ -126,52 +134,18 @@ public sealed class PcbSupplyHandler
         _motion.SetServo(axis, on);
     }
 
-    internal bool AtHandoffXY
-    {
-        get
-        {
-            var position = _motion.GetPosition();
-            return !_motion.IsMoving
-                && _motion.GetAxisState(MotionAxis.X).InPosition
-                && _motion.GetAxisState(MotionAxis.Y).InPosition
-                && Math.Abs(position.X - _settings.BufferHandoffPosition.X) <= MotionService.PositionToleranceMillimeters
-                && Math.Abs(position.Y - _settings.BufferHandoffPosition.Y) <= MotionService.PositionToleranceMillimeters;
-        }
-    }
-
-    internal bool InHandoffZRange
-    {
-        get
-        {
-            var z = _motion.GetPosition().Z;
-            return z > _settings.RotationZ + MotionService.PositionToleranceMillimeters
-                && z <= _settings.BufferHandoffPosition.Z + MotionService.PositionToleranceMillimeters;
-        }
-    }
-
     public void SetUpstreamReady(bool ready)
     {
         _io.SetOutput(OutputIo.PcbSupplyReadyToFront1, ready);
     }
 
-    internal async Task MoveAboveHandoffAsync(CancellationToken cancellationToken)
-    {
-        await _motion.MoveToHorizontalZAsync(cancellationToken);
-        await MoveHorizontalAsync(
-            _settings.BufferHandoffPosition.X,
-            _settings.BufferHandoffPosition.Y,
-            cancellationToken);
-    }
-
-    public Task MoveToHandoffZAsync(CancellationToken cancellationToken, double? z = null)
+    public async Task MoveToHandoffAsync(CancellationToken cancellationToken, XyPosition? position = null)
     {
         if (Rotation != PcbSupplyRotationState.Rotated)
-            throw new InvalidOperationException("Supply must be rotated before lowering into the buffer.");
-        return _motion.MoveAxisAsync(
-            MotionAxis.Z,
-            z ?? _settings.BufferHandoffPosition.Z,
-            _settings.Motion.ZSpeed,
-            cancellationToken);
+            throw new InvalidOperationException("Supply must be rotated before moving to the handoff position.");
+        position ??= _settings.BufferHandoffPosition;
+        await _motion.MoveToHorizontalZAsync(cancellationToken);
+        await MoveHorizontalAsync(position.X, position.Y, cancellationToken);
     }
 
     internal async Task PickAsync(
@@ -215,13 +189,12 @@ public sealed class PcbSupplyHandler
             case TeachMode.ZOnly:
                 await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
                 break;
+            case TeachMode.XYOnly:
+                await MoveToHandoffAsync(cancellationToken, new() { X = position.X, Y = position.Y });
+                break;
             case TeachMode.XZOnly:
-            case TeachMode.Full:
                 await MoveHorizontalAsync(position.X, position.Y, cancellationToken);
-                if (point.Target == TeachingTarget.SupplyBufferHandoff)
-                    await MoveToHandoffZAsync(cancellationToken, position.Z);
-                else
-                    await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
+                await MoveAxisAsync(MotionAxis.Z, position.Z, cancellationToken);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(point));

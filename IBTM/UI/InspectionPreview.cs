@@ -7,19 +7,17 @@ using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using IBTM.Core;
 using IBTM.Inspection;
-using IBTM.Inspection.Training;
 
 namespace IBTM.UI;
 // One captured frame, shared by ROI edits and reinspection. Never moves hardware.
 public partial class InspectionPreview(
     BoltInspector inspector,
-    Recipe recipe,
-    BoltTrainingSettings training) : ObservableObject
+    Recipe recipe) : ObservableObject
 {
     private ImageFrame? _frame;
-    private BoltPrediction? _prediction;
-    private BitmapSource? _input;
+    private BinaryCheckResult? _check;
     private HeatSinkSlot? _pcb;
+    private BoltTarget? _bolt;
     private PixelRegion? _sourceRegion;
     [ObservableProperty]
     private BitmapSource? _image;
@@ -37,42 +35,59 @@ public partial class InspectionPreview(
         }
     }
 
-    public bool IsBolt
+    public int BrightnessThreshold
     {
         get
         {
-            return _pcb is null;
+            return _bolt?.Point.BrightnessThreshold ?? recipe.BoltInspection.BrightnessThreshold;
+        }
+
+        set
+        {
+            if (_bolt is null)
+                throw new InvalidOperationException("Select a bolt before changing its threshold.");
+            _bolt.Point.BrightnessThreshold = value;
+            if (_check is not null)
+            {
+                _check = inspector.Check(_frame!, _sourceRegion!, _bolt);
+                Overlay = CreateBitmap(_check.Image);
+                RefreshResult();
+            }
+            OnPropertyChanged();
         }
     }
 
-    public double MinimumMaskPercent
+    public double MinimumBrightPercent
     {
         get
         {
-            return recipe.BoltInspection.MinimumMaskRatio * 100;
+            return (_bolt?.Point.MinimumBrightRatio ?? recipe.BoltInspection.MinimumBrightRatio) * 100;
         }
 
         set
         {
             if (!(value >= 0 && value <= 100))
                 throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 100 percent.");
-            recipe.BoltInspection.MinimumMaskRatio = value / 100;
+            if (_bolt is null)
+                throw new InvalidOperationException("Select a bolt before changing its required bright percentage.");
+            _bolt.Point.MinimumBrightRatio = value / 100;
             RefreshResult();
             OnPropertyChanged();
         }
     }
 
-    public void Clear(HeatSinkSlot? pcb = null)
+    public void Clear(HeatSinkSlot? pcb = null, BoltTarget? bolt = null)
     {
         _pcb = pcb;
+        _bolt = bolt;
         _sourceRegion = null;
         _frame = null;
         Image = null;
         Region = null;
-        ClearPrediction();
+        ClearResult();
         OnPropertyChanged(nameof(HasImage));
-        OnPropertyChanged(nameof(IsBolt));
-        OnPropertyChanged(nameof(MinimumMaskPercent));
+        OnPropertyChanged(nameof(BrightnessThreshold));
+        OnPropertyChanged(nameof(MinimumBrightPercent));
     }
 
     public async Task SetImageAsync(ImageFrame frame, CancellationToken token, PixelRegion? region = null)
@@ -82,14 +97,30 @@ public partial class InspectionPreview(
         _frame = frame;
         _sourceRegion = region;
         Image = image;
-        ClearPrediction();
+        ClearResult();
         RefreshRegion();
+        OnPropertyChanged(nameof(HasImage));
+    }
+
+    public void SetSavedImage(BitmapSource image, PixelRegion? region)
+    {
+        ClearResult();
+        _frame = CreateFrame(image);
+        _sourceRegion = region;
+        Image = image;
+        RefreshRegion();
+        if (_bolt is not null && region is not null)
+        {
+            _check = inspector.Check(_frame, region, _bolt);
+            Overlay = CreateBitmap(_check.Image);
+            RefreshResult();
+        }
         OnPropertyChanged(nameof(HasImage));
     }
 
     public async Task InspectAsync(CancellationToken token)
     {
-        ClearPrediction();
+        ClearResult();
         var frame = _frame!;
         var region = _sourceRegion ?? throw new InvalidOperationException("Draw the FOV ROI before inspecting.");
         if (_pcb is not null)
@@ -100,38 +131,34 @@ public partial class InspectionPreview(
             return;
         }
 
-        var prediction = await Task.Run(() => inspector.Predict(frame, region), token);
-        var input = await Task.Run(() => CreateBitmap(prediction.Input), token);
+        var threshold = BrightnessThreshold;
+        var check = await Task.Run(() => BinaryChecker.Check(frame, region, threshold), token);
+        var binary = await Task.Run(() => CreateBitmap(check.Image), token);
         token.ThrowIfCancellationRequested();
-        _prediction = prediction;
-        _input = input;
+        if (threshold != BrightnessThreshold)
+        {
+            check = inspector.Check(frame, region, _bolt!);
+            binary = CreateBitmap(check.Image);
+        }
+        _check = check;
+        Overlay = binary;
         RefreshResult();
-        RefreshOverlay();
     }
 
-    private void ClearPrediction()
+    private void ClearResult()
     {
-        _prediction = null;
-        _input = null;
+        _check = null;
         Overlay = null;
         Result = null;
     }
 
     private void RefreshResult()
     {
-        if (_prediction is null)
+        if (_check is null)
             return;
-        var ratio = _prediction.MaskRatio(training.MaskThreshold);
-        Result = $"{(ratio >= recipe.BoltInspection.MinimumMaskRatio ? "OK" : "NG")} · Mask {ratio * 100:0.###}%";
-    }
-
-    private void RefreshOverlay()
-    {
-        if (_prediction is not null)
-            Overlay = BoltTrainingImages.CreateOverlay(
-                _input!,
-                _prediction.Probabilities,
-                training.MaskThreshold);
+        var ratio = _check.BrightRatio;
+        var minimum = _bolt?.Point.MinimumBrightRatio ?? recipe.BoltInspection.MinimumBrightRatio;
+        Result = $"{(ratio >= minimum ? "OK" : "NG")} · Bright {ratio * 100:0.###}%";
     }
 
     private void RefreshRegion()

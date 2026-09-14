@@ -9,7 +9,7 @@ public enum InputIo
     [Description("Available From Front 2 (Heat Sink)")]
     MainConveyorAvailableFromFront2,
 
-    [Description("PCB Buffer PCB Present")]
+    [Description("Unused (former PCB buffer sensor)")]
     PcbBufferPcbPresent,
 
     [Description("PCB Placement Stopper Up")]
@@ -36,7 +36,7 @@ public enum InputIo
     [Description("PCB Placement Heat Sink 2 Present")]
     PcbPlacementHeatSink2Present,
 
-    [Description("PCB Placement Carrier Present")]
+    [Description("Unused (former Station 1 carrier sensor)")]
     PcbPlacementCarrierPresent,
 
     [Description("Available From Front 1 (PCB)")]
@@ -78,7 +78,7 @@ public enum InputIo
     [Description("Bolt Fastening Heat Sink 2 Present")]
     BoltFasteningHeatSink2Present,
 
-    [Description("Bolt Fastening Carrier Present")]
+    [Description("Unused (former Station 2 carrier sensor)")]
     BoltFasteningCarrierPresent,
 
     [Description("Shooting Head Vacuum Detected (Head 2)")]
@@ -159,7 +159,7 @@ public enum InputIo
     [Description("Inspection Heat Sink 2 Present")]
     InspectionHeatSink2Present,
 
-    [Description("Inspection Carrier Present")]
+    [Description("Unused (former Station 3 carrier sensor)")]
     InspectionCarrierPresent,
 
     [Description("NG Carrier Pickup Down")]

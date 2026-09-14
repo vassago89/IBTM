@@ -14,8 +14,8 @@ The supply handler:
 - receives a two-PCB carrier from the upstream machine through SMEMA;
 - checks PCB 1 and PCB 2 independently;
 - fixes a detected PCB/IPM assembly with the IPM fixing cylinder;
-- rotates the held PCB toward the buffer stage;
-- places the PCB at the taught Buffer X/Y and Place Z; and
+- rotates the held PCB toward the shared handoff area;
+- hands the held PCB to Placement at the taught handoff X/Y, keeping Rotation Z; and
 - releases the upstream carrier after both PCB positions have been checked.
 
 The upstream carrier transaction uses one local step, separate from the live
@@ -47,16 +47,19 @@ exit moves X to its home position while Y remains fixed. Homing moves X before
 homing Y. The project receives `IAxisMotion`, so
 coordinated XY commands are not available to Supply code.
 
-## Buffer handoff
+## Direct handoff
+
+The historical Buffer names below refer to the shared collision zone and saved
+coordinates, not a physical staging buffer.
 
 Supply and Placement overlap only at their taught Buffer handoff positions.
 Placement secures the PCB with vacuum and the loose IPM with its IPM gripper.
-After both feedback inputs are confirmed at the taught handoff position, Supply
+After PCB detection, vacuum and gripper-closed feedback are all confirmed at the taught handoff position, Supply
 retracts its IPM fixer, opens its gripper, and leaves the Buffer. Placement waits until Supply is
 outside before leaving. See
 [`BufferStage`](../IBTM.PcbBuffer/DESIGN.md).
 
-The Buffer has the confirmed PCB-present input, with no clamp or lift actuator.
+There is no physical buffer. Supply holds the PCB until Placement secures it; no buffer-present input is used.
 
 ## Observed state
 
@@ -117,7 +120,7 @@ Initial homing uses one supply-specific path. Homing is unavailable while the
 rotation is `Between`, or for this exact material condition:
 
 ```text
-Unrotated AND (Supply PCB present OR Buffer PCB present)
+Unrotated AND Supply PCB present
 ```
 
 An empty unrotated handler first commands rotation and waits for the rotated input.
@@ -159,7 +162,7 @@ Machine teaching values:
 ```text
 Rotation Z
 Carrier Y
-Buffer Handoff X/Y/Z
+PCB Give X/Y (at Rotation Z)
 Buffer Clear Z
 Supply collision boundary 1 / 2
 Placement collision boundary 1 / 2
@@ -172,8 +175,11 @@ PCB 1 Pick X/Z
 PCB 2 Pick X/Z
 ```
 
-Positive Z points downward, so Clear Z must be greater than Place Z. The production
-horizontal path below Rotation Z is the empty Buffer exit to X home at Clear Z.
+There is no separate Supply handoff Z and no lowering before the handoff.
+Rotation Z is shared by transport, rotation and the held handoff. Old saved
+`BufferHandoffPosition.Z` values are ignored; the stored position now contains only X/Y.
+Positive Z points downward. Clear Z remains the post-release withdrawal height.
+The production horizontal path below Rotation Z is the empty exit to X home at Clear Z.
 Buffer Y stays fixed and the handler remains rotated.
 
 While Supply is inside its Buffer collision range, manual Y, Z, and rotation
@@ -195,7 +201,7 @@ Unrotated and idle
   -> run the PCB 1 check/pick operation
 ```
 
-PCB 2 belongs to the same upstream carrier. After PCB 1 has been placed on the buffer and
+PCB 2 belongs to the same upstream carrier. After PCB 1 has been handed to Placement and
 the supply handler is unrotated again, PCB 2 is checked without waiting for
 another SMEMA handshake.
 
@@ -203,8 +209,8 @@ The Board Available OFF transition completes `WaitingForCarrierExit` even if it 
 while the handler is still moving the second PCB to the Buffer. A following ON is
 therefore accepted as the next carrier after the current physical move is resolved.
 
-Supply pickup does not wait for the Buffer or Placement handler. While a PCB is
-detected at the Buffer or Placement blocks entry, Supply may pick the next PCB,
+Supply pickup does not wait for the Placement handler. While Placement blocks
+entry to the shared handoff zone, Supply may pick the next PCB,
 raise to Rotation Z, rotate, and wait while holding it. It moves to the taught
 Buffer Y and then X only after the Buffer entry condition is satisfied, then
 lowers Z to Handoff.
@@ -232,7 +238,7 @@ X home
   -> Rotation Z
   -> rotate
   -> move to Buffer Y, then X
-  -> move to Place Z
+  -> hold at Rotation Z for Placement
 ```
 
 PCB 1 not detected:
@@ -275,7 +281,7 @@ mark the upstream carrier complete
 ```
 
 The second-carrier SMEMA flow may proceed while the supply handler finishes the
-PCB 2 buffer placement.
+PCB 2 handoff to Placement.
 
 ## Rotated behavior
 
@@ -288,7 +294,6 @@ Supply PCB detected, Gripper forward, and IPM fixer forward
   -> wait while Placement blocks Buffer entry
   -> Buffer Y
   -> Buffer X
-  -> Place Z
   -> wait for Placement PCB, vacuum, and IPM-gripper inputs
   -> retract Supply IPM fixer
   -> retract Supply Gripper
@@ -298,23 +303,22 @@ Supply PCB detected, Gripper forward, and IPM fixer forward
   -> unrotate
 ```
 
-The Buffer PCB-present input proves that the PCB reached the handoff position.
-Supply stays there until Placement secures the assembly. Supply observes that
-live handoff state and performs its own release and exit operation. Placement
-waits until Supply is physically outside the Buffer.
+Supply stays at its taught handoff pose holding the PCB until Placement reports
+PCB detected, vacuum detected and IPM gripper closed at its own taught pose.
+Supply checks these conditions before retracting each holding actuator. Placement
+waits for known Supply X feedback outside the collision range before lifting.
 
-If Stop interrupts the release after either Supply cylinder has retracted,
-restart repeats both retract commands and the Buffer exit from the current live
-position. No recovery step is stored.
+After STOP, an already retracted actuator stays retracted; a remaining release
+requires Placement holding feedback again. If both actuators are retracted,
+Supply can finish its empty exit. Loss of holding feedback before reaching the
+handoff pose is an error, not permission to release.
 
-If Stop interrupts Buffer X entry, restart finishes X with Y unchanged. If it
-interrupts the Handoff Z descent after the Buffer PCB input turns ON, the current
-Handoff X/Y and Z between Rotation Z and Handoff Z identify the remaining descent.
-It may continue only while Placement leaves that path clear. A new Buffer entry
-still requires the Buffer PCB input OFF.
+An interrupted X entry resumes at Rotation Z from current axis feedback while
+Placement leaves the path clear. Handoff requires settled X/Y and actual Z at
+Rotation Z. There is no buffer-presence condition or handoff descent.
 
-After the PCB 1 buffer placement and unrotation, check PCB 2 on the same carrier.
-After the PCB 2 buffer placement and unrotation, wait for the next accepted SMEMA carrier and
+After the PCB 1 handoff and unrotation, check PCB 2 on the same carrier.
+After the PCB 2 handoff and unrotation, wait for the next accepted SMEMA carrier and
 start again from PCB 1.
 
 ## Repeat / Dry Run
@@ -333,10 +337,7 @@ Automatic recovery is not yet defined for:
 
 - PCB input OFF while the IPM fixer-forward input is ON;
 - both rotation-position inputs being ON; or
-- application startup while the rotation state is `Between`;
-- automatic recovery after a Buffer PCB-present timeout;
-- additional Buffer Stage clearance inputs; or
-- any Buffer Stage clamp, lift, or other actuator.
+- application startup while the rotation state is `Between`.
 
 Do not add speculative recovery or defensive branches until the real machine
 behavior is confirmed.

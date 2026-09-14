@@ -47,8 +47,15 @@ public sealed partial class MachineController
         {
             return _state.ManualSetupEnabled
                 && (BufferHandlersEnabled || _units.BoltFastening || InspectionGantryEnabled)
-                && !Array.Exists(CarrierInputs, _io.GetInput);
+                && IsCylinderRaiseClear();
         }
+    }
+
+    private bool IsCylinderRaiseClear()
+    {
+        // Keep the IPM down while Placement holds a PCB.
+        return !Array.Exists(CarrierInputs, _io.GetInput)
+            && (!BufferHandlersEnabled || !_io.GetInput(InputIo.PcbPlacementPcbDetected));
     }
 
     internal HomeBlockReason GetHomeBlock(MotionGroup? group = null)
@@ -211,7 +218,7 @@ public sealed partial class MachineController
             if (!_state.ManualMode
                 || !_state.SafetyReady
                 || !_io.IsReady
-                || Array.Exists(CarrierInputs, _io.GetInput))
+                || !IsCylinderRaiseClear())
                 operation.Cancel();
         }
 

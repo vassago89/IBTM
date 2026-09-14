@@ -13,7 +13,6 @@ using IBTM.Core;
 using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
-using IBTM.Inspection.Training;
 using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
@@ -419,10 +418,7 @@ public sealed partial class MachineLifecycleTests
 
     private static MachineSettings FlowSettings()
     {
-        var settings = new MachineSettings
-        {
-            Drivers = new() { Inspection = InspectionAlgorithm.Virtual },
-        };
+        var settings = new MachineSettings();
         FastHomes(settings);
         settings.PcbSupply.Motion = FastMotion();
         settings.PcbSupply.RotationZ = 0;
@@ -431,7 +427,6 @@ public sealed partial class MachineLifecycleTests
         {
             X = 80,
             Y = 30,
-            Z = 10,
         };
         settings.PcbSupply.BufferClearZ = 20;
         settings.PcbBuffer.SupplyBoundary1 = 60;
@@ -506,7 +501,7 @@ public sealed partial class MachineLifecycleTests
         {
             Number = index + 1,
             Center = settings.InspectionGantry.GetBoltPosition(bolt, settings.CarrierReference),
-            Region = new(96, 56, 128, 128),
+            Region = new(128, 88, 64, 64),
             BoltNumber = bolt.Number,
             HeatSink = bolt.HeatSink,
         }).ToList();

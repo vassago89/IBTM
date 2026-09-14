@@ -9,7 +9,6 @@ using IBTM.BoltFastening;
 using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
-using IBTM.Inspection.Training;
 using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
@@ -64,7 +63,7 @@ public enum MachineAlarm
     [Description("NG Shuttle")]
     NgShuttle,
 
-    [Description("PCB Buffer Conflict")]
+    [Description("PCB Handoff Conflict")]
     BufferConflict,
 
     [Description("Main Conveyor")]
@@ -84,7 +83,7 @@ public enum ManualControlBlock
     MotionNotReady,
     [Description("Check emergency stops and air pressure.")]
     SafetyNotReady,
-    [Description("Clear the PCB buffer conflict.")]
+    [Description("Clear the PCB Handoff conflict.")]
     BufferConflict,
     [Description("Switch the machine to Manual mode.")]
     AutoMode,
@@ -110,7 +109,6 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
     private readonly MainConveyor _conveyor;
     private readonly NgCarrierConveyor _ngConveyor;
     internal BufferStage Buffer { get; }
-    private readonly BoltTrainingSession _training;
     private readonly ApplicationLog? _log;
 
     public bool RepeatEnabled
@@ -137,7 +135,6 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         MainConveyor conveyor,
         NgCarrierConveyor ngConveyor,
         BufferStage buffer,
-        BoltTrainingSession training,
         PcbSupplyHandler pcbSupply,
         PcbPlacementHandler pcbPlacement,
         BoltFasteningGantry boltFastening,
@@ -150,7 +147,6 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         _conveyor = conveyor;
         _ngConveyor = ngConveyor;
         Buffer = buffer;
-        _training = training;
         _feedback = feedback;
         _log = log;
 
@@ -163,7 +159,6 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
         inspectionGantry.Feedback.StateChanged += OnMotionStateChanged;
         conveyor.Changed += NotifyChanged;
         ngConveyor.Changed += OnNgConveyorChanged;
-        training.Changed += NotifyChanged;
         operations.ActivityChanged += NotifyChanged;
     }
 
@@ -501,8 +496,7 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
 
     internal bool GetIsRunning(bool? mainRunning = null, bool? ngRunning = null)
     {
-        return _training.IsRunning
-            || _operations.HasActiveOperations
+        return _operations.HasActiveOperations
             || AutomaticRunning
             || BoltTestRunning
             || IsHoming

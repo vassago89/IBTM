@@ -194,6 +194,10 @@ public sealed class AdcBus(HantasSettings settings) : IAdcBus, IDisposable
             var port = _port;
             if (port?.IsOpen != true)
                 throw new InvalidOperationException("Hantas ADC is not connected. Open the configured COM port first.");
+            // Keep the bus owned between frames. 8N1 uses 10 bits per character;
+            // allow at least 3.5 characters, with a conservative 2 ms minimum at higher baud rates.
+            var frameGapMilliseconds = Math.Max(2, (int)Math.Ceiling(35_000.0 / port.BaudRate));
+            await Task.Delay(frameGapMilliseconds, cancellationToken);
             port.DiscardInBuffer();
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(settings.ResponseTimeoutMilliseconds);

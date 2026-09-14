@@ -17,22 +17,33 @@ public sealed record CarrierImageTileView(
     }
 }
 
-// Single camera frame with display-only ROI, prediction overlay and crosshair.
-// Coordinates passed to RegionCommand are original-image pixels.
+public sealed record ImageRuler(Point Start, Point End)
+{
+    public double PixelLength
+    {
+        get
+        {
+            return (End - Start).Length;
+        }
+    }
+}
+
+// Drawing and measurement coordinates are original-image pixels, independent of display size.
 public sealed class ImageTeachingView : FrameworkElement
 {
     private static readonly Pen RegionPen = FrozenPen(Color.FromRgb(74, 222, 128), 2.5);
+    private static readonly Pen RulerPen = FrozenPen(Color.FromRgb(56, 189, 248), 2);
     private static readonly Pen CrosshairOutlinePen = FrozenPen(Colors.Black, 3);
     private static readonly Pen CrosshairPen = FrozenPen(Color.FromRgb(251, 191, 36), 1);
 
-    private Point? _regionStart;
-    private Rect? _draftRegion;
+    private Point? _dragStart;
+    private Point? _dragEnd;
 
     public static readonly DependencyProperty SourceProperty = DependencyProperty.Register(
         nameof(Source),
         typeof(BitmapSource),
         typeof(ImageTeachingView),
-        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnSourceChanged));
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender, OnDrawingContextChanged));
 
     public static readonly DependencyProperty SourceRegionProperty = DependencyProperty.Register(
         nameof(SourceRegion),
@@ -56,6 +67,17 @@ public sealed class ImageTeachingView : FrameworkElement
         nameof(RegionCommand),
         typeof(ICommand),
         typeof(ImageTeachingView));
+
+    public static readonly DependencyProperty IsMeasuringProperty = DependencyProperty.Register(
+        nameof(IsMeasuring), typeof(bool), typeof(ImageTeachingView),
+        new FrameworkPropertyMetadata(false, FrameworkPropertyMetadataOptions.AffectsRender, OnDrawingContextChanged));
+
+    public static readonly DependencyProperty RulerProperty = DependencyProperty.Register(
+        nameof(Ruler), typeof(ImageRuler), typeof(ImageTeachingView),
+        new FrameworkPropertyMetadata(null, FrameworkPropertyMetadataOptions.AffectsRender));
+
+    public static readonly DependencyProperty MeasureCommandProperty = DependencyProperty.Register(
+        nameof(MeasureCommand), typeof(ICommand), typeof(ImageTeachingView));
 
     public ImageTeachingView()
     {
@@ -122,6 +144,42 @@ public sealed class ImageTeachingView : FrameworkElement
         }
     }
 
+    public bool IsMeasuring
+    {
+        get
+        {
+            return (bool)GetValue(IsMeasuringProperty);
+        }
+        set
+        {
+            SetValue(IsMeasuringProperty, value);
+        }
+    }
+
+    public ImageRuler? Ruler
+    {
+        get
+        {
+            return (ImageRuler?)GetValue(RulerProperty);
+        }
+        set
+        {
+            SetValue(RulerProperty, value);
+        }
+    }
+
+    public ICommand? MeasureCommand
+    {
+        get
+        {
+            return (ICommand?)GetValue(MeasureCommandProperty);
+        }
+        set
+        {
+            SetValue(MeasureCommandProperty, value);
+        }
+    }
+
     protected override void OnRender(DrawingContext drawing)
     {
         base.OnRender(drawing);
@@ -143,13 +201,27 @@ public sealed class ImageTeachingView : FrameworkElement
             drawing.DrawRectangle(null, RegionPen, bounds);
         }
 
-        if (_draftRegion is { } draft)
+        if (IsMeasuring)
         {
+            var ruler = _dragStart is { } start && _dragEnd is { } end
+                ? new ImageRuler(start, end)
+                : Ruler;
+            if (ruler is not null)
+            {
+                var first = new Point(fitted.X + ruler.Start.X * scale, fitted.Y + ruler.Start.Y * scale);
+                var last = new Point(fitted.X + ruler.End.X * scale, fitted.Y + ruler.End.Y * scale);
+                drawing.DrawLine(CrosshairOutlinePen, first, last);
+                drawing.DrawLine(RulerPen, first, last);
+                drawing.DrawEllipse(Brushes.Black, RulerPen, first, 4, 4);
+                drawing.DrawEllipse(Brushes.Black, RulerPen, last, 4, 4);
+            }
+        }
+        else if (_dragStart is { } start && _dragEnd is { } end)
+        {
+            var draft = new Rect(start, end);
             drawing.DrawRectangle(null, RegionPen, new Rect(
-                fitted.X + draft.X * scale,
-                fitted.Y + draft.Y * scale,
-                draft.Width * scale,
-                draft.Height * scale));
+                fitted.X + draft.X * scale, fitted.Y + draft.Y * scale,
+                draft.Width * scale, draft.Height * scale));
         }
 
         if (!ShowCrosshair)
@@ -173,13 +245,17 @@ public sealed class ImageTeachingView : FrameworkElement
         var mouse = e.GetPosition(this);
         if (Source is null
             || ActualWidth <= 0 || ActualHeight <= 0
-            || !ImageBounds().Contains(mouse)
-            || RegionCommand?.CanExecute(Rect.Empty) != true)
+            || !ImageBounds().Contains(mouse))
+            return;
+        var point = ImagePoint(mouse);
+        if (IsMeasuring
+            ? MeasureCommand?.CanExecute(new ImageRuler(point, point)) != true
+            : RegionCommand?.CanExecute(Rect.Empty) != true)
             return;
 
         Focus();
-        _regionStart = ImagePoint(mouse);
-        _draftRegion = new Rect(_regionStart.Value, _regionStart.Value);
+        _dragStart = point;
+        _dragEnd = point;
         CaptureMouse();
         InvalidateVisual();
         e.Handled = true;
@@ -188,45 +264,57 @@ public sealed class ImageTeachingView : FrameworkElement
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        if (_regionStart is not { } start || Source is null)
+        if (_dragStart is null || Source is null)
             return;
 
-        _draftRegion = new Rect(start, ImagePoint(e.GetPosition(this)));
+        _dragEnd = ImagePoint(e.GetPosition(this));
         InvalidateVisual();
     }
 
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
-        var region = _draftRegion;
-        CancelRegion();
-        if (region is { Width: > 0, Height: > 0 }
-            && RegionCommand?.CanExecute(region.Value) == true)
-            RegionCommand.Execute(region.Value);
+        if (_dragStart is not { } start || Source is null)
+            return;
+        var end = ImagePoint(e.GetPosition(this));
+        CancelDrag();
+        if (IsMeasuring)
+        {
+            var ruler = new ImageRuler(start, end);
+            if (ruler.PixelLength >= 1 && MeasureCommand?.CanExecute(ruler) == true)
+                MeasureCommand.Execute(ruler);
+        }
+        else
+        {
+            var region = new Rect(start, end);
+            if (region is { Width: > 0, Height: > 0 } && RegionCommand?.CanExecute(region) == true)
+                RegionCommand.Execute(region);
+        }
+        e.Handled = true;
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
-        if (e.Key != Key.Escape || _regionStart is null)
+        if (e.Key != Key.Escape || _dragStart is null)
             return;
 
-        CancelRegion();
+        CancelDrag();
         e.Handled = true;
     }
 
     protected override void OnLostMouseCapture(MouseEventArgs e)
     {
         base.OnLostMouseCapture(e);
-        _regionStart = null;
-        _draftRegion = null;
+        _dragStart = null;
+        _dragEnd = null;
         InvalidateVisual();
     }
 
-    private void CancelRegion()
+    private void CancelDrag()
     {
-        _regionStart = null;
-        _draftRegion = null;
+        _dragStart = null;
+        _dragEnd = null;
         if (IsMouseCaptured)
             ReleaseMouseCapture();
         InvalidateVisual();
@@ -251,9 +339,9 @@ public sealed class ImageTeachingView : FrameworkElement
             Math.Clamp((screen.Y - fitted.Y) / scale, 0, source.PixelHeight));
     }
 
-    private static void OnSourceChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
+    private static void OnDrawingContextChanged(DependencyObject sender, DependencyPropertyChangedEventArgs e)
     {
-        ((ImageTeachingView)sender).CancelRegion();
+        ((ImageTeachingView)sender).CancelDrag();
     }
 
     private static Pen FrozenPen(Color color, double thickness)

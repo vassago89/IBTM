@@ -212,9 +212,11 @@ public sealed class NgCarrierConveyor : AutoUnit
                 return NgConveyorState.Full;
             }
 
-            return _shuttle.Lift == NgShuttleLiftState.Down
-                ? TargetState()
-                : NgConveyorState.WaitingForShuttleDown;
+            if (_shuttle.Lift != NgShuttleLiftState.Down)
+                return NgConveyorState.WaitingForShuttleDown;
+            if (!Position1Occupied)
+                return NgConveyorState.MovingToPosition1;
+            return !Position2Occupied ? NgConveyorState.MovingToPosition2 : NgConveyorState.Full;
         }
 
         return Position1Occupied ? NgConveyorState.ReadyToEject : NgConveyorState.WaitingForCarrier;
@@ -317,7 +319,9 @@ public sealed class NgCarrierConveyor : AutoUnit
             case NgConveyorState.CompactingCarriers:
                 return CompactCarriersAsync(cancellationToken);
             case NgConveyorState.AcknowledgingEject:
-                AcknowledgeEject();
+                _ejectionPhase = EjectionPhase.WaitingForButtonRelease;
+                _io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, false);
+                Changed?.Invoke();
                 break;
             default:
                 return WaitForChangeAsync(cancellationToken);
@@ -360,16 +364,6 @@ public sealed class NgCarrierConveyor : AutoUnit
         }
     }
 
-    private NgConveyorState TargetState()
-    {
-        if (!Position1Occupied)
-        {
-            return NgConveyorState.MovingToPosition1;
-        }
-
-        return !Position2Occupied ? NgConveyorState.MovingToPosition2 : NgConveyorState.Full;
-    }
-
     private async Task MoveCarrierAsync(
         Movement movement,
         CancellationToken cancellationToken)
@@ -409,13 +403,6 @@ public sealed class NgCarrierConveyor : AutoUnit
         await SetStopperDownAsync(false, cancellationToken);
         await RunUntilAsync(InputIo.NgConveyorPosition1Occupied, true, false, cancellationToken);
         _movement = Movement.None;
-        Changed?.Invoke();
-    }
-
-    private void AcknowledgeEject()
-    {
-        _ejectionPhase = EjectionPhase.WaitingForButtonRelease;
-        _io.SetOutput(OutputIo.NgCarrierEjectCompleteLamp, false);
         Changed?.Invoke();
     }
 

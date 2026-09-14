@@ -9,14 +9,6 @@
     d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
     Width="566"
     Height="650">
-    <UserControl.Resources>
-        <Style x:Key="BufferLocatingPinStyle" TargetType="Ellipse">
-            <Setter Property="Width" Value="6"/>
-            <Setter Property="Height" Value="6"/>
-            <Setter Property="Margin" Value="7"/>
-            <Setter Property="Fill" Value="{StaticResource CardBorderBrush}"/>
-        </Style>
-    </UserControl.Resources>
     <Grid>
         <Canvas>
             <TextBlock Canvas.Left="{x:Static ui:MachinePlan.HeaderInset}" Canvas.Top="{x:Static ui:MachinePlan.HeaderTop}"
@@ -136,18 +128,8 @@
             <Border Canvas.Left="{x:Static ui:MachinePlan.BufferLeft}" Canvas.Top="{x:Static ui:MachinePlan.BufferTop}"
                 Width="{x:Static ui:MachinePlan.BufferWidth}" Height="{x:Static ui:MachinePlan.BufferHeight}"
                 Style="{StaticResource BufferStyle}">
-                <Grid Width="104" Height="66" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Border Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="2"
-                        CornerRadius="2"/>
-                    <Border Style="{StaticResource PcbSlotStyle}"/>
-                    <Border Style="{StaticResource PcbFootprintStyle}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                        Visibility="{Binding Buffer.PcbPresent,
-                                                 Converter={StaticResource BoolToVis}}"/>
-                    <Ellipse HorizontalAlignment="Left" VerticalAlignment="Top" Style="{StaticResource BufferLocatingPinStyle}"/>
-                    <Ellipse HorizontalAlignment="Right" VerticalAlignment="Top" Style="{StaticResource BufferLocatingPinStyle}"/>
-                    <Ellipse HorizontalAlignment="Left" VerticalAlignment="Bottom" Style="{StaticResource BufferLocatingPinStyle}"/>
-                    <Ellipse HorizontalAlignment="Right" VerticalAlignment="Bottom" Style="{StaticResource BufferLocatingPinStyle}"/>
-                </Grid>
+                <TextBlock Text="HANDOFF" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Foreground="{StaticResource TextMutedBrush}"/>
             </Border>
 
             <Grid Width="{x:Static ui:MachinePlan.PlacementWidth}" Height="{x:Static ui:MachinePlan.PlacementHeight}"

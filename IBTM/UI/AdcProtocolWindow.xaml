@@ -92,7 +92,8 @@
                                 PressCommand="{Binding ReverseCommand}"
                                 ReleaseCommand="{Binding ReleaseReverseCommand}"
                                 Style="{StaticResource SecondaryButtonStyle}"
-                                ToolTip="Loosen while held. Release or Stop ends rotation; no automatic loose-complete judgement."/>
+                                ToolTipService.ShowOnDisabled="True"
+                                ToolTip="Loosen while held. Release or Stop ends rotation; no automatic loose-complete judgement. Resolve any pending fastening result for the current carrier in Recovery first."/>
                             <Button x:Name="StopButton" Content="Stop" Style="{StaticResource DangerButtonStyle}" Click="OnStop"/>
                         </StackPanel>
                     </Grid>
@@ -112,6 +113,8 @@
 
                             <WrapPanel Margin="0,0,0,14">
                                 <Button x:Name="StartButton" Content="Start Fastening" Margin="0,0,8,8"
+                                    ToolTipService.ShowOnDisabled="True"
+                                    ToolTip="Resolve any pending fastening result for the current carrier in Recovery before starting a manual test."
                                     Style="{StaticResource PrimaryButtonStyle}" Click="OnStart"/>
                                 <Button Content="Alarm Reset" Margin="0,0,8,8" Style="{StaticResource SecondaryButtonStyle}"
                                     Click="OnResetAlarm"/>

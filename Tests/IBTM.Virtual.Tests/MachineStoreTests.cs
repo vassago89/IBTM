@@ -246,6 +246,12 @@ public sealed class MachineStoreTests
         var backup = Path.Combine(directory, "Backup.db");
         store.Backup(backup);
         await settings.SaveAsync(store);
+        // A failed copy can leave a created but empty restore destination.
+        File.WriteAllBytes(store.DatabaseFile + ".restore", []);
+        Assert.Throws<InvalidDataException>(() => MachineStore.RestorePending(store.DatabaseFile));
+        Assert.Equal(30, (await MachineSettings.LoadAsync(store)).PcbSupply.RotationZ);
+        Assert.False(File.Exists(store.DatabaseFile + ".previous"));
+
         store.PrepareRestore(backup);
         Assert.Equal(30, (await MachineSettings.LoadAsync(store)).PcbSupply.RotationZ);
         MachineStore.RestorePending(store.DatabaseFile);

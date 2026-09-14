@@ -255,18 +255,7 @@ public sealed class MachineStore
 
     public void PrepareRestore(string source)
     {
-        using (var connection = CreateConnection(source, SqliteOpenMode.ReadOnly))
-        {
-            connection.Open();
-            using var command = connection.CreateCommand();
-            command.CommandText = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name IN ('Settings', 'Recipes', 'RecipeImages')";
-            if ((long)command.ExecuteScalar()! != 3)
-                throw new InvalidDataException("Select an IBTM machine database, not the training database.");
-            command.CommandText = "PRAGMA quick_check";
-            if (!Equals(command.ExecuteScalar(), "ok"))
-                throw new InvalidDataException("The selected database failed its integrity check.");
-        }
-
+        CheckDatabase(source);
         CopyDatabase(source, DatabaseFile + ".restore");
     }
 
@@ -276,10 +265,24 @@ public sealed class MachineStore
         var pending = target + ".restore";
         if (!File.Exists(pending))
             return;
+        CheckDatabase(pending);
         if (File.Exists(target))
             CopyDatabase(target, target + ".previous");
         CopyDatabase(pending, target);
         File.Delete(pending);
+    }
+
+    private static void CheckDatabase(string path)
+    {
+        using var connection = CreateConnection(path, SqliteOpenMode.ReadOnly);
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name IN ('Settings', 'Recipes', 'RecipeImages')";
+        if ((long)command.ExecuteScalar()! != 3)
+            throw new InvalidDataException("The selected file is not an IBTM machine database.");
+        command.CommandText = "PRAGMA quick_check";
+        if (!Equals(command.ExecuteScalar(), "ok"))
+            throw new InvalidDataException("The selected database failed its integrity check.");
     }
 
     private static void CopyDatabase(string source, string target)

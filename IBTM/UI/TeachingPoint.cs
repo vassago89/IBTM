@@ -34,7 +34,40 @@ public partial class TeachingPoint : ObservableObject
     {
         get
         {
-            return Position.Bolt is { } bolt ? $"B{bolt.Number}" : Position.Target.GetDescription();
+            if (Position.Bolt is { } bolt)
+            {
+                return Position.Target == TeachingTarget.BoltPosition
+                    ? $"B{bolt.Number} · {bolt.Head.GetDescription()}"
+                    : $"B{bolt.Number} · Inspection FOV";
+            }
+
+            return (Position.Target, Position.MotionGroup) switch
+            {
+                (TeachingTarget.SafeZ, MotionGroup.PcbSupply) => "Transport / Rotation Z",
+                (TeachingTarget.SafeZ, MotionGroup.PcbPlacementHandler) => "Approach Z",
+                _ => Position.Target.GetDescription(),
+            };
+        }
+    }
+
+    public TeachingPointGroup Group
+    {
+        get
+        {
+            return Position.Target switch
+            {
+                TeachingTarget.BoltPosition => TeachingPointGroup.Calculated,
+                TeachingTarget.SupplyBufferBoundary1 or TeachingTarget.SupplyBufferBoundary2
+                    or TeachingTarget.PlacementBufferBoundary1 or TeachingTarget.PlacementBufferBoundary2
+                    => TeachingPointGroup.Interference,
+                TeachingTarget.SafeZ or TeachingTarget.SupplyCarrierY or TeachingTarget.SupplyBufferClearZ
+                    or TeachingTarget.NgPickupSafeX
+                    or TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin
+                    or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
+                    or TeachingTarget.PickupHeadUpperLeftLocatingPin or TeachingTarget.PickupHeadLowerRightLocatingPin
+                    => TeachingPointGroup.MachineReference,
+                _ => TeachingPointGroup.Work,
+            };
         }
     }
 
@@ -42,20 +75,16 @@ public partial class TeachingPoint : ObservableObject
     {
         get
         {
-            if (Position.Target == TeachingTarget.BoltTeaching)
-                return "Add Bolt → Add Current Image → Draw ROI";
+            if (!Position.HasPosition)
+                return "—";
             return Position.Mode switch
             {
-                TeachMode.Image
-                    => Position.HasPosition
-                        ? $"{X:F3}, {Y:F3}"
-                        : "—",
-                TeachMode.XYOnly => Position.HasPosition ? $"{X:F3}, {Y:F3}" : "—",
-                TeachMode.XZOnly => $"{X:F3}, {Z:F3}",
-                TeachMode.XOnly => $"{X:F3}",
-                TeachMode.YOnly => $"{Y:F3}",
-                TeachMode.ZOnly => Z is { } z ? $"{z:F3}" : "—",
-                _ => $"{X:F3}, {Y:F3}, {Z:F3}",
+                TeachMode.Image or TeachMode.XYOnly => $"X {X:F3}  Y {Y:F3}",
+                TeachMode.XZOnly => $"X {X:F3}  Z {Z:F3}",
+                TeachMode.XOnly => $"X {X:F3}",
+                TeachMode.YOnly => $"Y {Y:F3}",
+                TeachMode.ZOnly => Z is { } z ? $"Z {z:F3}" : "—",
+                _ => $"X {X:F3}  Y {Y:F3}  Z {Z:F3}",
             };
         }
     }
@@ -107,10 +136,30 @@ public partial class TeachingPoint : ObservableObject
     }
 }
 
+public enum TeachingPointGroup
+{
+    [Description("Work positions")]
+    Work,
+    [Description("Machine references")]
+    MachineReference,
+    [Description("Calculated positions · Move To for verification")]
+    Calculated,
+    [Description("Handoff interference area")]
+    Interference,
+}
+
 public enum TeachingSaveBehavior
 {
-    [Description("Add Bolt below the teaching list. Jog to the bolt, Add Current Image, then draw its ROI on the saved image.")]
-    AddBolt,
+    [Description("Teach give XY. Supply holds the PCB at Transport / Rotation Z until Placement detects the PCB, vacuum and closed gripper. Apply & Save Handoff before leaving Teaching.")]
+    SupplyHandoff,
+    [Description("Teach receiving XYZ. After gripping, Placement waits for Supply to leave before lifting away. Apply & Save Handoff before leaving Teaching.")]
+    PlacementHandoff,
+    [Description("After releasing the PCB, Supply moves to this Z and withdraws X. This is clearance for withdrawal. Apply & Save Handoff before leaving Teaching.")]
+    SupplyClearance,
+    [Description("Common pickup Y for both PCB slots. Each slot teaches only X and Z. Saves automatically.")]
+    SupplyCarrierY,
+    [Description("Teach pickup Y. Move To uses NG Pickup Safe X and this Y. Saves automatically.")]
+    NgPickup,
 
     [Description("Teach with Head 1 down; saves automatically. Move To lowers Head 1 at pickup XY, then moves Z. Vacuum is unchanged.")]
     BoltPickup,
@@ -125,7 +174,7 @@ public enum TeachingSaveBehavior
     Machine,
     [Description("Recipe position · Use Save Recipe after teaching.")]
     Recipe,
-    [Description("Buffer setup · Apply & Save Buffer before leaving this page; otherwise staged changes are discarded.")]
+    [Description("PCB handoff · Apply & Save Handoff before leaving Teaching; otherwise staged changes are discarded.")]
     Buffer,
     [Description("Add Current Image, then draw the bolt ROI on the saved FOV. This heat sink is taught independently. Saves automatically.")]
     Image,

@@ -26,24 +26,21 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
                 or OutputIo.MainConveyorRun
                 or OutputIo.MainConveyorForward
                 => IoSection.MainConveyorInterfaceDrive,
-            InputIo.PcbPlacementCarrierPresent
-                or InputIo.PcbPlacementStopperUp
+            InputIo.PcbPlacementStopperUp
                 or InputIo.PcbPlacementStopperDown
                 or InputIo.PcbPlacementBackupPlateUp
                 or InputIo.PcbPlacementBackupPlateDown
                 or OutputIo.PcbPlacementStopperDown
                 or OutputIo.PcbPlacementBackupPlateDown
                 => IoSection.MainConveyorStation1,
-            InputIo.BoltFasteningCarrierPresent
-                or InputIo.BoltFasteningStopperUp
+            InputIo.BoltFasteningStopperUp
                 or InputIo.BoltFasteningStopperDown
                 or InputIo.BoltFasteningBackupPlateUp
                 or InputIo.BoltFasteningBackupPlateDown
                 or OutputIo.BoltFasteningStopperDown
                 or OutputIo.BoltFasteningBackupPlateDown
                 => IoSection.MainConveyorStation2,
-            InputIo.InspectionCarrierPresent
-                or InputIo.InspectionStopperUp
+            InputIo.InspectionStopperUp
                 or InputIo.InspectionStopperDown
                 or InputIo.InspectionBackupPlateUp
                 or InputIo.InspectionBackupPlateDown
@@ -61,17 +58,14 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
             [InputIo.MainConveyorAvailableFromFront2] = 17,
             [InputIo.MainConveyorReadyFromRear] = 18,
             [InputIo.MainConveyorAutoMode] = 53,
-            [InputIo.PcbPlacementCarrierPresent] = 56,
             [InputIo.PcbPlacementStopperDown] = 57,
             [InputIo.PcbPlacementStopperUp] = 58,
             [InputIo.PcbPlacementBackupPlateUp] = 59,
             [InputIo.PcbPlacementBackupPlateDown] = 60,
-            [InputIo.BoltFasteningCarrierPresent] = 63,
             [InputIo.BoltFasteningStopperDown] = 64,
             [InputIo.BoltFasteningStopperUp] = 65,
             [InputIo.BoltFasteningBackupPlateUp] = 66,
             [InputIo.BoltFasteningBackupPlateDown] = 67,
-            [InputIo.InspectionCarrierPresent] = 70,
             [InputIo.InspectionStopperDown] = 71,
             [InputIo.InspectionStopperUp] = 72,
             [InputIo.InspectionBackupPlateUp] = 73,

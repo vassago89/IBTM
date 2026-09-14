@@ -37,12 +37,10 @@ public sealed partial class MachineController
         {
             if (_repeatPhase == RepeatPhase.Automatic)
             {
-                var carriers = CarrierInputs.Count(input =>
-                    input != InputIo.NgCarrierDetected
-                    && (_units.NgShuttle || input != InputIo.NgShuttleCarrierDetected)
-                    && (_units.NgConveyor
-                        || input is not (InputIo.NgConveyorPosition1Occupied or InputIo.NgConveyorPosition2Occupied))
-                    && _io.GetInput(input));
+                var carriers = _conveyor.CarrierCount
+                    + (_units.NgShuttle && _ngShuttle.Feedback.CarrierDetected ? 1 : 0)
+                    + (_units.NgConveyor && _ngConveyor.Position1Occupied ? 1 : 0)
+                    + (_units.NgConveyor && _ngConveyor.Position2Occupied ? 1 : 0);
                 if (carriers == 0 && _ngTransfer.CarrierDetected)
                     carriers = 1;
                 if (carriers != 1 || _conveyor.ExitCarrierDetected)

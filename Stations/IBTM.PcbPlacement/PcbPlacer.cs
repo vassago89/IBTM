@@ -195,7 +195,7 @@ public sealed class PcbPlacer : AutoUnit
 
         if (pcb == PlacementPcbState.Secured)
         {
-            if (_buffer.IsPlacementInside(live) && _buffer.IsSupplyInside(live))
+            if (_buffer.IsPlacementInside(live) && !_buffer.IsSupplyOutside(live))
             {
                 return PcbPlacementState.WaitingForSupplyExit;
             }
@@ -260,10 +260,10 @@ public sealed class PcbPlacer : AutoUnit
             return PcbPlacementState.CompletingCarrier;
         }
 
-        return _buffer.CanEnterPlacement(live) ? BufferPickupState(live) : PcbPlacementState.WaitingForBufferPcb;
+        return _buffer.CanEnterPlacement(live) ? HandoffPickupState(live) : PcbPlacementState.WaitingForSupply;
     }
 
-    private PcbPlacementState BufferPickupState(bool live = true)
+    private PcbPlacementState HandoffPickupState(bool live = true)
     {
         var atBuffer = _handler.IsAtBufferXY(live);
         var rotation = _handler.Rotation;
@@ -350,7 +350,7 @@ public sealed class PcbPlacer : AutoUnit
             return PcbPlacementState.OpeningGripper;
         }
 
-        return PcbPlacementState.WaitingForBufferPcb;
+        return PcbPlacementState.WaitingForSupply;
     }
 
     private PcbPlacementState? FinishPlacementState(HeatSinkSlot heatSink, bool live = true)

@@ -40,11 +40,8 @@ public sealed class InspectionWork : StationWork
         {
             return CarrierPresent
                 && (base.HasNg
-                    || Completed
-                    && (Enabled
-                        ? !Assemblies.Any(assembly => assembly.InspectionResult != AssemblyResult.Pending)
-                        : !HeatSinkPresent(HeatSinkSlot.HeatSink1)
-                            && !HeatSinkPresent(HeatSinkSlot.HeatSink2)));
+                    || Enabled && Completed
+                        && !Assemblies.Any(assembly => assembly.InspectionResult != AssemblyResult.Pending));
         }
     }
 

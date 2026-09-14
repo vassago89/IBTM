@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -39,65 +38,38 @@ public sealed class InspectionTests
     }
 
     [Fact]
-    public void BoltPredictionUsesInclusiveProbabilityThreshold()
+    public void BinaryCheckerUsesInclusiveBrightnessThresholdAndBgrLuminance()
     {
-        float[] probabilities = [0, 0.5f, 0.5f, 0.9f, 1];
-        var prediction = new BoltPrediction(new(1, 1, 3, [0, 0, 0]), probabilities);
-        foreach (var threshold in new[] { 0f, 0.49f, 0.5f, 0.50001f, 1f })
-            Assert.Equal(
-                (double)probabilities.Count(value => value >= threshold) / probabilities.Length,
-                prediction.MaskRatio(threshold));
-    }
+        var image = new ImageFrame(5, 1, 15,
+            [127, 127, 127, 128, 128, 128, 255, 0, 0, 0, 255, 0, 0, 0, 255]);
+        var result = BinaryChecker.Check(image, new(0, 0, 5, 1), 128);
 
-    [Theory]
-    [InlineData(64)]
-    [InlineData(256)]
-    public void ModelInputUsesOnlyTheConfiguredCentralRegion(int regionSize)
-    {
-        const int width = 400;
-        const int height = 300;
-        const int stride = width * ImageFrame.ColorChannelCount + 4;
-        var pixels = Enumerable.Repeat((byte)255, stride * height).ToArray();
-        var left = (width - regionSize) / 2;
-        var top = (height - regionSize) / 2;
-        for (var y = 0; y < regionSize; y++)
-            for (var x = 0; x < regionSize; x++)
-                for (var channel = 0; channel < ImageFrame.ColorChannelCount; channel++)
-                    pixels[(top + y) * stride + (left + x) * ImageFrame.ColorChannelCount + channel] = (byte)(10 + 40 * x / (regionSize - 1) + 80 * y / (regionSize - 1) + channel);
-        var source = new ImageFrame(width, height, stride, pixels);
-
-        var input = BoltImageInput.Create(source, regionSize);
-
-        Assert.Equal((128, 128, 384), (input.Width, input.Height, input.Stride));
-        Assert.Equal(10, input.Pixels[0]);
-        Assert.InRange(input.Pixels[127 * 3], (byte)49, (byte)50);
-        Assert.InRange(input.Pixels[127 * input.Stride], (byte)89, (byte)90);
-        Assert.InRange(input.Pixels[^1], (byte)131, (byte)132);
-        Assert.DoesNotContain((byte)255, input.Pixels);
-        Assert.Equal(255, source.Pixels[0]);
+        Assert.Equal(0.4, result.BrightRatio);
+        Assert.Equal(new byte[] { 0, 0, 0, 255, 255, 255, 0, 0, 0, 255, 255, 255, 0, 0, 0 }, result.Image.Pixels);
+        Assert.Equal(127, image.Pixels[0]);
     }
 
     [Fact]
-    public void ModelInputUsesTheDrawnOffCenterRectangle()
+    public void BinaryCheckerUsesOnlyDrawnRectangleAndIgnoresRowPadding()
     {
-        const int width = 400;
-        const int height = 300;
-        const int stride = width * 3 + 4;
-        var pixels = Enumerable.Repeat((byte)255, stride * height).ToArray();
-        var region = new PixelRegion(20, 170, 64, 96);
+        // White surroundings and padding must not count toward this 2 x 3 ROI.
+        var pixels = Enumerable.Repeat((byte)255, 14 * 5).ToArray();
+        var region = new PixelRegion(1, 1, 2, 3);
         for (var y = region.Y; y < region.Y + region.Height; y++)
             for (var x = region.X; x < region.X + region.Width; x++)
                 for (var channel = 0; channel < 3; channel++)
-                    pixels[y * stride + x * 3 + channel] = (byte)(10 + channel);
-        var image = new ImageFrame(width, height, stride, pixels);
+                    pixels[y * 14 + x * 3 + channel] = y == 2 ? (byte)200 : (byte)20;
+        var image = new ImageFrame(4, 5, 14, pixels);
 
-        var input = BoltImageInput.Create(image, region);
+        var result = BinaryChecker.Check(image, region, 128);
 
-        Assert.Equal((128, 128, 384), (input.Width, input.Height, input.Stride));
-        for (var index = 0; index < input.Pixels.Length; index++)
-            Assert.Equal((byte)(10 + index % 3), input.Pixels[index]);
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => BoltImageInput.Create(image, region with { X = 390 }));
+        Assert.Equal((2, 3, 6), (result.Image.Width, result.Image.Height, result.Image.Stride));
+        Assert.Equal(1.0 / 3, result.BrightRatio);
+        Assert.Equal(6, result.Image.Pixels.Count(value => value == 255));
+        Assert.Throws<ArgumentOutOfRangeException>(() => BinaryChecker.Check(image, region with { X = 3 }, 128));
+        Assert.Throws<ArgumentOutOfRangeException>(() => BinaryChecker.Check(image, region, 256));
+        Assert.Throws<ArgumentException>(() => BinaryChecker.Check(image with { Stride = 11 }, region, 128));
+        Assert.Throws<ArgumentException>(() => BinaryChecker.Check(image with { Pixels = new byte[14] }, region, 128));
     }
 
     [Theory]
@@ -140,14 +112,10 @@ public sealed class InspectionTests
                 () => [],
                 () => [new(new() { X = 15, Y = 7 }, 4, 4, "PCB-000123")]),
             new VirtualLightController(),
-            new BoltPresenceDetector(() => new(), new VirtualBoltRecessSegmenter(), () => 0.5f),
             settings,
             new LightingSettings(),
             () => recipe,
             () => [fov]);
-        var inspections = new List<BoltInspectionImage>();
-        inspector.Inspected += inspections.Add;
-
         if (live)
             await inspector.StartLiveViewAsync();
 
@@ -164,12 +132,17 @@ public sealed class InspectionTests
             Assert.Equal(0, movements);
             Assert.NotEmpty(image.Frame.Pixels);
         }
-        Assert.Empty(inspections); // Carrier teaching images are not automatic bolt inspections.
 
         var bolt = new BoltTarget(new() { Number = 1, X = 999, Y = 999 });
         var capturedFov = await inspector.CaptureAsync(bolt);
         Assert.True(gantry.IsAt(fov.Center)); // Never move the camera center to the bolt / ROI center.
-        Assert.Equal(128, inspector.Predict(capturedFov, fov.Region!).Input.Width);
+        Assert.Equal(fov.Region!.Width, inspector.Check(capturedFov, fov.Region, bolt).Image.Width);
+        Assert.True(inspector.HasPosition(bolt));
+        fov.Region = new(310, 30, 60, 80);
+        Assert.False(inspector.HasPosition(bolt));
+        movements = 0;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => inspector.CaptureAsync(bolt));
+        Assert.Equal(0, movements);
         fov.Region = null;
         Assert.False(inspector.HasPosition(bolt));
         movements = 0;
@@ -234,12 +207,10 @@ public sealed class InspectionTests
         ]),
             motion.GetPosition,
             gantrySettings.GetBoltPosition(bolts[1], carrierReference));
-        var segmenter = new CountingSegmenter();
         var inspector = new BoltInspector(
             gantry,
             camera,
             new VirtualLightController(),
-            new BoltPresenceDetector(() => new BoltInspectionRecipe(), segmenter, () => 0.5f),
             gantrySettings,
             new LightingSettings(),
             () => new(),
@@ -247,7 +218,7 @@ public sealed class InspectionTests
             {
                 Number = index + 1,
                 Center = gantrySettings.GetBoltPosition(bolt, carrierReference),
-                Region = new(96, 56, 128, 128),
+                Region = new(128, 88, 64, 64),
                 BoltNumber = bolt.Number,
                 HeatSink = bolt.HeatSink,
             }),
@@ -262,8 +233,6 @@ public sealed class InspectionTests
                     IsBarcode = true, HeatSink = HeatSinkSlot.HeatSink2, Region = new(180, 40, 80, 80),
                 },
             ]);
-        var inspections = new List<BoltInspectionImage>();
-        inspector.Inspected += inspections.Add;
         var shuttleFeedback = new NgShuttleFeedback(io);
         var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings(), shuttleFeedback);
         var shuttle = new NgShuttle(io, conveyor, shuttleFeedback, transferFeedback);
@@ -284,7 +253,7 @@ public sealed class InspectionTests
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.InspectionStopperDown, true);
         io.SetInput(InputIo.InspectionStopperUp, false);
-        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
 
         Assert.Empty(work.Assemblies);
         Assert.Equal(HeatSinkSlot.HeatSink1, station.ActivePcb(bolts));
@@ -297,7 +266,7 @@ public sealed class InspectionTests
         var boltImage = await inspector.CaptureAsync(bolts[0]);
         Assert.True(gantry.IsAt(gantrySettings.GetBoltPosition(bolts[0], carrierReference)));
         Assert.NotEmpty(boltImage.Pixels);
-        Assert.Empty(inspections);
+        Assert.Empty(work.Assemblies);
 
         using var firstStop = new CancellationTokenSource();
         var firstRun = station.RunAsync(bolts, firstStop.Token);
@@ -333,16 +302,8 @@ public sealed class InspectionTests
         Assert.Empty(work.Assembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
         Assert.Equal(2, work.Assembly(HeatSinkSlot.HeatSink2).BoltPresenceResults.Count);
         Assert.Equal(AssemblyResult.Ok, work.Assembly(HeatSinkSlot.HeatSink2).InspectionResult);
-        io.SetInput(InputIo.InspectionHeatSink1Present, false);
-        io.SetInput(InputIo.InspectionHeatSink2Present, false);
-        Assert.True(work.Completed);
-        Assert.False(work.HasNg);
-        io.SetInput(InputIo.InspectionHeatSink1Present, true);
-        io.SetInput(InputIo.InspectionHeatSink2Present, true);
-        Assert.True(work.Completed);
-
-        io.SetInput(InputIo.InspectionCarrierPresent, false);
-        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+        io.SetInputs((InputIo.InspectionHeatSink1Present, true), (InputIo.InspectionHeatSink2Present, true));
         Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
 
         var heatSink1 = work.Assemblies.Single(assembly => assembly.HeatSink == HeatSinkSlot.HeatSink1);
@@ -353,47 +314,25 @@ public sealed class InspectionTests
         Assert.Equal(AssemblyResult.Ok, heatSink2.InspectionResult);
         Assert.All(heatSink2.BoltPresenceResults.Values, Assert.True);
 
-        io.SetInput(InputIo.InspectionCarrierPresent, false);
-        io.SetInput(InputIo.InspectionHeatSink1Present, false);
-        io.SetInput(InputIo.InspectionHeatSink2Present, false);
-        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+        Assert.False(work.CarrierPresent);
 
-        Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
-        Assert.True(work.HasNg);
-        Assert.Empty(work.Assemblies);
-        io.SetInput(InputIo.InspectionHeatSink1Present, true);
-        Assert.True(work.Completed);
-        Assert.True(work.HasNg);
-        Assert.Empty(work.Assemblies);
-
-        var segmentCallsAtStop = 0;
+        HeatSinkAssembly[] interruptedAssemblies = [];
         camera.AfterCapture = () =>
         {
-            segmentCallsAtStop = segmenter.Calls;
-            io.SetInput(InputIo.InspectionCarrierPresent, false);
-            io.SetInput(InputIo.InspectionCarrierPresent, true);
+            interruptedAssemblies = work.Assemblies.ToArray();
+            VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+            VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
             cancellation.Cancel();
         };
-        io.SetInput(InputIo.InspectionCarrierPresent, false);
+        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
-        io.SetInput(InputIo.InspectionCarrierPresent, true);
+        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         await run.WaitAsync(TimeSpan.FromSeconds(2));
 
-        Assert.Equal(segmentCallsAtStop, segmenter.Calls);
-        Assert.Equal(segmenter.Calls, inspections.Count);
-        Assert.Contains(
-            inspections,
-            image =>
-                image.BoltNumber == 2
-                    && image.HeatSink == HeatSinkSlot.HeatSink1
-                    && !image.Present);
-        Assert.All(
-            inspections,
-            image =>
-            {
-                Assert.Equal(128, image.RegionSize);
-                Assert.True(image.Image.Width > 128 && image.Image.Height > 128);
-            });
+        var interruptedAssembly = Assert.Single(interruptedAssemblies);
+        Assert.Null(interruptedAssembly.PcbBarcode);
+        Assert.Empty(interruptedAssembly.BoltPresenceResults);
         Assert.Empty(work.Assemblies);
         Assert.False(work.Completed);
 
@@ -449,28 +388,6 @@ public sealed class InspectionTests
             new AxisPosition { X = x, Y = y },
             reference.UpperLeftLocatingPin!);
         return new BoltTarget(new BoltPoint { Number = number, HeatSink = heatSink, X = position.X, Y = position.Y });
-    }
-
-    private sealed class CountingSegmenter : IBoltRecessSegmenter
-    {
-        private readonly VirtualBoltRecessSegmenter _inner = new();
-        public int Calls { get; private set; }
-
-        public void CheckReady()
-        {
-            _inner.CheckReady();
-        }
-
-        public void Reload()
-        {
-            _inner.Reload();
-        }
-
-        public float[] Segment(ImageFrame image)
-        {
-            Calls++;
-            return _inner.Segment(image);
-        }
     }
 
     private sealed class MissingBoltCamera(

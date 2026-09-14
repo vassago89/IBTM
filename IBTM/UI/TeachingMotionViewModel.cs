@@ -43,21 +43,21 @@ public enum TeachingMotionHint
     None,
     [Description("This unit is disabled in Settings.")]
     UnitDisabled,
-    [Description("Supply is inside the buffer area.")]
+    [Description("Supply is inside the handoff interference area.")]
     SupplyInBuffer,
-    [Description("Placement is inside the buffer area.")]
+    [Description("Placement is inside the handoff interference area.")]
     PlacementInBuffer,
     [Description("Raise the NG pickup before moving XY.")]
     RaiseNgPickup,
     [Description("Raise the placement handler before moving X/Y.")]
     RaisePlacementCylinders,
-    [Description("Jog/Step adjust one axis at the current height. Raise both heads before moving to a saved position.")]
+    [Description("Jog/Step adjust one axis at the current height. Raise both heads before moving to a teaching position.")]
     BoltAdjustment,
     [Description("Move to Safe Z before moving X/Y.")]
     SafeZRequired,
-    [Description("Inside buffer: Y and Z moves are disabled.")]
+    [Description("Inside the handoff interference area: Y and Z moves are disabled.")]
     SupplyInBufferRestricted,
-    [Description("Home this unit before jogging or moving to a saved position.")]
+    [Description("Home this unit before jogging or moving to a teaching position.")]
     HomeRequired,
     [Description("Turn on this unit's axis servos before moving.")]
     ServoOff,
@@ -254,6 +254,7 @@ public abstract partial class TeachingMotionViewModel(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            SaveError = "Teaching save cancelled. Values have not been saved.";
             throw;
         }
         catch (Exception exception)

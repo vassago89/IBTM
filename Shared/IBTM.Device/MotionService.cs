@@ -193,6 +193,7 @@ public abstract class MotionService(
         CancellationToken cancellationToken = default)
     {
         using var operation = Operations.Link(cancellationToken);
+        ValidateMove(velocity);
         EnsureStopped();
         if (axis == MotionAxis.Y)
             EnsureHasY();
@@ -219,6 +220,8 @@ public abstract class MotionService(
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
+        ValidateMove(Settings.HorizontalSpeed);
+        ValidateMove(Settings.ZSpeed);
         EnsureHasY();
         EnsureHasZ();
         ValidateTarget(MotionAxis.X, x);
@@ -237,6 +240,7 @@ public abstract class MotionService(
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
+        ValidateMove(velocity);
         if (axis == MotionAxis.Y)
             EnsureHasY();
         else if (axis == MotionAxis.Z)
@@ -265,6 +269,7 @@ public abstract class MotionService(
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
+        ValidateMove(velocity);
         EnsureHasZ();
         ValidateTarget(MotionAxis.X, x);
         ValidateTarget(MotionAxis.Z, clearZ);
@@ -286,6 +291,7 @@ public abstract class MotionService(
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
+        ValidateMove(velocity);
         EnsureHasY();
         ValidateTarget(MotionAxis.X, x);
         ValidateTarget(MotionAxis.Y, y);
@@ -305,6 +311,7 @@ public abstract class MotionService(
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
+        ValidateMove(Settings.ZSpeed);
         EnsureHasZ();
         ValidateTarget(MotionAxis.Z, HorizontalZ);
         EnsureStopped();
@@ -325,6 +332,7 @@ public abstract class MotionService(
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
+        ValidateMove(Math.Abs(velocity));
         EnsureHasZ();
         EnsureStopped();
         await MoveZToPositiveLimitCoreAsync(Math.Abs(velocity), cancellationToken);
@@ -345,6 +353,7 @@ public abstract class MotionService(
             throw new InvalidOperationException($"This motion group has no horizontal {axis} axis.");
         }
 
+        ValidateHome(axis, Math.Abs(velocity));
         if (!GetAxisState(MotionAxis.Z).PositiveLimit)
         {
             throw new InvalidOperationException("Z axis must be at its positive limit before horizontal homing.");
@@ -362,6 +371,7 @@ public abstract class MotionService(
         if (axis is not (MotionAxis.X or MotionAxis.Y or MotionAxis.Z))
             throw new ArgumentOutOfRangeException(nameof(axis));
         using var operation = Operations.Link(cancellationToken);
+        ValidateMove(Math.Abs(velocity));
         if (axis == MotionAxis.Y)
             EnsureHasY();
         if (axis == MotionAxis.Z)
@@ -398,11 +408,14 @@ public abstract class MotionService(
             throw new InvalidOperationException($"This motion group has no {axis} axis.");
         }
 
+        ValidateHome(axis, velocity);
         EnsureStopped();
         if (axis != MotionAxis.Z && hasZ)
         {
+            ValidateMove(Settings.ZSpeed);
             if (!GetAxisState(MotionAxis.Z).Homed)
             {
+                ValidateHome(MotionAxis.Z, Settings.ZSpeed);
                 if (!await HomeCoreAsync(MotionAxis.Z, Settings.ZSpeed, cancellationToken))
                 {
                     return false;
@@ -421,6 +434,9 @@ public abstract class MotionService(
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
+        ValidateHome(MotionAxis.X, velocity);
+        if (hasY)
+            ValidateHome(MotionAxis.Y, velocity);
         EnsureStopped();
         EnsureHorizontalZ();
         return await HomeHorizontalCoreAsync(velocity, cancellationToken);
@@ -533,6 +549,30 @@ public abstract class MotionService(
         {
             throw new InvalidOperationException("A motion command is already running.");
         }
+    }
+
+    private void ValidateMove(double velocity)
+    {
+        ValidatePositive(velocity, nameof(velocity));
+        ValidatePositive(Settings.AccelerationSeconds, nameof(Settings.AccelerationSeconds));
+        ValidatePositive(Settings.DecelerationSeconds, nameof(Settings.DecelerationSeconds));
+    }
+
+    private void ValidateHome(MotionAxis axis, double velocity)
+    {
+        ValidatePositive(velocity, nameof(velocity));
+        var home = Settings.Home(axis);
+        ValidatePositive(home.DetectionSpeed, $"{axis} home detection speed");
+        ValidatePositive(home.ApproachSpeed, $"{axis} home approach speed");
+        ValidatePositive(home.FineSpeed, $"{axis} home fine speed");
+        ValidatePositive(home.SearchAccelerationSeconds, $"{axis} home search acceleration time");
+        ValidatePositive(home.DetectionAccelerationSeconds, $"{axis} home detection acceleration time");
+    }
+
+    private static void ValidatePositive(double value, string parameterName)
+    {
+        if (!double.IsFinite(value) || value <= 0)
+            throw new ArgumentOutOfRangeException(parameterName, value, "Value must be positive and finite.");
     }
 
     private void ValidateTarget(MotionAxis axis, double position)

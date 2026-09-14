@@ -31,7 +31,6 @@
     <ProjectReference Include="..\Hardware\IBTM.Hantas\IBTM.Hantas.csproj" />
     <ProjectReference Include="..\Hardware\IBTM.Hik\IBTM.Hik.csproj" />
     <ProjectReference Include="..\Stations\IBTM.Inspection\IBTM.Inspection.csproj" />
-    <ProjectReference Include="..\Stations\IBTM.Inspection.Training\IBTM.Inspection.Training.csproj" />
     <ProjectReference Include="..\Stations\IBTM.NgConveyor\IBTM.NgConveyor.csproj" />
     <ProjectReference Include="..\Stations\IBTM.PcbBuffer\IBTM.PcbBuffer.csproj" />
     <ProjectReference Include="..\Stations\IBTM.PcbPlacement\IBTM.PcbPlacement.csproj" />

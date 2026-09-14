@@ -22,13 +22,64 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class RecipeTests
 {
+    [Theory]
+    [InlineData("\"LightLevel\":256")]
+    [InlineData("\"ExposureMicroseconds\":0")]
+    [InlineData("\"Gain\":1e309")]
+    public async Task InvalidInspectionRecipeKeepsTheActiveRecipeUntilCorrected(string invalidSetting)
+    {
+        var (database, store) = CreateStore();
+        var recipe = new Recipe { Name = "Active" };
+        var selection = new RecipeSelectionSettings();
+        var editor = new RecipeEditor(store, selection, recipe, new());
+        await editor.SaveAsync();
+        var currentInspection = recipe.BoltInspection;
+        var corrected = new Recipe
+        {
+            Name = "Other",
+            BoltInspection = new() { ExposureMicroseconds = 750, Gain = 2.5, LightLevel = 192 },
+        };
+        await store.SaveRecipeAsync(corrected);
+        using (var connection = new SqliteConnection($"Data Source={database.DatabaseFile}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE Recipes SET Value = $value WHERE Name = 'Other'";
+            command.Parameters.AddWithValue("$value", "{\"Name\":\"Other\",\"BoltInspection\":{" + invalidSetting + "}}");
+            command.ExecuteNonQuery();
+        }
+
+        await editor.LoadCommand.ExecuteAsync("Other");
+        Assert.NotNull(editor.Error);
+        Assert.Same(currentInspection, recipe.BoltInspection);
+        Assert.Equal("Active", editor.ActiveName);
+        Assert.Equal("Active", selection.LastRecipeName);
+        Assert.Equal("Active", database.LoadSettings().Get<RecipeSelectionSettings>().LastRecipeName);
+
+        await store.SaveRecipeAsync(corrected);
+        await editor.LoadCommand.ExecuteAsync("Other");
+        Assert.Null(editor.Error);
+        Assert.Equal("Other", selection.LastRecipeName);
+        Assert.Equal(750, recipe.BoltInspection.ExposureMicroseconds);
+        Assert.Equal(2.5, recipe.BoltInspection.Gain);
+        Assert.Equal(192, recipe.BoltInspection.LightLevel);
+    }
+
     [Fact]
     public async Task HeatSinkBoltTeachingAndStorageAreIndependent()
     {
         var recipe = new Recipe { Name = "Independent heat sinks" };
         var layout = recipe.Pcb;
-        layout.BoltPoints.Add(new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 13, Y = 24 });
-        layout.BoltPoints.Add(new() { Number = 1, HeatSink = HeatSinkSlot.HeatSink2, X = 73, Y = 29 });
+        layout.BoltPoints.Add(new()
+        {
+            Number = 1, HeatSink = HeatSinkSlot.HeatSink1, X = 13, Y = 24,
+            BrightnessThreshold = 140, MinimumBrightRatio = 0.2,
+        });
+        layout.BoltPoints.Add(new()
+        {
+            Number = 1, HeatSink = HeatSinkSlot.HeatSink2, X = 73, Y = 29,
+            BrightnessThreshold = 210, MinimumBrightRatio = 0.7,
+        });
         var targets = layout.GetBolts().ToArray();
         Assert.NotSame(targets[0].Point, targets[1].Point);
         Assert.Equal((13d, 24d), (targets[0].X, targets[0].Y));
@@ -67,12 +118,33 @@ public sealed class RecipeTests
         Assert.Equal(2, loaded.Pcb.GetBolts().Count());
         Assert.Equal(13d, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().X);
         Assert.Equal(75d, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().X);
+        Assert.Equal(140, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().Point.BrightnessThreshold);
+        Assert.Equal(0.2, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().Point.MinimumBrightRatio);
+        Assert.Equal(210, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().Point.BrightnessThreshold);
+        Assert.Equal(0.7, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().Point.MinimumBrightRatio);
         layout.BoltPoints.Remove(targets[1].Point);
         Assert.Empty(layout.GetBolts(HeatSinkSlot.HeatSink2));
         Assert.Single(layout.GetBolts(HeatSinkSlot.HeatSink1));
         var oldLayout = System.Text.Json.JsonSerializer.Deserialize<PcbLayout>(
             """{"BoltPoints":[{"Number":1,"X":5,"Y":6}],"Origins":{"HeatSink1":{"X":100,"Y":200}}}""");
         Assert.Empty(oldLayout!.BoltPoints);
+    }
+
+    [Fact]
+    public void SupplyHandoffLoadsLegacyXyAndDropsTheObsoleteZ()
+    {
+        var supply = System.Text.Json.JsonSerializer.Deserialize<PcbSupplySettings>(
+            """{"RotationZ":3,"BufferHandoffPosition":{"X":50,"Y":10,"Z":8},"BufferClearZ":12}""")!;
+        var definition = supply.GetTeachingPositions(new())
+            .Single(point => point.Target == TeachingTarget.SupplyBufferHandoff);
+        Assert.Equal(TeachMode.XYOnly, definition.Mode);
+        definition.Apply(new() { X = 60, Y = 20, Z = 99 });
+        Assert.Equal((60, 20), (supply.BufferHandoffPosition.X, supply.BufferHandoffPosition.Y));
+        Assert.Equal(3, supply.RotationZ);
+        Assert.Equal(12, supply.BufferClearZ);
+
+        using var saved = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(supply));
+        Assert.False(saved.RootElement.GetProperty(nameof(supply.BufferHandoffPosition)).TryGetProperty("Z", out _));
     }
 
     [Fact]
@@ -123,7 +195,10 @@ public sealed class RecipeTests
             point.Apply();
         Assert.Same(supplyHandoff, supply.BufferHandoffPosition);
         Assert.Same(placementHandoff, placement.BufferHandoffPosition);
-        Assert.Equal((10, 20, 30), (supplyHandoff.X, supplyHandoff.Y, supplyHandoff.Z));
+        Assert.Equal((10, 20), (supplyHandoff.X, supplyHandoff.Y));
+        Assert.Equal(TeachMode.XYOnly,
+            staged.Single(point => point.Position.Target == TeachingTarget.SupplyBufferHandoff).Position.Mode);
+        Assert.Equal(0, supply.RotationZ);
         Assert.Equal((10, 20, 30), (placementHandoff.X, placementHandoff.Y, placementHandoff.Z));
         Assert.Equal(10, buffer.SupplyBoundary1);
         Assert.Equal(20, buffer.PlacementBoundary2.Y);
@@ -208,7 +283,7 @@ public sealed class RecipeTests
         var recipe = new Recipe
         {
             Name = $"RecipeActivity-{Guid.NewGuid():N}",
-            BoltInspection = new() { LightLevel = 192, MinimumMaskRatio = 0.02 },
+            BoltInspection = new() { LightLevel = 192, BrightnessThreshold = 180, MinimumBrightRatio = 0.02 },
         };
         var savedName = recipe.Name;
         var operations = new OperationCancellation();
@@ -263,14 +338,16 @@ public sealed class RecipeTests
         editor.NewCommand.Execute(null);
         var defaults = new BoltInspectionRecipe();
         Assert.Equal(defaults.LightLevel, recipe.BoltInspection.LightLevel);
-        Assert.Equal(defaults.MinimumMaskRatio, recipe.BoltInspection.MinimumMaskRatio);
+        Assert.Equal(defaults.BrightnessThreshold, recipe.BoltInspection.BrightnessThreshold);
+        Assert.Equal(defaults.MinimumBrightRatio, recipe.BoltInspection.MinimumBrightRatio);
 
         activeAtChange = null;
         await editor.LoadCommand.ExecuteAsync(savedName);
         Assert.True(activeAtChange);
         Assert.False(operations.HasActiveOperations);
         Assert.Equal(192, recipe.BoltInspection.LightLevel);
-        Assert.Equal(0.02, recipe.BoltInspection.MinimumMaskRatio);
+        Assert.Equal(180, recipe.BoltInspection.BrightnessThreshold);
+        Assert.Equal(0.02, recipe.BoltInspection.MinimumBrightRatio);
 
         editor.Name = "Other";
         await editor.SaveAsync();

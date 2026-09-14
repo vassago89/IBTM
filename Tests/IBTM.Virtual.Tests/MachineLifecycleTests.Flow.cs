@@ -12,7 +12,6 @@ using IBTM.Core;
 using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
-using IBTM.Inspection.Training;
 using IBTM.NgConveyor;
 using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
@@ -48,7 +47,6 @@ public sealed partial class MachineLifecycleTests
                 PickupBoltFeeder = false,
                 ShootingBoltFeeder = false,
             },
-            Drivers = new() { Inspection = InspectionAlgorithm.Virtual },
         };
         FastHomes(settings);
         settings.InspectionGantry.Motion = FastMotion();
@@ -96,9 +94,9 @@ public sealed partial class MachineLifecycleTests
                     ref arrived,
                     input switch
                     {
-                        InputIo.PcbPlacementCarrierPresent => 1,
-                        InputIo.BoltFasteningCarrierPresent => 2,
-                        InputIo.InspectionCarrierPresent => 4,
+                        InputIo.PcbPlacementHeatSink1Present => 1,
+                        InputIo.BoltFasteningHeatSink1Present => 2,
+                        InputIo.InspectionHeatSink1Present => 4,
                         _ => 0,
                     });
             }

@@ -20,10 +20,10 @@ public sealed class PhysicalIoService(
 {
     // Persisted logical address boundary, not the detected AlphaMotion board size.
     private const int AlphaMotionChannelCount = AlphaMotionController.ChannelCount;
-    private static readonly InputIo[] Inputs = Enum.GetValues<InputIo>();
-    private readonly bool[] _inputs = new bool[Inputs.Max(input => (int)input) + 1];
-    private readonly bool[] _inputScan = new bool[Inputs.Max(input => (int)input) + 1];
-    private readonly InputIo[] _changedInputs = new InputIo[Inputs.Length];
+    private readonly InputIo[] _mappedInputs = inputMap.Keys.ToArray();
+    private readonly bool[] _inputs = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
+    private readonly bool[] _inputScan = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
+    private readonly InputIo[] _changedInputs = new InputIo[inputMap.Count];
     private readonly uint[] _rtexInputs = new uint[ajin.RtexInputWordCount];
     private readonly Lock _lifecycleGate = new();
     // Notification history only: initial levels are not edges; recovered changes are.
@@ -68,7 +68,7 @@ public sealed class PhysicalIoService(
                 log?.Write(stage + " started.");
                 ajin.Initialize();
                 log?.Write(stage + " completed.");
-                foreach (var input in Inputs)
+                foreach (var input in _mappedInputs)
                 {
                     stage = $"Initial DI read: {input}, channel={inputMap[input]}";
                     var value = ReadInput(inputMap[input]);
@@ -125,6 +125,8 @@ public sealed class PhysicalIoService(
 
     public bool GetInput(InputIo input)
     {
+        if (!inputMap.ContainsKey(input))
+            throw new IOException($"DI {input} is unavailable: no configured input address.");
         if (!_ready)
         {
             throw new IOException($"DI {input} is unavailable: no valid input scan.");
@@ -219,7 +221,7 @@ public sealed class PhysicalIoService(
                 ajin.ReadRtexInputs(_rtexInputs);
 
                 stage = "Input address mapping";
-                foreach (var input in Inputs)
+                foreach (var input in _mappedInputs)
                 {
                     _inputScan[(int)input] = ReadMonitoredInput(inputMap[input], alphaInputs);
                 }
@@ -242,7 +244,7 @@ public sealed class PhysicalIoService(
     private void PublishInputScan(bool notifyChanges)
     {
         var changedCount = 0;
-        foreach (var input in Inputs)
+        foreach (var input in _mappedInputs)
         {
             var index = (int)input;
             var value = _inputScan[index];

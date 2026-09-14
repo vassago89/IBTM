@@ -106,9 +106,7 @@ public sealed class VirtualMachine
             {
                 _supplyHoldingPcb = _io.GetInput(InputIo.PcbSupplyPcbDetected)
                     && _io.GetInput(InputIo.PcbSupplyGripperClosed)
-                    && !_io.GetInput(InputIo.PcbSupplyGripperOpen)
-                    && _io.GetInput(InputIo.PcbSupplyIpmFixerForward)
-                    && !_io.GetInput(InputIo.PcbSupplyIpmFixerBackward);
+                    && !_io.GetInput(InputIo.PcbSupplyGripperOpen);
                 _placementHoldingPcb = _io.GetInput(InputIo.PcbPlacementPcbDetected)
                     && _io.GetInput(InputIo.PcbPlacementVacuumDetected)
                     && _io.GetInput(InputIo.PcbPlacementIpmGripperClosed)
@@ -121,11 +119,18 @@ public sealed class VirtualMachine
 
     private void OnInputChanged(InputIo input, bool value)
     {
-        if (input == InputIo.PcbPlacementCarrierPresent && !value)
+        if (input is InputIo.PcbPlacementHeatSink1Present or InputIo.PcbPlacementHeatSink2Present
+            && !_io.GetInput(InputIo.PcbPlacementHeatSink1Present)
+            && !_io.GetInput(InputIo.PcbPlacementHeatSink2Present))
             Array.Clear(_placedPcbs);
-        if (!value
-            && input is InputIo.BoltFasteningCarrierPresent or InputIo.InspectionCarrierPresent)
-            _carrierPcbs.Remove(input);
+        if (input is InputIo.BoltFasteningHeatSink1Present or InputIo.BoltFasteningHeatSink2Present
+            && !_io.GetInput(InputIo.BoltFasteningHeatSink1Present)
+            && !_io.GetInput(InputIo.BoltFasteningHeatSink2Present))
+            _carrierPcbs.Remove(InputIo.BoltFasteningHeatSink1Present);
+        if (input is InputIo.InspectionHeatSink1Present or InputIo.InspectionHeatSink2Present
+            && !_io.GetInput(InputIo.InspectionHeatSink1Present)
+            && !_io.GetInput(InputIo.InspectionHeatSink2Present))
+            _carrierPcbs.Remove(InputIo.InspectionHeatSink1Present);
         if (value
             && IsEmergencyStop(input)
             || (input == InputIo.AutoMode || IsDoor(input))
@@ -192,10 +197,10 @@ public sealed class VirtualMachine
         double carrierY,
         (double X, double Z) pcb1,
         (double X, double Z) pcb2,
-        AxisPosition buffer)
+        XyPosition handoff,
+        double handoffZ)
     {
-        var wasAtBuffer = _supplyAtBuffer;
-        _supplyAtBuffer = IsAt(x, y, z, buffer);
+        _supplyAtBuffer = IsAt(x, y, z, handoff.X, handoff.Y, handoffZ);
         if (!_supplyHoldingPcb)
         {
             _supplyPickupSlot = IsAt(x, y, z, pcb1.X, carrierY, pcb1.Z)
@@ -207,26 +212,8 @@ public sealed class VirtualMachine
             _io.AutoResponseVersion,
             () =>
             {
-                if (_supplyHoldingPcb)
-                {
-                    if (_supplyAtBuffer)
-                    {
-                        _io.SetInput(InputIo.PcbBufferPcbPresent, true);
-                    }
-                    else if (wasAtBuffer && !_placementAtBuffer)
-                    {
-                        _io.SetInput(InputIo.PcbBufferPcbPresent, false);
-                    }
-
-                    return;
-                }
-
-                _io.SetInput(
-                    InputIo.PcbSupplyPcbDetected,
-                    _supplyAtBuffer
-                        && _io.GetInput(InputIo.PcbBufferPcbPresent)
-                        || _supplyPickupSlot is { } slot
-                        && _supplyPcbs[slot]);
+                UpdateSupplyDetection();
+                UpdatePlacementDetection();
             });
     }
 
@@ -238,7 +225,6 @@ public sealed class VirtualMachine
         AxisPosition? heatSink1 = null,
         AxisPosition? heatSink2 = null)
     {
-        var wasAtBuffer = _placementAtBuffer;
         _placementAtBuffer = IsAt(x, y, z, bufferPosition);
         _placementHeatSink = heatSink1 is not null && IsAt(x, y, z, heatSink1)
             ? 0
@@ -247,15 +233,18 @@ public sealed class VirtualMachine
             _io.AutoResponseVersion,
             () =>
             {
-                if (_placementAtBuffer && _placementHoldingPcb)
-                    _io.SetInput(InputIo.PcbBufferPcbPresent, true);
-                if (wasAtBuffer && !_placementAtBuffer && _placementHoldingPcb)
-                {
-                    _io.SetInput(InputIo.PcbBufferPcbPresent, false);
-                }
-
+                UpdateSupplyDetection();
                 UpdatePlacementDetection();
             });
+    }
+
+    private void UpdateSupplyDetection()
+    {
+        _io.SetInput(
+            InputIo.PcbSupplyPcbDetected,
+            _supplyHoldingPcb
+                || _supplyAtBuffer && _placementAtBuffer && _placementHoldingPcb
+                || _supplyPickupSlot is { } slot && _supplyPcbs[slot]);
     }
 
     private void UpdatePlacementDetection()
@@ -264,7 +253,7 @@ public sealed class VirtualMachine
             InputIo.PcbPlacementPcbDetected,
             _placementHoldingPcb
                 || _placementAtBuffer
-                && _io.GetInput(InputIo.PcbBufferPcbPresent)
+                && _supplyAtBuffer && _supplyHoldingPcb
                 || _placementHeatSink is { } slot
                 && _placedPcbs[slot]
                 && _io.GetInput(InputIo.PcbPlacementHandlerDown));
@@ -299,7 +288,7 @@ public sealed class VirtualMachine
             && value
             && !_io.GetOutput(OutputIo.MainConveyorRun)
             && !_io.GetInput(InputIo.MainConveyorAvailableFromFront2)
-            && !_io.GetInput(InputIo.PcbPlacementCarrierPresent))
+            && !(_io.GetInput(InputIo.PcbPlacementHeatSink1Present) || _io.GetInput(InputIo.PcbPlacementHeatSink2Present)))
         {
             _ = PresentMainCarrierAsync(_mainConveyorTransferVersion);
         }
@@ -533,14 +522,13 @@ public sealed class VirtualMachine
                     return;
                 }
 
-                if (_io.GetInput(InputIo.InspectionCarrierPresent)
+                if ((_io.GetInput(InputIo.InspectionHeatSink1Present) || _io.GetInput(InputIo.InspectionHeatSink2Present))
                     && _io.GetInput(InputIo.InspectionBackupPlateDown)
                     && _io.GetInput(InputIo.InspectionStopperDown)
                     && _io.GetOutput(OutputIo.MainConveyorAvailableToRear)
                     && _io.GetInput(InputIo.MainConveyorReadyFromRear))
                 {
                     ClearCarrier(
-                        InputIo.InspectionCarrierPresent,
                         InputIo.InspectionHeatSink1Present,
                         InputIo.InspectionHeatSink2Present);
                     _io.SetInput(InputIo.MainConveyorExitCarrierDetected, true);
@@ -557,35 +545,31 @@ public sealed class VirtualMachine
                     return;
                 }
 
-                if (_io.GetInput(InputIo.BoltFasteningCarrierPresent)
+                if ((_io.GetInput(InputIo.BoltFasteningHeatSink1Present) || _io.GetInput(InputIo.BoltFasteningHeatSink2Present))
                     && _io.GetInput(InputIo.BoltFasteningBackupPlateDown)
                     && _io.GetInput(InputIo.InspectionBackupPlateDown)
                     && _io.GetInput(InputIo.BoltFasteningStopperDown)
                     && _io.GetInput(InputIo.InspectionStopperUp)
-                    && !_io.GetInput(InputIo.InspectionCarrierPresent))
+                    && !(_io.GetInput(InputIo.InspectionHeatSink1Present) || _io.GetInput(InputIo.InspectionHeatSink2Present)))
                 {
                     MoveCarrier(
-                        InputIo.BoltFasteningCarrierPresent,
                         InputIo.BoltFasteningHeatSink1Present,
                         InputIo.BoltFasteningHeatSink2Present,
-                        InputIo.InspectionCarrierPresent,
                         InputIo.InspectionHeatSink1Present,
                         InputIo.InspectionHeatSink2Present);
                     return;
                 }
 
-                if (_io.GetInput(InputIo.PcbPlacementCarrierPresent)
+                if ((_io.GetInput(InputIo.PcbPlacementHeatSink1Present) || _io.GetInput(InputIo.PcbPlacementHeatSink2Present))
                     && _io.GetInput(InputIo.PcbPlacementBackupPlateDown)
                     && _io.GetInput(InputIo.BoltFasteningBackupPlateDown)
                     && _io.GetInput(InputIo.PcbPlacementStopperDown)
                     && _io.GetInput(InputIo.BoltFasteningStopperUp)
-                    && !_io.GetInput(InputIo.BoltFasteningCarrierPresent))
+                    && !(_io.GetInput(InputIo.BoltFasteningHeatSink1Present) || _io.GetInput(InputIo.BoltFasteningHeatSink2Present)))
                 {
                     MoveCarrier(
-                        InputIo.PcbPlacementCarrierPresent,
                         InputIo.PcbPlacementHeatSink1Present,
                         InputIo.PcbPlacementHeatSink2Present,
-                        InputIo.BoltFasteningCarrierPresent,
                         InputIo.BoltFasteningHeatSink1Present,
                         InputIo.BoltFasteningHeatSink2Present);
                     return;
@@ -596,7 +580,7 @@ public sealed class VirtualMachine
                     && _io.GetInput(InputIo.MainConveyorAvailableFromFront2))
                     && _io.GetInput(InputIo.PcbPlacementBackupPlateDown)
                     && _io.GetInput(InputIo.PcbPlacementStopperUp)
-                    && !_io.GetInput(InputIo.PcbPlacementCarrierPresent))
+                    && !(_io.GetInput(InputIo.PcbPlacementHeatSink1Present) || _io.GetInput(InputIo.PcbPlacementHeatSink2Present)))
                 {
                     if (!_io.GetInput(InputIo.MainConveyorEntryCarrierDetected))
                     {
@@ -623,9 +607,9 @@ public sealed class VirtualMachine
                             _mainEntryCarrier = null;
                             _placedPcbs[0] = carrier.Pcb1;
                             _placedPcbs[1] = carrier.Pcb2;
-                            _io.SetInput(InputIo.PcbPlacementHeatSink1Present, carrier.HeatSink1);
-                            _io.SetInput(InputIo.PcbPlacementHeatSink2Present, carrier.HeatSink2);
-                            _io.SetInput(InputIo.PcbPlacementCarrierPresent, true);
+                            _io.SetInputs(
+                                (InputIo.PcbPlacementHeatSink1Present, carrier.HeatSink1),
+                                (InputIo.PcbPlacementHeatSink2Present, carrier.HeatSink2));
                         });
                 }
             });
@@ -646,29 +630,25 @@ public sealed class VirtualMachine
             if (!_io.GetInput(input))
                 return;
 
-        foreach (var (carrier, heatSink1, heatSink2) in new[]
+        foreach (var (heatSink1, heatSink2) in new[]
         {
             (
-                InputIo.InspectionCarrierPresent,
                 InputIo.InspectionHeatSink1Present,
                 InputIo.InspectionHeatSink2Present),
             (
-                InputIo.BoltFasteningCarrierPresent,
                 InputIo.BoltFasteningHeatSink1Present,
                 InputIo.BoltFasteningHeatSink2Present),
             (
-                InputIo.PcbPlacementCarrierPresent,
                 InputIo.PcbPlacementHeatSink1Present,
                 InputIo.PcbPlacementHeatSink2Present),
         })
         {
-            if (!_io.GetInput(carrier))
+            if (!_io.GetInput(heatSink1) && !_io.GetInput(heatSink2))
                 continue;
-            if (carrier != InputIo.PcbPlacementCarrierPresent)
+            if (heatSink1 != InputIo.PcbPlacementHeatSink1Present)
             {
                 MoveCarrier(
-                    carrier, heatSink1, heatSink2,
-                    InputIo.PcbPlacementCarrierPresent,
+                    heatSink1, heatSink2,
                     InputIo.PcbPlacementHeatSink1Present,
                     InputIo.PcbPlacementHeatSink2Present);
                 // Station 1 detects the returning carrier before the front sensor.
@@ -677,9 +657,9 @@ public sealed class VirtualMachine
                 return;
             }
 
-            var pcbs = CarrierPcbs(carrier);
+            var pcbs = CarrierPcbs(heatSink1);
             _mainEntryCarrier = (_io.GetInput(heatSink1), _io.GetInput(heatSink2), pcbs.Pcb1, pcbs.Pcb2);
-            ClearCarrier(carrier, heatSink1, heatSink2);
+            ClearCarrier(heatSink1, heatSink2);
             _io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
             return;
         }
@@ -694,7 +674,7 @@ public sealed class VirtualMachine
                 if (_mainConveyorTransferVersion == version
                     && _io.GetOutput(OutputIo.MainConveyorReadyToFront2)
                     && !_io.GetOutput(OutputIo.MainConveyorRun)
-                    && !_io.GetInput(InputIo.PcbPlacementCarrierPresent))
+                    && !(_io.GetInput(InputIo.PcbPlacementHeatSink1Present) || _io.GetInput(InputIo.PcbPlacementHeatSink2Present)))
                 {
                     _io.SetInput(InputIo.MainConveyorAvailableFromFront2, true);
                 }
@@ -702,44 +682,38 @@ public sealed class VirtualMachine
     }
 
     private void MoveCarrier(
-        InputIo sourceCarrier,
         InputIo sourceHeatSink1,
         InputIo sourceHeatSink2,
-        InputIo destinationCarrier,
         InputIo destinationHeatSink1,
         InputIo destinationHeatSink2)
     {
         var heatSink1 = _io.GetInput(sourceHeatSink1);
         var heatSink2 = _io.GetInput(sourceHeatSink2);
-        var pcbs = CarrierPcbs(sourceCarrier);
-        ClearCarrier(sourceCarrier, sourceHeatSink1, sourceHeatSink2);
-        if (destinationCarrier == InputIo.PcbPlacementCarrierPresent)
+        var pcbs = CarrierPcbs(sourceHeatSink1);
+        ClearCarrier(sourceHeatSink1, sourceHeatSink2);
+        if (destinationHeatSink1 == InputIo.PcbPlacementHeatSink1Present)
         {
             _placedPcbs[0] = pcbs.Pcb1;
             _placedPcbs[1] = pcbs.Pcb2;
         }
         else
         {
-            _carrierPcbs[destinationCarrier] = pcbs;
+            _carrierPcbs[destinationHeatSink1] = pcbs;
         }
-        _io.SetInput(destinationHeatSink1, heatSink1);
-        _io.SetInput(destinationHeatSink2, heatSink2);
-        _io.SetInput(destinationCarrier, true);
+        _io.SetInputs((destinationHeatSink1, heatSink1), (destinationHeatSink2, heatSink2));
     }
 
-    private void ClearCarrier(InputIo carrier, InputIo heatSink1, InputIo heatSink2)
+    private void ClearCarrier(InputIo heatSink1, InputIo heatSink2)
     {
-        _io.SetInput(carrier, false);
-        _io.SetInput(heatSink1, false);
-        _io.SetInput(heatSink2, false);
+        _io.SetInputs((heatSink1, false), (heatSink2, false));
     }
 
     // Simulated material travels with the carrier; real control still reads only sensors.
-    private (bool Pcb1, bool Pcb2) CarrierPcbs(InputIo carrier)
+    private (bool Pcb1, bool Pcb2) CarrierPcbs(InputIo stationHeatSink1)
     {
-        return carrier == InputIo.PcbPlacementCarrierPresent
+        return stationHeatSink1 == InputIo.PcbPlacementHeatSink1Present
             ? (_placedPcbs[0], _placedPcbs[1])
-            : _carrierPcbs.GetValueOrDefault(carrier);
+            : _carrierPcbs.GetValueOrDefault(stationHeatSink1);
     }
 
     private void ApplyPhysicalOutput(OutputIo output, bool value)
@@ -750,7 +724,7 @@ public sealed class VirtualMachine
             {
                 switch (output)
                 {
-                    case OutputIo.PcbSupplyIpmFixerForward:
+                    case OutputIo.PcbSupplyGripperClosed:
                         if (value)
                         {
                             if (_io.GetInput(InputIo.PcbSupplyPcbDetected))
@@ -762,11 +736,12 @@ public sealed class VirtualMachine
                                 }
                             }
                         }
-                        else if (_supplyHoldingPcb)
+                        else
                         {
                             _supplyHoldingPcb = false;
                         }
-
+                        UpdateSupplyDetection();
+                        UpdatePlacementDetection();
                         break;
                     case OutputIo.PcbPlacementIpmGripperClose:
                         if (value
@@ -779,21 +754,13 @@ public sealed class VirtualMachine
                         }
                         else if (!value && _placementHoldingPcb)
                         {
-                            if (_placementAtBuffer)
-                            {
-                                _io.SetInput(InputIo.PcbBufferPcbPresent, true);
-                            }
-
                             if (_placementHeatSink is { } slot)
                                 _placedPcbs[slot] = true;
 
                             _placementHoldingPcb = false;
-                            _io.SetInput(
-                                InputIo.PcbPlacementPcbDetected,
-                                _placementAtBuffer
-                                    || _io.GetInput(InputIo.PcbPlacementHandlerDown));
                         }
-
+                        UpdateSupplyDetection();
+                        UpdatePlacementDetection();
                         break;
 
                     case OutputIo.PcbPlacementHandlerDown:
@@ -807,7 +774,9 @@ public sealed class VirtualMachine
                         if (_inspectionAtNgShuttle)
                             _io.SetInput(InputIo.NgShuttleCarrierDetected, !value);
                         else if (_inspectionAtNgPickup)
-                            _io.SetInput(InputIo.InspectionCarrierPresent, !value);
+                            _io.SetInputs(
+                                (InputIo.InspectionHeatSink1Present, !value && _ngCarrierHeatSink1),
+                                (InputIo.InspectionHeatSink2Present, !value && _ngCarrierHeatSink2));
                         break;
                     case OutputIo.NgCarrierGripperOpen:
                         if (!value
@@ -815,15 +784,13 @@ public sealed class VirtualMachine
                             && _inspectionAtNgPickup
                             && _io.GetInput(InputIo.NgCarrierPickupDown)
                             && _io.GetInput(InputIo.InspectionBackupPlateUp)
-                            && _io.GetInput(InputIo.InspectionCarrierPresent))
+                            && (_io.GetInput(InputIo.InspectionHeatSink1Present) || _io.GetInput(InputIo.InspectionHeatSink2Present)))
                         {
                             _ngCarrierHeld = true;
                             _ngCarrierHeatSink1 = _io.GetInput(InputIo.InspectionHeatSink1Present);
                             _ngCarrierHeatSink2 = _io.GetInput(InputIo.InspectionHeatSink2Present);
                             _io.SetInput(InputIo.NgCarrierDetected, true);
-                            _io.SetInput(InputIo.InspectionCarrierPresent, false);
-                            _io.SetInput(InputIo.InspectionHeatSink1Present, false);
-                            _io.SetInput(InputIo.InspectionHeatSink2Present, false);
+                            ClearCarrier(InputIo.InspectionHeatSink1Present, InputIo.InspectionHeatSink2Present);
                         }
                         else if (!value
                             && !_ngCarrierHeld
@@ -854,9 +821,9 @@ public sealed class VirtualMachine
                         {
                             _ngCarrierHeld = false;
                             _io.SetInput(InputIo.NgCarrierDetected, false);
-                            _io.SetInput(InputIo.InspectionCarrierPresent, true);
-                            _io.SetInput(InputIo.InspectionHeatSink1Present, _ngCarrierHeatSink1);
-                            _io.SetInput(InputIo.InspectionHeatSink2Present, _ngCarrierHeatSink2);
+                            _io.SetInputs(
+                                (InputIo.InspectionHeatSink1Present, _ngCarrierHeatSink1),
+                                (InputIo.InspectionHeatSink2Present, _ngCarrierHeatSink2));
                         }
 
                         break;

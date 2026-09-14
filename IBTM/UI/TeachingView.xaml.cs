@@ -2,9 +2,9 @@ using System.Windows.Controls;
 
 namespace IBTM.UI;
 
-public partial class SupplyTeachingView : UserControl
+public partial class TeachingView : UserControl
 {
-    public SupplyTeachingView()
+    public TeachingView()
     {
         InitializeComponent();
     }

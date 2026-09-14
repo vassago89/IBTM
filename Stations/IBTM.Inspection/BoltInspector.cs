@@ -17,7 +17,6 @@ public sealed class BoltInspector
     private readonly InspectionGantry gantry;
     private readonly ICamera camera;
     private readonly ILightController light;
-    private readonly BoltPresenceDetector presenceDetector;
     private readonly InspectionGantrySettings gantrySettings;
     private readonly LightingSettings lightingSettings;
     private readonly Func<BoltInspectionRecipe> getRecipe;
@@ -29,7 +28,6 @@ public sealed class BoltInspector
         InspectionGantry gantry,
         ICamera camera,
         ILightController light,
-        BoltPresenceDetector presenceDetector,
         InspectionGantrySettings gantrySettings,
         LightingSettings lightingSettings,
         Func<BoltInspectionRecipe> getRecipe,
@@ -38,7 +36,6 @@ public sealed class BoltInspector
         this.gantry = gantry;
         this.camera = camera;
         this.light = light;
-        this.presenceDetector = presenceDetector;
         this.gantrySettings = gantrySettings;
         this.lightingSettings = lightingSettings;
         this.getRecipe = getRecipe;
@@ -46,7 +43,6 @@ public sealed class BoltInspector
         camera.LiveViewFailed += OnCameraLiveViewFailed;
     }
 
-    public event Action<BoltInspectionImage>? Inspected;
     public event Action? LiveViewChanged;
 
     public bool IsLiveView
@@ -115,14 +111,10 @@ public sealed class BoltInspector
             ExceptionDispatchInfo.Throw(failure);
     }
 
-    public void CheckReady()
+    public BinaryCheckResult Check(ImageFrame image, PixelRegion region, BoltTarget point)
     {
-        presenceDetector.CheckReady();
-    }
-
-    public BoltPrediction Predict(ImageFrame image, PixelRegion region)
-    {
-        return presenceDetector.Predict(image, region);
+        return BinaryChecker.Check(image, region,
+            point.Point.BrightnessThreshold ?? getRecipe().BrightnessThreshold);
     }
 
     public bool HasBarcodeRegion(HeatSinkSlot pcb)
@@ -190,22 +182,27 @@ public sealed class BoltInspector
 
     public bool HasPosition(BoltTarget point)
     {
-        return getFovs().Count(fov =>
+        var size = camera.FrameSize;
+        var fovs = getFovs().Where(fov =>
             !fov.IsBarcode
             && fov.BoltNumber == point.Number
-            && fov.HeatSink == point.HeatSink
-            && fov.Region is not null) == 1;
+            && fov.HeatSink == point.HeatSink).ToArray();
+        return fovs.Length == 1
+            && fovs[0].Region is { } region
+            && region.IsInside(size.Width, size.Height);
     }
 
     public CarrierImageTile GetFov(BoltTarget point)
     {
-        return getFovs().SingleOrDefault(fov =>
+        var fov = getFovs().SingleOrDefault(fov =>
             !fov.IsBarcode
             && fov.BoltNumber == point.Number
-            && fov.HeatSink == point.HeatSink
-            && fov.Region is not null)
-            ?? throw new InvalidOperationException(
+            && fov.HeatSink == point.HeatSink);
+        var size = camera.FrameSize;
+        if (fov?.Region is not { } region || !region.IsInside(size.Width, size.Height))
+            throw new InvalidOperationException(
                 $"Teach a FOV and ROI for {point.HeatSink.GetDescription()} bolt {point.Number}.");
+        return fov;
     }
 
     internal bool IsAt(BoltTarget point, bool live = true)
@@ -254,19 +251,10 @@ public sealed class BoltInspector
         return await Task.Run(
             () =>
             {
-                var capturedAt = DateTimeOffset.UtcNow;
                 cancellationToken.ThrowIfCancellationRequested();
-                var present = presenceDetector.IsPresent(image, region);
+                var present = Check(image, region, point).BrightRatio
+                    >= (point.Point.MinimumBrightRatio ?? getRecipe().MinimumBrightRatio);
                 cancellationToken.ThrowIfCancellationRequested();
-                Inspected?.Invoke(
-                    new(
-                        image,
-                        point.Number,
-                        point.HeatSink,
-                        IBoltRecessSegmenter.InputSize,
-                        present,
-                        capturedAt,
-                        region));
                 return present;
             },
             cancellationToken);

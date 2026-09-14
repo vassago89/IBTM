@@ -162,6 +162,12 @@ public sealed class NgConveyorTests
         Assert.True(system.Io.GetInput(InputIo.NgConveyorStopperUp));
         Assert.False(system.Io.GetInput(InputIo.NgConveyorStopperDown));
         Assert.Equal(NgConveyorState.WaitingForEjectConfirmation, system.Conveyor.State);
+        system.Io.SetInput(InputIo.NgCarrierEjectCompleteButton, true);
+        await WaitForOutputAsync(system.Io, OutputIo.NgCarrierEjectCompleteLamp, false);
+        Assert.Equal(NgConveyorState.WaitingForEjectButtonRelease, system.Conveyor.State);
+        system.Io.SetInput(InputIo.NgCarrierEjectButton, false);
+        system.Io.SetInput(InputIo.NgCarrierEjectCompleteButton, false);
+        Assert.Equal(NgConveyorState.WaitingForCarrier, system.Conveyor.State);
         stop.Cancel();
         await run;
     }

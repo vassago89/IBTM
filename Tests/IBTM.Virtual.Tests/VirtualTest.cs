@@ -49,6 +49,22 @@ internal static class VirtualTest
         await motion.HomeAsync(MotionAxis.Y, speed);
     }
 
+    // Test material setup: an arriving carrier has at least one heat sink.
+    public static void SetCarrier(VirtualIoService io, InputIo heatSink1, bool present)
+    {
+        var heatSink2 = heatSink1 switch
+        {
+            InputIo.PcbPlacementHeatSink1Present => InputIo.PcbPlacementHeatSink2Present,
+            InputIo.BoltFasteningHeatSink1Present => InputIo.BoltFasteningHeatSink2Present,
+            InputIo.InspectionHeatSink1Present => InputIo.InspectionHeatSink2Present,
+            _ => throw new ArgumentOutOfRangeException(nameof(heatSink1)),
+        };
+        if (!present)
+            io.SetInputs((heatSink1, false), (heatSink2, false));
+        else if (!io.GetInput(heatSink1) && !io.GetInput(heatSink2))
+            io.SetInput(heatSink1, true);
+    }
+
     public static async Task WaitForOutputAsync(IIoService io, OutputIo output, bool value)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));

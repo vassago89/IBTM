@@ -1,19 +1,23 @@
 # Inspection 티칭
 
-기준: 2026-09-11. 캐리어 전체 맵과 PCB 영역은 사용하지 않는다.
+기준: 2026-09-14. 캐리어 전체 맵과 PCB 영역은 사용하지 않는다.
 **저장 FOV 하나에는 볼트 하나 또는 Data Matrix 하나만 연결한다.**
 
 ## 티칭 순서
 
-1. Station Teaching → Inspection Gantry → Heat Sink 1 또는 2를 선택한다.
+1. Teaching → Inspection Gantry → Heat Sink 1 또는 2를 선택한다.
 2. 볼트는 왼쪽 **Add Bolt**로 추가해 선택한다. 바코드는 **Data Matrix**를 선택한다.
 3. **Live**로 보면서 조그로 직접 이동한다. 자동 전체 스캔은 하지 않는다.
 4. 축을 멈추고 **Add Current Image**를 누른다. 새 이미지와 실제 촬영 XY가 저장되며 Live는 유지된다.
-5. 아래 저장 이미지에서 ROI 하나를 드래그한다. 선택 대상이 준비되어 있으면 자동 저장된다.
+5. 처음 셋업할 때는 아래 **Ruler**로 해상도를 보정한다. 아래 보정 순서를 따른다.
+6. Ruler를 끄고 아래 저장 이미지에서 ROI 하나를 드래그한다. 선택 대상이 준비되어 있으면 자동 저장된다.
    대상을 나중에 선택했다면 **Apply ROI**로 연결한다.
-6. 다른 위치도 같은 순서로 반복한다. Heat Sink 1과 2는 각각 티칭한다.
+7. 다른 위치도 같은 순서로 반복한다. Heat Sink 1과 2는 각각 티칭한다.
 
 **Saved FOV / ROI**에서 기존 FOV를 고르면 연결된 Heat Sink, 볼트/Data Matrix와 ROI가 함께 선택된다.
+반대로 왼쪽 볼트/Data Matrix를 선택하면 해당 대상의 저장 이미지·촬영 XY·ROI와 미리보기가 함께 바뀐다.
+연결된 FOV가 없으면 이전 대상의 이미지를 표시하지 않는다. 새로 촬영해 선택한 미지정 FOV는
+새 볼트 추가 시 유지할 수 있다. 선택만으로 축을 이동하거나 새 영상을 촬영하지 않는다.
 한 FOV를 다른 대상으로 재지정하면 이전 연결은 교체된다. 새 대상을 같은 이미지에 중복 등록하는 방식은 아니다.
 
 ## 확인 버튼
@@ -23,10 +27,18 @@
 | Move & Inspect | 해당 FOV의 원래 촬영 XY로 이동 → 새 촬영 → 선택 ROI 검사 |
 | Reinspect | 마지막 검사 이미지, 없으면 선택한 저장 FOV를 다시 판정. 축 이동 없음 |
 | Read Data Matrix | 저장 FOV의 바코드 ROI만 읽고 바로 결과 표시. 축 이동 없음 |
-| Clear Images | 저장 FOV 삭제. 필요한 이미지가 있으면 먼저 DB 백업 |
+| Ruler | 저장 이미지에서 두 점 사이의 원본 픽셀 거리 측정. ROI를 변경하지 않음 |
+| Apply & Save Resolution | 실제 거리 ÷ 픽셀 거리로 해상도 보정, 양쪽 히트싱크의 저장 ROI에 따른 볼트 좌표 갱신·레시피 저장 |
 
 Data Matrix 결과는 화면의 읽기 전용 텍스트 박스에서 복사할 수 있다.
 모션을 쓰는 버튼의 준비 조건과 이미지 재판정 조건은 구분되어 있다.
+
+볼트 ROI는 밝기 임계값 이상인 픽셀의 비율로 판정한다. **Bright %**를 보며
+저장 FOV 옆에서 밝기 임계값(0–255)과 최소 밝은 비율(화면에서는 0–100%)을 맞추고 **Save Recipe**로 저장한다.
+두 값은 선택한 볼트별로 저장한다. 선택·ROI·임계값을 바꾸면 이진화 ROI와 실제 Bright %·OK/NG가 즉시 갱신된다.
+Data Matrix를 선택하면 볼트 조정 패널이 숨겨지고 바코드 읽기 기능이 표시된다.
+임계값과 같은 밝기도 밝은 픽셀로 세며, 측정 비율이 최소 비율과 같으면 합격이다.
+자세한 계산은 [밝은 면적 비율 검사](../Stations/IBTM.Inspection/README.md)를 참고한다.
 
 ## 좌표와 기준핀
 
@@ -38,11 +50,28 @@ Data Matrix 결과는 화면의 읽기 전용 텍스트 박스에서 복사할 �
   볼트 체결기의 기준핀·헤드 좌표 준비 조건과 혼동하지 않는다.
 - Inspection용 볼트 포인트는 일반 Teach 버튼 대신 이미지 + ROI로 티칭한다.
 
+## 줄자로 Resolution 보정
+
+1. 볼트와 같은 높이에서 실제 거리를 알고 있는 두 기준점이 보이도록 촬영하고 저장 FOV를 선택한다.
+2. **Ruler**를 켜고 첫 점에서 둘째 점까지 드래그한다. 수평·수직·대각선 모두 원본 픽셀 거리를 사용한다.
+   화면 표시 크기는 계산에 영향을 주지 않는다. 드래그 중 Esc를 누르면 측정을 취소한다.
+3. **Actual distance (mm)**에 두 점 사이의 실제 거리를 입력한다.
+   예를 들어 5 mm가 100 px이면 0.05 mm/px이다. 가능한 한 거리가 긴 기준점을 사용하면 점 선택 오차를 줄일 수 있다.
+4. 계산값을 확인하고 **Apply & Save Resolution**을 누른다.
+   해상도는 레시피 공통값이며, 양쪽 히트싱크의 기존 볼트 ROI도 새 해상도로 좌표를 다시 계산한다.
+   원래 촬영 XY, 이미지, ROI와 Data Matrix 위치는 유지하고 축은 움직이지 않는다.
+   기준핀이 없으면 체결 좌표는 미정 상태로 남는다. 저장 오류 표시를 확인한다.
+5. **Ruler**를 끄면 다시 ROI를 그릴 수 있다. FOV를 바꾸면 이전 측정선과 실제 거리 입력은 지워진다.
+
+이 보정은 픽셀과 실제 길이의 비율을 맞춘다. 카메라 축 방향이나 회전·렌즈 왜곡을 보정하는 기능은 아니다.
+검사는 기존처럼 원래 촬영 XY에서 저장 ROI를 사용한다.
+
 ## 화면 표시와 원본
 
 위쪽 카메라 화면의 가운데 십자선은 티칭 보조 표시다.
 아래 저장 FOV에는 십자선을 표시하지 않는다.
-십자선·ROI 테두리·판정 오버레이는 `ImageTeachingView` 컨트롤이 그리며,
+Live 화면에는 저장 영상의 ROI나 이진화 오버레이를 겹치지 않는다. 아래 저장 이미지와 검사 미리보기는 유지한다.
+십자선·ROI 테두리·판정 오버레이·줄자는 `ImageTeachingView` 컨트롤이 그리며,
 원본 프레임이나 DB의 PNG 픽셀에 합성하지 않는다.
 
 Exposure/Gain/Light는 다음 촬영 또는 Live 시작에 적용된다.
@@ -51,9 +80,9 @@ FOV 이미지·ROI 티칭은 저장 동작이 완료됐는지 오류 표시까�
 
 ## 수정 위치
 
-- 화면·버튼: `IBTM/UI/StationTeachingView.xaml`
-- FOV 선택·ROI·카메라 명령: `IBTM/UI/StationTeachingViewModel.Camera.cs`
-- 왼쪽 티칭 목록: `IBTM/UI/StationTeachingViewModel.cs`
+- 화면·버튼: `IBTM/UI/TeachingView.xaml`
+- FOV 선택·ROI·카메라 명령: `IBTM/UI/TeachingViewModel.Camera.cs`
+- 왼쪽 티칭 목록: `IBTM/UI/TeachingViewModel.cs`
 - 검사 위치와 ROI 사용: `Stations/IBTM.Inspection/BoltInspector.cs`
 - 픽셀 변환/표시: `IBTM/UI/InspectionPreview.cs`, `ImageTeachingView.cs`
 - DB/이미지: [설정과 저장](SETTINGS_STORAGE.md)

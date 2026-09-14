@@ -12,7 +12,7 @@ internal static class VirtualImageFactory
     public const int Width = 320;
     public const int Height = 240;
     public const double InspectionMillimetersPerPixel = 0.05;
-    public const byte BoltRecessIntensity = 8;
+    private const byte BoltRecessIntensity = 8;
     private const double BoltRadius = 0.35;
 
     public static ImageFrame CreateInspection(

@@ -43,14 +43,14 @@ public enum HandlerDisplayState
     [Description("Working")]
     Working,
 
-    [Description("Waiting for Buffer")]
+    [Description("Waiting for Handoff")]
     WaitingForBuffer,
 
     [Description("Waiting for Placement")]
     WaitingForPlacement,
 
-    [Description("Waiting for Supply")]
-    WaitingForSupply,
+    [Description("Waiting for Supply Exit")]
+    WaitingForSupplyExit,
 
     [Description("Waiting for Carrier")]
     WaitingForMainCarrier,
@@ -64,8 +64,8 @@ public enum HandlerDisplayState
     [Description("PCB Carrier Available")]
     CarrierAvailable,
 
-    [Description("Waiting for Buffer PCB")]
-    WaitingForBufferPcb,
+    [Description("Waiting for Supply PCB")]
+    WaitingForSupply,
 
     [Description("Moving")]
     Moving,
@@ -90,9 +90,6 @@ public enum StationDisplayState
 
     [Description("Waiting for Carrier")]
     WaitingForCarrier,
-
-    [Description("Empty Carrier")]
-    EmptyCarrier,
 
     [Description("Heat Sink Detected")]
     HeatSinkDetected,

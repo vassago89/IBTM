@@ -14,12 +14,39 @@ public sealed class AjinControllerTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task InvalidAccelerationDoesNotIssueMoveOrHomeCommands(bool home)
+    {
+        using var controller = new AjinController(new());
+        AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        var settings = new MotionSettings();
+        if (home)
+            settings.HorizontalHome.DetectionAccelerationSeconds = 0;
+        else
+            settings.AccelerationSeconds = 0;
+        var motion = new AjinMotionService(
+            controller, new() { Number = 9 }, null, null, 0.001,
+            settings, new(), new(), null);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => home
+            ? motion.HomeAsync(MotionAxis.X, 100)
+            : motion.MoveAxisAsync(MotionAxis.X, 10, 100));
+        Assert.DoesNotContain(AjinSdk.Calls, call =>
+            call.Operation.StartsWith("AxmMove", StringComparison.Ordinal)
+            || call.Operation.StartsWith("AxmHomeSet", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public void PhysicalInputScanPublishesBothProvidersAndRequiresExplicitRecovery(bool failAlphaMotion)
     {
         Shared.TMCAEDLL.Reset();
         using var alpha = new IBTM.AlphaMotion.AlphaMotionController(new());
         using var ajin = new AjinController(new());
-        var inputs = Enum.GetValues<InputIo>().ToDictionary(input => input, _ => 0);
+        var inputs = new System.Collections.Generic.Dictionary<InputIo, int>
+        {
+            [InputIo.EmergencyStop1Pressed] = 0,
+        };
         inputs[InputIo.PcbSupplyPcbDetected] = IBTM.AlphaMotion.AlphaMotionController.ChannelCount;
         using var io = new PhysicalIoService(
             alpha,
@@ -41,6 +68,7 @@ public sealed class AjinControllerTests
         AjinSdk.Inputs[0] = 1;
         io.RefreshInputs();
         Assert.Equal(inputs.Count, changes);
+        Assert.Throws<IOException>(() => io.GetInput(InputIo.PcbPlacementCarrierPresent));
         io.InputChanged -= OnInputChanged;
         io.InputChanged += (_, _) => changes++;
 
@@ -85,11 +113,17 @@ public sealed class AjinControllerTests
         Shared.TMCAEDLL.Reset();
         using var alpha = new IBTM.AlphaMotion.AlphaMotionController(new());
         using var ajin = new AjinController(new());
-        var inputs = Enum.GetValues<InputIo>().ToDictionary(input => input, _ => 0);
         var rtex = IBTM.AlphaMotion.AlphaMotionController.ChannelCount;
-        inputs[InputIo.InspectionCarrierPresent] = rtex;
-        inputs[InputIo.InspectionBackupPlateUp] = rtex + 1;
-        inputs[InputIo.InspectionStopperDown] = rtex + 2;
+        var inputs = new System.Collections.Generic.Dictionary<InputIo, int>
+        {
+            [InputIo.EmergencyStop1Pressed] = 0,
+            [InputIo.InspectionHeatSink1Present] = rtex,
+            [InputIo.InspectionBackupPlateUp] = rtex + 1,
+            [InputIo.InspectionStopperDown] = rtex + 2,
+            [InputIo.InspectionHeatSink2Present] = rtex + 3,
+            [InputIo.InspectionBackupPlateDown] = rtex + 4,
+            [InputIo.InspectionStopperUp] = rtex + 5,
+        };
         using var io = new PhysicalIoService(
             alpha, ajin, inputs, new System.Collections.Generic.Dictionary<OutputIo, OutputHardware>(), new());
         var work = new RecoveryWork(ConveyorStation.Inspection(io));
@@ -107,15 +141,21 @@ public sealed class AjinControllerTests
         Assert.Equal(0, arrivals); // Initial levels are not new input edges.
         var assembly = work.Assembly(HeatSinkSlot.HeatSink1);
         assembly.RecordPcbBolt(1, new BoltResult(false, 1.25));
-        work.Complete();
+        work.Complete(work.CurrentJob);
         Assert.True(work.CanTransfer);
+        var job = work.CurrentJob;
+        AjinSdk.Inputs[0] = 0b1110; // Heat Sink 1 -> 2 in one complete physical scan.
+        io.RefreshInputs();
+        Assert.Same(job, work.CurrentJob);
+        Assert.True(work.CanTransfer);
+        Assert.Equal(0, arrivals);
         AjinSdk.Inputs[0] = 0b110;
         io.RefreshInputs();
         Assert.False(work.CarrierPresent);
 
         Shared.TMCAEDLL.Errors["AIO_GetDIDWord"] = Shared.tmcDef.ERR_INVALID_PARAMETER;
         Assert.Throws<IOException>(io.RefreshInputs);
-        AjinSdk.Inputs[0] = 0b111; // A new carrier arrives while feedback is unavailable.
+        AjinSdk.Inputs[0] = 0b1111; // Both heat sinks arrive while feedback is unavailable.
         Shared.TMCAEDLL.Errors.Clear();
         io.Initialize();
 

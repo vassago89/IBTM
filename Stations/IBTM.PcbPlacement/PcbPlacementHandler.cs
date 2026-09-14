@@ -7,7 +7,7 @@ using IBTM.PcbBuffer;
 
 namespace IBTM.PcbPlacement;
 
-public sealed class PcbPlacementHandler : IBufferPlacementState
+public sealed class PcbPlacementHandler : IPcbHandoffState
 {
     private readonly IXyMotion _motion;
     private readonly IIoService _io;

@@ -15,6 +15,29 @@ namespace IBTM.Virtual.Tests;
 public sealed class MotionSafetyTests
 {
     [Theory]
+    [InlineData(0)]
+    [InlineData(double.NaN)]
+    public async Task InvalidMoveSpeedDoesNotRetractZ(double speed)
+    {
+        using var motion = new VirtualMotionService(
+            new MotionSettings { ZSpeed = 1_000 },
+            new OperationCancellation(),
+            horizontalZ: () => 0);
+        motion.Initialize();
+        await HomeAsync(motion, 1_000);
+        await motion.MoveAxisAsync(MotionAxis.Z, 5, 1_000);
+        var moved = false;
+        motion.MovingChanged += moving => moved |= moving;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => motion.MoveToXYAsync(10, 10, speed, timeout.Token));
+
+        Assert.False(moved);
+        Assert.Equal((0, 0, 5), motion.GetPosition());
+    }
+
+    [Theory]
     [InlineData(MotionAxis.X, 2, 0, 0)]
     [InlineData(MotionAxis.Y, 0, 2, 0)]
     [InlineData(MotionAxis.Z, 0, 0, 2)]
@@ -115,6 +138,10 @@ public sealed class MotionSafetyTests
     [Fact]
     public async Task VirtualMotionUsesEachAxisPulseLength()
     {
+        var hardware = new PcbSupplyHardwareSettings();
+        Assert.Throws<ArgumentOutOfRangeException>(() => hardware.MillimetersPerUnit = 0);
+        Assert.Throws<ArgumentOutOfRangeException>(() => hardware.MillimetersPerUnit = double.NaN);
+        Assert.Equal(MotionHardwareSettings.DefaultMillimetersPerUnit, hardware.MillimetersPerUnit);
         using var motion = new VirtualMotionService(
             new MotionSettings(),
             new OperationCancellation(),
@@ -267,12 +294,13 @@ public sealed class MotionSafetyTests
                 PlacementBoundary1 = new AxisPosition { X = 5, Y = 5 },
                 PlacementBoundary2 = new AxisPosition { X = 30, Y = 12 },
             },
-            io,
+            new PcbSupplyHandler(supply, io, new PcbSupplySettings(), new PcbBufferSettings()),
             placementHandler,
             new MotionStatus(supply),
             placementHandler.Motion,
+            new XyPosition { X = handoff.X, Y = handoff.Y },
             handoff,
-            handoff,
+            () => 0,
             () => 0);
 
         io.Initialize();
@@ -284,11 +312,12 @@ public sealed class MotionSafetyTests
         Assert.True(buffer.CanEnterSupply());
         await placement.MoveAxisAsync(MotionAxis.Z, 8, settings.ZSpeed);
         Assert.False(buffer.CanEnterSupply());
-        Assert.False(buffer.CanLowerSupply());
         await placement.MoveToAsync(0, 0, 0);
 
         await supply.MoveToAsync(20, 10, 8);
-        io.SetInput(InputIo.PcbBufferPcbPresent, true);
+        io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, true);
         Assert.False(buffer.CanEnterPlacement());
 
         await placement.MoveToAsync(15, 10, 8);
@@ -296,10 +325,30 @@ public sealed class MotionSafetyTests
         await placement.MoveToAsync(0, 0, 0);
 
         await supply.MoveToAsync(10, 10, 8);
+        Assert.False(buffer.IsSupplyAtHandoff());
+        Assert.False(buffer.CanEnterPlacement());
+        await supply.MoveAxisAsync(MotionAxis.Z, 0, settings.ZSpeed);
         Assert.True(buffer.CanEnterPlacement());
 
         await placement.MoveToAsync(10, 10, 8);
         Assert.False(buffer.HasConflict());
+
+        // Leaving the shared zone is position feedback, even while jogging continues.
+        using var stop = new CancellationTokenSource();
+        var outside = buffer.WaitForSupplyOutsideAsync(stop.Token);
+        Assert.False(outside.IsCompleted);
+        var jog = supply.JogAsync(MotionAxis.X, -100, stop.Token, atCurrentHeight: true);
+        try
+        {
+            Assert.True(await WaitUntilAsync(() => buffer.IsSupplyOutside(), TimeSpan.FromSeconds(1)));
+            await outside.WaitAsync(TimeSpan.FromSeconds(1));
+            Assert.True(supply.IsMoving);
+        }
+        finally
+        {
+            stop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jog);
+        }
     }
 
     [Fact]
@@ -314,11 +363,10 @@ public sealed class MotionSafetyTests
                 ZSpeed = 1_000,
             },
             RotationZ = 0,
-            BufferHandoffPosition = new AxisPosition
+            BufferHandoffPosition = new XyPosition
             {
                 X = 20,
                 Y = 15,
-                Z = 5,
             },
         };
         using var motion = new VirtualMotionService(
@@ -349,7 +397,7 @@ public sealed class MotionSafetyTests
                 && Math.Abs(y - 15) > MotionService.PositionToleranceMillimeters;
         };
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => supply.MoveToHandoffZAsync(default));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => supply.MoveToHandoffAsync(default));
 
         await supply.SetRotatedAsync(true);
         var handoff = Array.Find(
@@ -358,14 +406,14 @@ public sealed class MotionSafetyTests
         await supply.MoveToTeachingPositionAsync(handoff, new() { X = 20, Y = 15, Z = 7 });
 
         Assert.False(xMovedBeforeY);
-        Assert.Equal((20, 15, 7), motion.GetPosition());
-        Assert.Equal(5, settings.BufferHandoffPosition.Z);
+        Assert.Equal((20, 15, settings.RotationZ), motion.GetPosition());
+        Assert.Equal(TeachMode.XYOnly, handoff.Mode);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => supply.MoveAxisAsync(MotionAxis.Y, 0));
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => supply.MoveAxisAsync(MotionAxis.Z, 0));
-        Assert.Equal((20, 15, 7), motion.GetPosition());
+        Assert.Equal((20, 15, settings.RotationZ), motion.GetPosition());
 
         // Leaving the buffer must move X out before Y is allowed to move.
         await supply.MoveHorizontalAsync(0, 0);

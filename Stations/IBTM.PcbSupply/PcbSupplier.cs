@@ -24,8 +24,7 @@ public sealed class PcbSupplier : AutoUnit
     {
         get
         {
-            return _handler.CanPrepareHome
-                && (_handler.Rotation != PcbSupplyRotationState.Unrotated || !_buffer.PcbPresent);
+            return _handler.CanPrepareHome;
         }
     }
 
@@ -72,21 +71,25 @@ public sealed class PcbSupplier : AutoUnit
                 case PcbSupplyState.RaisingForPickup:
                     await _handler.MoveToRotationZAsync(token);
                     break;
-                case PcbSupplyState.MovingAboveBuffer:
-                    await _handler.MoveAboveHandoffAsync(token);
-                    break;
-                case PcbSupplyState.RotatingForBuffer:
+                case PcbSupplyState.RotatingForHandoff:
                     await _handler.SetRotatedAsync(true, token);
                     break;
-                case PcbSupplyState.MovingToBuffer:
-                    await _handler.MoveToHandoffZAsync(token);
-                    break;
-                case PcbSupplyState.WaitingForBufferPcb:
-                    await _buffer.WaitForPcbAsync(token);
+                case PcbSupplyState.MovingToHandoff:
+                    await _handler.MoveToHandoffAsync(token);
                     break;
                 case PcbSupplyState.ReleasingPcb:
-                    await _handler.SetIpmFixerAsync(false, token);
-                    await _handler.SetGripperClosedAsync(false, token);
+                    if (_handler.IpmFixer != PcbSupplyCylinderState.Backward)
+                    {
+                        if (!_buffer.IsPlacementSecuredAtHandoff())
+                            throw new InvalidOperationException("Placement must detect and secure the PCB before supply releases its fixer.");
+                        await _handler.SetIpmFixerAsync(false, token);
+                    }
+                    if (_handler.Gripper != PcbSupplyCylinderState.Backward)
+                    {
+                        if (!_buffer.IsPlacementSecuredAtHandoff())
+                            throw new InvalidOperationException("Placement lost PCB holding feedback before supply opened its gripper.");
+                        await _handler.SetGripperClosedAsync(false, token);
+                    }
                     await _handler.MoveClearAsync(token);
                     break;
                 case PcbSupplyState.UnrotatingForPickup:
@@ -173,19 +176,19 @@ public sealed class PcbSupplier : AutoUnit
 
         if (_buffer.IsSupplyAtHandoff())
         {
-            if (!_buffer.PcbPresent)
-            {
-                return PcbSupplyState.WaitingForBufferPcb;
-            }
-
             return _buffer.IsPlacementSecuredAtHandoff()
+                || _handler.Gripper == PcbSupplyCylinderState.Backward
+                    && _handler.IpmFixer == PcbSupplyCylinderState.Backward
                 ? PcbSupplyState.ReleasingPcb
                 : PcbSupplyState.WaitingForPlacement;
         }
 
         if (_buffer.IsSupplyInside() && pcb != PcbSupplyPcbState.Secured)
         {
-            return PcbSupplyState.ReleasingPcb;
+            if (_handler.Gripper == PcbSupplyCylinderState.Backward
+                && _handler.IpmFixer == PcbSupplyCylinderState.Backward)
+                return PcbSupplyState.ReleasingPcb;
+            throw new InvalidOperationException("Supply PCB holding feedback was lost inside the handoff zone. Check both handlers before resuming.");
         }
 
         if (pcb == PcbSupplyPcbState.Detected)
@@ -197,20 +200,12 @@ public sealed class PcbSupplier : AutoUnit
         {
             if (rotation != PcbSupplyRotationState.Rotated)
             {
-                return PcbSupplyState.RotatingForBuffer;
+                return PcbSupplyState.RotatingForHandoff;
             }
 
-            if (!_handler.AtHandoffXY)
-            {
-                return _buffer.CanEnterSupply()
-                    ? PcbSupplyState.MovingAboveBuffer
-                    : PcbSupplyState.WaitingForBuffer;
-            }
-
-            return (_buffer.CanEnterSupply()
-                || _handler.InHandoffZRange && _buffer.CanLowerSupply())
-                ? PcbSupplyState.MovingToBuffer
-                : PcbSupplyState.WaitingForBuffer;
+            return _buffer.CanEnterSupply()
+                ? PcbSupplyState.MovingToHandoff
+                : PcbSupplyState.WaitingForHandoff;
         }
 
         if (!_handler.IsAtRotationZ())

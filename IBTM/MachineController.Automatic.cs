@@ -78,9 +78,12 @@ public sealed partial class MachineController
     {
         get
         {
+            if ((_units.BoltFastening || _units.Inspection)
+                && _recipe.Pcb.BoltPoints.Count == 0)
+                return false;
+
             if (_units.BoltFastening
-                && (_recipe.Pcb.BoltPoints.Count == 0
-                    || !_carrierReference.IsDefined
+                && (!_carrierReference.IsDefined
                     || _recipe.Pcb.GetBolts().Any(bolt =>
                         bolt.X is null || bolt.Y is null || !_fasteningGantry.HasReference(bolt.Head))))
             {
@@ -194,19 +197,6 @@ public sealed partial class MachineController
         try
         {
             var (startAlarm, startError) = await InitializeHardwareAsync(operation.Token);
-            if (startAlarm == MachineAlarm.None && _units.Inspection)
-            {
-                try
-                {
-                    await Task.Run(_boltInspector.CheckReady, operation.Token);
-                }
-                catch (Exception exception) when (exception is not OperationCanceledException)
-                {
-                    startAlarm = MachineAlarm.Inspection;
-                    startError = exception;
-                }
-            }
-
             operation.Token.ThrowIfCancellationRequested();
             if (startAlarm != MachineAlarm.None)
             {
