@@ -397,11 +397,15 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    [Fact]
-    public async Task ManualServoFailureStaysAtTheCommandBoundary()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ManualServoFailureStaysAtTheCommandBoundary(bool emergencyStop)
     {
         using var services = CreateServices(FlowSettings());
         await services.GetRequiredService<MachineController>().InitializeAsync();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
         var manual = services.GetRequiredService<MotionWindowViewModel>();
         var row = manual.Axes.Single(
             axis => axis.Group == MotionGroup.InspectionGantry && axis.Axis == MotionAxis.X);
@@ -409,6 +413,12 @@ public sealed partial class MachineLifecycleTests
         void FailOnce()
         {
             motion.StateChanged -= FailOnce;
+            if (emergencyStop)
+            {
+                io.SetInput(InputIo.EmergencyStop1Pressed, true);
+                Assert.Equal(MachineAlarm.EmergencyStop, state.Alarm);
+            }
+
             throw new IOException("Servo feedback failed.");
         }
 
@@ -416,8 +426,8 @@ public sealed partial class MachineLifecycleTests
 
         Assert.True(manual.ToggleServoCommand.CanExecute(row));
         manual.ToggleServoCommand.Execute(row);
-        Assert.Equal(MachineAlarm.MotionUnavailable, services.GetRequiredService<MachineState>().Alarm);
-        Assert.Contains("Servo feedback failed", services.GetRequiredService<MachineState>().AlarmDetail);
+        Assert.Equal(emergencyStop ? MachineAlarm.EmergencyStop : MachineAlarm.MotionUnavailable, state.Alarm);
+        Assert.Contains("Servo feedback failed", state.AlarmDetail);
         await WaitUntilAsync(() => row.Diagnostics.Snapshot.State?.ServoOn == false);
         Assert.False(row.Diagnostics.Snapshot.State?.ServoOn);
     }

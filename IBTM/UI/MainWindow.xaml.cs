@@ -205,10 +205,14 @@ public partial class MainWindow : Window
 
     private void RecipeFile_Selected(object sender, SelectionChangedEventArgs e)
     {
-        if (((ComboBox)sender).SelectedItem is string recipeName)
-        {
+        var selector = (ComboBox)sender;
+        if (selector.SelectedItem is not string recipeName)
+            return;
+
+        // Loading is an action; allow choosing the same file again after New or unsaved edits.
+        selector.SelectedIndex = -1;
+        if (!_closing && _viewModel.RecipeEditingEnabled)
             _viewModel.RecipeEditor.LoadCommand.Execute(recipeName);
-        }
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

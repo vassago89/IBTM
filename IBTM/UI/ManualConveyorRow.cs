@@ -35,10 +35,19 @@ public sealed partial class ManualConveyorRow(IoOutputStatus io, MachineControll
         }
     }
 
-    [RelayCommand]
-    private void Stop()
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private async Task StopAsync()
     {
-        RunCommand.Cancel();
-        machine.StopManualConveyor(Io.Signal);
+        try
+        {
+            await CommandShutdown.StopAsync(
+                () => machine.StopManualConveyor(Io.Signal),
+                RunCommand);
+        }
+        catch (Exception exception)
+        {
+            ActionMessage = exception.Message;
+            System.Diagnostics.Trace.TraceError("Manual conveyor STOP failed. {0}", exception);
+        }
     }
 }

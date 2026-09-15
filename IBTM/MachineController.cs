@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading.Tasks;
@@ -221,6 +222,31 @@ public sealed partial class MachineController
             failure = failure is null ? cleanupFailure : new AggregateException(failure, cleanupFailure);
         }
 
+        // Command cleanup is not proof that axes moved outside this application have stopped.
+        // Check current feedback once, including disabled groups, before completing shutdown.
+        foreach (var (group, motion) in _feedback.Motions)
+        {
+            foreach (var axis in motion.Feedback.Axes)
+            {
+                Exception? stopFailure = null;
+                try
+                {
+                    if (motion.Feedback.GetAxisState(axis).InMotion)
+                        stopFailure = new InvalidOperationException("The axis still reports motion.");
+                }
+                catch (Exception exception)
+                {
+                    stopFailure = exception;
+                }
+
+                if (stopFailure is not null)
+                {
+                    stopFailure = new MotionException($"Confirm {group} {axis} stopped", stopFailure);
+                    failure = failure is null ? stopFailure : new AggregateException(failure, stopFailure);
+                }
+            }
+        }
+
         try
         {
             await _feedback.StopAsync();
@@ -241,14 +267,13 @@ public sealed partial class MachineController
             var alarm = SafetyAlarm();
             if (alarm != MachineAlarm.None)
             {
-                _state.SetError(alarm);
-                Stop();
+                StopAndReportFailure(alarm);
                 return;
             }
         }
 
         if (input == InputIo.AutoMode && _state.AutoMode && !_state.AutomaticRunning)
-            StopRunOutputs();
+            StopAndReportFailure();
 
         if (input is InputIo.AutoMode
             or InputIo.PcbPlacementHandlerUp
@@ -296,7 +321,7 @@ public sealed partial class MachineController
                 || _state.IsHoming
                 || _state.BoltTestRunning))
         {
-            Stop();
+            StopAndReportFailure();
         }
 
         var fasteningBlocked = _units.BoltFastening
@@ -304,28 +329,76 @@ public sealed partial class MachineController
             && !_fasteningGantry.CanMoveHorizontal
             && _fasteningGantry.Feedback.IsMovingHorizontal;
         var alarm = MachineAlarm.None;
+        string? interlockDetail = null;
         if (_units.PcbPlacement
             && !_placementHandler.CanMoveHorizontal
             && _placementHandler.Feedback.IsMovingHorizontal)
         {
             alarm = MachineAlarm.PcbPlacement;
+            interlockDetail = "PCB placement horizontal movement requires the handler lift Up. "
+                + $"Current lift: {_placementHandler.Lift}.";
         }
         else if (fasteningBlocked)
         {
             alarm = MachineAlarm.BoltFastening;
+            interlockDetail = "Fastening horizontal movement requires both heads Up. "
+                + $"Current pickup head: {_fasteningGantry.PickupHeadPosition}; "
+                + $"shooting head: {_fasteningGantry.ShootingHeadPosition}.";
         }
         else if (InspectionGantryEnabled
             && ((!_inspectionGantry.CanMove && _inspectionGantry.Feedback.IsMoving)
                 || (_state.IsHoming && !_inspectionGantry.CanHome)))
         {
             alarm = MachineAlarm.NgCarrierTransfer;
+            interlockDetail = _state.IsHoming
+                ? "Inspection/NG homing requires the pickup Up and no carrier at the pickup. "
+                    + $"Current lift: {_ngTransfer.Lift}; carrier detected: {_ngTransfer.CarrierDetected}."
+                : "Inspection/NG horizontal movement requires the pickup Up. "
+                    + $"Current lift: {_ngTransfer.Lift}.";
         }
 
         if (alarm != MachineAlarm.None)
         {
-            _state.SetError(alarm);
+            StopAndReportFailure(
+                _state.IsError ? _state.Alarm : alarm,
+                new MotionInterlockException(interlockDetail!));
+        }
+    }
+
+    private void StopAndReportFailure(MachineAlarm alarm = MachineAlarm.None, Exception? cause = null)
+    {
+        Exception? failure = null;
+        try
+        {
+            if (alarm != MachineAlarm.None)
+                _state.SetError(alarm, cause);
+        }
+        catch (Exception exception)
+        {
+            // An alarm subscriber can fail while cancelling a native motion.
+            // Still attempt STOP on the remaining devices.
+            failure = exception;
+        }
+
+        try
+        {
             Stop();
         }
+        catch (Exception exception)
+        {
+            failure = failure is null ? exception : new AggregateException(failure, exception);
+        }
+
+        if (failure is null)
+            return;
+        if (failure is not IOException and not MotionException
+            && (failure is not AggregateException aggregate
+                || aggregate.Flatten().InnerExceptions.Any(error => error is not IOException and not MotionException)))
+            ExceptionDispatchInfo.Throw(failure);
+
+        // A failed actuator STOP must not terminate the input/motion feedback loop.
+        // Preserve the trip alarm; attach or log the additional device failure.
+        _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.StopFailed, failure);
     }
 
     private MachineAlarm SafetyAlarm()
@@ -397,15 +470,6 @@ public sealed partial class MachineController
 
     private void OnIoFaulted(Exception exception)
     {
-        _state.SetError(MachineAlarm.IoCommunication, exception);
-        try
-        {
-            Stop();
-        }
-        catch (Exception stopError)
-        {
-            // Keep the communication fault as the alarm's cause, and report failed STOPs separately.
-            _log?.Error("Stopping outputs after the I/O fault also failed.", stopError);
-        }
+        StopAndReportFailure(MachineAlarm.IoCommunication, exception);
     }
 }

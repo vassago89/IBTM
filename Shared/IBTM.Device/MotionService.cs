@@ -277,7 +277,7 @@ public abstract class MotionService(
         if (!GetAxisState(MotionAxis.Z).Homed
             || Math.Abs(GetPosition().Z - clearZ) > PositionToleranceMillimeters)
         {
-            throw new InvalidOperationException($"X movement requires Z at Clear Z ({clearZ:F3}).");
+            throw new MotionInterlockException($"X movement requires Z at Clear Z ({clearZ:F3}).");
         }
 
         await MoveAxisCoreAsync(MotionAxis.X, x, velocity, cancellationToken);
@@ -317,7 +317,7 @@ public abstract class MotionService(
         EnsureStopped();
         if (!GetAxisState(MotionAxis.Z).Homed)
         {
-            throw new InvalidOperationException("Z axis must be homed before moving to its reference.");
+            throw new MotionInterlockException("Z axis must be homed before moving to its reference.");
         }
 
         if (!IsAtHorizontalZ)
@@ -356,7 +356,7 @@ public abstract class MotionService(
         ValidateHome(axis, Math.Abs(velocity));
         if (!GetAxisState(MotionAxis.Z).PositiveLimit)
         {
-            throw new InvalidOperationException("Z axis must be at its positive limit before horizontal homing.");
+            throw new MotionInterlockException("Z axis must be at its positive limit before horizontal homing.");
         }
 
         return await HomeCoreAsync(axis, Math.Abs(velocity), cancellationToken);
@@ -520,7 +520,7 @@ public abstract class MotionService(
     {
         if (!IsAtHorizontalZ)
         {
-            throw new InvalidOperationException(
+            throw new MotionInterlockException(
                 $"Horizontal movement requires homed Z at {HorizontalZ:F3}.");
         }
     }
@@ -547,7 +547,7 @@ public abstract class MotionService(
             || IsMoving
             || _axes.Any(axis => !GetAxisState(axis).InPosition))
         {
-            throw new InvalidOperationException("A motion command is already running.");
+            throw new MotionInterlockException("Wait for all axes to stop and confirm InPosition before moving.");
         }
     }
 

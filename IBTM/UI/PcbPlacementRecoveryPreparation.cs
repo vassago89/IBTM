@@ -10,7 +10,8 @@ namespace IBTM.UI;
 public sealed class PcbPlacementRecoveryPreparation(
     MachineState state,
     PcbPlacementWork work,
-    IIoService io) : StartPreparation(state, work, io)
+    IIoService io,
+    RecipeEditor recipeEditor) : StartPreparation(state, work, io, recipeEditor)
 {
     protected override bool Show(Window owner, int version)
     {

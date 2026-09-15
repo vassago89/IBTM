@@ -153,10 +153,20 @@ public partial class MotionWindowViewModel : ObservableObject
             && _state.Display.HomeableAxes.Contains((row.Group, row.Axis));
     }
 
-    [RelayCommand]
-    private void Stop()
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private async Task StopAsync()
     {
-        _machine.Stop();
+        try
+        {
+            await CommandShutdown.StopAsync(_machine.Stop, HomeAxisCommand);
+        }
+        catch (Exception exception)
+        {
+            if (!_state.IsError)
+                _state.SetError(MachineAlarm.StopFailed, exception);
+            else
+                System.Diagnostics.Trace.TraceError("Motion window STOP also failed. {0}", exception);
+        }
     }
 
     public void Refresh()
@@ -177,6 +187,6 @@ public partial class MotionWindowViewModel : ObservableObject
 
     public Task ShutdownAsync()
     {
-        return CommandShutdown.StopAsync(null, HomeAxisCommand);
+        return CommandShutdown.StopAsync(null, StopCommand, HomeAxisCommand);
     }
 }

@@ -144,21 +144,20 @@ public sealed partial class MachineController
         }
         catch (IoTimeoutException exception)
         {
-            if (!_state.IsError)
-                _state.SetError(alarm, exception);
+            _state.SetError(_state.IsError ? _state.Alarm : alarm, exception);
         }
-        catch (Exception exception) when (exception is IOException or MotionException
+        catch (Exception exception) when (exception is IOException or MotionException or MotionInterlockException
             || exception is AggregateException aggregate
                 && aggregate.Flatten().InnerExceptions.Any(
-                    error => error is IOException or MotionException or IoTimeoutException))
+                    error => error is IOException or MotionException or MotionInterlockException or IoTimeoutException))
         {
-            if (!_state.IsError)
-                _state.SetError(
-                    IsMotionFailure(exception) && alarm != MachineAlarm.HomeFailed
+            StopAndReportFailure(
+                _state.IsError
+                    ? _state.Alarm
+                    : IsMotionFailure(exception) && alarm != MachineAlarm.HomeFailed
                         ? MachineAlarm.MotionUnavailable
                         : alarm,
-                    exception);
-            Stop();
+                exception);
         }
     }
 
@@ -204,7 +203,7 @@ public sealed partial class MachineController
         }
         catch (Exception exception)
         {
-            _state.SetError(MachineAlarm.MotionUnavailable, exception);
+            _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable, exception);
             _operations.Cancel();
         }
     }
@@ -263,7 +262,7 @@ public sealed partial class MachineController
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            _state.SetError(MachineAlarm.BoltFastening, exception);
+            _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.BoltFastening, exception);
             throw;
         }
         finally

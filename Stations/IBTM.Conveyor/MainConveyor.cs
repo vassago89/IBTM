@@ -291,16 +291,38 @@ public sealed class MainConveyor : AutoUnit
         using var runCancellation = _operations.Link(cancellationToken);
         _runCancellation = runCancellation;
         cancellationToken = runCancellation.Token;
+        Exception? cancellationFailure = null;
+        void StopOnCancellation()
+        {
+            try
+            {
+                _io.SetOutput(OutputIo.MainConveyorRun, false);
+            }
+            catch (Exception exception)
+            {
+                cancellationFailure = exception;
+            }
+        }
+
         Exception? failure = null;
         try
         {
-            using var stopRegistration = cancellationToken.Register(StopMotor);
-            await run(cancellationToken);
-        }
-        catch (Exception exception)
-        {
-            failure = exception;
-            throw;
+            using (cancellationToken.Register(StopOnCancellation))
+            {
+                try
+                {
+                    await run(cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    failure = exception;
+                }
+            }
+
+            if (cancellationFailure is not null)
+                failure = failure is null ? cancellationFailure : new AggregateException(failure, cancellationFailure);
+            if (failure is not null)
+                ExceptionDispatchInfo.Throw(failure);
         }
         finally
         {
@@ -439,11 +461,6 @@ public sealed class MainConveyor : AutoUnit
             ExceptionDispatchInfo.Throw(failures[0]);
         if (failures is not null)
             throw new AggregateException("Main conveyor outputs could not all be stopped.", failures);
-    }
-
-    private void StopMotor()
-    {
-        _io.SetOutput(OutputIo.MainConveyorRun, false);
     }
 
     private bool CanOfferToRear

@@ -397,7 +397,7 @@ public sealed class MotionSafetyTests
                 && Math.Abs(y - 15) > MotionService.PositionToleranceMillimeters;
         };
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => supply.MoveToHandoffAsync(default));
+        await Assert.ThrowsAsync<MotionInterlockException>(() => supply.MoveToHandoffAsync(default));
 
         await supply.SetRotatedAsync(true);
         var handoff = Array.Find(
@@ -409,9 +409,9 @@ public sealed class MotionSafetyTests
         Assert.Equal((20, 15, settings.RotationZ), motion.GetPosition());
         Assert.Equal(TeachMode.XYOnly, handoff.Mode);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<MotionInterlockException>(
             () => supply.MoveAxisAsync(MotionAxis.Y, 0));
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<MotionInterlockException>(
             () => supply.MoveAxisAsync(MotionAxis.Z, 0));
         Assert.Equal((20, 15, settings.RotationZ), motion.GetPosition());
 

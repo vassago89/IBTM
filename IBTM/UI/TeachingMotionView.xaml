@@ -25,8 +25,8 @@
             <sys:Double>50</sys:Double>
         </x:Array>
         <Style x:Key="JogDirectionStyle" TargetType="ui:HoldButton" BasedOn="{StaticResource JogButtonStyle}">
-            <Setter Property="MinHeight" Value="28"/>
-            <Setter Property="Height" Value="28"/>
+            <Setter Property="MinHeight" Value="40"/>
+            <Setter Property="Height" Value="40"/>
             <Setter Property="ToolTip" Value="Hold to move; release to stop."/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding MoveMode}" Value="{x:Static ui:TeachingMoveMode.Step}">
@@ -35,8 +35,8 @@
             </Style.Triggers>
         </Style>
         <Style x:Key="StepDirectionStyle" TargetType="Button" BasedOn="{StaticResource JogButtonStyle}">
-            <Setter Property="MinHeight" Value="28"/>
-            <Setter Property="Height" Value="28"/>
+            <Setter Property="MinHeight" Value="40"/>
+            <Setter Property="Height" Value="40"/>
             <Setter Property="Visibility" Value="Collapsed"/>
             <Setter Property="ToolTip" Value="Move by the selected step distance."/>
             <Style.Triggers>
@@ -60,104 +60,117 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="20"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="40"/>
-                <ColumnDefinition Width="40"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="X" VerticalAlignment="Center" FontWeight="SemiBold"/>
             <TextBlock Grid.Column="1"
                 Text="{Binding Motion.Position.X, StringFormat=F3, TargetNullValue=—, FallbackValue=—}"
                 VerticalAlignment="Center" FontFamily="Consolas" FontSize="15"/>
-            <Grid Grid.Column="2" Margin="2,0">
-                <ui:HoldButton Content="X−" Style="{StaticResource JogDirectionStyle}"
-                    PressCommand="{Binding JogCommand}"
-                    ReleaseCommand="{Binding JogStopCommand}"
-                    CommandParameter="{x:Static ui:TeachingDirection.XMinus}"/>
-                <Button Content="X−" Style="{StaticResource StepDirectionStyle}"
-                    Command="{Binding StepCommand}"
-                    CommandParameter="{x:Static ui:TeachingDirection.XMinus}"/>
-            </Grid>
-            <Grid Grid.Column="3" Margin="2,0">
-                <ui:HoldButton Content="X+" Style="{StaticResource JogDirectionStyle}"
-                    PressCommand="{Binding JogCommand}"
-                    ReleaseCommand="{Binding JogStopCommand}"
-                    CommandParameter="{x:Static ui:TeachingDirection.XPlus}"/>
-                <Button Content="X+" Style="{StaticResource StepDirectionStyle}"
-                    Command="{Binding StepCommand}"
-                    CommandParameter="{x:Static ui:TeachingDirection.XPlus}"/>
-            </Grid>
         </Grid>
         <Grid Margin="0,2" Visibility="{Binding Motion.Feedback.HasY, Converter={StaticResource BoolToVis}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="20"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="40"/>
-                <ColumnDefinition Width="40"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="Y" VerticalAlignment="Center" FontWeight="SemiBold"/>
             <TextBlock Grid.Column="1"
                 Text="{Binding Motion.Position.Y, StringFormat=F3, TargetNullValue=—, FallbackValue=—}"
                 VerticalAlignment="Center" FontFamily="Consolas" FontSize="15"/>
-            <Grid Grid.Column="2" Margin="2,0">
-                <ui:HoldButton Content="Y−" Style="{StaticResource JogDirectionStyle}"
-                    PressCommand="{Binding JogCommand}"
-                    ReleaseCommand="{Binding JogStopCommand}"
-                    CommandParameter="{x:Static ui:TeachingDirection.YMinus}"/>
-                <Button Content="Y−" Style="{StaticResource StepDirectionStyle}"
-                    Command="{Binding StepCommand}"
-                    CommandParameter="{x:Static ui:TeachingDirection.YMinus}"/>
-            </Grid>
-            <Grid Grid.Column="3" Margin="2,0">
-                <ui:HoldButton Content="Y+" Style="{StaticResource JogDirectionStyle}"
-                    PressCommand="{Binding JogCommand}"
-                    ReleaseCommand="{Binding JogStopCommand}"
-                    CommandParameter="{x:Static ui:TeachingDirection.YPlus}"/>
-                <Button Content="Y+" Style="{StaticResource StepDirectionStyle}"
-                    Command="{Binding StepCommand}"
-                    CommandParameter="{x:Static ui:TeachingDirection.YPlus}"/>
-            </Grid>
         </Grid>
         <Grid Margin="0,2" Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="20"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="40"/>
-                <ColumnDefinition Width="40"/>
             </Grid.ColumnDefinitions>
             <TextBlock Text="Z" VerticalAlignment="Center" FontWeight="SemiBold"/>
             <TextBlock Grid.Column="1"
                 Text="{Binding Motion.Position.Z, StringFormat=F3, TargetNullValue=—, FallbackValue=—}"
                 VerticalAlignment="Center" FontFamily="Consolas" FontSize="15"/>
-            <Grid Grid.Column="2" Margin="2,0">
-                <ui:HoldButton Content="Z−" Style="{StaticResource JogDirectionStyle}"
-                    PressCommand="{Binding JogCommand}"
-                    ReleaseCommand="{Binding JogStopCommand}"
-                    CommandParameter="{x:Static ui:TeachingDirection.ZMinus}"/>
-                <Button Content="Z−" Style="{StaticResource StepDirectionStyle}"
-                    Command="{Binding StepCommand}"
-                    CommandParameter="{x:Static ui:TeachingDirection.ZMinus}"/>
-            </Grid>
-            <Grid Grid.Column="3" Margin="2,0">
-                <ui:HoldButton Content="Z+" Style="{StaticResource JogDirectionStyle}"
-                    PressCommand="{Binding JogCommand}"
-                    ReleaseCommand="{Binding JogStopCommand}"
-                    CommandParameter="{x:Static ui:TeachingDirection.ZPlus}"/>
-                <Button Content="Z+" Style="{StaticResource StepDirectionStyle}"
-                    Command="{Binding StepCommand}"
-                    CommandParameter="{x:Static ui:TeachingDirection.ZPlus}"/>
-            </Grid>
         </Grid>
 
         <Grid Margin="0,8,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <Button Content="HOME"
-                Command="{Binding HomeCommand}"
-                Margin="0,0,6,0" Style="{StaticResource SecondaryButtonStyle}"
-                ToolTip="Home the selected unit: Z → safe height → XY. XY-only units home X/Y. PCB Supply uses Home All."/>
-            <Button Grid.Column="1" Content="STOP" Command="{Binding JogStopCommand}" Style="{StaticResource JogStopButtonStyle}"/>
+            <Grid VerticalAlignment="Center">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid Grid.Column="1" Margin="2"
+                    Visibility="{Binding Motion.Feedback.HasY, Converter={StaticResource BoolToVis}}">
+                    <ui:HoldButton Content="↑ Y−" Style="{StaticResource JogDirectionStyle}"
+                        PressCommand="{Binding JogCommand}"
+                        ReleaseCommand="{Binding JogStopCommand}"
+                        CommandParameter="{x:Static ui:TeachingDirection.YMinus}"/>
+                    <Button Content="↑ Y−" Style="{StaticResource StepDirectionStyle}"
+                        Command="{Binding StepCommand}"
+                        CommandParameter="{x:Static ui:TeachingDirection.YMinus}"/>
+                </Grid>
+                <Grid Grid.Row="1" Margin="2">
+                    <ui:HoldButton Content="← X−" Style="{StaticResource JogDirectionStyle}"
+                        PressCommand="{Binding JogCommand}"
+                        ReleaseCommand="{Binding JogStopCommand}"
+                        CommandParameter="{x:Static ui:TeachingDirection.XMinus}"/>
+                    <Button Content="← X−" Style="{StaticResource StepDirectionStyle}"
+                        Command="{Binding StepCommand}"
+                        CommandParameter="{x:Static ui:TeachingDirection.XMinus}"/>
+                </Grid>
+                <Button Grid.Row="1" Grid.Column="1" Content="STOP" Margin="2" Height="40"
+                    Command="{Binding JogStopCommand}" Style="{StaticResource JogStopButtonStyle}"/>
+                <Grid Grid.Row="1" Grid.Column="2" Margin="2">
+                    <ui:HoldButton Content="X+ →" Style="{StaticResource JogDirectionStyle}"
+                        PressCommand="{Binding JogCommand}"
+                        ReleaseCommand="{Binding JogStopCommand}"
+                        CommandParameter="{x:Static ui:TeachingDirection.XPlus}"/>
+                    <Button Content="X+ →" Style="{StaticResource StepDirectionStyle}"
+                        Command="{Binding StepCommand}"
+                        CommandParameter="{x:Static ui:TeachingDirection.XPlus}"/>
+                </Grid>
+                <Grid Grid.Row="2" Grid.Column="1" Margin="2"
+                    Visibility="{Binding Motion.Feedback.HasY, Converter={StaticResource BoolToVis}}">
+                    <ui:HoldButton Content="↓ Y+" Style="{StaticResource JogDirectionStyle}"
+                        PressCommand="{Binding JogCommand}"
+                        ReleaseCommand="{Binding JogStopCommand}"
+                        CommandParameter="{x:Static ui:TeachingDirection.YPlus}"/>
+                    <Button Content="↓ Y+" Style="{StaticResource StepDirectionStyle}"
+                        Command="{Binding StepCommand}"
+                        CommandParameter="{x:Static ui:TeachingDirection.YPlus}"/>
+                </Grid>
+            </Grid>
+            <StackPanel Grid.Column="1" Width="68" Margin="12,0,0,0"
+                Visibility="{Binding Motion.Feedback.HasZ, Converter={StaticResource BoolToVis}}">
+                <Grid Margin="2">
+                    <ui:HoldButton Content="↑ Z−" Style="{StaticResource JogDirectionStyle}"
+                        PressCommand="{Binding JogCommand}"
+                        ReleaseCommand="{Binding JogStopCommand}"
+                        CommandParameter="{x:Static ui:TeachingDirection.ZMinus}"/>
+                    <Button Content="↑ Z−" Style="{StaticResource StepDirectionStyle}"
+                        Command="{Binding StepCommand}"
+                        CommandParameter="{x:Static ui:TeachingDirection.ZMinus}"/>
+                </Grid>
+                <TextBlock Text="Z" Height="44" TextAlignment="Center" Padding="0,12,0,0"
+                    FontWeight="SemiBold" Foreground="{StaticResource TextMutedBrush}"/>
+                <Grid Margin="2">
+                    <ui:HoldButton Content="↓ Z+" Style="{StaticResource JogDirectionStyle}"
+                        PressCommand="{Binding JogCommand}"
+                        ReleaseCommand="{Binding JogStopCommand}"
+                        CommandParameter="{x:Static ui:TeachingDirection.ZPlus}"/>
+                    <Button Content="↓ Z+" Style="{StaticResource StepDirectionStyle}"
+                        Command="{Binding StepCommand}"
+                        CommandParameter="{x:Static ui:TeachingDirection.ZPlus}"/>
+                </Grid>
+            </StackPanel>
         </Grid>
+        <Button Content="HOME" Command="{Binding HomeCommand}" Margin="0,8,0,0"
+            Style="{StaticResource SecondaryButtonStyle}"
+            ToolTip="Home the selected unit: Z → safe height → XY. XY-only units home X/Y. PCB Supply uses Home All."/>
         <ComboBox ItemsSource="{Binding MoveModes}" SelectedItem="{Binding MoveMode}" Margin="0,6,0,0"/>
         <Grid Margin="0,6,0,0">
             <Grid.Style>
@@ -219,6 +232,8 @@
         <WrapPanel Margin="0,10,0,0">
             <Button Content="Teach"
                 Command="{Binding TeachCurrentPositionCommand}"
+                ToolTip="Teach the current coordinates after homing and stopping the axes used by this position."
+                ToolTipService.ShowOnDisabled="True"
                 Style="{StaticResource PrimaryButtonStyle}" MinWidth="90" Margin="0,0,4,0"/>
             <Button Content="Move To"
                 Command="{Binding MoveToPointCommand}"

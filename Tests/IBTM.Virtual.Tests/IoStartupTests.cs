@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
 using IBTM.Device;
 using IBTM.Inspection;
@@ -66,6 +68,351 @@ public sealed class IoStartupTests
         }
         finally
         {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ScreenStopReportsOutputFailureAndStillStopsOtherDevices(bool motionWindow)
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        IAsyncRelayCommand stop = motionWindow
+            ? services.GetRequiredService<MotionWindowViewModel>().StopCommand
+            : services.GetRequiredService<OperationViewModel>().StopCommand;
+        io.SetOutput(OutputIo.MainConveyorRun, true);
+        io.SetOutput(OutputIo.NgConveyorRun, true);
+        var outputError = new IOException("Main conveyor STOP write failed.");
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output == OutputIo.MainConveyorRun && !on)
+                throw outputError;
+        };
+        try
+        {
+            await stop.ExecuteAsync(null);
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.Equal(MachineAlarm.StopFailed, state.Alarm);
+            Assert.Contains(outputError.Message, state.AlarmDetail);
+        }
+        finally
+        {
+            io.BeforeOutputWrite = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(InputIo.EmergencyStop1Pressed, true, MachineAlarm.EmergencyStop, false)]
+    [InlineData(InputIo.AutoMode, false, MachineAlarm.StopFailed, false)]
+    [InlineData(InputIo.EmergencyStop1Pressed, true, MachineAlarm.EmergencyStop, true)]
+    public async Task InputTriggeredStopFailureKeepsFeedbackAndRecoveryAlive(
+        InputIo input,
+        bool value,
+        MachineAlarm alarm,
+        bool manualRun)
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        var feedback = services.GetRequiredService<MachineFeedbackMonitor>();
+        await machine.InitializeAsync();
+        var row = services.GetRequiredService<ManualHardwareViewModel>().Conveyors
+            .Single(item => item.Io.Signal == OutputIo.MainConveyorRun);
+        var running = manualRun ? row.RunCommand.ExecuteAsync(null) : Task.CompletedTask;
+        if (manualRun)
+            await WaitUntilAsync(() => io.GetOutput(OutputIo.MainConveyorRun));
+        else
+            io.SetOutput(OutputIo.MainConveyorRun, true);
+        io.SetOutput(OutputIo.NgConveyorRun, true);
+        var outputError = new IOException("Main conveyor STOP write failed during input notification.");
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output == OutputIo.MainConveyorRun && !on)
+                throw outputError;
+        };
+        try
+        {
+            io.PendingInput = (input, value);
+            await WaitUntilAsync(() => feedback.Failure is not null
+                || state.AlarmDetail?.Contains(outputError.Message) == true);
+            await running.WaitAsync(TimeSpan.FromSeconds(2));
+            if (manualRun)
+                await row.StopCommand.ExecuteAsync(null);
+            var scans = Volatile.Read(ref io.InputScans);
+            await WaitUntilAsync(() => feedback.Failure is not null || Volatile.Read(ref io.InputScans) > scans);
+            Assert.Null(feedback.Failure);
+            Assert.Equal(alarm, state.Alarm);
+            Assert.Contains(outputError.Message, state.AlarmDetail);
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
+
+            // The next input scan and explicit recovery must remain usable.
+            io.BeforeOutputWrite = null;
+            io.PendingInput = (input, !value);
+            await WaitUntilAsync(() => io.GetInput(input) == !value);
+            machine.Stop();
+            Assert.True(machine.CanReset);
+            await machine.ResetAsync();
+            Assert.False(state.IsError);
+        }
+        finally
+        {
+            io.BeforeOutputWrite = null;
+            row.RunCommand.Cancel();
+            await running;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task AutomaticStopFailureKeepsFeedbackAliveAndStaysAtCommandBoundary()
+    {
+        using var services = CreateServices(new MachineSettings
+        {
+            Units = new UnitSettings
+            {
+                PcbSupply = false,
+                PcbPlacement = false,
+                PickupBoltFeeder = false,
+                ShootingBoltFeeder = false,
+                BoltFastening = false,
+                Inspection = false,
+                NgCarrierTransfer = false,
+                NgShuttle = false,
+                NgConveyor = false,
+            },
+        });
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        var feedback = services.GetRequiredService<MachineFeedbackMonitor>();
+        await machine.InitializeAsync();
+        var running = Record.ExceptionAsync(() => machine.StartAsync());
+        try
+        {
+            await WaitUntilAsync(() => state.AutomaticRunning && io.GetOutput(OutputIo.MainConveyorReadyToFront2));
+            io.SetOutput(OutputIo.MainConveyorRun, true);
+            io.SetOutput(OutputIo.NgConveyorRun, true);
+            io.BeforeOutputWrite = (output, on) =>
+            {
+                if (output == OutputIo.MainConveyorRun && !on)
+                    throw new IOException("Automatic conveyor STOP failed.");
+            };
+            io.PendingInput = (InputIo.EmergencyStop1Pressed, true);
+            Assert.Null(await running.WaitAsync(TimeSpan.FromSeconds(2)));
+            var scans = Volatile.Read(ref io.InputScans);
+            await WaitUntilAsync(() => feedback.Failure is not null || Volatile.Read(ref io.InputScans) > scans);
+            Assert.Null(feedback.Failure);
+            Assert.Equal(MachineAlarm.EmergencyStop, state.Alarm);
+            Assert.Contains("Automatic conveyor STOP failed.", state.AlarmDetail);
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
+            io.BeforeOutputWrite = null;
+            io.PendingInput = (InputIo.EmergencyStop1Pressed, false);
+            await WaitUntilAsync(() => !io.GetInput(InputIo.EmergencyStop1Pressed));
+        }
+        finally
+        {
+            io.BeforeOutputWrite = null;
+            machine.Stop();
+            await running;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RepeatReturnKeepsOperationAndStopFailuresWithoutReplacingSafetyAlarm(bool safetyStop)
+    {
+        using var services = CreateServices(new MachineSettings
+        {
+            Units = new UnitSettings
+            {
+                PcbSupply = false,
+                PcbPlacement = false,
+                PickupBoltFeeder = false,
+                ShootingBoltFeeder = false,
+                BoltFastening = false,
+                Inspection = false,
+            },
+        });
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        var inputs = services.GetRequiredService<VirtualIoService>();
+        var log = services.GetRequiredService<ApplicationLog>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        inputs.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+        io.SetOutput(OutputIo.NgShuttleUp, true);
+        state.RepeatEnabled = true;
+        // Resume the selected return phase directly; this test does not run a full route.
+        typeof(MachineController).GetField("_repeatPhase", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(machine, RepeatPhase.ReturnToShuttle);
+        Assert.True(machine.CanStart, machine.StartBlock.ToString());
+        var returning = false;
+        var runFailure = new IOException("Shuttle lowering failed during repeat return.");
+        var stopFailure = new IOException("NG conveyor STOP failed during return cleanup.");
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output == OutputIo.NgShuttleUp && !on)
+            {
+                returning = true;
+                if (safetyStop)
+                    inputs.SetInput(InputIo.EmergencyStop1Pressed, true);
+                throw runFailure;
+            }
+            if (returning && output == OutputIo.NgConveyorRun && !on)
+                throw stopFailure;
+        };
+        try
+        {
+            await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.True(returning);
+            Assert.Equal(safetyStop ? MachineAlarm.EmergencyStop : MachineAlarm.NgConveyor, state.Alarm);
+            Assert.Contains(log.Snapshot(), entry => entry.Detail?.Contains(runFailure.Message) == true);
+            Assert.Contains(log.Snapshot(), entry => entry.Detail?.Contains(stopFailure.Message) == true);
+            Assert.False(state.AutomaticRunning);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            io.BeforeOutputWrite = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task ManualFailureStopsRemainingOutputsAndReportsStopFailure()
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        var log = services.GetRequiredService<ApplicationLog>();
+        await machine.InitializeAsync();
+        var operationFailure = new IOException("Manual device command failed.");
+        var stopFailure = new IOException("Main conveyor STOP failed.");
+        Assert.True(state.SetupEditingEnabled);
+        try
+        {
+            var commandFailure = await Record.ExceptionAsync(() => machine.RunTeachingEditAsync(
+                _ =>
+                {
+                    io.SetOutput(OutputIo.MainConveyorRun, true);
+                    io.SetOutput(OutputIo.NgConveyorRun, true);
+                    io.BeforeOutputWrite = (output, on) =>
+                    {
+                        if (output == OutputIo.MainConveyorRun && !on)
+                            throw stopFailure;
+                    };
+                    return Task.FromException(operationFailure);
+                },
+                CancellationToken.None,
+                CancellationToken.None));
+
+            Assert.Null(commandFailure);
+            Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
+            Assert.Contains(operationFailure.ToString(), state.AlarmDetail);
+            Assert.Contains(log.Snapshot(), entry => entry.Detail?.Contains(stopFailure.ToString()) == true);
+            Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
+            Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            io.BeforeOutputWrite = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(OutputIo.MainConveyorRun, OutputIo.MainConveyorReadyToFront2)]
+    [InlineData(OutputIo.NgConveyorRun, OutputIo.NgCarrierEjectCompleteLamp)]
+    public async Task ConveyorCancellationRetainsFailedStopWhenCleanupSucceeds(
+        OutputIo motor,
+        OutputIo handshake)
+    {
+        using var services = CreateServices();
+        var io = services.GetRequiredService<StartupIo>();
+        io.Initialize();
+        using var cancellation = new CancellationTokenSource();
+        var run = motor == OutputIo.MainConveyorRun
+            ? services.GetRequiredService<IBTM.Conveyor.MainConveyor>().RunMotorAsync(cancellation.Token)
+            : services.GetRequiredService<IBTM.NgConveyor.NgCarrierConveyor>().RunMotorAsync(cancellation.Token);
+        var stopFailure = new IOException("First motor STOP failed.");
+        var stopAttempts = 0;
+        Assert.True(io.GetOutput(motor));
+        io.SetOutput(handshake, true);
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output == motor && !on && Interlocked.Increment(ref stopAttempts) == 1)
+                throw stopFailure;
+        };
+        try
+        {
+            var cancellationFailure = Record.Exception(cancellation.Cancel);
+            var runFailure = await Record.ExceptionAsync(() => run.WaitAsync(TimeSpan.FromSeconds(2)));
+
+            Assert.Null(cancellationFailure);
+            Assert.Contains(stopFailure, Assert.IsType<AggregateException>(runFailure).Flatten().InnerExceptions);
+            Assert.False(io.GetOutput(motor));
+            Assert.False(io.GetOutput(handshake));
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            io.BeforeOutputWrite = null;
+            cancellation.Cancel();
+            await Record.ExceptionAsync(() => run);
+        }
+    }
+
+    [Theory]
+    [InlineData(OutputIo.MainConveyorRun, OutputIo.MainConveyorReadyToFront2)]
+    [InlineData(OutputIo.NgConveyorRun, OutputIo.NgCarrierEjectCompleteLamp)]
+    public async Task ManualStopStillClearsHandshakeWhenMotorCancellationFails(
+        OutputIo motor,
+        OutputIo handshake)
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        var row = services.GetRequiredService<ManualHardwareViewModel>().Conveyors
+            .Single(row => row.Io.Signal == motor);
+        var run = row.RunCommand.ExecuteAsync(null);
+        await WaitUntilAsync(() => io.GetOutput(motor));
+        io.SetOutput(handshake, true);
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output == motor && !on)
+                throw new IOException("Motor OFF failed.");
+        };
+        try
+        {
+            await row.StopCommand.ExecuteAsync(null);
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(io.GetOutput(handshake));
+            Assert.Contains("Motor OFF failed.", row.ActionMessage);
+            Assert.True(services.GetRequiredService<MachineState>().IsError);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            io.BeforeOutputWrite = null;
+            row.RunCommand.Cancel();
+            await run;
             await machine.ShutdownAsync();
         }
     }
@@ -447,6 +794,108 @@ public sealed class IoStartupTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CylinderRaiseReportsInputReadFailureBeforeAnyActuation(bool operationStarted)
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var operations = services.GetRequiredService<OperationCancellation>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await state.StopDisplayUpdatesAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        Assert.True(machine.CanRaiseCylinders);
+        var failure = new IOException("Carrier input became unavailable before cylinder raise.");
+        var readsFailed = 0;
+        var cylinderWrites = 0;
+        io.BeforeInputRead = input =>
+        {
+            if (input != InputIo.PcbPlacementHeatSink1Present
+                || operations.HasActiveOperations != operationStarted)
+                return;
+            io.BeforeInputRead = null;
+            readsFailed++;
+            throw failure;
+        };
+        io.BeforeOutputWrite = (output, _) =>
+        {
+            if (output is OutputIo.PcbPlacementHandlerDown or OutputIo.PcbPlacementIpmDown
+                or OutputIo.PickupHeadUp or OutputIo.ShootingHeadUp or OutputIo.NgCarrierPickupUp)
+                cylinderWrites++;
+        };
+        try
+        {
+            var escaped = await Record.ExceptionAsync(() => machine.RaiseCylindersAsync(CancellationToken.None));
+
+            Assert.Null(escaped);
+            Assert.Equal(1, readsFailed);
+            Assert.Equal(0, cylinderWrites);
+            Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
+            Assert.Equal(failure.ToString(), state.AlarmDetail);
+            Assert.False(operations.HasActiveOperations);
+            Assert.False(state.IsRunning);
+            Assert.True(machine.CanReset);
+        }
+        finally
+        {
+            io.BeforeInputRead = null;
+            io.BeforeOutputWrite = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task HomeStopsAndReportsInputReadFailureFromStateNotification()
+    {
+        var settings = new MachineSettings();
+        settings.BoltFastening.SafeZ = 10;
+        settings.BoltFastening.Motion.ZSpeed = 1;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<StartupIo>();
+        await machine.InitializeAsync();
+        await state.StopDisplayUpdatesAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        var homing = machine.HomeAsync(CancellationToken.None);
+        var failure = new IOException("Carrier input read failed during HOME notification.");
+        var notificationThread = Environment.CurrentManagedThreadId;
+        io.BeforeInputRead = input =>
+        {
+            if (input != InputIo.PcbPlacementHeatSink1Present
+                || Environment.CurrentManagedThreadId != notificationThread)
+                return;
+            io.BeforeInputRead = null;
+            throw failure;
+        };
+        try
+        {
+            Assert.True(state.IsHoming);
+            Assert.False(homing.IsCompleted);
+            var escaped = Record.Exception(state.Refresh);
+
+            Assert.Null(escaped);
+            await homing.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+            Assert.Equal(failure.ToString(), state.AlarmDetail);
+            Assert.False(state.IsHoming);
+            Assert.False(state.IsRunning);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+            Assert.False(services.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening)
+                .GetAxisState(MotionAxis.Z).InMotion);
+        }
+        finally
+        {
+            io.BeforeInputRead = null;
+            machine.Stop();
+            await homing;
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public void StateQueriesBeforeInitializationDoNotReadOutputs()
     {
@@ -734,10 +1183,10 @@ public sealed class IoStartupTests
         Assert.False(state.Display.ManualSetupEnabled);
     }
 
-    private static ServiceProvider CreateServices()
+    private static ServiceProvider CreateServices(MachineSettings? settings = null)
     {
         return new ServiceCollection().AddIbtmApplication(
-            new MachineSettings())
+            settings ?? new MachineSettings())
             .AddSingleton<StartupIo>()
             .AddSingleton<IIoService>(provider => provider.GetRequiredService<StartupIo>())
             .BuildServiceProvider();
@@ -771,6 +1220,7 @@ public sealed class IoStartupTests
         public bool? ObservedLight;
         public int InputScans;
         public Action? BeforeOutputRead { get; set; }
+        public Action<InputIo>? BeforeInputRead { get; set; }
         public Action<OutputIo, bool>? BeforeOutputWrite { get; set; }
         public bool FailCheckReady { get; set; }
         public bool AllowWritesWhileUnavailable { get; set; }
@@ -846,6 +1296,7 @@ public sealed class IoStartupTests
 
         public bool GetInput(InputIo input)
         {
+            BeforeInputRead?.Invoke(input);
             if (!IsReady)
             {
                 ReadsWhileUnavailable++;

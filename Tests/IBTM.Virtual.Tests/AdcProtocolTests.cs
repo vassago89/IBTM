@@ -133,7 +133,7 @@ public sealed class AdcProtocolTests
     }
 
     // Valid replies with independently controlled RUN feedback and command readback.
-    private sealed class ControllerBus : IAdcBus
+    internal sealed class ControllerBus : IAdcBus
     {
         public ushort CurrentPreset { get; set; } = 3;
         public AdcDirection CurrentDirection { get; set; }

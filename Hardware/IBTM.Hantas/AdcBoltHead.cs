@@ -213,12 +213,18 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
         _requestedPreset = null;
     }
 
+    public async Task StopAsync()
+    {
+        // Once STOP is requested, finish the bounded RUN OFF check even if the caller cancels.
+        await bus.StopAsync(slaveAddress, CancellationToken.None);
+        await WaitForStoppedAsync(CancellationToken.None);
+    }
+
     private async Task StopAfterOperationAsync(Exception? failure)
     {
         try
         {
-            await bus.StopAsync(slaveAddress, CancellationToken.None);
-            await WaitForStoppedAsync(CancellationToken.None);
+            await StopAsync();
         }
         catch (Exception stopError) when (failure is not null)
         {

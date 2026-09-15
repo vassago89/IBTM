@@ -12,7 +12,8 @@ public sealed class BoltFasteningRecoveryPreparation(
     BoltFasteningWork work,
     BoltFasteningStation fastening,
     Recipe recipe,
-    IIoService io) : StartPreparation(state, work, io)
+    IIoService io,
+    RecipeEditor recipeEditor) : StartPreparation(state, work, io, recipeEditor)
 {
     protected override bool Show(Window owner, int version)
     {

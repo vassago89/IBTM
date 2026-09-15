@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -199,9 +200,15 @@ public abstract partial class TeachingMotionViewModel(
         return Machine.RunTeachingEditAsync(
             async token =>
             {
-                if (SelectedPoint is not { Position.Mode: not TeachMode.Image, Position.CanTeach: true } point
-                    || !Motion.Feedback.IsReady)
+                if (SelectedPoint is not { Position.Mode: not TeachMode.Image, Position.CanTeach: true } point)
                     return;
+                if (!Motion.Feedback.IsReady || !CanReadTeachingPosition(point, live: true))
+                {
+                    SaveError = "Home the axes used by this teaching position and wait for them to stop before teaching.";
+                    return;
+                }
+
+                SaveError = null;
                 var current = Motion.Feedback.GetPosition();
                 point.Teach(current.X, current.Y, current.Z);
                 if (point.Position.Storage == TeachingStorage.Buffer)
@@ -223,9 +230,26 @@ public abstract partial class TeachingMotionViewModel(
 
     private bool CanTeachCurrentPosition()
     {
-        return SelectedPoint is { Position.Mode: not TeachMode.Image, Position.CanTeach: true }
+        return SelectedPoint is { Position.Mode: not TeachMode.Image, Position.CanTeach: true } point
             && CanEditTeaching
-            && Motion.Axes.Values.All(axis => axis.State is not null);
+            && CanReadTeachingPosition(point, live: false);
+    }
+
+    private bool CanReadTeachingPosition(TeachingPoint point, bool live)
+    {
+        MotionAxis[] axes = point.Position.Mode switch
+        {
+            TeachMode.Full => [MotionAxis.X, MotionAxis.Y, MotionAxis.Z],
+            TeachMode.XYOnly => [MotionAxis.X, MotionAxis.Y],
+            TeachMode.XZOnly => [MotionAxis.X, MotionAxis.Z],
+            TeachMode.XOnly => [MotionAxis.X],
+            TeachMode.YOnly => [MotionAxis.Y],
+            TeachMode.ZOnly => [MotionAxis.Z],
+            _ => [],
+        };
+        return axes.Length > 0 && axes.All(axis =>
+            (live ? Motion.Feedback.GetAxisState(axis) : Motion.Axes[axis].State)
+                is { Homed: true, InMotion: false });
     }
 
     protected abstract void RefreshPointPositions();
@@ -418,13 +442,23 @@ public abstract partial class TeachingMotionViewModel(
     [RelayCommand(CanExecute = nameof(CanJogZ))]
     protected abstract Task MoveToHorizontalZAsync(CancellationToken cancellationToken);
 
-    protected void CancelTeaching()
+    protected void CancelTeaching(bool reportDeviceFailure = true)
     {
         var cancellation = _viewCancellation;
         _viewCancellation = new CancellationTokenSource();
         try
         {
             cancellation.Cancel();
+        }
+        catch (Exception exception) when (reportDeviceFailure
+            && (exception is IOException or MotionException
+                || exception is AggregateException aggregate
+                    && aggregate.Flatten().InnerExceptions.Any(error => error is IOException or MotionException)))
+        {
+            if (!state.IsError)
+                state.SetError(MachineAlarm.StopFailed, exception);
+            else
+                System.Diagnostics.Trace.TraceError("Teaching STOP also failed. {0}", exception);
         }
         finally
         {
@@ -455,7 +489,8 @@ public abstract partial class TeachingMotionViewModel(
     public virtual void Deactivate()
     {
         PositionUpdatesActive = false;
-        CancelTeaching();
+        // Page/application shutdown must still receive an unconfirmed device stop.
+        CancelTeaching(reportDeviceFailure: false);
     }
 
     protected void QueueManualCommandRefresh()

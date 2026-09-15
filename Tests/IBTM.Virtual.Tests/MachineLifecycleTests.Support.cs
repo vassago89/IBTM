@@ -33,13 +33,18 @@ public sealed partial class MachineLifecycleTests
         public TaskCompletionSource<bool> Result { get; } = new(
             TaskCreationOptions.RunContinuationsAsynchronously);
         public int HorizontalHomeCalls { get; private set; }
+        public bool AwaitCleanupAfterCancellation { get; set; }
+        public CancellationToken HomeCancellation { get; private set; }
 
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
         {
             if (method!.Name == nameof(IAxisMotion.HomeAsync)
                 && (MotionAxis)arguments![0]! == MotionAxis.Z)
             {
-                return Result.Task.WaitAsync((CancellationToken)arguments[2]!);
+                HomeCancellation = (CancellationToken)arguments[2]!;
+                return AwaitCleanupAfterCancellation
+                    ? Result.Task
+                    : Result.Task.WaitAsync(HomeCancellation);
             }
 
             if (method.Name == nameof(IXyMotion.HomeHorizontalAsync))

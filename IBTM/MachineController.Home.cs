@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -207,19 +208,37 @@ public sealed partial class MachineController
 
     public async Task RaiseCylindersAsync(CancellationToken cancellationToken)
     {
-        if (!CanRaiseCylinders)
+        try
+        {
+            if (!CanRaiseCylinders)
+                return;
+        }
+        catch (IOException exception)
+        {
+            StopAndReportFailure(_state.IsError ? _state.Alarm : MachineAlarm.IoCommunication, exception);
             return;
+        }
 
         using var operation = _operations.TryBegin(cancellationToken);
         if (operation is null)
             return;
         void StopWhenUnavailable()
         {
-            if (!_state.ManualMode
-                || !_state.SafetyReady
-                || !_io.IsReady
-                || !IsCylinderRaiseClear())
+            if (operation.IsCancellationRequested)
+                return;
+            try
+            {
+                if (!_state.ManualMode
+                    || !_state.SafetyReady
+                    || !_io.IsReady
+                    || !IsCylinderRaiseClear())
+                    operation.Cancel();
+            }
+            catch (IOException exception)
+            {
                 operation.Cancel();
+                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.IoCommunication, exception);
+            }
         }
 
         async Task RaiseAsync(Func<CancellationToken, Task> raise, MachineAlarm alarm)
@@ -266,8 +285,14 @@ public sealed partial class MachineController
 
     public async Task HomeAsync(CancellationToken cancellationToken)
     {
-        if (!CanHome)
+        try
         {
+            if (!CanHome)
+                return;
+        }
+        catch (Exception exception) when (exception is IOException or MotionException)
+        {
+            StopAndReportFailure(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable, exception);
             return;
         }
 
@@ -282,36 +307,32 @@ public sealed partial class MachineController
                 return;
             }
 
-            if (!_io.IsReady
-                || _state.IsError
-                || !_state.SafetyReady
-                || HomeBlock != HomeBlockReason.None)
-            {
-                operation.Cancel();
-                return;
-            }
-
-            bool hardwareAvailable;
             try
             {
+                if (!_io.IsReady
+                    || _state.IsError
+                    || !_state.SafetyReady
+                    || HomeBlock != HomeBlockReason.None)
+                {
+                    operation.Cancel();
+                    return;
+                }
+
                 var motion = _state.MotionReadiness;
-                hardwareAvailable = !motion.Faulted && motion.ServosOn && _state.ServoMainContactorOn;
+                if (motion.Faulted || !motion.ServosOn || !_state.ServoMainContactorOn)
+                {
+                    operation.Cancel();
+                    _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable);
+                }
+                else if (_state.IsError || HomeBlock != HomeBlockReason.None)
+                {
+                    operation.Cancel();
+                }
             }
             catch (Exception exception)
             {
                 operation.Cancel();
-                _state.SetError(MachineAlarm.MotionUnavailable, exception);
-                return;
-            }
-
-            if (!hardwareAvailable)
-            {
-                operation.Cancel();
-                _state.SetError(MachineAlarm.MotionUnavailable);
-            }
-            else if (_state.IsError || HomeBlock != HomeBlockReason.None)
-            {
-                operation.Cancel();
+                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable, exception);
             }
         }
 
@@ -323,10 +344,9 @@ public sealed partial class MachineController
             }
             catch (Exception exception)
             {
-                if (exception is not OperationCanceledException
-                    && !cancellationToken.IsCancellationRequested)
+                if (exception is not OperationCanceledException)
                 {
-                    _state.SetError(MachineAlarm.HomeFailed, exception);
+                    _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.HomeFailed, exception);
                 }
 
                 throw;
@@ -336,7 +356,7 @@ public sealed partial class MachineController
         async Task CheckHomeAsync(Task<bool> homing)
         {
             await RunHomeStepAsync(homing);
-            if (!await homing)
+            if (!await homing && !cancellationToken.IsCancellationRequested)
             {
                 _state.SetError(MachineAlarm.HomeFailed);
             }
@@ -419,7 +439,7 @@ public sealed partial class MachineController
         }
         catch (Exception exception)
         {
-            _state.SetError(MachineAlarm.HomeFailed, exception);
+            _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.HomeFailed, exception);
         }
         finally
         {

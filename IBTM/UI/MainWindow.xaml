@@ -297,7 +297,8 @@
                                 <Button Content="New"
                                     Command="{Binding RecipeEditor.NewCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}" Padding="10,5" Margin="0,0,4,0"/>
-                                <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" Width="156" SelectionChanged="RecipeFile_Selected"/>
+                                <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" Width="156"
+                                    ToolTip="Load a saved recipe" SelectionChanged="RecipeFile_Selected"/>
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
@@ -474,7 +475,7 @@
                                 </Button.Style>
                             </Button>
                             <Button Content="STOP HOME"
-                                Command="{Binding Operation.StopHomeCommand}"
+                                Command="{Binding Operation.StopCommand}"
                                 MinWidth="104" Height="40" Margin="0,0,6,0" Style="{StaticResource SecondaryButtonStyle}"
                                 Visibility="{Binding Operation.HomeCommand.IsRunning,
                                                          Converter={StaticResource BoolToVis}}"/>

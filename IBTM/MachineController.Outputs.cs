@@ -63,7 +63,7 @@ public sealed partial class MachineController
         }
         catch (Exception exception)
         {
-            _state.SetError(MachineAlarm.IoCommunication, exception);
+            _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.IoCommunication, exception);
             _operations.Cancel();
         }
     }
@@ -198,7 +198,7 @@ public sealed partial class MachineController
         {
             if (failure is not OperationCanceledException)
             {
-                _state.SetError(MachineAlarm.IoCommunication, failure);
+                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.IoCommunication, failure);
                 _operations.Cancel();
             }
             ExceptionDispatchInfo.Throw(failure);

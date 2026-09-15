@@ -95,7 +95,7 @@ internal static partial class CAXM
         double[] accelerations,
         double[] decelerations)
     {
-        throw new NotSupportedException();
+        return Command(new(nameof(AxmMoveMultiPos)));
     }
 
     public static uint AxmMovePos(

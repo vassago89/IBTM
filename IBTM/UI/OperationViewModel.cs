@@ -635,6 +635,7 @@ public partial class OperationViewModel : ObservableObject
     {
         return CommandShutdown.StopAsync(
             Deactivate,
+            StopCommand,
             StartCommand,
             HomeCommand,
             RaiseCylindersCommand);
@@ -667,12 +668,24 @@ public partial class OperationViewModel : ObservableObject
         await Task.Run(() => _machine.StartAsync(cancellationToken), cancellationToken);
     }
 
-    [RelayCommand]
-    private void Stop()
+    [RelayCommand(AllowConcurrentExecutions = true)]
+    private async Task StopAsync()
     {
-        StartCommand.Cancel();
-        RaiseCylindersCommand.Cancel();
-        _machine.Stop();
+        try
+        {
+            await CommandShutdown.StopAsync(
+                _machine.Stop,
+                StartCommand,
+                RaiseCylindersCommand,
+                HomeCommand);
+        }
+        catch (Exception exception)
+        {
+            if (!State.IsError)
+                State.SetError(MachineAlarm.StopFailed, exception);
+            else
+                System.Diagnostics.Trace.TraceError("Machine STOP also failed. {0}", exception);
+        }
     }
 
     [RelayCommand]
@@ -685,12 +698,6 @@ public partial class OperationViewModel : ObservableObject
     private Task HomeAsync(CancellationToken cancellationToken)
     {
         return Task.Run(() => _machine.HomeAsync(cancellationToken), cancellationToken);
-    }
-
-    [RelayCommand]
-    private void StopHome()
-    {
-        HomeCommand.Cancel();
     }
 
     private static bool HasAssembly(StationWork work, HeatSinkSlot heatSink)

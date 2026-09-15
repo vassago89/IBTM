@@ -584,7 +584,7 @@ public sealed class PcbTransferTests
         Assert.True(buffer.IsSupplyInside());
         Assert.False(buffer.IsSupplyAtHandoff());
         var stoppedPosition = supplyMotion.GetPosition();
-        await Assert.ThrowsAsync<InvalidOperationException>(() => supplyHandler.SetRotatedAsync(false));
+        await Assert.ThrowsAsync<MotionInterlockException>(() => supplyHandler.SetRotatedAsync(false));
         Assert.Equal(stoppedPosition, supplyMotion.GetPosition());
         Assert.True(io.GetOutput(OutputIo.PcbSupplyRotate));
 

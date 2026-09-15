@@ -152,6 +152,7 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData("motion")]
     [InlineData("canceled")]
+    [InlineData("safety")]
     [InlineData("programming")]
     public async Task ManualCommandHandlesCombinedDeviceFailuresWithoutHidingProgrammingErrors(string failureKind)
     {
@@ -164,7 +165,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         Exception operationFailure = failureKind switch
         {
-            "motion" => new MotionException("Manual move", new IOException("Motion feedback failed.")),
+            "motion" or "safety" => new MotionException("Manual move", new IOException("Motion feedback failed.")),
             "canceled" => new OperationCanceledException(cancellation.Token),
             _ => new InvalidOperationException("Invalid command state."),
         };
@@ -185,6 +186,8 @@ public sealed partial class MachineLifecycleTests
                         io.SetOutput(OutputIo.MainConveyorReadyToFront2, true);
                     if (failureKind == "canceled")
                         cancellation.Cancel();
+                    if (failureKind == "safety")
+                        io.SetInput(InputIo.EmergencyStop1Pressed, true);
                     return Task.FromException(failure);
                 },
                 cancellation.Token,
@@ -199,7 +202,12 @@ public sealed partial class MachineLifecycleTests
             {
                 await command;
                 Assert.Equal(
-                    failureKind == "motion" ? MachineAlarm.MotionUnavailable : MachineAlarm.Inspection,
+                    failureKind switch
+                    {
+                        "safety" => MachineAlarm.EmergencyStop,
+                        "motion" => MachineAlarm.MotionUnavailable,
+                        _ => MachineAlarm.Inspection,
+                    },
                     state.Alarm);
                 Assert.Contains(operationFailure.ToString(), state.AlarmDetail);
                 Assert.Contains(cleanupFailure.ToString(), state.AlarmDetail);
@@ -209,6 +217,165 @@ public sealed partial class MachineLifecycleTests
         }
         finally
         {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ManualBoltTestReportsLateFailureWithoutReplacingEmergencyStop(bool emergencyStop)
+    {
+        var settings = new MachineSettings { Units = EnableOnly(MachineUnit.NgConveyor) };
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var failure = new IOException("Bolt head STOP feedback failed.");
+        await machine.InitializeAsync();
+        try
+        {
+            var testing = machine.RunAdcProtocolAsync(
+                token => machine.RunBoltTestAsync(
+                    testToken =>
+                    {
+                        Assert.True(state.BoltTestRunning);
+                        if (emergencyStop)
+                        {
+                            io.SetInput(InputIo.EmergencyStop1Pressed, true);
+                            Assert.True(testToken.IsCancellationRequested);
+                            Assert.Equal(MachineAlarm.EmergencyStop, state.Alarm);
+                        }
+
+                        return Task.FromException(failure);
+                    },
+                    token),
+                CancellationToken.None);
+
+            Assert.Same(failure, await Assert.ThrowsAsync<IOException>(() => testing));
+            Assert.Equal(emergencyStop ? MachineAlarm.EmergencyStop : MachineAlarm.BoltFastening, state.Alarm);
+            Assert.Contains(failure.Message, state.AlarmDetail);
+            Assert.False(state.BoltTestRunning);
+            Assert.False(state.IsRunning);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task CylinderInterlockDuringEmergencyStopKeepsTheEmergencyAlarm()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        void TripWhileMotionHasNotFinished(bool moving)
+        {
+            if (!moving || !placement.Feedback.IsMovingHorizontal)
+                return;
+            io.SetInput(InputIo.EmergencyStop1Pressed, true);
+            Assert.Equal(MachineAlarm.EmergencyStop, state.Alarm);
+            Assert.True(placement.Feedback.IsMovingHorizontal);
+            io.SetInput(InputIo.PcbPlacementHandlerUp, false);
+        }
+
+        placement.Feedback.MovingChanged += TripWhileMotionHasNotFinished;
+        try
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+                placement.MoveToXYAsync(new() { X = 20, Y = 20 }));
+
+            Assert.Equal(MachineAlarm.EmergencyStop, state.Alarm);
+            Assert.Contains("handler lift Up", state.AlarmDetail);
+            Assert.False(placement.Feedback.IsMoving);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            placement.Feedback.MovingChanged -= TripWhileMotionHasNotFinished;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ShutdownRequiresCurrentStoppedFeedbackEvenWithoutAnOwnedMotion(bool unreadable)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.MainConveyor);
+        using var services = CreateMotionScopeServices(settings, out var probes);
+        var machine = services.GetRequiredService<MachineController>();
+        var feedback = services.GetRequiredService<MachineFeedbackMonitor>();
+        await machine.InitializeAsync();
+        var probe = probes[MotionGroup.BoltFastening];
+        if (unreadable)
+            probe.FailHardwareCalls = true;
+        else
+            probe.OverrideState = state => state with { InMotion = true };
+        Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        try
+        {
+            var failure = await Record.ExceptionAsync(machine.ShutdownAsync);
+
+            Assert.NotNull(failure);
+            Assert.Contains(nameof(MotionGroup.BoltFastening), failure.ToString());
+            Assert.True(feedback.Completion.IsCompleted);
+        }
+        finally
+        {
+            probe.FailHardwareCalls = false;
+            probe.OverrideState = null;
+            // A retry must read the now-stopped hardware, even though acquisition has ended.
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MachineStartAndHomeReportAdmissionReadFailureWithoutStarting(bool home)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        using var services = CreateDisplayServices(out var feedback, settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        if (!home)
+            await machine.HomeAsync(CancellationToken.None);
+        Assert.True(home ? machine.CanHome : machine.CanStart);
+        var failure = new IOException("Motion feedback failed while admitting the command.");
+        feedback.BeforeRead = () =>
+        {
+            feedback.BeforeRead = null;
+            throw failure;
+        };
+        try
+        {
+            var escaped = await Record.ExceptionAsync(() => home
+                ? machine.HomeAsync(CancellationToken.None)
+                : machine.StartAsync());
+
+            Assert.Null(escaped);
+            Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
+            Assert.Contains(failure.Message, state.AlarmDetail);
+            Assert.False(state.IsHoming);
+            Assert.False(state.AutomaticRunning);
+            Assert.False(state.IsRunning);
+            Assert.False(feedback.Motion.IsMoving);
+            Assert.True(machine.CanReset);
+        }
+        finally
+        {
+            feedback.BeforeRead = null;
             await machine.ShutdownAsync();
         }
     }
@@ -653,7 +820,7 @@ public sealed partial class MachineLifecycleTests
 
         Assert.False(machine.CanHome);
         await machine.HomeAsync(CancellationToken.None);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.HomeAxisAsync(MotionAxis.X));
+        await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.HomeAxisAsync(MotionAxis.X));
         Assert.False(io.GetOutput(OutputIo.NgCarrierGripperOpen));
         Assert.False(state.Homed);
 
@@ -661,7 +828,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(machine.CanHome);
         Assert.False(gantry.CanMove);
         await machine.HomeAsync(CancellationToken.None);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.HomeAxisAsync(MotionAxis.X));
+        await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.HomeAxisAsync(MotionAxis.X));
         Assert.False(state.Homed);
         Assert.False(io.GetOutput(OutputIo.NgCarrierPickupUp));
         Assert.False(io.GetOutput(OutputIo.NgCarrierGripperOpen));
@@ -687,8 +854,8 @@ public sealed partial class MachineLifecycleTests
 
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.JogAsync(MotionAxis.X, 10));
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.JogAsync(MotionAxis.X, 10));
+        await Assert.ThrowsAsync<MotionInterlockException>(
             async () => await gantry.MoveToAsync(new AxisPosition { X = 20, Y = 10 }, 100));
         io.SetInput(InputIo.NgCarrierPickupDown, false);
         io.SetInput(InputIo.NgCarrierPickupUp, true);
@@ -698,6 +865,8 @@ public sealed partial class MachineLifecycleTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => moving);
         Assert.False(gantry.Feedback.IsMoving);
         Assert.Equal(MachineAlarm.NgCarrierTransfer, state.Alarm);
+        Assert.Contains("pickup Up", state.AlarmDetail);
+        Assert.Contains("Current lift: Between", state.AlarmDetail);
 
         io.SetInput(InputIo.NgCarrierPickupUp, true);
         await machine.ResetAsync();
@@ -744,17 +913,17 @@ public sealed partial class MachineLifecycleTests
             await fastening.MoveZAsync(1);
         Assert.Equal(1, feedback.GetPosition().Z);
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        await Assert.ThrowsAsync<InvalidOperationException>(MoveXY);
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<MotionInterlockException>(MoveXY);
+        await Assert.ThrowsAsync<MotionInterlockException>(
             () => isPlacement
                 ? placement.HomeAxisAsync(MotionAxis.X)
                 : fastening.HomeAxisAsync(MotionAxis.X));
         if (isPlacement)
-            await Assert.ThrowsAsync<InvalidOperationException>(
+            await Assert.ThrowsAsync<MotionInterlockException>(
                 () => placement.JogAsync(MotionAxis.Y, 10));
 
         io.SetInput(up, true);
-        await Assert.ThrowsAsync<InvalidOperationException>(MoveXY);
+        await Assert.ThrowsAsync<MotionInterlockException>(MoveXY);
         io.SetInput(down, false);
         var move = MoveXY();
         await WaitUntilAsync(() => feedback.IsMovingHorizontal);
@@ -763,6 +932,8 @@ public sealed partial class MachineLifecycleTests
         Assert.False(feedback.IsMoving);
         Assert.False(feedback.IsMovingHorizontal);
         Assert.Equal(isPlacement ? MachineAlarm.PcbPlacement : MachineAlarm.BoltFastening, state.Alarm);
+        Assert.Contains("horizontal movement", state.AlarmDetail);
+        Assert.Contains("Between", state.AlarmDetail);
     }
 
     [Fact]
@@ -1153,8 +1324,13 @@ public sealed partial class MachineLifecycleTests
         await Task.WhenAll(
             placement.MoveAxisAsync(MotionAxis.Z, 50, 10_000),
             fastening.MoveAxisAsync(MotionAxis.Z, 50, 10_000));
+        // The command can finish before the motion scan publishes stopped feedback.
+        await WaitUntilAsync(() => machine.CanHome);
         var homing = machine.HomeAsync(CancellationToken.None);
-        await WaitUntilAsync(() => placement.IsMoving && fastening.IsMoving);
+        Assert.True(await VirtualTest.WaitUntilAsync(
+            () => placement.IsMoving && fastening.IsMoving, TimeSpan.FromSeconds(2)),
+            $"Home completed={homing.IsCompleted}, CanHome={machine.CanHome}, "
+                + $"block={machine.HomeBlock}, alarm={state.Alarm}, detail={state.AlarmDetail}");
         fastening.SetAlarm(MotionAxis.X, true);
         await homing.WaitAsync(TimeSpan.FromSeconds(2));
 
@@ -1167,14 +1343,80 @@ public sealed partial class MachineLifecycleTests
         Assert.False(fastening.GetAxisState(MotionAxis.Z).Homed);
     }
 
+    [Fact]
+    public async Task ParallelHomeReportsEachUnitsFailureAfterTheFirstFailureStopsHome()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        settings.Units.BoltFastening = true;
+        var results = new Dictionary<MotionGroup, HomeResultMotion>();
+        IXyMotion Wrap(IServiceProvider provider, MotionGroup group)
+        {
+            var motion = DispatchProxy.Create<IXyMotion, HomeResultMotion>();
+            var result = (HomeResultMotion)motion;
+            result.Motion = provider.GetRequiredKeyedService<IXyMotion>(group);
+            result.AwaitCleanupAfterCancellation = true;
+            results.Add(group, result);
+            return motion;
+        }
+
+        using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
+            .AddIbtmApplication(settings)
+            .AddSingleton(provider => new PcbPlacementHandler(
+                Wrap(provider, MotionGroup.PcbPlacementHandler),
+                provider.GetRequiredService<IIoService>(),
+                settings.PcbPlacementHandler))
+            .AddSingleton(provider => new BoltFasteningGantry(
+                provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
+                provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup),
+                provider.GetRequiredService<IIoService>(),
+                Wrap(provider, MotionGroup.BoltFastening),
+                settings.BoltFastening,
+                settings.CarrierReference))
+            .BuildServiceProvider();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var log = services.GetRequiredService<ApplicationLog>();
+        await machine.InitializeAsync();
+        var homing = machine.HomeAsync(default);
+        var firstFailure = new MotionException("Placement home", new IOException("Placement home failed."));
+        var stopFailure = new MotionException("Fastening STOP", new IOException("Fastening stop failed."));
+        try
+        {
+            Assert.True(state.IsHoming);
+            results[MotionGroup.PcbPlacementHandler].Result.SetException(firstFailure);
+            await WaitUntilAsync(() => results[MotionGroup.BoltFastening].HomeCancellation.IsCancellationRequested);
+            Assert.False(homing.IsCompleted);
+            results[MotionGroup.BoltFastening].Result.SetException(stopFailure);
+            await homing.WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.Contains("Placement home failed.", state.AlarmDetail);
+            Assert.Contains(log.Snapshot(), entry => entry.Detail?.Contains("Fastening stop failed.") == true);
+            Assert.False(state.IsHoming);
+            Assert.All(results.Values, result => Assert.Equal(0, result.HorizontalHomeCalls));
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            foreach (var result in results.Values)
+                result.Result.TrySetCanceled();
+            machine.Stop();
+            await homing;
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(true, true, false)]
-    [InlineData(false, false, true)]
+    [InlineData(false, false, false, false)]
+    [InlineData(true, true, false, false)]
+    [InlineData(false, false, true, false)]
+    [InlineData(true, false, false, true)]
+    [InlineData(false, false, false, true)]
     public async Task FailedHomeReportsCauseAndStopsOtherHomingAxes(
         bool exception,
         bool individual,
-        bool teachingHome)
+        bool teachingHome,
+        bool safetyStop)
     {
         var settings = FlowSettings();
         foreach (var motionSettings in MotionSettingsOf(settings))
@@ -1187,6 +1429,7 @@ public sealed partial class MachineLifecycleTests
                 {
                     var motion = DispatchProxy.Create<IXyMotion, HomeResultMotion>();
                     homeResult = (HomeResultMotion)motion;
+                    homeResult.AwaitCleanupAfterCancellation = safetyStop;
                     homeResult.Motion = provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.BoltFastening);
                     return new BoltFasteningGantry(
                         provider.GetRequiredKeyedService<IBoltHead>(FasteningHead.Shooting),
@@ -1218,6 +1461,10 @@ public sealed partial class MachineLifecycleTests
         {
             await WaitUntilAsync(
                 () => individual || teachingHome ? state.IsHoming : placement.IsMoving && supply.IsMoving);
+            if (safetyStop)
+            {
+                services.GetRequiredService<VirtualIoService>().SetInput(InputIo.EmergencyStop1Pressed, true);
+            }
             if (exception)
             {
                 homeResult!.Result.SetException(
@@ -1230,12 +1477,13 @@ public sealed partial class MachineLifecycleTests
 
             await homing.WaitAsync(TimeSpan.FromSeconds(2));
 
-            Assert.Equal(MachineAlarm.HomeFailed, state.Alarm);
+            var expectedAlarm = safetyStop ? MachineAlarm.EmergencyStop : MachineAlarm.HomeFailed;
+            Assert.Equal(expectedAlarm, state.Alarm);
             if (exception)
                 Assert.Contains("Home command failed.", state.AlarmDetail);
-            await WaitUntilAsync(() => state.Display.Alarm == MachineAlarm.HomeFailed);
+            await WaitUntilAsync(() => state.Display.Alarm == expectedAlarm && !state.Display.IsRunning);
             // A latched home failure does not block a retry while the axis feedback remains healthy.
-            Assert.True(manual.HomeAxisCommand.CanExecute(axisRow));
+            Assert.Equal(!safetyStop, manual.HomeAxisCommand.CanExecute(axisRow));
             Assert.False(state.IsHoming);
             Assert.False(placement.IsMoving);
             Assert.False(supply.IsMoving);

@@ -71,6 +71,9 @@ public enum MachineAlarm
 
     [Description("NG Conveyor")]
     NgConveyor,
+
+    [Description("Stop Failed — Check Equipment")]
+    StopFailed,
 }
 
 public enum ManualControlBlock

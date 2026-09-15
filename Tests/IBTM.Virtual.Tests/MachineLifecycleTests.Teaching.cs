@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -140,7 +141,7 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         var teaching = services.GetRequiredService<TeachingViewModel>();
         var inspectionMotion = teaching.Motion;
-        Assert.Equal(4, teaching.TeachingUnits.Length);
+        Assert.Contains(HardwareArea.NgCarrierTransfer, teaching.TeachingUnits);
         Assert.DoesNotContain(teaching.FilteredPoints,
             point => point.Position.Target is TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace);
 
@@ -148,9 +149,13 @@ public sealed partial class MachineLifecycleTests
 
         Assert.Same(inspectionMotion, teaching.Motion);
         Assert.Equal(MotionGroup.InspectionGantry, teaching.ActiveMotionGroup);
+        var teachingTargets = new[]
+        {
+            TeachingTarget.NgPickupSafeX, TeachingTarget.NgCarrierPickup, TeachingTarget.NgShuttlePlace,
+        };
         Assert.Equal(
-            new[] { TeachingTarget.NgPickupSafeX, TeachingTarget.NgCarrierPickup, TeachingTarget.NgShuttlePlace },
-            teaching.FilteredPoints.Select(point => point.Position.Target));
+            teachingTargets.Order(),
+            teaching.FilteredPoints.Select(point => point.Position.Target).Order());
         Assert.False(teaching.IsInspectionSelected);
         Assert.False(teaching.BoltPointEditorVisible);
         Assert.False(teaching.BoltPresetEditorVisible);
@@ -160,8 +165,9 @@ public sealed partial class MachineLifecycleTests
         Assert.Contains(teaching.TeachingIoGroups, group => group.Area == HardwareArea.NgCarrierTransfer);
         Assert.Contains(teaching.TeachingIoGroups, group => group.Area == HardwareArea.NgShuttle);
 
-        foreach (var point in teaching.FilteredPoints)
+        foreach (var target in teachingTargets)
         {
+            var point = teaching.FilteredPoints.Single(point => point.Position.Target == target);
             teaching.SelectedPoint = point;
             var x = point.X + 1;
             var y = point.Y + 2;
@@ -261,6 +267,109 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
+    [InlineData(HardwareArea.InspectionGantry, InputIo.NgCarrierPickupUp, MachineAlarm.Inspection)]
+    [InlineData(HardwareArea.PcbPlacementHandler, InputIo.PcbPlacementHandlerUp, MachineAlarm.PcbPlacement)]
+    public async Task TeachingJogReportsALateCylinderInterlockWithoutMoving(
+        HardwareArea unit,
+        InputIo raised,
+        MachineAlarm expectedAlarm)
+    {
+        using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var state = services.GetRequiredService<MachineState>();
+        var operations = services.GetRequiredService<OperationCancellation>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.SelectedTeachingUnit = unit;
+        await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+        var before = teaching.Motion.Feedback.GetPosition();
+        io.AutoResponseEnabled = false;
+        void LoseCylinderFeedbackAfterAdmission()
+        {
+            if (!operations.HasActiveOperations)
+                return;
+            operations.ActivityChanged -= LoseCylinderFeedbackAfterAdmission;
+            io.SetInput(raised, false);
+        }
+
+        operations.ActivityChanged += LoseCylinderFeedbackAfterAdmission;
+        try
+        {
+            await teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);
+            Assert.Equal(expectedAlarm, state.Alarm);
+            Assert.Contains(unit == HardwareArea.InspectionGantry ? "pickup" : "placement handler", state.AlarmDetail);
+            Assert.Equal(before, teaching.Motion.Feedback.GetPosition());
+            Assert.False(teaching.Motion.Feedback.IsMoving);
+            Assert.False(operations.HasActiveOperations);
+        }
+        finally
+        {
+            operations.ActivityChanged -= LoseCylinderFeedbackAfterAdmission;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData("stop")]
+    [InlineData("unit")]
+    [InlineData("close")]
+    public async Task TeachingStopReportsDriverCancellationFailureAndDrainsJog(string action)
+    {
+        using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
+        await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+        var motion = teaching.Motion.Feedback;
+        // Simulate a native STOP failure in the cancellation callback without loading the SDK.
+        var viewToken = (CancellationToken)typeof(TeachingMotionViewModel)
+            .GetProperty("ViewCancellation", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(teaching)!;
+        var stopError = new MotionException("Stop axes", new IOException("Axis STOP write failed."));
+        using var registration = viewToken.Register(() => throw stopError);
+        var jog = teaching.JogCommand.ExecuteAsync(TeachingDirection.XPlus);
+        await WaitUntilAsync(() => motion.IsMoving);
+        try
+        {
+            var failure = await Record.ExceptionAsync(async () =>
+            {
+                if (action == "close")
+                    await teaching.ShutdownAsync();
+                else if (action == "unit")
+                    teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
+                else
+                    teaching.JogStopCommand.Execute(null);
+            });
+            await jog.WaitAsync(TimeSpan.FromSeconds(2));
+            if (action == "close")
+            {
+                var failures = Assert.IsType<AggregateException>(failure).Flatten().InnerExceptions;
+                Assert.Contains(stopError, failures);
+            }
+            else
+            {
+                Assert.Null(failure);
+                Assert.Equal(MachineAlarm.StopFailed, state.Alarm);
+                Assert.Contains(stopError.ToString(), state.AlarmDetail);
+            }
+            Assert.False(motion.IsMoving);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            registration.Dispose();
+            teaching.JogStopCommand.Execute(null);
+            await jog;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
     [InlineData(TeachingDirection.XPlus, MotionAxis.X, 10.1, 20)]
     [InlineData(TeachingDirection.YPlus, MotionAxis.Y, 10, 20.1)]
     public async Task InspectionTeachingStepMovesOnlyTheSelectedAxis(
@@ -287,7 +396,7 @@ public sealed partial class MachineLifecycleTests
         await services.GetRequiredService<IIoService>()
             .SetOutputAndWaitAsync(OutputIo.NgCarrierPickupUp, false);
         await WaitUntilAsync(() => !teaching.StepCommand.CanExecute(direction));
-        await Assert.ThrowsAsync<InvalidOperationException>(
+        await Assert.ThrowsAsync<MotionInterlockException>(
             () => gantry.MoveAxisAsync(MotionAxis.X, 30, 1_000));
         Assert.Equal((x, y, 0), gantry.Feedback.GetPosition());
     }
@@ -565,6 +674,60 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task TeachingRequiresTheRecordedAxesHomedAndRechecksBeforeSaving()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbPlacement);
+        using var services = CreateMotionScopeServices(settings, out var probes);
+        var machine = services.GetRequiredService<MachineController>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        await machine.InitializeAsync();
+        var probe = probes[MotionGroup.PcbPlacementHandler];
+        teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
+        var safeZ = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SafeZ);
+        teaching.SelectedPoint = safeZ;
+        await placement.MoveAxisAsync(MotionAxis.Z, 7);
+        await WaitUntilAsync(() => teaching.CanEditTeaching && teaching.Motion.Axes[MotionAxis.Z].State is not null);
+        var originalZ = settings.PcbPlacementHandler.BufferEntryZ;
+        try
+        {
+            Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Equal(originalZ, settings.PcbPlacementHandler.BufferEntryZ);
+
+            // Initial setup can establish the travel height after homing Z alone.
+            Assert.True(await placement.HomeAxisAsync(MotionAxis.Z));
+            Assert.False(placement.Feedback.GetAxisState(MotionAxis.X).Homed);
+            await placement.MoveAxisAsync(MotionAxis.Z, 7);
+            await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Equal(7, settings.PcbPlacementHandler.BufferEntryZ);
+            Assert.Null(teaching.SaveError);
+
+            teaching.SelectedPoint = teaching.FilteredPoints.Single(
+                point => point.Position.Target == TeachingTarget.HeatSink1PcbPlacement);
+            Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
+            teaching.SelectedPoint = safeZ;
+            await placement.MoveAxisAsync(MotionAxis.Z, 9);
+            await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
+            probe.OverrideState = state => state with { Homed = false };
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+
+            Assert.Equal(7, safeZ.Z);
+            Assert.Equal(7, settings.PcbPlacementHandler.BufferEntryZ);
+            Assert.Equal(7, services.GetRequiredService<MachineStore>().LoadSettings()
+                .Get<PcbPlacementHandlerSettings>().BufferEntryZ);
+            Assert.Contains("Home", teaching.SaveError);
+        }
+        finally
+        {
+            probe.OverrideState = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task TeachingOutputsWaitForFeedbackAndCancelWithoutReversingPneumatics()
     {
         using var services = CreateServices(FlowSettings());
@@ -624,6 +787,46 @@ public sealed partial class MachineLifecycleTests
         Assert.True(io.GetOutput(lift.Signal));
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
         Assert.Equal(MachineAlarm.None, state.Alarm);
+    }
+
+    [Fact]
+    public async Task TeachingRotationRechecksThePlacementLiftBeforeWritingTheOutput()
+    {
+        using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var state = services.GetRequiredService<MachineState>();
+        var operations = services.GetRequiredService<OperationCancellation>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
+        var rotation = teaching.TeachingOutputs[OutputIo.PcbPlacementHandlerRotate];
+        await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(rotation));
+        Assert.False(io.GetOutput(rotation.Signal));
+
+        void LoseLiftFeedbackAfterAdmission()
+        {
+            if (!operations.HasActiveOperations)
+                return;
+            operations.ActivityChanged -= LoseLiftFeedbackAfterAdmission;
+            io.SetInput(InputIo.PcbPlacementHandlerUp, false);
+        }
+
+        operations.ActivityChanged += LoseLiftFeedbackAfterAdmission;
+        try
+        {
+            await teaching.ToggleOutputCommand.ExecuteAsync(rotation);
+            Assert.False(io.GetOutput(rotation.Signal));
+            Assert.Equal(MachineAlarm.PcbPlacement, state.Alarm);
+            Assert.Contains("rotation", state.AlarmDetail);
+            Assert.False(operations.HasActiveOperations);
+        }
+        finally
+        {
+            operations.ActivityChanged -= LoseLiftFeedbackAfterAdmission;
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]
@@ -1082,8 +1285,8 @@ public sealed partial class MachineLifecycleTests
         Assert.True(io.GetInput(InputIo.ShootingHeadDown));
         await WaitUntilAsync(() => !state.IsRunning);
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.MoveToXYAsync(30, 30));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => gantry.HomeHorizontalAsync());
+        await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.MoveToXYAsync(30, 30));
+        await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.HomeHorizontalAsync());
 
         await gantry.AdjustAxisAsync(MotionAxis.X, -56.561, 10_000);
         Assert.Equal(-56.561, gantry.Feedback.GetPosition().X, 6);

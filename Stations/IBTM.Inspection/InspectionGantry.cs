@@ -128,7 +128,7 @@ public sealed class InspectionGantry
         cancellationToken.ThrowIfCancellationRequested();
         if (!CanMove)
         {
-            throw new InvalidOperationException("NG carrier pickup must be raised before inspection XY movement.");
+            throw new MotionInterlockException("NG carrier pickup must be raised before inspection XY movement.");
         }
     }
 
@@ -137,7 +137,7 @@ public sealed class InspectionGantry
         cancellationToken.ThrowIfCancellationRequested();
         if (!CanHome)
         {
-            throw new InvalidOperationException("Release the NG carrier and raise the pickup before homing the inspection XY axes.");
+            throw new MotionInterlockException("Release the NG carrier and raise the pickup before homing the inspection XY axes.");
         }
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -98,9 +99,14 @@ public sealed partial class MachineController
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        var startBlock = StartBlock;
-        if (!IsStartAllowed(startBlock))
+        try
         {
+            if (!IsStartAllowed(StartBlock))
+                return;
+        }
+        catch (Exception exception) when (exception is IOException or MotionException)
+        {
+            StopAndReportFailure(_state.IsError ? _state.Alarm : MachineAlarm.MotionUnavailable, exception);
             return;
         }
 
@@ -248,8 +254,7 @@ public sealed partial class MachineController
             _state.Changed -= StopWhenOperationBecomesUnavailable;
             _feedback.Sampled -= StopWhenMotionFeedbackBecomesUnavailable;
             _state.SetAutomaticRunning(false);
-            StopRunOutputs();
-            _state.Refresh();
+            StopAndReportFailure();
         }
     }
 

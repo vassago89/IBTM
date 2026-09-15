@@ -142,7 +142,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffState
     public async Task MoveToHandoffAsync(CancellationToken cancellationToken, XyPosition? position = null)
     {
         if (Rotation != PcbSupplyRotationState.Rotated)
-            throw new InvalidOperationException("Supply must be rotated before moving to the handoff position.");
+            throw new MotionInterlockException("Supply must be rotated before moving to the handoff position.");
         position ??= _settings.BufferHandoffPosition;
         await _motion.MoveToHorizontalZAsync(cancellationToken);
         await MoveHorizontalAsync(position.X, position.Y, cancellationToken);
@@ -288,7 +288,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffState
     {
         if (axis is MotionAxis.Y or MotionAxis.Z
             && IsInsideBuffer(live: true) == true)
-            throw new InvalidOperationException($"Supply {axis} cannot move inside the buffer.");
+            throw new MotionInterlockException($"Supply {axis} cannot move inside the buffer.");
         var speed = axis == MotionAxis.Z ? _settings.Motion.ZSpeed : _settings.Motion.HorizontalSpeed;
         return _motion.MoveAxisAsync(axis, position, speed, cancellationToken);
     }
@@ -308,7 +308,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffState
     {
         if (axis is MotionAxis.Y or MotionAxis.Z
             && IsInsideBuffer(live: true) == true)
-            throw new InvalidOperationException($"Supply {axis} cannot jog inside the buffer.");
+            throw new MotionInterlockException($"Supply {axis} cannot jog inside the buffer.");
         return _motion.JogAsync(axis, velocity, cancellationToken);
     }
 
@@ -327,7 +327,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffState
     {
         if (IsInsideBuffer(live: true) == true)
         {
-            throw new InvalidOperationException("Supply cannot rotate inside the buffer.");
+            throw new MotionInterlockException("Supply cannot rotate inside the buffer.");
         }
 
         await _motion.MoveToHorizontalZAsync(cancellationToken);

@@ -453,7 +453,7 @@ public sealed class BoltFasteningGantry
         cancellationToken.ThrowIfCancellationRequested();
         if (!CanMoveHorizontal)
         {
-            throw new InvalidOperationException("Raise both fastening heads before moving X/Y.");
+            throw new MotionInterlockException("Raise both fastening heads before moving X/Y.");
         }
     }
 

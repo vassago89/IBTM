@@ -278,6 +278,13 @@ public sealed class PcbPlacementHandler : IPcbHandoffState
 
     public Task SetRotatedAsync(bool rotated, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!CanMoveHorizontal || !IsAtHorizontalZ())
+        {
+            throw new MotionInterlockException(
+                "Placement rotation requires the handler lift Up and Z stopped at the travel height.");
+        }
+
         return _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerRotate, rotated, cancellationToken);
     }
 
@@ -313,7 +320,7 @@ public sealed class PcbPlacementHandler : IPcbHandoffState
         cancellationToken.ThrowIfCancellationRequested();
         if (!CanMoveHorizontal)
         {
-            throw new InvalidOperationException("Raise the placement handler before moving X/Y.");
+            throw new MotionInterlockException("Raise the placement handler before moving X/Y.");
         }
     }
 

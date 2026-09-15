@@ -13,6 +13,7 @@ using System.Windows.Threading;
 using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Hantas;
 using IBTM.Inspection;
 using IBTM.PcbPlacement;
 using IBTM.Storage;
@@ -79,7 +80,7 @@ public sealed class OutputWindowThreadingTests
         await finished.Task.WaitAsync(TimeSpan.FromSeconds(20));
     }
 
-    private static void VerifyRecoveryConfirmations()
+    private static async Task VerifyRecoveryConfirmationsAsync()
     {
         using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(new MachineSettings())
@@ -91,6 +92,7 @@ public sealed class OutputWindowThreadingTests
             [new() { HeatSink = HeatSinkSlot.HeatSink1, Number = 1, Head = FasteningHead.Shooting }];
         var placement = services.GetRequiredService<PcbPlacementRecoveryPreparation>();
         var fastening = services.GetRequiredService<BoltFasteningRecoveryPreparation>();
+        var editor = services.GetRequiredService<RecipeEditor>();
         (StartPreparation Preparation, StationWork Work, InputIo Carrier, InputIo HeatSink)[] stations =
         [
             (placement, services.GetRequiredService<PcbPlacementWork>(),
@@ -149,6 +151,33 @@ public sealed class OutputWindowThreadingTests
             io.SetConnected(true);
             services.GetRequiredService<MachineState>().ClearError();
             Assert.False(preparation.Prepared);
+            ApplyRecoveryDialog();
+            Assert.True(preparation.Open(null!));
+
+            var job = work.CurrentJob;
+            var assembly = Assert.Single(work.Assemblies);
+            await editor.SaveAsync();
+            Assert.Null(editor.Error);
+            Assert.True(preparation.Prepared);
+            await editor.LoadCommand.ExecuteAsync("Missing recipe");
+            Assert.NotNull(editor.Error);
+            Assert.True(preparation.Prepared);
+
+            var savedName = editor.ActiveName;
+            await editor.LoadCommand.ExecuteAsync(savedName);
+            Assert.Null(editor.Error);
+            Assert.False(preparation.Prepared);
+            Assert.Same(job, work.CurrentJob);
+            Assert.Same(assembly, Assert.Single(work.Assemblies));
+            ApplyRecoveryDialog();
+            Assert.True(preparation.Open(null!));
+
+            editor.NewCommand.Execute(null);
+            Assert.False(preparation.Prepared);
+            Assert.Same(job, work.CurrentJob);
+            Assert.Same(assembly, Assert.Single(work.Assemblies));
+            await editor.LoadCommand.ExecuteAsync(savedName);
+            Assert.Null(editor.Error);
             ApplyRecoveryDialog();
             Assert.True(preparation.Open(null!));
         }
@@ -254,7 +283,7 @@ public sealed class OutputWindowThreadingTests
                     Source = new Uri($"pack://application:,,,/IBTM;component/UI/{resource}.xaml"),
                 });
         await VerifyLogBindingsAsync();
-        VerifyRecoveryConfirmations();
+        await VerifyRecoveryConfirmationsAsync();
         using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(
                 new MachineSettings
@@ -564,6 +593,8 @@ public sealed class OutputWindowThreadingTests
             bus.Close();
         }
 
+        await VerifyAdcControllerFeedbackAsync(machine);
+
         var teaching = services.GetRequiredService<TeachingViewModel>();
         var main = services.GetRequiredService<MainViewModel>();
         await main.NavigateCommand.ExecuteAsync(AppPage.Teaching);
@@ -858,7 +889,9 @@ public sealed class OutputWindowThreadingTests
             await teaching.TeachFovRegionCommand.ExecuteAsync(new Rect(210, 40, 50, 60));
             teaching.MillimetersPerPixel = 0.04;
             teaching.SelectedPoint = roiBolt;
-            Assert.True(teaching.TeachFovRegionCommand.CanExecute(teaching.FovRegion!.Value));
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => teaching.TeachFovRegionCommand.CanExecute(teaching.FovRegion!.Value),
+                TimeSpan.FromSeconds(2)));
             await teaching.TeachFovRegionCommand.ExecuteAsync(teaching.FovRegion!.Value);
             saved = await services.GetRequiredService<RecipeStore>()
                 .LoadRecipeAsync(teaching.RecipeEditor.ActiveName);
@@ -1076,6 +1109,89 @@ public sealed class OutputWindowThreadingTests
         }
     }
 
+
+    private static async Task VerifyAdcControllerFeedbackAsync(MachineController machine)
+    {
+        foreach (var confirmsStop in new[] { true, false })
+        {
+            var bus = new AdcProtocolTests.ControllerBus { StopPollsRemaining = -1 };
+            await ((IAdcBus)bus).StartAsync(1); // A run started outside this window.
+            var adc = new AdcProtocolWindow(
+                bus,
+                new HantasSettings { ResponseTimeoutMilliseconds = 250 },
+                machine);
+            var stop = (Button)adc.FindName("StopButton");
+            var connect = (Button)adc.FindName("ConnectButton");
+            try
+            {
+                Assert.True(stop.IsEnabled);
+                stop.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.True(await VirtualTest.WaitUntilAsync(
+                    () => bus.StopWrites == 1,
+                    TimeSpan.FromSeconds(2)));
+                Assert.True(bus.Running);
+                Assert.NotEqual("Stopped", adc.ResultMessage);
+                Assert.False(connect.IsEnabled);
+
+                // Repeated STOP must not cancel the pending physical stop confirmation.
+                stop.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                if (confirmsStop)
+                    bus.StopPollsRemaining = 0;
+                Assert.True(await VirtualTest.WaitUntilAsync(
+                    () => connect.IsEnabled,
+                    TimeSpan.FromSeconds(2)));
+                if (confirmsStop)
+                {
+                    Assert.False(bus.Running);
+                    Assert.Equal("Stopped", adc.ResultMessage);
+                }
+                else
+                {
+                    Assert.True(bus.Running);
+                    Assert.Contains("failed", adc.ResultMessage);
+                    Assert.Contains("motor stop was not confirmed", adc.ConnectionStatus);
+                }
+                Assert.Equal(1, bus.StopWrites);
+            }
+            finally
+            {
+                bus.StopPollsRemaining = 0;
+                await adc.StopAsync();
+                adc.Close();
+                bus.Close();
+            }
+        }
+
+        var presetBus = new AdcProtocolTests.ControllerBus { IgnorePresetWrites = true };
+        var presetWindow = new AdcProtocolWindow(presetBus, new HantasSettings(), machine);
+        var presetBox = (TextBox)presetWindow.FindName("PresetBox");
+        var selectPreset = ((Grid)presetBox.Parent).Children.OfType<Button>().Single();
+        try
+        {
+            presetBox.Text = "7";
+            selectPreset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => selectPreset.IsEnabled,
+                TimeSpan.FromSeconds(2)));
+            Assert.Equal(3, presetBus.CurrentPreset);
+            Assert.Contains("failed", presetWindow.ResultMessage);
+            Assert.Contains("preset is 3", presetWindow.ConnectionStatus);
+
+            presetBus.IgnorePresetWrites = false;
+            selectPreset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => selectPreset.IsEnabled,
+                TimeSpan.FromSeconds(2)));
+            Assert.Equal(7, presetBus.CurrentPreset);
+            Assert.Equal("Preset 7 selected", presetWindow.ResultMessage);
+            Assert.Equal(0, presetBus.StartWrites);
+        }
+        finally
+        {
+            presetWindow.Close();
+            presetBus.Close();
+        }
+    }
 
     private static (Button Button, TextBlock Feedback) BindOutputRow(OutputWindow window, OutputWindowRow row)
     {

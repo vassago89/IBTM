@@ -254,16 +254,38 @@ public sealed class NgCarrierConveyor : AutoUnit
         Func<CancellationToken, Task> run,
         CancellationToken cancellationToken)
     {
+        Exception? cancellationFailure = null;
+        void StopOnCancellation()
+        {
+            try
+            {
+                StopConveyor();
+            }
+            catch (Exception exception)
+            {
+                cancellationFailure = exception;
+            }
+        }
+
         Exception? failure = null;
         try
         {
-            using var stopRegistration = cancellationToken.Register(StopConveyor);
-            await run(cancellationToken);
-        }
-        catch (Exception exception)
-        {
-            failure = exception;
-            throw;
+            using (cancellationToken.Register(StopOnCancellation))
+            {
+                try
+                {
+                    await run(cancellationToken);
+                }
+                catch (Exception exception)
+                {
+                    failure = exception;
+                }
+            }
+
+            if (cancellationFailure is not null)
+                failure = failure is null ? cancellationFailure : new AggregateException(failure, cancellationFailure);
+            if (failure is not null)
+                ExceptionDispatchInfo.Throw(failure);
         }
         finally
         {

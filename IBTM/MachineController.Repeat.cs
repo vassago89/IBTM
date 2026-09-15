@@ -108,7 +108,7 @@ public sealed partial class MachineController
                     RepeatPhase.ReturnToStation3 or RepeatPhase.ClearStation3 => MachineAlarm.NgCarrierTransfer,
                     _ => MachineAlarm.MainConveyor,
                 };
-            _state.SetError(alarm, exception);
+            _state.SetError(_state.IsError ? _state.Alarm : alarm, exception);
         }
     }
 
@@ -163,6 +163,7 @@ public sealed partial class MachineController
         }
 
         _ngTransfer.Changed += CheckPickup;
+        Exception? failure = null;
         try
         {
             CheckPickup();
@@ -173,10 +174,22 @@ public sealed partial class MachineController
             await _ngShuttle.SetUpAsync(true, operation.Token);
             operation.Token.ThrowIfCancellationRequested();
         }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
         finally
         {
             _ngTransfer.Changed -= CheckPickup;
-            _ngConveyor.Stop();
+            try
+            {
+                _ngConveyor.Stop();
+            }
+            catch (Exception cleanupFailure) when (failure is not null)
+            {
+                throw new AggregateException(failure, cleanupFailure);
+            }
         }
     }
 

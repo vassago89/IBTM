@@ -1,6 +1,5 @@
 using System.Threading;
 using System.Windows;
-using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.UI;
@@ -14,7 +13,11 @@ public abstract class StartPreparation
     private readonly IIoService _io;
     private bool _automaticRunning;
 
-    protected StartPreparation(MachineState state, StationWork work, IIoService io)
+    protected StartPreparation(
+        MachineState state,
+        StationWork work,
+        IIoService io,
+        RecipeEditor recipeEditor)
     {
         _state = state;
         _work = work;
@@ -22,6 +25,8 @@ public abstract class StartPreparation
         _automaticRunning = state.AutomaticRunning;
         state.Changed += OnMachineStateChanged;
         work.Station.Changed += Invalidate;
+        // Keep physical work history, but confirm it against the newly loaded recipe.
+        recipeEditor.Changed += Invalidate;
     }
 
     public bool Required
@@ -31,9 +36,7 @@ public abstract class StartPreparation
             return _io.IsReady
                 && _work.Enabled
                 && !_state.AutomaticRunning
-                && _work.CarrierPresent
-                && (_work.HeatSinkPresent(HeatSinkSlot.HeatSink1)
-                    || _work.HeatSinkPresent(HeatSinkSlot.HeatSink2));
+                && _work.CarrierPresent;
         }
     }
 

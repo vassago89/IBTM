@@ -141,6 +141,7 @@ public class AjinMotionService(
                 [velocityX / Settings.DecelerationSeconds, velocityY / Settings.DecelerationSeconds]),
             nameof(CAXM.AxmMoveMultiPos),
             axes,
+            [x, y],
             cancellationToken);
     }
 
@@ -168,6 +169,7 @@ public class AjinMotionService(
                 (int)stopMode),
             nameof(CAXM.AxmMoveSignalSearch),
             [_axisZ.Value],
+            null,
             cancellationToken);
 
         if (!GetAxisState(MotionAxis.Z).PositiveLimit)
@@ -189,6 +191,7 @@ public class AjinMotionService(
             () => CAXM.AxmMoveVel(axisNumber, velocityInUnits, acceleration, deceleration),
             nameof(CAXM.AxmMoveVel),
             [axisNumber],
+            null,
             cancellationToken);
     }
 
@@ -289,53 +292,75 @@ public class AjinMotionService(
                 velocityInUnits / home.SearchAccelerationSeconds,
                 ToUnits(home.DetectionSpeed) / home.DetectionAccelerationSeconds),
             nameof(CAXM.AxmHomeSetVel));
-        using var cancellationRegistration = cancellationToken.Register(
-            () => StopAxes([axisNumber], clearHome: true));
-        Exception? failure = null;
-        var homed = false;
-        try
-        {
-            BeginMotion(axis != MotionAxis.Z);
-            cancellationToken.ThrowIfCancellationRequested();
-            AjinController.Check(CAXM.AxmHomeSetStart(axisNumber), nameof(CAXM.AxmHomeSetStart));
-            while (true)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                var result = 0U;
-                AjinController.Check(
-                    CAXM.AxmHomeGetResult(axisNumber, ref result),
-                    nameof(CAXM.AxmHomeGetResult));
-                PublishPosition();
-
-                if (result != HomeSearching)
-                {
-                    homed = result == HomeSuccess;
-                    break;
-                }
-
-                await Task.Delay(StatusPollInterval, cancellationToken).ConfigureAwait(false);
-            }
-        }
-        catch (Exception exception)
-        {
-            failure = exception;
-        }
-
-        if (!homed)
+        Exception? cancellationFailure = null;
+        void StopOnCancellation()
         {
             try
             {
-                StopAxes([axisNumber], clearHome: failure is not null);
+                StopAxes([axisNumber], clearHome: true);
             }
-            catch (Exception stopFailure)
+            catch (Exception exception)
             {
-                failure = failure is null
-                    ? stopFailure
-                    : new MotionException("Stop home", new AggregateException(failure, stopFailure));
+                cancellationFailure = exception;
             }
         }
 
-        await EndMotionAsync([axisNumber], axis != MotionAxis.Z, failure).ConfigureAwait(false);
+        Exception? failure = null;
+        var homed = false;
+        using (cancellationToken.Register(StopOnCancellation))
+        {
+            try
+            {
+                BeginMotion(axis != MotionAxis.Z);
+                cancellationToken.ThrowIfCancellationRequested();
+                AjinController.Check(CAXM.AxmHomeSetStart(axisNumber), nameof(CAXM.AxmHomeSetStart));
+                while (true)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var result = 0U;
+                    AjinController.Check(
+                        CAXM.AxmHomeGetResult(axisNumber, ref result),
+                        nameof(CAXM.AxmHomeGetResult));
+                    PublishPosition();
+
+                    if (result != HomeSearching)
+                    {
+                        homed = result == HomeSuccess;
+                        break;
+                    }
+
+                    await Task.Delay(StatusPollInterval, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            catch (Exception exception)
+            {
+                failure = exception;
+            }
+
+            if (!homed)
+            {
+                try
+                {
+                    StopAxes([axisNumber], clearHome: failure is not null);
+                }
+                catch (Exception stopFailure)
+                {
+                    failure = failure is null
+                        ? stopFailure
+                        : new MotionException("Stop home", new AggregateException(failure, stopFailure));
+                }
+            }
+
+            failure = await EndMotionAsync([axisNumber], axis != MotionAxis.Z, failure).ConfigureAwait(false);
+        }
+
+        // Registration disposal joins any STOP callback before its failure is collected.
+        if (cancellationFailure is not null)
+        {
+            failure = failure is null
+                ? cancellationFailure
+                : new MotionException("Cancel home", new AggregateException(failure, cancellationFailure));
+        }
         if (failure is not null)
             ExceptionDispatchInfo.Throw(failure);
         return homed;
@@ -368,14 +393,19 @@ public class AjinMotionService(
             }
         }
 
+        var homingTasks = Task.WhenAll(HomeAxisAsync(MotionAxis.X), HomeAxisAsync(MotionAxis.Y));
         try
         {
-            var result = await Task.WhenAll(HomeAxisAsync(MotionAxis.X), HomeAxisAsync(MotionAxis.Y));
+            var result = await homingTasks;
             return result[0] && result[1];
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             return false;
+        }
+        catch (Exception) when (homingTasks.Exception is { InnerExceptions.Count: > 1 } failures)
+        {
+            throw new MotionException("Home horizontal axes", failures);
         }
     }
 
@@ -411,6 +441,7 @@ public class AjinMotionService(
                 deceleration),
             nameof(CAXM.AxmMovePos),
             [axisNumber],
+            [position],
             cancellationToken);
     }
 
@@ -418,6 +449,7 @@ public class AjinMotionService(
         Func<uint> move,
         string operation,
         int[] axes,
+        double[]? targets,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -427,37 +459,72 @@ public class AjinMotionService(
         }
 
         var horizontal = Array.Exists(axes, axis => axis != _axisZ);
-        using var cancellationRegistration = cancellationToken.Register(() => StopAxes(_axes));
-        Exception? failure = null;
-        try
+        Exception? cancellationFailure = null;
+        void StopOnCancellation()
         {
-            BeginMotion(horizontal);
-            cancellationToken.ThrowIfCancellationRequested();
-            AjinController.Check(move(), operation);
-            await WaitForMoveAsync(axes, cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            failure = exception is OperationCanceledException
-                ? exception
-                : new MotionException(operation, exception);
             try
             {
                 StopAxes(_axes);
             }
-            catch (Exception stopFailure)
+            catch (Exception exception)
             {
-                failure = new MotionException("Stop motion", new AggregateException(failure, stopFailure));
+                cancellationFailure = exception;
             }
-            ExceptionDispatchInfo.Throw(failure);
         }
-        finally
+
+        Exception? failure = null;
+        using (cancellationToken.Register(StopOnCancellation))
         {
-            await EndMotionAsync(axes, horizontal, failure).ConfigureAwait(false);
+            try
+            {
+                BeginMotion(horizontal);
+                cancellationToken.ThrowIfCancellationRequested();
+                AjinController.Check(move(), operation);
+                await WaitForMoveAsync(axes, cancellationToken).ConfigureAwait(false);
+                if (targets is not null)
+                {
+                    for (var index = 0; index < axes.Length; index++)
+                    {
+                        var actual = ReadPosition(axes[index]);
+                        if (Math.Abs(actual - targets[index]) > PositionToleranceMillimeters)
+                        {
+                            throw new InvalidOperationException(
+                                $"Axis stopped before reaching its target (axis={axes[index]}, "
+                                + $"target={targets[index]:F3}, actual={actual:F3} mm).");
+                        }
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                failure = exception is OperationCanceledException
+                    ? exception
+                    : new MotionException(operation, exception);
+                try
+                {
+                    StopAxes(_axes);
+                }
+                catch (Exception stopFailure)
+                {
+                    failure = new MotionException("Stop motion", new AggregateException(failure, stopFailure));
+                }
+            }
+
+            failure = await EndMotionAsync(axes, horizontal, failure).ConfigureAwait(false);
         }
+
+        // Keep STOP failures on the motion task, not on the input monitor that canceled it.
+        if (cancellationFailure is not null)
+        {
+            failure = failure is null
+                ? cancellationFailure
+                : new MotionException("Cancel motion", new AggregateException(failure, cancellationFailure));
+        }
+        if (failure is not null)
+            ExceptionDispatchInfo.Throw(failure);
     }
 
-    private async Task EndMotionAsync(int[] axes, bool horizontal, Exception? failure)
+    private async Task<Exception?> EndMotionAsync(int[] axes, bool horizontal, Exception? failure)
     {
         Exception? cleanupFailure = null;
         try
@@ -483,10 +550,11 @@ public class AjinMotionService(
 
         if (cleanupFailure is not null)
         {
-            throw new MotionException(
+            return new MotionException(
                 "Finish motion",
                 failure is null ? cleanupFailure : new AggregateException(failure, cleanupFailure));
         }
+        return failure;
     }
 
     protected async Task WaitForStopAsync(int[] axes)
@@ -614,7 +682,14 @@ public class AjinMotionService(
                 $"Invalid AJIN position scale (axis={axis}, unit={unit}, pulse={pulse})."));
         }
 
-        return (FromUnits(axis, position, unit, pulse), null);
+        var millimeters = FromUnits(axis, position, unit, pulse);
+        if (!double.IsFinite(millimeters))
+        {
+            return (null, new System.IO.IOException(
+                $"Invalid AJIN position (axis={axis}, position={position}, millimeters={millimeters})."));
+        }
+
+        return (millimeters, null);
     }
 
     private static Exception? ReadError(uint result, string operation, int axis)

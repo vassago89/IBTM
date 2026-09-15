@@ -217,13 +217,14 @@ public partial class AdcProtocolWindow : Window
 
     private async void OnSelectPreset(object sender, RoutedEventArgs e)
     {
-        await ExecuteAsync(
-            async cancellationToken =>
-            {
-                var preset = ushort.Parse(PresetBox.Text);
-                await _bus.SelectPresetAsync(SlaveAddress, preset, cancellationToken);
-                ResultMessage = $"Preset {preset} selected";
-            });
+        await ExecuteAsync(SelectPresetAsync);
+    }
+
+    private async Task SelectPresetAsync(CancellationToken cancellationToken)
+    {
+        var preset = ushort.Parse(PresetBox.Text);
+        await CreateHead().SelectPresetAsync(preset, cancellationToken);
+        ResultMessage = $"Preset {preset} selected";
     }
 
     private async void OnStart(object sender, RoutedEventArgs e)
@@ -240,12 +241,15 @@ public partial class AdcProtocolWindow : Window
             return;
         }
 
-        await ExecuteAsync(
-            async cancellationToken =>
-            {
-                await _bus.StopAsync(SlaveAddress, cancellationToken);
-                ResultMessage = "Stopped";
-            });
+        await ExecuteAsync(StopControllerAsync);
+    }
+
+    private async Task StopControllerAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ResultMessage = "Stopping — waiting for RUN OFF...";
+        await CreateHead().StopAsync();
+        ResultMessage = "Stopped";
     }
 
     private AdcBoltHead CreateHead()
@@ -489,7 +493,7 @@ public partial class AdcProtocolWindow : Window
         }
         catch (OperationCanceledException)
         {
-            ResultMessage = "Stopped";
+            ResultMessage = "Operation canceled. Check controller status.";
         }
         catch (Exception exception)
         {
