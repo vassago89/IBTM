@@ -57,14 +57,12 @@ internal static class DevelopmentProfile
         settings.PcbSupply.CarrierY = 10;
         settings.PcbSupply.RotationZ = 0;
         settings.PcbSupply.BufferHandoffPosition = new() { X = 80, Y = 30 };
-        settings.PcbSupply.BufferClearZ = 20;
         settings.PcbSupply.Motion.HorizontalSpeed = 100;
         settings.PcbSupply.Motion.ZSpeed = 30;
         settings.PcbBuffer.SupplyBoundary1 = 60;
         settings.PcbBuffer.SupplyBoundary2 = 100;
         settings.PcbBuffer.PlacementBoundary1 = new() { X = 60, Y = 20 };
         settings.PcbBuffer.PlacementBoundary2 = new() { X = 100, Y = 40 };
-        settings.PcbPlacementHandler.BufferEntryZ = 0;
         settings.PcbPlacementHandler.BufferHandoffPosition = new() { X = 80, Y = 30, Z = 10 };
         settings.PcbPlacementHandler.Motion.HorizontalSpeed = 100;
         settings.PcbPlacementHandler.Motion.ZSpeed = 30;
@@ -74,11 +72,13 @@ internal static class DevelopmentProfile
         settings.BoltFastening.Motion.ZSpeed = 30;
         settings.BoltFastening.ShootingHead = new()
         {
+            FasteningZ = 8,
             UpperLeftLocatingPin = new() { X = 2, Y = 2 },
             LowerRightLocatingPin = new() { X = 38, Y = 28 },
         };
         settings.BoltFastening.PickupHead = new()
         {
+            FasteningZ = 12,
             UpperLeftLocatingPin = new() { X = 10, Y = 2 },
             LowerRightLocatingPin = new() { X = 46, Y = 28 },
         };

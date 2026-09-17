@@ -18,7 +18,7 @@ public partial class TeachingViewModel
             return ActiveMotionGroup switch
             {
                 MotionGroup.PcbSupply => "Transport / Rotation Z",
-                MotionGroup.PcbPlacementHandler => "Approach Z",
+                MotionGroup.PcbPlacementHandler => "Handoff / Travel Z",
                 _ => "Safe Z",
             };
         }
@@ -61,7 +61,7 @@ public partial class TeachingViewModel
                 MotionGroup.BoltFastening => TeachingMotionHint.BoltAdjustment,
                 MotionGroup.InspectionGantry when !_inspectionGantry.CanMove
                     => TeachingMotionHint.RaiseNgPickup,
-                MotionGroup.PcbPlacementHandler when !Motion.IsAtZ(_placementSettings.BufferEntryZ)
+                MotionGroup.PcbPlacementHandler when !Motion.IsAtZ(_placementSettings.BufferHandoffPosition.Z)
                     => TeachingMotionHint.SafeZRequired,
                 _ => TeachingMotionHint.None,
             };

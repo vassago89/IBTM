@@ -37,6 +37,22 @@ public sealed class MachineStore
         using var db = new MachineDb(_options);
         // Settings and recipes evolve inside JSON, not as database columns.
         db.Database.EnsureCreated();
+        // Split the previous working height once; preserve each head's subsequent teaching.
+        db.Database.ExecuteSqlRaw("""
+            UPDATE Settings
+            SET Value = json_remove(json_set(Value,
+                '$.ShootingHead.FasteningZ', COALESCE(
+                    json_extract(Value, '$.ShootingHead.FasteningZ'),
+                    json_extract(Value, '$.FasteningZ'), json_extract(Value, '$.SafeZ'), 0),
+                '$.PickupHead.FasteningZ', COALESCE(
+                    json_extract(Value, '$.PickupHead.FasteningZ'),
+                    json_extract(Value, '$.FasteningZ'), json_extract(Value, '$.SafeZ'), 0)),
+                '$.FasteningZ')
+            WHERE Key = 'BoltFasteningSettings'
+              AND (json_type(Value, '$.FasteningZ') IS NOT NULL
+                OR json_type(Value, '$.ShootingHead.FasteningZ') IS NULL
+                OR json_type(Value, '$.PickupHead.FasteningZ') IS NULL);
+            """);
         // Correct only the obsolete conveyor output keys; retain configured channel numbers.
         db.Database.ExecuteSqlRaw("""
             UPDATE Settings
@@ -119,6 +135,53 @@ public sealed class MachineStore
               AND (json_extract(Value, '$.Inputs.NgConveyorStopperUp') IS NULL
                 OR json_extract(Value, '$.Inputs.NgConveyorStopperDown') IS NULL
                 OR json_extract(Value, '$.Outputs.NgConveyorStopperDown.Feedback') IS NULL);
+            """);
+
+        // 260913 address corrections only. Keep confirmed directions and custom mappings.
+        // Match each old pair together so a partial field adjustment is not overwritten.
+        db.Database.ExecuteSqlRaw("""
+            UPDATE Settings
+            SET Value = json_set(Value,
+                '$.Inputs.PcbSupplyGripperClosed', 24,
+                '$.Inputs.PcbSupplyGripperOpen', 25,
+                '$.Inputs.PcbSupplyIpmFixerForward', 28,
+                '$.Inputs.PcbSupplyIpmFixerBackward', -1,
+                '$.Inputs.PcbSupplyPcbDetected', 22)
+            WHERE Key = 'PcbSupplyHardwareSettings'
+              AND json_extract(Value, '$.Inputs.PcbSupplyGripperClosed') = 22
+              AND json_extract(Value, '$.Inputs.PcbSupplyGripperOpen') = 23
+              AND json_extract(Value, '$.Inputs.PcbSupplyIpmFixerForward') = 24
+              AND json_extract(Value, '$.Inputs.PcbSupplyIpmFixerBackward') = 25
+              AND json_extract(Value, '$.Inputs.PcbSupplyPcbDetected') = 28;
+
+            UPDATE Settings
+            SET Value = json_remove(Value, '$.Outputs.PcbSupplyIpmFixerForward.OffNumber')
+            WHERE Key = 'PcbSupplyHardwareSettings'
+              AND json_type(Value, '$.Outputs.PcbSupplyIpmFixerForward.OffNumber') IS NOT NULL;
+
+            UPDATE Settings
+            SET Value = json_set(Value,
+                '$.Inputs.MainConveyorEntryCarrierDetected', 56,
+                '$.Inputs.MainConveyorExitCarrierDetected', 68)
+            WHERE Key = 'ConveyorHardwareSettings'
+              AND json_extract(Value, '$.Inputs.MainConveyorEntryCarrierDetected') = 91
+              AND json_extract(Value, '$.Inputs.MainConveyorExitCarrierDetected') = 92;
+
+            UPDATE Settings
+            SET Value = json_set(Value,
+                '$.Inputs.BoltFasteningHeatSink1Present', 62,
+                '$.Inputs.BoltFasteningHeatSink2Present', 63)
+            WHERE Key = 'BoltFasteningStationHardwareSettings'
+              AND json_extract(Value, '$.Inputs.BoltFasteningHeatSink1Present') = 61
+              AND json_extract(Value, '$.Inputs.BoltFasteningHeatSink2Present') = 62;
+
+            UPDATE Settings
+            SET Value = json_set(Value,
+                '$.Inputs.InspectionHeatSink1Present', 69,
+                '$.Inputs.InspectionHeatSink2Present', 70)
+            WHERE Key = 'InspectionStationHardwareSettings'
+              AND json_extract(Value, '$.Inputs.InspectionHeatSink1Present') = 68
+              AND json_extract(Value, '$.Inputs.InspectionHeatSink2Present') = 69;
             """);
     }
 

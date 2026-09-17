@@ -8,7 +8,7 @@ public abstract class StartPreparation
 {
     private int _preparedVersion = -1;
     private int _changeVersion;
-    private readonly MachineState _state;
+    protected MachineState State { get; }
     private readonly StationWork _work;
     private readonly IIoService _io;
     private bool _automaticRunning;
@@ -19,7 +19,7 @@ public abstract class StartPreparation
         IIoService io,
         RecipeEditor recipeEditor)
     {
-        _state = state;
+        State = state;
         _work = work;
         _io = io;
         _automaticRunning = state.AutomaticRunning;
@@ -35,7 +35,7 @@ public abstract class StartPreparation
         {
             return _io.IsReady
                 && _work.Enabled
-                && !_state.AutomaticRunning
+                && !State.AutomaticRunning
                 && _work.CarrierPresent;
         }
     }
@@ -82,11 +82,11 @@ public abstract class StartPreparation
 
     private void OnMachineStateChanged()
     {
-        if (!_io.IsReady || _automaticRunning != _state.AutomaticRunning)
+        if (!_io.IsReady || _automaticRunning != State.AutomaticRunning)
         {
             Invalidate();
         }
 
-        _automaticRunning = _state.AutomaticRunning;
+        _automaticRunning = State.AutomaticRunning;
     }
 }

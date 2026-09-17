@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Data;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -67,6 +68,13 @@ public partial class MotionWindowViewModel : ObservableObject
 {
     private readonly MachineController _machine;
     private readonly MachineState _state;
+    private Dispatcher? _dispatcher;
+    private bool _active;
+    private int _refreshQueued;
+    [ObservableProperty, NotifyPropertyChangedFor(nameof(ControlsEnabled))]
+    private bool _isClosing;
+    [ObservableProperty]
+    private string? _closeError;
     [ObservableProperty]
     private string _search = string.Empty;
     [ObservableProperty]
@@ -99,6 +107,14 @@ public partial class MotionWindowViewModel : ObservableObject
                     || $"{row.Address} {row.Group.GetDescription()} {row.Axis}".Contains(
                         Search.Trim(),
                         StringComparison.OrdinalIgnoreCase));
+    }
+
+    public bool ControlsEnabled
+    {
+        get
+        {
+            return !IsClosing;
+        }
     }
 
     public MotionMonitorAxis[] Axes { get; }
@@ -136,7 +152,7 @@ public partial class MotionWindowViewModel : ObservableObject
 
     private bool CanToggleServo(MotionMonitorAxis? row)
     {
-        return row is { Diagnostics.Snapshot.State: not null }
+        return !IsClosing && row is { Diagnostics.Snapshot.State: not null }
             && _machine.CanSetServo(row.Group, live: false);
     }
 
@@ -148,7 +164,7 @@ public partial class MotionWindowViewModel : ObservableObject
 
     private bool CanHomeAxis(MotionMonitorAxis? row)
     {
-        return row is { Enabled: true }
+        return !IsClosing && row is { Enabled: true }
             && _state.Display.Available
             && _state.Display.HomeableAxes.Contains((row.Group, row.Axis));
     }
@@ -183,6 +199,54 @@ public partial class MotionWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ControlStatus));
         ToggleServoCommand.NotifyCanExecuteChanged();
         HomeAxisCommand.NotifyCanExecuteChanged();
+    }
+
+    public void Activate()
+    {
+        if (_active)
+            return;
+        _dispatcher = Dispatcher.CurrentDispatcher;
+        IsClosing = false;
+        _active = true;
+        _state.DisplayChanged += OnDisplayChanged;
+        Refresh();
+        _state.RequestDisplayRefresh();
+    }
+
+    public void Deactivate()
+    {
+        _active = false;
+        _state.DisplayChanged -= OnDisplayChanged;
+    }
+
+    private void OnDisplayChanged()
+    {
+        if (!_active || Interlocked.Exchange(ref _refreshQueued, 1) != 0)
+            return;
+        _dispatcher!.BeginInvoke(() =>
+        {
+            Interlocked.Exchange(ref _refreshQueued, 0);
+            if (_active && !IsClosing)
+                Refresh();
+        });
+    }
+
+    public async Task<bool> TryCloseAsync()
+    {
+        IsClosing = true;
+        CloseError = null;
+        try
+        {
+            await ShutdownAsync();
+            return true;
+        }
+        catch (Exception exception)
+        {
+            IsClosing = false;
+            CloseError = exception.Message;
+            System.Diagnostics.Trace.TraceError("Motion window shutdown failed. {0}", exception);
+            return false;
+        }
     }
 
     public Task ShutdownAsync()

@@ -168,7 +168,9 @@ public partial class OperationViewModel
 
             if (State.Display.SupplyAtHandoff)
             {
-                return HandlerDisplayState.WaitingForPlacement;
+                return Supply.PcbReleased
+                    ? HandlerDisplayState.WaitingForPlacementLift
+                    : HandlerDisplayState.WaitingForPlacement;
             }
 
             if (PcbSupplyPcbSecured && !State.Display.CanSupplyEnter)
@@ -209,6 +211,7 @@ public partial class OperationViewModel
             return State.Display.PlacementState switch
             {
                 PcbPlacementState.WaitingForSupply => HandlerDisplayState.WaitingForSupply,
+                PcbPlacementState.WaitingForSupplyRelease => HandlerDisplayState.WaitingForSupplyRelease,
                 PcbPlacementState.WaitingForCarrier => HandlerDisplayState.WaitingForMainCarrier,
                 PcbPlacementState.WaitingForSupplyExit => HandlerDisplayState.WaitingForSupplyExit,
                 _ => HandlerDisplayState.Working,

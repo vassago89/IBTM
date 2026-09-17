@@ -141,10 +141,25 @@ public sealed class RecipeTests
         definition.Apply(new() { X = 60, Y = 20, Z = 99 });
         Assert.Equal((60, 20), (supply.BufferHandoffPosition.X, supply.BufferHandoffPosition.Y));
         Assert.Equal(3, supply.RotationZ);
-        Assert.Equal(12, supply.BufferClearZ);
 
         using var saved = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(supply));
+        Assert.False(saved.RootElement.TryGetProperty("BufferClearZ", out _));
         Assert.False(saved.RootElement.GetProperty(nameof(supply.BufferHandoffPosition)).TryGetProperty("Z", out _));
+    }
+
+    [Fact]
+    public void PlacementHandoffLoadsTheCommonZAndDropsTheSeparateApproachHeight()
+    {
+        var placement = System.Text.Json.JsonSerializer.Deserialize<PcbPlacementHandlerSettings>(
+            """{"BufferEntryZ":3,"BufferHandoffPosition":{"X":50,"Y":10,"Z":8}}""")!;
+        var definition = placement.GetBufferTeachingPosition();
+        Assert.Equal(TeachMode.Full, definition.Mode);
+        Assert.Equal(8, placement.BufferHandoffPosition.Z);
+        definition.Apply(new() { X = 60, Y = 20, Z = 9 });
+        Assert.Equal(9, placement.BufferHandoffPosition.Z);
+
+        using var saved = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(placement));
+        Assert.False(saved.RootElement.TryGetProperty("BufferEntryZ", out _));
     }
 
     [Fact]
@@ -158,12 +173,11 @@ public sealed class RecipeTests
         var placementHandoff = placement.BufferHandoffPosition;
         TeachingPosition[] definitions = [
             .. supply.GetTeachingPositions(recipe),
-            .. placement.GetTeachingPositions(),
             placement.GetBufferTeachingPosition(),
             .. buffer.GetTeachingPositions(),
         ];
         var points = definitions.Select(p => new TeachingPoint(p)).ToArray();
-        Assert.Equal(12, points.Length);
+        Assert.Equal(10, points.Length);
         var staged = points.Where(p => p.Position.Storage == TeachingStorage.Buffer).ToArray();
         foreach (var point in staged)
             point.Teach(10, 20, 30);
@@ -220,8 +234,16 @@ public sealed class RecipeTests
         var fastening = new BoltFasteningSettings
         {
             SafeZ = 5,
+            PickupPosition = new() { Z = 10 },
             ShootingHead = new()
             {
+                FasteningZ = 12,
+                UpperLeftLocatingPin = new() { X = 300, Y = 400 },
+                LowerRightLocatingPin = new() { X = 200, Y = 500 },
+            },
+            PickupHead = new()
+            {
+                FasteningZ = 16,
                 UpperLeftLocatingPin = new() { X = 300, Y = 400 },
                 LowerRightLocatingPin = new() { X = 200, Y = 500 },
             },
@@ -243,13 +265,23 @@ public sealed class RecipeTests
         Assert.True(position.Position.HasPosition);
         Assert.Equal(280, position.X, 6);
         Assert.Equal(410, position.Y, 6);
-        Assert.Equal(fastening.SafeZ, position.Z);
+        Assert.Equal(fastening.ShootingHead.FasteningZ, position.Z);
         fastening.SafeZ = 7;
         position.Refresh();
-        Assert.Equal(7, position.Z);
+        Assert.Equal(12, position.Z);
+        var shootingZ = new TeachingPoint(
+            fastening.GetTeachingPositions(recipe, HeatSinkSlot.HeatSink1, reference)
+                .Single(point => point.Target == TeachingTarget.ShootingHeadFasteningZ));
+        Assert.Equal(TeachMode.ZOnly, shootingZ.Position.Mode);
+        Assert.Same(fastening, shootingZ.Position.Setting);
+        shootingZ.Teach(999, 999, 14);
+        shootingZ.Apply();
+        Assert.Equal(7, fastening.SafeZ);
+        Assert.Equal(14, fastening.ShootingHead.FasteningZ);
+        Assert.Equal(16, fastening.PickupHead.FasteningZ);
         Assert.All(
             recipe.GetBolts(),
-            bolt => Assert.Equal(7, fastening.GetBoltPosition(bolt, reference).Z));
+            bolt => Assert.Equal(14, fastening.GetBoltPosition(bolt, reference).Z));
 
         var lowerRight = reference.LowerRightLocatingPin;
         var upperLeft = new TeachingPoint(
@@ -265,12 +297,26 @@ public sealed class RecipeTests
         Assert.All(transfer.GetTeachingPositions(), p => Assert.Same(transfer, p.Setting));
 
         recipe.BoltPoints = [
-            new() { Number = 2, Head = FasteningHead.Pickup },
+            new() { Number = 2, Head = FasteningHead.Pickup, X = 10, Y = 20 },
             bolt,
-            new() { Number = 3, Head = FasteningHead.Pickup },
+            new() { Number = 3, Head = FasteningHead.Pickup, X = 20, Y = 30 },
         ];
         var ordered = fastening.GetTeachingPositions(recipe, HeatSinkSlot.HeatSink1, reference);
         Assert.Equal(TeachingTarget.SafeZ, ordered[0].Target);
+        Assert.Equal(TeachingTarget.ShootingHeadFasteningZ, ordered[1].Target);
+        var pickupZ = new TeachingPoint(
+            ordered.Single(point => point.Target == TeachingTarget.PickupHeadFasteningZ));
+        Assert.Equal(TeachMode.ZOnly, pickupZ.Position.Mode);
+        Assert.Same(fastening, pickupZ.Position.Setting);
+        pickupZ.Teach(999, 999, 18);
+        pickupZ.Apply();
+        Assert.Equal(7, fastening.SafeZ);
+        Assert.Equal(14, fastening.ShootingHead.FasteningZ);
+        Assert.Equal(18, fastening.PickupHead.FasteningZ);
+        Assert.Equal(10, fastening.PickupPosition.Z);
+        Assert.All(recipe.GetBolts(), target => Assert.Equal(
+            target.Head == FasteningHead.Pickup ? 18 : 14,
+            fastening.GetBoltPosition(target, reference).Z));
         Assert.Equal(
             new[] { 1, 2, 3 },
             ordered.Where(point => point.Bolt is not null).Select(point => point.Bolt!.Number));

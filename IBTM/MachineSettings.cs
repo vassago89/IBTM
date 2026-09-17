@@ -43,6 +43,7 @@ public sealed class MachineSettings
     public BoltFeederHardwareSettings BoltFeederHardware { get; set; } = new();
     public BoltFasteningSettings BoltFastening { get; set; } = new();
     public BoltFasteningHardwareSettings BoltFasteningHardware { get; set; } = new();
+    public IoBoltHardwareSettings IoBoltHardware { get; set; } = new();
     public BoltFasteningStationHardwareSettings BoltFasteningStationHardware { get; set; } = new();
     public InspectionGantrySettings InspectionGantry { get; set; } = new();
     public InspectionGantryHardwareSettings InspectionGantryHardware { get; set; } = new();
@@ -78,6 +79,7 @@ public sealed class MachineSettings
                 PcbPlacementStationHardware,
                 BoltFeederHardware,
                 BoltFasteningHardware,
+                IoBoltHardware,
                 BoltFasteningStationHardware,
                 InspectionGantryHardware,
                 InspectionStationHardware,
@@ -159,6 +161,7 @@ public sealed class MachineSettings
             BoltFeederHardware = values.Get<BoltFeederHardwareSettings>(),
             BoltFastening = values.Get<BoltFasteningSettings>(),
             BoltFasteningHardware = values.Get<BoltFasteningHardwareSettings>(),
+            IoBoltHardware = values.Get<IoBoltHardwareSettings>(),
             BoltFasteningStationHardware = values.Get<BoltFasteningStationHardwareSettings>(),
             InspectionGantry = values.Get<InspectionGantrySettings>(),
             InspectionStationHardware = values.Get<InspectionStationHardwareSettings>(),

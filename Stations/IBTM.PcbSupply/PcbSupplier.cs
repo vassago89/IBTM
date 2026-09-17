@@ -49,11 +49,13 @@ public sealed class PcbSupplier : AutoUnit
         {
             if (_pickStep != PickStep.WaitingForCarrierExit)
             {
-                _handler.SetUpstreamReady(_pickStep == PickStep.Pcb1 && !_handler.UpstreamCarrierAvailable);
+                _handler.SetUpstreamReady(true);
             }
             else if (_handler.IsAtRotationZ() && _handler.Pcb != PcbSupplyPcbState.Detected)
             {
-                _handler.SetUpstreamReady(true);
+                // Keep Ready through both slot checks and the final pickup lift.
+                // Its falling edge tells the upstream machine that pickup is complete.
+                _handler.SetUpstreamReady(false);
             }
 
             var state = State();
@@ -90,7 +92,11 @@ public sealed class PcbSupplier : AutoUnit
                             throw new InvalidOperationException("Placement lost PCB holding feedback before supply opened its gripper.");
                         await _handler.SetGripperClosedAsync(false, token);
                     }
-                    await _handler.MoveClearAsync(token);
+                    break;
+                case PcbSupplyState.MovingFromHandoff:
+                    await _handler.MoveFromHandoffAsync(
+                        _pickStep == PickStep.Pcb2 ? recipe.Pcb2PickPosition : recipe.Pcb1PickPosition,
+                        token);
                     break;
                 case PcbSupplyState.UnrotatingForPickup:
                     await _handler.SetRotatedAsync(false, token);
@@ -115,7 +121,7 @@ public sealed class PcbSupplier : AutoUnit
         {
             try
             {
-                _handler.SetUpstreamReady(false);
+                _handler.StopUpstream();
             }
             catch (Exception cleanupFailure) when (failure is not null)
             {
@@ -174,20 +180,22 @@ public sealed class PcbSupplier : AutoUnit
         var pcb = _handler.Pcb;
         var rotation = _handler.Rotation;
 
+        if ((_buffer.IsSupplyAtHandoff() || _buffer.IsSupplyInside()) && _handler.PcbReleased)
+        {
+            return _buffer.CanExitSupply()
+                ? PcbSupplyState.MovingFromHandoff
+                : PcbSupplyState.WaitingForPlacementLift;
+        }
+
         if (_buffer.IsSupplyAtHandoff())
         {
             return _buffer.IsPlacementSecuredAtHandoff()
-                || _handler.Gripper == PcbSupplyCylinderState.Backward
-                    && _handler.IpmFixer == PcbSupplyCylinderState.Backward
                 ? PcbSupplyState.ReleasingPcb
                 : PcbSupplyState.WaitingForPlacement;
         }
 
         if (_buffer.IsSupplyInside() && pcb != PcbSupplyPcbState.Secured)
         {
-            if (_handler.Gripper == PcbSupplyCylinderState.Backward
-                && _handler.IpmFixer == PcbSupplyCylinderState.Backward)
-                return PcbSupplyState.ReleasingPcb;
             throw new InvalidOperationException("Supply PCB holding feedback was lost inside the handoff zone. Check both handlers before resuming.");
         }
 

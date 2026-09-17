@@ -124,11 +124,19 @@ public sealed class IoTests
         Assert.Equal(82, inputs[InputIo.NgShuttleCarrierDetected]);
         Assert.Equal(84, inputs[InputIo.NgConveyorPosition1Occupied]);
         Assert.Equal(85, inputs[InputIo.NgConveyorPosition2Occupied]);
-        Assert.Equal(91, inputs[InputIo.MainConveyorEntryCarrierDetected]);
-        Assert.Equal(92, inputs[InputIo.MainConveyorExitCarrierDetected]);
+        Assert.Equal(56, inputs[InputIo.MainConveyorEntryCarrierDetected]); // DI-128
+        Assert.Equal(68, inputs[InputIo.MainConveyorExitCarrierDetected]); // DI-134
+        Assert.Equal(62, inputs[InputIo.BoltFasteningHeatSink1Present]); // DI-12E
+        Assert.Equal(63, inputs[InputIo.BoltFasteningHeatSink2Present]); // DI-12F
+        Assert.Equal(69, inputs[InputIo.InspectionHeatSink1Present]); // DI-135
+        Assert.Equal(70, inputs[InputIo.InspectionHeatSink2Present]); // DI-136
         Assert.Equal(20, inputs[InputIo.PcbSupplyRotated]);
-        Assert.Equal(22, inputs[InputIo.PcbSupplyGripperClosed]);
-        Assert.Equal(24, inputs[InputIo.PcbSupplyIpmFixerForward]);
+        Assert.Equal(22, inputs[InputIo.PcbSupplyPcbDetected]); // DI-106
+        Assert.Equal(24, inputs[InputIo.PcbSupplyGripperClosed]); // DI-108
+        Assert.Equal(25, inputs[InputIo.PcbSupplyGripperOpen]); // DI-109
+        Assert.Equal(28, inputs[InputIo.PcbSupplyIpmFixerForward]); // DI-10C
+        Assert.Equal(-1, inputs[InputIo.PcbSupplyIpmFixerBackward]); // Awaiting field confirmation.
+        Assert.Null(settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber);
 
         var outputs = hardware.OfType<IoHardwareSettings>().SelectMany(section => section.Outputs).ToArray();
         Assert.Equal(Enum.GetValues<OutputIo>().Order(), outputs.Select(pair => pair.Key).Order());
@@ -151,6 +159,17 @@ public sealed class IoTests
             Assert.Equal(up, head.Feedback!.OnInput);
             Assert.Equal(down, head.Feedback.OffInput);
         }
+
+        var io = new VirtualIoService(settings.PcbSupplyHardware.Outputs, new());
+        io.SetInput(InputIo.PcbSupplyIpmFixerBackward, true);
+        var status = new IoSignals([settings.PcbSupplyHardware], io);
+        var unassigned = status.Inputs[InputIo.PcbSupplyIpmFixerBackward];
+        Assert.Null(unassigned.Number);
+        Assert.Equal("—", unassigned.Address);
+        Assert.Null(unassigned.IsOn);
+        var fixer = status.Outputs[OutputIo.PcbSupplyIpmFixerForward];
+        Assert.Equal("024", fixer.Address);
+        Assert.False(fixer.IsMatched);
     }
 
     [Fact]

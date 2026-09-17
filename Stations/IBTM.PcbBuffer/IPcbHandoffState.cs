@@ -8,3 +8,13 @@ public interface IPcbHandoffState
 
     bool PcbSecured { get; }
 }
+
+public interface IPcbHandoffReceiver : IPcbHandoffState
+{
+    bool HandlerRaised { get; }
+}
+
+public interface IPcbHandoffSource : IPcbHandoffState
+{
+    bool PcbReleased { get; }
+}

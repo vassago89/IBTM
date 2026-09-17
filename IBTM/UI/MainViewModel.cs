@@ -1,11 +1,13 @@
 using System;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.UI;
@@ -47,6 +49,16 @@ public partial class MainViewModel : ObservableObject
     private readonly IAsyncRelayCommand[] _recipeEditingCommands;
     private int _stateRefreshQueued;
     private bool _shuttingDown;
+    private readonly DiagnosticWindows _windows;
+    private readonly ApplicationLog _log;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ControlsEnabled), nameof(OutputsWindowEnabled))]
+    [NotifyCanExecuteChangedFor(nameof(OpenOutputsCommand))]
+    private bool _isClosing;
+    [ObservableProperty]
+    private string? _closeError;
+    [ObservableProperty]
+    private string? _selectedRecipeFile;
 
     [ObservableProperty]
     private string? _resetError;
@@ -64,7 +76,9 @@ public partial class MainViewModel : ObservableObject
         RecipeEditor recipeEditor,
         MachineState state,
         DriverSettings drivers,
-        MachineController machine)
+        MachineController machine,
+        DiagnosticWindows windows,
+        ApplicationLog log)
     {
         Operation = operationViewModel;
         _teachingViewModel = teachingViewModel;
@@ -73,6 +87,8 @@ public partial class MainViewModel : ObservableObject
         RecipeEditor = recipeEditor;
         _state = state;
         _machine = machine;
+        _windows = windows;
+        _log = log;
         var controlVirtual = drivers.Control == ControlDriver.Virtual;
         var cameraVirtual = drivers.Camera == CameraDriver.Virtual;
         var boltVirtual = drivers.Bolt == BoltDriver.Virtual;
@@ -131,7 +147,9 @@ public partial class MainViewModel : ObservableObject
     {
         get
         {
-            return _state.ManualMode
+            return !_shuttingDown
+                && !IsClosing
+                && _state.ManualMode
                 && !_state.IsRunning
                 && Array.TrueForAll(_recipeEditingCommands, static command => !command.IsRunning);
         }
@@ -165,7 +183,7 @@ public partial class MainViewModel : ObservableObject
     {
         get
         {
-            return !_shuttingDown && !_state.Display.AutoMode;
+            return !_shuttingDown && !IsClosing && !_state.Display.AutoMode;
         }
     }
 
@@ -173,7 +191,7 @@ public partial class MainViewModel : ObservableObject
     {
         get
         {
-            return !_shuttingDown;
+            return !_shuttingDown && _settingsViewModel.ActiveBoltDriver != BoltDriver.Io;
         }
     }
 
@@ -185,6 +203,92 @@ public partial class MainViewModel : ObservableObject
                 && (SelectedPage is AppPage.Operation or AppPage.Settings or AppPage.ManualHardware
                     || !RecipeEditor.SaveCommand.IsRunning && !RecipeEditor.LoadCommand.IsRunning);
         }
+    }
+
+    public bool ControlsEnabled
+    {
+        get
+        {
+            return !IsClosing;
+        }
+    }
+
+    partial void OnSelectedRecipeFileChanged(string? value)
+    {
+        if (value is null)
+            return;
+        // File selection is an action: clear it so the same recipe can be chosen again.
+        SelectedRecipeFile = null;
+        if (RecipeEditingEnabled)
+            RecipeEditor.LoadCommand.Execute(value);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenDiagnostic))]
+    private void OpenInputs()
+    {
+        _windows.OpenInputs();
+    }
+
+    [RelayCommand(CanExecute = nameof(OutputsWindowEnabled))]
+    private void OpenOutputs()
+    {
+        _windows.OpenOutputs();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenDiagnostic))]
+    private void OpenMotion()
+    {
+        _windows.OpenMotion();
+    }
+
+    [RelayCommand(CanExecute = nameof(AdcProtocolEnabled))]
+    private void OpenAdcProtocol()
+    {
+        _windows.OpenAdcProtocol();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenDiagnostic))]
+    private void OpenLogs()
+    {
+        _windows.OpenLogs();
+    }
+
+    private bool CanOpenDiagnostic()
+    {
+        return !IsClosing && !_shuttingDown;
+    }
+
+    public async Task<bool> TryCloseAsync()
+    {
+        IsClosing = true;
+        CloseError = null;
+        _windows.PrepareShutdown();
+        try
+        {
+            await CommandShutdown.WaitAsync(
+                _machine.ShutdownAsync(),
+                _windows.ShutdownAsync(),
+                ShutdownAsync());
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _log.Error("Main window shutdown failed.", exception);
+            var errors = exception is AggregateException aggregate
+                ? aggregate.Flatten().InnerExceptions.Select(error => error.Message).Distinct()
+                : [exception.Message];
+            CloseError = "Device stop or shutdown could not be confirmed.\n"
+                + "Check that the equipment is safely stopped before exiting.\n\n"
+                + string.Join("\n", errors)
+                + "\n\nExit the application anyway? Full details are saved in the log.";
+            IsClosing = false;
+            return false;
+        }
+    }
+
+    public void ApproveUnconfirmedExit()
+    {
+        _log.Write("Operator approved application exit after shutdown failure; device stop is unconfirmed.");
     }
 
     public Task ShutdownAsync()
@@ -210,8 +314,6 @@ public partial class MainViewModel : ObservableObject
     private async Task ResetAsync()
     {
         // Acknowledge even when hardware recovery is blocked; the controller owns admission.
-        if (!CanReset())
-            return;
         ResetError = null;
         Trace.TraceInformation("On-screen RESET requested.");
         try
@@ -237,7 +339,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanNavigate))]
     private async Task NavigateAsync(AppPage page)
     {
-        if (NavigateCommand.IsRunning || page == SelectedPage || !CanNavigate(page))
+        if (page == SelectedPage)
             return;
 
         NavigationError = null;
@@ -343,6 +445,9 @@ public partial class MainViewModel : ObservableObject
                 OnPropertyChanged(nameof(AdcProtocolEnabled));
                 OnPropertyChanged(nameof(CurrentPageEnabled));
                 OnPropertyChanged(nameof(RecipeEditingEnabled));
+                OpenOutputsCommand.NotifyCanExecuteChanged();
+                if (!OutputsWindowEnabled)
+                    _windows.CloseOutputs();
                 NavigateCommand.NotifyCanExecuteChanged();
                 var showOperation = _state.AutomaticRunning && SelectedPage != AppPage.Operation
                     || !_state.ManualMode

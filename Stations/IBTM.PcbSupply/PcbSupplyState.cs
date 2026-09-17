@@ -34,6 +34,12 @@ public enum PcbSupplyState
     [Description("Releasing PCB")]
     ReleasingPcb,
 
+    [Description("Waiting for Placement Handler Up")]
+    WaitingForPlacementLift,
+
+    [Description("Leaving Handoff in XY")]
+    MovingFromHandoff,
+
     [Description("Unrotating for Pickup")]
     UnrotatingForPickup,
 }

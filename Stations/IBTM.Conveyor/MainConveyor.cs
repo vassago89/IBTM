@@ -26,6 +26,9 @@ public sealed class MainConveyor : AutoUnit
     // Arrival history for the selected transfer; Heat Sink 1 can pass the sensor during the push.
     private bool _heatSink1Arrived;
     private bool _repeat;
+    // Commissioning inputs, kept only for this application session.
+    private volatile bool _testUpstreamCarrierAvailable;
+    private volatile bool _testDownstreamReady;
 
     public MainConveyor(
         IIoService io,
@@ -56,6 +59,60 @@ public sealed class MainConveyor : AutoUnit
     }
 
     public override event Action? Changed;
+
+    public bool UpstreamCarrierAvailable
+    {
+        get
+        {
+            return _io.GetInput(InputIo.AutoMode)
+                ? _testUpstreamCarrierAvailable
+                : _io.GetInput(InputIo.MainConveyorAvailableFromFront2);
+        }
+    }
+
+    public bool DownstreamReady
+    {
+        get
+        {
+            return _io.GetInput(InputIo.AutoMode)
+                ? _testDownstreamReady
+                : _io.GetInput(InputIo.MainConveyorReadyFromRear);
+        }
+    }
+
+    public bool TestUpstreamCarrierAvailable
+    {
+        get
+        {
+            return _testUpstreamCarrierAvailable;
+        }
+        set
+        {
+            // The selector contact is ON in teaching/manual mode.
+            value = value && _io.IsReady && _io.GetInput(InputIo.AutoMode);
+            if (_testUpstreamCarrierAvailable == value)
+                return;
+            _testUpstreamCarrierAvailable = value;
+            Changed?.Invoke();
+        }
+    }
+
+    public bool TestDownstreamReady
+    {
+        get
+        {
+            return _testDownstreamReady;
+        }
+        set
+        {
+            value = value && _io.IsReady && _io.GetInput(InputIo.AutoMode);
+            if (_testDownstreamReady == value)
+                return;
+            _testDownstreamReady = value;
+            Changed?.Invoke();
+        }
+    }
+
     public bool RunCommandOn
     {
         get
@@ -123,7 +180,7 @@ public sealed class MainConveyor : AutoUnit
 
         if (ExitCarrierDetected)
         {
-            return _io.GetInput(InputIo.MainConveyorReadyFromRear)
+            return DownstreamReady
                 ? MainConveyorState.DischargingInspectionCarrier
                 : MainConveyorState.WaitingForRearEquipment;
         }
@@ -136,7 +193,7 @@ public sealed class MainConveyor : AutoUnit
                 return MainConveyorState.DischargingInspectionCarrier;
 
             case ConveyorTransfer.DischargingInspectionToExit:
-                return _io.GetInput(InputIo.MainConveyorReadyFromRear)
+                return DownstreamReady
                     ? MainConveyorState.DischargingInspectionCarrier
                     : MainConveyorState.WaitingForRearEquipment;
 
@@ -167,8 +224,7 @@ public sealed class MainConveyor : AutoUnit
         }
 
         if (_placementWork.CarrierPresent
-            && !_placementWork.CarrierSeated
-            && !_repeat)
+            && !_placementWork.CarrierSeated)
         {
             return MainConveyorState.SeatingPcbPlacementCarrier;
         }
@@ -262,15 +318,17 @@ public sealed class MainConveyor : AutoUnit
             _boltFastening.ReleaseAsync(cancellationToken),
             _inspection.ReleaseAsync(cancellationToken));
 
-        // TEMP: until the front sensor is installed, stop at Station 1 and keep its plate down.
-        if (_placement.CarrierPresent)
+        if (EntryCarrierDetected)
             return;
 
         Exception? failure = null;
         try
         {
             StartMotor(cancellationToken, reverse: true);
-            await _placement.WaitForCarrierAsync(cancellationToken);
+            await _io.WaitForInputAsync(
+                InputIo.MainConveyorEntryCarrierDetected,
+                true,
+                cancellationToken);
         }
         catch (Exception exception)
         {
@@ -369,8 +427,8 @@ public sealed class MainConveyor : AutoUnit
         var state = State;
         TraceStep(state, workId: _transferJob?.Id, waitingFor: state switch
         {
-            MainConveyorState.WaitingForFrontCarrier => "MainConveyorAvailableFromFront2=ON",
-            MainConveyorState.WaitingForRearEquipment => "MainConveyorReadyFromRear=ON",
+            MainConveyorState.WaitingForFrontCarrier => "Front 2 Available=ON (teaching: TEST, auto: DI)",
+            MainConveyorState.WaitingForRearEquipment => "Rear Ready=ON (teaching: TEST, auto: DI)",
             MainConveyorState.Idle => "station work complete and destination vacant",
             MainConveyorState.CarrierPositionUnknown => "confirm carrier position before resuming",
             _ => null,
@@ -478,7 +536,7 @@ public sealed class MainConveyor : AutoUnit
     {
         get
         {
-            return CanOfferToRear && _io.GetInput(InputIo.MainConveyorReadyFromRear);
+            return CanOfferToRear && DownstreamReady;
         }
     }
 
@@ -494,10 +552,7 @@ public sealed class MainConveyor : AutoUnit
     {
         get
         {
-            var placementReady = _repeat
-                ? _placementWork.CarrierPresent
-                : _placementWork.CanTransfer;
-            return placementReady && _boltFasteningWork.CanReceive;
+            return _placementWork.CanTransfer && _boltFasteningWork.CanReceive;
         }
     }
 
@@ -506,7 +561,7 @@ public sealed class MainConveyor : AutoUnit
         get
         {
             return _placementWork.CanReceive
-                && (!_repeat && _io.GetInput(InputIo.MainConveyorAvailableFromFront2)
+                && (!_repeat && UpstreamCarrierAvailable
                     || EntryCarrierDetected);
         }
     }
@@ -523,8 +578,10 @@ public sealed class MainConveyor : AutoUnit
     private void UpdateSmema()
     {
         var rearAvailable = CanOfferToRear;
-        _io.SetOutput(OutputIo.MainConveyorReadyToFront2, !_repeat && _placementWork.CanReceive && !rearAvailable);
-        _io.SetOutput(OutputIo.MainConveyorAvailableToRear, rearAvailable);
+        _io.SetAutomaticSmemaOutput(
+            OutputIo.MainConveyorReadyToFront2,
+            !_repeat && _placementWork.CanReceive && !rearAvailable);
+        _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorAvailableToRear, rearAvailable);
     }
 
     private async Task ReceiveAtPlacementAsync(CancellationToken cancellationToken)
@@ -537,7 +594,7 @@ public sealed class MainConveyor : AutoUnit
                 : ConveyorTransfer.ReceivingBeforeEntry;
         }
 
-        _io.SetOutput(OutputIo.MainConveyorAvailableToRear, false);
+        _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorAvailableToRear, false);
         Exception? failure = null;
         try
         {
@@ -548,7 +605,7 @@ public sealed class MainConveyor : AutoUnit
 
             RequireSeatingPushPosition(_placement);
             if (!_repeat && _transfer == ConveyorTransfer.ReceivingBeforeEntry)
-                _io.SetOutput(OutputIo.MainConveyorReadyToFront2, true);
+                _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorReadyToFront2, true);
 
             StartMotor(cancellationToken);
             if (_transfer == ConveyorTransfer.ReceivingBeforeEntry)
@@ -560,7 +617,7 @@ public sealed class MainConveyor : AutoUnit
                 _transfer = ConveyorTransfer.ReceivingAfterEntry;
             }
 
-            _io.SetOutput(OutputIo.MainConveyorReadyToFront2, false);
+            _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorReadyToFront2, false);
             await CompleteSeatingPushAsync(_placementWork, cancellationToken);
         }
         catch (Exception exception)
@@ -695,8 +752,8 @@ public sealed class MainConveyor : AutoUnit
                 : ConveyorTransfer.DischargingInspectionToExit;
         }
 
-        _io.SetOutput(OutputIo.MainConveyorReadyToFront2, false);
-        _io.SetOutput(
+        _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorReadyToFront2, false);
+        _io.SetAutomaticSmemaOutput(
             OutputIo.MainConveyorAvailableToRear,
             _transfer == ConveyorTransfer.DischargingInspectionToExit
                 || ExitCarrierDetected);
@@ -774,7 +831,14 @@ public sealed class MainConveyor : AutoUnit
             _transfer = ConveyorTransfer.DischargingInspectionFromExit;
         }
 
-        if (input is InputIo.MainConveyorAvailableFromFront2
+        if (input == InputIo.AutoMode && !value)
+        {
+            _testUpstreamCarrierAvailable = false;
+            _testDownstreamReady = false;
+        }
+
+        if (input is InputIo.AutoMode
+            or InputIo.MainConveyorAvailableFromFront2
             or InputIo.MainConveyorReadyFromRear
             or InputIo.MainConveyorEntryCarrierDetected
             or InputIo.MainConveyorExitCarrierDetected)

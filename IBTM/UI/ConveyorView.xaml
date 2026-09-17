@@ -170,6 +170,10 @@
             <Border Canvas.Left="18" Canvas.Top="228" Width="172" Style="{StaticResource MapIoCardStyle}">
                 <StackPanel>
                     <TextBlock Text="FRONT 2 · SMEMA" Style="{StaticResource MapIoTitleStyle}"/>
+                    <CheckBox Content="TEST Available" FontSize="11" Margin="0,0,0,6"
+                        IsChecked="{Binding Conveyor.TestUpstreamCarrierAvailable, Mode=TwoWay}"
+                        IsEnabled="{Binding Signals.Inputs[AutoMode].IsOn, TargetNullValue=False}"
+                        ToolTip="Teaching: TEST only. Auto: DI only. Cleared when teaching turns OFF or the app restarts."/>
                     <DockPanel Margin="0,0,0,4"
                         ToolTip="{Binding Signals.Inputs[MainConveyorAvailableFromFront2].Signal, Converter={StaticResource EnumDescriptionConverter}}">
                         <TextBlock
@@ -373,6 +377,10 @@
                 Style="{StaticResource MapIoCardStyle}">
                 <StackPanel>
                     <TextBlock Text="REAR · SMEMA →" Style="{StaticResource MapIoTitleStyle}"/>
+                    <CheckBox Content="TEST Ready" FontSize="11" Margin="0,0,0,6"
+                        IsChecked="{Binding Conveyor.TestDownstreamReady, Mode=TwoWay}"
+                        IsEnabled="{Binding Signals.Inputs[AutoMode].IsOn, TargetNullValue=False}"
+                        ToolTip="Teaching: TEST only. Auto: DI only. Cleared when teaching turns OFF or the app restarts."/>
                     <DockPanel Margin="0,0,0,4"
                         ToolTip="{Binding Signals.Inputs[MainConveyorReadyFromRear].Signal, Converter={StaticResource EnumDescriptionConverter}}">
                         <TextBlock
@@ -394,7 +402,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Canvas.Left="18" Canvas.Top="324" Width="172" Style="{StaticResource MapIoCardStyle}">
+            <Border Canvas.Left="18" Canvas.Top="348" Width="172" Style="{StaticResource MapIoCardStyle}">
                 <StackPanel>
                     <TextBlock Text="MAIN BELT" Style="{StaticResource MapIoTitleStyle}"/>
                     <DockPanel Margin="0,0,0,4"

@@ -20,7 +20,10 @@ public sealed class PhysicalIoService(
 {
     // Persisted logical address boundary, not the detected AlphaMotion board size.
     private const int AlphaMotionChannelCount = AlphaMotionController.ChannelCount;
-    private readonly InputIo[] _mappedInputs = inputMap.Keys.ToArray();
+    private readonly InputIo[] _mappedInputs = inputMap
+        .Where(mapping => mapping.Value >= 0)
+        .Select(mapping => mapping.Key)
+        .ToArray();
     private readonly bool[] _inputs = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
     private readonly bool[] _inputScan = new bool[Enum.GetValues<InputIo>().Max(input => (int)input) + 1];
     private readonly InputIo[] _changedInputs = new InputIo[inputMap.Count];
@@ -64,7 +67,7 @@ public sealed class PhysicalIoService(
                 log?.Write(stage + " started.");
                 alphaMotion.Initialize();
                 log?.Write(stage + " completed.");
-                stage = "AJIN AxlOpenNoReset initialization / DIO module validation";
+                stage = "AJIN AxlOpen initialization / DIO module validation";
                 log?.Write(stage + " started.");
                 ajin.Initialize();
                 log?.Write(stage + " completed.");
@@ -100,7 +103,7 @@ public sealed class PhysicalIoService(
 
             try
             {
-                foreach (var channel in inputMap.Values.Distinct())
+                foreach (var channel in _mappedInputs.Select(input => inputMap[input]).Distinct())
                 {
                     _ = ReadInput(channel);
                 }
@@ -108,7 +111,7 @@ public sealed class PhysicalIoService(
                 foreach (var output in outputMap.Values)
                 {
                     _ = ReadOutput(output.Number);
-                    if (output.OffNumber is { } offChannel)
+                    if (output.OffNumber is >= 0 and var offChannel)
                     {
                         _ = ReadOutput(offChannel);
                     }
@@ -125,7 +128,7 @@ public sealed class PhysicalIoService(
 
     public bool GetInput(InputIo input)
     {
-        if (!inputMap.ContainsKey(input))
+        if (!inputMap.TryGetValue(input, out var channel) || channel < 0)
             throw new IOException($"DI {input} is unavailable: no configured input address.");
         if (!_ready)
         {
@@ -150,6 +153,9 @@ public sealed class PhysicalIoService(
         var mapping = outputMap[output];
         try
         {
+            // Validate both coils before any write; a missing OFF address is not a single-coil valve.
+            if (mapping.Number < 0 || mapping.OffNumber is < 0)
+                throw new IOException($"DO {output} is unavailable: configure both output addresses before operation.");
             if (mapping.OffNumber is { } offChannel)
             {
                 WriteOutput(value ? offChannel : mapping.Number, false);

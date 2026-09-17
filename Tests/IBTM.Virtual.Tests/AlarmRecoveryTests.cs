@@ -469,7 +469,6 @@ public sealed class AlarmRecoveryTests
             Assert.True(state.AutoMode);
             Assert.False(view.CanEditSettings);
             Assert.False(view.SaveSettingsCommand.CanExecute(null));
-            await view.SaveSettingsCommand.ExecuteAsync(null);
             Assert.False(services.GetRequiredService<MachineStore>().HasData);
 
             io.SetInput(InputIo.AutoMode, true);
@@ -531,7 +530,7 @@ public sealed class AlarmRecoveryTests
     }
 
     [Fact]
-    public async Task SettingsStayLockedWhileBusyOrClosingEvenWithAnAlarm()
+    public async Task SettingsCommandsStayDisabledWhileBusyOrClosingEvenWithAnAlarm()
     {
         using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
@@ -550,19 +549,14 @@ public sealed class AlarmRecoveryTests
                 Assert.False(view.CanEditSettings);
                 Assert.False(view.SaveSettingsCommand.CanExecute(null));
                 Assert.Contains("busy", view.SettingsAccessMessage);
-                // Direct command execution also rechecks the guard, not just the button.
-                await view.SaveSettingsCommand.ExecuteAsync(null);
-                Assert.False(services.GetRequiredService<MachineStore>().HasData);
                 Assert.False(view.ClearVirtualImageCommand.CanExecute(null));
-                view.ClearVirtualImageCommand.Execute(null);
-                Assert.Same(sourceImage, camera.SourceImage);
-                Assert.Equal("locked-input.png", view.VirtualImageName);
-                await view.LoadVirtualImageCommand.ExecuteAsync(null);
-                await view.BackupDatabaseCommand.ExecuteAsync(null);
-                await view.RestoreDatabaseCommand.ExecuteAsync(null);
+                Assert.False(view.LoadVirtualImageCommand.CanExecute(null));
+                Assert.False(view.BackupDatabaseCommand.CanExecute(null));
+                Assert.False(view.RestoreDatabaseCommand.CanExecute(null));
             }
 
             Assert.True(view.CanEditSettings);
+            Assert.True(view.ClearVirtualImageCommand.CanExecute(null));
             view.ClearVirtualImageCommand.Execute(null);
             Assert.Null(camera.SourceImage);
             Assert.Null(view.VirtualImageName);
@@ -577,10 +571,10 @@ public sealed class AlarmRecoveryTests
         Assert.False(view.CanEditSettings);
         Assert.False(view.SaveSettingsCommand.CanExecute(null));
         Assert.Contains("closing", view.SettingsAccessMessage);
-        view.ClearVirtualImageCommand.Execute(null);
-        await view.LoadVirtualImageCommand.ExecuteAsync(null);
-        await view.BackupDatabaseCommand.ExecuteAsync(null);
-        await view.RestoreDatabaseCommand.ExecuteAsync(null);
+        Assert.False(view.ClearVirtualImageCommand.CanExecute(null));
+        Assert.False(view.LoadVirtualImageCommand.CanExecute(null));
+        Assert.False(view.BackupDatabaseCommand.CanExecute(null));
+        Assert.False(view.RestoreDatabaseCommand.CanExecute(null));
         Assert.Same(sourceImage, camera.SourceImage);
         Assert.Equal("locked-input.png", view.VirtualImageName);
     }

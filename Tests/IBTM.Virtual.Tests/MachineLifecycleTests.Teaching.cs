@@ -88,7 +88,7 @@ public sealed partial class MachineLifecycleTests
         MotionGroup group)
     {
         var settings = FlowSettings();
-        settings.PcbPlacementHandler.BufferEntryZ = 8;
+        settings.PcbPlacementHandler.BufferHandoffPosition.Z = 8;
         settings.BoltFastening.SafeZ = 8;
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
@@ -674,7 +674,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task TeachingRequiresTheRecordedAxesHomedAndRechecksBeforeSaving()
+    public async Task PlacementHandoffTeachingRequiresXyzHomeAndKeepsTheCommonZStaged()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);
@@ -685,39 +685,47 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         var probe = probes[MotionGroup.PcbPlacementHandler];
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
-        var safeZ = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.SafeZ);
-        teaching.SelectedPoint = safeZ;
+        Assert.DoesNotContain(teaching.FilteredPoints, point => point.Position.Target == TeachingTarget.SafeZ);
+        var handoff = teaching.FilteredPoints.Single(point => point.Position.Target == TeachingTarget.PlacementBufferHandoff);
+        teaching.SelectedPoint = handoff;
         await placement.MoveAxisAsync(MotionAxis.Z, 7);
         await WaitUntilAsync(() => teaching.CanEditTeaching && teaching.Motion.Axes[MotionAxis.Z].State is not null);
-        var originalZ = settings.PcbPlacementHandler.BufferEntryZ;
+        var originalZ = settings.PcbPlacementHandler.BufferHandoffPosition.Z;
         try
         {
             Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
-            Assert.Equal(originalZ, settings.PcbPlacementHandler.BufferEntryZ);
+            Assert.Equal(originalZ, settings.PcbPlacementHandler.BufferHandoffPosition.Z);
 
-            // Initial setup can establish the travel height after homing Z alone.
+            // The common Z is part of the receiving XYZ, so teaching requires all three axes.
             Assert.True(await placement.HomeAxisAsync(MotionAxis.Z));
             Assert.False(placement.Feedback.GetAxisState(MotionAxis.X).Homed);
             await placement.MoveAxisAsync(MotionAxis.Z, 7);
+            Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
+            await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
+            Assert.Equal(originalZ, handoff.Z);
+
+            await placement.MoveToHorizontalZAsync();
+            Assert.True(await placement.HomeHorizontalAsync());
+            await placement.MoveAxisAsync(MotionAxis.Z, 7);
             await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
-            Assert.Equal(7, settings.PcbPlacementHandler.BufferEntryZ);
+            Assert.Equal(7, handoff.Z);
+            Assert.Equal(originalZ, settings.PcbPlacementHandler.BufferHandoffPosition.Z);
+            await teaching.SaveHandoffSetupCommand.ExecuteAsync(null);
+            Assert.Equal(7, settings.PcbPlacementHandler.BufferHandoffPosition.Z);
+            Assert.True(placement.IsAtHorizontalZ());
             Assert.Null(teaching.SaveError);
 
-            teaching.SelectedPoint = teaching.FilteredPoints.Single(
-                point => point.Position.Target == TeachingTarget.HeatSink1PcbPlacement);
-            Assert.False(teaching.TeachCurrentPositionCommand.CanExecute(null));
-            teaching.SelectedPoint = safeZ;
             await placement.MoveAxisAsync(MotionAxis.Z, 9);
             await WaitUntilAsync(() => teaching.TeachCurrentPositionCommand.CanExecute(null));
             probe.OverrideState = state => state with { Homed = false };
             await teaching.TeachCurrentPositionCommand.ExecuteAsync(null);
 
-            Assert.Equal(7, safeZ.Z);
-            Assert.Equal(7, settings.PcbPlacementHandler.BufferEntryZ);
+            Assert.Equal(7, handoff.Z);
+            Assert.Equal(7, settings.PcbPlacementHandler.BufferHandoffPosition.Z);
             Assert.Equal(7, services.GetRequiredService<MachineStore>().LoadSettings()
-                .Get<PcbPlacementHandlerSettings>().BufferEntryZ);
+                .Get<PcbPlacementHandlerSettings>().BufferHandoffPosition.Z);
             Assert.Contains("Home", teaching.SaveError);
         }
         finally
@@ -1017,7 +1025,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         Assert.True(machine.CanHome);
         await machine.HomeAsync(CancellationToken.None);
-        var supply = services.GetRequiredKeyedService<IAxisMotion>(MotionGroup.PcbSupply);
+        var supply = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply);
         await supply.MoveAxisAsync(MotionAxis.X, settings.PcbSupply.BufferHandoffPosition.X, 1_000);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         Assert.True(state.Buffer.IsSupplyInside());

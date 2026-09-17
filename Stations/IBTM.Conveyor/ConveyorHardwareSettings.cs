@@ -70,8 +70,8 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
             [InputIo.InspectionStopperUp] = 72,
             [InputIo.InspectionBackupPlateUp] = 73,
             [InputIo.InspectionBackupPlateDown] = 74,
-            [InputIo.MainConveyorEntryCarrierDetected] = 91,
-            [InputIo.MainConveyorExitCarrierDetected] = 92,
+            [InputIo.MainConveyorEntryCarrierDetected] = 56,
+            [InputIo.MainConveyorExitCarrierDetected] = 68,
         };
         Outputs = new()
         {

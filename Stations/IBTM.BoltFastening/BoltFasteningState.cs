@@ -25,9 +25,6 @@ public enum BoltFasteningState
     [Description("Moving to PCB Bolt")]
     MovingToPcbBolt,
 
-    [Description("Lowering for PCB Fastening")]
-    LoweringForPcb,
-
     [Description("Shooting Bolt")]
     ShootingBolt,
 
@@ -73,17 +70,11 @@ public enum BoltFasteningState
     [Description("Moving to IPM Seating Bolt")]
     MovingToIpmSeatingBolt,
 
-    [Description("Lowering for IPM Seating")]
-    LoweringForIpmSeating,
-
     [Description("Seating IPM Bolt")]
     SeatingIpm,
 
     [Description("Moving to IPM Final Bolt")]
     MovingToIpmFinalBolt,
-
-    [Description("Lowering for IPM Final")]
-    LoweringForIpmFinal,
 
     [Description("Finalizing IPM Bolt")]
     FinalizingIpm,

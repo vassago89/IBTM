@@ -18,6 +18,12 @@
 | Repeat 왕복 경로와 마지막 유닛 | `IBTM/MachineController.Repeat.cs` |
 | 수동 DO 조작 | `IBTM/MachineController.Outputs.cs`, `IBTM/UI/OutputWindowRow.cs` |
 | 화면 표시 상태 | `IBTM/MachineController.Display.cs`, `IBTM/UI/OperationViewModel.Display.cs` |
+| 메인 창 명령·레시피 파일 선택·종료 대기 | `IBTM/UI/MainViewModel.cs` |
+| 진단 창 생성·재활성화·Owner 관리 | `IBTM/UI/DiagnosticWindows.cs` |
+| ADC 진단 명령·입력값·취소·정지 확인 | `IBTM/UI/AdcProtocolViewModel.cs` |
+| 입력·출력 목록과 새로고침 | `IBTM/UI/InputWindowViewModel.cs`, `OutputWindowViewModel.cs` |
+| 모션 진단 구독·축 명령·창 종료 대기 | `IBTM/UI/MotionWindowViewModel.cs` |
+| 로그 표시·복사·일시정지 | `IBTM/UI/LogWindowViewModel.cs`, `LogTextBox.cs` |
 | 메인 컨베이어 이송·감지 후 밀착 시간 | `Stations/IBTM.Conveyor/MainConveyor.cs`, `ConveyorSettings.cs` |
 | 백업 플레이트·스토퍼 | `Shared/IBTM.Device/ConveyorStation.cs` |
 | Station 3 작업/NG 대기 | `Stations/IBTM.Inspection/InspectionStation.cs`, `InspectionWork.cs` |
@@ -42,18 +48,44 @@
 | DB JSON 저장 | `Shared/IBTM.Storage/MachineStore.cs` |
 | 레시피 이미지 저장·교체 | `IBTM/RecipeStore.cs`, `IBTM/UI/RecipeEditor.cs` |
 
+## 화면과 ViewModel 경계
+
+모든 화면의 명령과 편집값은 XAML에서 해당 ViewModel에 바인딩한다. ADC 진단도 창 객체가 아니라
+`AdcProtocolViewModel`이 포트·슬레이브·레지스터·프리셋 입력과 통신 작업을 소유한다.
+명령의 장치 진입은 기존 `MachineController.RunAdcProtocolAsync`와 `RunBoltTestAsync`를 거친다.
+ADC는 별도 busy 플래그 없이 현재 작업의 취소 소스로 실행 중 여부를 판단한다.
+STOP과 창 닫기는 현재 작업을 취소하고 완료를 기다리며, 모터 정지는 실제 RUN OFF로 확인한다.
+화면의 실행 가능 조건은 `CanExecute`·`IsEnabled`에서 처리하고, 명령 본문에서 같은 조건을 반복 검사하지 않는다.
+장치의 실행권·현재 피드백·인터록과 비동기 대기 후 상태 변화 확인, 입력값 검증은 유지한다.
+모션 진단의 상태 구독은 `Activate`/`Deactivate`, 종료 시 작업 취소·대기는 `ShutdownAsync`에서 찾는다.
+
+`.xaml.cs`에는 `InitializeComponent`, 루트 DataContext 연결, WPF Closing/Closed 이벤트와
+종료 오류 대화상자 표시만 둔다. 비동기 종료 허용 여부와 오류 정보는 ViewModel의 `TryCloseAsync`에서 결정한다.
+메인의 진단 창 열기 명령은 `DiagnosticWindows`로 이어지며, 이 클래스는 창 생성·재활성화·Owner를 관리한다.
+복구창의 Apply는 ViewModel 명령과 `DialogResultBinding`으로 연결한다.
+
+텍스트 선택과 마우스 캡처, 컨트롤 템플릿 동작은 WPF 컨트롤 책임이다.
+`LogTextBox`는 선택 문자열·일시정지 값을 바인딩으로 전달하고, `ComboBoxDropDownButton`은 드롭다운만 연다.
+`App.xaml.cs`는 DI 구성·앱 시작과 종료를 담당하는 진입점으로 유지한다.
+
 ## 막힌 동작을 따라가는 순서
 
 티칭 메뉴는 `Teaching` 하나다. 유닛 목록에서 Supply, Placement, Fastening,
-Inspection, NG Transfer를 선택한다. 인계 위치·이탈 높이·경계는 각각 Supply와 Placement의
+Inspection, NG Transfer를 선택한다. 인계 위치·공통 이동 높이·경계는 각각 Supply와 Placement의
 티칭 목록에 포함되며, 축 피드백과 I/O는 선택 유닛을 따른다. 인계값은 Teach로 임시 보관하고
 두 유닛에서 보이는 `Apply & Save Handoff`로 양쪽 값을 묶어서 적용·저장한다. 유닛을 전환해도 임시값은 유지되며,
 Teaching 메뉴를 나갔다 다시 열면 저장·적용된 설정에서 다시 읽는다.
 
 각 유닛 목록은 작업 위치, 설비 기준값, 계산 위치, 인계 간섭 영역으로 구분한다.
 Supply의 `PCB Give Position`은 XY만 티칭하며 `Transport / Rotation Z`에서 그대로 전달한다.
-Placement는 `PCB Receive Position` → Heat Sink 1/2 안착 순서다. `Post-release Clearance Z`는
-Supply가 해제 후 X로 빠지기 위한 높이다. 체결의 B1/B2는 헤드별 계산 위치이며 Move To로 확인한다.
+Placement는 `PCB Receive Position` → Heat Sink 1/2 안착 순서다.
+체결의 `Safe Z (Travel)`은 공통 이동 높이다. `Shooting Head Fastening Z`는 PCB 체결 높이,
+`Pickup Head Fastening Z`는 IPM 안착·최종 체결 높이다.
+자동 동작은 양쪽 헤드 상승 → Safe Z에서 XY 이동 → 선택 헤드의 체결 Z 이동 → 체결 START → 즉시 해당 헤드 하강 순서다.
+체결기는 회전을, 실린더는 볼트 전진을 담당한다. START 전송 성공 후 하강하며, 하강 중 오류·정지 시 체결기도 정지한다.
+`Bolt Pickup`의 Z는 별도 픽업 높이로 유지한다. 체결의 B1/B2는 헤드별 계산 XY 위치이며
+Move To는 Safe Z에서 위치만 확인한다. 각 Z 티칭값은 설비 설정에 독립적으로 자동 저장된다.
+기존 공통 체결 Z는 두 헤드 체결 Z의 초기값으로 옮기며, 이후에는 서로 영향을 주지 않는다.
 검사 볼트는 Add Bolt로 생성하고 FOV/ROI를 연결한다. 좌표 없는 안내 항목은 목록에 넣지 않는다.
 
 1. XAML의 `Command` / `IsEnabled` 바인딩 이름을 찾는다.
@@ -165,7 +197,8 @@ PCB를 들고 있을 때는 IPM을 내린 상태를 유지하며, 버튼 표시�
 | 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.ExecuteAsync`, `ReadState` | `state`, `_transfer`의 출발·도착·수신/배출 단계, 현재 도착 센서 |
 | PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.RunAsync` 안 `ExecuteAsync`의 `switch (state)`, `PickPcbAsync` | `state`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
 | PCB 안착이 멈춤 | `PcbPlacer.ExecuteAsync`, `PlaceStepAsync`의 `switch (state)` | `heatSink`, `state`, `action`; `action == null`이면 피드백 대기 |
-| 공급·안착이 버퍼에 진입하지 못함 | `BufferStage.CanEnterSupply`, `CanEnterPlacement`, `HasConflict` | 양쪽 현재 위치·Home·이동 피드백, 각 핸들러의 `PcbSecured`, 인계 좌표 |
+| 공급 진입 또는 안착 인수 실린더가 대기함 | `BufferStage.CanEnterSupply`, `CanEnterPlacement`, `HasConflict` | 도착 순서는 무관; Placement Handler Up/Down 입력, 양쪽 현재 위치·Home·정지 피드백, Supply `PcbSecured`, 인계 좌표 |
+| 인수 후 실린더 상승 또는 Supply 복귀가 대기함 | `BufferStage.CanRaisePlacement`, `CanExitSupply`, `PcbSupplier.State` | Supply `PcbReleased`는 그리퍼·IPM 고정 실린더 모두 후퇴 확인; Placement 상승 확인 후 `MovingFromHandoff`에서 다음 PCB 픽업 XY로 복귀 |
 | 픽업 또는 슈팅 볼트 피더가 대기/타임아웃 | 두 피더가 공유하는 `BoltFeeder.ExecuteAsync` | `waitingForBolt`, `_boltDetected`, `TimeoutMilliseconds`; 슈팅 출력은 `ShootingBoltFeeder.SetFeeding` |
 | 볼트 체결이 멈춤 | `BoltFasteningStation.RunCarrierAsync`, `ExecuteAsync`, `FastenAsync` | `state`, `head`, `pass`, `_pendingFastening`의 볼트·캐리어·패스 |
 | Station 3 검사/NG 이송이 대기 | `InspectionStation.ExecuteAsync`, `ExecuteInspectionAsync` | `transferState`, `inspectionState`, `bolt`; `transfer == null`이면 이송 명령 없이 피드백을 기다림 |
@@ -183,15 +216,36 @@ PCB 공급의 그립·해제 출력 순서는 `ExecuteAsync`의 해당 `case`에
 `_pickStep`은 전단 캐리어에서 확인한 PCB 슬롯 이력이며 Stop·재시작 사이에도 유지한다.
 `OnHandlerChanged`가 정지 중에도 전단 캐리어 이탈을 받아 다음 캐리어의 PCB1을 선택한다.
 현재 위치나 PCB 센서값으로 이 슬롯 이력을 대신하지 않는다.
+Front 1 Ready는 캐리어 도착 후에도 유지하고, PCB2까지 확인/확보하여 운반 높이로 복귀한 뒤 OFF한다.
+Available OFF가 들어오면 다음 캐리어의 Ready를 ON한다. `PcbSupplyHandler.StopUpstream`은
+현재 Available이 ON이면 Ready를 그대로 두며, OFF일 때만 대기 중 Ready를 끈다.
+입력 읽기 실패도 캐리어 없음으로 취급하지 않는다. 전체 STOP과 공급 루프 종료가 같은 메서드를 사용한다.
+시운전 입력은 `PcbSupplyHandler.TestUpstreamCarrierAvailable`,
+`MainConveyor.TestUpstreamCarrierAvailable`, `MainConveyor.TestDownstreamReady`의 메모리 bool이다.
+티칭에서는 메모리 값만, 자동에서는 실제 SMEMA DI만 판단하며 기존 `Changed`로 변경을 통지한다.
+Operation 화면의 SMEMA 카드에 직접 바인딩하며 저장·새 I/O 주소·별도 감시 루프는 없다.
+테스트 값 설정과 실제 사용 모두 현재 티칭 접점 `InputIo.AutoMode=ON`을 확인한다.
+UI는 같은 입력의 관측값으로 활성화한다. 티칭 OFF 입력은 세 값을 지워 재진입 시 복원하지 않는다.
+STOP은 값을 유지하고 프로그램을 다시 실행하면 OFF다. Front 1은 선택된 Available 소스가
+OFF→ON되어야 다음 캐리어로 처리한다. 선택기 피드백 오류나 일반 I/O 통신 오류는 여전히 오류다.
+시퀀스의 SMEMA 출력은 `IIoService.SetAutomaticSmemaOutput`을 사용하며 티칭에서는 쓰지 않는다.
+초기화·티칭 진입 시 기존 STOP 경로로 외부 SMEMA를 OFF한다. OUTPUTS 창은 원래 `SetOutput`을
+직접 사용하므로 티칭에서도 수동 ON/OFF가 가능하다. 이 창의 기존 조작 조건에 새 제한을 넣지 않았다.
 `SupplyKeepsCheckedSlotsUntilUpstreamCarrierChanges`가 같은 캐리어 재개, 정지 중 교체,
 픽업 감지 순간의 Stop과 전단 배출 허용을 확인한다.
 `PickPcbAsync`는 픽업 중 전단 캐리어 이탈을 받으면 그 픽업을 취소한다. 늦게 끝난 이전 픽업은
 새 캐리어의 슬롯 이력을 넘기지 않으며 `SupplyDoesNotAdvanceTheNewCarrierWhenAnOldPickupFinishes`로 확인한다.
 수동 한 축 이동은 `TeachingViewModel.StepAsync` → `PcbSupplyHandler.MoveAxisAsync` →
-`MotionService.MoveAxisAsync` 순서다. 공급 핸들러에서 버퍼 내부 Y/Z 이동을 막고,
+`MotionService.MoveAxisAsync` 순서다. 공급 핸들러에서 인계 구역 내부 Z 이동을 막고,
 모션 계층에서 축 속도·범위·안전 Z·취소를 처리한다. 자동/수동 인계 진입은
-`MoveToHandoffAsync`에서 Rotation Z 유지 → Y → X 순서로 진행한다. 별도 인계 하강은 없으며,
-해제 후 이탈만 `MoveClearAsync`에서 Clear Z → X 원점 순서로 진행한다.
+`MoveToHandoffAsync`에서 Rotation Z 확보 → XY 동시 이동 순서로 진행한다. 픽업과 티칭도
+같은 `IXyMotion.MoveToXYAsync`를 사용하며, 픽업은 XY 도착 후 해당 PCB Z로 내려간다.
+인계 구역 안에서도 Rotation Z에서 X/Y 조작을 허용하며 Placement 간섭 조건은 유지한다. 별도 인계 하강은 없으며,
+해제 후에는 두 Supply 실린더의 후퇴 완료 → Placement Handler Up 확인 → `MoveFromHandoffAsync`의
+XY 동시 복귀 순서다. Rotation Z를 유지하며, PCB1 후에는 PCB2 X와 Carrier Y, PCB2 후에는
+다음 캐리어의 PCB1 X와 Carrier Y로 돌아간다. 별도 Clear Z나 복귀 좌표는 없다.
+Placement는 실린더만 올리고 XYZ를 유지하다가 Supply가 영역 밖으로 나간 뒤 축을 이동한다.
+공유 영역에서 Supply 수평 이동 중 Placement 상승 확인을 잃으면 기존 `HasConflict` 감시가 정지·알람을 처리한다.
 
 PCB 안착의 XY 이동은 `PcbPlacementHandler.MoveToXYAsync`, Z 이동은 `MoveAxisAsync`에서
 장치 호출로 이어진다. `PressPcbAsync`의 `_pressingHeatSink`는 중간 정지 후 눌러 붙이기를
@@ -374,11 +428,19 @@ AJIN/AlphaMotion 래퍼는 각 SDK 대역 테스트 프로젝트에서 해당 �
 - IO 기본값을 코드에서 바꿔도 이미 저장된 DB 값이 자동으로 바뀌지는 않는다.
 - 실장비 데이터와 설정은 이번 코드 정리에서 변경하지 않았다. 백업 후 현장에서 확인한다.
 
-## 현장에 남은 임시 전제
+## Repeat 운전 범위
 
-Repeat는 캐리어 하나 기준이다. 메인 앞단 센서 설치 전에는 역방향 반환을 Station 1 센서에서
-멈추고 다음 전진은 Station 2부터 처리한다. 전용 앞단 센서가 설치되면
-`MainConveyor.ReturnToStartAsync`와 `MachineController.Repeat.cs`의 TEMP 경로를 같이 확인한다.
+Repeat는 PCB가 이미 안착된 캐리어 하나를 메인 입구(첫 번째) 센서에 놓고 시작한다.
+첫 Station 1 도착부터 기존 PCB를 집어 왕복한다. 역방향은 메인 입구 전용 센서까지 복귀하고,
+전진은 Station 1의 HS1 감지 후 설정된 추가 이송 시간과 캐리어 상승을 그대로 거친다.
+Placement는 기존 PCB를 집어 기존 인계 좌표까지 왕복한 뒤 원래 자리에 재안착·압착한다.
+Supply에서 새 PCB를 받지 않으며, Placement가 켜져 있으면 왕복 완료 후 다음 공정으로 보낸다.
+일반 운전과 Repeat 모두 Pickup Feeder를 끄면 픽업 볼트 공급 대기·픽업·IPM 가체결·본체결을 제외한다.
+Shooting Bolt Feeder를 끄면 슈팅 공급 대기·볼트 발사·슈팅 헤드 체결을 제외한다.
+둘 다 끄면 체결 없이 다음 공정으로 넘긴다. 검사는 그대로 진행하며, 제외한 볼트에는 OK 결과를 만들지 않는다.
+꺼진 헤드의 신규 운전 준비 확인은 생략하지만, 미수거 결과나 중단된 IO 체결은 Recovery에서 처리한다.
+공유 XYZ 이동·캐리어 이송에 필요한 양쪽 헤드 상승과 Safe Z 확인은 유지한다.
+관련 코드는 `PcbPlacer.Repeat.cs`, `MainConveyor.ReturnToStartAsync`, `MachineController.Repeat.cs`다.
 
 NG Transfer까지만 켠 Repeat와 실제 셔틀에 놓는 동작은 다르다.
 전자는 셔틀 위치에서 내려도 그리퍼를 풀지 않고 돌아온다.

@@ -14,6 +14,7 @@ public sealed class VirtualMachine
 
     private readonly VirtualIoService _io;
     private readonly IReadOnlyList<VirtualMotionService> _motions;
+    private readonly Func<bool>? _incomingCarrierHasPcbs;
     private readonly bool[] _supplyPcbs = new bool[2];
     private int _supplySmemaVersion;
     private int _mainConveyorTransferVersion;
@@ -37,11 +38,16 @@ public sealed class VirtualMachine
     private bool _ngCarrierHeld;
     private bool _ngCarrierHeatSink1;
     private bool _ngCarrierHeatSink2;
+    private (bool Pcb1, bool Pcb2) _ngCarrierPcbs;
 
-    public VirtualMachine(VirtualIoService io, IReadOnlyList<VirtualMotionService> motions)
+    public VirtualMachine(
+        VirtualIoService io,
+        IReadOnlyList<VirtualMotionService> motions,
+        Func<bool>? incomingCarrierHasPcbs = null)
     {
         _io = io;
         _motions = motions;
+        _incomingCarrierHasPcbs = incomingCarrierHasPcbs;
         io.InputChanged += OnInputChanged;
         io.OutputChanged += OnOutputChanged;
         io.OutputApplied += ApplyPhysicalOutput;
@@ -357,10 +363,7 @@ public sealed class VirtualMachine
         }
 
         var version = Interlocked.Increment(ref _supplySmemaVersion);
-        if (value)
-        {
-            _ = TransferSupplyCarrierAsync(version);
-        }
+        _ = TransferSupplyCarrierAsync(value, version);
     }
 
     private Task ApplyPlacementVacuumAsync(bool value, int version)
@@ -463,38 +466,31 @@ public sealed class VirtualMachine
             });
     }
 
-    private Task TransferSupplyCarrierAsync(int version)
+    private Task TransferSupplyCarrierAsync(bool ready, int version)
     {
-        var responseVersion = _io.AutoResponseVersion;
-        void PresentCarrier()
-        {
-            if (!SupplyReady(version))
+        return RespondAsync(
+            _io.AutoResponseVersion,
+            () =>
             {
-                return;
-            }
+                if (_supplySmemaVersion != version
+                    || _io.GetOutput(OutputIo.PcbSupplyReadyToFront1) != ready)
+                    return;
 
-            _supplyPcbs[0] = true;
-            _supplyPcbs[1] = true;
-            _io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
-        }
-
-        if (_io.GetInput(InputIo.PcbSupplyAvailableFromFront1))
-        {
-            return RespondAsync(
-                responseVersion,
-                () =>
+                if (ready)
                 {
-                    if (!SupplyReady(version))
-                    {
+                    if (_io.GetInput(InputIo.PcbSupplyAvailableFromFront1))
                         return;
-                    }
-
+                    _supplyPcbs[0] = true;
+                    _supplyPcbs[1] = true;
+                    _io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+                }
+                else
+                {
+                    Array.Clear(_supplyPcbs);
                     _io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
-                    _ = RespondAsync(responseVersion, PresentCarrier);
-                });
-        }
-
-        return RespondAsync(responseVersion, PresentCarrier);
+                    UpdateSupplyDetection();
+                }
+            });
     }
 
     private Task TransferMainCarrierAsync(int version)
@@ -599,11 +595,13 @@ public sealed class VirtualMachine
                             }
 
                             _io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
+                            // Repeat starts with PCBs already seated on the incoming carrier.
+                            var hasPcbs = _incomingCarrierHasPcbs?.Invoke() == true;
                             var carrier = _mainEntryCarrier ?? (
                                 HeatSink1: true,
                                 HeatSink2: true,
-                                Pcb1: false,
-                                Pcb2: false);
+                                Pcb1: hasPcbs,
+                                Pcb2: hasPcbs);
                             _mainEntryCarrier = null;
                             _placedPcbs[0] = carrier.Pcb1;
                             _placedPcbs[1] = carrier.Pcb2;
@@ -789,6 +787,7 @@ public sealed class VirtualMachine
                             _ngCarrierHeld = true;
                             _ngCarrierHeatSink1 = _io.GetInput(InputIo.InspectionHeatSink1Present);
                             _ngCarrierHeatSink2 = _io.GetInput(InputIo.InspectionHeatSink2Present);
+                            _ngCarrierPcbs = CarrierPcbs(InputIo.InspectionHeatSink1Present);
                             _io.SetInput(InputIo.NgCarrierDetected, true);
                             ClearCarrier(InputIo.InspectionHeatSink1Present, InputIo.InspectionHeatSink2Present);
                         }
@@ -821,6 +820,7 @@ public sealed class VirtualMachine
                         {
                             _ngCarrierHeld = false;
                             _io.SetInput(InputIo.NgCarrierDetected, false);
+                            _carrierPcbs[InputIo.InspectionHeatSink1Present] = _ngCarrierPcbs;
                             _io.SetInputs(
                                 (InputIo.InspectionHeatSink1Present, _ngCarrierHeatSink1),
                                 (InputIo.InspectionHeatSink2Present, _ngCarrierHeatSink2));
@@ -904,12 +904,6 @@ public sealed class VirtualMachine
     {
         await Task.Delay(TransferDelayMilliseconds).ConfigureAwait(false);
         _io.ApplyAutoResponse(responseVersion, response);
-    }
-
-    private bool SupplyReady(int version)
-    {
-        return _supplySmemaVersion == version
-            && _io.GetOutput(OutputIo.PcbSupplyReadyToFront1);
     }
 
     private static bool IsAt(double x, double y, AxisPosition position)

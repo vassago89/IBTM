@@ -6,6 +6,7 @@
     xmlns:ui="clr-namespace:IBTM.UI"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:PcbPlacementRecoveryViewModel, IsDesignTimeCreatable=False}"
+    ui:DialogResultBinding.Value="{Binding DialogResult}"
     Title="PCB Placement Recovery"
     Width="520"
     Height="390"
@@ -22,7 +23,7 @@
         </Grid.RowDefinitions>
 
         <TextBlock Text="PCB Placement Recovery" Style="{StaticResource TitleStyle}"/>
-        <TextBlock Grid.Row="1" Margin="0,5,0,16" Text="Check heat sinks with PCB already placed. Unchecked heat sinks run again."
+        <TextBlock Grid.Row="1" Margin="0,5,0,16" Text="{Binding Instructions}"
             TextWrapping="Wrap" Style="{StaticResource PageSubtitleStyle}"/>
 
         <Border Grid.Row="2" Style="{StaticResource CardStyle}" Padding="1">
@@ -67,7 +68,7 @@
 
         <StackPanel Grid.Row="3" Margin="0,14,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Content="Cancel" IsCancel="True" Style="{StaticResource SecondaryButtonStyle}" MinWidth="78" Margin="0,0,6,0"/>
-            <Button Content="Apply" IsDefault="True" Click="OnApply" Style="{StaticResource PrimaryButtonStyle}" MinWidth="78"/>
+            <Button Content="Apply" IsDefault="True" Command="{Binding ApplyCommand}" Style="{StaticResource PrimaryButtonStyle}" MinWidth="78"/>
         </StackPanel>
     </Grid>
 </Window>

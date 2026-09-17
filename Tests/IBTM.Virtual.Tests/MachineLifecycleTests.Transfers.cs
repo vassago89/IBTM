@@ -17,11 +17,83 @@ namespace IBTM.Virtual.Tests;
 public sealed partial class MachineLifecycleTests
 {
     [Fact]
+    public async Task SmemaTestInputsRequireTeachingAndClearWhenTheSelectorTurnsOff()
+    {
+        using var services = CreateServices(FlowSettings());
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var supply = services.GetRequiredService<PcbSupplyHandler>();
+        var conveyor = services.GetRequiredService<IBTM.Conveyor.MainConveyor>();
+        await machine.InitializeAsync();
+        io.AutoResponseEnabled = false;
+        io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+        io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
+        io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+        try
+        {
+            Assert.True(io.GetInput(InputIo.AutoMode)); // Teaching/manual contact ON.
+            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+            io.SetInput(InputIo.MainConveyorAvailableFromFront2, true);
+            io.SetInput(InputIo.MainConveyorReadyFromRear, true);
+            Assert.False(supply.UpstreamCarrierAvailable);
+            Assert.False(conveyor.UpstreamCarrierAvailable);
+            Assert.False(conveyor.DownstreamReady);
+            supply.TestUpstreamCarrierAvailable = true;
+            conveyor.TestUpstreamCarrierAvailable = true;
+            conveyor.TestDownstreamReady = true;
+            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+            io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
+            io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+            Assert.True(supply.UpstreamCarrierAvailable);
+            Assert.True(conveyor.UpstreamCarrierAvailable);
+            Assert.True(conveyor.DownstreamReady);
+
+            io.SetInput(InputIo.AutoMode, false);
+            Assert.False(supply.TestUpstreamCarrierAvailable);
+            Assert.False(conveyor.TestUpstreamCarrierAvailable);
+            Assert.False(conveyor.TestDownstreamReady);
+            Assert.False(supply.UpstreamCarrierAvailable);
+            Assert.False(conveyor.UpstreamCarrierAvailable);
+            Assert.False(conveyor.DownstreamReady);
+
+            // Direct calls cannot enable TEST while the teaching switch is OFF.
+            supply.TestUpstreamCarrierAvailable = true;
+            conveyor.TestUpstreamCarrierAvailable = true;
+            conveyor.TestDownstreamReady = true;
+            Assert.False(supply.TestUpstreamCarrierAvailable);
+            Assert.False(conveyor.TestUpstreamCarrierAvailable);
+            Assert.False(conveyor.TestDownstreamReady);
+
+            // Real SMEMA remains usable in AUTO.
+            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+            io.SetInput(InputIo.MainConveyorAvailableFromFront2, true);
+            io.SetInput(InputIo.MainConveyorReadyFromRear, true);
+            Assert.True(supply.UpstreamCarrierAvailable);
+            Assert.True(conveyor.UpstreamCarrierAvailable);
+            Assert.True(conveyor.DownstreamReady);
+            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+            io.SetInput(InputIo.MainConveyorAvailableFromFront2, false);
+            io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+            io.SetInput(InputIo.AutoMode, true);
+            Assert.False(supply.UpstreamCarrierAvailable);
+            Assert.False(conveyor.UpstreamCarrierAvailable);
+            Assert.False(conveyor.DownstreamReady);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task FasteningCompletionCannotCompleteAReplacementCarrier()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.Units.ShootingBoltFeeder = true;
         using var services = CreateServices(settings);
+        services.GetRequiredService<Recipe>().Pcb.BoltPoints =
+            [new() { Number = 1, Head = FasteningHead.Shooting, X = 0, Y = 0 }];
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var station = services.GetRequiredService<BoltFasteningStation>();
@@ -34,6 +106,7 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
         var previousAssembly = work.Assembly(HeatSinkSlot.HeatSink1);
+        previousAssembly.RecordPcbBolt(1, new(true, 1));
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var replaced = false;
         void ReplaceAfterFinalMove()
@@ -64,8 +137,10 @@ public sealed partial class MachineLifecycleTests
         }
     }
 
-    [Fact]
-    public async Task SupplyDoesNotAdvanceTheNewCarrierWhenAnOldPickupFinishes()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SupplyDoesNotAdvanceTheNewCarrierWhenAnOldPickupFinishes(bool testSignal)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
@@ -73,7 +148,8 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
         var supply = services.GetRequiredService<PcbSupplier>();
-        var motion = services.GetRequiredService<PcbSupplyHandler>().Feedback;
+        var handler = services.GetRequiredService<PcbSupplyHandler>();
+        var motion = handler.Feedback;
         var recipe = new PcbSupplyRecipe
         {
             Pcb1PickPosition = new() { X = 10, Z = 5 },
@@ -85,7 +161,16 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.PcbSupplyRotated, false);
         io.SetInput(InputIo.PcbSupplyUnrotated, true);
         io.SetInput(InputIo.PcbSupplyPcbDetected, false);
-        io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+        io.SetInput(InputIo.AutoMode, testSignal);
+        void SetCarrierAvailable(bool available)
+        {
+            if (testSignal)
+                handler.TestUpstreamCarrierAvailable = available;
+            else
+                io.SetInput(InputIo.PcbSupplyAvailableFromFront1, available);
+        }
+        SetCarrierAvailable(true);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var firstSlotVisits = 0;
         var atFirstSlot = false;
@@ -100,8 +185,8 @@ public sealed partial class MachineLifecycleTests
                 firstSlotVisits++;
                 if (firstSlotVisits == 1)
                 {
-                    io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
-                    io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+                    SetCarrierAvailable(false);
+                    SetCarrierAvailable(true);
                 }
                 else
                     stop.Cancel();
@@ -121,7 +206,7 @@ public sealed partial class MachineLifecycleTests
             Assert.False(skippedFirstSlot);
             Assert.Equal(2, firstSlotVisits);
             Assert.False(motion.IsMoving);
-            Assert.False(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+            Assert.Equal(!testSignal, io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
         }
         finally
         {

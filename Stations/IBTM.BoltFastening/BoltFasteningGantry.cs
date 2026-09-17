@@ -241,18 +241,29 @@ public sealed class BoltFasteningGantry
         return _motion.AdjustAxisAsync(axis, position, velocity, cancellationToken);
     }
 
-    public async Task CheckReadyAsync(CancellationToken cancellationToken = default)
+    public async Task CheckReadyAsync(
+        CancellationToken cancellationToken = default,
+        bool pickupEnabled = true,
+        bool shootingEnabled = true)
     {
-        await _shootingHead.CheckReadyAsync(cancellationToken);
-        await _pickupHead.CheckReadyAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (shootingEnabled || _shootingHead.HasPendingResult)
+            await _shootingHead.CheckReadyAsync(cancellationToken);
+        if (pickupEnabled || _pickupHead.HasPendingResult)
+            await _pickupHead.CheckReadyAsync(cancellationToken);
     }
 
-    public async Task ResetHeadsAsync(CancellationToken cancellationToken = default)
+    public async Task ResetHeadsAsync(
+        CancellationToken cancellationToken = default,
+        bool pickupEnabled = true,
+        bool shootingEnabled = true)
     {
         List<Exception>? failures = null;
-        foreach (var head in new[] { _shootingHead, _pickupHead })
+        foreach (var (head, enabled) in new[] { (_shootingHead, shootingEnabled), (_pickupHead, pickupEnabled) })
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!enabled && !head.HasPendingResult)
+                continue;
             try
             {
                 await head.ResetAsync(cancellationToken);
@@ -273,10 +284,13 @@ public sealed class BoltFasteningGantry
         }
     }
 
-    internal Task MoveToBoltAsync(BoltTarget bolt, CancellationToken cancellationToken = default)
+    internal async Task MoveToBoltAsync(BoltTarget bolt, CancellationToken cancellationToken = default)
     {
         var position = _settings.GetBoltPosition(bolt, _carrierReference);
-        return MoveToXYAsync(position.X, position.Y, cancellationToken);
+        // XY travel uses Safe Z. Approach the work height with both heads raised.
+        await MoveToXYAsync(position.X, position.Y, cancellationToken);
+        EnsureCanMoveHorizontal(cancellationToken);
+        await MoveZAsync(position.Z, cancellationToken);
     }
 
     internal async Task FinishFasteningAsync(
@@ -381,6 +395,12 @@ public sealed class BoltFasteningGantry
         {
             throw new AggregateException(operationFailure, cleanupFailure);
         }
+    }
+
+    public void StopIoHead(FasteningHead head)
+    {
+        if (GetHead(head) is IoBoltHead ioHead)
+            ioHead.Stop();
     }
 
     internal void DiscardPendingResults()

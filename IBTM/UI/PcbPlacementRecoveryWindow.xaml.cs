@@ -10,8 +10,4 @@ public partial class PcbPlacementRecoveryWindow : Window
         DataContext = viewModel;
     }
 
-    private void OnApply(object sender, RoutedEventArgs e)
-    {
-        DialogResult = true;
-    }
 }

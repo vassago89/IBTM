@@ -10,7 +10,7 @@ public enum PcbPlacementState
     [Description("Raising Handler")]
     RaisingHandler,
 
-    [Description("Raising Z")]
+    [Description("Moving to Handoff / Travel Z")]
     RaisingZ,
 
     [Description("Unrotating for Handoff")]
@@ -22,11 +22,8 @@ public enum PcbPlacementState
     [Description("Lowering IPM")]
     LoweringIpm,
 
-    [Description("Moving Above Handoff")]
+    [Description("Moving to Handoff XY")]
     MovingAboveBuffer,
-
-    [Description("Lowering to Handoff")]
-    LoweringToBuffer,
 
     [Description("Lowering Handler")]
     LoweringHandler,
@@ -40,7 +37,10 @@ public enum PcbPlacementState
     [Description("Closing IPM Gripper")]
     ClosingGripper,
 
-    [Description("Waiting for Supply Handler")]
+    [Description("Waiting for Supply Release")]
+    WaitingForSupplyRelease,
+
+    [Description("Waiting for Supply Exit")]
     WaitingForSupplyExit,
 
     [Description("Raising IPM")]

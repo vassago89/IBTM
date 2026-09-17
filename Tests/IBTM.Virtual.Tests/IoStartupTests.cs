@@ -7,7 +7,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
+using IBTM.BoltFastening;
 using IBTM.Device;
+using IBTM.PcbSupply;
 using IBTM.Inspection;
 using IBTM.UI;
 using IBTM.Virtual;
@@ -18,6 +20,202 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class IoStartupTests
 {
+    [Fact]
+    public void MachineStopClearsBothIoBoltStartsEvenWhenOneWriteFails()
+    {
+        var settings = new MachineSettings();
+        settings.Drivers.Bolt = BoltDriver.Io;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<StartupIo>();
+        io.Initialize();
+        io.SetOutput(OutputIo.PickupBoltStart, true);
+        io.SetOutput(OutputIo.ShootingBoltStart, true);
+        var error = new IOException("Pickup START OFF failed.");
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output == OutputIo.PickupBoltStart && !on)
+                throw error;
+        };
+
+        var failure = Assert.Throws<AggregateException>(machine.Stop);
+        Assert.Contains(error, failure.Flatten().InnerExceptions);
+        Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+        io.BeforeOutputWrite = null;
+        machine.Stop();
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+    }
+
+    [Fact]
+    public async Task IoFasteningRetainsCompletedResultWhenStopWriteFails()
+    {
+        var settings = new MachineSettings();
+        settings.Drivers.Bolt = BoltDriver.Io;
+        using var services = CreateServices(settings);
+        var io = services.GetRequiredService<StartupIo>();
+        var raw = services.GetRequiredService<VirtualIoService>();
+        var head = Assert.IsType<IoBoltHead>(services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup));
+        io.Initialize();
+        await head.SelectPresetAsync(1);
+        var stopError = new IOException("START OFF failed after completion.");
+        var starts = 0;
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output != OutputIo.PickupBoltStart)
+                return;
+            if (!on)
+                throw stopError;
+            starts++;
+        };
+        var cycle = head.TightenAsync();
+        raw.SetInput(InputIo.PickupBoltFasten, true);
+        raw.SetInput(InputIo.PickupBoltFasten, false);
+        Assert.Same(stopError, await Assert.ThrowsAsync<IOException>(() => cycle));
+        Assert.True(head.HasPendingResult);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.ReadPendingResultAsync());
+        io.BeforeOutputWrite = null;
+        head.Stop();
+        var result = await head.TightenAsync();
+        Assert.True(result.Success);
+        Assert.Null(result.Torque);
+        Assert.Equal(BoltResultSource.IoAssumedOk, result.Source);
+        Assert.Equal(1, starts);
+        Assert.False(head.HasPendingResult);
+    }
+
+    [Fact]
+    public async Task IoFasteningPreservesFeedbackFailureWhenStopAlsoFails()
+    {
+        var settings = new MachineSettings();
+        settings.Drivers.Bolt = BoltDriver.Io;
+        using var services = CreateServices(settings);
+        var io = services.GetRequiredService<StartupIo>();
+        var head = services.GetRequiredKeyedService<IBoltHead>(FasteningHead.Pickup);
+        io.Initialize();
+        await head.SelectPresetAsync(1);
+        var readError = new IOException("FASTEN feedback unavailable.");
+        var stopError = new IOException("START OFF failed.");
+        io.BeforeOutputWrite = (output, on) =>
+        {
+            if (output != OutputIo.PickupBoltStart)
+                return;
+            if (!on)
+                throw stopError;
+            io.BeforeInputRead = input =>
+            {
+                if (input == InputIo.PickupBoltFasten)
+                    throw readError;
+            };
+        };
+        var failure = await Assert.ThrowsAsync<AggregateException>(() => head.TightenAsync());
+        Assert.Contains(readError, failure.InnerExceptions);
+        Assert.Contains(stopError, failure.InnerExceptions);
+        Assert.True(head.HasPendingResult);
+        Assert.Null(await head.ReadPendingResultAsync());
+        io.BeforeInputRead = null;
+        io.BeforeOutputWrite = null;
+        ((IoBoltHead)head).Stop();
+    }
+
+    [Fact]
+    public async Task TeachingStopsSequenceSmemaButLeavesDirectOutputsAvailable()
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var sequenceIo = services.GetRequiredService<IIoService>();
+        OutputIo[] smema = [OutputIo.PcbSupplyReadyToFront1,
+            OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear];
+        io.AutoResponseEnabled = false;
+        foreach (var output in smema)
+            io.SetOutput(output, true);
+        await machine.InitializeAsync();
+        try
+        {
+            Assert.All(smema, output => Assert.False(io.GetOutput(output)));
+            io.SetInput(InputIo.AutoMode, false);
+            foreach (var output in smema)
+            {
+                sequenceIo.SetAutomaticSmemaOutput(output, true);
+                Assert.True(io.GetOutput(output));
+            }
+            io.SetInputs((InputIo.AutoMode, true));
+            foreach (var output in smema)
+            {
+                Assert.False(io.GetOutput(output));
+                sequenceIo.SetAutomaticSmemaOutput(output, true);
+                Assert.False(io.GetOutput(output));
+                io.SetOutput(output, true);
+                sequenceIo.SetAutomaticSmemaOutput(output, false);
+                Assert.True(io.GetOutput(output));
+                io.SetOutput(output, false);
+            }
+            io.SetInput(InputIo.AutoMode, false);
+            foreach (var output in smema)
+            {
+                Assert.False(io.GetOutput(output));
+                sequenceIo.SetAutomaticSmemaOutput(output, true);
+                Assert.True(io.GetOutput(output));
+            }
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task TeachingSmemaIgnoresPeerInputsButRequiresSelectorFeedback()
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<StartupIo>();
+        var supply = services.GetRequiredService<PcbSupplyHandler>();
+        var conveyor = services.GetRequiredService<IBTM.Conveyor.MainConveyor>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineState>().StopDisplayUpdatesAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        services.GetRequiredService<VirtualIoService>().AutoResponseEnabled = false;
+        try
+        {
+            io.BeforeInputRead = input =>
+            {
+                if (input is InputIo.PcbSupplyAvailableFromFront1
+                    or InputIo.MainConveyorAvailableFromFront2
+                    or InputIo.MainConveyorReadyFromRear)
+                    throw new IOException("Peer SMEMA must not be read in teaching.");
+            };
+            supply.TestUpstreamCarrierAvailable = true;
+            conveyor.TestUpstreamCarrierAvailable = true;
+            conveyor.TestDownstreamReady = true;
+            Assert.True(supply.UpstreamCarrierAvailable);
+            Assert.True(conveyor.UpstreamCarrierAvailable);
+            Assert.True(conveyor.DownstreamReady);
+            supply.TestUpstreamCarrierAvailable = false;
+            conveyor.TestUpstreamCarrierAvailable = false;
+            conveyor.TestDownstreamReady = false;
+            Assert.False(supply.UpstreamCarrierAvailable);
+            Assert.False(conveyor.UpstreamCarrierAvailable);
+            Assert.False(conveyor.DownstreamReady);
+
+            io.BeforeInputRead = input =>
+            {
+                if (input == InputIo.AutoMode)
+                    throw new IOException("Selector feedback is unavailable.");
+            };
+            Assert.Throws<IOException>(() => supply.UpstreamCarrierAvailable);
+            Assert.Throws<IOException>(() => conveyor.UpstreamCarrierAvailable);
+            Assert.Throws<IOException>(() => conveyor.DownstreamReady);
+        }
+        finally
+        {
+            io.BeforeInputRead = null;
+            await machine.ShutdownAsync();
+        }
+    }
+
     [Fact]
     public async Task PhysicalInputWithoutAValidScanIsNotOffOrCompleted()
     {
@@ -418,6 +616,73 @@ public sealed class IoStartupTests
     }
 
     [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SupplyReadyDoesNotSignalCompletionOnStopOrEmergency(bool emergency)
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        io.AutoResponseEnabled = false;
+        io.SetInput(InputIo.AutoMode, false);
+        io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        io.SetOutput(OutputIo.PcbSupplyReadyToFront1, true);
+        try
+        {
+            if (emergency)
+                io.SetInput(InputIo.EmergencyStop1Pressed, true);
+            else
+                machine.Stop();
+
+            Assert.True(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+            machine.Stop();
+            Assert.False(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+        }
+        finally
+        {
+            io.SetInput(InputIo.EmergencyStop1Pressed, false);
+            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task SupplyStopPreservesReadyWhenCarrierInputCannotBeRead()
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var io = services.GetRequiredService<StartupIo>();
+        var signals = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await services.GetRequiredService<MachineState>().StopDisplayUpdatesAsync();
+        await services.GetRequiredService<MachineFeedbackMonitor>().StopAsync();
+        signals.AutoResponseEnabled = false;
+        signals.SetInput(InputIo.AutoMode, false);
+        signals.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
+        signals.SetOutput(OutputIo.PcbSupplyReadyToFront1, true);
+        var failure = new IOException("Supply carrier feedback is unavailable.");
+        io.BeforeInputRead = input =>
+        {
+            if (input == InputIo.PcbSupplyAvailableFromFront1)
+                throw failure;
+        };
+        try
+        {
+            var stopped = Assert.Throws<AggregateException>(machine.Stop);
+            Assert.Contains(failure, stopped.Flatten().InnerExceptions);
+            Assert.True(signals.GetOutput(OutputIo.PcbSupplyReadyToFront1));
+        }
+        finally
+        {
+            io.BeforeInputRead = null;
+            signals.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
     [InlineData(OutputIo.MainConveyorRun)]
     [InlineData(OutputIo.MainConveyorReadyToFront2)]
     [InlineData(OutputIo.NgConveyorRun)]
@@ -527,6 +792,7 @@ public sealed class IoStartupTests
         var physicalIo = services.GetRequiredService<VirtualIoService>();
         var conveyor = services.GetRequiredService<IBTM.Conveyor.MainConveyor>();
         io.Initialize();
+        physicalIo.SetInput(InputIo.AutoMode, false);
         if (step == "receive")
             physicalIo.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
         if (step == "transfer")

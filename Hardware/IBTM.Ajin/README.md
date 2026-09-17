@@ -16,17 +16,17 @@ them together from the manufacturer when updating the SDK.
 The corresponding native `AXL.dll` must still be available on the machine.
 Copying these declarations does not install or initialize the native driver.
 IBTM retains its configured interrupt number, axis scaling and RTEX module mappings.
-The saved motion-parameter file path is retained for compatibility but is not loaded
-in the current `AxlOpenNoReset` field-test startup.
+No motion-parameter file path or .mot file is required by this application.
 
 ## DIO initialization and scanning
 
 The manufacturer's `Visual C#/DIO/DigitalIO/FormDigitalIO.cs` sample opens AXL
 with `AXT_RT_SUCCESS == 0`, queries the DIO modules, and reads inputs in WORD units.
-IBTM now uses the manufacturer's `AxlOpenNoReset` to avoid resetting the hardware
-chip and skips `AxmMotLoadParaAll`. There is no automatic fallback to `AxlOpen`;
-the open result is logged and a nonzero result fails initialization. It then checks
-DIO presence, module count, and each configured module's identity and DI/DO counts.
+IBTM uses `AxlOpen`, then checks DIO presence, module count, and each configured
+module's identity and DI/DO counts, matching that DIO sample. It does not call
+`AxlOpenNoReset` or `AxmMotLoadParaAll`. The open result is logged.
+An open failure returns directly; a module failure closes the opened library
+and preserves any cleanup error.
 The detected board, position, module type and point counts are written to the log.
 Each mapped direction must have 16 or 32 points; nonexistent modules, wrong
 directions and unsupported point counts stop initialization without writing outputs.
@@ -44,11 +44,11 @@ restart is required. Closing and reinitializing refreshes the hardware point cou
 The shared physical input monitor still faults if either provider fails; no
 communication error is converted to an OFF input or successful machine readiness.
 
-This is an equipment-side field test, not a verified guarantee that axis settings
-persist across power cycles. Existing home/signal settings must already be valid.
-`AjinMotionService` still sets move units to 1/1 and acceleration units to pulses/s²
+`AxlOpen` initializes the library and hardware; it does not promise to preserve
+previous hardware settings. Homing uses the current SDK direction, sensor and method
+settings. `AjinMotionService` applies configured move units and acceleration units in pulses/s²,
 and applies home speeds when homing; the driver's mm conversion is unchanged.
-Initialization does not send Servo ON or reset axis alarms. Once initialized,
+Initialization does not send Servo ON or an explicit axis-alarm reset. Once initialized,
 position and signal feedback remain readable with servos OFF or axis alarms active.
 Read-only diagnostic getters also work for motion groups that have not been initialized,
 using the already-open AXL connection without changing parameters or servo state.

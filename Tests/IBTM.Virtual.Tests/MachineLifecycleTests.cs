@@ -54,6 +54,7 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(unit);
+        settings.Units.ShootingBoltFeeder = unit == MachineUnit.BoltFastening;
         using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<Recipe>();
         PrepareCarrierTeaching(settings, recipe);
@@ -196,8 +197,10 @@ public sealed partial class MachineLifecycleTests
         }
         Assert.True(machine.TeachingReady);
         settings.Units.BoltFastening = true;
+        settings.Units.ShootingBoltFeeder = true;
         Assert.False(machine.TeachingReady);
         settings.Units.BoltFastening = false;
+        settings.Units.ShootingBoltFeeder = false;
         var boltFov = recipe.CarrierImages.First(fov => fov.BoltNumber is not null);
         var boltRegion = boltFov.Region;
         boltFov.Region = null;
@@ -501,6 +504,8 @@ public sealed partial class MachineLifecycleTests
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.Units.PickupBoltFeeder = selected == FasteningHead.Pickup;
+        settings.Units.ShootingBoltFeeder = selected == FasteningHead.Shooting;
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -522,10 +527,10 @@ public sealed partial class MachineLifecycleTests
             (InputIo.BoltFasteningBackupPlateDown, false),
             (InputIo.BoltFasteningStopperUp, false),
             (InputIo.BoltFasteningStopperDown, true),
-            (InputIo.PickupHeadUp, selected != FasteningHead.Pickup),
-            (InputIo.PickupHeadDown, selected == FasteningHead.Pickup),
-            (InputIo.ShootingHeadUp, selected != FasteningHead.Shooting),
-            (InputIo.ShootingHeadDown, selected == FasteningHead.Shooting),
+            (InputIo.PickupHeadUp, true),
+            (InputIo.PickupHeadDown, false),
+            (InputIo.ShootingHeadUp, true),
+            (InputIo.ShootingHeadDown, false),
             (InputIo.PickupHeadVacuumDetected, true),
             (InputIo.ShootingHeadVacuumDetected, true));
         using var stop = new CancellationTokenSource();
@@ -552,6 +557,12 @@ public sealed partial class MachineLifecycleTests
         Assert.True(productionHead.HasPendingResult);
         Assert.True(station.HasPendingResult);
         var interruptedEvent = (await bus.ReadFasteningResultAsync(slave)).EventCount;
+
+        settings.Units.PickupBoltFeeder = false;
+        settings.Units.ShootingBoltFeeder = false;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => station.RunAsync(recipe.BoltFastening));
+        Assert.True(productionHead.HasPendingResult);
+        Assert.True(station.HasPendingResult);
 
         var manualHead = new AdcBoltHead(bus, settings.Hantas, slave);
         await Assert.ThrowsAsync<InvalidOperationException>(() => machine.RunAdcProtocolAsync(
@@ -620,6 +631,7 @@ public sealed partial class MachineLifecycleTests
             Units = EnableOnly(MachineUnit.BoltFastening),
         };
         FastHomes(settings);
+        settings.Units.ShootingBoltFeeder = true;
         var head = new StoppingBoltHead();
         using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings)
@@ -809,6 +821,7 @@ public sealed partial class MachineLifecycleTests
             Units = EnableOnly(MachineUnit.BoltFastening),
         };
         FastHomes(settings);
+        settings.Units.ShootingBoltFeeder = true;
         var head = new WaitingBoltHead();
         using var services = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
             .AddIbtmApplication(settings)

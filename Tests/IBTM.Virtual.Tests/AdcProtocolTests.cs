@@ -12,6 +12,29 @@ namespace IBTM.Virtual.Tests;
 public sealed class AdcProtocolTests
 {
     [Fact]
+    public async Task FailedFeedStopsTheMotorAndPreservesTheUncollectedResult()
+    {
+        var bus = new ControllerBus();
+        var head = new AdcBoltHead(bus, new HantasSettings(), 1);
+        var failure = new IoTimeoutException(InputIo.PickupHeadDown, true, 100);
+        Task FeedAsync(CancellationToken token)
+        {
+            Assert.True(bus.Running);
+            Assert.Equal(1, bus.StartWrites);
+            throw failure;
+        }
+
+        Assert.Same(failure, await Assert.ThrowsAsync<IoTimeoutException>(
+            () => head.TightenAsync(feedAsync: FeedAsync)));
+        Assert.Equal(1, bus.StopWrites);
+        Assert.False(bus.Running);
+        Assert.True(head.HasPendingResult);
+        // A late controller result is collected without feeding or starting again.
+        Assert.True((await head.TightenAsync(feedAsync: FeedAsync)).Success);
+        Assert.Equal(1, bus.StartWrites);
+    }
+
+    [Fact]
     public async Task StopAcknowledgementWaitsForMotorFeedbackBeforeReleasingResult()
     {
         var bus = new ControllerBus { StopPollsRemaining = 2 };

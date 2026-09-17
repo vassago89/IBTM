@@ -300,7 +300,6 @@ public sealed class MotionSafetyTests
             placementHandler.Motion,
             new XyPosition { X = handoff.X, Y = handoff.Y },
             handoff,
-            () => 0,
             () => 0);
 
         io.Initialize();
@@ -308,10 +307,19 @@ public sealed class MotionSafetyTests
         placement.Initialize();
         await Task.WhenAll(HomeAsync(supply, 1_000), HomeAsync(placement, 1_000));
 
+        io.SetInputs(
+            (InputIo.PcbPlacementHandlerUp, true),
+            (InputIo.PcbPlacementHandlerDown, false));
         await placement.MoveToAsync(10, 10, 0);
         Assert.True(buffer.CanEnterSupply());
         await placement.MoveAxisAsync(MotionAxis.Z, 8, settings.ZSpeed);
+        Assert.True(buffer.CanEnterSupply());
+        // Neither an output command nor ambiguous paired inputs prove the lift is Up.
+        io.SetInput(InputIo.PcbPlacementHandlerDown, true);
         Assert.False(buffer.CanEnterSupply());
+        io.SetInput(InputIo.PcbPlacementHandlerDown, false);
+        await placement.MoveAxisAsync(MotionAxis.Z, 7, settings.ZSpeed);
+        Assert.True(buffer.CanEnterSupply());
         await placement.MoveToAsync(0, 0, 0);
 
         await supply.MoveToAsync(20, 10, 8);
@@ -321,6 +329,10 @@ public sealed class MotionSafetyTests
         Assert.False(buffer.CanEnterPlacement());
 
         await placement.MoveToAsync(15, 10, 8);
+        Assert.False(buffer.HasConflict());
+        io.SetInputs(
+            (InputIo.PcbPlacementHandlerUp, false),
+            (InputIo.PcbPlacementHandlerDown, true));
         Assert.True(buffer.HasConflict());
         await placement.MoveToAsync(0, 0, 0);
 
@@ -332,7 +344,9 @@ public sealed class MotionSafetyTests
 
         await placement.MoveToAsync(10, 10, 8);
         Assert.False(buffer.HasConflict());
-
+        io.SetInputs(
+            (InputIo.PcbPlacementHandlerUp, true),
+            (InputIo.PcbPlacementHandlerDown, false));
         // Leaving the shared zone is position feedback, even while jogging continues.
         using var stop = new CancellationTokenSource();
         var outside = buffer.WaitForSupplyOutsideAsync(stop.Token);
@@ -352,14 +366,14 @@ public sealed class MotionSafetyTests
     }
 
     [Fact]
-    public async Task SupplyRotatesBeforeBufferEntryAndMovesYBeforeX()
+    public async Task SupplyMovesXyTogetherAtTransportHeightAfterRotation()
     {
         var io = CreateIo();
         var settings = new PcbSupplySettings
         {
             Motion = new MotionSettings
             {
-                HorizontalSpeed = 1_000,
+                HorizontalSpeed = 100,
                 ZSpeed = 1_000,
             },
             RotationZ = 0,
@@ -383,41 +397,50 @@ public sealed class MotionSafetyTests
         motion.Initialize();
         await HomeAsync(motion, 1_000);
 
-        var xMovedBeforeY = false;
+        var xyMovedTogether = false;
         var yMovedInsideBuffer = false;
-        motion.PositionChanged += (x, y, _) =>
+        var movedBelowTransportZ = false;
+        motion.PositionChanged += (x, y, z) =>
         {
             if (x > MotionService.PositionToleranceMillimeters
+                && x < 20 - MotionService.PositionToleranceMillimeters
+                && y > MotionService.PositionToleranceMillimeters
                 && System.Math.Abs(y - 15) > MotionService.PositionToleranceMillimeters)
             {
-                xMovedBeforeY = true;
+                xyMovedTogether = true;
             }
 
             yMovedInsideBuffer |= x is >= 10 and <= 30
                 && Math.Abs(y - 15) > MotionService.PositionToleranceMillimeters;
+            movedBelowTransportZ |= x > MotionService.PositionToleranceMillimeters
+                && Math.Abs(z - settings.RotationZ) > MotionService.PositionToleranceMillimeters;
         };
 
         await Assert.ThrowsAsync<MotionInterlockException>(() => supply.MoveToHandoffAsync(default));
 
         await supply.SetRotatedAsync(true);
+        await supply.MoveAxisAsync(MotionAxis.Z, 5);
         var handoff = Array.Find(
             settings.GetTeachingPositions(new()),
             point => point.Target == TeachingTarget.SupplyBufferHandoff)!;
         await supply.MoveToTeachingPositionAsync(handoff, new() { X = 20, Y = 15, Z = 7 });
 
-        Assert.False(xMovedBeforeY);
+        Assert.True(xyMovedTogether);
+        Assert.False(movedBelowTransportZ);
         Assert.Equal((20, 15, settings.RotationZ), motion.GetPosition());
         Assert.Equal(TeachMode.XYOnly, handoff.Mode);
 
-        await Assert.ThrowsAsync<MotionInterlockException>(
-            () => supply.MoveAxisAsync(MotionAxis.Y, 0));
+        Assert.True(supply.CanJog(MotionAxis.Y));
+        await supply.MoveAxisAsync(MotionAxis.Y, 14);
         await Assert.ThrowsAsync<MotionInterlockException>(
             () => supply.MoveAxisAsync(MotionAxis.Z, 0));
-        Assert.Equal((20, 15, settings.RotationZ), motion.GetPosition());
+        Assert.Equal((20, 14, settings.RotationZ), motion.GetPosition());
 
-        // Leaving the buffer must move X out before Y is allowed to move.
-        await supply.MoveHorizontalAsync(0, 0);
-        Assert.False(yMovedInsideBuffer);
+        // Normal XY travel may cross the old buffer boundary at transport height.
+        Assert.True(supply.CanMoveToTeachingPosition(handoff));
+        await supply.MoveToHandoffAsync(default, new() { X = 0, Y = 0 });
+        Assert.True(yMovedInsideBuffer);
+        Assert.False(movedBelowTransportZ);
         Assert.Equal((0, 0, settings.RotationZ), motion.GetPosition());
     }
 

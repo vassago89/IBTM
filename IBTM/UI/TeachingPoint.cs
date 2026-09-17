@@ -44,7 +44,7 @@ public partial class TeachingPoint : ObservableObject
             return (Position.Target, Position.MotionGroup) switch
             {
                 (TeachingTarget.SafeZ, MotionGroup.PcbSupply) => "Transport / Rotation Z",
-                (TeachingTarget.SafeZ, MotionGroup.PcbPlacementHandler) => "Approach Z",
+                (TeachingTarget.SafeZ, MotionGroup.BoltFastening) => "Safe Z (Travel)",
                 _ => Position.Target.GetDescription(),
             };
         }
@@ -60,7 +60,8 @@ public partial class TeachingPoint : ObservableObject
                 TeachingTarget.SupplyBufferBoundary1 or TeachingTarget.SupplyBufferBoundary2
                     or TeachingTarget.PlacementBufferBoundary1 or TeachingTarget.PlacementBufferBoundary2
                     => TeachingPointGroup.Interference,
-                TeachingTarget.SafeZ or TeachingTarget.SupplyCarrierY or TeachingTarget.SupplyBufferClearZ
+                TeachingTarget.SafeZ or TeachingTarget.ShootingHeadFasteningZ
+                    or TeachingTarget.PickupHeadFasteningZ or TeachingTarget.SupplyCarrierY
                     or TeachingTarget.NgPickupSafeX
                     or TeachingTarget.CarrierUpperLeftLocatingPin or TeachingTarget.CarrierLowerRightLocatingPin
                     or TeachingTarget.ShootingHeadUpperLeftLocatingPin or TeachingTarget.ShootingHeadLowerRightLocatingPin
@@ -152,10 +153,8 @@ public enum TeachingSaveBehavior
 {
     [Description("Teach give XY. Supply holds the PCB at Transport / Rotation Z until Placement detects the PCB, vacuum and closed gripper. Apply & Save Handoff before leaving Teaching.")]
     SupplyHandoff,
-    [Description("Teach receiving XYZ. After gripping, Placement waits for Supply to leave before lifting away. Apply & Save Handoff before leaving Teaching.")]
+    [Description("Teach receiving XYZ. This Z is shared by XY travel, rotation and receipt, with clearance while the handler cylinder is Up. Either handler may arrive first; only the cylinder lowers after both arrive. Apply & Save Handoff before leaving Teaching.")]
     PlacementHandoff,
-    [Description("After releasing the PCB, Supply moves to this Z and withdraws X. This is clearance for withdrawal. Apply & Save Handoff before leaving Teaching.")]
-    SupplyClearance,
     [Description("Common pickup Y for both PCB slots. Each slot teaches only X and Z. Saves automatically.")]
     SupplyCarrierY,
     [Description("Teach pickup Y. Move To uses NG Pickup Safe X and this Y. Saves automatically.")]
@@ -163,6 +162,9 @@ public enum TeachingSaveBehavior
 
     [Description("Teach with Head 1 down; saves automatically. Move To lowers Head 1 at pickup XY, then moves Z. Vacuum is unchanged.")]
     BoltPickup,
+
+    [Description("Work Z for this head: Shooting for PCB, Pickup for IPM seating and final fastening. Automatic operation reaches this Z with both heads raised, starts rotation, then immediately lowers the selected head to feed the bolt. Saves automatically.")]
+    FasteningZ,
 
     [Description("Calculated from this heat sink's bolt teaching and head reference pins. Move to verify at Safe Z; teach bolt positions in Inspection.")]
     BoltPosition,

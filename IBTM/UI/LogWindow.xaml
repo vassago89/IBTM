@@ -23,9 +23,9 @@
         <DockPanel LastChildFill="True">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <CheckBox Content="Pause display" IsChecked="{Binding IsPaused}" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                <Button Content="Copy" Click="OnCopy" ToolTip="Copy selected text, or all displayed logs if nothing is selected."
+                <Button Content="Copy" Command="{Binding CopyCommand}" ToolTip="Copy selected text, or all displayed logs if nothing is selected."
                     Style="{StaticResource SecondaryButtonStyle}" Padding="16,6" Margin="0,0,8,0"/>
-                <Button Content="Copy all" Style="{StaticResource SecondaryButtonStyle}" Padding="16,6" Click="OnCopyAll" Margin="0,0,8,0"/>
+                <Button Content="Copy all" Style="{StaticResource SecondaryButtonStyle}" Padding="16,6" Command="{Binding CopyAllCommand}" Margin="0,0,8,0"/>
                 <Button Content="Clear view" Command="{Binding ClearCommand}" Style="{StaticResource SecondaryButtonStyle}" Padding="16,6"/>
             </StackPanel>
             <TextBlock Text="Logs" Style="{StaticResource TitleStyle}" VerticalAlignment="Center"/>
@@ -33,10 +33,10 @@
         <TextBlock Grid.Row="1" Margin="0,8,0,16" Style="{StaticResource PageSubtitleStyle}"
             Text="Newest messages first. Drag across lines to select, or use Ctrl+A / Ctrl+C. Selecting text pauses the display; file logging continues."
             TextWrapping="Wrap"/>
-        <TextBox x:Name="LogText" Grid.Row="2"
+        <ui:LogTextBox x:Name="LogText" Style="{StaticResource FieldTextBoxStyle}" Grid.Row="2"
             Text="{Binding Text, Mode=OneWay}"
             IsReadOnly="True" IsUndoEnabled="False" AcceptsReturn="True" IsInactiveSelectionHighlightEnabled="True"
-            SelectionChanged="OnTextSelectionChanged" FontFamily="Cascadia Mono, Consolas" FontSize="12" TextWrapping="NoWrap" Padding="8"
+            SelectionText="{Binding SelectedText, Mode=TwoWay}" IsPaused="{Binding IsPaused, Mode=TwoWay}" FontFamily="Cascadia Mono, Consolas" FontSize="12" TextWrapping="NoWrap" Padding="8"
             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
         <StackPanel Grid.Row="3" Margin="0,12,0,0">
             <TextBlock Text="{Binding Status}" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>

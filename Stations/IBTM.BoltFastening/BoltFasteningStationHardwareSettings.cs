@@ -16,8 +16,8 @@ public sealed class BoltFasteningStationHardwareSettings : InputHardwareSettings
     {
         Inputs = new()
         {
-            [InputIo.BoltFasteningHeatSink1Present] = 61,
-            [InputIo.BoltFasteningHeatSink2Present] = 62,
+            [InputIo.BoltFasteningHeatSink1Present] = 62,
+            [InputIo.BoltFasteningHeatSink2Present] = 63,
         };
     }
 }

@@ -33,11 +33,12 @@ public sealed class PcbSupplyHardwareSettings : MotionHardwareSettings
             [InputIo.PcbSupplyAvailableFromFront1] = 16,
             [InputIo.PcbSupplyRotated] = 20,
             [InputIo.PcbSupplyUnrotated] = 21,
-            [InputIo.PcbSupplyGripperClosed] = 22,
-            [InputIo.PcbSupplyGripperOpen] = 23,
-            [InputIo.PcbSupplyIpmFixerForward] = 24,
-            [InputIo.PcbSupplyIpmFixerBackward] = 25,
-            [InputIo.PcbSupplyPcbDetected] = 28,
+            [InputIo.PcbSupplyGripperClosed] = 24,
+            [InputIo.PcbSupplyGripperOpen] = 25,
+            [InputIo.PcbSupplyIpmFixerForward] = 28,
+            // Installed, but its address still needs field confirmation. DI-109 is the gripper.
+            [InputIo.PcbSupplyIpmFixerBackward] = -1,
+            [InputIo.PcbSupplyPcbDetected] = 22,
         };
         Outputs = new()
         {
@@ -54,7 +55,6 @@ public sealed class PcbSupplyHardwareSettings : MotionHardwareSettings
                 InputIo.PcbSupplyUnrotated),
             [OutputIo.PcbSupplyIpmFixerForward] = Output(
                 24,
-                25,
                 InputIo.PcbSupplyIpmFixerForward,
                 InputIo.PcbSupplyIpmFixerBackward),
         };

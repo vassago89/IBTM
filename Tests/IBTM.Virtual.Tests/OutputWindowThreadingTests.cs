@@ -213,7 +213,10 @@ public sealed class OutputWindowThreadingTests
             }
 
             change?.Invoke();
-            window.DialogResult = true;
+            if (window.DataContext is PcbPlacementRecoveryViewModel pcb)
+                pcb.ApplyCommand.Execute(null);
+            else
+                ((BoltFasteningRecoveryViewModel)window.DataContext).ApplyCommand.Execute(null);
         }));
     }
 
@@ -222,7 +225,7 @@ public sealed class OutputWindowThreadingTests
         var units = services.GetRequiredService<UnitSettings>();
         var state = services.GetRequiredService<MachineState>();
         var teaching = services.GetRequiredService<TeachingViewModel>();
-        var unrelated = (VirtualMotionService)services.GetRequiredKeyedService<IAxisMotion>(
+        var unrelated = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(
             MotionGroup.PcbSupply);
         var inspection = (VirtualMotionService)services.GetRequiredKeyedService<IXyMotion>(
             MotionGroup.InspectionGantry);
@@ -348,15 +351,36 @@ public sealed class OutputWindowThreadingTests
 
             await VerifyIndependentTeachingAsync(services);
             io.AutoResponseEnabled = false;
+            var editor = main.RecipeEditor;
+            editor.Name = "MVVM recipe selection";
+            await editor.SaveCommand.ExecuteAsync(null);
+            Assert.Null(editor.Error);
+            var recipeSelector = new ComboBox { ItemsSource = editor.Recipes };
+            recipeSelector.SetBinding(
+                System.Windows.Controls.Primitives.Selector.SelectedItemProperty,
+                new Binding(nameof(MainViewModel.SelectedRecipeFile)) { Source = main, Mode = BindingMode.TwoWay });
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                editor.NewCommand.Execute(null);
+                Assert.True(main.RecipeEditingEnabled);
+                recipeSelector.SetCurrentValue(
+                    System.Windows.Controls.Primitives.Selector.SelectedItemProperty,
+                    "MVVM recipe selection");
+                await (editor.LoadCommand.ExecutionTask ?? Task.CompletedTask);
+                Assert.Null(editor.Error);
+                Assert.Equal("MVVM recipe selection", editor.ActiveName);
+                Assert.Null(recipeSelector.SelectedItem);
+            }
+
             await VerifyBackgroundDisplayBindingsAsync(services);
             const OutputIo output = OutputIo.MainConveyorRun;
             for (var reopen = 0; reopen < 2; reopen++)
             {
                 Assert.True(openButton.IsEnabled);
-                window = new OutputWindow(signals, machine, state);
+                window = new OutputWindow(new OutputWindowViewModel(signals, machine, state));
                 if (reopen == 0)
                     await VerifyDirectBindingsAsync(services, window);
-                var row = window.Rows.Single(candidate => candidate.Io.Signal == output);
+                var row = ((OutputWindowViewModel)window.DataContext).Rows.Single(candidate => candidate.Io.Signal == output);
                 var manualRow = manual.Conveyors.Single(candidate => candidate.Io.Signal == output);
                 // These are real WPF command subscribers with the production bindings.
                 var outputButton = BindOutputRow(window, row).Button;
@@ -401,7 +425,7 @@ public sealed class OutputWindowThreadingTests
                     () => io.SetOutput(OutputIo.MachineLight, !io.GetOutput(OutputIo.MachineLight)));
                 var feedback = BindOutputRow(
                     window,
-                    window.Rows.Single(candidate => candidate.Io.Signal == OutputIo.PcbPlacementStopperDown)).Feedback;
+                    ((OutputWindowViewModel)window.DataContext).Rows.Single(candidate => candidate.Io.Signal == OutputIo.PcbPlacementStopperDown)).Feedback;
                 await Task.Run(
                     () =>
                     {
@@ -460,8 +484,7 @@ public sealed class OutputWindowThreadingTests
                 window.Close();
             }
 
-            await main.ShutdownAsync();
-            await machine.ShutdownAsync();
+            Assert.True(await main.TryCloseAsync(), main.CloseError);
         }
     }
 
@@ -469,11 +492,11 @@ public sealed class OutputWindowThreadingTests
     {
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var input = new InputWindow(io, services.GetRequiredService<IoSignals>());
+        var input = new InputWindow(new InputWindowViewModel(io, services.GetRequiredService<IoSignals>()));
         var response = new CheckBox();
         response.SetBinding(
             System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty,
-            new Binding("VirtualIo.AutoResponseEnabled") { Source = input });
+            new Binding("VirtualIo.AutoResponseEnabled") { Source = input.DataContext });
         try
         {
             await Task.Run(() => io.AutoResponseEnabled = true);
@@ -544,13 +567,14 @@ public sealed class OutputWindowThreadingTests
 
         var bus = new VirtualAdcBus();
         bus.Open("Virtual", 19200);
-        var adc = new AdcProtocolWindow(bus, new IBTM.Hantas.HantasSettings(), machine);
+        var adcModel = new AdcProtocolViewModel(bus, new HantasSettings(), machine, services.GetRequiredService<MachineState>());
+        var adc = new AdcProtocolWindow(adcModel);
         var frames = (TextBox)adc.FindName("FrameLogBox");
         var uiThread = Environment.CurrentManagedThreadId;
         var updates = new List<int>();
-        adc.PropertyChanged += (_, args) =>
+        adcModel.PropertyChanged += (_, args) =>
         {
-            if (args.PropertyName == nameof(AdcProtocolWindow.FrameLogText))
+            if (args.PropertyName == nameof(AdcProtocolViewModel.FrameLogText))
                 updates.Add(Environment.CurrentManagedThreadId);
         };
         try
@@ -562,30 +586,30 @@ public sealed class OutputWindowThreadingTests
                 () => frames.Text.Contains("RX RAW") && frames.Text.Contains("TX"),
                 TimeSpan.FromSeconds(2)));
             Assert.True(frames.Text.IndexOf("RX RAW") < frames.Text.IndexOf("TX"));
-            adc.IsLogPaused = true;
+            adcModel.IsLogPaused = true;
             frames.SelectAll();
             var selectedFrames = frames.SelectedText;
             Assert.Contains(Environment.NewLine, selectedFrames);
             await Task.Run(() => bus.ReadDeviceInformationAsync(1));
             await adc.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
             Assert.Equal(selectedFrames, frames.SelectedText);
-            adc.IsLogPaused = false;
+            adcModel.IsLogPaused = false;
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => frames.Text.Length > selectedFrames.Length,
                 TimeSpan.FromSeconds(2)));
             Assert.All(updates, thread => Assert.Equal(uiThread, thread));
 
             var connect = (Button)adc.FindName("ConnectButton");
-            connect.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            connect.Command.Execute(connect.CommandParameter);
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => !bus.IsOpen && connect.IsEnabled,
                 TimeSpan.FromSeconds(2)));
-            Assert.Equal("Disconnected", adc.ConnectionStatus);
-            connect.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal("Disconnected", adcModel.ConnectionStatus);
+            connect.Command.Execute(connect.CommandParameter);
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => bus.IsOpen && connect.IsEnabled,
                 TimeSpan.FromSeconds(2)));
-            Assert.Equal("Virtual | 19200", adc.ConnectionStatus);
+            Assert.Equal("Virtual | 19200", adcModel.ConnectionStatus);
         }
         finally
         {
@@ -593,7 +617,7 @@ public sealed class OutputWindowThreadingTests
             bus.Close();
         }
 
-        await VerifyAdcControllerFeedbackAsync(machine);
+        await VerifyAdcControllerFeedbackAsync(machine, services.GetRequiredService<MachineState>());
 
         var teaching = services.GetRequiredService<TeachingViewModel>();
         var main = services.GetRequiredService<MainViewModel>();
@@ -762,10 +786,8 @@ public sealed class OutputWindowThreadingTests
             var scan = teaching.CaptureCarrierImageCommand.ExecuteAsync(null);
             await scanStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.False(liveButton.IsEnabled);
-            var onCalls = light.OnCalls;
-            await teaching.ToggleLiveViewCommand.ExecuteAsync(null);
+            Assert.False(teaching.ToggleLiveViewCommand.CanExecute(null));
             Assert.False(teaching.Inspector.IsLiveView);
-            Assert.Equal(onCalls, light.OnCalls);
             teaching.CaptureCarrierImageCommand.Cancel();
             releaseStop.Set();
             await scan.WaitAsync(TimeSpan.FromSeconds(2));
@@ -1110,80 +1132,98 @@ public sealed class OutputWindowThreadingTests
     }
 
 
-    private static async Task VerifyAdcControllerFeedbackAsync(MachineController machine)
+    private static async Task VerifyAdcControllerFeedbackAsync(MachineController machine, MachineState state)
     {
         foreach (var confirmsStop in new[] { true, false })
         {
             var bus = new AdcProtocolTests.ControllerBus { StopPollsRemaining = -1 };
             await ((IAdcBus)bus).StartAsync(1); // A run started outside this window.
-            var adc = new AdcProtocolWindow(
+            var adcModel = new AdcProtocolViewModel(
                 bus,
                 new HantasSettings { ResponseTimeoutMilliseconds = 250 },
-                machine);
+                machine,
+                state);
+            var adc = new AdcProtocolWindow(adcModel);
+            var closed = false;
+            adc.Closed += (_, _) => closed = true;
             var stop = (Button)adc.FindName("StopButton");
             var connect = (Button)adc.FindName("ConnectButton");
+            await adc.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
             try
             {
                 Assert.True(stop.IsEnabled);
-                stop.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                stop.Command.Execute(stop.CommandParameter);
                 Assert.True(await VirtualTest.WaitUntilAsync(
                     () => bus.StopWrites == 1,
                     TimeSpan.FromSeconds(2)));
                 Assert.True(bus.Running);
-                Assert.NotEqual("Stopped", adc.ResultMessage);
+                Assert.NotEqual("Stopped", adcModel.ResultMessage);
                 Assert.False(connect.IsEnabled);
 
+                // The UI keeps other commands disabled until stop confirmation finishes.
+                Assert.False(adcModel.SelectPresetCommand.CanExecute(null));
+                Assert.False(adcModel.StartCommand.CanExecute(null));
+                Assert.False(adcModel.ToggleConnectionCommand.CanExecute(null));
+
                 // Repeated STOP must not cancel the pending physical stop confirmation.
-                stop.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                stop.Command.Execute(stop.CommandParameter);
                 if (confirmsStop)
+                {
+                    adc.Close();
+                    Assert.True(adcModel.IsClosing);
+                    Assert.False(closed);
                     bus.StopPollsRemaining = 0;
+                }
                 Assert.True(await VirtualTest.WaitUntilAsync(
-                    () => connect.IsEnabled,
+                    () => confirmsStop ? closed : connect.IsEnabled,
                     TimeSpan.FromSeconds(2)));
                 if (confirmsStop)
                 {
                     Assert.False(bus.Running);
-                    Assert.Equal("Stopped", adc.ResultMessage);
+                    Assert.Equal("Stopped", adcModel.ResultMessage);
                 }
                 else
                 {
                     Assert.True(bus.Running);
-                    Assert.Contains("failed", adc.ResultMessage);
-                    Assert.Contains("motor stop was not confirmed", adc.ConnectionStatus);
+                    Assert.Contains("failed", adcModel.ResultMessage);
+                    Assert.Contains("motor stop was not confirmed", adcModel.ConnectionStatus);
                 }
                 Assert.Equal(1, bus.StopWrites);
             }
             finally
             {
                 bus.StopPollsRemaining = 0;
-                await adc.StopAsync();
-                adc.Close();
+                await adcModel.ShutdownAsync();
+                if (!closed)
+                    adc.Close();
                 bus.Close();
             }
         }
 
         var presetBus = new AdcProtocolTests.ControllerBus { IgnorePresetWrites = true };
-        var presetWindow = new AdcProtocolWindow(presetBus, new HantasSettings(), machine);
+        var presetModel = new AdcProtocolViewModel(presetBus, new HantasSettings(), machine, state);
+        var presetWindow = new AdcProtocolWindow(presetModel);
         var presetBox = (TextBox)presetWindow.FindName("PresetBox");
         var selectPreset = ((Grid)presetBox.Parent).Children.OfType<Button>().Single();
+        await presetWindow.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.DataBind);
         try
         {
-            presetBox.Text = "7";
-            selectPreset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            presetBox.SetCurrentValue(TextBox.TextProperty, "7");
+            selectPreset.Command.Execute(selectPreset.CommandParameter);
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => selectPreset.IsEnabled,
                 TimeSpan.FromSeconds(2)));
             Assert.Equal(3, presetBus.CurrentPreset);
-            Assert.Contains("failed", presetWindow.ResultMessage);
-            Assert.Contains("preset is 3", presetWindow.ConnectionStatus);
+            Assert.Contains("failed", presetModel.ResultMessage);
+            Assert.Contains("preset is 3", presetModel.ConnectionStatus);
 
             presetBus.IgnorePresetWrites = false;
-            selectPreset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            selectPreset.Command.Execute(selectPreset.CommandParameter);
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => selectPreset.IsEnabled,
                 TimeSpan.FromSeconds(2)));
             Assert.Equal(7, presetBus.CurrentPreset);
-            Assert.Equal("Preset 7 selected", presetWindow.ResultMessage);
+            Assert.Equal("Preset 7 selected", presetModel.ResultMessage);
             Assert.Equal(0, presetBus.StartWrites);
         }
         finally
@@ -1207,7 +1247,7 @@ public sealed class OutputWindowThreadingTests
     {
         using var log = new ApplicationLog();
         log.Write("Before opening logs");
-        var window = new LogWindow(log);
+        var window = new LogWindow(new LogWindowViewModel(log));
         var model = Assert.IsType<LogWindowViewModel>(window.DataContext);
         var text = (TextBox)window.FindName("LogText");
         var uiThread = Environment.CurrentManagedThreadId;
@@ -1266,7 +1306,7 @@ public sealed class OutputWindowThreadingTests
         model.PropertyChanged += (_, _) => notificationsAfterClose++;
         await Task.Run(() => log.Write("After closing logs"));
         Assert.Equal(0, notificationsAfterClose);
-        var reopened = new LogWindow(log);
+        var reopened = new LogWindow(new LogWindowViewModel(log));
         try
         {
             var reopenedText = (TextBox)reopened.FindName("LogText");

@@ -265,6 +265,87 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task SupplyXyExitStopsOnLostPlacementUpAndResumesTowardTheNextPcb()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        settings.Units.PcbPlacement = true;
+        settings.PcbSupply.Motion.HorizontalSpeed = 100;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var source = services.GetRequiredService<PcbSupplyHandler>();
+        var recipient = services.GetRequiredService<PcbPlacementHandler>();
+        var recipe = services.GetRequiredService<Recipe>();
+        recipe.PcbSupply.Pcb1PickPosition = new() { X = 20, Z = 5 };
+        await machine.InitializeAsync();
+        await machine.HomeAsync(default);
+        await source.SetRotatedAsync(true);
+        await source.MoveToHandoffAsync(default);
+        await recipient.MoveAboveBufferAsync();
+        io.AutoResponseEnabled = false;
+        io.SetInputs(
+            (InputIo.PcbPlacementPcbDetected, true),
+            (InputIo.PcbPlacementVacuumDetected, true),
+            (InputIo.PcbPlacementIpmGripperOpen, false),
+            (InputIo.PcbPlacementIpmGripperClosed, true));
+        Assert.True(state.Buffer.CanExitSupply());
+
+        var interrupted = false;
+        using var firstStop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        void LoseLiftDuringExit(double x, double y, double z)
+        {
+            if (!interrupted && x < 79 && state.Buffer.IsSupplyInside())
+            {
+                interrupted = true;
+                io.SetInput(InputIo.PcbPlacementHandlerUp, false);
+            }
+        }
+        source.Feedback.PositionChanged += LoseLiftDuringExit;
+        try
+        {
+            Assert.True(machine.CanStart);
+            await machine.StartAsync(firstStop.Token);
+            Assert.True(interrupted);
+            Assert.Equal(MachineAlarm.BufferConflict, state.Alarm);
+            Assert.True(state.Buffer.IsSupplyInside());
+            Assert.False(source.Feedback.IsMoving);
+            Assert.True(source.PcbReleased);
+            Assert.False(state.Buffer.CanExitSupply());
+
+            io.SetInput(InputIo.PcbPlacementHandlerUp, true);
+            await machine.ResetAsync();
+            Assert.True(machine.CanStart);
+            using var resumed = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            void StopAtNextPick(double x, double y, double z)
+            {
+                Assert.Equal(settings.PcbSupply.RotationZ, z);
+                if (Math.Abs(x - 20) <= MotionService.PositionToleranceMillimeters
+                    && Math.Abs(y - settings.PcbSupply.CarrierY) <= MotionService.PositionToleranceMillimeters)
+                    resumed.Cancel();
+            }
+            source.Feedback.PositionChanged += StopAtNextPick;
+            try
+            {
+                await machine.StartAsync(resumed.Token);
+                Assert.Equal((20, settings.PcbSupply.CarrierY, settings.PcbSupply.RotationZ), source.Feedback.GetPosition());
+                Assert.Equal(MachineAlarm.None, state.Alarm);
+                Assert.True(source.PcbReleased);
+            }
+            finally
+            {
+                source.Feedback.PositionChanged -= StopAtNextPick;
+            }
+        }
+        finally
+        {
+            source.Feedback.PositionChanged -= LoseLiftDuringExit;
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task CylinderInterlockDuringEmergencyStopKeepsTheEmergencyAlarm()
     {
         var settings = FlowSettings();
@@ -962,7 +1043,7 @@ public sealed partial class MachineLifecycleTests
 
         Assert.Equal(HomeBlockReason.None, machine.HomeBlock);
         Assert.Equal(
-            (20, 20, settings.PcbPlacementHandler.BufferEntryZ),
+            (20, 20, settings.PcbPlacementHandler.BufferHandoffPosition.Z),
             placement.Feedback.GetPosition());
         Assert.Equal(MachineAlarm.None, state.Alarm);
     }
@@ -1443,7 +1524,7 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var placement = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbPlacementHandler);
-        var supply = services.GetRequiredKeyedService<IAxisMotion>(MotionGroup.PcbSupply);
+        var supply = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply);
         var manual = services.GetRequiredService<MotionWindowViewModel>();
         await machine.InitializeAsync();
         await placement.MoveAxisAsync(MotionAxis.Z, 50, 10_000);

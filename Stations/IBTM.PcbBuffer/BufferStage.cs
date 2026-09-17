@@ -10,27 +10,25 @@ namespace IBTM.PcbBuffer;
 public sealed class BufferStage
 {
     private readonly PcbBufferSettings _settings;
-    private readonly IPcbHandoffState _supplyState;
-    private readonly IPcbHandoffState _placementState;
+    private readonly IPcbHandoffSource _supplyState;
+    private readonly IPcbHandoffReceiver _placementState;
     private readonly MotionStatus _supplyMotion;
     private readonly MotionStatus _placementMotion;
     private readonly XyPosition _supplyHandoff;
     private readonly Func<double> _supplyTransportZ;
     private readonly AxisPosition _placementHandoff;
-    private readonly Func<double> _placementEntryZ;
     private readonly Func<bool> _supplyEnabled;
     private readonly Func<bool> _placementEnabled;
 
     public BufferStage(
         PcbBufferSettings settings,
-        IPcbHandoffState supplyState,
-        IPcbHandoffState placementState,
+        IPcbHandoffSource supplyState,
+        IPcbHandoffReceiver placementState,
         MotionStatus supplyMotion,
         MotionStatus placementMotion,
         XyPosition supplyHandoff,
         AxisPosition placementHandoff,
         Func<double> supplyTransportZ,
-        Func<double> placementEntryZ,
         Func<bool>? supplyEnabled = null,
         Func<bool>? placementEnabled = null)
     {
@@ -42,7 +40,6 @@ public sealed class BufferStage
         _supplyHandoff = supplyHandoff;
         _supplyTransportZ = supplyTransportZ;
         _placementHandoff = placementHandoff;
-        _placementEntryZ = placementEntryZ;
         _supplyEnabled = supplyEnabled ?? (() => true);
         _placementEnabled = placementEnabled ?? (() => true);
         supplyMotion.Feedback.PositionChanged += (_, _, _) => PositionChanged?.Invoke();
@@ -85,18 +82,6 @@ public sealed class BufferStage
             && IsInsidePlacement(_placementMotion.ReadPosition(live));
     }
 
-    private bool BlocksSupply(bool live = true)
-    {
-        if (!_placementMotion.ReadAxisState(MotionAxis.X, live).Homed
-            || !_placementMotion.ReadAxisState(MotionAxis.Y, live).Homed)
-        {
-            return false;
-        }
-
-        var position = _placementMotion.ReadPosition(live);
-        return IsInsidePlacement(position) && position.Z > _placementEntryZ();
-    }
-
     public bool IsSupplyAtHandoff(bool live = true)
     {
         return _supplyEnabled()
@@ -125,14 +110,30 @@ public sealed class BufferStage
     // homed; ignoring an unused drive is not permission to enter an unknown zone.
     public bool CanEnterSupply(bool live = true)
     {
-        return IsPositionKnown(live) && !BlocksSupply(live);
+        return IsPositionKnown(live)
+            && (!IsPlacementInside(live) || _placementState.HandlerRaised);
     }
 
+    // Permission to lower the receiving cylinder; approach motion is independent.
     public bool CanEnterPlacement(bool live = true)
     {
         return IsPositionKnown(live)
             && IsSupplyAtHandoff(live)
             && _supplyState.PcbSecured;
+    }
+
+    public bool CanRaisePlacement(bool live = true)
+    {
+        return IsPositionKnown(live)
+            && _supplyState.PcbReleased
+            && IsPlacementSecuredAtHandoff(live);
+    }
+
+    public bool CanExitSupply(bool live = true)
+    {
+        return IsPositionKnown(live)
+            && _supplyState.PcbReleased
+            && _placementState.HandlerRaised;
     }
 
     public bool HasConflict(bool live = true)
@@ -156,7 +157,7 @@ public sealed class BufferStage
 
         var placementPosition = _placementMotion.ReadPosition(live);
         if (!IsInsidePlacement(placementPosition)
-            || placementPosition.Z <= _placementEntryZ())
+            || _placementState.HandlerRaised)
         {
             return false;
         }
@@ -165,7 +166,9 @@ public sealed class BufferStage
         var placementAtHandoff = _placementMotion.IsSettled(live, _placementMotion.Feedback.Axes.ToArray()) && IsAt(
             placementPosition,
             _placementHandoff);
-        return !supplyAtHandoff && !placementAtHandoff;
+        return _supplyMotion.ReadAxisState(MotionAxis.X, live).InMotion
+            || _supplyMotion.ReadAxisState(MotionAxis.Y, live).InMotion
+            || !supplyAtHandoff && !placementAtHandoff;
     }
 
     public bool IsSupplyOutside(bool live = true)

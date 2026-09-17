@@ -26,6 +26,13 @@ public sealed class BoltFasteningSettings : Setting
                 p => SafeZ = p.Z,
                 this),
             new(
+                TeachingTarget.ShootingHeadFasteningZ,
+                MotionGroup.BoltFastening,
+                TeachMode.ZOnly,
+                () => new() { Z = ShootingHead.FasteningZ },
+                p => ShootingHead.FasteningZ = p.Z,
+                this),
+            new(
                 TeachingTarget.ShootingHeadUpperLeftLocatingPin,
                 MotionGroup.BoltFastening,
                 TeachMode.XYOnly,
@@ -44,6 +51,13 @@ public sealed class BoltFasteningSettings : Setting
             ..pcb.GetBolts(slot)
                 .Where(bolt => bolt.Head == FasteningHead.Shooting)
                 .Select(bolt => GetBoltTeachingPosition(bolt, reference)),
+            new(
+                TeachingTarget.PickupHeadFasteningZ,
+                MotionGroup.BoltFastening,
+                TeachMode.ZOnly,
+                () => new() { Z = PickupHead.FasteningZ },
+                p => PickupHead.FasteningZ = p.Z,
+                this),
             new(
                 TeachingTarget.PickupHeadUpperLeftLocatingPin,
                 MotionGroup.BoltFastening,
@@ -112,13 +126,14 @@ public sealed class BoltFasteningSettings : Setting
             reference.LowerRightLocatingPin!,
             head.UpperLeftLocatingPin!,
             head.LowerRightLocatingPin!);
-        position.Z = SafeZ;
+        position.Z = head.FasteningZ;
         return position;
     }
 }
 
 public sealed class BoltHeadSettings
 {
+    public double FasteningZ { get; set; }
     public AxisPosition? UpperLeftLocatingPin { get; set; }
     public AxisPosition? LowerRightLocatingPin { get; set; }
 }

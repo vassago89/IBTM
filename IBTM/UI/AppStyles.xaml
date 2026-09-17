@@ -163,14 +163,14 @@
                             </Grid>
                         </Border>
 
-                        <Button Focusable="False" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent"
-                            BorderThickness="0" ClickMode="Press" Click="OnComboBoxDropDownClick">
-                            <Button.Template>
+                        <ui:ComboBoxDropDownButton Focusable="False" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Background="Transparent"
+                            BorderThickness="0" ClickMode="Press">
+                            <ui:ComboBoxDropDownButton.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border Background="Transparent"/>
                                 </ControlTemplate>
-                            </Button.Template>
-                        </Button>
+                            </ui:ComboBoxDropDownButton.Template>
+                        </ui:ComboBoxDropDownButton>
 
                         <Popup x:Name="PART_Popup" AllowsTransparency="True" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom">
                             <Border MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}" Margin="0"

@@ -272,7 +272,8 @@ public sealed partial class MachineController
             }
         }
 
-        if (input == InputIo.AutoMode && _state.AutoMode && !_state.AutomaticRunning)
+        if (input == InputIo.AutoMode
+            && (value || _state.AutoMode && !_state.AutomaticRunning))
             StopAndReportFailure();
 
         if (input is InputIo.AutoMode
@@ -441,8 +442,10 @@ public sealed partial class MachineController
             _conveyor.Stop,
             _shootingBoltFeeder.Stop,
             () => _fasteningGantry.StopShooting(),
+            () => _fasteningGantry.StopIoHead(FasteningHead.Pickup),
+            () => _fasteningGantry.StopIoHead(FasteningHead.Shooting),
             _ngConveyor.Stop,
-            () => _supplyHandler.SetUpstreamReady(false),
+            _supplyHandler.StopUpstream,
         ];
         List<Exception>? failures = null;
         foreach (var stop in stops)

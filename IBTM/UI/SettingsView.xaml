@@ -151,7 +151,7 @@
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                 <Button Content="Back Up Database"
                     Command="{Binding BackupDatabaseCommand}"
-                    ToolTip="Saved settings, recipes and carrier images only. Back up AJIN .mot files separately."
+                    ToolTip="Saved settings, recipes and carrier images only."
                     Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0"/>
                 <Button Content="Restore and Exit"
                     Command="{Binding RestoreDatabaseCommand}"
@@ -183,9 +183,11 @@
                                         IsChecked="{Binding Settings.Units.PcbPlacement}"/>
                                     <CheckBox IsEnabled="{Binding CanEditSettings}"
                                         Content="Pickup Feeder"
+                                        ToolTip="OFF excludes pickup and pickup-head fastening in production and Repeat."
                                         IsChecked="{Binding Settings.Units.PickupBoltFeeder}"/>
                                     <CheckBox IsEnabled="{Binding CanEditSettings}"
                                         Content="Shooting Bolt Feeder"
+                                        ToolTip="OFF excludes bolt shooting and shooting-head fastening in production and Repeat."
                                         IsChecked="{Binding Settings.Units.ShootingBoltFeeder}"/>
                                     <CheckBox IsEnabled="{Binding CanEditSettings}"
                                         Content="Bolt Fastening"
@@ -315,7 +317,7 @@
                             </Border>
                         </UniformGrid>
                         <TextBlock
-                            Text="Homing direction, sensor and method use the existing AJIN axis settings; no .mot file is loaded. Speed and acceleration are set here."
+                            Text="Homing uses the controller's current direction, sensor and method settings. Speed and acceleration are set here."
                             Foreground="{StaticResource TextMutedBrush}" Margin="12,0,12,8" TextWrapping="Wrap"/>
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
@@ -403,7 +405,8 @@
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
                                 <TextBlock Text="I/O Channel Mapping" Style="{StaticResource SettingSectionTitle}" Margin="0,0,0,14"/>
-                                <TextBlock Text="OFF channel is blank for single-output devices."
+                                <TextBlock Text="Channels are decimal. -1 means unassigned; confirm the address before use. Leave OFF blank only for single-output devices."
+                                    TextWrapping="Wrap"
                                     Foreground="{StaticResource TextMutedBrush}" Margin="6,0,6,8"/>
 
                                 <Grid>
@@ -532,7 +535,7 @@
                                         <TextBlock Text="Bolt Heads" Style="{StaticResource SettingFieldLabel}"/>
                                         <ComboBox ItemsSource="{Binding BoltDrivers}"
                                             IsEnabled="{Binding CanChangeDrivers}"
-                                            SelectedItem="{Binding Settings.Drivers.Bolt, Mode=TwoWay}"/>
+                                            SelectedItem="{Binding SelectedBoltDriver, Mode=TwoWay}"/>
                                         <TextBlock Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0">
                                     <Run Text="Active: "/><Run Text="{Binding ActiveBoltDriver, Converter={StaticResource EnumDescriptionConverter}, Mode=OneWay}"/>
                                 </TextBlock>
@@ -562,9 +565,6 @@
                                             <TextBox IsEnabled="{Binding CanEditSettings}"
                                                 Text="{Binding Settings.Ajin.InterruptNumber, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
-                                        <TextBlock
-                                            Text="AxlOpenNoReset · existing axis settings · no .mot load or automatic reset fallback."
-                                            Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
                                     </StackPanel>
                                 </Border>
 
@@ -590,9 +590,10 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Border Style="{StaticResource SettingCard}" Margin="0,0,0,12">
+                                <Border Style="{StaticResource SettingCard}" Margin="0,0,0,12"
+                                    Visibility="{Binding ShowAdcBoltSettings, Converter={StaticResource BoolToVis}}">
                                     <StackPanel>
-                                        <TextBlock Text="HANTAS ADC" Style="{StaticResource SettingSectionTitle}"/>
+                                        <TextBlock Text="Bolt Controller · ADC Communication" Style="{StaticResource SettingSectionTitle}"/>
                                         <UniformGrid Columns="2">
                                             <StackPanel Margin="0,0,4,10">
                                                 <TextBlock Text="COM Port" Style="{StaticResource SettingFieldLabel}"/>
@@ -630,6 +631,23 @@
                             </StackPanel>
 
                             <StackPanel Grid.Column="2">
+                                <Border Style="{StaticResource SettingCard}" Margin="0,0,0,12"
+                                    Visibility="{Binding ShowIoBoltSettings, Converter={StaticResource BoolToVis}}">
+                                    <StackPanel>
+                                        <TextBlock Text="Bolt Controller · IO Only" Style="{StaticResource SettingSectionTitle}"/>
+                                        <TextBlock Text="Pickup (Head 1) and Shooting (Head 2) use their controller input/output mappings. No COM port is required."
+                                            TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                        <TextBlock Text="Inputs: READY, ALARM, FASTEN. Outputs: PRESET 1/2/3, START, FWD/BWD, LOCK and RESET."
+                                            TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                        <TextBlock Text="START ON runs; START OFF stops. Use INPUTS / OUTPUTS for manual checks. Machine STOP turns off both START outputs."
+                                            TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                        <TextBlock Text="PRESET 1/2/3: only the selected output is ON. START stays ON until FASTEN turns ON and then OFF. A completed cycle is recorded as assumed OK; no torque is measured. READY and ALARM are displayed only."
+                                            TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                        <TextBlock Text="Fastening Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox IsEnabled="{Binding CanEditSettings}"
+                                            Text="{Binding Settings.IoBoltHardware.FasteningTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
+                                    </StackPanel>
+                                </Border>
                                 <Border Style="{StaticResource SettingCard}" Margin="0,0,0,12">
                                     <StackPanel>
                                         <TextBlock Text="AlphaMotion · TMC-AE16DIOe" Style="{StaticResource SettingSectionTitle}"/>

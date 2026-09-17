@@ -10,6 +10,7 @@ namespace IBTM.UI;
 public sealed class PcbPlacementRecoveryPreparation(
     MachineState state,
     PcbPlacementWork work,
+    PcbPlacer placer,
     IIoService io,
     RecipeEditor recipeEditor) : StartPreparation(state, work, io, recipeEditor)
 {
@@ -25,7 +26,7 @@ public sealed class PcbPlacementRecoveryPreparation(
                         Completed = work.Assemblies.Any(assembly => assembly.HeatSink == heatSink),
                     })
             .ToArray();
-        var window = new PcbPlacementRecoveryWindow(new PcbPlacementRecoveryViewModel(items))
+        var window = new PcbPlacementRecoveryWindow(new PcbPlacementRecoveryViewModel(items, State.RepeatEnabled))
         {
             Owner = owner,
         };
@@ -34,7 +35,15 @@ public sealed class PcbPlacementRecoveryPreparation(
             return false;
         }
 
-        work.PrepareRecovery(items.Select(item => (item.HeatSink, item.Completed)));
+        try
+        {
+            placer.PrepareRecovery(items.Select(item => (item.HeatSink, item.Completed)));
+        }
+        catch (InvalidOperationException exception)
+        {
+            MessageBox.Show(owner, exception.Message, "PCB Placement Recovery", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
         return true;
     }
 }

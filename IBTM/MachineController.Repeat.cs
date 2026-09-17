@@ -17,7 +17,7 @@ public enum RepeatPhase
     ReturnToShuttle,
     [Description("Shuttle → Station 3")]
     ReturnToStation3,
-    [Description("Returning to Station 1")]
+    [Description("Returning to entry sensor")]
     ReturnToStart,
     [Description("Shuttle down → up")]
     CycleShuttle,
@@ -87,7 +87,7 @@ public sealed partial class MachineController
                         await ReturnMainCarrierAsync(cancellationToken);
                         cancellationToken.ThrowIfCancellationRequested();
                         _repeatCycles++;
-                        _log?.Write($"Repeat cycle {_repeatCycles} returned to Station 1.");
+                        _log?.Write($"Repeat cycle {_repeatCycles} returned to the entry sensor.");
                         SetRepeatPhase(RepeatPhase.Automatic);
                         break;
                 }

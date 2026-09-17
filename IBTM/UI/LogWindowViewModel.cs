@@ -3,6 +3,8 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows.Data;
+using System.Windows;
+using System.Runtime.InteropServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -18,6 +20,8 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private bool _isPaused;
+    [ObservableProperty]
+    private string _selectedText = "";
 
     [ObservableProperty, NotifyPropertyChangedFor(nameof(Status))]
     private string? _clipboardError;
@@ -102,6 +106,32 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
         _entries.Refresh();
         ClipboardError = null;
         OnPropertyChanged(nameof(Text));
+    }
+
+    [RelayCommand]
+    private void Copy()
+    {
+        CopyText(SelectedText.Length > 0 ? SelectedText : Text);
+    }
+
+    [RelayCommand]
+    private void CopyAll()
+    {
+        CopyText(Text);
+    }
+
+    private void CopyText(string text)
+    {
+        try
+        {
+            if (text.Length > 0)
+                Clipboard.SetText(text);
+            ClipboardError = null;
+        }
+        catch (ExternalException exception)
+        {
+            ClipboardError = $"Clipboard is unavailable: {exception.Message}";
+        }
     }
 
     public void Dispose()

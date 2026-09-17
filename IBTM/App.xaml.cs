@@ -98,11 +98,11 @@ public partial class App : System.Windows.Application
             _log.Write(
                 $"Settings loaded: {database.DatabaseFile}. Control={settings.Drivers.Control}, Camera={settings.Drivers.Camera}, Light={settings.Drivers.Light}, Bolt={settings.Drivers.Bolt}.");
             _log.Write(
-                $"Connections: AlphaMotion card={settings.AlphaMotion.ControllerNumber}, DI/DO counts detected during initialization; AJIN AxlOpenNoReset, interrupt={settings.Ajin.InterruptNumber}, input modules=[{string.Join(
+                $"Connections: AlphaMotion card={settings.AlphaMotion.ControllerNumber}, DI/DO counts detected during initialization; AJIN AxlOpen, interrupt={settings.Ajin.InterruptNumber}, input modules=[{string.Join(
                     ",",
                     settings.Ajin.RtexInputModules ?? [])}], output modules=[{string.Join(
                         ",",
-                        settings.Ajin.RtexOutputModules ?? [])}], .mot loading disabled.");
+                        settings.Ajin.RtexOutputModules ?? [])}], no .mot file loaded.");
         }
         catch (System.Exception exception)
         {
@@ -123,8 +123,9 @@ public partial class App : System.Windows.Application
         var serviceProvider = services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateOnBuild = true, });
         _serviceProvider = serviceProvider;
-        _adcBus = serviceProvider.GetRequiredService<IAdcBus>();
-        _adcBus.FrameTransferred += OnAdcFrameTransferred;
+        _adcBus = serviceProvider.GetService<IAdcBus>();
+        if (_adcBus is not null)
+            _adcBus.FrameTransferred += OnAdcFrameTransferred;
 
         await serviceProvider.GetRequiredService<MachineController>().InitializeAsync();
         var mainWindow = serviceProvider.GetRequiredService<MainWindow>();

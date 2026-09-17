@@ -228,10 +228,11 @@ public partial class TeachingViewModel : TeachingMotionViewModel
             return SelectedPoint?.Position switch
             {
                 { Target: TeachingTarget.BoltPickup } => TeachingSaveBehavior.BoltPickup,
+                { Target: TeachingTarget.ShootingHeadFasteningZ or TeachingTarget.PickupHeadFasteningZ }
+                    => TeachingSaveBehavior.FasteningZ,
                 { Target: TeachingTarget.DataMatrix } => TeachingSaveBehavior.BarcodeFov,
                 { Target: TeachingTarget.SupplyBufferHandoff } => TeachingSaveBehavior.SupplyHandoff,
                 { Target: TeachingTarget.PlacementBufferHandoff } => TeachingSaveBehavior.PlacementHandoff,
-                { Target: TeachingTarget.SupplyBufferClearZ } => TeachingSaveBehavior.SupplyClearance,
                 { Target: TeachingTarget.SupplyCarrierY } => TeachingSaveBehavior.SupplyCarrierY,
                 { Target: TeachingTarget.NgCarrierPickup } => TeachingSaveBehavior.NgPickup,
                 { Target: TeachingTarget.BoltPosition } => TeachingSaveBehavior.BoltPosition,
@@ -322,8 +323,6 @@ public partial class TeachingViewModel : TeachingMotionViewModel
     [RelayCommand(CanExecute = nameof(CanAddBoltPoint))]
     private void AddBoltPoint()
     {
-        if (!CanEditRecipe())
-            return;
         var draft = SelectedFov?.Metadata is { IsBarcode: false, BoltNumber: null } ? SelectedFov : null;
         var draftRegion = FovRegion;
         var number = RecipeEditor.Recipe.Pcb.GetBolts(SelectedPcb).Select(bolt => bolt.Number).DefaultIfEmpty().Max() + 1;
@@ -354,8 +353,6 @@ public partial class TeachingViewModel : TeachingMotionViewModel
     [RelayCommand(CanExecute = nameof(CanRemoveBoltPoint))]
     private void RemoveBoltPoint()
     {
-        if (!CanEditRecipe())
-            return;
         var number = SelectedPoint!.BoltNumber;
         RecipeEditor.Recipe.Pcb.BoltPoints.RemoveAll(bolt => bolt.Number == number && bolt.HeatSink == SelectedPcb);
         foreach (var fov in RecipeEditor.Recipe.CarrierImages.Where(fov =>
@@ -444,10 +441,7 @@ public partial class TeachingViewModel : TeachingMotionViewModel
             HardwareArea.PcbSupply => _supplySettings.GetTeachingPositions(RecipeEditor.Recipe.PcbSupply)
                 .Where(position => position.Storage != TeachingStorage.Buffer).ToArray(),
             HardwareArea.PcbPlacementHandler
-                => [
-                .. _placementSettings.GetTeachingPositions(),
-                .. RecipeEditor.Recipe.PcbPlacement.GetTeachingPositions(),
-            ],
+                => RecipeEditor.Recipe.PcbPlacement.GetTeachingPositions(),
             HardwareArea.BoltFastening
                 => _fasteningSettings.GetTeachingPositions(
                     RecipeEditor.Recipe.Pcb,

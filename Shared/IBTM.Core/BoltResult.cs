@@ -9,9 +9,12 @@ public enum BoltResultSource
 
     [Description("Manual")]
     Manual,
+
+    [Description("IO · Assumed OK")]
+    IoAssumedOk,
 }
 
 public sealed record BoltResult(
     bool Success,
-    double Torque,
+    double? Torque,
     BoltResultSource Source = BoltResultSource.Controller);

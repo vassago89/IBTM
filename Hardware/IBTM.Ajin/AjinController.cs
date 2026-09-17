@@ -11,7 +11,7 @@ public sealed class AjinController(AjinSettings settings, ApplicationLog? log = 
 {
     // Keep the existing logical address slots; a 16-point module uses only bits 0..15.
     private const int RtexChannelCountPerModule = 32;
-    private readonly uint _interruptNumber = GetInterruptNumber(settings.InterruptNumber);
+    private readonly int _interruptNumber = GetInterruptNumber(settings.InterruptNumber);
     private readonly int[] _inputModules = CaptureModules(
         settings.RtexInputModules,
         nameof(settings.RtexInputModules));
@@ -49,22 +49,21 @@ public sealed class AjinController(AjinSettings settings, ApplicationLog? log = 
                 }
                 catch (IOException exception)
                 {
-                    log?.Error("AJIN connection probe failed; reopening without reset.", exception);
+                    log?.Error("AJIN connection probe failed; reopening.", exception);
                     Dispose();
                 }
             }
-            // Field-test existing hardware settings. Never fall back to a resetting open.
+            // Match the manufacturer DIO sample: open AXL, then query the modules.
+            log?.Write($"AJIN opening with AxlOpen(interrupt={_interruptNumber}).");
+            var openResult = CAXL.AxlOpen(_interruptNumber);
             log?.Write(
-                $"AJIN opening with AxlOpenNoReset(interrupt={_interruptNumber}); .mot loading is skipped. Motion still applies the application's pulse and acceleration units.");
-            var openResult = CAXL.AxlOpenNoReset(_interruptNumber);
-            log?.Write(
-                $"AJIN AxlOpenNoReset(interrupt={_interruptNumber}) returned {(AXT_FUNC_RESULT)openResult} (0x{openResult:X8}).");
-            Check(openResult, nameof(CAXL.AxlOpenNoReset));
+                $"AJIN AxlOpen(interrupt={_interruptNumber}) returned {(AXT_FUNC_RESULT)openResult} (0x{openResult:X8}).");
+            Check(openResult, nameof(CAXL.AxlOpen));
             try
             {
                 ValidateModules();
                 _initialized = true;
-                log?.Write("AJIN initialized with AxlOpenNoReset; DIO mapping validated and no .mot file loaded.");
+                log?.Write("AJIN initialized with AxlOpen; DIO mapping validated and no .mot file loaded.");
             }
             catch (Exception exception)
             {
@@ -254,10 +253,10 @@ public sealed class AjinController(AjinSettings settings, ApplicationLog? log = 
         return (int[])modules.Clone();
     }
 
-    private static uint GetInterruptNumber(int value)
+    private static int GetInterruptNumber(int value)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(value, nameof(AjinSettings.InterruptNumber));
-        return (uint)value;
+        return value;
     }
 
     private static (int Module, int Offset) GetRtexAddress(

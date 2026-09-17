@@ -254,6 +254,19 @@ public enum InputIo
 
     [Description("NG Conveyor Auto / Manual")]
     NgConveyorAutoMode,
+
+    [Description("Pickup Controller Ready (Head 1)")]
+    PickupBoltReady,
+    [Description("Pickup Controller Alarm (Head 1)")]
+    PickupBoltAlarm,
+    [Description("Pickup Controller FASTEN (Head 1)")]
+    PickupBoltFasten,
+    [Description("Shooting Controller Ready (Head 2)")]
+    ShootingBoltReady,
+    [Description("Shooting Controller Alarm (Head 2)")]
+    ShootingBoltAlarm,
+    [Description("Shooting Controller FASTEN (Head 2)")]
+    ShootingBoltFasten,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<OutputIo>))]
@@ -375,6 +388,35 @@ public enum OutputIo
 
     [Description("Machine Light")]
     MachineLight,
+
+    [Description("Pickup Controller Preset 1 (Head 1)")]
+    PickupBoltPreset1,
+    [Description("Pickup Controller Preset 2 (Head 1)")]
+    PickupBoltPreset2,
+    [Description("Pickup Controller Preset 3 (Head 1)")]
+    PickupBoltPreset3,
+    [Description("Pickup Controller Start (Head 1)")]
+    PickupBoltStart,
+    [Description("Pickup Controller FWD/BWD (Head 1)")]
+    PickupBoltDirection,
+    [Description("Pickup Controller Lock (Head 1)")]
+    PickupBoltLock,
+    [Description("Pickup Controller Reset (Head 1)")]
+    PickupBoltReset,
+    [Description("Shooting Controller Preset 1 (Head 2)")]
+    ShootingBoltPreset1,
+    [Description("Shooting Controller Preset 2 (Head 2)")]
+    ShootingBoltPreset2,
+    [Description("Shooting Controller Preset 3 (Head 2)")]
+    ShootingBoltPreset3,
+    [Description("Shooting Controller Start (Head 2)")]
+    ShootingBoltStart,
+    [Description("Shooting Controller FWD/BWD (Head 2)")]
+    ShootingBoltDirection,
+    [Description("Shooting Controller Lock (Head 2)")]
+    ShootingBoltLock,
+    [Description("Shooting Controller Reset (Head 2)")]
+    ShootingBoltReset,
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<MachineAxis>))]

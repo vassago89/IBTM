@@ -1,7 +1,9 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using IBTM.BoltFastening;
 using IBTM.Device;
 using IBTM.Storage;
 using Microsoft.Data.Sqlite;
@@ -12,6 +14,99 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class MachineStoreTests
 {
+    [Theory]
+    [InlineData(null, null, 5d, 5d)]
+    [InlineData(12d, null, 12d, 12d)]
+    [InlineData(12d, 0d, 12d, 0d)]
+    public void HeadFasteningHeightsMigrateOnceAndSaveIndependently(
+        double? previousCommonZ,
+        double? existingPickupZ,
+        double expectedShootingZ,
+        double expectedPickupZ)
+    {
+        var store = new MachineStore(Path.Combine(CreateDirectory(), "Machine.db"));
+        var original = new BoltFasteningSettings { SafeZ = 5, PickupPosition = new() { Z = 10 } };
+        store.SaveSettings([original]);
+        var oldData = JsonSerializer.SerializeToNode(original)!;
+        oldData["ShootingHead"]!.AsObject().Remove("FasteningZ");
+        oldData["PickupHead"]!.AsObject().Remove("FasteningZ");
+        if (previousCommonZ.HasValue)
+            oldData["FasteningZ"] = previousCommonZ.Value;
+        if (existingPickupZ.HasValue)
+            oldData["PickupHead"]!["FasteningZ"] = existingPickupZ.Value;
+        using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE Settings SET Value = $value WHERE Key = 'BoltFasteningSettings'";
+            command.Parameters.AddWithValue("$value", oldData.ToJsonString());
+            command.ExecuteNonQuery();
+        }
+
+        store = new MachineStore(store.DatabaseFile);
+        var migrated = store.LoadSettings().Get<BoltFasteningSettings>();
+        Assert.Equal(expectedShootingZ, migrated.ShootingHead.FasteningZ);
+        Assert.Equal(expectedPickupZ, migrated.PickupHead.FasteningZ);
+        Assert.Equal(10, migrated.PickupPosition.Z);
+        migrated.SafeZ = 7;
+        migrated.ShootingHead.FasteningZ = 14;
+        migrated.PickupHead.FasteningZ = 18;
+        store.SaveSettings([migrated]);
+        var loaded = new MachineStore(store.DatabaseFile).LoadSettings().Get<BoltFasteningSettings>();
+        Assert.Equal(7, loaded.SafeZ);
+        Assert.Equal(14, loaded.ShootingHead.FasteningZ);
+        Assert.Equal(18, loaded.PickupHead.FasteningZ);
+        Assert.Equal(10, loaded.PickupPosition.Z);
+    }
+
+    [Fact]
+    public async Task FinalIoAddressesMigrateTogetherWithoutChangingDirectionsOrCustomMappings()
+    {
+        var store = new MachineStore(Path.Combine(CreateDirectory(), "Machine.db"));
+        var settings = new MachineSettings();
+        settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyPcbDetected] = 28;
+        settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyGripperClosed] = 22;
+        settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyGripperOpen] = 23;
+        settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyIpmFixerForward] = 24;
+        settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyIpmFixerBackward] = 25;
+        settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber = 25;
+        settings.ConveyorHardware.Inputs[InputIo.MainConveyorEntryCarrierDetected] = 91;
+        settings.ConveyorHardware.Inputs[InputIo.MainConveyorExitCarrierDetected] = 92;
+        settings.BoltFasteningStationHardware.Inputs[InputIo.BoltFasteningHeatSink1Present] = 61;
+        settings.BoltFasteningStationHardware.Inputs[InputIo.BoltFasteningHeatSink2Present] = 62;
+        settings.InspectionStationHardware.Inputs[InputIo.InspectionHeatSink1Present] = 68;
+        settings.InspectionStationHardware.Inputs[InputIo.InspectionHeatSink2Present] = 69;
+        await settings.SaveAsync(store);
+
+        // Two opens prove the moves do not cascade or swap back on restart.
+        _ = new MachineStore(store.DatabaseFile);
+        var loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
+        var expected = new MachineSettings();
+        foreach (var (expectedSection, actualSection) in expected.HardwareSections.Zip(loaded.HardwareSections))
+        {
+            Assert.Equal(
+                JsonSerializer.Serialize(expectedSection, expectedSection.GetType()),
+                JsonSerializer.Serialize(actualSection, actualSection.GetType()));
+        }
+
+        // A partially adjusted group is a field mapping, not the old default map.
+        settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyIpmFixerBackward] = 27;
+        // The confirmed single-coil valve retires any previously saved backward output.
+        settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber = 25;
+        settings.ConveyorHardware.Inputs[InputIo.MainConveyorExitCarrierDetected] = 93;
+        settings.BoltFasteningStationHardware.Inputs[InputIo.BoltFasteningHeatSink1Present] = 90;
+        settings.InspectionStationHardware.Inputs[InputIo.InspectionHeatSink2Present] = 95;
+        await settings.SaveAsync(store);
+        loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
+        settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber = null;
+        foreach (var (expectedSection, actualSection) in settings.HardwareSections.Zip(loaded.HardwareSections))
+        {
+            Assert.Equal(
+                JsonSerializer.Serialize(expectedSection, expectedSection.GetType()),
+                JsonSerializer.Serialize(actualSection, actualSection.GetType()));
+        }
+    }
+
     [Fact]
     public async Task SettingsAndRecipesAreWholeJsonObjectsInAnAutomaticallyCreatedDatabase()
     {
@@ -30,6 +125,9 @@ public sealed class MachineStoreTests
         settings.NgConveyorHardware.Outputs[OutputIo.NgConveyorStopperDown].OffNumber = 78;
         settings.BoltFasteningHardware.Outputs[OutputIo.PickupHeadUp].Number = 139;
         settings.BoltFasteningHardware.Outputs[OutputIo.PickupHeadUp].OffNumber = 140;
+        settings.Drivers.Bolt = BoltDriver.Io;
+        settings.IoBoltHardware.Inputs[InputIo.PickupBoltReady] = 112;
+        settings.IoBoltHardware.Outputs[OutputIo.ShootingBoltStart].Number = 115;
         await settings.SaveAsync(store);
         store.SaveRecipe("Part", new Recipe { Name = "Part" }, []);
 
@@ -111,6 +209,9 @@ public sealed class MachineStoreTests
         var reopened = new MachineStore(store.DatabaseFile);
         // Opening again must not reverse the corrected input pairs.
         var loaded = await MachineSettings.LoadAsync(new MachineStore(reopened.DatabaseFile));
+        Assert.Equal(BoltDriver.Io, loaded.Drivers.Bolt);
+        Assert.Equal(112, loaded.IoBoltHardware.Inputs[InputIo.PickupBoltReady]);
+        Assert.Equal(115, loaded.IoBoltHardware.Outputs[OutputIo.ShootingBoltStart].Number);
         Assert.Equal(0.002, loaded.PcbPlacementHandlerHardware.MillimetersPerUnit);
         Assert.Equal(0.1, loaded.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.MoveUnit);
         Assert.Equal(10, loaded.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.MovePulse);

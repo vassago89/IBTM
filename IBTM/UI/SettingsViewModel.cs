@@ -107,6 +107,39 @@ public partial class SettingsViewModel : ObservableObject
     public BoltDriver ActiveBoltDriver { get; }
     public LightDriver ActiveLightDriver { get; }
 
+    public BoltDriver SelectedBoltDriver
+    {
+        get
+        {
+            return Settings.Drivers.Bolt;
+        }
+        set
+        {
+            if (Settings.Drivers.Bolt == value)
+                return;
+            Settings.Drivers.Bolt = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ShowIoBoltSettings));
+            OnPropertyChanged(nameof(ShowAdcBoltSettings));
+        }
+    }
+
+    public bool ShowIoBoltSettings
+    {
+        get
+        {
+            return SelectedBoltDriver == BoltDriver.Io;
+        }
+    }
+
+    public bool ShowAdcBoltSettings
+    {
+        get
+        {
+            return SelectedBoltDriver != BoltDriver.Io;
+        }
+    }
+
     public bool IsVirtualDevelopment
     {
         get
@@ -183,8 +216,6 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
     private async Task SaveSettingsAsync()
     {
-        if (!CanEditSettings)
-            return;
         if (Settings.Drivers.Light == LightDriver.Movs
             && string.IsNullOrWhiteSpace(Settings.Lighting.Connection))
         {
@@ -273,8 +304,6 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
     private async Task BackupDatabaseAsync()
     {
-        if (!CanEditSettings)
-            return;
         using var operation = _operations.TryBegin();
         if (operation is null)
             return;
@@ -305,8 +334,6 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
     private async Task RestoreDatabaseAsync()
     {
-        if (!CanEditSettings)
-            return;
         using var operation = _operations.TryBegin();
         if (operation is null)
             return;
@@ -338,8 +365,6 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanChangeVirtualImage))]
     private async Task LoadVirtualImageAsync(string? path, CancellationToken cancellationToken)
     {
-        if (!CanChangeVirtualImage())
-            return;
         if (path is null)
         {
             var dialog = new OpenFileDialog
@@ -392,8 +417,6 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanClearVirtualImage))]
     private void ClearVirtualImage()
     {
-        if (!CanClearVirtualImage())
-            return;
         _virtualCamera!.SourceImage = null;
         VirtualImageName = null;
         VirtualImageError = null;

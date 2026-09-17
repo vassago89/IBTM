@@ -57,9 +57,6 @@ public enum TeachingTarget
     [Description("PCB Give Position")]
     SupplyBufferHandoff,
 
-    [Description("Post-release Clearance Z")]
-    SupplyBufferClearZ,
-
     [Description("PCB Receive Position")]
     PlacementBufferHandoff,
 
@@ -119,6 +116,11 @@ public enum TeachingTarget
 
     [Description("NG Pickup Safe X")]
     NgPickupSafeX,
+
+    [Description("Shooting Head Fastening Z")]
+    ShootingHeadFasteningZ,
+    [Description("Pickup Head Fastening Z")]
+    PickupHeadFasteningZ,
 
 }
 

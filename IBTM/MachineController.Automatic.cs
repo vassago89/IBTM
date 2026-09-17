@@ -79,14 +79,17 @@ public sealed partial class MachineController
     {
         get
         {
-            if ((_units.BoltFastening || _units.Inspection)
+            var fasteningEnabled = _units.BoltFastening
+                && (_units.PickupBoltFeeder || _units.ShootingBoltFeeder);
+            if ((fasteningEnabled || _units.Inspection)
                 && _recipe.Pcb.BoltPoints.Count == 0)
                 return false;
 
-            if (_units.BoltFastening
+            if (fasteningEnabled
                 && (!_carrierReference.IsDefined
                     || _recipe.Pcb.GetBolts().Any(bolt =>
-                        bolt.X is null || bolt.Y is null || !_fasteningGantry.HasReference(bolt.Head))))
+                        _units.IsFasteningHeadEnabled(bolt.Head)
+                        && (bolt.X is null || bolt.Y is null || !_fasteningGantry.HasReference(bolt.Head)))))
             {
                 return false;
             }
@@ -269,7 +272,7 @@ public sealed partial class MachineController
                 cycle));
         }
 
-        // TEMP: repeat turns around at Station 1 until the front sensor is installed.
+        // Repeat reuses the PCB on the carrier instead of feeding a new PCB.
         if (_units.PcbSupply && !repeat)
         {
             runningUnits.Add(RunAutomaticUnitAsync(
@@ -278,11 +281,11 @@ public sealed partial class MachineController
                 cycle));
         }
 
-        if (_units.PcbPlacement && !repeat)
+        if (_units.PcbPlacement)
         {
             runningUnits.Add(RunAutomaticUnitAsync(
                 MachineAlarm.PcbPlacement,
-                () => _pcbPlacement.RunAsync(_recipe.PcbPlacement, cycle.Token),
+                () => _pcbPlacement.RunAsync(_recipe.PcbPlacement, cycle.Token, repeat),
                 cycle));
         }
 
@@ -304,6 +307,10 @@ public sealed partial class MachineController
 
         if (_units.BoltFastening)
         {
+            if (!_units.PickupBoltFeeder)
+                _log?.Write("Pickup Feeder OFF; pickup and pickup-head fastening are excluded.");
+            if (!_units.ShootingBoltFeeder)
+                _log?.Write("Shooting Feeder OFF; bolt shooting and shooting-head fastening are excluded.");
             runningUnits.Add(RunAutomaticUnitAsync(
                 MachineAlarm.BoltFastening,
                 () => _fasteningStation.RunAsync(_recipe.BoltFastening, cycle.Token),

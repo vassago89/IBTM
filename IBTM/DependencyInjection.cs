@@ -37,7 +37,9 @@ public static class DependencyInjection
         settings.ConveyorHardware.Inputs.Remove(InputIo.PcbPlacementCarrierPresent);
         settings.ConveyorHardware.Inputs.Remove(InputIo.BoltFasteningCarrierPresent);
         settings.ConveyorHardware.Inputs.Remove(InputIo.InspectionCarrierPresent);
-        var hardware = settings.HardwareSections;
+        var hardware = settings.HardwareSections
+            .Where(section => settings.Drivers.Bolt == BoltDriver.Io || section is not IoBoltHardwareSettings)
+            .ToArray();
         services.AddSingleton(settings);
         services.AddSingleton<IReadOnlyList<MotionHardwareSettings>>(
             hardware.OfType<MotionHardwareSettings>().ToArray());
@@ -256,7 +258,6 @@ public static class DependencyInjection
                     settings.PcbSupply.BufferHandoffPosition,
                     settings.PcbPlacementHandler.BufferHandoffPosition,
                     () => settings.PcbSupply.RotationZ,
-                    () => settings.PcbPlacementHandler.BufferEntryZ,
                     () => settings.Units.PcbSupply,
                     () => settings.Units.PcbPlacement);
             });
@@ -280,7 +281,7 @@ public static class DependencyInjection
         services.AddSingleton(
             provider =>
                 new PcbSupplyHandler(
-                    provider.GetRequiredKeyedService<IAxisMotion>(MotionGroup.PcbSupply),
+                    provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply),
                     provider.GetRequiredService<IIoService>(),
                     settings.PcbSupply,
                     settings.PcbBuffer));
@@ -306,6 +307,7 @@ public static class DependencyInjection
         services.AddSingleton<PcbPlacer>();
         services.AddSingleton<PickupBoltFeeder>();
         services.AddSingleton<ShootingBoltFeeder>();
+        services.AddSingleton<Func<FasteningHead, bool>>(settings.Units.IsFasteningHeadEnabled);
         services.AddSingleton<BoltFasteningStation>();
         services.AddSingleton<NgShuttleFeedback>();
         services.AddSingleton<NgCarrierConveyor>();
@@ -338,6 +340,7 @@ public static class DependencyInjection
         services.AddSingleton<ManualHardwareViewModel>();
         services.AddSingleton<MotionWindowViewModel>();
         services.AddSingleton<TeachingViewModel>();
+        services.AddSingleton<DiagnosticWindows>();
         services.AddSingleton<MainViewModel>();
         services.AddSingleton<MainWindow>();
 
@@ -354,7 +357,7 @@ public static class DependencyInjection
                     new VirtualMachine(
                         provider.GetRequiredService<VirtualIoService>(),
                         [
-                (VirtualMotionService)provider.GetRequiredKeyedService<IAxisMotion>(
+                (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
                     MotionGroup.PcbSupply),
                 (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
                     MotionGroup.PcbPlacementHandler),
@@ -362,7 +365,8 @@ public static class DependencyInjection
                     MotionGroup.BoltFastening),
                 (VirtualMotionService)provider.GetRequiredKeyedService<IXyMotion>(
                     MotionGroup.InspectionGantry),
-            ]));
+            ],
+                        () => provider.GetRequiredService<MachineState>().RepeatEnabled));
             services.AddSingleton<IIoService>(
                 provider => provider.GetRequiredService<VirtualIoService>());
         }
@@ -375,19 +379,17 @@ public static class DependencyInjection
             services.AddSingleton<IIoService, PhysicalIoService>();
         }
 
-        services.AddKeyedSingleton<IAxisMotion>(
-            MotionGroup.PcbSupply,
-            (provider, _) => CreateMotion(
-                provider,
-                settings.Drivers.Control,
-                settings.PcbSupply.Motion,
-                () => settings.PcbSupply.RotationZ,
-                settings.PcbSupplyHardware));
+        AddXyMotion(
+            services,
+            settings.Drivers.Control,
+            settings.PcbSupply.Motion,
+            () => settings.PcbSupply.RotationZ,
+            settings.PcbSupplyHardware);
         AddXyMotion(
             services,
             settings.Drivers.Control,
             settings.PcbPlacementHandler.Motion,
-            () => settings.PcbPlacementHandler.BufferEntryZ,
+            () => settings.PcbPlacementHandler.BufferHandoffPosition.Z,
             settings.PcbPlacementHandlerHardware);
         AddXyMotion(
             services,
@@ -436,6 +438,19 @@ public static class DependencyInjection
 
     private static void AddBoltHardware(IServiceCollection services, MachineSettings settings)
     {
+        if (settings.Drivers.Bolt == BoltDriver.Io)
+        {
+            services.AddKeyedSingleton<IBoltHead>(
+                FasteningHead.Pickup,
+                (provider, _) => new IoBoltHead(
+                    provider.GetRequiredService<IIoService>(), FasteningHead.Pickup, settings.IoBoltHardware));
+            services.AddKeyedSingleton<IBoltHead>(
+                FasteningHead.Shooting,
+                (provider, _) => new IoBoltHead(
+                    provider.GetRequiredService<IIoService>(), FasteningHead.Shooting, settings.IoBoltHardware));
+            return;
+        }
+
         if (settings.Drivers.Bolt == BoltDriver.Virtual)
         {
             services.AddSingleton<IAdcBus, VirtualAdcBus>();

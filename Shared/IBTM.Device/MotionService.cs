@@ -51,11 +51,6 @@ public interface IAxisMotion : IMotionFeedback
         double position,
         double velocity,
         CancellationToken cancellationToken = default);
-    Task MoveXAtClearZAsync(
-        double x,
-        double clearZ,
-        double velocity,
-        CancellationToken cancellationToken = default);
     Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default);
     Task MoveZToPositiveLimitAsync(double velocity, CancellationToken cancellationToken = default);
     Task<bool> HomeFromZPositiveLimitAsync(
@@ -259,28 +254,6 @@ public abstract class MotionService(
         }
 
         await MoveAxisCoreAsync(axis, position, velocity, cancellationToken);
-    }
-
-    public async Task MoveXAtClearZAsync(
-        double x,
-        double clearZ,
-        double velocity,
-        CancellationToken cancellationToken = default)
-    {
-        using var operation = Operations.Link(cancellationToken);
-        cancellationToken = operation.Token;
-        ValidateMove(velocity);
-        EnsureHasZ();
-        ValidateTarget(MotionAxis.X, x);
-        ValidateTarget(MotionAxis.Z, clearZ);
-        EnsureStopped();
-        if (!GetAxisState(MotionAxis.Z).Homed
-            || Math.Abs(GetPosition().Z - clearZ) > PositionToleranceMillimeters)
-        {
-            throw new MotionInterlockException($"X movement requires Z at Clear Z ({clearZ:F3}).");
-        }
-
-        await MoveAxisCoreAsync(MotionAxis.X, x, velocity, cancellationToken);
     }
 
     public async Task MoveToXYAsync(

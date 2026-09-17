@@ -104,6 +104,13 @@ public interface IIoService
 
     void SetOutput(OutputIo output, bool value);
 
+    // Sequence-owned SMEMA is isolated in teaching; OUTPUTS uses SetOutput directly.
+    void SetAutomaticSmemaOutput(OutputIo output, bool value)
+    {
+        if (!GetInput(InputIo.AutoMode))
+            SetOutput(output, value);
+    }
+
     async Task SetOutputAndWaitAsync(
         OutputIo output,
         bool value,

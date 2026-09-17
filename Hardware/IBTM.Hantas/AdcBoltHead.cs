@@ -117,7 +117,9 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
         }
     }
 
-    public async Task<BoltResult> TightenAsync(CancellationToken cancellationToken = default)
+    public async Task<BoltResult> TightenAsync(
+        CancellationToken cancellationToken = default,
+        Func<CancellationToken, Task>? feedAsync = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         AdcFasteningResult? completed = null;
@@ -148,6 +150,11 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
                 timeout.Token.ThrowIfCancellationRequested();
                 _pendingFastening = fastening;
                 await bus.StartAsync(slaveAddress, timeout.Token);
+                if (feedAsync is not null)
+                {
+                    timeout.Token.ThrowIfCancellationRequested();
+                    await feedAsync(timeout.Token);
+                }
                 while (true)
                 {
                     var result = await bus.ReadFasteningResultAsync(slaveAddress, timeout.Token);

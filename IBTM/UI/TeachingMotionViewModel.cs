@@ -56,7 +56,7 @@ public enum TeachingMotionHint
     BoltAdjustment,
     [Description("Move to Safe Z before moving X/Y.")]
     SafeZRequired,
-    [Description("Inside the handoff interference area: Y and Z moves are disabled.")]
+    [Description("Inside the handoff interference area: X/Y moves require Rotation Z; Z moves and rotation are disabled.")]
     SupplyInBufferRestricted,
     [Description("Home this unit before jogging or moving to a teaching position.")]
     HomeRequired,

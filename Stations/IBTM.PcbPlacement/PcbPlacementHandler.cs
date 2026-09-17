@@ -7,7 +7,7 @@ using IBTM.PcbBuffer;
 
 namespace IBTM.PcbPlacement;
 
-public sealed class PcbPlacementHandler : IPcbHandoffState
+public sealed class PcbPlacementHandler : IPcbHandoffReceiver
 {
     private readonly IXyMotion _motion;
     private readonly IIoService _io;
@@ -39,6 +39,14 @@ public sealed class PcbPlacementHandler : IPcbHandoffState
         get
         {
             return CylinderState(InputIo.PcbPlacementHandlerUp, InputIo.PcbPlacementHandlerDown);
+        }
+    }
+
+    public bool HandlerRaised
+    {
+        get
+        {
+            return Lift == PlacementCylinderState.Up;
         }
     }
 
@@ -119,7 +127,7 @@ public sealed class PcbPlacementHandler : IPcbHandoffState
                 && _motion.IsAtHorizontalZ
             : !Motion.IsMoving
                 && Motion.Axes[MotionAxis.Z].State is { InPosition: true }
-                && Motion.IsAtZ(_settings.BufferEntryZ);
+                && Motion.IsAtZ(_settings.BufferHandoffPosition.Z);
     }
 
     public bool CanMoveHorizontal
@@ -133,11 +141,6 @@ public sealed class PcbPlacementHandler : IPcbHandoffState
     public bool IsAtBufferXY(bool live = true)
     {
         return IsAtXY(_settings.BufferHandoffPosition, live);
-    }
-
-    public bool IsAtBufferZ(bool live = true)
-    {
-        return IsAtZ(_settings.BufferHandoffPosition, live);
     }
 
     public void InitializeMotion()
@@ -193,11 +196,6 @@ public sealed class PcbPlacementHandler : IPcbHandoffState
     public Task MoveAboveBufferAsync(CancellationToken cancellationToken = default)
     {
         return MoveToXYAsync(_settings.BufferHandoffPosition, cancellationToken);
-    }
-
-    public Task LowerToBufferAsync(CancellationToken cancellationToken = default)
-    {
-        return MoveAxisAsync(MotionAxis.Z, _settings.BufferHandoffPosition.Z, cancellationToken);
     }
 
     public Task MoveAxisAsync(
@@ -340,4 +338,5 @@ public sealed class PcbPlacementHandler : IPcbHandoffState
             Changed?.Invoke();
         }
     }
+
 }

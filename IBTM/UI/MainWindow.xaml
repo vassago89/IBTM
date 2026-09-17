@@ -7,6 +7,7 @@
     xmlns:ui="clr-namespace:IBTM.UI"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:MainViewModel, IsDesignTimeCreatable=False}"
+    IsEnabled="{Binding ControlsEnabled}"
     Title="IBTM - Inline Assembly Control"
     Width="1920"
     Height="1080"
@@ -132,20 +133,20 @@
                         </Button.Style>
                     </Button>
 
-                    <Button Content="INPUTS" Margin="8,8,8,0" Style="{StaticResource SidebarToolButtonStyle}" Click="OnOpenInputs"/>
+                    <Button Content="INPUTS" Margin="8,8,8,0" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenInputsCommand}"/>
 
                     <Button Content="OUTPUTS" Style="{StaticResource SidebarToolButtonStyle}"
                         IsEnabled="{Binding OutputsWindowEnabled}"
                         ToolTip="Open in MANUAL only. Individual controls remain safety-interlocked." ToolTipService.ShowOnDisabled="True"
-                        Click="OnOpenOutputs"/>
+                        Command="{Binding OpenOutputsCommand}"/>
 
                     <Button Content="MOTION" Style="{StaticResource SidebarToolButtonStyle}"
-                        ToolTip="Axis numbers, positions and feedback. Controls remain safety-interlocked." Click="OnOpenMotion"/>
+                        ToolTip="Axis numbers, positions and feedback. Controls remain safety-interlocked." Command="{Binding OpenMotionCommand}"/>
 
                     <Button Content="ADC TEST" Style="{StaticResource SidebarToolButtonStyle}"
                         IsEnabled="{Binding AdcProtocolEnabled}"
-                        Click="OnOpenAdcProtocol"/>
-                    <Button Content="LOGS" Style="{StaticResource SidebarToolButtonStyle}" Click="OnOpenLogs"/>
+                        Command="{Binding OpenAdcProtocolCommand}"/>
+                    <Button Content="LOGS" Style="{StaticResource SidebarToolButtonStyle}" Command="{Binding OpenLogsCommand}"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -298,7 +299,7 @@
                                     Command="{Binding RecipeEditor.NewCommand}"
                                     Style="{StaticResource SecondaryButtonStyle}" Padding="10,5" Margin="0,0,4,0"/>
                                 <ComboBox ItemsSource="{Binding RecipeEditor.Recipes}" Width="156"
-                                    ToolTip="Load a saved recipe" SelectionChanged="RecipeFile_Selected"/>
+                                    ToolTip="Load a saved recipe" SelectedItem="{Binding SelectedRecipeFile, Mode=TwoWay}"/>
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
@@ -435,7 +436,7 @@
                                                          Converter={StaticResource BoolToVis}}">
                             <StackPanel Margin="0,0,18,0" VerticalAlignment="Center">
                                 <CheckBox x:Name="RepeatMode" Content="REPEAT (DRY RUN)"
-                                    ToolTip="Run repeat in TEACHING (MANUAL) mode. Normal production requires AUTO."
+                            ToolTip="Run Repeat in TEACHING (MANUAL) mode. Each feeder OFF also excludes its head's fastening."
                                     IsChecked="{Binding Operation.State.RepeatEnabled, BindingGroupName={x:Null}}"
                                     IsEnabled="{Binding Operation.State.Display.SetupEditingEnabled}"/>
                                 <TextBlock Text="{Binding Operation.State.Display.RepeatCycles, StringFormat='Cycles: {0}'}"

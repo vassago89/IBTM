@@ -11,6 +11,58 @@ namespace IBTM.Ajin.Tests;
 
 public sealed class AjinControllerTests
 {
+    [Fact]
+    public void UnassignedSupplyFeedbackStaysUnknownAndNeitherCoilIsWrittenWithoutBothAddresses()
+    {
+        Shared.TMCAEDLL.Reset();
+        using var alpha = new IBTM.AlphaMotion.AlphaMotionController(new());
+        using var ajin = new AjinController(new());
+        var fixer = new OutputHardware
+        {
+            Number = 24,
+            OffNumber = -1,
+            Feedback = new(InputIo.PcbSupplyIpmFixerForward, InputIo.PcbSupplyIpmFixerBackward),
+        };
+        using var io = new PhysicalIoService(
+            alpha,
+            ajin,
+            new System.Collections.Generic.Dictionary<InputIo, int>
+            {
+                [InputIo.PcbSupplyGripperOpen] = 25,
+                [InputIo.PcbSupplyIpmFixerBackward] = -1,
+            },
+            new System.Collections.Generic.Dictionary<OutputIo, OutputHardware>
+            {
+                [OutputIo.PcbSupplyIpmFixerForward] = fixer,
+            },
+            new());
+        AjinSdk.Inputs[0] = 1U << 9; // DI-109: opening the gripper must not confirm IPM retraction.
+        io.Initialize();
+        io.RefreshInputs();
+        io.CheckReady();
+        Assert.True(io.IsReady);
+        Assert.True(io.GetInput(InputIo.PcbSupplyGripperOpen));
+        var error = Assert.Throws<IOException>(() => io.GetInput(InputIo.PcbSupplyIpmFixerBackward));
+        Assert.Contains("no configured input address", error.Message);
+
+        var reads = Shared.TMCAEDLL.Calls.Count + AjinSdk.Calls.Count;
+        Assert.Throws<IOException>(() => io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, true));
+        Assert.Throws<IOException>(() => io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, false));
+        Assert.Equal(reads, Shared.TMCAEDLL.Calls.Count + AjinSdk.Calls.Count);
+
+        // Confirmed single-coil configuration: retract clears DO-108 only.
+        fixer.OffNumber = null;
+        AjinSdk.Calls.Clear();
+        io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, true);
+        io.SetOutput(OutputIo.PcbSupplyIpmFixerForward, false);
+        Assert.Equal(new[]
+        {
+            new AjinSdk.Call("AxdoWriteOutportBit", Module: 2, Offset: 8, Value: 1),
+            new AjinSdk.Call("AxdoWriteOutportBit", Module: 2, Offset: 8, Value: 0),
+        }, AjinSdk.Calls);
+        Assert.Throws<IOException>(() => io.GetInput(InputIo.PcbSupplyIpmFixerBackward));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -382,7 +434,8 @@ public sealed class AjinControllerTests
         using var controller = new AjinController(new());
         controller.Initialize();
         controller.Initialize();
-        Assert.Single(AjinSdk.Calls, call => call.Operation == "AxlOpenNoReset");
+        Assert.Single(AjinSdk.Calls, call => call.Operation == "AxlOpen");
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == "AxmMotLoadParaAll");
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == "AxlClose");
 
         AjinSdk.Results[new("AxdiReadInportWord", Module: 0, Offset: 0)] =
@@ -390,15 +443,16 @@ public sealed class AjinControllerTests
         Assert.Throws<IOException>(() => controller.ReadRtexInputs(new uint[controller.RtexInputWordCount]));
         AjinSdk.BeforeCall = call =>
         {
-            if (call.Operation == "AxlOpenNoReset")
+            if (call.Operation == "AxlOpen")
                 AjinSdk.Results.Clear();
         };
 
         controller.Initialize();
         controller.ReadRtexInputs(new uint[controller.RtexInputWordCount]);
-        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == "AxlOpenNoReset"));
+        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == "AxlOpen"));
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == "AxmMotLoadParaAll");
         Assert.Single(AjinSdk.Calls, call => call.Operation == "AxlClose");
-        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation is "AxlOpen" or "AxdoWriteOutportBit");
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation is "AxlOpenNoReset" or "AxdoWriteOutportBit");
     }
 
     [Theory]
@@ -673,16 +727,16 @@ public sealed class AjinControllerTests
         controller.Initialize();
         controller.Initialize();
 
-        Assert.Equal(new AjinSdk.Call("AxlOpenNoReset", Offset: 7), AjinSdk.Calls[0]);
+        Assert.Equal(new AjinSdk.Call("AxlOpen", Offset: 7), AjinSdk.Calls[0]);
         Assert.Equal("AxdInfoIsDIOModule", AjinSdk.Calls[1].Operation);
-        Assert.Single(AjinSdk.Calls, call => call.Operation == "AxlOpenNoReset");
-        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation is "AxlOpen" or "AxmMotLoadParaAll");
+        Assert.Single(AjinSdk.Calls, call => call.Operation == "AxlOpen");
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation is "AxlOpenNoReset" or "AxmMotLoadParaAll");
         Assert.Contains(
             log.Entries,
             entry =>
-                entry.Message.Contains("AxlOpenNoReset(interrupt=7)")
+                entry.Message.Contains("AxlOpen(interrupt=7)")
                     && entry.Message.Contains("AXT_RT_SUCCESS (0x00000000)"));
-        Assert.Contains(log.Entries, entry => entry.Message.Contains(".mot loading is skipped"));
+        Assert.Contains(log.Entries, entry => entry.Message.Contains("no .mot file loaded"));
         Assert.Equal(
             new int?[] { 0, 1, 2, 3, 4 },
             AjinSdk.Calls.Where(call => call.Operation == "AxdInfoGetModule")
@@ -930,7 +984,7 @@ public sealed class AjinControllerTests
         settings.InterruptNumber = 99;
         Assert.Equal(3, controller.RtexInputWordCount);
         controller.Initialize();
-        Assert.Equal(new AjinSdk.Call("AxlOpenNoReset", Offset: 7), AjinSdk.Calls[0]);
+        Assert.Equal(new AjinSdk.Call("AxlOpen", Offset: 7), AjinSdk.Calls[0]);
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == "AxmMotLoadParaAll");
         AjinSdk.Calls.Clear();
         controller.ReadRtexInput(0);
@@ -972,11 +1026,11 @@ public sealed class AjinControllerTests
     {
         using var log = new ApplicationLog();
         using var controller = new AjinController(new(), log);
-        AjinSdk.Results[new("AxlOpenNoReset", Offset: 7)] = (uint)AXT_FUNC_RESULT.AXT_RT_OPEN_ERROR;
+        AjinSdk.Results[new("AxlOpen", Offset: 7)] = (uint)AXT_FUNC_RESULT.AXT_RT_OPEN_ERROR;
         var error = Assert.Throws<IOException>(controller.Initialize);
-        Assert.Contains("AxlOpenNoReset", error.Message);
+        Assert.Contains("AxlOpen", error.Message);
         Assert.Contains("AXT_RT_OPEN_ERROR", error.Message);
-        Assert.Equal("AxlOpenNoReset", Assert.Single(AjinSdk.Calls).Operation);
+        Assert.Equal("AxlOpen", Assert.Single(AjinSdk.Calls).Operation);
         Assert.Contains(log.Entries, entry => entry.Message.Contains("AXT_RT_OPEN_ERROR"));
         Assert.Throws<IOException>(() => controller.ReadRtexInput(0));
         Assert.Throws<IOException>(() => controller.WriteRtexOutput(0, true));
@@ -1003,7 +1057,7 @@ public sealed class AjinControllerTests
         Assert.Contains(log.Entries, entry => entry.Level == "ERROR");
         Assert.DoesNotContain(
             AjinSdk.Calls,
-            call => call.Operation is "AxdInfoGetModule" or "AxlOpen" or "AxmMotLoadParaAll");
+            call => call.Operation is "AxdInfoGetModule" or "AxlOpenNoReset" or "AxmMotLoadParaAll");
     }
 
     [Fact]
@@ -1015,7 +1069,7 @@ public sealed class AjinControllerTests
         AjinSdk.ModuleCount = 5;
         controller.Initialize();
         Assert.False(controller.ReadRtexInput(79));
-        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == "AxlOpenNoReset"));
+        Assert.Equal(2, AjinSdk.Calls.Count(call => call.Operation == "AxlOpen"));
     }
 
     [Fact]
@@ -1032,7 +1086,7 @@ public sealed class AjinControllerTests
     {
         using var controller = new AjinController(new());
         Parallel.For(0, 40, _ => controller.Initialize());
-        Assert.Single(AjinSdk.Calls, call => call.Operation == "AxlOpenNoReset");
+        Assert.Single(AjinSdk.Calls, call => call.Operation == "AxlOpen");
         AjinSdk.Calls.Clear();
         Parallel.For(
             0,
@@ -1047,7 +1101,7 @@ public sealed class AjinControllerTests
     }
 
     [Fact]
-    public void NegativeInterruptCannotWrapIntoTheUnsignedNoResetArgument()
+    public void NegativeInterruptIsRejectedBeforeOpeningTheSdk()
     {
         Assert.Throws<ArgumentOutOfRangeException>(
             () => new AjinController(new() { InterruptNumber = -1 }));

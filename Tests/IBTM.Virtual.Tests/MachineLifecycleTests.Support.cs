@@ -106,11 +106,15 @@ public sealed partial class MachineLifecycleTests
             return Task.FromResult<BoltResult?>(null);
         }
 
-        public async Task<BoltResult> TightenAsync(CancellationToken cancellationToken = default)
+        public async Task<BoltResult> TightenAsync(
+            CancellationToken cancellationToken = default,
+            Func<CancellationToken, Task>? feedAsync = null)
         {
             Started.SetResult();
             try
             {
+                if (feedAsync is not null)
+                    await feedAsync(cancellationToken);
                 await Task.Delay(Timeout.Infinite, cancellationToken);
                 return new(true, 1);
             }
@@ -161,7 +165,9 @@ public sealed partial class MachineLifecycleTests
             return CheckReadyAsync(cancellationToken);
         }
 
-        public Task<BoltResult> TightenAsync(CancellationToken cancellationToken = default)
+        public Task<BoltResult> TightenAsync(
+            CancellationToken cancellationToken = default,
+            Func<CancellationToken, Task>? feedAsync = null)
         {
             throw new NotSupportedException();
         }
@@ -280,7 +286,7 @@ public sealed partial class MachineLifecycleTests
                     new PcbSupplyHandler(
                         Wrap(
                             MotionGroup.PcbSupply,
-                            provider.GetRequiredKeyedService<IAxisMotion>(MotionGroup.PcbSupply)),
+                            provider.GetRequiredKeyedService<IXyMotion>(MotionGroup.PcbSupply)),
                         provider.GetRequiredService<IIoService>(),
                         settings.PcbSupply,
                         settings.PcbBuffer))
@@ -433,13 +439,11 @@ public sealed partial class MachineLifecycleTests
             X = 80,
             Y = 30,
         };
-        settings.PcbSupply.BufferClearZ = 20;
         settings.PcbBuffer.SupplyBoundary1 = 60;
         settings.PcbBuffer.SupplyBoundary2 = 100;
         settings.PcbBuffer.PlacementBoundary1 = new() { X = 60, Y = 20 };
         settings.PcbBuffer.PlacementBoundary2 = new() { X = 100, Y = 40 };
         settings.PcbPlacementHandler.Motion = FastMotion();
-        settings.PcbPlacementHandler.BufferEntryZ = 0;
         settings.PcbPlacementHandler.BufferHandoffPosition = new()
         {
             X = 80,

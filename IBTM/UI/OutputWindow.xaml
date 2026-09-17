@@ -5,7 +5,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="clr-namespace:IBTM.UI"
     mc:Ignorable="d"
-    d:DataContext="{d:DesignInstance Type=ui:OutputWindow, IsDesignTimeCreatable=False}"
+    d:DataContext="{d:DesignInstance Type=ui:OutputWindowViewModel, IsDesignTimeCreatable=False}"
     Title="Digital Outputs"
     Width="1120"
     Height="720"
@@ -25,7 +25,7 @@
         <Grid>
             <TextBlock Text="Digital Outputs" Style="{StaticResource TitleStyle}"/>
             <Button Content="Refresh" HorizontalAlignment="Right" Style="{StaticResource SecondaryButtonStyle}" Padding="14,5"
-                Click="OnRefresh"/>
+                Command="{Binding RefreshCommand}"/>
         </Grid>
 
         <StackPanel Grid.Row="1" Margin="0,4,0,18">

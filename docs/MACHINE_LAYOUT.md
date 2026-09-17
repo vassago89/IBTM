@@ -77,8 +77,9 @@ and sensor hardware. The operator view therefore shows:
 - the shared HANDOFF area, without a physical buffer or locating pins.
 
 PCB 1 and PCB 2 share one carrier Y and differ in X. The Buffer has the second
-Supply Y. Supply moves in X/Y between those two lines, then leaves the Buffer at
-Clear Z by moving X only while Buffer Y remains fixed.
+Supply Y. Supply moves X/Y together at Rotation Z between those two lines. After release
+and confirmed Placement Handler Up, it returns at the same Z directly to the next PCB
+pickup X and Carrier Y: PCB 2 after PCB 1, and the next carrier's PCB 1 after PCB 2.
 
 There is no physical PCB buffer or buffer-present input. The HANDOFF area shows
 handler position and collision conflict. Supply and placement motion remain responsible
@@ -86,8 +87,9 @@ for entering and leaving the configured buffer collision area.
 
 ## PCB placement
 
-PCB Placement Handler owns the moving XYZ handler. It takes the PCB held by Supply after PCB detection, vacuum and IPM gripper closure,
-keeps the IPM Down, raises the Handler and Z to Buffer Entry Z, moves above Heat Sink 1,
+PCB Placement Handler owns the moving XYZ handler. Supply and Placement approach their taught handoff positions independently with the Placement handler cylinder Up. Placement waits at receiving XYZ; once both handlers are settled and Supply holds its PCB, only the cylinder lowers to receive it.
+It takes the PCB held by Supply after PCB detection, vacuum and IPM gripper closure,
+keeps the IPM Down, raises the Handler, stays at the common receiving/travel Z, moves above Heat Sink 1,
 rotates, and waits. A confirmed carrier
 and raised Backup Plate allow work only at detected heat sinks. No placement-side
 camera is controlled. At a target heat sink it lowers the Handler, releases vacuum,
@@ -123,8 +125,9 @@ heat sinks are outside the equipment's operating premise. The same inputs select
 work slots: one detected heat sink runs that position, and both run both positions.
 Station 1 releases a carrier after placing a PCB in every detected heat sink.
 
-Dedicated station carrier inputs (`DI-128`, `DI-12F`, `DI-136`) are retired.
-The main conveyor entry and exit inputs remain `DI-14B` and `DI-14C`.
+Dedicated station carrier signal keys are retired. The final map uses `DI-12F` and
+`DI-136` for Station 2 and Station 3 Heat Sink 2; those physical inputs remain active.
+The main conveyor entry and exit inputs are `DI-128` and `DI-134` in the final 260913 map.
 
 Automatic transfer selection must be ordered
 from rear to front: Inspection to Rear, Bolt Fastening to Inspection, PCB Placement
@@ -242,8 +245,8 @@ from the two locating pins as a rotation.
 
 Automatic start is blocked until the recipe contains at least one bolt point, the
 shared carrier pins and every bolt X/Y are taught, and, when Bolt Fastening is
-enabled, the locating pins for each used fastening head are taught. Both heads
-fasten at the shared, machine-taught Safe Z; there is no per-bolt Z teaching.
+enabled, the locating pins for each used fastening head are taught. Each head
+has its own machine-taught Fastening Z; there is no per-bolt Z teaching.
 
 Station 2 starts incomplete work with the carrier present, backup plate raised and
 stopper lowered. It selects the currently detected heat sinks at the start of each
@@ -266,13 +269,21 @@ Completed results stay on the original assembly even if the carrier changes.
 Both fastening-head Up inputs must be ON, and their Down inputs OFF,
 before automatic or saved-position shared-gantry X/Y moves and horizontal Home.
 The selected head lowers only at the target.
-All PCB, IPM seating and IPM final fastening positions use that same Safe Z.
-Travel between bolts is X/Y only with both head cylinders raised; the selected
-head cylinder provides the fastening stroke. Common-Z travel is needed for IPM
-bolt pickup and return to Safe Z, not for approaching each fastening point.
+Safe Z is only the travel height. With both head cylinders raised, the gantry moves
+to Safe Z, travels to the bolt X/Y, and approaches the selected head's Fastening Z
+before starting rotation and immediately lowering that head to feed the bolt.
+The cylinder supplies axial feed; the fastening motor supplies rotation only.
+Both heads are raised before each new START, including the next pass at the same XY.
+START failure prevents descent; descent failure or cancellation stops the motor.
+PCB bolts use Shooting Head Fastening Z; IPM seating
+and IPM final passes use Pickup Head Fastening Z.
+After fastening, raise the heads before returning to Safe Z for the next X/Y move.
+Bolt Pickup retains its own Z. Existing settings initialize both head heights
+from the previous common Fastening Z, or Safe Z if no common Fastening Z was saved.
+Existing per-head values are retained; all heights are saved independently afterward.
 For the shooting head, loading happens while the head remains raised: wait for
-head-vacuum bolt detection, tube passage to clear and escape retraction, then lower
-the head and tighten. After Stop, these same inputs determine the next action;
+head-vacuum bolt detection, tube passage to clear and escape retraction, then start
+rotation and lower the head while tightening. After Stop, these same inputs determine the next action;
 a lowered head without a detected bolt is raised before loading again.
 Escape advance and shooting are separate states. With the escape backward, wait
 for feeder-ready before advancing; an intermediate position finishes advancing.

@@ -8,7 +8,7 @@ using IBTM.PcbBuffer;
 
 namespace IBTM.PcbPlacement;
 
-public sealed class PcbPlacer : AutoUnit
+public sealed partial class PcbPlacer : AutoUnit
 {
     private readonly BufferStage _buffer;
     private readonly PcbPlacementHandler _handler;
@@ -49,8 +49,14 @@ public sealed class PcbPlacer : AutoUnit
         }
     }
 
-    public async Task RunAsync(PcbPlacementRecipe recipe, CancellationToken cancellationToken = default)
+    public async Task RunAsync(
+        PcbPlacementRecipe recipe,
+        CancellationToken cancellationToken = default,
+        bool repeat = false)
     {
+        if (!repeat && _repeatTrip is not null)
+            throw new InvalidOperationException("Finish or recover the interrupted PCB repeat before production.");
+        _repeat = repeat;
         _runTargets = null;
         try
         {
@@ -74,6 +80,8 @@ public sealed class PcbPlacer : AutoUnit
         }
 
         var heatSink = NextHeatSink();
+        if (_repeat)
+            return ExecuteRepeatAsync(recipe, heatSink, cancellationToken);
         var action = PlaceStepAsync(recipe, heatSink, cancellationToken);
         return action ?? WaitForChangeAsync(cancellationToken);
     }
@@ -87,7 +95,10 @@ public sealed class PcbPlacer : AutoUnit
         cancellationToken.ThrowIfCancellationRequested();
         var job = _work.CurrentJob;
         var state = State(recipe, heatSink);
-        TraceStep(state, heatSink?.ToString(), job.Id);
+        TraceStep(
+            state,
+            _repeatTrip is { } trip ? $"{trip.HeatSink}, Repeat {trip.Phase}" : heatSink?.ToString(),
+            job.Id);
         switch (state)
         {
             case PcbPlacementState.RaisingHandler:
@@ -104,8 +115,6 @@ public sealed class PcbPlacer : AutoUnit
                 return PressPcbAsync(CurrentHeatSink(recipe)!.Value, cancellationToken);
             case PcbPlacementState.MovingAboveBuffer:
                 return _handler.MoveAboveBufferAsync(cancellationToken);
-            case PcbPlacementState.LoweringToBuffer:
-                return _handler.LowerToBufferAsync(cancellationToken);
             case PcbPlacementState.LoweringHandler:
                 return _handler.SetLiftDownAsync(true, cancellationToken);
             case PcbPlacementState.WaitingForPcbDetection:
@@ -133,10 +142,13 @@ public sealed class PcbPlacer : AutoUnit
                     cancellationToken);
             case PcbPlacementState.ReleasingVacuum:
                 _pressingHeatSink = null;
+                if (_repeatTrip is { } releasing)
+                    releasing.Phase = RepeatPcbPhase.Releasing;
                 return _handler.SetVacuumAsync(false, cancellationToken);
             case PcbPlacementState.RecordingPlacement:
                 _work.Assembly(job, CurrentHeatSink(recipe)!.Value);
                 _pressingHeatSink = null;
+                _repeatTrip = null;
                 break;
             case PcbPlacementState.CompletingCarrier:
                 _work.Complete(job);
@@ -179,7 +191,8 @@ public sealed class PcbPlacer : AutoUnit
             && _work.CarrierSeated
             && !_handler.VacuumDetected
             && (HeatSinkCompleted(currentHeatSink.Value)
-                || (!_work.Completed
+                || ((!_repeat || _repeatTrip?.Phase is RepeatPcbPhase.Placing or RepeatPcbPhase.Releasing)
+                    && !_work.Completed
                     && IsTarget(currentHeatSink.Value)
                     && pcb != PlacementPcbState.None
                     && _handler.Rotation == PlacementRotationState.Rotated
@@ -193,10 +206,19 @@ public sealed class PcbPlacer : AutoUnit
             }
         }
 
+        if (_repeatTrip is { Phase: RepeatPcbPhase.Picking or RepeatPcbPhase.ToHandoff } trip)
+            return RepeatPickupState(recipe, trip, live);
+
         if (pcb == PlacementPcbState.Secured)
         {
-            if (_buffer.IsPlacementInside(live) && !_buffer.IsSupplyOutside(live))
+            if (!_repeat && _buffer.IsPlacementInside(live) && !_buffer.IsSupplyOutside(live))
             {
+                if (_handler.Lift != PlacementCylinderState.Up)
+                {
+                    return _buffer.CanRaisePlacement(live)
+                        ? PcbPlacementState.RaisingHandler
+                        : PcbPlacementState.WaitingForSupplyRelease;
+                }
                 return PcbPlacementState.WaitingForSupplyExit;
             }
 
@@ -260,24 +282,34 @@ public sealed class PcbPlacer : AutoUnit
             return PcbPlacementState.CompletingCarrier;
         }
 
-        return _buffer.CanEnterPlacement(live) ? HandoffPickupState(live) : PcbPlacementState.WaitingForSupply;
+        return _repeat ? PcbPlacementState.WaitingForCarrier : HandoffPickupState(live);
     }
 
     private PcbPlacementState HandoffPickupState(bool live = true)
     {
+        // Both handlers approach independently with the receiving cylinder Up.
+        // Only cylinder descent waits for Supply to be settled and holding its PCB.
+        var supplyReady = _buffer.CanEnterPlacement(live);
         var atBuffer = _handler.IsAtBufferXY(live);
+        var atBufferZ = _handler.IsAtHorizontalZ(live);
         var rotation = _handler.Rotation;
-        if (!atBuffer || rotation != PlacementRotationState.Unrotated)
+        if (atBuffer && atBufferZ
+            && _handler.Lift != PlacementCylinderState.Up
+            && !supplyReady && !_buffer.IsSupplyOutside(live))
         {
-            if (_handler.Lift != PlacementCylinderState.Up)
-            {
-                return PcbPlacementState.RaisingHandler;
-            }
+            // Do not lift away from an interrupted receipt with uncertain holding feedback.
+            return PcbPlacementState.WaitingForSupply;
+        }
 
-            if (!_handler.IsAtHorizontalZ(live))
-            {
-                return PcbPlacementState.RaisingZ;
-            }
+        if (_handler.Lift != PlacementCylinderState.Up
+            && (!supplyReady || !atBuffer || !atBufferZ || rotation != PlacementRotationState.Unrotated))
+        {
+            return PcbPlacementState.RaisingHandler;
+        }
+
+        if (!atBufferZ)
+        {
+            return PcbPlacementState.RaisingZ;
         }
 
         if (rotation != PlacementRotationState.Unrotated)
@@ -300,9 +332,9 @@ public sealed class PcbPlacer : AutoUnit
             return PcbPlacementState.MovingAboveBuffer;
         }
 
-        if (!_handler.IsAtBufferZ(live))
+        if (!supplyReady)
         {
-            return PcbPlacementState.LoweringToBuffer;
+            return PcbPlacementState.WaitingForSupply;
         }
 
         if (_handler.Lift != PlacementCylinderState.Down)
@@ -399,6 +431,8 @@ public sealed class PcbPlacer : AutoUnit
 
     private HeatSinkSlot? NextHeatSink()
     {
+        if (_repeatTrip is { } trip)
+            return trip.HeatSink;
         if (_work.Completed)
         {
             return null;

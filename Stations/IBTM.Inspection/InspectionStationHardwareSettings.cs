@@ -16,8 +16,8 @@ public sealed class InspectionStationHardwareSettings : InputHardwareSettings
     {
         Inputs = new()
         {
-            [InputIo.InspectionHeatSink1Present] = 68,
-            [InputIo.InspectionHeatSink2Present] = 69,
+            [InputIo.InspectionHeatSink1Present] = 69,
+            [InputIo.InspectionHeatSink2Present] = 70,
         };
     }
 }

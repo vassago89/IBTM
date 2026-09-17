@@ -59,7 +59,7 @@ public partial class SettingsViewModel
             return;
         }
 
-        if (!CanOffTestLight() || PendingLightOffChannel is not { } channel)
+        if (PendingLightOffChannel is not { } channel)
             return;
         try
         {
@@ -109,8 +109,6 @@ public partial class SettingsViewModel
     [RelayCommand(CanExecute = nameof(CanTestLight), IncludeCancelCommand = true)]
     private async Task TestLightAsync(CancellationToken cancellationToken)
     {
-        if (!CanTestLight() || LightTestOn)
-            return;
         // MOVS commands have a single channel digit; zero addresses all channels.
         if (LightTestChannel is < 1 or > 9 || LightTestLevel is < 0 or > 255)
         {

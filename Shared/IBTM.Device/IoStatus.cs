@@ -50,7 +50,7 @@ public sealed class IoInputStatus(
     {
         get
         {
-            return io.IsReady ? io.GetInput(Signal) : null;
+            return Number is not null && io.IsReady ? io.GetInput(Signal) : null;
         }
     }
 }
@@ -85,7 +85,9 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
     {
         get
         {
-            return OffNumber is { } off ? $"{base.Address} / {off:D3}" : base.Address;
+            if (OffNumber is not { } off)
+                return base.Address;
+            return off < 0 ? $"{base.Address} / —" : $"{base.Address} / {off:D3}";
         }
     }
 

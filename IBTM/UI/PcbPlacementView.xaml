@@ -169,6 +169,10 @@
             <Border Canvas.Left="20" Canvas.Top="292" Width="230" Style="{StaticResource MapIoCardStyle}">
                 <StackPanel>
                     <TextBlock Text="FRONT 1 · PCB SMEMA" Style="{StaticResource MapIoTitleStyle}"/>
+                    <CheckBox Content="TEST Available" FontSize="11" Margin="0,0,0,6"
+                        IsChecked="{Binding Supply.TestUpstreamCarrierAvailable, Mode=TwoWay}"
+                        IsEnabled="{Binding Signals.Inputs[AutoMode].IsOn, TargetNullValue=False}"
+                        ToolTip="Teaching: TEST only. Auto: DI only. Cleared when teaching turns OFF or the app restarts. Turn OFF then ON for the next carrier."/>
                     <DockPanel Margin="0,0,0,4"
                         ToolTip="{Binding Signals.Inputs[PcbSupplyAvailableFromFront1].Signal, Converter={StaticResource EnumDescriptionConverter}}">
                         <TextBlock

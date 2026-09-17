@@ -48,7 +48,7 @@ public partial class TeachingViewModel
     [RelayCommand(CanExecute = nameof(CanMeasureImage))]
     private void MeasureImage(ImageRuler ruler)
     {
-        if (CanMeasureImage(ruler) && ruler.PixelLength >= 1)
+        if (ruler.PixelLength >= 1)
             Ruler = ruler;
     }
 
@@ -63,8 +63,6 @@ public partial class TeachingViewModel
     [RelayCommand(CanExecute = nameof(CanApplyRulerResolution))]
     private async Task ApplyRulerResolutionAsync(CancellationToken cancellationToken)
     {
-        if (!CanApplyRulerResolution())
-            return;
         var resolution = RulerResolution!.Value;
         CameraError = null;
         try
@@ -401,9 +399,6 @@ public partial class TeachingViewModel
     [RelayCommand(CanExecute = nameof(CanToggleLiveView))]
     private async Task ToggleLiveViewAsync(CancellationToken cancellationToken)
     {
-        if (!CanToggleLiveView())
-            return;
-
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken, ViewCancellation);
         try

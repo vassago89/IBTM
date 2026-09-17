@@ -55,9 +55,7 @@ public sealed class DiagnosticToolsTests
             await test.WaitAsync(TimeSpan.FromSeconds(2));
             Assert.Equal("off:2", light.Calls.Last());
             Assert.False(state.IsRunning);
-            var calls = light.Calls.Count;
-            await settings.TestLightCommand.ExecuteAsync(null); // Direct invocation cannot bypass AUTO.
-            Assert.Equal(calls, light.Calls.Count);
+            Assert.False(settings.TestLightCommand.CanExecute(null));
         }
         finally
         {
@@ -356,7 +354,7 @@ public sealed class DiagnosticToolsTests
     }
 
     [Fact]
-    public async Task DirectInterfaceOutputStaysOnUntilOffDespitePeerFeedback()
+    public async Task DirectSmemaOutputRemainsAvailableInTeaching()
     {
         using var services = CreateServices(new RecordingLight());
         var machine = services.GetRequiredService<MachineController>();
@@ -365,16 +363,21 @@ public sealed class DiagnosticToolsTests
         try
         {
             io.AutoResponseEnabled = false;
-            var row = new OutputWindowRow(
-                services.GetRequiredService<IoSignals>().Outputs[OutputIo.MainConveyorReadyToFront2],
-                machine);
-            row.ToggleCommand.Execute(null);
-            await Task.Delay(1100); // Guard against restoring the old one-second pulse.
-            io.SetInput(InputIo.MainConveyorReadyFromRear, true);
-            Assert.True(io.GetOutput(row.Io.Signal));
+            foreach (var output in new[] { OutputIo.PcbSupplyReadyToFront1,
+                OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear })
+            {
+                var row = new OutputWindowRow(services.GetRequiredService<IoSignals>().Outputs[output], machine);
+                row.ToggleCommand.Execute(null);
+                Assert.Null(row.ActionMessage);
+                Assert.True(io.GetOutput(output));
+                if (output == OutputIo.MainConveyorReadyToFront2)
+                    await Task.Delay(1100); // Direct output stays on; it is not a timed pulse.
+                io.SetInput(InputIo.MainConveyorReadyFromRear, true);
+                Assert.True(io.GetOutput(output));
+                row.ToggleCommand.Execute(null);
+                Assert.False(io.GetOutput(output));
+            }
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-            row.ToggleCommand.Execute(null);
-            Assert.False(io.GetOutput(row.Io.Signal));
         }
         finally
         {

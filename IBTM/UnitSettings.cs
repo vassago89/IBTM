@@ -1,3 +1,4 @@
+using System;
 using IBTM.Core;
 
 namespace IBTM;
@@ -14,6 +15,16 @@ public sealed class UnitSettings : Setting
     public bool NgCarrierTransfer { get; set; } = true;
     public bool NgShuttle { get; set; } = true;
     public bool NgConveyor { get; set; } = true;
+
+    public bool IsFasteningHeadEnabled(FasteningHead head)
+    {
+        return head switch
+        {
+            FasteningHead.Pickup => PickupBoltFeeder,
+            FasteningHead.Shooting => ShootingBoltFeeder,
+            _ => throw new ArgumentOutOfRangeException(nameof(head)),
+        };
+    }
 
     internal bool IsMotionEnabled(MotionGroup group)
     {
