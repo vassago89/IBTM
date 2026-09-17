@@ -100,23 +100,23 @@ public sealed class NgConveyorTests
     }
 
     [Fact]
-    public async Task NgActuatorOutputsOnRaisePickupOpenGripperAndLowerShuttle()
+    public async Task NgActuatorOutputsOnLowerPickupCloseGripperAndLowerShuttle()
     {
         var system = CreateSystem();
         var pickup = new NgCarrierTransfer(system.Io);
 
         await pickup.SetLiftUpAsync(false);
-        Assert.False(system.Io.GetOutput(OutputIo.NgCarrierPickupUp));
+        Assert.True(system.Io.GetOutput(OutputIo.NgCarrierPickupDown));
         Assert.Equal(NgTransferLiftState.Down, pickup.Lift);
         await pickup.SetLiftUpAsync(true);
-        Assert.True(system.Io.GetOutput(OutputIo.NgCarrierPickupUp));
+        Assert.False(system.Io.GetOutput(OutputIo.NgCarrierPickupDown));
         Assert.Equal(NgTransferLiftState.Up, pickup.Lift);
 
         await pickup.SetGripperOpenAsync(false);
-        Assert.False(system.Io.GetOutput(OutputIo.NgCarrierGripperOpen));
+        Assert.True(system.Io.GetOutput(OutputIo.NgCarrierGripperClose));
         Assert.Equal(NgTransferGripperState.Closed, pickup.Gripper);
         await pickup.SetGripperOpenAsync(true);
-        Assert.True(system.Io.GetOutput(OutputIo.NgCarrierGripperOpen));
+        Assert.False(system.Io.GetOutput(OutputIo.NgCarrierGripperClose));
         Assert.Equal(NgTransferGripperState.Open, pickup.Gripper);
 
         await system.Shuttle.SetDownAsync(true);

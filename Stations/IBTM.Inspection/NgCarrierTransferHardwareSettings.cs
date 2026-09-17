@@ -24,16 +24,16 @@ public sealed class NgCarrierTransferHardwareSettings : IoHardwareSettings
         };
         Outputs = new()
         {
-            [OutputIo.NgCarrierPickupUp] = Output(
+            [OutputIo.NgCarrierPickupDown] = Output(
                 64,
                 65,
-                InputIo.NgCarrierPickupUp,
-                InputIo.NgCarrierPickupDown),
-            [OutputIo.NgCarrierGripperOpen] = Output(
+                InputIo.NgCarrierPickupDown,
+                InputIo.NgCarrierPickupUp),
+            [OutputIo.NgCarrierGripperClose] = Output(
                 66,
                 67,
-                InputIo.NgCarrierGripperOpen,
-                InputIo.NgCarrierGripperClosed),
+                InputIo.NgCarrierGripperClosed,
+                InputIo.NgCarrierGripperOpen),
         };
     }
 }

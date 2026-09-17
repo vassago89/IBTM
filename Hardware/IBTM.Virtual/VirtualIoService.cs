@@ -72,8 +72,6 @@ public sealed class VirtualIoService(
         var values = new bool[Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
         values[(int)OutputIo.PickupHeadUp] = true;
         values[(int)OutputIo.ShootingHeadUp] = true;
-        values[(int)OutputIo.NgCarrierPickupUp] = true;
-        values[(int)OutputIo.NgCarrierGripperOpen] = true;
         return values;
     }
 

@@ -610,8 +610,6 @@ public sealed class AlarmRecoveryTests
                 Assert.Contains("busy", view.SettingsAccessMessage);
                 Assert.False(view.ClearVirtualImageCommand.CanExecute(null));
                 Assert.False(view.LoadVirtualImageCommand.CanExecute(null));
-                Assert.False(view.BackupDatabaseCommand.CanExecute(null));
-                Assert.False(view.RestoreDatabaseCommand.CanExecute(null));
             }
 
             Assert.True(view.CanEditSettings);
@@ -632,8 +630,6 @@ public sealed class AlarmRecoveryTests
         Assert.Contains("closing", view.SettingsAccessMessage);
         Assert.False(view.ClearVirtualImageCommand.CanExecute(null));
         Assert.False(view.LoadVirtualImageCommand.CanExecute(null));
-        Assert.False(view.BackupDatabaseCommand.CanExecute(null));
-        Assert.False(view.RestoreDatabaseCommand.CanExecute(null));
         Assert.Same(sourceImage, camera.SourceImage);
         Assert.Equal("locked-input.png", view.VirtualImageName);
     }

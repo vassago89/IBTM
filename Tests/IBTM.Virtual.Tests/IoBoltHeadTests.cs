@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.BoltFastening;
@@ -45,7 +46,8 @@ public sealed class IoBoltHeadTests
     [Theory]
     [InlineData(BoltDriver.Io)]
     [InlineData(BoltDriver.Virtual)]
-    public void DriverSelectionUsesOnlyItsOwnControllerInterface(BoltDriver driver)
+    [InlineData(BoltDriver.HantasAdc)]
+    public void DriverSelectionChangesControllerButKeepsAllIoAvailable(BoltDriver driver)
     {
         var settings = new MachineSettings();
         settings.Drivers.Bolt = driver;
@@ -60,8 +62,35 @@ public sealed class IoBoltHeadTests
                 Assert.IsType<AdcBoltHead>(controller);
         }
         Assert.Equal(driver != BoltDriver.Io, services.GetService<IAdcBus>() is not null);
-        Assert.Equal(driver == BoltDriver.Io, signals.Inputs.ContainsKey(InputIo.PickupBoltReady));
-        Assert.Equal(driver == BoltDriver.Io, signals.Outputs.ContainsKey(OutputIo.ShootingBoltStart));
+        var io = services.GetRequiredService<IIoService>();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var inputs = new InputWindowViewModel(io, signals);
+        var outputs = new OutputWindowViewModel(signals, machine, state);
+        foreach (var signal in settings.IoBoltHardware.Inputs.Keys)
+        {
+            Assert.Contains(
+                inputs.Filter.FilteredRows.Cast<InputControlRow>(),
+                row => row.Io.Signal == signal);
+        }
+        foreach (var signal in settings.IoBoltHardware.Outputs.Keys)
+        {
+            Assert.Contains(
+                outputs.Filter.FilteredRows.Cast<OutputWindowRow>(),
+                row => row.Io.Signal == signal);
+        }
+
+        settings.Drivers.Bolt = driver == BoltDriver.Io ? BoltDriver.HantasAdc : BoltDriver.Io;
+        foreach (var signal in new[] { OutputIo.PickupBoltStart, OutputIo.ShootingBoltStart })
+        {
+            var row = Assert.Single(outputs.Rows, row => row.Io.Signal == signal);
+            row.ToggleCommand.Execute(null);
+            Assert.Null(row.ActionMessage);
+            Assert.True(io.GetOutput(signal));
+            row.ToggleCommand.Execute(null);
+            Assert.Null(row.ActionMessage);
+            Assert.False(io.GetOutput(signal));
+        }
         // Manual diagnostics must still resolve when there is no serial bus.
         Assert.NotNull(services.GetRequiredService<DiagnosticWindows>());
     }

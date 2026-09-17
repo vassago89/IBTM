@@ -332,11 +332,11 @@ public enum OutputIo
     [Description("Inspection Backup Plate Up")]
     InspectionBackupPlateUp,
 
-    [Description("NG Carrier Pickup Up")]
-    NgCarrierPickupUp,
+    [Description("NG Carrier Pickup Down")]
+    NgCarrierPickupDown,
 
-    [Description("NG Carrier Gripper Open")]
-    NgCarrierGripperOpen,
+    [Description("NG Carrier Gripper Close")]
+    NgCarrierGripperClose,
 
     [Description("NG Shuttle Down")]
     NgShuttleDown,

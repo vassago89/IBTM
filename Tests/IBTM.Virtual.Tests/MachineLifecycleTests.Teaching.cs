@@ -74,7 +74,7 @@ public sealed partial class MachineLifecycleTests
         Assert.True(gantry.Feedback.GetAxisState(MotionAxis.Y).Homed);
         Assert.Equal((0, 0, 0), gantry.Feedback.GetPosition());
 
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgCarrierPickupUp, false);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, true);
         Assert.False(teaching.HomeCommand.CanExecute(null));
         await teaching.HomeCommand.ExecuteAsync(null);
         Assert.Equal((0, 0, 0), gantry.Feedback.GetPosition());
@@ -394,7 +394,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal((x, y, 0), gantry.Feedback.GetPosition());
 
         await services.GetRequiredService<IIoService>()
-            .SetOutputAndWaitAsync(OutputIo.NgCarrierPickupUp, false);
+            .SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, true);
         await WaitUntilAsync(() => !teaching.StepCommand.CanExecute(direction));
         await Assert.ThrowsAsync<MotionInterlockException>(
             () => gantry.MoveAxisAsync(MotionAxis.X, 30, 1_000));
@@ -878,7 +878,15 @@ public sealed partial class MachineLifecycleTests
         }
 
         teaching.SelectedTeachingUnit = HardwareArea.NgCarrierTransfer;
-        var ngLift = teaching.TeachingOutputs[OutputIo.NgCarrierPickupUp];
+        var ngGripper = teaching.TeachingOutputs[OutputIo.NgCarrierGripperClose];
+        await teaching.ToggleOutputCommand.ExecuteAsync(ngGripper);
+        Assert.True(io.GetOutput(ngGripper.Signal));
+        Assert.True(io.GetInput(InputIo.NgCarrierGripperClosed));
+        await teaching.ToggleOutputCommand.ExecuteAsync(ngGripper);
+        Assert.False(io.GetOutput(ngGripper.Signal));
+        Assert.True(io.GetInput(InputIo.NgCarrierGripperOpen));
+
+        var ngLift = teaching.TeachingOutputs[OutputIo.NgCarrierPickupDown];
         settings.Units.NgCarrierTransfer = false;
         await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(ngLift));
         settings.Units.NgCarrierTransfer = true;
@@ -887,10 +895,10 @@ public sealed partial class MachineLifecycleTests
         teaching.JogStopCommand.Execute(null);
         await pending.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        Assert.False(io.GetOutput(ngLift.Signal));
+        Assert.True(io.GetOutput(ngLift.Signal));
 
         settings.Options.TimeoutMilliseconds = 50;
-        io.SetOutput(ngLift.Signal, true); // External output change; toggle must read the current DO.
+        io.SetOutput(ngLift.Signal, false); // External output change; toggle must read the current DO.
         await teaching.ToggleOutputCommand.ExecuteAsync(ngLift);
         Assert.Equal(MachineAlarm.NgCarrierTransfer, state.Alarm);
     }

@@ -262,8 +262,8 @@ public sealed partial class MachineController
                     => _fasteningGantry.SetVacuumAsync(FasteningHead.Pickup, value, token),
                 OutputIo.ShootingHeadVacuumPump
                     => _fasteningGantry.SetVacuumAsync(FasteningHead.Shooting, value, token),
-                OutputIo.NgCarrierPickupUp => _ngTransfer.SetLiftUpAsync(value, token),
-                OutputIo.NgCarrierGripperOpen => _ngTransfer.SetGripperOpenAsync(value, token),
+                OutputIo.NgCarrierPickupDown => _ngTransfer.SetLiftUpAsync(!value, token),
+                OutputIo.NgCarrierGripperClose => _ngTransfer.SetGripperOpenAsync(!value, token),
                 OutputIo.NgShuttleDown => _ngShuttle.SetDownAsync(value, token),
                 OutputIo.PcbPlacementBackupPlateUp
                     or OutputIo.BoltFasteningBackupPlateUp

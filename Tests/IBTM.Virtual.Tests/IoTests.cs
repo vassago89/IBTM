@@ -127,7 +127,7 @@ public sealed class IoTests
     }
 
     [Fact]
-    public void RetiredStationInputsAreRemovedFromSavedHardwareSettings()
+    public void BuildingServicesDoesNotRewriteConfiguredInputMappings()
     {
         var settings = new MachineSettings();
         InputIo[] retired =
@@ -142,8 +142,8 @@ public sealed class IoTests
         var inputs = services.GetRequiredService<IReadOnlyDictionary<InputIo, int>>();
         foreach (var input in retired)
         {
-            Assert.False(settings.ConveyorHardware.Inputs.ContainsKey(input));
-            Assert.False(inputs.ContainsKey(input));
+            Assert.Equal(999, settings.ConveyorHardware.Inputs[input]);
+            Assert.Equal(999, inputs[input]);
         }
         Assert.Equal(54, inputs[InputIo.PcbPlacementHeatSink1Present]);
         Assert.Equal(55, inputs[InputIo.PcbPlacementHeatSink2Present]);

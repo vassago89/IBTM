@@ -33,13 +33,7 @@ public static class DependencyInjection
         services.TryAddSingleton<ApplicationLog>();
         services.TryAddSingleton(_ => new MachineStore());
         services.TryAddSingleton<RecipeStore>();
-        // Retired sensor addresses in an existing settings file are no longer scanned or displayed.
-        settings.ConveyorHardware.Inputs.Remove(InputIo.PcbPlacementCarrierPresent);
-        settings.ConveyorHardware.Inputs.Remove(InputIo.BoltFasteningCarrierPresent);
-        settings.ConveyorHardware.Inputs.Remove(InputIo.InspectionCarrierPresent);
-        var hardware = settings.HardwareSections
-            .Where(section => settings.Drivers.Bolt == BoltDriver.Io || section is not IoBoltHardwareSettings)
-            .ToArray();
+        var hardware = settings.HardwareSections;
         services.AddSingleton(settings);
         services.AddSingleton<IReadOnlyList<MotionHardwareSettings>>(
             hardware.OfType<MotionHardwareSettings>().ToArray());
@@ -110,12 +104,12 @@ public static class DependencyInjection
                     new(OutputIo.BoltFasteningBackupPlateUp, HardwareArea.MainConveyor),
                 ],
                 [HardwareArea.InspectionGantry] = [
-                    new(OutputIo.NgCarrierPickupUp, HardwareArea.NgCarrierTransfer),
+                    new(OutputIo.NgCarrierPickupDown, HardwareArea.NgCarrierTransfer),
                     new(OutputIo.InspectionBackupPlateUp, HardwareArea.MainConveyor),
                 ],
                 [HardwareArea.NgCarrierTransfer] = [
-                    new(OutputIo.NgCarrierPickupUp, HardwareArea.NgCarrierTransfer),
-                    new(OutputIo.NgCarrierGripperOpen, HardwareArea.NgCarrierTransfer),
+                    new(OutputIo.NgCarrierPickupDown, HardwareArea.NgCarrierTransfer),
+                    new(OutputIo.NgCarrierGripperClose, HardwareArea.NgCarrierTransfer),
                     new(OutputIo.NgShuttleDown, HardwareArea.NgShuttle),
                     new(OutputIo.InspectionStopperUp, HardwareArea.MainConveyor),
                     new(OutputIo.InspectionBackupPlateUp, HardwareArea.MainConveyor),
@@ -140,6 +134,7 @@ public static class DependencyInjection
                         provider.GetRequiredService<BoltFasteningWork>()
                             .Station.CreateIoStatus(HardwareArea.BoltFasteningStation, io),
                         settings.BoltFasteningHardware.CreateIoStatus(io),
+                        settings.IoBoltHardware.CreateIoStatus(io),
                         settings.BoltFeederHardware.CreateIoStatus(io),
                     ],
                     [HardwareArea.InspectionGantry] = [

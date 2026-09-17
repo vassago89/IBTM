@@ -392,7 +392,7 @@ public sealed partial class MachineLifecycleTests
 
         using var stop = new CancellationTokenSource();
         var run = station.RunAsync([], stop.Token);
-        Assert.True(io.GetOutput(OutputIo.NgCarrierGripperOpen));
+        Assert.False(io.GetOutput(OutputIo.NgCarrierGripperClose));
         stop.Cancel();
         await run;
 
@@ -415,7 +415,7 @@ public sealed partial class MachineLifecycleTests
             try
             {
                 Assert.Equal(expected, move.State(NgTransferDestination.Shuttle, canPickUp: true));
-                Assert.True(io.GetOutput(OutputIo.NgCarrierGripperOpen));
+                Assert.False(io.GetOutput(OutputIo.NgCarrierGripperClose));
             }
             finally
             {

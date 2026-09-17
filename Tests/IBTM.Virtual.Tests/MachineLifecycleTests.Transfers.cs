@@ -605,10 +605,10 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(InputIo.NgCarrierGripperClosed, true);
             io.SetInput(InputIo.NgCarrierGripperOpen, false);
             io.SetInput(InputIo.NgShuttleUp, true);
-            var gripperOutput = io.GetOutput(OutputIo.NgCarrierGripperOpen);
+            var gripperOutput = io.GetOutput(OutputIo.NgCarrierGripperClose);
             Assert.Null(move.ExecuteAsync(
                 destination, NgTransferState.HoldingAtDestination, CancellationToken.None));
-            Assert.Equal(gripperOutput, io.GetOutput(OutputIo.NgCarrierGripperOpen));
+            Assert.Equal(gripperOutput, io.GetOutput(OutputIo.NgCarrierGripperClose));
         }
         io.SetInput(InputIo.NgCarrierGripperClosed, false);
         AssertState(NgTransferState.Opening);

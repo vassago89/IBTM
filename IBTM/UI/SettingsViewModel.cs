@@ -8,7 +8,6 @@ using System.Linq;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -286,74 +285,11 @@ public partial class SettingsViewModel : ObservableObject
         LoadVirtualImageCommand.NotifyCanExecuteChanged();
         ClearVirtualImageCommand.NotifyCanExecuteChanged();
         SaveSettingsCommand.NotifyCanExecuteChanged();
-        BackupDatabaseCommand.NotifyCanExecuteChanged();
-        RestoreDatabaseCommand.NotifyCanExecuteChanged();
         TestLightCommand.NotifyCanExecuteChanged();
         OffTestLightCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanEditSettings));
         OnPropertyChanged(nameof(CanChangeDrivers));
         OnPropertyChanged(nameof(SettingsAccessMessage));
-    }
-
-    [RelayCommand(CanExecute = nameof(CanEditSettings))]
-    private async Task BackupDatabaseAsync()
-    {
-        using var operation = _operations.TryBegin();
-        if (operation is null)
-            return;
-        var dialog = new SaveFileDialog
-        {
-            Title = "Back Up Machine Settings and Recipes",
-            Filter = "SQLite database|*.db",
-            FileName = $"IBTM-Machine-{DateTime.Now:yyyyMMdd-HHmmss}.db"
-        };
-        if (dialog.ShowDialog() != true)
-            return;
-        try
-        {
-            await Task.Run(() => _store.Backup(dialog.FileName), operation.Token);
-            DatabaseMessage = "Saved settings, recipes and carrier images backed up. Unsaved edits and AJIN .mot files are not included.";
-            Trace.TraceInformation("Machine database backed up to {0}.", dialog.FileName);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception)
-        {
-            Trace.TraceError("Machine database backup failed. {0}", exception);
-            DatabaseMessage = exception.Message;
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(CanEditSettings))]
-    private async Task RestoreDatabaseAsync()
-    {
-        using var operation = _operations.TryBegin();
-        if (operation is null)
-            return;
-        var dialog = new OpenFileDialog { Title = "Restore Machine Settings and Recipes", Filter = "SQLite database|*.db" };
-        if (dialog.ShowDialog() != true
-            || MessageBox.Show(
-                "Restore the selected machine database and close IBTM? Unsaved edits will be discarded. The previous machine database is retained.",
-                "Restore Machine Database",
-                MessageBoxButton.OKCancel,
-                MessageBoxImage.Warning) != MessageBoxResult.OK)
-            return;
-        try
-        {
-            await Task.Run(() => _store.PrepareRestore(dialog.FileName), operation.Token);
-            DatabaseMessage = "Restore prepared. The selected database will be applied on the next start.";
-            Trace.TraceInformation("Machine database restore prepared from {0}.", dialog.FileName);
-            _ = Application.Current.Dispatcher.BeginInvoke(() => Application.Current.MainWindow.Close());
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception)
-        {
-            Trace.TraceError("Machine database restore failed. {0}", exception);
-            DatabaseMessage = exception.Message;
-        }
     }
 
     [RelayCommand(CanExecute = nameof(CanChangeVirtualImage))]
@@ -435,8 +371,6 @@ public partial class SettingsViewModel : ObservableObject
                 null,
                 SaveSettingsCommand,
                 LoadVirtualImageCommand,
-                BackupDatabaseCommand,
-                RestoreDatabaseCommand,
                 TestLightCommand,
                 OffTestLightCommand);
         }

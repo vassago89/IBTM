@@ -74,12 +74,7 @@ public partial class App : System.Windows.Application
         Recipe recipe;
         try
         {
-            database = await Task.Run(
-                () =>
-                {
-                    MachineStore.RestorePending();
-                    return new MachineStore();
-                });
+            database = await Task.Run(() => new MachineStore());
             store = new RecipeStore(database);
             if (DevelopmentProfile.IsEnabled)
             {

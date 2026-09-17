@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using IBTM.Core;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace IBTM.Storage;
@@ -37,116 +36,6 @@ public sealed class MachineStore
         using var db = new MachineDb(_options);
         // Settings and recipes evolve inside JSON, not as database columns.
         db.Database.EnsureCreated();
-        // Split the previous working height once; preserve each head's subsequent teaching.
-        db.Database.ExecuteSqlRaw("""
-            UPDATE Settings
-            SET Value = json_remove(json_set(Value,
-                '$.ShootingHead.FasteningZ', COALESCE(
-                    json_extract(Value, '$.ShootingHead.FasteningZ'),
-                    json_extract(Value, '$.FasteningZ'), json_extract(Value, '$.SafeZ'), 0),
-                '$.PickupHead.FasteningZ', COALESCE(
-                    json_extract(Value, '$.PickupHead.FasteningZ'),
-                    json_extract(Value, '$.FasteningZ'), json_extract(Value, '$.SafeZ'), 0)),
-                '$.FasteningZ')
-            WHERE Key = 'BoltFasteningSettings'
-              AND (json_type(Value, '$.FasteningZ') IS NOT NULL
-                OR json_type(Value, '$.ShootingHead.FasteningZ') IS NULL
-                OR json_type(Value, '$.PickupHead.FasteningZ') IS NULL);
-            """);
-        // Correct only the obsolete conveyor output keys; retain configured channel numbers.
-        db.Database.ExecuteSqlRaw("""
-            UPDATE Settings
-            SET Value = json_remove(
-                json_set(Value, '$.Outputs.MainConveyorForward',
-                    json(COALESCE(json_extract(Value, '$.Outputs.MainConveyorForward'),
-                                  json_extract(Value, '$.Outputs.MainConveyorReverse')))),
-                '$.Outputs.MainConveyorReverse')
-            WHERE Key = 'ConveyorHardwareSettings'
-              AND json_type(Value, '$.Outputs.MainConveyorReverse') IS NOT NULL;
-
-            UPDATE Settings
-            SET Value = json_remove(Value, '$.Outputs.MainConveyorNormalSpeed', '$.Outputs.NgConveyorNormalSpeed')
-            WHERE Key IN ('ConveyorHardwareSettings', 'NgConveyorHardwareSettings')
-              AND (json_type(Value, '$.Outputs.MainConveyorNormalSpeed') IS NOT NULL
-                OR json_type(Value, '$.Outputs.NgConveyorNormalSpeed') IS NOT NULL);
-            """);
-
-        // These renamed outputs reverse ON/OFF meaning. Keep channels and swap the feedback pair.
-        foreach (var (section, oldSignal, newSignal) in new[]
-        {
-            ("ConveyorHardwareSettings", "PcbPlacementBackupPlateDown", "PcbPlacementBackupPlateUp"),
-            ("ConveyorHardwareSettings", "BoltFasteningBackupPlateDown", "BoltFasteningBackupPlateUp"),
-            ("ConveyorHardwareSettings", "InspectionBackupPlateDown", "InspectionBackupPlateUp"),
-            ("ConveyorHardwareSettings", "PcbPlacementStopperDown", "PcbPlacementStopperUp"),
-            ("ConveyorHardwareSettings", "BoltFasteningStopperDown", "BoltFasteningStopperUp"),
-            ("ConveyorHardwareSettings", "InspectionStopperDown", "InspectionStopperUp"),
-            ("NgConveyorHardwareSettings", "NgConveyorStopperDown", "NgConveyorStopperUp"),
-            ("NgCarrierTransferHardwareSettings", "NgCarrierPickupDown", "NgCarrierPickupUp"),
-            ("NgCarrierTransferHardwareSettings", "NgCarrierGripperClose", "NgCarrierGripperOpen"),
-            ("NgShuttleHardwareSettings", "NgShuttleUp", "NgShuttleDown"),
-            ("BoltFasteningHardwareSettings", "PickupHeadDown", "PickupHeadUp"),
-            ("BoltFasteningHardwareSettings", "ShootingHeadDown", "ShootingHeadUp"),
-        })
-        {
-            var oldPath = $"$.Outputs.{oldSignal}";
-            var newPath = $"$.Outputs.{newSignal}";
-            db.Database.ExecuteSqlRaw("""
-                UPDATE Settings
-                SET Value = json_remove(
-                    json_set(Value, {1}, json(COALESCE(
-                        json_extract(Value, {1}),
-                        json_set(json_extract(Value, {0}),
-                            '$.Feedback.OnInput', json_extract(Value, {0} || '.Feedback.OffInput'),
-                            '$.Feedback.OffInput', json_extract(Value, {0} || '.Feedback.OnInput'))))),
-                    {0})
-                WHERE Key = {2}
-                  AND json_type(Value, {0}) IS NOT NULL;
-                """, oldPath, newPath, section);
-        }
-
-        // The conveyor mode contact is ON in manual; retain its configured DI address.
-        foreach (var (section, oldSignal, newSignal) in new[]
-        {
-            ("ConveyorHardwareSettings", "MainConveyorAutoMode", "MainConveyorManualMode"),
-            ("NgConveyorHardwareSettings", "NgConveyorAutoMode", "NgConveyorManualMode"),
-        })
-        {
-            db.Database.ExecuteSqlRaw("""
-                UPDATE Settings
-                SET Value = json_remove(json_set(Value, {2},
-                    COALESCE(json_extract(Value, {2}), json_extract(Value, {1}))), {1})
-                WHERE Key = {0} AND json_type(Value, {1}) IS NOT NULL;
-                """, section, $"$.Inputs.{oldSignal}", $"$.Inputs.{newSignal}");
-        }
-
-        // Restore mappings omitted by the sensorless NG stopper version; retain configured channels.
-        db.Database.ExecuteSqlRaw("""
-            UPDATE Settings
-            SET Value = json_set(Value,
-                '$.Inputs.NgConveyorStopperDown', COALESCE(json_extract(Value, '$.Inputs.NgConveyorStopperDown'), 87),
-                '$.Inputs.NgConveyorStopperUp', COALESCE(json_extract(Value, '$.Inputs.NgConveyorStopperUp'), 88),
-                '$.Outputs.NgConveyorStopperUp.Feedback',
-                json(COALESCE(json_extract(Value, '$.Outputs.NgConveyorStopperUp.Feedback'),
-                    json_object('OnInput', 'NgConveyorStopperUp', 'OffInput', 'NgConveyorStopperDown'))))
-            WHERE Key = 'NgConveyorHardwareSettings'
-              AND (json_extract(Value, '$.Inputs.NgConveyorStopperUp') IS NULL
-                OR json_extract(Value, '$.Inputs.NgConveyorStopperDown') IS NULL
-                OR json_extract(Value, '$.Outputs.NgConveyorStopperUp.Feedback') IS NULL);
-            """);
-
-        // Retire the removed IPM backward sensor/output without rewriting the retained addresses.
-        db.Database.ExecuteSqlRaw("""
-            UPDATE Settings
-            SET Value = json_remove(
-                json_set(Value, '$.Outputs.PcbSupplyIpmFixerForward.Feedback',
-                    json_object('OnInput', 'PcbSupplyIpmFixerForward', 'OffInput', NULL)),
-                '$.Outputs.PcbSupplyIpmFixerForward.OffNumber',
-                '$.Inputs.PcbSupplyIpmFixerBackward')
-            WHERE Key = 'PcbSupplyHardwareSettings'
-              AND (json_type(Value, '$.Outputs.PcbSupplyIpmFixerForward.OffNumber') IS NOT NULL
-                OR json_type(Value, '$.Inputs.PcbSupplyIpmFixerBackward') IS NOT NULL
-                OR json_extract(Value, '$.Outputs.PcbSupplyIpmFixerForward.Feedback.OffInput') IS NOT NULL);
-            """);
     }
 
     public bool HasData
@@ -275,60 +164,4 @@ public sealed class MachineStore
             .Single();
     }
 
-    public void Backup(string target)
-    {
-        CopyDatabase(DatabaseFile, target);
-    }
-
-    public void PrepareRestore(string source)
-    {
-        CheckDatabase(source);
-        CopyDatabase(source, DatabaseFile + ".restore");
-    }
-
-    public static void RestorePending(string? databaseFile = null)
-    {
-        var target = Path.GetFullPath(databaseFile ?? MachineDb.DefaultFile);
-        var pending = target + ".restore";
-        if (!File.Exists(pending))
-            return;
-        CheckDatabase(pending);
-        if (File.Exists(target))
-            CopyDatabase(target, target + ".previous");
-        CopyDatabase(pending, target);
-        File.Delete(pending);
-    }
-
-    private static void CheckDatabase(string path)
-    {
-        using var connection = CreateConnection(path, SqliteOpenMode.ReadOnly);
-        connection.Open();
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name IN ('Settings', 'Recipes', 'RecipeImages')";
-        if ((long)command.ExecuteScalar()! != 3)
-            throw new InvalidDataException("The selected file is not an IBTM machine database.");
-        command.CommandText = "PRAGMA quick_check";
-        if (!Equals(command.ExecuteScalar(), "ok"))
-            throw new InvalidDataException("The selected database failed its integrity check.");
-    }
-
-    private static void CopyDatabase(string source, string target)
-    {
-        if (string.Equals(
-            Path.GetFullPath(source),
-            Path.GetFullPath(target),
-            StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("Source and destination databases must be different.");
-        using var from = CreateConnection(source, SqliteOpenMode.ReadOnly);
-        using var to = CreateConnection(target, SqliteOpenMode.ReadWriteCreate);
-        from.Open();
-        to.Open();
-        from.BackupDatabase(to);
-    }
-
-    private static SqliteConnection CreateConnection(string path, SqliteOpenMode mode)
-    {
-        return new(
-            new SqliteConnectionStringBuilder { DataSource = Path.GetFullPath(path), Mode = mode, Pooling = false }.ToString());
-    }
 }

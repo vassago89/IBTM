@@ -704,12 +704,14 @@ public sealed partial class MachineLifecycleTests
             OutputIo.PcbPlacementIpmDown,
             OutputIo.PickupHeadUp,
             OutputIo.ShootingHeadUp,
-            OutputIo.NgCarrierPickupUp,
+            OutputIo.NgCarrierPickupDown,
         ];
         await Task.WhenAll(cylinders.Select(
             output => signals.SetOutputAndWaitAsync(
                 output,
-                output is OutputIo.PcbPlacementHandlerDown or OutputIo.PcbPlacementIpmDown)));
+                output is OutputIo.PcbPlacementHandlerDown
+                    or OutputIo.PcbPlacementIpmDown
+                    or OutputIo.NgCarrierPickupDown)));
         var motions = new[]
         {
             services.GetRequiredService<PcbSupplyHandler>().Feedback,
@@ -749,7 +751,7 @@ public sealed partial class MachineLifecycleTests
         Assert.False(moved);
         Assert.Equal(cylinders.Order(), outputChanges.Order());
         Assert.All(cylinders, output => Assert.Equal(
-            output is OutputIo.PickupHeadUp or OutputIo.ShootingHeadUp or OutputIo.NgCarrierPickupUp,
+            output is OutputIo.PickupHeadUp or OutputIo.ShootingHeadUp,
             io.GetOutput(output)));
         Assert.True(io.GetInput(InputIo.PcbPlacementIpmUp));
         Assert.False(io.GetInput(InputIo.PcbPlacementIpmDown));
@@ -809,7 +811,7 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         io.AutoResponseEnabled = false;
-        io.SetOutput(OutputIo.NgCarrierPickupUp, false);
+        io.SetOutput(OutputIo.NgCarrierPickupDown, true);
         io.SetOutput(OutputIo.PcbPlacementHandlerDown, true);
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
@@ -817,13 +819,13 @@ public sealed partial class MachineLifecycleTests
         machine.Stop();
         await raising;
         Assert.Equal(MachineAlarm.None, state.Alarm);
-        Assert.True(io.GetOutput(OutputIo.NgCarrierPickupUp));
+        Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
         Assert.True(io.GetOutput(OutputIo.PcbPlacementHandlerDown));
         Assert.False(machine.CanHome);
 
         await machine.RaiseCylindersAsync(CancellationToken.None);
         Assert.Equal(MachineAlarm.NgCarrierTransfer, state.Alarm);
-        Assert.True(io.GetOutput(OutputIo.NgCarrierPickupUp));
+        Assert.False(io.GetOutput(OutputIo.NgCarrierPickupDown));
         Assert.False(state.IsRunning);
         Assert.False(state.Homed);
     }
@@ -840,10 +842,10 @@ public sealed partial class MachineLifecycleTests
         var io = services.GetRequiredService<VirtualIoService>();
         var failure = new IOException("Cylinder output failed after STOP.");
         await machine.InitializeAsync();
-        io.SetOutput(OutputIo.NgCarrierPickupUp, false);
+        io.SetOutput(OutputIo.NgCarrierPickupDown, true);
         void FailAfterStop(OutputIo output, bool on)
         {
-            if (output != OutputIo.NgCarrierPickupUp || !on)
+            if (output != OutputIo.NgCarrierPickupDown || on)
                 return;
             io.OutputChanged -= FailAfterStop;
             if (safetyStop)
@@ -895,14 +897,14 @@ public sealed partial class MachineLifecycleTests
         var gantry = services.GetRequiredService<InspectionGantry>();
         IIoService signals = io;
         await machine.InitializeAsync();
-        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperOpen, false);
-        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupUp, false);
+        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperClose, true);
+        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, true);
         io.SetInput(InputIo.NgCarrierDetected, true);
 
         Assert.False(machine.CanHome);
         await machine.HomeAsync(CancellationToken.None);
         await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.HomeAxisAsync(MotionAxis.X));
-        Assert.False(io.GetOutput(OutputIo.NgCarrierGripperOpen));
+        Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
         Assert.False(state.Homed);
 
         io.SetInput(InputIo.NgCarrierDetected, false);
@@ -911,11 +913,11 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.HomeAxisAsync(MotionAxis.X));
         Assert.False(state.Homed);
-        Assert.False(io.GetOutput(OutputIo.NgCarrierPickupUp));
-        Assert.False(io.GetOutput(OutputIo.NgCarrierGripperOpen));
+        Assert.True(io.GetOutput(OutputIo.NgCarrierPickupDown));
+        Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
 
-        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperOpen, true);
-        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupUp, true);
+        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperClose, false);
+        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, false);
         Assert.True(machine.CanHome);
 
         var unsafeMovement = false;

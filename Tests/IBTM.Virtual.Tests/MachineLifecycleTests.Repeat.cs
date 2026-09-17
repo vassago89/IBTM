@@ -215,7 +215,7 @@ public sealed partial class MachineLifecycleTests
         pickup.Changed += CheckPickup;
         io.OutputChanged += (output, on) =>
         {
-            if (output == OutputIo.NgCarrierGripperOpen && on
+            if (output == OutputIo.NgCarrierGripperClose && !on
                 && gantry.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition))
                 openedAtShuttle = true;
             if (output == OutputIo.NgShuttleDown)
