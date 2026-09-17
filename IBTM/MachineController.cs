@@ -442,8 +442,8 @@ public sealed partial class MachineController
             _conveyor.Stop,
             _shootingBoltFeeder.Stop,
             () => _fasteningGantry.StopShooting(),
-            () => _fasteningGantry.StopIoHead(FasteningHead.Pickup),
-            () => _fasteningGantry.StopIoHead(FasteningHead.Shooting),
+            () => _fasteningGantry.StopIoStart(FasteningHead.Pickup),
+            () => _fasteningGantry.StopIoStart(FasteningHead.Shooting),
             _ngConveyor.Stop,
             _supplyHandler.StopUpstream,
         ];

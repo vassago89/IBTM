@@ -52,8 +52,8 @@ Virtual은 실린더 동작을 모사하므로 가상 인계 성공이 실제 �
 ## 볼트 체결기 타입
 
 Settings에서 ADC communication / IO only를 선택하고 저장·재시작한다. Virtual은 개발용이다.
-ADC형은 기존 통신 제어·결과 수집을 유지하며 IO형 전용 채널을 스캔하거나 출력하지 않는다.
-IO형은 COM 포트 없이 INPUTS / OUTPUTS 창에서 다음 원시 신호를 확인·조작한다.
+타입은 자동 체결 제어·결과 수집 방식만 선택한다.
+다음 DI/DO는 타입과 관계없이 일반 IO로 스캔하며 INPUTS / OUTPUTS 창에서 확인·조작한다.
 
 | 대상 | 입력 READY / ALARM / FASTEN | 출력 PRESET 1/2/3 / START / FWD-BWD / LOCK / RESET |
 | --- | --- | --- |
@@ -64,7 +64,7 @@ START는 ON 유지로 운전하고 OFF로 정지한다. 설비 STOP은 두 START
 한쪽 출력 쓰기 실패가 다른 쪽 정지 요청을 건너뛰지 않게 한다.
 프리셋 1·2·3은 해당 출력 하나만 ON한다. START 전에 기존 FASTEN이 OFF인지 확인하고,
 이번 START 이후 FASTEN ON → OFF를 확인하면 START를 OFF하고 결과를 OK로 기록한다.
-처음부터 OFF인 입력이나 STOP으로 발생한 OFF는 정상 완료로 취급하지 않는다.
+처음부터 OFF인 입력이나 설비 STOP·직접 START OFF로 발생한 OFF는 정상 완료로 취급하지 않는다.
 이 결과는 품질 신호 판정이 아닌 사용자 지정 `IoAssumedOk`이며 토크는 미측정(null)이다.
 READY와 ALARM은 원시 표시만 하고 이 IO형 시퀀스의 운전·판정 조건에 사용하지 않는다.
 설비 공통 비상정지·안전 인터록은 유지하며 RESET 펄스는 임의로 생성하지 않는다.

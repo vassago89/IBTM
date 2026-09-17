@@ -387,10 +387,17 @@ public sealed class BoltFasteningGantry
         }
     }
 
-    public void StopIoHead(FasteningHead head)
+    public void StopIoStart(FasteningHead head)
     {
         if (GetHead(head) is IoBoltHead ioHead)
+        {
             ioHead.Stop();
+            return;
+        }
+
+        _io.SetOutput(
+            head == FasteningHead.Pickup ? OutputIo.PickupBoltStart : OutputIo.ShootingBoltStart,
+            false);
     }
 
     internal void DiscardPendingResults()

@@ -38,6 +38,7 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
             ? [OutputIo.PickupBoltPreset1, OutputIo.PickupBoltPreset2, OutputIo.PickupBoltPreset3]
             : [OutputIo.ShootingBoltPreset1, OutputIo.ShootingBoltPreset2, OutputIo.ShootingBoltPreset3];
         io.InputChanged += OnInputChanged;
+        io.OutputChanged += OnOutputChanged;
         io.Faulted += OnIoFaulted;
     }
 
@@ -69,9 +70,7 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
     public void Stop(Exception? operationFailure = null)
     {
         // A falling FASTEN caused by our STOP is not normal completion.
-        Interlocked.CompareExchange(ref _pendingPhase, Interrupted, WaitingForOn);
-        Interlocked.CompareExchange(ref _pendingPhase, Interrupted, WaitingForOff);
-        _changed.Set();
+        InterruptPending();
         // Confirmed interface: START is held ON while running; OFF requests stop.
         try
         {
@@ -210,8 +209,25 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
             return;
         if (value)
             Interlocked.CompareExchange(ref _pendingPhase, WaitingForOff, WaitingForOn);
-        else
-            Interlocked.CompareExchange(ref _pendingPhase, Completed, WaitingForOff);
+        else if (Volatile.Read(ref _pendingPhase) == WaitingForOff)
+        {
+            // FASTEN may fall before the direct START OFF write publishes OutputChanged.
+            var phase = _io.GetOutput(_start) ? Completed : Interrupted;
+            Interlocked.CompareExchange(ref _pendingPhase, phase, WaitingForOff);
+        }
+        _changed.Set();
+    }
+
+    private void OnOutputChanged(OutputIo output, bool value)
+    {
+        if (output == _start && !value)
+            InterruptPending();
+    }
+
+    private void InterruptPending()
+    {
+        Interlocked.CompareExchange(ref _pendingPhase, Interrupted, WaitingForOn);
+        Interlocked.CompareExchange(ref _pendingPhase, Interrupted, WaitingForOff);
         _changed.Set();
     }
 
@@ -223,6 +239,7 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
     public void Dispose()
     {
         _io.InputChanged -= OnInputChanged;
+        _io.OutputChanged -= OnOutputChanged;
         _io.Faulted -= OnIoFaulted;
     }
 }

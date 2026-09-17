@@ -20,11 +20,14 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class IoStartupTests
 {
-    [Fact]
-    public void MachineStopClearsBothIoBoltStartsEvenWhenOneWriteFails()
+    [Theory]
+    [InlineData(BoltDriver.Io)]
+    [InlineData(BoltDriver.Virtual)]
+    [InlineData(BoltDriver.HantasAdc)]
+    public void MachineStopClearsBothIoBoltStartsEvenWhenOneWriteFails(BoltDriver driver)
     {
         var settings = new MachineSettings();
-        settings.Drivers.Bolt = BoltDriver.Io;
+        settings.Drivers.Bolt = driver;
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var io = services.GetRequiredService<StartupIo>();

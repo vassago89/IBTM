@@ -195,6 +195,36 @@ public sealed class IoBoltHeadTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    public async Task DirectStartOffDoesNotCountStopInducedFastenOffAsOk(bool feedbackArrivesFirst)
+    {
+        var settings = new IoBoltHardwareSettings();
+        var io = new VirtualIoService(settings.Outputs, new());
+        void EndFastenOnStop(OutputIo output, bool on)
+        {
+            if (output == OutputIo.PickupBoltStart && !on)
+                io.SetInput(InputIo.PickupBoltFasten, false);
+        }
+        if (feedbackArrivesFirst)
+            io.OutputChanged += EndFastenOnStop;
+        using var head = new IoBoltHead(io, FasteningHead.Pickup, settings);
+        if (!feedbackArrivesFirst)
+            io.OutputChanged += EndFastenOnStop;
+        await head.SelectPresetAsync(1);
+        var cycle = head.TightenAsync();
+        io.SetInput(InputIo.PickupBoltFasten, true);
+
+        io.SetOutput(OutputIo.PickupBoltStart, false);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => cycle.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+        Assert.True(head.RequiresRecovery);
+        Assert.Null(await head.ReadPendingResultAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
     public async Task MissingEitherFastenEdgeTimesOutAndStops(bool sawOn)
     {
         var settings = new IoBoltHardwareSettings { FasteningTimeoutMilliseconds = 50 };
