@@ -108,7 +108,7 @@
                                 <ColumnDefinition Width="{x:Static ui:MachinePlan.HeatSinkGapWidth}"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <Border x:Name="HeatSink1" Grid.Column="2" Tag="{TemplateBinding HeatSink1Present}"
+                            <Border x:Name="HeatSink1" Grid.Column="0" Tag="{TemplateBinding HeatSink1Present}"
                                 Style="{StaticResource HeatSinkPocketStyle}">
                                 <Grid>
                                     <TextBlock Text="HS1" Style="{StaticResource HeatSinkPocketLabelStyle}"
@@ -126,7 +126,7 @@
                                         Tag="{TemplateBinding HeatSink1Result}" Style="{StaticResource ResultTextStyle}"/>
                                 </Grid>
                             </Border>
-                            <Border x:Name="HeatSink2" Tag="{TemplateBinding HeatSink2Present}"
+                            <Border x:Name="HeatSink2" Grid.Column="2" Tag="{TemplateBinding HeatSink2Present}"
                                 Style="{StaticResource HeatSinkPocketStyle}">
                                 <Grid>
                                     <TextBlock Text="HS2" Style="{StaticResource HeatSinkPocketLabelStyle}"

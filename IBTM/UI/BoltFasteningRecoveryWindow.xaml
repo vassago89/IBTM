@@ -30,12 +30,12 @@
         <Border Grid.Row="2" Margin="0,0,0,12" Padding="12,9" Style="{StaticResource CardStyle}">
             <StackPanel Orientation="Horizontal">
                 <StackPanel Orientation="Horizontal" Margin="0,0,24,0">
-                    <Ellipse Tag="{Binding HeatSink2Present}" Style="{StaticResource PresenceLedStyle}"/>
-                    <TextBlock Text="HEAT SINK 2" Margin="7,0,0,0" Style="{StaticResource IndicatorTextStyle}"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal">
                     <Ellipse Tag="{Binding HeatSink1Present}" Style="{StaticResource PresenceLedStyle}"/>
                     <TextBlock Text="HEAT SINK 1" Margin="7,0,0,0" Style="{StaticResource IndicatorTextStyle}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse Tag="{Binding HeatSink2Present}" Style="{StaticResource PresenceLedStyle}"/>
+                    <TextBlock Text="HEAT SINK 2" Margin="7,0,0,0" Style="{StaticResource IndicatorTextStyle}"/>
                 </StackPanel>
             </StackPanel>
         </Border>
