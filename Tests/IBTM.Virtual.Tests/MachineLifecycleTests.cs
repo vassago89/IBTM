@@ -110,32 +110,30 @@ public sealed partial class MachineLifecycleTests
         io.AutoResponseEnabled = false;
         OutputIo[] plates =
         [
-            OutputIo.PcbPlacementBackupPlateDown,
-            OutputIo.BoltFasteningBackupPlateDown,
-            OutputIo.InspectionBackupPlateDown,
+            OutputIo.PcbPlacementBackupPlateUp,
+            OutputIo.BoltFasteningBackupPlateUp,
+            OutputIo.InspectionBackupPlateUp,
         ];
         foreach (var plate in plates)
         {
             var feedback = io.GetOutputFeedback(plate)!;
-            io.SetInput(feedback.OnInput, false);
-            io.SetInput(feedback.OffInput!.Value, true);
+            io.SetOutput(plate, true);
+            io.SetInput(feedback.OnInput, true);
+            io.SetInput(feedback.OffInput!.Value, false);
         }
         var conveyorStarted = false;
-        io.OutputChanged += (output, on) =>
-        {
-            if (output == OutputIo.MainConveyorReadyToFront2 && on)
-                conveyorStarted = true;
-        };
+        // Teaching suppresses SMEMA, so observe automatic start directly.
+        state.Changed += () => conveyorStarted |= state.AutomaticRunning;
 
         var run = machine.StartAsync();
         try
         {
-            await WaitUntilAsync(() => plates.All(io.GetOutput));
+            await WaitUntilAsync(() => plates.All(plate => !io.GetOutput(plate)));
             foreach (var plate in plates.Take(2))
             {
                 var feedback = io.GetOutputFeedback(plate)!;
-                io.SetInput(feedback.OffInput!.Value, false);
-                io.SetInput(feedback.OnInput, true);
+                io.SetInput(feedback.OnInput, false);
+                io.SetInput(feedback.OffInput!.Value, true);
             }
             Assert.False(conveyorStarted);
             Assert.False(state.AutomaticRunning);
@@ -144,11 +142,15 @@ public sealed partial class MachineLifecycleTests
             if (outcome == "arrive")
             {
                 var feedback = io.GetOutputFeedback(plates[2])!;
-                io.SetInput(feedback.OffInput!.Value, false);
-                io.SetInput(feedback.OnInput, true);
-                await WaitUntilAsync(() => conveyorStarted);
+                io.SetInput(feedback.OnInput, false);
+                io.SetInput(feedback.OffInput!.Value, true);
+                Assert.True(
+                    await VirtualTest.WaitUntilAsync(() => conveyorStarted, TimeSpan.FromSeconds(2)),
+                    $"Automatic={state.AutomaticRunning}, Alarm={state.AlarmMessage}, "
+                        + $"Conveyor={services.GetRequiredService<MainConveyor>().State}, "
+                        + $"Teaching={io.GetInput(InputIo.AutoMode)}");
                 Assert.True(state.AutomaticRunning);
-                Assert.All(plates, plate => Assert.True(io.GetOutput(plate)));
+                Assert.All(plates, plate => Assert.False(io.GetOutput(plate)));
                 machine.Stop();
             }
             else if (outcome == "stop")
@@ -318,7 +320,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateDown, false);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, true);
         io.SetInput(InputIo.AutoMode, false);
         void StopDuringTransfer(double x, double y, double z)
         {
@@ -487,7 +489,7 @@ public sealed partial class MachineLifecycleTests
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.MainConveyorReadyFromRear, true);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateDown, false);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, true);
         var assembly = work.Assembly(HeatSinkSlot.HeatSink1);
         assembly.RecordBoltPresence(1, true);
         assembly.CompleteInspection();

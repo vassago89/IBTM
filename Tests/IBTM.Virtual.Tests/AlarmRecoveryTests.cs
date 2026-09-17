@@ -360,7 +360,7 @@ public sealed class AlarmRecoveryTests
                 services.GetRequiredService<IoSignals>().Outputs[OutputIo.NgConveyorRun],
                 machine);
             var shuttle = io.GetOutput(OutputIo.NgShuttleUp);
-            var stopper = io.GetOutput(OutputIo.NgConveyorStopperDown);
+            var stopper = io.GetOutput(OutputIo.NgConveyorStopperUp);
             foreach (var up in new[] { true, false })
             {
                 io.SetInput(InputIo.NgShuttleUp, up);
@@ -372,7 +372,7 @@ public sealed class AlarmRecoveryTests
                         TimeSpan.FromSeconds(2)));
                 Assert.False(io.GetOutput(OutputIo.NgConveyorReverse));
                 Assert.Equal(shuttle, io.GetOutput(OutputIo.NgShuttleUp));
-                Assert.Equal(stopper, io.GetOutput(OutputIo.NgConveyorStopperDown));
+                Assert.Equal(stopper, io.GetOutput(OutputIo.NgConveyorStopperUp));
                 // First pass: carriers appear while running. Second pass: start
                 // with every carrier sensor already ON. Neither starts a sequence.
                 var previous = state.Display;
@@ -481,13 +481,13 @@ public sealed class AlarmRecoveryTests
             Assert.False(machine.CanHome);
 
             var output = view.OutputMappings.Single(
-                row => row.Signal.Equals(OutputIo.PcbPlacementStopperDown)).Output!;
+                row => row.Signal.Equals(OutputIo.PcbPlacementStopperUp)).Output!;
             var axis = view.AxisMappings.Single(
                 row => row.Signal.Equals(MachineAxis.InspectionGantryX)).Axis!;
-            Assert.Same(view.Settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementStopperDown], output);
+            Assert.Same(view.Settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementStopperUp], output);
             Assert.Same(view.Settings.InspectionGantryHardware.Axes[MachineAxis.InspectionGantryX], axis);
             var runningOutput = services.GetRequiredService<IReadOnlyDictionary<OutputIo, OutputHardware>>()
-                [OutputIo.PcbPlacementStopperDown];
+                [OutputIo.PcbPlacementStopperUp];
             var originalOutput = (runningOutput.Number, runningOutput.OffNumber, runningOutput.Feedback!.OnInput);
             output.Number = 80;
             output.OffNumber = 81;
@@ -513,7 +513,7 @@ public sealed class AlarmRecoveryTests
                     .Get<AlphaMotionSettings>()
                     .ControllerNumber);
             var saved = services.GetRequiredService<MachineStore>().LoadSettings();
-            var savedOutput = saved.Get<ConveyorHardwareSettings>().Outputs[OutputIo.PcbPlacementStopperDown];
+            var savedOutput = saved.Get<ConveyorHardwareSettings>().Outputs[OutputIo.PcbPlacementStopperUp];
             var savedAxis = saved.Get<InspectionGantryHardwareSettings>().Axes[MachineAxis.InspectionGantryX];
             Assert.Equal((80, (int?)81, InputIo.InspectionStopperUp),
                 (savedOutput.Number, savedOutput.OffNumber, savedOutput.Feedback!.OnInput));

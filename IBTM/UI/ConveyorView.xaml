@@ -406,13 +406,13 @@
                 <StackPanel>
                     <TextBlock Text="MAIN BELT" Style="{StaticResource MapIoTitleStyle}"/>
                     <DockPanel Margin="0,0,0,4"
-                        ToolTip="{Binding Signals.Inputs[MainConveyorAutoMode].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                        ToolTip="{Binding Signals.Inputs[MainConveyorManualMode].Signal, Converter={StaticResource EnumDescriptionConverter}}">
                         <TextBlock
-                            Text="{Binding Signals.Inputs[MainConveyorAutoMode].IsOn, Converter={StaticResource SignalTextConverter}}"
+                            Text="{Binding Signals.Inputs[MainConveyorManualMode].IsOn, Converter={StaticResource SignalTextConverter}}"
                             Style="{StaticResource MapIoInputStyle}"/>
-                        <TextBlock Text="{Binding Signals.Inputs[MainConveyorAutoMode].Address}"
+                        <TextBlock Text="{Binding Signals.Inputs[MainConveyorManualMode].Address}"
                             Style="{StaticResource MapIoAddressStyle}"/>
-                        <TextBlock Text="DI Auto input" Style="{StaticResource MapIoLabelStyle}"/>
+                        <TextBlock Text="DI Manual input" Style="{StaticResource MapIoLabelStyle}"/>
                     </DockPanel>
                     <DockPanel Margin="0,0,0,4"
                         ToolTip="{Binding Signals.Outputs[MainConveyorRun].Signal, Converter={StaticResource EnumDescriptionConverter}}">

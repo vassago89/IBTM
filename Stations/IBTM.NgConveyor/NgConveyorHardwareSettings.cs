@@ -18,10 +18,10 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings
         {
             InputIo.NgConveyorPosition1Occupied
                 or InputIo.NgConveyorPosition2Occupied
-                or InputIo.NgConveyorAutoMode
+                or InputIo.NgConveyorManualMode
                 or InputIo.NgConveyorStopperUp
                 or InputIo.NgConveyorStopperDown
-                or OutputIo.NgConveyorStopperDown
+                or OutputIo.NgConveyorStopperUp
                 or OutputIo.NgConveyorRun
                 or OutputIo.NgConveyorReverse
                 => IoSection.NgConveyorStorage,
@@ -38,7 +38,7 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings
     {
         Inputs = new()
         {
-            [InputIo.NgConveyorAutoMode] = 83,
+            [InputIo.NgConveyorManualMode] = 83,
             [InputIo.NgConveyorPosition1Occupied] = 84,
             [InputIo.NgConveyorPosition2Occupied] = 85,
             [InputIo.NgConveyorStopperDown] = 87,
@@ -48,11 +48,11 @@ public sealed class NgConveyorHardwareSettings : IoHardwareSettings
         };
         Outputs = new()
         {
-            [OutputIo.NgConveyorStopperDown] = Output(
+            [OutputIo.NgConveyorStopperUp] = Output(
                 70,
                 71,
-                InputIo.NgConveyorStopperDown,
-                InputIo.NgConveyorStopperUp),
+                InputIo.NgConveyorStopperUp,
+                InputIo.NgConveyorStopperDown),
             [OutputIo.NgConveyorRun] = Output(72),
             [OutputIo.NgConveyorReverse] = Output(73),
             [OutputIo.NgCarrierEjectLamp] = Output(75),

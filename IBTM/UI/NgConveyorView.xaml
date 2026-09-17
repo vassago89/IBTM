@@ -122,6 +122,14 @@
             <StackPanel>
                 <TextBlock Text="NG · LIVE I/O" Style="{StaticResource MapIoTitleStyle}"/>
                 <DockPanel Margin="0,0,0,4"
+                    ToolTip="{Binding Signals.Inputs[NgConveyorManualMode].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                    <TextBlock Text="{Binding Signals.Inputs[NgConveyorManualMode].IsOn, Converter={StaticResource SignalTextConverter}}"
+                        Style="{StaticResource MapIoInputStyle}"/>
+                    <TextBlock Text="{Binding Signals.Inputs[NgConveyorManualMode].Address}"
+                        Style="{StaticResource MapIoAddressStyle}"/>
+                    <TextBlock Text="DI Manual input" Style="{StaticResource MapIoLabelStyle}"/>
+                </DockPanel>
+                <DockPanel Margin="0,0,0,4"
                     ToolTip="{Binding Signals.Inputs[NgShuttleCarrierDetected].Signal, Converter={StaticResource EnumDescriptionConverter}}">
                     <TextBlock
                         Text="{Binding Signals.Inputs[NgShuttleCarrierDetected].IsOn, Converter={StaticResource SignalTextConverter}}"
@@ -177,12 +185,12 @@
                     <TextBlock Text="DI Stopper up" Style="{StaticResource MapIoLabelStyle}"/>
                 </DockPanel>
                 <DockPanel Margin="0,0,0,4"
-                    ToolTip="{Binding Signals.Outputs[NgConveyorStopperDown].Signal, Converter={StaticResource EnumDescriptionConverter}}">
-                    <TextBlock Text="{Binding Signals.Outputs[NgConveyorStopperDown].IsOn, Converter={StaticResource SignalTextConverter}}"
+                    ToolTip="{Binding Signals.Outputs[NgConveyorStopperUp].Signal, Converter={StaticResource EnumDescriptionConverter}}">
+                    <TextBlock Text="{Binding Signals.Outputs[NgConveyorStopperUp].IsOn, Converter={StaticResource SignalTextConverter}}"
                         Style="{StaticResource MapIoOutputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Outputs[NgConveyorStopperDown].Address}"
+                    <TextBlock Text="{Binding Signals.Outputs[NgConveyorStopperUp].Address}"
                         Style="{StaticResource MapIoAddressStyle}" Width="Auto" MinWidth="26" Margin="6,0,0,0"/>
-                    <TextBlock Text="DO Stopper down" Style="{StaticResource MapIoLabelStyle}"/>
+                    <TextBlock Text="DO Stopper up" Style="{StaticResource MapIoLabelStyle}"/>
                 </DockPanel>
                 <DockPanel Margin="0,0,0,4"
                     ToolTip="{Binding Signals.Outputs[NgConveyorRun].Signal, Converter={StaticResource EnumDescriptionConverter}}">

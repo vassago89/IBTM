@@ -410,13 +410,13 @@ public sealed class MainConveyor : AutoUnit
         var preparation = new List<Task>(3);
         if (_placementWork.CanReceive && _placement.BackupPlate != StationCylinderState.Down)
             preparation.Add(_io.SetOutputAndWaitAsync(
-                OutputIo.PcbPlacementBackupPlateDown, true, cancellationToken));
+                OutputIo.PcbPlacementBackupPlateUp, false, cancellationToken));
         if (_boltFasteningWork.CanReceive && _boltFastening.BackupPlate != StationCylinderState.Down)
             preparation.Add(_io.SetOutputAndWaitAsync(
-                OutputIo.BoltFasteningBackupPlateDown, true, cancellationToken));
+                OutputIo.BoltFasteningBackupPlateUp, false, cancellationToken));
         if (_inspectionWork.CanReceive && _inspection.BackupPlate != StationCylinderState.Down)
             preparation.Add(_io.SetOutputAndWaitAsync(
-                OutputIo.InspectionBackupPlateDown, true, cancellationToken));
+                OutputIo.InspectionBackupPlateUp, false, cancellationToken));
         return Task.WhenAll(preparation);
     }
 

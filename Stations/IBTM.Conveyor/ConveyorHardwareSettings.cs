@@ -18,7 +18,7 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
         {
             InputIo.MainConveyorAvailableFromFront2
                 or InputIo.MainConveyorReadyFromRear
-                or InputIo.MainConveyorAutoMode
+                or InputIo.MainConveyorManualMode
                 or InputIo.MainConveyorEntryCarrierDetected
                 or InputIo.MainConveyorExitCarrierDetected
                 or OutputIo.MainConveyorReadyToFront2
@@ -30,22 +30,22 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
                 or InputIo.PcbPlacementStopperDown
                 or InputIo.PcbPlacementBackupPlateUp
                 or InputIo.PcbPlacementBackupPlateDown
-                or OutputIo.PcbPlacementStopperDown
-                or OutputIo.PcbPlacementBackupPlateDown
+                or OutputIo.PcbPlacementStopperUp
+                or OutputIo.PcbPlacementBackupPlateUp
                 => IoSection.MainConveyorStation1,
             InputIo.BoltFasteningStopperUp
                 or InputIo.BoltFasteningStopperDown
                 or InputIo.BoltFasteningBackupPlateUp
                 or InputIo.BoltFasteningBackupPlateDown
-                or OutputIo.BoltFasteningStopperDown
-                or OutputIo.BoltFasteningBackupPlateDown
+                or OutputIo.BoltFasteningStopperUp
+                or OutputIo.BoltFasteningBackupPlateUp
                 => IoSection.MainConveyorStation2,
             InputIo.InspectionStopperUp
                 or InputIo.InspectionStopperDown
                 or InputIo.InspectionBackupPlateUp
                 or InputIo.InspectionBackupPlateDown
-                or OutputIo.InspectionStopperDown
-                or OutputIo.InspectionBackupPlateDown
+                or OutputIo.InspectionStopperUp
+                or OutputIo.InspectionBackupPlateUp
                 => IoSection.MainConveyorStation3,
             _ => null,
         };
@@ -57,7 +57,7 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
         {
             [InputIo.MainConveyorAvailableFromFront2] = 17,
             [InputIo.MainConveyorReadyFromRear] = 18,
-            [InputIo.MainConveyorAutoMode] = 53,
+            [InputIo.MainConveyorManualMode] = 53,
             [InputIo.PcbPlacementStopperDown] = 57,
             [InputIo.PcbPlacementStopperUp] = 58,
             [InputIo.PcbPlacementBackupPlateUp] = 59,
@@ -77,36 +77,36 @@ public sealed class ConveyorHardwareSettings : IoHardwareSettings
         {
             [OutputIo.MainConveyorReadyToFront2] = Output(17),
             [OutputIo.MainConveyorAvailableToRear] = Output(18),
-            [OutputIo.PcbPlacementStopperDown] = Output(
+            [OutputIo.PcbPlacementStopperUp] = Output(
                 48,
                 49,
-                InputIo.PcbPlacementStopperDown,
-                InputIo.PcbPlacementStopperUp),
-            [OutputIo.PcbPlacementBackupPlateDown] = Output(
+                InputIo.PcbPlacementStopperUp,
+                InputIo.PcbPlacementStopperDown),
+            [OutputIo.PcbPlacementBackupPlateUp] = Output(
                 50,
                 51,
-                InputIo.PcbPlacementBackupPlateDown,
-                InputIo.PcbPlacementBackupPlateUp),
-            [OutputIo.BoltFasteningStopperDown] = Output(
+                InputIo.PcbPlacementBackupPlateUp,
+                InputIo.PcbPlacementBackupPlateDown),
+            [OutputIo.BoltFasteningStopperUp] = Output(
                 52,
                 53,
-                InputIo.BoltFasteningStopperDown,
-                InputIo.BoltFasteningStopperUp),
-            [OutputIo.BoltFasteningBackupPlateDown] = Output(
+                InputIo.BoltFasteningStopperUp,
+                InputIo.BoltFasteningStopperDown),
+            [OutputIo.BoltFasteningBackupPlateUp] = Output(
                 54,
                 55,
-                InputIo.BoltFasteningBackupPlateDown,
-                InputIo.BoltFasteningBackupPlateUp),
-            [OutputIo.InspectionStopperDown] = Output(
+                InputIo.BoltFasteningBackupPlateUp,
+                InputIo.BoltFasteningBackupPlateDown),
+            [OutputIo.InspectionStopperUp] = Output(
                 56,
                 57,
-                InputIo.InspectionStopperDown,
-                InputIo.InspectionStopperUp),
-            [OutputIo.InspectionBackupPlateDown] = Output(
+                InputIo.InspectionStopperUp,
+                InputIo.InspectionStopperDown),
+            [OutputIo.InspectionBackupPlateUp] = Output(
                 58,
                 59,
-                InputIo.InspectionBackupPlateDown,
-                InputIo.InspectionBackupPlateUp),
+                InputIo.InspectionBackupPlateUp,
+                InputIo.InspectionBackupPlateDown),
             [OutputIo.MainConveyorRun] = Output(60),
             [OutputIo.MainConveyorForward] = Output(61),
         };

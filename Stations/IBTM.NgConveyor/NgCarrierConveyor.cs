@@ -439,7 +439,7 @@ public sealed class NgCarrierConveyor : AutoUnit
 
     private Task SetStopperDownAsync(bool down, CancellationToken cancellationToken)
     {
-        return _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperDown, down, cancellationToken);
+        return _io.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, !down, cancellationToken);
     }
 
     internal async Task RunUntilAsync(

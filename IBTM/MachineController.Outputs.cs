@@ -265,12 +265,12 @@ public sealed partial class MachineController
                 OutputIo.NgCarrierPickupUp => _ngTransfer.SetLiftUpAsync(value, token),
                 OutputIo.NgCarrierGripperOpen => _ngTransfer.SetGripperOpenAsync(value, token),
                 OutputIo.NgShuttleUp => _ngShuttle.SetUpAsync(value, token),
-                OutputIo.PcbPlacementBackupPlateDown
-                    or OutputIo.BoltFasteningBackupPlateDown
-                    or OutputIo.InspectionBackupPlateDown
-                    or OutputIo.PcbPlacementStopperDown
-                    or OutputIo.BoltFasteningStopperDown
-                    or OutputIo.InspectionStopperDown
+                OutputIo.PcbPlacementBackupPlateUp
+                    or OutputIo.BoltFasteningBackupPlateUp
+                    or OutputIo.InspectionBackupPlateUp
+                    or OutputIo.PcbPlacementStopperUp
+                    or OutputIo.BoltFasteningStopperUp
+                    or OutputIo.InspectionStopperUp
                     => _io.SetOutputAndWaitAsync(output.Signal, value, token),
                 _ => throw new ArgumentOutOfRangeException(nameof(output)),
             };

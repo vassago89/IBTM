@@ -425,7 +425,7 @@ public sealed class OutputWindowThreadingTests
                     () => io.SetOutput(OutputIo.MachineLight, !io.GetOutput(OutputIo.MachineLight)));
                 var feedback = BindOutputRow(
                     window,
-                    ((OutputWindowViewModel)window.DataContext).Rows.Single(candidate => candidate.Io.Signal == OutputIo.PcbPlacementStopperDown)).Feedback;
+                    ((OutputWindowViewModel)window.DataContext).Rows.Single(candidate => candidate.Io.Signal == OutputIo.PcbPlacementStopperUp)).Feedback;
                 await Task.Run(
                     () =>
                     {
@@ -1344,12 +1344,12 @@ public sealed class OutputWindowThreadingTests
 
         Assert.Equal(0, notifications);
 
-        var stopper = new OutputWindowRow(signals.Outputs[OutputIo.PcbPlacementStopperDown], machine);
+        var stopper = new OutputWindowRow(signals.Outputs[OutputIo.PcbPlacementStopperUp], machine);
         var feedback = BindOutputRow(window, stopper).Feedback;
         await Task.Run(
             () =>
             {
-                io.SetOutput(OutputIo.PcbPlacementStopperDown, false);
+                io.SetOutput(OutputIo.PcbPlacementStopperUp, true);
                 io.SetInput(InputIo.PcbPlacementStopperUp, true);
                 io.SetInput(InputIo.PcbPlacementStopperDown, false);
             });
@@ -1361,10 +1361,10 @@ public sealed class OutputWindowThreadingTests
                 () => feedback.Text == "Not matched",
                 TimeSpan.FromSeconds(2)));
         stopper.ToggleCommand.Execute(null);
-        Assert.True(io.GetOutput(stopper.Io.Signal));
+        Assert.False(io.GetOutput(stopper.Io.Signal));
         Assert.True(stopper.ToggleCommand.CanExecute(null));
         stopper.ToggleCommand.Execute(null);
-        Assert.False(io.GetOutput(stopper.Io.Signal));
+        Assert.True(io.GetOutput(stopper.Io.Signal));
         Assert.Equal("Not matched", feedback.Text);
         // A second click reads the device even before the first DO snapshot arrives.
         var signal = signals.Outputs[OutputIo.MainConveyorRun];

@@ -123,12 +123,14 @@ public sealed class MachineStoreTests
         settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.MoveUnit = 0.1;
         settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.MovePulse = 10;
         settings.Conveyor.CarrierStopDelaySeconds = 0.75;
+        settings.ConveyorHardware.Inputs[InputIo.MainConveyorManualMode] = 153;
+        settings.NgConveyorHardware.Inputs[InputIo.NgConveyorManualMode] = 183;
         settings.MachineHardware.Inputs[InputIo.AirPressureHigh] = 37;
         settings.ConveyorHardware.Outputs[OutputIo.MainConveyorForward].Number = 60;
-        settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementBackupPlateDown].Number = 25;
-        settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementBackupPlateDown].OffNumber = 26;
-        settings.NgConveyorHardware.Outputs[OutputIo.NgConveyorStopperDown].Number = 77;
-        settings.NgConveyorHardware.Outputs[OutputIo.NgConveyorStopperDown].OffNumber = 78;
+        settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementBackupPlateUp].Number = 25;
+        settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementBackupPlateUp].OffNumber = 26;
+        settings.NgConveyorHardware.Outputs[OutputIo.NgConveyorStopperUp].Number = 77;
+        settings.NgConveyorHardware.Outputs[OutputIo.NgConveyorStopperUp].OffNumber = 78;
         settings.BoltFasteningHardware.Outputs[OutputIo.PickupHeadUp].Number = 139;
         settings.BoltFasteningHardware.Outputs[OutputIo.PickupHeadUp].OffNumber = 140;
         settings.Drivers.Bolt = BoltDriver.Io;
@@ -166,8 +168,8 @@ public sealed class MachineStoreTests
                 UPDATE Settings
                 SET Value = json_set(Value, '$.Outputs.NgConveyorNormalSpeed', json('{"Number":74}'),
                     '$.Inputs.NgConveyorStopperUp', 87, '$.Inputs.NgConveyorStopperDown', 88,
-                    '$.Outputs.NgConveyorStopperDown.Feedback',
-                    json('{"OnInput":"NgConveyorStopperDown","OffInput":"NgConveyorStopperUp"}'))
+                    '$.Outputs.NgConveyorStopperUp.Feedback',
+                    json('{"OnInput":"NgConveyorStopperUp","OffInput":"NgConveyorStopperDown"}'))
                 WHERE Key = 'NgConveyorHardwareSettings';
                 UPDATE Settings SET Value = '{"RotationZ":17,"RemovedProperty":123}'
                 WHERE Key = 'PcbSupplySettings';
@@ -177,13 +179,30 @@ public sealed class MachineStoreTests
             command.ExecuteNonQuery();
             foreach (var (section, oldSignal, newSignal) in new[]
             {
-                ("ConveyorHardwareSettings", "PcbPlacementBackupPlateUp", "PcbPlacementBackupPlateDown"),
-                ("ConveyorHardwareSettings", "BoltFasteningBackupPlateUp", "BoltFasteningBackupPlateDown"),
-                ("ConveyorHardwareSettings", "InspectionBackupPlateUp", "InspectionBackupPlateDown"),
-                ("ConveyorHardwareSettings", "PcbPlacementStopperUp", "PcbPlacementStopperDown"),
-                ("ConveyorHardwareSettings", "BoltFasteningStopperUp", "BoltFasteningStopperDown"),
-                ("ConveyorHardwareSettings", "InspectionStopperUp", "InspectionStopperDown"),
-                ("NgConveyorHardwareSettings", "NgConveyorStopperUp", "NgConveyorStopperDown"),
+                ("ConveyorHardwareSettings", "MainConveyorAutoMode", "MainConveyorManualMode"),
+                ("NgConveyorHardwareSettings", "NgConveyorAutoMode", "NgConveyorManualMode"),
+            })
+            {
+                command.CommandText = """
+                    UPDATE Settings
+                    SET Value = json_remove(json_set(Value, $old, json_extract(Value, $new)), $new)
+                    WHERE Key = $section;
+                    """;
+                command.Parameters.Clear();
+                command.Parameters.AddWithValue("$old", $"$.Inputs.{oldSignal}");
+                command.Parameters.AddWithValue("$new", $"$.Inputs.{newSignal}");
+                command.Parameters.AddWithValue("$section", section);
+                command.ExecuteNonQuery();
+            }
+            foreach (var (section, oldSignal, newSignal) in new[]
+            {
+                ("ConveyorHardwareSettings", "PcbPlacementBackupPlateDown", "PcbPlacementBackupPlateUp"),
+                ("ConveyorHardwareSettings", "BoltFasteningBackupPlateDown", "BoltFasteningBackupPlateUp"),
+                ("ConveyorHardwareSettings", "InspectionBackupPlateDown", "InspectionBackupPlateUp"),
+                ("ConveyorHardwareSettings", "PcbPlacementStopperDown", "PcbPlacementStopperUp"),
+                ("ConveyorHardwareSettings", "BoltFasteningStopperDown", "BoltFasteningStopperUp"),
+                ("ConveyorHardwareSettings", "InspectionStopperDown", "InspectionStopperUp"),
+                ("NgConveyorHardwareSettings", "NgConveyorStopperDown", "NgConveyorStopperUp"),
                 ("NgCarrierTransferHardwareSettings", "NgCarrierPickupDown", "NgCarrierPickupUp"),
                 ("NgCarrierTransferHardwareSettings", "NgCarrierGripperClose", "NgCarrierGripperOpen"),
                 ("NgShuttleHardwareSettings", "NgShuttleDown", "NgShuttleUp"),
@@ -224,6 +243,8 @@ public sealed class MachineStoreTests
         Assert.Equal(1, loaded.PcbPlacementHandlerHardware.GetAxis(MotionAxis.X)!.MoveUnit);
         Assert.Equal(1, loaded.PcbPlacementHandlerHardware.GetAxis(MotionAxis.X)!.MovePulse);
         Assert.Equal(0.75, loaded.Conveyor.CarrierStopDelaySeconds);
+        Assert.Equal(153, loaded.ConveyorHardware.Inputs[InputIo.MainConveyorManualMode]);
+        Assert.Equal(183, loaded.NgConveyorHardware.Inputs[InputIo.NgConveyorManualMode]);
         Assert.Equal(37, loaded.MachineHardware.Inputs[InputIo.AirPressureHigh]);
         Assert.Equal(57, loaded.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperDown]);
         Assert.Equal(58, loaded.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperUp]);
@@ -235,12 +256,12 @@ public sealed class MachineStoreTests
         Assert.Equal(60, loaded.ConveyorHardware.Outputs[OutputIo.MainConveyorForward].Number);
         foreach (var output in new[]
         {
-            OutputIo.PcbPlacementBackupPlateDown,
-            OutputIo.BoltFasteningBackupPlateDown,
-            OutputIo.InspectionBackupPlateDown,
-            OutputIo.PcbPlacementStopperDown,
-            OutputIo.BoltFasteningStopperDown,
-            OutputIo.InspectionStopperDown,
+            OutputIo.PcbPlacementBackupPlateUp,
+            OutputIo.BoltFasteningBackupPlateUp,
+            OutputIo.InspectionBackupPlateUp,
+            OutputIo.PcbPlacementStopperUp,
+            OutputIo.BoltFasteningStopperUp,
+            OutputIo.InspectionStopperUp,
         })
         {
             var expected = settings.ConveyorHardware.Outputs[output];
@@ -252,13 +273,13 @@ public sealed class MachineStoreTests
         }
 
         Assert.Equal(73, loaded.NgConveyorHardware.Outputs[OutputIo.NgConveyorReverse].Number);
-        var ngStopper = loaded.NgConveyorHardware.Outputs[OutputIo.NgConveyorStopperDown];
+        var ngStopper = loaded.NgConveyorHardware.Outputs[OutputIo.NgConveyorStopperUp];
         Assert.Equal(77, ngStopper.Number);
         Assert.Equal(78, ngStopper.OffNumber);
         Assert.Equal(87, loaded.NgConveyorHardware.Inputs[InputIo.NgConveyorStopperDown]);
         Assert.Equal(88, loaded.NgConveyorHardware.Inputs[InputIo.NgConveyorStopperUp]);
-        Assert.Equal(InputIo.NgConveyorStopperDown, ngStopper.Feedback!.OnInput);
-        Assert.Equal(InputIo.NgConveyorStopperUp, ngStopper.Feedback.OffInput);
+        Assert.Equal(InputIo.NgConveyorStopperUp, ngStopper.Feedback!.OnInput);
+        Assert.Equal(InputIo.NgConveyorStopperDown, ngStopper.Feedback.OffInput);
         foreach (var output in new[] { OutputIo.NgCarrierPickupUp, OutputIo.NgCarrierGripperOpen, OutputIo.NgShuttleUp })
         {
             var before = output == OutputIo.NgShuttleUp
@@ -302,20 +323,20 @@ public sealed class MachineStoreTests
         var hardware = settings.NgConveyorHardware;
         hardware.Inputs.Remove(InputIo.NgConveyorStopperDown);
         hardware.Inputs.Remove(InputIo.NgConveyorStopperUp);
-        hardware.Outputs[OutputIo.NgConveyorStopperDown].Feedback = null;
-        hardware.Outputs[OutputIo.NgConveyorStopperDown].Number = 77;
-        hardware.Outputs[OutputIo.NgConveyorStopperDown].OffNumber = 78;
+        hardware.Outputs[OutputIo.NgConveyorStopperUp].Feedback = null;
+        hardware.Outputs[OutputIo.NgConveyorStopperUp].Number = 77;
+        hardware.Outputs[OutputIo.NgConveyorStopperUp].OffNumber = 78;
         await settings.SaveAsync(store);
 
         var loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
         var restored = loaded.NgConveyorHardware;
         Assert.Equal(87, restored.Inputs[InputIo.NgConveyorStopperDown]);
         Assert.Equal(88, restored.Inputs[InputIo.NgConveyorStopperUp]);
-        var stopper = restored.Outputs[OutputIo.NgConveyorStopperDown];
+        var stopper = restored.Outputs[OutputIo.NgConveyorStopperUp];
         Assert.Equal(77, stopper.Number);
         Assert.Equal(78, stopper.OffNumber);
-        Assert.Equal(InputIo.NgConveyorStopperDown, stopper.Feedback!.OnInput);
-        Assert.Equal(InputIo.NgConveyorStopperUp, stopper.Feedback.OffInput);
+        Assert.Equal(InputIo.NgConveyorStopperUp, stopper.Feedback!.OnInput);
+        Assert.Equal(InputIo.NgConveyorStopperDown, stopper.Feedback.OffInput);
     }
 
     [Fact]

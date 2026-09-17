@@ -249,11 +249,11 @@ public enum InputIo
     [Description("Main Conveyor Exit Carrier Detected")]
     MainConveyorExitCarrierDetected,
 
-    [Description("Main Conveyor Auto / Manual")]
-    MainConveyorAutoMode,
+    [Description("Main Conveyor Manual Input")]
+    MainConveyorManualMode,
 
-    [Description("NG Conveyor Auto / Manual")]
-    NgConveyorAutoMode,
+    [Description("NG Conveyor Manual Input")]
+    NgConveyorManualMode,
 
     [Description("Pickup Controller Ready (Head 1)")]
     PickupBoltReady,
@@ -275,11 +275,11 @@ public enum OutputIo
     [Description("Ready To Front 2 (Heat Sink)")]
     MainConveyorReadyToFront2,
 
-    [Description("PCB Placement Stopper Down")]
-    PcbPlacementStopperDown,
+    [Description("PCB Placement Stopper Up")]
+    PcbPlacementStopperUp,
 
-    [Description("PCB Placement Backup Plate Down")]
-    PcbPlacementBackupPlateDown,
+    [Description("PCB Placement Backup Plate Up")]
+    PcbPlacementBackupPlateUp,
 
     [Description("Placement IPM Gripper Close")]
     PcbPlacementIpmGripperClose,
@@ -317,20 +317,20 @@ public enum OutputIo
     [Description("Pickup Head Vacuum Pump (Head 1)")]
     PickupHeadVacuumPump,
 
-    [Description("Bolt Fastening Stopper Down")]
-    BoltFasteningStopperDown,
+    [Description("Bolt Fastening Stopper Up")]
+    BoltFasteningStopperUp,
 
-    [Description("Bolt Fastening Backup Plate Down")]
-    BoltFasteningBackupPlateDown,
+    [Description("Bolt Fastening Backup Plate Up")]
+    BoltFasteningBackupPlateUp,
 
     [Description("Shooting Head Vacuum Pump (Head 2)")]
     ShootingHeadVacuumPump,
 
-    [Description("Inspection Stopper Down")]
-    InspectionStopperDown,
+    [Description("Inspection Stopper Up")]
+    InspectionStopperUp,
 
-    [Description("Inspection Backup Plate Down")]
-    InspectionBackupPlateDown,
+    [Description("Inspection Backup Plate Up")]
+    InspectionBackupPlateUp,
 
     [Description("NG Carrier Pickup Up")]
     NgCarrierPickupUp,
@@ -356,8 +356,8 @@ public enum OutputIo
     [Description("Main Conveyor Forward")]
     MainConveyorForward,
 
-    [Description("NG Conveyor Stopper Down")]
-    NgConveyorStopperDown,
+    [Description("NG Conveyor Stopper Up")]
+    NgConveyorStopperUp,
 
     [Description("NG Conveyor Run")]
     NgConveyorRun,

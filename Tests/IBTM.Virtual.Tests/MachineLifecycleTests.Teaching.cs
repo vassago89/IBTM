@@ -939,11 +939,11 @@ public sealed partial class MachineLifecycleTests
         var teaching = services.GetRequiredService<TeachingViewModel>();
         await machine.InitializeAsync();
         (HardwareArea Unit, OutputIo Output, InputIo Down, InputIo Up)[] stoppers = [
-            (HardwareArea.PcbPlacementHandler, OutputIo.PcbPlacementStopperDown,
+            (HardwareArea.PcbPlacementHandler, OutputIo.PcbPlacementStopperUp,
                 InputIo.PcbPlacementStopperDown, InputIo.PcbPlacementStopperUp),
-            (HardwareArea.BoltFastening, OutputIo.BoltFasteningStopperDown,
+            (HardwareArea.BoltFastening, OutputIo.BoltFasteningStopperUp,
                 InputIo.BoltFasteningStopperDown, InputIo.BoltFasteningStopperUp),
-            (HardwareArea.NgCarrierTransfer, OutputIo.InspectionStopperDown,
+            (HardwareArea.NgCarrierTransfer, OutputIo.InspectionStopperUp,
                 InputIo.InspectionStopperDown, InputIo.InspectionStopperUp),
         ];
         var changed = new ConcurrentQueue<OutputIo>();
@@ -957,11 +957,11 @@ public sealed partial class MachineLifecycleTests
                 row => row.Output == stopper);
             await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(stopper));
             await teaching.ToggleOutputCommand.ExecuteAsync(stopper);
-            Assert.True(io.GetInput(down));
-            Assert.False(io.GetInput(up));
-            await teaching.ToggleOutputCommand.ExecuteAsync(stopper);
             Assert.False(io.GetInput(down));
             Assert.True(io.GetInput(up));
+            await teaching.ToggleOutputCommand.ExecuteAsync(stopper);
+            Assert.True(io.GetInput(down));
+            Assert.False(io.GetInput(up));
             Assert.All(changed, signal => Assert.Equal(output, signal));
             changed.Clear();
         }
@@ -983,23 +983,23 @@ public sealed partial class MachineLifecycleTests
                 TeachingTarget.HeatSink1PcbPlacement,
                 InputIo.PcbPlacementBackupPlateUp,
                 InputIo.PcbPlacementBackupPlateDown,
-                OutputIo.PcbPlacementBackupPlateDown),
+                OutputIo.PcbPlacementBackupPlateUp),
             (
                 HardwareArea.BoltFastening,
                 TeachingTarget.ShootingHeadUpperLeftLocatingPin,
                 InputIo.BoltFasteningBackupPlateUp,
                 InputIo.BoltFasteningBackupPlateDown,
-                OutputIo.BoltFasteningBackupPlateDown),
+                OutputIo.BoltFasteningBackupPlateUp),
             (
                 HardwareArea.InspectionGantry,
                 TeachingTarget.CarrierUpperLeftLocatingPin,
                 InputIo.InspectionBackupPlateUp,
                 InputIo.InspectionBackupPlateDown,
-                OutputIo.InspectionBackupPlateDown),
+                OutputIo.InspectionBackupPlateUp),
         ];
         foreach (var station in stations)
         {
-            await ((IIoService)io).SetOutputAndWaitAsync(station.Output, true);
+            await ((IIoService)io).SetOutputAndWaitAsync(station.Output, false);
         }
 
         foreach (var (group, target, up, down, output) in stations)
@@ -1030,7 +1030,7 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         Assert.True(state.Buffer.IsSupplyInside());
         await WaitUntilAsync(() => !teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
-        var placementPlate = teaching.TeachingOutputs[OutputIo.PcbPlacementBackupPlateDown];
+        var placementPlate = teaching.TeachingOutputs[OutputIo.PcbPlacementBackupPlateUp];
         await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(placementPlate));
         await teaching.ToggleOutputCommand.ExecuteAsync(placementPlate);
         await teaching.ToggleOutputCommand.ExecuteAsync(placementPlate);
@@ -1045,7 +1045,7 @@ public sealed partial class MachineLifecycleTests
         settings.Options.TimeoutMilliseconds = 50;
         io.AutoResponseEnabled = false;
         await teaching.ToggleOutputCommand.ExecuteAsync(
-            teaching.TeachingOutputs[OutputIo.InspectionBackupPlateDown]);
+            teaching.TeachingOutputs[OutputIo.InspectionBackupPlateUp]);
         Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
     }
 

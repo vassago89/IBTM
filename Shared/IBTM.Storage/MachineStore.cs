@@ -74,13 +74,13 @@ public sealed class MachineStore
         // These renamed outputs reverse ON/OFF meaning. Keep channels and swap the feedback pair.
         foreach (var (section, oldSignal, newSignal) in new[]
         {
-            ("ConveyorHardwareSettings", "PcbPlacementBackupPlateUp", "PcbPlacementBackupPlateDown"),
-            ("ConveyorHardwareSettings", "BoltFasteningBackupPlateUp", "BoltFasteningBackupPlateDown"),
-            ("ConveyorHardwareSettings", "InspectionBackupPlateUp", "InspectionBackupPlateDown"),
-            ("ConveyorHardwareSettings", "PcbPlacementStopperUp", "PcbPlacementStopperDown"),
-            ("ConveyorHardwareSettings", "BoltFasteningStopperUp", "BoltFasteningStopperDown"),
-            ("ConveyorHardwareSettings", "InspectionStopperUp", "InspectionStopperDown"),
-            ("NgConveyorHardwareSettings", "NgConveyorStopperUp", "NgConveyorStopperDown"),
+            ("ConveyorHardwareSettings", "PcbPlacementBackupPlateDown", "PcbPlacementBackupPlateUp"),
+            ("ConveyorHardwareSettings", "BoltFasteningBackupPlateDown", "BoltFasteningBackupPlateUp"),
+            ("ConveyorHardwareSettings", "InspectionBackupPlateDown", "InspectionBackupPlateUp"),
+            ("ConveyorHardwareSettings", "PcbPlacementStopperDown", "PcbPlacementStopperUp"),
+            ("ConveyorHardwareSettings", "BoltFasteningStopperDown", "BoltFasteningStopperUp"),
+            ("ConveyorHardwareSettings", "InspectionStopperDown", "InspectionStopperUp"),
+            ("NgConveyorHardwareSettings", "NgConveyorStopperDown", "NgConveyorStopperUp"),
             ("NgCarrierTransferHardwareSettings", "NgCarrierPickupDown", "NgCarrierPickupUp"),
             ("NgCarrierTransferHardwareSettings", "NgCarrierGripperClose", "NgCarrierGripperOpen"),
             ("NgShuttleHardwareSettings", "NgShuttleDown", "NgShuttleUp"),
@@ -102,6 +102,21 @@ public sealed class MachineStore
                 WHERE Key = {2}
                   AND json_type(Value, {0}) IS NOT NULL;
                 """, oldPath, newPath, section);
+        }
+
+        // The conveyor mode contact is ON in manual; retain its configured DI address.
+        foreach (var (section, oldSignal, newSignal) in new[]
+        {
+            ("ConveyorHardwareSettings", "MainConveyorAutoMode", "MainConveyorManualMode"),
+            ("NgConveyorHardwareSettings", "NgConveyorAutoMode", "NgConveyorManualMode"),
+        })
+        {
+            db.Database.ExecuteSqlRaw("""
+                UPDATE Settings
+                SET Value = json_remove(json_set(Value, {2},
+                    COALESCE(json_extract(Value, {2}), json_extract(Value, {1}))), {1})
+                WHERE Key = {0} AND json_type(Value, {1}) IS NOT NULL;
+                """, section, $"$.Inputs.{oldSignal}", $"$.Inputs.{newSignal}");
         }
 
         // Correct the old default DI pairs once; leave custom channel assignments intact.
@@ -128,13 +143,13 @@ public sealed class MachineStore
             SET Value = json_set(Value,
                 '$.Inputs.NgConveyorStopperDown', COALESCE(json_extract(Value, '$.Inputs.NgConveyorStopperDown'), 87),
                 '$.Inputs.NgConveyorStopperUp', COALESCE(json_extract(Value, '$.Inputs.NgConveyorStopperUp'), 88),
-                '$.Outputs.NgConveyorStopperDown.Feedback',
-                json(COALESCE(json_extract(Value, '$.Outputs.NgConveyorStopperDown.Feedback'),
-                    json_object('OnInput', 'NgConveyorStopperDown', 'OffInput', 'NgConveyorStopperUp'))))
+                '$.Outputs.NgConveyorStopperUp.Feedback',
+                json(COALESCE(json_extract(Value, '$.Outputs.NgConveyorStopperUp.Feedback'),
+                    json_object('OnInput', 'NgConveyorStopperUp', 'OffInput', 'NgConveyorStopperDown'))))
             WHERE Key = 'NgConveyorHardwareSettings'
               AND (json_extract(Value, '$.Inputs.NgConveyorStopperUp') IS NULL
                 OR json_extract(Value, '$.Inputs.NgConveyorStopperDown') IS NULL
-                OR json_extract(Value, '$.Outputs.NgConveyorStopperDown.Feedback') IS NULL);
+                OR json_extract(Value, '$.Outputs.NgConveyorStopperUp.Feedback') IS NULL);
             """);
 
         // 260913 address corrections only. Keep confirmed directions and custom mappings.

@@ -134,13 +134,13 @@ public sealed class NgConveyorTests
     {
         var system = CreateSystem();
         var settings = new NgConveyorHardwareSettings();
-        var hardware = settings.Outputs[OutputIo.NgConveyorStopperDown];
+        var hardware = settings.Outputs[OutputIo.NgConveyorStopperUp];
         Assert.Equal(70, hardware.Number);
         Assert.Equal(71, hardware.OffNumber);
-        Assert.Equal(InputIo.NgConveyorStopperDown, hardware.Feedback!.OnInput);
-        Assert.Equal(InputIo.NgConveyorStopperUp, hardware.Feedback.OffInput);
-        Assert.Equal(87, settings.Inputs[hardware.Feedback.OnInput]);
-        Assert.Equal(88, settings.Inputs[hardware.Feedback.OffInput!.Value]);
+        Assert.Equal(InputIo.NgConveyorStopperUp, hardware.Feedback!.OnInput);
+        Assert.Equal(InputIo.NgConveyorStopperDown, hardware.Feedback.OffInput);
+        Assert.Equal(88, settings.Inputs[hardware.Feedback.OnInput]);
+        Assert.Equal(87, settings.Inputs[hardware.Feedback.OffInput!.Value]);
         system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
         var loweredBeforeRun = false;
         system.Io.OutputChanged += (output, value) =>
@@ -158,7 +158,7 @@ public sealed class NgConveyorTests
         await WaitForOutputAsync(system.Io, OutputIo.NgCarrierEjectCompleteLamp, true);
         Assert.True(loweredBeforeRun);
         Assert.False(system.Conveyor.Position1Occupied);
-        Assert.False(system.Io.GetOutput(OutputIo.NgConveyorStopperDown));
+        Assert.True(system.Io.GetOutput(OutputIo.NgConveyorStopperUp));
         Assert.True(system.Io.GetInput(InputIo.NgConveyorStopperUp));
         Assert.False(system.Io.GetInput(InputIo.NgConveyorStopperDown));
         Assert.Equal(NgConveyorState.WaitingForEjectConfirmation, system.Conveyor.State);

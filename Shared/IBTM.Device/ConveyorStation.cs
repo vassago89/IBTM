@@ -68,8 +68,8 @@ public sealed class ConveyorStation
             InputIo.PcbPlacementStopperDown,
             InputIo.PcbPlacementHeatSink1Present,
             InputIo.PcbPlacementHeatSink2Present,
-            OutputIo.PcbPlacementBackupPlateDown,
-            OutputIo.PcbPlacementStopperDown);
+            OutputIo.PcbPlacementBackupPlateUp,
+            OutputIo.PcbPlacementStopperUp);
     }
 
     public static ConveyorStation BoltFastening(IIoService io)
@@ -82,8 +82,8 @@ public sealed class ConveyorStation
             InputIo.BoltFasteningStopperDown,
             InputIo.BoltFasteningHeatSink1Present,
             InputIo.BoltFasteningHeatSink2Present,
-            OutputIo.BoltFasteningBackupPlateDown,
-            OutputIo.BoltFasteningStopperDown);
+            OutputIo.BoltFasteningBackupPlateUp,
+            OutputIo.BoltFasteningStopperUp);
     }
 
     public static ConveyorStation Inspection(IIoService io)
@@ -96,8 +96,8 @@ public sealed class ConveyorStation
             InputIo.InspectionStopperDown,
             InputIo.InspectionHeatSink1Present,
             InputIo.InspectionHeatSink2Present,
-            OutputIo.InspectionBackupPlateDown,
-            OutputIo.InspectionStopperDown);
+            OutputIo.InspectionBackupPlateUp,
+            OutputIo.InspectionStopperUp);
     }
 
     public bool CarrierPresent
@@ -149,27 +149,27 @@ public sealed class ConveyorStation
     public Task PrepareToReceiveAsync(CancellationToken cancellationToken)
     {
         return Task.WhenAll(
-            _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken),
-            _io.SetOutputAndWaitAsync(_backupPlate, true, cancellationToken));
+            _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken),
+            _io.SetOutputAndWaitAsync(_backupPlate, false, cancellationToken));
     }
 
     public Task ReleaseAsync(CancellationToken cancellationToken)
     {
         return Task.WhenAll(
-            _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken),
-            _io.SetOutputAndWaitAsync(_backupPlate, true, cancellationToken));
+            _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken),
+            _io.SetOutputAndWaitAsync(_backupPlate, false, cancellationToken));
     }
 
     public async Task SeatAsync(CancellationToken cancellationToken)
     {
-        await _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken);
+        await _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken);
         await RaiseBackupPlateAsync(cancellationToken);
     }
 
     public async Task RaiseBackupPlateAsync(CancellationToken cancellationToken)
     {
-        await _io.SetOutputAndWaitAsync(_backupPlate, false, cancellationToken);
-        await _io.SetOutputAndWaitAsync(_stopper, true, cancellationToken);
+        await _io.SetOutputAndWaitAsync(_backupPlate, true, cancellationToken);
+        await _io.SetOutputAndWaitAsync(_stopper, false, cancellationToken);
     }
 
     public Task WaitForHeatSink1Async(
