@@ -44,6 +44,9 @@ public class AjinMotionService(
     private readonly Dictionary<int, (double Unit, int Pulse)> _axisScales = new[] { axisX, axisY, axisZ }
         .OfType<AxisHardware>()
         .ToDictionary(axis => axis.Number, axis => (axis.MoveUnit, axis.MovePulse));
+    private readonly Dictionary<int, HomeDirection> _homeDirections = new[] { axisX, axisY, axisZ }
+        .OfType<AxisHardware>()
+        .ToDictionary(axis => axis.Number, axis => axis.HomeDirection);
     private readonly int[] _axes = new[] { axisX, axisY, axisZ }.OfType<AxisHardware>().Select(
         axis => axis.Number).ToArray();
     public override bool IsReady
@@ -278,6 +281,26 @@ public class AjinMotionService(
         var velocityInUnits = ToUnits(velocity);
 
         var home = Settings.Home(axis);
+
+        var homeDirection = _homeDirections[axisNumber];
+        var direction = 0;
+        var signal = 0U;
+        var zPhase = 0U;
+        var clearTime = 0d;
+        var offset = 0d;
+        AjinController.Check(
+            CAXM.AxmHomeGetMethod(
+                axisNumber, ref direction, ref signal, ref zPhase, ref clearTime, ref offset),
+            $"{nameof(CAXM.AxmHomeGetMethod)} (axis={axisNumber})");
+        direction = homeDirection switch
+        {
+            HomeDirection.Negative => 0, // AJIN DIR_CCW
+            HomeDirection.Positive => 1, // AJIN DIR_CW
+            _ => throw new InvalidOperationException($"Invalid home direction for axis {axisNumber}: {homeDirection}."),
+        };
+        AjinController.Check(
+            CAXM.AxmHomeSetMethod(axisNumber, direction, signal, zPhase, clearTime, offset),
+            $"{nameof(CAXM.AxmHomeSetMethod)} (axis={axisNumber})");
 
         AjinController.Check(
             CAXM.AxmHomeSetResult(axisNumber, HomeUnknown),

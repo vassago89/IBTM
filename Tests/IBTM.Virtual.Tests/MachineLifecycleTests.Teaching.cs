@@ -213,7 +213,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(beforeStep.X + 0.1, gantry.Feedback.GetPosition().X, 6);
         Assert.Equal(beforeStep.Y, gantry.Feedback.GetPosition().Y);
 
-        var shuttle = teaching.TeachingOutputs[OutputIo.NgShuttleUp];
+        var shuttle = teaching.TeachingOutputs[OutputIo.NgShuttleDown];
         await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(shuttle));
         await teaching.ToggleOutputCommand.ExecuteAsync(shuttle);
         Assert.True(io.GetInput(InputIo.NgShuttleDown));
@@ -223,7 +223,7 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedTeachingUnit = HardwareArea.InspectionGantry;
         Assert.Same(inspectionMotion, teaching.Motion);
         Assert.True(teaching.IsInspectionSelected);
-        Assert.DoesNotContain(OutputIo.NgShuttleUp, teaching.TeachingOutputs.Keys);
+        Assert.DoesNotContain(OutputIo.NgShuttleDown, teaching.TeachingOutputs.Keys);
         Assert.DoesNotContain(teaching.TeachingIoGroups, group => group.Area == HardwareArea.NgShuttle);
         Assert.DoesNotContain(teaching.FilteredPoints,
             point => point.Position.Target is TeachingTarget.NgCarrierPickup or TeachingTarget.NgShuttlePlace);

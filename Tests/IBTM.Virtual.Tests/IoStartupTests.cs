@@ -451,7 +451,7 @@ public sealed class IoStartupTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         inputs.SetInput(InputIo.NgConveyorPosition1Occupied, true);
-        io.SetOutput(OutputIo.NgShuttleUp, true);
+        io.SetOutput(OutputIo.NgShuttleDown, false);
         state.RepeatEnabled = true;
         // Resume the selected return phase directly; this test does not run a full route.
         typeof(MachineController).GetField("_repeatPhase", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -462,7 +462,7 @@ public sealed class IoStartupTests
         var stopFailure = new IOException("NG conveyor STOP failed during return cleanup.");
         io.BeforeOutputWrite = (output, on) =>
         {
-            if (output == OutputIo.NgShuttleUp && !on)
+            if (output == OutputIo.NgShuttleDown && on)
             {
                 returning = true;
                 if (safetyStop)

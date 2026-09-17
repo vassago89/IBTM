@@ -218,10 +218,10 @@ public sealed partial class MachineLifecycleTests
             if (output == OutputIo.NgCarrierGripperOpen && on
                 && gantry.IsAt(settings.NgCarrierTransfer.ShuttlePlacePosition))
                 openedAtShuttle = true;
-            if (output == OutputIo.NgShuttleUp)
+            if (output == OutputIo.NgShuttleDown)
             {
                 shuttleOutputs.Enqueue(on);
-                if (!on && !stoppedForConfiguration)
+                if (on && !stoppedForConfiguration)
                 {
                     stoppedForConfiguration = true;
                     machine.Stop();
@@ -244,7 +244,7 @@ public sealed partial class MachineLifecycleTests
                 Assert.Equal(StartBlockReason.RepeatReturnUnitDisabled, machine.StartBlock);
                 Assert.False(machine.CanStart);
                 await machine.StartAsync();
-                Assert.Equal(new[] { false }, shuttleOutputs.ToArray());
+                Assert.Equal(new[] { true }, shuttleOutputs.ToArray());
 
                 settings.Units.NgShuttle = true;
                 await WaitUntilAsync(() => state.Display.CanStart);
@@ -262,7 +262,7 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(shuttleEnabled, placedAndReleased);
             Assert.Equal(shuttleEnabled, pickedBackUp);
             Assert.False(ngConveyorRan);
-            Assert.Equal(shuttleEnabled ? new[] { false, true } : [], shuttleOutputs.ToArray());
+            Assert.Equal(shuttleEnabled ? new[] { true, false } : [], shuttleOutputs.ToArray());
         }
         finally
         {

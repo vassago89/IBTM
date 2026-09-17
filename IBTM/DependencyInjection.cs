@@ -116,7 +116,7 @@ public static class DependencyInjection
                 [HardwareArea.NgCarrierTransfer] = [
                     new(OutputIo.NgCarrierPickupUp, HardwareArea.NgCarrierTransfer),
                     new(OutputIo.NgCarrierGripperOpen, HardwareArea.NgCarrierTransfer),
-                    new(OutputIo.NgShuttleUp, HardwareArea.NgShuttle),
+                    new(OutputIo.NgShuttleDown, HardwareArea.NgShuttle),
                     new(OutputIo.InspectionStopperUp, HardwareArea.MainConveyor),
                     new(OutputIo.InspectionBackupPlateUp, HardwareArea.MainConveyor),
                 ],

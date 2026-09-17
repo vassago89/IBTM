@@ -117,6 +117,10 @@
                 </UniformGrid>
             </StackPanel>
         </DataTemplate>
+        <x:Array x:Key="HomeDirections" Type="{x:Type device:HomeDirection}">
+            <x:Static Member="device:HomeDirection.Negative"/>
+            <x:Static Member="device:HomeDirection.Positive"/>
+        </x:Array>
         <DataTemplate x:Key="AxisMappingTemplate" DataType="{x:Type ui:HardwareMappingRow}">
             <Grid>
                 <Grid.ColumnDefinitions>
@@ -124,6 +128,7 @@
                     <ColumnDefinition Width="110"/>
                     <ColumnDefinition Width="110"/>
                     <ColumnDefinition Width="110"/>
+                    <ColumnDefinition Width="160"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
                     ToolTip="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
@@ -136,6 +141,10 @@
                 <TextBox Grid.Column="3"
                     Text="{Binding Axis.MovePulse, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                     ToolTip="AxmMotSetMoveUnitPerPulse: third argument (nPulse). Positive integer; default 1." Margin="4,0"/>
+                <ComboBox Grid.Column="4" ItemsSource="{StaticResource HomeDirections}"
+                    SelectedItem="{Binding Axis.HomeDirection, Mode=TwoWay}"
+                    ToolTip="Home search direction for this axis. Default − (Negative). Save and restart to apply."
+                    Margin="4,0"/>
             </Grid>
         </DataTemplate>
     </UserControl.Resources>
@@ -319,7 +328,7 @@
                             </Border>
                         </UniformGrid>
                         <TextBlock
-                            Text="Homing uses the controller's current direction, sensor and method settings. Speed and acceleration are set here."
+                            Text="Home Direction is set per axis below (default −). Home sensor, Z phase and offset remain unchanged."
                             Foreground="{StaticResource TextMutedBrush}" Margin="12,0,12,8" TextWrapping="Wrap"/>
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
@@ -333,11 +342,13 @@
                                         <ColumnDefinition Width="110"/>
                                         <ColumnDefinition Width="110"/>
                                         <ColumnDefinition Width="110"/>
+                                        <ColumnDefinition Width="160"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="Axis" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBlock Grid.Column="1" Text="Axis Number" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBlock Grid.Column="2" Text="SDK Unit" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBlock Grid.Column="3" Text="SDK Pulse" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBlock Grid.Column="4" Text="Home Direction" Style="{StaticResource SettingFieldLabel}"/>
                                 </Grid>
                                 <ListBox IsEnabled="{Binding CanEditSettings}"
                                     ItemsSource="{Binding CurrentAxisMappings}"

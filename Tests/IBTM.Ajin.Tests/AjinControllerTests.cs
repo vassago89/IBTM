@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using IBTM.Ajin;
 using IBTM.Core;
@@ -285,6 +286,87 @@ public sealed class AjinControllerTests
         AjinSdk.Reset();
     }
 
+    [Fact]
+    public async Task HomeDirectionsAreCapturedPerAxisAndPreserveTheCurrentSensorMethod()
+    {
+        using var controller = new AjinController(new());
+        var x = new AxisHardware { Number = 9, HomeDirection = HomeDirection.Positive };
+        var y = new AxisHardware { Number = 10, HomeDirection = HomeDirection.Negative };
+        var motion = new AjinMotionService(controller, x, y, null, 0.01, new(), new(), new(), null);
+        var xMethod = new AjinSdk.HomeMethod(0, 4, 2, 25, 123);
+        var yMethod = new AjinSdk.HomeMethod(1, 1, 1, 40, -321);
+        AjinSdk.HomeMethods[9] = xMethod;
+        AjinSdk.HomeMethods[10] = yMethod;
+        foreach (var axis in new[] { 9, 10 })
+        {
+            AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+            AjinSdk.Results[new(nameof(CAXM.AxmHomeSetResult), Axis: axis, Value: 0xFF)] = 0;
+            AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: axis)] = 0;
+            AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: axis)] = 0;
+        }
+        motion.Initialize();
+        // Editing the screen cannot alter the active machine before save/restart.
+        x.HomeDirection = HomeDirection.Negative;
+        y.HomeDirection = HomeDirection.Positive;
+
+        Assert.True(await motion.HomeAsync(MotionAxis.X, 1));
+        Assert.True(await motion.HomeAsync(MotionAxis.Y, 1));
+
+        Assert.Equal(xMethod with { Direction = 1 }, AjinSdk.HomeMethods[9]);
+        Assert.Equal(yMethod with { Direction = 0 }, AjinSdk.HomeMethods[10]);
+        foreach (var axis in new[] { 9, 10 })
+        {
+            var operations = AjinSdk.Calls.Where(call => call.Axis == axis).Select(call => call.Operation).ToArray();
+            Assert.True(Array.IndexOf(operations, nameof(CAXM.AxmHomeGetMethod))
+                < Array.IndexOf(operations, nameof(CAXM.AxmHomeSetMethod)));
+            Assert.True(Array.IndexOf(operations, nameof(CAXM.AxmHomeSetMethod))
+                < Array.IndexOf(operations, nameof(CAXM.AxmHomeSetStart)));
+        }
+    }
+
+    [Fact]
+    public async Task MissingHomeDirectionDefaultsToNegativeAndPreservesTheSensorMethod()
+    {
+        using var controller = new AjinController(new());
+        var axis = JsonSerializer.Deserialize<AxisHardware>("{\"Number\":9}")!;
+        Assert.Equal(HomeDirection.Negative, axis.HomeDirection);
+        var motion = new AjinMotionService(controller, axis, null, null, 0.01, new(), new(), new(), null);
+        AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        var method = new AjinSdk.HomeMethod(1, 4, 2, 25, 123);
+        AjinSdk.HomeMethods[9] = method;
+        AjinSdk.Results[new(nameof(CAXM.AxmHomeSetResult), Axis: 9, Value: 0xFF)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: 9)] = 0;
+        AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: 9)] = 0;
+
+        Assert.True(await motion.HomeAsync(MotionAxis.X, 1));
+
+        Assert.Equal(method with { Direction = 0 }, AjinSdk.HomeMethods[9]);
+    }
+
+    [Theory]
+    [InlineData(nameof(CAXM.AxmHomeGetMethod))]
+    [InlineData(nameof(CAXM.AxmHomeSetMethod))]
+    public async Task HomeDirectionConfigurationFailurePreventsHomeStart(string operation)
+    {
+        using var controller = new AjinController(new());
+        var motion = new AjinMotionService(
+            controller, new() { Number = 9, HomeDirection = HomeDirection.Positive }, null, null,
+            0.01, new(), new(), new(), null);
+        AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+        var method = new AjinSdk.HomeMethod(0, 4, 2, 25, 123);
+        AjinSdk.HomeMethods[9] = method;
+        AjinSdk.Results[new(operation, Axis: 9, Value: operation == nameof(CAXM.AxmHomeSetMethod) ? 1U : null)] =
+            (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+
+        var error = await Assert.ThrowsAsync<IOException>(() => motion.HomeAsync(MotionAxis.X, 1));
+
+        Assert.Contains($"{operation} (axis=9)", error.Message);
+        Assert.Equal(method, AjinSdk.HomeMethods[9]);
+        Assert.DoesNotContain(AjinSdk.Calls, call =>
+            call.Operation is nameof(CAXM.AxmHomeSetStart) or nameof(CAXM.AxmHomeSetResult));
+        Assert.Equal(MotionCommand.None, motion.Command);
+    }
+
     [Theory]
     [InlineData(nameof(CAXM.AxmMovePos))]
     [InlineData(nameof(CAXM.AxmHomeSetStart))]
@@ -292,6 +374,7 @@ public sealed class AjinControllerTests
     {
         using var controller = new AjinController(new());
         controller.Initialize();
+        AjinSdk.HomeMethods[9] = new(0, 4, 0, 0, 0);
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         AjinSdk.MotionAxes[10] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         var operations = new OperationCancellation();
@@ -343,6 +426,7 @@ public sealed class AjinControllerTests
     {
         using var controller = new AjinController(new());
         controller.Initialize();
+        AjinSdk.HomeMethods[9] = new(0, 4, 0, 0, 0);
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         AjinSdk.MotionAxes[10] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         var operations = new OperationCancellation();
@@ -402,6 +486,7 @@ public sealed class AjinControllerTests
         foreach (var axis in new[] { 9, 10 })
         {
             AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
+            AjinSdk.HomeMethods[axis] = new(0, 4, 0, 0, 0);
             AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: axis)] = 0;
             AjinSdk.Results[new(nameof(CAXM.AxmHomeSetResult), Axis: axis, Value: 0xFF)] = 0;
             AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: axis)] = 0;

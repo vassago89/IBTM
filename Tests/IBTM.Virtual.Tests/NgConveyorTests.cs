@@ -38,9 +38,9 @@ public sealed class NgConveyorTests
         var upCommands = 0;
         system.Io.OutputChanged += (output, on) =>
         {
-            if (output != OutputIo.NgShuttleUp)
+            if (output != OutputIo.NgShuttleDown)
                 return;
-            if (!on)
+            if (on)
                 downCommands++;
             else if (++upCommands == 1)
                 stop.Cancel();
@@ -69,9 +69,9 @@ public sealed class NgConveyorTests
         var upCommands = 0;
         void ChangeFeedbackWhileLowering(OutputIo output, bool on)
         {
-            if (output != OutputIo.NgShuttleUp)
+            if (output != OutputIo.NgShuttleDown)
                 return;
-            if (on)
+            if (!on)
             {
                 upCommands++;
                 return;
@@ -100,7 +100,7 @@ public sealed class NgConveyorTests
     }
 
     [Fact]
-    public async Task NgActuatorOutputsOnRaisePickupOpenGripperAndRaiseShuttle()
+    public async Task NgActuatorOutputsOnRaisePickupOpenGripperAndLowerShuttle()
     {
         var system = CreateSystem();
         var pickup = new NgCarrierTransfer(system.Io);
@@ -119,12 +119,12 @@ public sealed class NgConveyorTests
         Assert.True(system.Io.GetOutput(OutputIo.NgCarrierGripperOpen));
         Assert.Equal(NgTransferGripperState.Open, pickup.Gripper);
 
-        await system.Shuttle.SetUpAsync(false);
-        Assert.False(system.Io.GetOutput(OutputIo.NgShuttleUp));
+        await system.Shuttle.SetDownAsync(true);
+        Assert.True(system.Io.GetOutput(OutputIo.NgShuttleDown));
         Assert.True(system.Io.GetInput(InputIo.NgShuttleDown));
         Assert.False(system.Io.GetInput(InputIo.NgShuttleUp));
-        await system.Shuttle.SetUpAsync(true);
-        Assert.True(system.Io.GetOutput(OutputIo.NgShuttleUp));
+        await system.Shuttle.SetDownAsync(false);
+        Assert.False(system.Io.GetOutput(OutputIo.NgShuttleDown));
         Assert.True(system.Io.GetInput(InputIo.NgShuttleUp));
         Assert.False(system.Io.GetInput(InputIo.NgShuttleDown));
     }
@@ -176,6 +176,7 @@ public sealed class NgConveyorTests
     public async Task StoppedCompactionNeedsPresenceFeedbackBeforeResuming()
     {
         var system = CreateSystem();
+        await system.Signals.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true);
         system.Io.AutoResponseEnabled = false;
         system.Io.SetInput(InputIo.NgShuttleUp, true);
         system.Io.SetInput(InputIo.NgShuttleDown, false);
@@ -210,7 +211,7 @@ public sealed class NgConveyorTests
     public async Task StopDuringMotorSetupCannotTurnRunBackOn()
     {
         var system = CreateSystem();
-        await system.Signals.SetOutputAndWaitAsync(OutputIo.NgShuttleUp, false);
+        await system.Signals.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true);
         system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
         system.Io.SetOutput(OutputIo.NgConveyorReverse, true);
         using var stop = new CancellationTokenSource();
@@ -313,7 +314,7 @@ public sealed class NgConveyorTests
             system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
         }
 
-        await system.Signals.SetOutputAndWaitAsync(OutputIo.NgShuttleUp, false);
+        await system.Signals.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true);
         system.Io.SetInput(InputIo.NgShuttleCarrierDetected, true);
 
         using var stop = new CancellationTokenSource();

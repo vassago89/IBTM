@@ -144,6 +144,37 @@ internal static partial class CAXM
         throw new NotSupportedException();
     }
 
+    public static uint AxmHomeGetMethod(
+        int axis,
+        ref int direction,
+        ref uint signal,
+        ref uint zPhase,
+        ref double clearTime,
+        ref double offset)
+    {
+        var method = AjinSdk.HomeMethods[axis];
+        direction = method.Direction;
+        signal = method.Signal;
+        zPhase = method.ZPhase;
+        clearTime = method.ClearTime;
+        offset = method.Offset;
+        return AjinSdk.Record(new(nameof(AxmHomeGetMethod), Axis: axis));
+    }
+
+    public static uint AxmHomeSetMethod(
+        int axis,
+        int direction,
+        uint signal,
+        uint zPhase,
+        double clearTime,
+        double offset)
+    {
+        var result = AjinSdk.Record(new(nameof(AxmHomeSetMethod), Axis: axis, Value: (uint)direction));
+        if (result == 0)
+            AjinSdk.HomeMethods[axis] = new(direction, signal, zPhase, clearTime, offset);
+        return result;
+    }
+
     public static uint AxmHomeSetResult(int axis, uint result)
     {
         return Command(new(nameof(AxmHomeSetResult), Axis: axis, Value: result));

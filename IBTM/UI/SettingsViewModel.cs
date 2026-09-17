@@ -237,7 +237,7 @@ public partial class SettingsViewModel : ObservableObject
             }
 
             await Settings.SaveAsync(_store, operation.Token);
-            DatabaseMessage = "Settings saved. Restart to apply driver, connection, pulse length and mapping changes.";
+            DatabaseMessage = "Settings saved. Restart to apply driver, connection, pulse length, mapping and home direction changes.";
             Trace.TraceInformation(
                 "Settings saved to {0}. Restart required for hardware changes.",
                 _store.DatabaseFile);

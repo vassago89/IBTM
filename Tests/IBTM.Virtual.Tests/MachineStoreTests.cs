@@ -122,6 +122,8 @@ public sealed class MachineStoreTests
         settings.PcbPlacementHandlerHardware.MillimetersPerUnit = 0.002;
         settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.MoveUnit = 0.1;
         settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.MovePulse = 10;
+        settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.X)!.HomeDirection = HomeDirection.Negative;
+        settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.HomeDirection = HomeDirection.Positive;
         settings.Conveyor.CarrierStopDelaySeconds = 0.75;
         settings.ConveyorHardware.Inputs[InputIo.MainConveyorManualMode] = 153;
         settings.NgConveyorHardware.Inputs[InputIo.NgConveyorManualMode] = 183;
@@ -205,7 +207,7 @@ public sealed class MachineStoreTests
                 ("NgConveyorHardwareSettings", "NgConveyorStopperDown", "NgConveyorStopperUp"),
                 ("NgCarrierTransferHardwareSettings", "NgCarrierPickupDown", "NgCarrierPickupUp"),
                 ("NgCarrierTransferHardwareSettings", "NgCarrierGripperClose", "NgCarrierGripperOpen"),
-                ("NgShuttleHardwareSettings", "NgShuttleDown", "NgShuttleUp"),
+                ("NgShuttleHardwareSettings", "NgShuttleUp", "NgShuttleDown"),
                 ("BoltFasteningHardwareSettings", "PickupHeadDown", "PickupHeadUp"),
                 ("BoltFasteningHardwareSettings", "ShootingHeadDown", "ShootingHeadUp"),
             })
@@ -242,6 +244,9 @@ public sealed class MachineStoreTests
         Assert.Equal(10, loaded.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.MovePulse);
         Assert.Equal(1, loaded.PcbPlacementHandlerHardware.GetAxis(MotionAxis.X)!.MoveUnit);
         Assert.Equal(1, loaded.PcbPlacementHandlerHardware.GetAxis(MotionAxis.X)!.MovePulse);
+        Assert.Equal(HomeDirection.Negative, loaded.PcbPlacementHandlerHardware.GetAxis(MotionAxis.X)!.HomeDirection);
+        Assert.Equal(HomeDirection.Positive, loaded.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.HomeDirection);
+        Assert.Equal(HomeDirection.Negative, loaded.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Z)!.HomeDirection);
         Assert.Equal(0.75, loaded.Conveyor.CarrierStopDelaySeconds);
         Assert.Equal(153, loaded.ConveyorHardware.Inputs[InputIo.MainConveyorManualMode]);
         Assert.Equal(183, loaded.NgConveyorHardware.Inputs[InputIo.NgConveyorManualMode]);
@@ -280,12 +285,12 @@ public sealed class MachineStoreTests
         Assert.Equal(88, loaded.NgConveyorHardware.Inputs[InputIo.NgConveyorStopperUp]);
         Assert.Equal(InputIo.NgConveyorStopperUp, ngStopper.Feedback!.OnInput);
         Assert.Equal(InputIo.NgConveyorStopperDown, ngStopper.Feedback.OffInput);
-        foreach (var output in new[] { OutputIo.NgCarrierPickupUp, OutputIo.NgCarrierGripperOpen, OutputIo.NgShuttleUp })
+        foreach (var output in new[] { OutputIo.NgCarrierPickupUp, OutputIo.NgCarrierGripperOpen, OutputIo.NgShuttleDown })
         {
-            var before = output == OutputIo.NgShuttleUp
+            var before = output == OutputIo.NgShuttleDown
                 ? settings.NgShuttleHardware.Outputs[output]
                 : settings.NgCarrierTransferHardware.Outputs[output];
-            var after = output == OutputIo.NgShuttleUp
+            var after = output == OutputIo.NgShuttleDown
                 ? loaded.NgShuttleHardware.Outputs[output]
                 : loaded.NgCarrierTransferHardware.Outputs[output];
             Assert.Equal(before.Number, after.Number);

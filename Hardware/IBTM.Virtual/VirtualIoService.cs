@@ -74,7 +74,6 @@ public sealed class VirtualIoService(
         values[(int)OutputIo.ShootingHeadUp] = true;
         values[(int)OutputIo.NgCarrierPickupUp] = true;
         values[(int)OutputIo.NgCarrierGripperOpen] = true;
-        values[(int)OutputIo.NgShuttleUp] = true;
         return values;
     }
 

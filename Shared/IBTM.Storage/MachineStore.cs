@@ -83,7 +83,7 @@ public sealed class MachineStore
             ("NgConveyorHardwareSettings", "NgConveyorStopperDown", "NgConveyorStopperUp"),
             ("NgCarrierTransferHardwareSettings", "NgCarrierPickupDown", "NgCarrierPickupUp"),
             ("NgCarrierTransferHardwareSettings", "NgCarrierGripperClose", "NgCarrierGripperOpen"),
-            ("NgShuttleHardwareSettings", "NgShuttleDown", "NgShuttleUp"),
+            ("NgShuttleHardwareSettings", "NgShuttleUp", "NgShuttleDown"),
             ("BoltFasteningHardwareSettings", "PickupHeadDown", "PickupHeadUp"),
             ("BoltFasteningHardwareSettings", "ShootingHeadDown", "ShootingHeadUp"),
         })

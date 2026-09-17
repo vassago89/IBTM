@@ -169,9 +169,9 @@ public sealed partial class MachineController
             CheckPickup();
             operation.Token.ThrowIfCancellationRequested();
             if (!_ngShuttle.Feedback.CarrierDetected)
-                await _ngShuttle.SetUpAsync(false, operation.Token);
+                await _ngShuttle.SetDownAsync(true, operation.Token);
             await _ngConveyor.ReturnToShuttleAsync(operation.Token);
-            await _ngShuttle.SetUpAsync(true, operation.Token);
+            await _ngShuttle.SetDownAsync(false, operation.Token);
             operation.Token.ThrowIfCancellationRequested();
         }
         catch (Exception exception)

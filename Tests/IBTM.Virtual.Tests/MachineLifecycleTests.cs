@@ -713,14 +713,14 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.Equal(NgShuttleState.WaitingForCarrierPickupUp, shuttle.State);
-            Assert.True(io.GetOutput(OutputIo.NgShuttleUp));
+            Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
             Assert.False(gantry.Feedback.GetAxisState(MotionAxis.X).ServoOn);
             Assert.False(gantry.Feedback.GetAxisState(MotionAxis.X).Homed);
 
             io.SetInput(InputIo.NgCarrierGripperClosed, false);
             io.SetInput(InputIo.NgCarrierGripperOpen, true);
             Assert.Equal(NgShuttleState.WaitingForCarrierPickupUp, shuttle.State);
-            Assert.True(io.GetOutput(OutputIo.NgShuttleUp));
+            Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
 
             io.SetInput(InputIo.NgCarrierPickupDown, false);
             io.SetInput(InputIo.NgCarrierPickupUp, true);

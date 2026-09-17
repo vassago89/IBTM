@@ -338,8 +338,8 @@ public enum OutputIo
     [Description("NG Carrier Gripper Open")]
     NgCarrierGripperOpen,
 
-    [Description("NG Shuttle Up")]
-    NgShuttleUp,
+    [Description("NG Shuttle Down")]
+    NgShuttleDown,
 
     [Description("Shooting Feeder Run (Linear)")]
     ShootingFeederRunSignal,

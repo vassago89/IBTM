@@ -89,15 +89,15 @@ public sealed class NgShuttle : AutoUnit
         TraceStep(state);
         return state switch
         {
-            NgShuttleState.Lowering => SetUpAsync(false, cancellationToken),
-            NgShuttleState.Raising => SetUpAsync(true, cancellationToken),
+            NgShuttleState.Lowering => SetDownAsync(true, cancellationToken),
+            NgShuttleState.Raising => SetDownAsync(false, cancellationToken),
             _ => WaitForChangeAsync(cancellationToken),
         };
     }
 
-    public Task SetUpAsync(bool up, CancellationToken cancellationToken = default)
+    public Task SetDownAsync(bool down, CancellationToken cancellationToken = default)
     {
-        return _io.SetOutputAndWaitAsync(OutputIo.NgShuttleUp, up, cancellationToken);
+        return _io.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, down, cancellationToken);
     }
 
     public async Task CycleAsync(CancellationToken cancellationToken)
@@ -109,7 +109,7 @@ public sealed class NgShuttle : AutoUnit
 
         if (!_cycleReturnPending)
         {
-            await SetUpAsync(false, cancellationToken);
+            await SetDownAsync(true, cancellationToken);
             _cycleReturnPending = true;
         }
 
@@ -118,7 +118,7 @@ public sealed class NgShuttle : AutoUnit
             throw new InvalidOperationException("Shuttle repeat lost its carrier or raised pickup feedback before ascent.");
         }
 
-        await SetUpAsync(true, cancellationToken);
+        await SetDownAsync(false, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         _cycleReturnPending = false;
     }

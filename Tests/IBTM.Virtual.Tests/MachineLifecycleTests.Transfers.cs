@@ -230,7 +230,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await gantry.MoveToAsync(settings.ShuttlePlacePosition, 10_000);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleUp, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
         var gripped = false;
         var movedBeforeGrip = false;
@@ -330,7 +330,7 @@ public sealed partial class MachineLifecycleTests
         Assert.NotEqual(settings.CarrierPickupPosition.X, gantry.Feedback.GetPosition().X);
 
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleUp, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         Assert.Equal(NgTransferState.LoweringToCarrier, move.State(NgTransferDestination.Shuttle, canPickUp: true));
         await move.ExecuteAsync(NgTransferDestination.Shuttle, NgTransferState.LoweringToCarrier, CancellationToken.None)!;
@@ -561,7 +561,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleUp, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false);
         await services.GetRequiredService<InspectionGantry>()
             .MoveToAsync(
                 destination == NgTransferDestination.Station

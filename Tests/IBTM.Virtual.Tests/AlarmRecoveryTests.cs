@@ -359,7 +359,7 @@ public sealed class AlarmRecoveryTests
             var row = new ManualConveyorRow(
                 services.GetRequiredService<IoSignals>().Outputs[OutputIo.NgConveyorRun],
                 machine);
-            var shuttle = io.GetOutput(OutputIo.NgShuttleUp);
+            var shuttle = io.GetOutput(OutputIo.NgShuttleDown);
             var stopper = io.GetOutput(OutputIo.NgConveyorStopperUp);
             foreach (var up in new[] { true, false })
             {
@@ -371,7 +371,7 @@ public sealed class AlarmRecoveryTests
                         () => io.GetOutput(OutputIo.NgConveyorRun),
                         TimeSpan.FromSeconds(2)));
                 Assert.False(io.GetOutput(OutputIo.NgConveyorReverse));
-                Assert.Equal(shuttle, io.GetOutput(OutputIo.NgShuttleUp));
+                Assert.Equal(shuttle, io.GetOutput(OutputIo.NgShuttleDown));
                 Assert.Equal(stopper, io.GetOutput(OutputIo.NgConveyorStopperUp));
                 // First pass: carriers appear while running. Second pass: start
                 // with every carrier sensor already ON. Neither starts a sequence.

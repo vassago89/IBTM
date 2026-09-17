@@ -39,7 +39,7 @@ public sealed class IoTests
         {
             await Task.Factory.StartNew(async () =>
             {
-                var completed = io.WaitForOutputFeedbackAsync(OutputIo.NgShuttleUp, true);
+                var completed = io.WaitForOutputFeedbackAsync(OutputIo.NgShuttleDown, false);
                 virtualIo.SetInput(InputIo.NgShuttleUp, true);
                 virtualIo.SetInput(
                     oppositeTurnsOn ? InputIo.NgShuttleDown : InputIo.NgShuttleUp,
@@ -49,7 +49,7 @@ public sealed class IoTests
 
             virtualIo.SetInput(InputIo.NgShuttleDown, false);
             virtualIo.SetInput(InputIo.NgShuttleUp, true);
-            await io.WaitForOutputFeedbackAsync(OutputIo.NgShuttleUp, true);
+            await io.WaitForOutputFeedbackAsync(OutputIo.NgShuttleDown, false);
         }
         finally
         {
@@ -225,7 +225,7 @@ public sealed class IoTests
         {
             AutoResponseEnabled = false,
         };
-        io.SetOutput(OutputIo.NgShuttleUp, false);
+        io.SetOutput(OutputIo.NgShuttleDown, false);
         io.SetInput(InputIo.NgShuttleUp, false);
         var observedIo = DispatchProxy.Create<IIoService, OutputReadProbe>();
         var probe = (OutputReadProbe)observedIo;
@@ -250,9 +250,9 @@ public sealed class IoTests
         signals.RefreshOutputs();
         Assert.False(output.IsOn);
         Assert.Equal(1, probe.Reads);
-        Assert.Equal(OutputIo.NgShuttleUp, output.Signal);
+        Assert.Equal(OutputIo.NgShuttleDown, output.Signal);
         Assert.Equal(
-            new[] { InputIo.NgShuttleUp, InputIo.NgShuttleDown },
+            new[] { InputIo.NgShuttleDown, InputIo.NgShuttleUp },
             output.Feedback.Select(row => row.Signal));
         Assert.All(
             output.Feedback,
@@ -360,21 +360,21 @@ public sealed class IoTests
         io.AutoResponseEnabled = false;
         IIoService signals = io;
         io.SetInput(InputIo.NgShuttleDown, true);
-        var waiting = signals.SetOutputAndWaitAsync(OutputIo.NgShuttleUp, false);
+        var waiting = signals.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true);
         Assert.False(waiting.IsCompleted);
         io.SetInput(InputIo.NgShuttleUp, false);
         await waiting;
 
         io.SetInput(InputIo.NgShuttleUp, true);
         await Assert.ThrowsAsync<IoTimeoutException>(
-            () => signals.SetOutputAndWaitAsync(OutputIo.NgShuttleUp, false));
-        Assert.False(io.GetOutput(OutputIo.NgShuttleUp));
+            () => signals.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, true));
+        Assert.True(io.GetOutput(OutputIo.NgShuttleDown));
 
         using var stop = new CancellationTokenSource();
-        waiting = signals.SetOutputAndWaitAsync(OutputIo.NgShuttleUp, true, stop.Token);
+        waiting = signals.SetOutputAndWaitAsync(OutputIo.NgShuttleDown, false, stop.Token);
         stop.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
-        Assert.True(io.GetOutput(OutputIo.NgShuttleUp));
+        Assert.False(io.GetOutput(OutputIo.NgShuttleDown));
     }
 
     [Fact]
