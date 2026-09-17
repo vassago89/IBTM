@@ -82,11 +82,11 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
         }
     }
 
-    public PcbSupplyCylinderState IpmFixer
+    public bool IpmFixed
     {
         get
         {
-            return CylinderState(InputIo.PcbSupplyIpmFixerForward, InputIo.PcbSupplyIpmFixerBackward);
+            return _io.GetInput(InputIo.PcbSupplyIpmFixerForward);
         }
     }
 
@@ -100,7 +100,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
             }
 
             return Gripper == PcbSupplyCylinderState.Forward
-                && IpmFixer == PcbSupplyCylinderState.Forward
+                && IpmFixed
                 ? PcbSupplyPcbState.Secured
                 : PcbSupplyPcbState.Detected;
         }
@@ -132,7 +132,7 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
         get
         {
             return Gripper == PcbSupplyCylinderState.Backward
-                && IpmFixer == PcbSupplyCylinderState.Backward;
+                && !IpmFixed;
         }
     }
 
@@ -369,7 +369,6 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
             or InputIo.PcbSupplyGripperClosed
             or InputIo.PcbSupplyGripperOpen
             or InputIo.PcbSupplyIpmFixerForward
-            or InputIo.PcbSupplyIpmFixerBackward
             or InputIo.PcbSupplyPcbDetected)
         {
             Changed?.Invoke();

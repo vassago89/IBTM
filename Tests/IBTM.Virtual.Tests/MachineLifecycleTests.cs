@@ -118,7 +118,7 @@ public sealed partial class MachineLifecycleTests
         {
             var feedback = io.GetOutputFeedback(plate)!;
             io.SetInput(feedback.OnInput, false);
-            io.SetInput(feedback.OffInput, true);
+            io.SetInput(feedback.OffInput!.Value, true);
         }
         var conveyorStarted = false;
         io.OutputChanged += (output, on) =>
@@ -134,7 +134,7 @@ public sealed partial class MachineLifecycleTests
             foreach (var plate in plates.Take(2))
             {
                 var feedback = io.GetOutputFeedback(plate)!;
-                io.SetInput(feedback.OffInput, false);
+                io.SetInput(feedback.OffInput!.Value, false);
                 io.SetInput(feedback.OnInput, true);
             }
             Assert.False(conveyorStarted);
@@ -144,7 +144,7 @@ public sealed partial class MachineLifecycleTests
             if (outcome == "arrive")
             {
                 var feedback = io.GetOutputFeedback(plates[2])!;
-                io.SetInput(feedback.OffInput, false);
+                io.SetInput(feedback.OffInput!.Value, false);
                 io.SetInput(feedback.OnInput, true);
                 await WaitUntilAsync(() => conveyorStarted);
                 Assert.True(state.AutomaticRunning);

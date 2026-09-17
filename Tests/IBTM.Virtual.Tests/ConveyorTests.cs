@@ -644,7 +644,7 @@ public sealed class ConveyorTests
         Assert.Equal(channel - 2, stopperHardware.Number);
         Assert.Equal(channel - 1, stopperHardware.OffNumber);
         Assert.Equal(stopperDownInput, settings.Inputs[stopperHardware.Feedback!.OnInput]);
-        Assert.Equal(stopperDownInput + 1, settings.Inputs[stopperHardware.Feedback.OffInput]);
+        Assert.Equal(stopperDownInput + 1, settings.Inputs[stopperHardware.Feedback.OffInput!.Value]);
 
         await station.PrepareToReceiveAsync(CancellationToken.None);
         Assert.True(io.GetOutput(output));

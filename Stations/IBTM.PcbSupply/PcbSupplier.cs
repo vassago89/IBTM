@@ -80,7 +80,7 @@ public sealed class PcbSupplier : AutoUnit
                     await _handler.MoveToHandoffAsync(token);
                     break;
                 case PcbSupplyState.ReleasingPcb:
-                    if (_handler.IpmFixer != PcbSupplyCylinderState.Backward)
+                    if (_handler.IpmFixed)
                     {
                         if (!_buffer.IsPlacementSecuredAtHandoff())
                             throw new InvalidOperationException("Placement must detect and secure the PCB before supply releases its fixer.");

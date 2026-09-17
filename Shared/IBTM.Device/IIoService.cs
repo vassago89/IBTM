@@ -44,7 +44,8 @@ public interface IIoService
         bool value,
         InputIo? offInput,
         int timeoutMilliseconds,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool requireCurrent = false)
     {
         bool Matches()
         {
@@ -79,13 +80,13 @@ public interface IIoService
                 completion.Set();
             }
 
-            // Passage inputs retain a pulse; actuator completion requires the current pair.
+            // Passage inputs retain a pulse; actuator completion requires current feedback.
             do
             {
                 await completion.WaitAsync(timeout.Token);
                 cancellationToken.ThrowIfCancellationRequested();
             }
-            while (offInput is not null && !Matches());
+            while (requireCurrent && !Matches());
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -128,9 +129,26 @@ public interface IIoService
     {
         var feedback = GetOutputFeedback(output) ?? throw new InvalidOperationException(
             $"{output.GetDescription()} has no feedback mapping.");
-        var expected = value ? feedback.OnInput : feedback.OffInput;
-        var opposite = value ? feedback.OffInput : feedback.OnInput;
-        await WaitForInputsAsync(expected, true, opposite, TimeoutMilliseconds, cancellationToken);
+        if (feedback.OffInput is { } offInput)
+        {
+            await WaitForInputsAsync(
+                value ? feedback.OnInput : offInput,
+                true,
+                value ? offInput : feedback.OnInput,
+                TimeoutMilliseconds,
+                cancellationToken,
+                requireCurrent: true);
+        }
+        else
+        {
+            await WaitForInputsAsync(
+                feedback.OnInput,
+                value,
+                null,
+                TimeoutMilliseconds,
+                cancellationToken,
+                requireCurrent: true);
+        }
     }
 }
 

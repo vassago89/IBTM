@@ -57,7 +57,7 @@ public enum InputIo
     [Description("Supply IPM Fixer Forward")]
     PcbSupplyIpmFixerForward,
 
-    [Description("Supply IPM Fixer Backward")]
+    [Description("Unused (former Supply IPM backward sensor)")]
     PcbSupplyIpmFixerBackward,
 
     [Description("Bolt Fastening Stopper Up")]

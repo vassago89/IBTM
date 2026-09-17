@@ -489,14 +489,14 @@ public sealed partial class MachineLifecycleTests
                 return;
             outputs.Add((output, on));
             var feedback = io.GetOutputFeedback(output)!;
-            io.SetInput(on ? feedback.OffInput : feedback.OnInput, false);
+            io.SetInput(on ? feedback.OffInput!.Value : feedback.OnInput, false);
             if (output == OutputIo.PcbPlacementIpmDown && on)
             {
                 pressing.Cancel(); // Stop between Up and Down feedback.
                 return;
             }
 
-            io.SetInput(on ? feedback.OnInput : feedback.OffInput, true);
+            io.SetInput(on ? feedback.OnInput : feedback.OffInput!.Value, true);
             if (output == OutputIo.PcbPlacementIpmGripperClose && on)
                 closing.Cancel();
         };

@@ -72,7 +72,9 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
         _io = io;
         OffNumber = offNumber;
         Feedback = io.GetOutputFeedback(signal) is { } feedback
-            ? [inputs[feedback.OnInput], inputs[feedback.OffInput]]
+            ? feedback.OffInput is { } offInput
+                ? [inputs[feedback.OnInput], inputs[offInput]]
+                : [inputs[feedback.OnInput]]
             : [];
         foreach (var input in Feedback)
             input.PropertyChanged += (_, _) => RefreshFeedback();
@@ -111,7 +113,7 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
     {
         get
         {
-            return HasFeedback && Feedback[0].IsOn == true && Feedback[1].IsOn == true;
+            return Feedback.Length == 2 && Feedback[0].IsOn == true && Feedback[1].IsOn == true;
         }
     }
 
@@ -119,10 +121,11 @@ public sealed class IoOutputStatus : IoSignal<OutputIo>
     {
         get
         {
-            return IsOn is { } on
-                && HasFeedback
-                && !HasConflict
-                && Feedback[on ? 0 : 1].IsOn == true;
+            if (IsOn is not { } on || !HasFeedback || HasConflict)
+                return false;
+            return Feedback.Length == 1
+                ? Feedback[0].IsOn == on
+                : Feedback[on ? 0 : 1].IsOn == true;
         }
     }
 

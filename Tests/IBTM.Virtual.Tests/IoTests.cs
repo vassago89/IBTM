@@ -81,6 +81,51 @@ public sealed class IoTests
         }
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SupplyFixerUsesCurrentForwardSensorForBothOutputDirections(bool forward)
+    {
+        var hardware = new PcbSupplyHardwareSettings();
+        var virtualIo = new VirtualIoService(hardware.Outputs, new() { TimeoutMilliseconds = 100 })
+        {
+            AutoResponseEnabled = false,
+        };
+        IIoService io = virtualIo;
+        var signals = new IoSignals([hardware], io);
+        var output = signals.Outputs[OutputIo.PcbSupplyIpmFixerForward];
+        Assert.Equal(InputIo.PcbSupplyIpmFixerForward, Assert.Single(output.Feedback).Signal);
+        virtualIo.SetInput(InputIo.PcbSupplyIpmFixerForward, !forward);
+        var scheduler = new ConcurrentExclusiveSchedulerPair();
+        try
+        {
+            await Task.Factory.StartNew(async () =>
+            {
+                var waiting = io.SetOutputAndWaitAsync(OutputIo.PcbSupplyIpmFixerForward, forward);
+                Assert.False(waiting.IsCompleted);
+                signals.RefreshOutputs();
+                Assert.False(output.IsMatched);
+                virtualIo.SetInput(InputIo.PcbSupplyIpmFixerForward, forward);
+                virtualIo.SetInput(InputIo.PcbSupplyIpmFixerForward, !forward);
+                await Assert.ThrowsAsync<IoTimeoutException>(() => waiting);
+            }, CancellationToken.None, TaskCreationOptions.None, scheduler.ExclusiveScheduler).Unwrap();
+
+            var waiting = io.WaitForOutputFeedbackAsync(OutputIo.PcbSupplyIpmFixerForward, forward);
+            virtualIo.SetInput(InputIo.PcbSupplyIpmFixerForward, forward);
+            await waiting;
+            Assert.True(output.IsMatched);
+            Assert.False(output.HasConflict);
+            virtualIo.SetConnected(false);
+            Assert.Null(output.Feedback[0].IsOn);
+            Assert.False(output.IsMatched);
+        }
+        finally
+        {
+            scheduler.Complete();
+            await scheduler.Completion;
+        }
+    }
+
     [Fact]
     public void RetiredStationInputsAreRemovedFromSavedHardwareSettings()
     {
@@ -114,6 +159,7 @@ public sealed class IoTests
         InputIo[] retiredInputs =
         [
             InputIo.PcbBufferPcbPresent,
+            InputIo.PcbSupplyIpmFixerBackward,
             InputIo.PcbPlacementCarrierPresent,
             InputIo.BoltFasteningCarrierPresent,
             InputIo.InspectionCarrierPresent,
@@ -135,8 +181,9 @@ public sealed class IoTests
         Assert.Equal(24, inputs[InputIo.PcbSupplyGripperClosed]); // DI-108
         Assert.Equal(25, inputs[InputIo.PcbSupplyGripperOpen]); // DI-109
         Assert.Equal(28, inputs[InputIo.PcbSupplyIpmFixerForward]); // DI-10C
-        Assert.Equal(-1, inputs[InputIo.PcbSupplyIpmFixerBackward]); // Awaiting field confirmation.
+        Assert.DoesNotContain(InputIo.PcbSupplyIpmFixerBackward, inputs.Keys);
         Assert.Null(settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber);
+        Assert.Null(settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].Feedback!.OffInput);
 
         var outputs = hardware.OfType<IoHardwareSettings>().SelectMany(section => section.Outputs).ToArray();
         Assert.Equal(Enum.GetValues<OutputIo>().Order(), outputs.Select(pair => pair.Key).Order());
@@ -161,13 +208,10 @@ public sealed class IoTests
         }
 
         var io = new VirtualIoService(settings.PcbSupplyHardware.Outputs, new());
-        io.SetInput(InputIo.PcbSupplyIpmFixerBackward, true);
         var status = new IoSignals([settings.PcbSupplyHardware], io);
-        var unassigned = status.Inputs[InputIo.PcbSupplyIpmFixerBackward];
-        Assert.Null(unassigned.Number);
-        Assert.Equal("—", unassigned.Address);
-        Assert.Null(unassigned.IsOn);
+        Assert.DoesNotContain(InputIo.PcbSupplyIpmFixerBackward, status.Inputs.Keys);
         var fixer = status.Outputs[OutputIo.PcbSupplyIpmFixerForward];
+        Assert.Equal(InputIo.PcbSupplyIpmFixerForward, Assert.Single(fixer.Feedback).Signal);
         Assert.Equal("024", fixer.Address);
         Assert.False(fixer.IsMatched);
     }

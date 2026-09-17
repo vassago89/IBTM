@@ -772,7 +772,7 @@ public sealed partial class MachineLifecycleTests
         var feedback = io.GetOutputFeedback(gripper.Signal)!;
         io.SetInput(feedback.OnInput, true);
         Assert.False(pending.IsCompleted); // Both inputs ON is not completion.
-        io.SetInput(feedback.OffInput, false);
+        io.SetInput(feedback.OffInput!.Value, false);
         await pending.WaitAsync(TimeSpan.FromSeconds(2));
         await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(gripper));
 

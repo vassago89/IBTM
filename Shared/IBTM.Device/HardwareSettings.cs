@@ -6,10 +6,10 @@ using IBTM.Core;
 
 namespace IBTM.Device;
 
-public sealed class OutputFeedback(InputIo onInput, InputIo offInput)
+public sealed class OutputFeedback(InputIo onInput, InputIo? offInput = null)
 {
     public InputIo OnInput { get; set; } = onInput;
-    public InputIo OffInput { get; set; } = offInput;
+    public InputIo? OffInput { get; set; } = offInput;
 }
 
 public sealed class OutputHardware
@@ -91,7 +91,7 @@ public abstract class IoHardwareSettings : InputHardwareSettings
         };
     }
 
-    protected static OutputHardware Output(int number, InputIo onInput, InputIo offInput)
+    protected static OutputHardware Output(int number, InputIo onInput, InputIo? offInput = null)
     {
         return new()
         {

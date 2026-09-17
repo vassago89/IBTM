@@ -153,12 +153,14 @@ public sealed class VirtualIoService(
             {
                 foreach (var feedback in outputs.Values.Select(output => output.Feedback).OfType<OutputFeedback>())
                 {
-                    if (GetInput(feedback.OnInput) || GetInput(feedback.OffInput))
+                    if (feedback.OffInput is not { } offInput
+                        || GetInput(feedback.OnInput)
+                        || GetInput(offInput))
                     {
                         continue;
                     }
 
-                    SetInput(feedback.OffInput, true);
+                    SetInput(offInput, true);
                 }
             });
     }
@@ -261,9 +263,15 @@ public sealed class VirtualIoService(
                     return;
                 }
 
-                var expected = value ? feedback.OnInput : feedback.OffInput;
-                SetInput(value ? feedback.OffInput : feedback.OnInput, false);
-                SetInput(expected, true);
+                if (feedback.OffInput is { } offInput)
+                {
+                    SetInput(value ? offInput : feedback.OnInput, false);
+                    SetInput(value ? feedback.OnInput : offInput, true);
+                }
+                else
+                {
+                    SetInput(feedback.OnInput, value);
+                }
                 if (notifyApplied)
                 {
                     OutputApplied?.Invoke(output, value);

@@ -248,7 +248,7 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return Supply.IpmFixer == PcbSupplyCylinderState.Forward;
+            return Supply.IpmFixed;
         }
     }
 

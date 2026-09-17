@@ -70,6 +70,8 @@ public sealed class MachineStoreTests
         settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyIpmFixerForward] = 24;
         settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyIpmFixerBackward] = 25;
         settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber = 25;
+        settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].Feedback = new(
+            InputIo.PcbSupplyIpmFixerForward, InputIo.PcbSupplyIpmFixerBackward);
         settings.ConveyorHardware.Inputs[InputIo.MainConveyorEntryCarrierDetected] = 91;
         settings.ConveyorHardware.Inputs[InputIo.MainConveyorExitCarrierDetected] = 92;
         settings.BoltFasteningStationHardware.Inputs[InputIo.BoltFasteningHeatSink1Present] = 61;
@@ -91,6 +93,7 @@ public sealed class MachineStoreTests
 
         // A partially adjusted group is a field mapping, not the old default map.
         settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyIpmFixerBackward] = 27;
+        settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyIpmFixerForward] = 29;
         // The confirmed single-coil valve retires any previously saved backward output.
         settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber = 25;
         settings.ConveyorHardware.Inputs[InputIo.MainConveyorExitCarrierDetected] = 93;
@@ -99,6 +102,9 @@ public sealed class MachineStoreTests
         await settings.SaveAsync(store);
         loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
         settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber = null;
+        settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].Feedback = new(
+            InputIo.PcbSupplyIpmFixerForward);
+        settings.PcbSupplyHardware.Inputs.Remove(InputIo.PcbSupplyIpmFixerBackward);
         foreach (var (expectedSection, actualSection) in settings.HardwareSections.Zip(loaded.HardwareSections))
         {
             Assert.Equal(

@@ -140,7 +140,7 @@ public sealed class NgConveyorTests
         Assert.Equal(InputIo.NgConveyorStopperDown, hardware.Feedback!.OnInput);
         Assert.Equal(InputIo.NgConveyorStopperUp, hardware.Feedback.OffInput);
         Assert.Equal(87, settings.Inputs[hardware.Feedback.OnInput]);
-        Assert.Equal(88, settings.Inputs[hardware.Feedback.OffInput]);
+        Assert.Equal(88, settings.Inputs[hardware.Feedback.OffInput!.Value]);
         system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
         var loweredBeforeRun = false;
         system.Io.OutputChanged += (output, value) =>

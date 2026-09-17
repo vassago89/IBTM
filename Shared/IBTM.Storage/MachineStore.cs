@@ -155,9 +155,15 @@ public sealed class MachineStore
               AND json_extract(Value, '$.Inputs.PcbSupplyPcbDetected') = 28;
 
             UPDATE Settings
-            SET Value = json_remove(Value, '$.Outputs.PcbSupplyIpmFixerForward.OffNumber')
+            SET Value = json_remove(
+                json_set(Value, '$.Outputs.PcbSupplyIpmFixerForward.Feedback',
+                    json_object('OnInput', 'PcbSupplyIpmFixerForward', 'OffInput', NULL)),
+                '$.Outputs.PcbSupplyIpmFixerForward.OffNumber',
+                '$.Inputs.PcbSupplyIpmFixerBackward')
             WHERE Key = 'PcbSupplyHardwareSettings'
-              AND json_type(Value, '$.Outputs.PcbSupplyIpmFixerForward.OffNumber') IS NOT NULL;
+              AND (json_type(Value, '$.Outputs.PcbSupplyIpmFixerForward.OffNumber') IS NOT NULL
+                OR json_type(Value, '$.Inputs.PcbSupplyIpmFixerBackward') IS NOT NULL
+                OR json_extract(Value, '$.Outputs.PcbSupplyIpmFixerForward.Feedback.OffInput') IS NOT NULL);
 
             UPDATE Settings
             SET Value = json_set(Value,
