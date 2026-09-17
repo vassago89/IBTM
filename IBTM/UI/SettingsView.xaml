@@ -183,11 +183,11 @@
                                         IsChecked="{Binding Settings.Units.PcbPlacement}"/>
                                     <CheckBox IsEnabled="{Binding CanEditSettings}"
                                         Content="Pickup Feeder"
-                                        ToolTip="OFF excludes pickup and pickup-head fastening in production and Repeat."
+                                        ToolTip="OFF keeps pickup travel, cylinder motion and vacuum ON without feeder-bolt or pickup-vacuum confirmation. Motor START and fastening result collection remain active in production and Repeat."
                                         IsChecked="{Binding Settings.Units.PickupBoltFeeder}"/>
                                     <CheckBox IsEnabled="{Binding CanEditSettings}"
                                         Content="Shooting Bolt Feeder"
-                                        ToolTip="OFF excludes bolt shooting and shooting-head fastening in production and Repeat."
+                                        ToolTip="OFF skips feeder supply, escape and bolt shooting. Motor START and fastening result collection remain active in production and Repeat."
                                         IsChecked="{Binding Settings.Units.ShootingBoltFeeder}"/>
                                     <CheckBox IsEnabled="{Binding CanEditSettings}"
                                         Content="Bolt Fastening"
@@ -205,8 +205,10 @@
                                         Content="NG Conveyor"
                                         IsChecked="{Binding Settings.Units.NgConveyor}"/>
                                 </UniformGrid>
-                                <TextBlock Text="Disabled units skip startup, homing, automatic operation, and teaching."
-                                    Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                <TextBlock Text="Disabled stations skip startup, homing, automatic operation, and teaching."
+                                    TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                                <TextBlock Text="Feeder OFF still runs all bolt positions and motor START. Pickup skips bolt/vacuum confirmation; shooting skips supply."
+                                    TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Border>
 

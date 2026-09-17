@@ -12,7 +12,7 @@ namespace IBTM.Virtual.Tests;
 public sealed class AdcProtocolTests
 {
     [Fact]
-    public async Task FailedFeedStopsTheMotorAndPreservesTheUncollectedResult()
+    public async Task FailedFeedStopsTheMotorAndRequiresRecoveryDespiteALateResult()
     {
         var bus = new ControllerBus();
         var head = new AdcBoltHead(bus, new HantasSettings(), 1);
@@ -29,9 +29,27 @@ public sealed class AdcProtocolTests
         Assert.Equal(1, bus.StopWrites);
         Assert.False(bus.Running);
         Assert.True(head.HasPendingResult);
-        // A late controller result is collected without feeding or starting again.
-        Assert.True((await head.TightenAsync(feedAsync: FeedAsync)).Success);
+        Assert.True(head.RequiresRecovery);
+        // A controller result cannot prove that the cylinder fed the bolt.
+        Assert.Null(await head.ReadPendingResultAsync());
+        await head.ResetAsync();
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => head.TightenAsync(feedAsync: FeedAsync));
+        Assert.True(head.HasPendingResult);
         Assert.Equal(1, bus.StartWrites);
+
+        head.DiscardPendingResult();
+        Assert.False(head.RequiresRecovery);
+        var feeds = 0;
+        Task ConfirmFeedAsync(CancellationToken token)
+        {
+            feeds++;
+            return Task.CompletedTask;
+        }
+        Assert.True((await head.TightenAsync(feedAsync: ConfirmFeedAsync)).Success);
+        Assert.Equal(2, bus.StartWrites);
+        Assert.Equal(1, feeds);
+        Assert.False(head.HasPendingResult);
     }
 
     [Fact]

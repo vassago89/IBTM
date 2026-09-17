@@ -802,7 +802,7 @@ public sealed class BoltFasteningTests
             if (stopDuringDescent || missingDownFeedback)
             {
                 Assert.Empty(results);
-                Assert.True(selected.WasInterrupted);
+                Assert.True(selected.RequiresRecovery);
                 Assert.True(station.HasPendingResult);
                 headEnabled = false;
                 await Assert.ThrowsAsync<InvalidOperationException>(() => station.RunAsync(new()));
@@ -824,8 +824,10 @@ public sealed class BoltFasteningTests
         }
     }
 
-    [Fact]
-    public async Task InterruptedIoFasteningRequiresRecoveryBeforeRetryingTheSameBolt()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InterruptedFasteningRequiresRecoveryBeforeRetryingTheSameBolt(bool useIo)
     {
         var settings = new BoltFasteningSettings
         {
@@ -839,8 +841,10 @@ public sealed class BoltFasteningTests
         using var motion = Motion(settings.Motion, new());
         motion.Initialize();
         await HomeAsync(motion, 20_000);
-        using var pickup = new IoBoltHead(io, FasteningHead.Pickup, controllerSettings);
+        using var pickupIo = new IoBoltHead(io, FasteningHead.Pickup, controllerSettings);
         using var shooting = new IoBoltHead(io, FasteningHead.Shooting, controllerSettings);
+        var bus = new AdcProtocolTests.ControllerBus();
+        IBoltHead pickup = useIo ? pickupIo : new AdcBoltHead(bus, new HantasSettings(), 1);
         var gantry = new BoltFasteningGantry(
             shooting, pickup, io, motion, settings,
             new CarrierReferenceSettings
@@ -861,25 +865,28 @@ public sealed class BoltFasteningTests
             (InputIo.PickupHeadUp, true),
             (InputIo.PickupHeadDown, false),
             (InputIo.PickupHeadVacuumDetected, true));
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        var interruptDescent = true;
         io.OutputChanged += (output, on) =>
         {
             if (output == OutputIo.PickupHeadUp)
+            {
+                if (!on && interruptDescent)
+                {
+                    io.SetInput(InputIo.PickupHeadUp, false);
+                    stop.Cancel();
+                    return;
+                }
                 io.SetInputs((InputIo.PickupHeadUp, on), (InputIo.PickupHeadDown, !on));
+            }
         };
         var assembly = work.Assembly(HeatSinkSlot.HeatSink1);
         assembly.RecordIpmSeating(1, new(true, null));
         Assert.Equal(BoltFasteningState.FinalizingIpm, station.State());
-        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-        void StopAtStart(OutputIo output, bool on)
-        {
-            if (output == OutputIo.PickupBoltStart && on)
-                stop.Cancel();
-        }
-        io.OutputChanged += StopAtStart;
         await station.RunAsync(new(), stop.Token);
-        io.OutputChanged -= StopAtStart;
+        interruptDescent = false;
         Assert.True(station.HasPendingResult);
-        Assert.True(pickup.WasInterrupted);
+        Assert.True(pickup.RequiresRecovery);
         Assert.Empty(assembly.IpmFinalResults);
 
         // Feeder OFF cannot erase an interrupted tightening.
@@ -888,6 +895,9 @@ public sealed class BoltFasteningTests
             () => station.RunAsync(new()));
         Assert.True(station.HasPendingResult);
         Assert.Empty(assembly.IpmFinalResults);
+        Assert.False(io.GetOutput(OutputIo.PickupHeadUp));
+        if (!useIo)
+            Assert.Equal(1, bus.StartWrites);
         pickupEnabled = true;
 
         station.PrepareRecovery([
@@ -908,9 +918,14 @@ public sealed class BoltFasteningTests
                 finish.Cancel();
         };
         await station.RunAsync(new(), finish.Token);
-        Assert.Equal(BoltResultSource.IoAssumedOk, assembly.IpmFinalResults[1].Source);
+        Assert.Equal(
+            useIo ? BoltResultSource.IoAssumedOk : BoltResultSource.Controller,
+            assembly.IpmFinalResults[1].Source);
         Assert.True(assembly.IpmFinalResults[1].Success);
-        Assert.Null(assembly.IpmFinalResults[1].Torque);
+        if (useIo)
+            Assert.Null(assembly.IpmFinalResults[1].Torque);
+        else
+            Assert.Equal(2, bus.StartWrites);
     }
 
     [Theory]

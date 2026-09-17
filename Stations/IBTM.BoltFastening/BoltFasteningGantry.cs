@@ -241,29 +241,19 @@ public sealed class BoltFasteningGantry
         return _motion.AdjustAxisAsync(axis, position, velocity, cancellationToken);
     }
 
-    public async Task CheckReadyAsync(
-        CancellationToken cancellationToken = default,
-        bool pickupEnabled = true,
-        bool shootingEnabled = true)
+    public async Task CheckReadyAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (shootingEnabled || _shootingHead.HasPendingResult)
-            await _shootingHead.CheckReadyAsync(cancellationToken);
-        if (pickupEnabled || _pickupHead.HasPendingResult)
-            await _pickupHead.CheckReadyAsync(cancellationToken);
+        await _shootingHead.CheckReadyAsync(cancellationToken);
+        await _pickupHead.CheckReadyAsync(cancellationToken);
     }
 
-    public async Task ResetHeadsAsync(
-        CancellationToken cancellationToken = default,
-        bool pickupEnabled = true,
-        bool shootingEnabled = true)
+    public async Task ResetHeadsAsync(CancellationToken cancellationToken = default)
     {
         List<Exception>? failures = null;
-        foreach (var (head, enabled) in new[] { (_shootingHead, shootingEnabled), (_pickupHead, pickupEnabled) })
+        foreach (var head in new[] { _shootingHead, _pickupHead })
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!enabled && !head.HasPendingResult)
-                continue;
             try
             {
                 await head.ResetAsync(cancellationToken);
@@ -439,7 +429,11 @@ public sealed class BoltFasteningGantry
         };
     }
 
-    public async Task SetVacuumAsync(FasteningHead head, bool on, CancellationToken cancellationToken)
+    public async Task SetVacuumAsync(
+        FasteningHead head,
+        bool on,
+        CancellationToken cancellationToken,
+        bool waitForFeedback = true)
     {
         var output = head == FasteningHead.Pickup
             ? OutputIo.PickupHeadVacuumPump
@@ -449,7 +443,8 @@ public sealed class BoltFasteningGantry
             : InputIo.ShootingHeadVacuumDetected;
         cancellationToken.ThrowIfCancellationRequested();
         _io.SetOutput(output, on);
-        await _io.WaitForInputAsync(input, on, cancellationToken);
+        if (waitForFeedback)
+            await _io.WaitForInputAsync(input, on, cancellationToken);
     }
 
     private void OnInputChanged(InputIo input, bool _)

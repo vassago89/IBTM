@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using IBTM.BoltFastening;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.UI;
 using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -18,55 +19,78 @@ public sealed partial class MachineLifecycleTests
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(false, false)]
-    public async Task ProductionExcludesEachDisabledFeederAndItsHead(bool pickupEnabled, bool shootingEnabled)
+    public async Task DisabledFeedersKeepPickupMotionAndStartBothIoHeads(bool pickupEnabled, bool shootingEnabled)
     {
         var settings = FlowSettings();
         settings.Drivers.Bolt = BoltDriver.Io;
         settings.Units = EnableOnly(MachineUnit.BoltFastening);
         settings.Units.PickupBoltFeeder = pickupEnabled;
         settings.Units.ShootingBoltFeeder = shootingEnabled;
-        var disabledPickup = new WaitingBoltHead { WaitForReadiness = true };
-        var disabledShooting = new WaitingBoltHead { WaitForReadiness = true };
-        var registrations = new ServiceCollection().AddSingleton(_ => VirtualTest.OpenMachineStore())
-            .AddIbtmApplication(settings, new Recipe());
-        if (!pickupEnabled)
-            registrations.AddKeyedSingleton<IBoltHead>(FasteningHead.Pickup, disabledPickup);
-        if (!shootingEnabled)
-            registrations.AddKeyedSingleton<IBoltHead>(FasteningHead.Shooting, disabledShooting);
-        using var services = registrations.BuildServiceProvider();
+        using var services = CreateServices(settings);
         var recipe = services.GetRequiredService<Recipe>();
         recipe.Pcb.BoltPoints = [
-            new() { Number = 1, Head = FasteningHead.Shooting, X = shootingEnabled ? 10 : null, Y = 10 },
-            new() { Number = 2, Head = FasteningHead.Pickup, X = pickupEnabled ? 20 : null, Y = 10 },
+            new() { Number = 1, Head = FasteningHead.Shooting, X = 10, Y = 10 },
+            new() { Number = 2, Head = FasteningHead.Pickup, X = 20, Y = 10 },
+            new() { Number = 3, Head = FasteningHead.Pickup, X = 30, Y = 10 },
         ];
         recipe.BoltFastening.PcbPreset = 1;
         recipe.BoltFastening.IpmSeatingPreset = 2;
         recipe.BoltFastening.IpmFinalPreset = 3;
         settings.BoltFastening.ShootingHead.FasteningZ = 8;
         settings.BoltFastening.PickupHead.FasteningZ = 12;
-        if (!pickupEnabled)
-            settings.BoltFastening.PickupHead.UpperLeftLocatingPin = null;
-        if (!shootingEnabled)
-            settings.BoltFastening.ShootingHead.UpperLeftLocatingPin = null;
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<BoltFasteningWork>();
+        var gantry = services.GetRequiredService<BoltFasteningGantry>();
         var outputs = new ConcurrentQueue<(OutputIo Output, bool On)>();
+        var starts = new ConcurrentQueue<(FasteningHead Head, double X, double Y, double Z)>();
+        var descents = new ConcurrentQueue<(FasteningHead Head, double X, double Y, double Z)>();
+        var pickups = new ConcurrentQueue<(double X, double Y, double Z)>();
+        var visitedPickupFeeder = false;
         await machine.InitializeAsync().WaitAsync(TimeSpan.FromSeconds(3));
         await machine.HomeAsync(CancellationToken.None);
         io.SetInput(InputIo.PickupFeederBoltDetected, pickupEnabled);
         io.SetInput(InputIo.ShootingFeederBoltDetected, shootingEnabled);
+        if (!shootingEnabled)
+            io.SetInput(InputIo.ShootingTubeBoltDetected, true); // Disabled supply does not wait for the tube.
         io.SetInput(InputIo.AutoMode, false);
         io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
         await work.Station.SeatAsync(CancellationToken.None);
+        gantry.Feedback.PositionChanged += (x, y, _) =>
+        {
+            if (Math.Abs(x - settings.BoltFastening.PickupPosition.X) < 0.01
+                && Math.Abs(y - settings.BoltFastening.PickupPosition.Y) < 0.01)
+                visitedPickupFeeder = true;
+        };
         io.OutputChanged += (output, on) =>
         {
             outputs.Enqueue((output, on));
+            if (on && output == OutputIo.PickupHeadVacuumPump)
+            {
+                Assert.True(gantry.IsAtPickupPosition());
+                Assert.Equal(BoltCylinderState.Down, gantry.PickupHeadPosition);
+                var position = gantry.Feedback.GetPosition();
+                pickups.Enqueue((position.X, position.Y, position.Z));
+            }
+            if (on && output is OutputIo.ShootingBoltStart or OutputIo.PickupBoltStart)
+            {
+                Assert.True(gantry.CanMoveHorizontal); // START precedes cylinder descent.
+                var position = gantry.Feedback.GetPosition();
+                starts.Enqueue((output == OutputIo.ShootingBoltStart ? FasteningHead.Shooting : FasteningHead.Pickup,
+                    position.X, position.Y, position.Z));
+            }
             if (output == OutputIo.ShootingBoltStart)
                 io.SetInput(InputIo.ShootingBoltFasten, on);
             if (output == OutputIo.PickupBoltStart)
                 io.SetInput(InputIo.PickupBoltFasten, on);
+            if (!on && output is OutputIo.ShootingHeadUp or OutputIo.PickupHeadUp)
+            {
+                var position = gantry.Feedback.GetPosition();
+                if (!gantry.IsAtPickupXY())
+                    descents.Enqueue((output == OutputIo.ShootingHeadUp ? FasteningHead.Shooting : FasteningHead.Pickup,
+                        position.X, position.Y, position.Z));
+            }
             if (output == OutputIo.ShootingHeadUp && !on)
             {
                 Assert.True(io.GetOutput(OutputIo.ShootingBoltStart));
@@ -89,42 +113,202 @@ public sealed partial class MachineLifecycleTests
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
             Assert.True(work.Completed, services.GetRequiredService<BoltFasteningStation>().State().ToString());
             var assembly = Assert.Single(work.Assemblies);
-            Assert.Equal(shootingEnabled ? 1 : 0, assembly.PcbBoltResults.Count);
-            Assert.Equal(pickupEnabled ? 1 : 0, assembly.IpmSeatingResults.Count);
-            Assert.Equal(pickupEnabled ? 1 : 0, assembly.IpmFinalResults.Count);
+            Assert.Equal(BoltResultSource.IoAssumedOk,
+                Assert.Single(assembly.PcbBoltResults).Value.Source);
+            Assert.Equal(2, assembly.IpmSeatingResults.Count);
+            Assert.Equal(2, assembly.IpmFinalResults.Count);
+            Assert.All(assembly.IpmSeatingResults.Values.Concat(assembly.IpmFinalResults.Values), result =>
+                Assert.Equal(BoltResultSource.IoAssumedOk, result.Source));
             Assert.All(assembly.PcbBoltResults.Values.Concat(assembly.IpmSeatingResults.Values)
-                .Concat(assembly.IpmFinalResults.Values), result => Assert.Equal(BoltResultSource.IoAssumedOk, result.Source));
-            Assert.Equal(AssemblyResult.Pending, assembly.FasteningResult);
+                .Concat(assembly.IpmFinalResults.Values), result => Assert.Null(result.Torque));
+            Assert.Equal(AssemblyResult.Ok, assembly.FasteningResult);
+            var positions = new[]
+            {
+                (FasteningHead.Shooting, 10d, 10d, 8d),
+                (FasteningHead.Pickup, 20d, 10d, 12d),
+                (FasteningHead.Pickup, 30d, 10d, 12d),
+                (FasteningHead.Pickup, 20d, 10d, 12d),
+                (FasteningHead.Pickup, 30d, 10d, 12d),
+            };
+            Assert.Equal(positions, descents.ToArray());
+            Assert.Equal(positions, starts.ToArray());
+            var operation = services.GetRequiredService<OperationViewModel>();
+            Assert.All(operation.BoltTargets, bolt => Assert.Equal(BoltTargetState.Ok, bolt.State));
+            Assert.True(visitedPickupFeeder);
+            Assert.Equal(new[] { (100d, 50d, 10d), (100d, 50d, 10d) }, pickups.ToArray());
             if (!pickupEnabled)
-                Assert.DoesNotContain(outputs, command =>
-                    command.On && command.Output is OutputIo.PickupBoltStart or OutputIo.PickupHeadVacuumPump
-                        or OutputIo.PickupBoltPreset1 or OutputIo.PickupBoltPreset2 or OutputIo.PickupBoltPreset3
-                    || !command.On && command.Output == OutputIo.PickupHeadUp);
+            {
+                Assert.False(io.GetInput(InputIo.PickupFeederBoltDetected));
+                Assert.False(gantry.PickupBoltLoaded);
+            }
             if (!shootingEnabled)
                 Assert.DoesNotContain(outputs, command =>
-                    command.On && command.Output is OutputIo.ShootingBoltStart or OutputIo.ShootingHeadVacuumPump
-                        or OutputIo.ShootingBoltPreset1 or OutputIo.ShootingBoltPreset2 or OutputIo.ShootingBoltPreset3
-                        or OutputIo.ShootBolt or OutputIo.ShootingEscapeForward or OutputIo.ShootingFeederRunSignal
-                    || !command.On && command.Output == OutputIo.ShootingHeadUp);
+                    command.On && command.Output is OutputIo.ShootingHeadVacuumPump
+                        or OutputIo.ShootBolt or OutputIo.ShootingEscapeForward or OutputIo.ShootingFeederRunSignal);
             Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
+            Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
             Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
             Assert.True(io.GetInput(InputIo.PickupHeadUp));
             Assert.True(io.GetInput(InputIo.ShootingHeadUp));
-            state.SetError(MachineAlarm.BoltFastening, new InvalidOperationException("Reset verification"));
-            await machine.ResetAsync().WaitAsync(TimeSpan.FromSeconds(3));
-            Assert.Equal(MachineAlarm.None, state.Alarm);
-            Assert.Equal(0, disabledPickup.ReadinessChecks);
-            Assert.Equal(0, disabledShooting.ReadinessChecks);
-            if (!pickupEnabled && !shootingEnabled)
-            {
-                recipe.Pcb.BoltPoints.Clear();
-                settings.CarrierReference.UpperLeftLocatingPin = null;
-                Assert.True(machine.TeachingReady);
-            }
+            recipe.Pcb.BoltPoints[0].X = null;
+            Assert.False(machine.TeachingReady); // Feeder OFF still requires taught fastening coordinates.
         }
         finally
         {
             machine.Stop();
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    public async Task DisabledFeederStillStopsMotorOnCylinderFailureOrStop(
+        bool stopDuringDescent,
+        bool missingUpFeedback)
+    {
+        var settings = FlowSettings();
+        settings.Drivers.Bolt = BoltDriver.Io;
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        using var services = CreateServices(settings);
+        var recipe = services.GetRequiredService<Recipe>();
+        recipe.Pcb.BoltPoints = [new() { Number = 1, Head = FasteningHead.Shooting, X = 10, Y = 10 }];
+        var machine = services.GetRequiredService<MachineController>();
+        var station = services.GetRequiredService<BoltFasteningStation>();
+        var work = services.GetRequiredService<BoltFasteningWork>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+        await work.Station.SeatAsync(CancellationToken.None);
+        settings.Options.TimeoutMilliseconds = 100;
+        io.AutoResponseEnabled = false;
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        var descended = false;
+        var raising = false;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.ShootingBoltStart)
+                io.SetInput(InputIo.ShootingBoltFasten, on);
+            if (output != OutputIo.ShootingHeadUp)
+                return;
+            if (!on)
+            {
+                Assert.True(io.GetOutput(OutputIo.ShootingBoltStart));
+                descended = true;
+                io.SetInputs((InputIo.ShootingHeadUp, false), (InputIo.ShootingHeadDown, missingUpFeedback));
+                if (stopDuringDescent)
+                    stop.Cancel();
+                else
+                    io.SetInput(InputIo.ShootingBoltFasten, false);
+            }
+            else if (descended)
+            {
+                raising = true;
+                io.SetInput(InputIo.ShootingHeadDown, false);
+            }
+        };
+        try
+        {
+            var run = station.RunAsync(recipe.BoltFastening, stop.Token);
+            if (stopDuringDescent)
+                await run.WaitAsync(TimeSpan.FromSeconds(2));
+            else
+                await Assert.ThrowsAsync<IoTimeoutException>(() => run);
+            Assert.True(descended);
+            Assert.Equal(missingUpFeedback, raising);
+            Assert.False(work.Completed);
+            var results = Assert.Single(work.Assemblies).PcbBoltResults;
+            if (missingUpFeedback)
+                Assert.Equal(BoltResultSource.IoAssumedOk, Assert.Single(results).Value.Source);
+            else
+                Assert.Empty(results);
+            Assert.Equal(!missingUpFeedback, station.HasPendingResult);
+            Assert.False(io.GetOutput(OutputIo.ShootingBoltStart));
+        }
+        finally
+        {
+            stop.Cancel();
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task DisabledPickupFeederKeepsLiftInterlockAndResumesWithoutBoltFeedback()
+    {
+        var settings = FlowSettings();
+        settings.Drivers.Bolt = BoltDriver.Io;
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        using var services = CreateServices(settings);
+        var recipe = services.GetRequiredService<Recipe>();
+        recipe.Pcb.BoltPoints = [new() { Number = 1, Head = FasteningHead.Pickup, X = 20, Y = 10 }];
+        var machine = services.GetRequiredService<MachineController>();
+        var station = services.GetRequiredService<BoltFasteningStation>();
+        var gantry = services.GetRequiredService<BoltFasteningGantry>();
+        var work = services.GetRequiredService<BoltFasteningWork>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        io.SetInput(InputIo.PickupFeederBoltDetected, false);
+        io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+        await work.Station.SeatAsync(CancellationToken.None);
+        var pickups = 0;
+        var starts = 0;
+        io.OutputChanged += (output, on) =>
+        {
+            if (output == OutputIo.PickupBoltStart)
+            {
+                if (on)
+                {
+                    Assert.True(gantry.CanMoveHorizontal);
+                    starts++;
+                }
+                io.SetInput(InputIo.PickupBoltFasten, on);
+            }
+            if (output == OutputIo.PickupHeadUp && !on && io.GetOutput(OutputIo.PickupBoltStart))
+                io.SetInput(InputIo.PickupBoltFasten, false);
+            if (output == OutputIo.PickupHeadVacuumPump && on)
+            {
+                Assert.True(gantry.IsAtPickupPosition());
+                Assert.Equal(BoltCylinderState.Down, gantry.PickupHeadPosition);
+                pickups++;
+                settings.Options.TimeoutMilliseconds = 100;
+                io.AutoResponseEnabled = false; // No UP feedback after the empty pickup.
+            }
+        };
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await Assert.ThrowsAsync<IoTimeoutException>(() => station.RunAsync(recipe.BoltFastening, timeout.Token));
+            Assert.Equal(1, pickups);
+            Assert.Equal(0, starts);
+            Assert.True(gantry.IsAtPickupXY());
+            Assert.True(gantry.IsAtSafeZ());
+            Assert.Equal(BoltCylinderState.Down, gantry.PickupHeadPosition);
+            Assert.False(gantry.PickupBoltLoaded);
+            Assert.Empty(work.Assembly(HeatSinkSlot.HeatSink1).IpmSeatingResults);
+            Assert.False(station.HasPendingResult);
+
+            settings.Options.TimeoutMilliseconds = 2_000;
+            io.AutoResponseEnabled = true;
+            using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            work.Changed += () =>
+            {
+                if (work.Completed)
+                    stop.Cancel();
+            };
+            await station.RunAsync(recipe.BoltFastening, stop.Token);
+            Assert.True(work.Completed);
+            Assert.Equal(1, pickups);
+            Assert.False(gantry.PickupBoltLoaded);
+            Assert.Equal(2, starts);
+            Assert.Equal(AssemblyResult.Ok, work.Assembly(HeatSinkSlot.HeatSink1).FasteningResult);
+            Assert.True(gantry.CanMoveHorizontal);
+            Assert.False(io.GetOutput(OutputIo.PickupHeadVacuumPump));
+        }
+        finally
+        {
             await machine.ShutdownAsync();
         }
     }

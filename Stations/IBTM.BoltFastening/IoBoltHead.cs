@@ -49,7 +49,7 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         }
     }
 
-    public bool WasInterrupted
+    public bool RequiresRecovery
     {
         get
         {

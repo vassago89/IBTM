@@ -157,8 +157,7 @@ public sealed partial class MachineController
         {
             try
             {
-                await _fasteningGantry.ResetHeadsAsync(
-                    operation.Token, _units.PickupBoltFeeder, _units.ShootingBoltFeeder);
+                await _fasteningGantry.ResetHeadsAsync(operation.Token);
             }
             catch (OperationCanceledException) when (operation.Token.IsCancellationRequested)
             {
@@ -305,8 +304,7 @@ public sealed partial class MachineController
             try
             {
                 _log?.Write("Bolt controller readiness check started.");
-                await _fasteningGantry.CheckReadyAsync(
-                    cancellationToken, _units.PickupBoltFeeder, _units.ShootingBoltFeeder);
+                await _fasteningGantry.CheckReadyAsync(cancellationToken);
                 _log?.Write("Bolt controller readiness check completed.");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

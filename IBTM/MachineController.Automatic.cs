@@ -79,17 +79,14 @@ public sealed partial class MachineController
     {
         get
         {
-            var fasteningEnabled = _units.BoltFastening
-                && (_units.PickupBoltFeeder || _units.ShootingBoltFeeder);
-            if ((fasteningEnabled || _units.Inspection)
+            if ((_units.BoltFastening || _units.Inspection)
                 && _recipe.Pcb.BoltPoints.Count == 0)
                 return false;
 
-            if (fasteningEnabled
+            if (_units.BoltFastening
                 && (!_carrierReference.IsDefined
                     || _recipe.Pcb.GetBolts().Any(bolt =>
-                        _units.IsFasteningHeadEnabled(bolt.Head)
-                        && (bolt.X is null || bolt.Y is null || !_fasteningGantry.HasReference(bolt.Head)))))
+                        bolt.X is null || bolt.Y is null || !_fasteningGantry.HasReference(bolt.Head))))
             {
                 return false;
             }
@@ -308,9 +305,9 @@ public sealed partial class MachineController
         if (_units.BoltFastening)
         {
             if (!_units.PickupBoltFeeder)
-                _log?.Write("Pickup Feeder OFF; pickup and pickup-head fastening are excluded.");
+                _log?.Write("Pickup Feeder OFF; pickup motion and vacuum remain active without bolt detection waits. Motor START and fastening result collection remain active.");
             if (!_units.ShootingBoltFeeder)
-                _log?.Write("Shooting Feeder OFF; bolt shooting and shooting-head fastening are excluded.");
+                _log?.Write("Shooting Feeder OFF; bolt supply and shooting are skipped. Motor START and fastening result collection remain active.");
             runningUnits.Add(RunAutomaticUnitAsync(
                 MachineAlarm.BoltFastening,
                 () => _fasteningStation.RunAsync(_recipe.BoltFastening, cycle.Token),

@@ -307,7 +307,7 @@ public static class DependencyInjection
         services.AddSingleton<PcbPlacer>();
         services.AddSingleton<PickupBoltFeeder>();
         services.AddSingleton<ShootingBoltFeeder>();
-        services.AddSingleton<Func<FasteningHead, bool>>(settings.Units.IsFasteningHeadEnabled);
+        services.AddSingleton<Func<FasteningHead, bool>>(settings.Units.IsBoltFeederEnabled);
         services.AddSingleton<BoltFasteningStation>();
         services.AddSingleton<NgShuttleFeedback>();
         services.AddSingleton<NgCarrierConveyor>();

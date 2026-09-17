@@ -560,7 +560,6 @@ public sealed partial class MachineLifecycleTests
 
         settings.Units.PickupBoltFeeder = false;
         settings.Units.ShootingBoltFeeder = false;
-        await Assert.ThrowsAsync<InvalidOperationException>(() => station.RunAsync(recipe.BoltFastening));
         Assert.True(productionHead.HasPendingResult);
         Assert.True(station.HasPendingResult);
 

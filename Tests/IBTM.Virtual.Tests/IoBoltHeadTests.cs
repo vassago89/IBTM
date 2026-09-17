@@ -38,7 +38,7 @@ public sealed class IoBoltHeadTests
             () => head.TightenAsync(feedAsync: FeedAsync)));
         Assert.False(fed);
         Assert.False(io.GetOutput(OutputIo.PickupBoltStart));
-        Assert.True(head.WasInterrupted);
+        Assert.True(head.RequiresRecovery);
         Assert.Null(await head.ReadPendingResultAsync());
     }
 

@@ -19,7 +19,7 @@ public sealed partial class MachineLifecycleTests
 {
     [Fact]
     [Trait("Category", "MachineFlow")]
-    public async Task RepeatWithPickupFeederOffRunsIoShootingAndReturnsBothPcbsTwice()
+    public async Task RepeatWithPickupFeederOffStartsBothIoHeadsAndReturnsBothPcbsTwice()
     {
         var settings = FlowSettings();
         settings.Drivers.Bolt = BoltDriver.Io;
@@ -37,14 +37,21 @@ public sealed partial class MachineLifecycleTests
         recipe.PcbPlacement.HeatSink1PcbPlacementPosition = new() { X = 20, Y = 100, Z = 12 };
         recipe.PcbPlacement.HeatSink2PcbPlacementPosition = new() { X = 40, Y = 100, Z = 12 };
         recipe.BoltFastening.PcbPreset = 3;
+        recipe.BoltFastening.IpmSeatingPreset = 2;
+        recipe.BoltFastening.IpmFinalPreset = 1;
         settings.BoltFastening.ShootingHead.FasteningZ = 8;
+        settings.BoltFastening.PickupHead.FasteningZ = 12;
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<BoltFasteningWork>();
+        var gantry = services.GetRequiredService<BoltFasteningGantry>();
         var completed = new ConcurrentDictionary<long, HeatSinkAssembly[]>();
         var forbidden = new ConcurrentQueue<OutputIo>();
         var shootingStarts = 0;
+        var pickupDescents = 0;
+        var pickupStarts = 0;
+        var pickupAttempts = 0;
         var handoffTrips = 0;
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
@@ -63,10 +70,14 @@ public sealed partial class MachineLifecycleTests
         };
         io.OutputChanged += (output, on) =>
         {
-            if (on && output is OutputIo.PickupBoltStart or OutputIo.PickupHeadVacuumPump
-                    or OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyReadyToFront1
-                || !on && output == OutputIo.PickupHeadUp)
+            if (on && output is OutputIo.PcbSupplyGripperClosed or OutputIo.PcbSupplyReadyToFront1)
                 forbidden.Enqueue(output);
+            if (on && output == OutputIo.PickupHeadVacuumPump)
+            {
+                Assert.True(gantry.IsAtPickupPosition());
+                Assert.Equal(BoltCylinderState.Down, gantry.PickupHeadPosition);
+                Interlocked.Increment(ref pickupAttempts);
+            }
             if (output == OutputIo.ShootingBoltStart)
             {
                 if (on)
@@ -84,6 +95,24 @@ public sealed partial class MachineLifecycleTests
                 Assert.True(io.GetOutput(OutputIo.ShootingBoltStart));
                 io.SetInput(InputIo.ShootingBoltFasten, false);
             }
+            if (output == OutputIo.PickupBoltStart)
+            {
+                if (on)
+                {
+                    Assert.True(gantry.CanMoveHorizontal);
+                    Interlocked.Increment(ref pickupStarts);
+                }
+                io.SetInput(InputIo.PickupBoltFasten, on);
+            }
+            if (output == OutputIo.PickupHeadUp && !on)
+            {
+                if (!gantry.IsAtPickupXY())
+                {
+                    Assert.True(io.GetOutput(OutputIo.PickupBoltStart));
+                    Interlocked.Increment(ref pickupDescents);
+                    io.SetInput(InputIo.PickupBoltFasten, false);
+                }
+            }
         };
         state.RepeatEnabled = true;
         Assert.True(machine.CanStart, machine.StartBlock.ToString());
@@ -97,6 +126,9 @@ public sealed partial class MachineLifecycleTests
             Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
             Assert.True(state.Display.RepeatCycles >= 2);
             Assert.True(shootingStarts >= 4);
+            Assert.True(pickupDescents >= 8);
+            Assert.True(pickupStarts >= 8);
+            Assert.True(pickupAttempts >= 4);
             Assert.True(handoffTrips >= 4);
             Assert.True(completed.Count >= 2);
             Assert.Empty(forbidden);
@@ -106,9 +138,9 @@ public sealed partial class MachineLifecycleTests
                 foreach (var assembly in assemblies)
                 {
                     Assert.Equal(BoltResultSource.IoAssumedOk, Assert.Single(assembly.PcbBoltResults).Value.Source);
-                    Assert.Empty(assembly.IpmSeatingResults);
-                    Assert.Empty(assembly.IpmFinalResults);
-                    Assert.Equal(AssemblyResult.Pending, assembly.FasteningResult);
+                    Assert.Equal(BoltResultSource.IoAssumedOk, Assert.Single(assembly.IpmSeatingResults).Value.Source);
+                    Assert.Equal(BoltResultSource.IoAssumedOk, Assert.Single(assembly.IpmFinalResults).Value.Source);
+                    Assert.Equal(AssemblyResult.Ok, assembly.FasteningResult);
                 }
             }
         }

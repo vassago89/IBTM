@@ -118,7 +118,7 @@
             </Grid>
             <TextBlock Grid.Row="3" Text="P1 / EJECT" Style="{StaticResource PositionLabelStyle}"/>
         </Grid>
-        <Border Canvas.Left="{x:Static ui:MachinePlan.NgStatusLeft}" Canvas.Top="132" Width="170" Style="{StaticResource MapIoCardStyle}">
+        <Border Canvas.Left="{x:Static ui:MachinePlan.NgStatusLeft}" Canvas.Top="132" Width="210" Style="{StaticResource MapIoCardStyle}">
             <StackPanel>
                 <TextBlock Text="NG · LIVE I/O" Style="{StaticResource MapIoTitleStyle}"/>
                 <DockPanel Margin="0,0,0,4"
@@ -180,7 +180,8 @@
                     ToolTip="{Binding Signals.Outputs[NgConveyorStopperDown].Signal, Converter={StaticResource EnumDescriptionConverter}}">
                     <TextBlock Text="{Binding Signals.Outputs[NgConveyorStopperDown].IsOn, Converter={StaticResource SignalTextConverter}}"
                         Style="{StaticResource MapIoOutputStyle}"/>
-                    <TextBlock Text="{Binding Signals.Outputs[NgConveyorStopperDown].Address}" Style="{StaticResource MapIoAddressStyle}"/>
+                    <TextBlock Text="{Binding Signals.Outputs[NgConveyorStopperDown].Address}"
+                        Style="{StaticResource MapIoAddressStyle}" Width="Auto" MinWidth="26" Margin="6,0,0,0"/>
                     <TextBlock Text="DO Stopper down" Style="{StaticResource MapIoLabelStyle}"/>
                 </DockPanel>
                 <DockPanel Margin="0,0,0,4"

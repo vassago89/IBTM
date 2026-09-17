@@ -16,7 +16,7 @@ public sealed class UnitSettings : Setting
     public bool NgShuttle { get; set; } = true;
     public bool NgConveyor { get; set; } = true;
 
-    public bool IsFasteningHeadEnabled(FasteningHead head)
+    public bool IsBoltFeederEnabled(FasteningHead head)
     {
         return head switch
         {
