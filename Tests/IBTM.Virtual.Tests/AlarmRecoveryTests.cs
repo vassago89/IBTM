@@ -11,6 +11,7 @@ using IBTM.Inspection;
 using IBTM.Storage;
 using IBTM.UI;
 using IBTM.Virtual;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -522,6 +523,64 @@ public sealed class AlarmRecoveryTests
                 (runningOutput.Number, runningOutput.OffNumber, runningOutput.Feedback.OnInput));
             Assert.Equal(MachineAlarm.Inspection, state.Alarm);
             Assert.False(io.GetInput(InputIo.ResetButton));
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task SettingsSaveKeepsEditedIoAfterRestartAndIsNotCancelledByEquipmentStop()
+    {
+        using var services = CreateServices();
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var view = services.GetRequiredService<SettingsViewModel>();
+        var store = services.GetRequiredService<MachineStore>();
+        var operations = services.GetRequiredService<OperationCancellation>();
+        await machine.InitializeAsync();
+        try
+        {
+            view.InputMappings.Single(row => row.Signal.Equals(InputIo.PcbPlacementStopperUp)).Number = 57;
+            view.InputMappings.Single(row => row.Signal.Equals(InputIo.PcbPlacementStopperDown)).Number = 58;
+            var output = view.OutputMappings.Single(row => row.Signal.Equals(OutputIo.PcbPlacementStopperUp)).Output!;
+            output.Number = 96;
+            output.OffNumber = 97;
+            view.Settings.Drivers.Light = LightDriver.Movs;
+            view.Settings.Lighting.Connection = "";
+
+            Task saving;
+            using (var connection = new SqliteConnection($"Data Source={store.DatabaseFile}"))
+            {
+                connection.Open();
+                using var transaction = connection.BeginTransaction();
+                saving = view.SaveSettingsCommand.ExecuteAsync(null);
+                try
+                {
+                    Assert.True(view.SaveSettingsCommand.IsRunning);
+                    Assert.False(view.CanEditSettings);
+                    Assert.False(operations.HasActiveOperations);
+                    Assert.False(state.IsRunning);
+                    operations.Cancel();
+                }
+                finally
+                {
+                    transaction.Commit();
+                }
+            }
+
+            await saving.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.StartsWith("Settings saved.", view.DatabaseMessage);
+            Assert.True(view.CanEditSettings);
+            var loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
+            Assert.Equal(57, loaded.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperUp]);
+            Assert.Equal(58, loaded.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperDown]);
+            var savedOutput = loaded.ConveyorHardware.Outputs[OutputIo.PcbPlacementStopperUp];
+            Assert.Equal(96, savedOutput.Number);
+            Assert.Equal(97, savedOutput.OffNumber);
+            Assert.Equal(LightDriver.Movs, loaded.Drivers.Light);
+            Assert.Equal("", loaded.Lighting.Connection);
         }
         finally
         {

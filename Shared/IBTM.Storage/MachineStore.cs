@@ -119,24 +119,6 @@ public sealed class MachineStore
                 """, section, $"$.Inputs.{oldSignal}", $"$.Inputs.{newSignal}");
         }
 
-        // Correct the old default DI pairs once; leave custom channel assignments intact.
-        foreach (var (section, signal, oldUp, oldDown) in new[]
-        {
-            ("ConveyorHardwareSettings", "PcbPlacementStopper", 57, 58),
-            ("ConveyorHardwareSettings", "BoltFasteningStopper", 64, 65),
-            ("ConveyorHardwareSettings", "InspectionStopper", 71, 72),
-            ("NgConveyorHardwareSettings", "NgConveyorStopper", 87, 88),
-        })
-        {
-            db.Database.ExecuteSqlRaw("""
-                UPDATE Settings
-                SET Value = json_set(Value, {1}, {4}, {2}, {3})
-                WHERE Key = {0}
-                  AND json_extract(Value, {1}) = {3}
-                  AND json_extract(Value, {2}) = {4};
-                """, section, $"$.Inputs.{signal}Up", $"$.Inputs.{signal}Down", oldUp, oldDown);
-        }
-
         // Restore mappings omitted by the sensorless NG stopper version; retain configured channels.
         db.Database.ExecuteSqlRaw("""
             UPDATE Settings
@@ -152,23 +134,8 @@ public sealed class MachineStore
                 OR json_extract(Value, '$.Outputs.NgConveyorStopperUp.Feedback') IS NULL);
             """);
 
-        // 260913 address corrections only. Keep confirmed directions and custom mappings.
-        // Match each old pair together so a partial field adjustment is not overwritten.
+        // Retire the removed IPM backward sensor/output without rewriting the retained addresses.
         db.Database.ExecuteSqlRaw("""
-            UPDATE Settings
-            SET Value = json_set(Value,
-                '$.Inputs.PcbSupplyGripperClosed', 24,
-                '$.Inputs.PcbSupplyGripperOpen', 25,
-                '$.Inputs.PcbSupplyIpmFixerForward', 28,
-                '$.Inputs.PcbSupplyIpmFixerBackward', -1,
-                '$.Inputs.PcbSupplyPcbDetected', 22)
-            WHERE Key = 'PcbSupplyHardwareSettings'
-              AND json_extract(Value, '$.Inputs.PcbSupplyGripperClosed') = 22
-              AND json_extract(Value, '$.Inputs.PcbSupplyGripperOpen') = 23
-              AND json_extract(Value, '$.Inputs.PcbSupplyIpmFixerForward') = 24
-              AND json_extract(Value, '$.Inputs.PcbSupplyIpmFixerBackward') = 25
-              AND json_extract(Value, '$.Inputs.PcbSupplyPcbDetected') = 28;
-
             UPDATE Settings
             SET Value = json_remove(
                 json_set(Value, '$.Outputs.PcbSupplyIpmFixerForward.Feedback',
@@ -179,30 +146,6 @@ public sealed class MachineStore
               AND (json_type(Value, '$.Outputs.PcbSupplyIpmFixerForward.OffNumber') IS NOT NULL
                 OR json_type(Value, '$.Inputs.PcbSupplyIpmFixerBackward') IS NOT NULL
                 OR json_extract(Value, '$.Outputs.PcbSupplyIpmFixerForward.Feedback.OffInput') IS NOT NULL);
-
-            UPDATE Settings
-            SET Value = json_set(Value,
-                '$.Inputs.MainConveyorEntryCarrierDetected', 56,
-                '$.Inputs.MainConveyorExitCarrierDetected', 68)
-            WHERE Key = 'ConveyorHardwareSettings'
-              AND json_extract(Value, '$.Inputs.MainConveyorEntryCarrierDetected') = 91
-              AND json_extract(Value, '$.Inputs.MainConveyorExitCarrierDetected') = 92;
-
-            UPDATE Settings
-            SET Value = json_set(Value,
-                '$.Inputs.BoltFasteningHeatSink1Present', 62,
-                '$.Inputs.BoltFasteningHeatSink2Present', 63)
-            WHERE Key = 'BoltFasteningStationHardwareSettings'
-              AND json_extract(Value, '$.Inputs.BoltFasteningHeatSink1Present') = 61
-              AND json_extract(Value, '$.Inputs.BoltFasteningHeatSink2Present') = 62;
-
-            UPDATE Settings
-            SET Value = json_set(Value,
-                '$.Inputs.InspectionHeatSink1Present', 69,
-                '$.Inputs.InspectionHeatSink2Present', 70)
-            WHERE Key = 'InspectionStationHardwareSettings'
-              AND json_extract(Value, '$.Inputs.InspectionHeatSink1Present') = 68
-              AND json_extract(Value, '$.Inputs.InspectionHeatSink2Present') = 69;
             """);
     }
 

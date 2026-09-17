@@ -65,6 +65,7 @@ public partial class SettingsViewModel : ObservableObject
             : $"{settings.Lighting.Connection} · {settings.Lighting.BaudRate} baud";
         TestLightCommand.PropertyChanged += OnLightCommandChanged;
         OffTestLightCommand.PropertyChanged += OnLightCommandChanged;
+        SaveSettingsCommand.PropertyChanged += OnSaveSettingsCommandChanged;
         _virtualCamera = camera as VirtualCamera;
         Settings = settings;
         ActiveControlDriver = settings.Drivers.Control;
@@ -216,41 +217,25 @@ public partial class SettingsViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanEditSettings))]
     private async Task SaveSettingsAsync()
     {
-        if (Settings.Drivers.Light == LightDriver.Movs
-            && string.IsNullOrWhiteSpace(Settings.Lighting.Connection))
-        {
-            DatabaseMessage = "MOVS light COM port is required. Set Devices & Safety > Lighting > COM Port before saving.";
-            Trace.TraceError("Settings not saved: {0}", DatabaseMessage);
-            return;
-        }
-
-        DatabaseMessage = null;
+        DatabaseMessage = "Saving settings...";
         try
         {
-            using var operation = _operations.TryBegin();
-            if (operation is null)
-                return;
             foreach (var row in InputMappings)
             {
                 var hardware = (InputHardwareSettings)row.Hardware;
                 hardware.Inputs[(InputIo)row.Signal] = row.Number;
             }
 
-            await Settings.SaveAsync(_store, operation.Token);
+            await Settings.SaveAsync(_store);
             DatabaseMessage = "Settings saved. Restart to apply driver, connection, pulse length, mapping and home direction changes.";
             Trace.TraceInformation(
                 "Settings saved to {0}. Restart required for hardware changes.",
                 _store.DatabaseFile);
-            _state.Refresh();
-            _state.UpdateMachineIndicators();
-        }
-        catch (OperationCanceledException)
-        {
         }
         catch (Exception exception)
         {
             Trace.TraceError("Machine settings save failed. {0}", exception);
-            DatabaseMessage = $"Settings not saved: {exception.Message}";
+            DatabaseMessage = $"Settings not saved: {exception.GetBaseException().Message}";
         }
     }
 
@@ -258,14 +243,23 @@ public partial class SettingsViewModel : ObservableObject
     {
         get
         {
-            return _state.SetupEditingEnabled;
+            return _state.SetupEditingEnabled && !SaveSettingsCommand.IsRunning;
         }
+    }
+
+    private void OnSaveSettingsCommandChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(IAsyncRelayCommand.IsRunning))
+            RefreshCommands();
     }
 
     public string SettingsAccessMessage
     {
         get
         {
+            if (SaveSettingsCommand.IsRunning)
+                return "Saving settings. Wait for the write to finish before editing.";
+
             if (_operations.IsShuttingDown)
             {
                 return "Settings are locked while the application is closing.";

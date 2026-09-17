@@ -60,7 +60,7 @@ public sealed class MachineStoreTests
     }
 
     [Fact]
-    public async Task FinalIoAddressesMigrateTogetherWithoutChangingDirectionsOrCustomMappings()
+    public async Task SavedIoAddressesSurviveRestartEvenWhenTheyMatchOldDefaults()
     {
         var store = new MachineStore(Path.Combine(CreateDirectory(), "Machine.db"));
         var settings = new MachineSettings();
@@ -74,33 +74,20 @@ public sealed class MachineStoreTests
             InputIo.PcbSupplyIpmFixerForward, InputIo.PcbSupplyIpmFixerBackward);
         settings.ConveyorHardware.Inputs[InputIo.MainConveyorEntryCarrierDetected] = 91;
         settings.ConveyorHardware.Inputs[InputIo.MainConveyorExitCarrierDetected] = 92;
+        settings.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperUp] = 57;
+        settings.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperDown] = 58;
+        settings.NgConveyorHardware.Inputs[InputIo.NgConveyorStopperUp] = 87;
+        settings.NgConveyorHardware.Inputs[InputIo.NgConveyorStopperDown] = 88;
         settings.BoltFasteningStationHardware.Inputs[InputIo.BoltFasteningHeatSink1Present] = 61;
         settings.BoltFasteningStationHardware.Inputs[InputIo.BoltFasteningHeatSink2Present] = 62;
         settings.InspectionStationHardware.Inputs[InputIo.InspectionHeatSink1Present] = 68;
         settings.InspectionStationHardware.Inputs[InputIo.InspectionHeatSink2Present] = 69;
         await settings.SaveAsync(store);
 
-        // Two opens prove the moves do not cascade or swap back on restart.
+        // Reopening the database must not reinterpret an operator's saved channel numbers.
         _ = new MachineStore(store.DatabaseFile);
         var loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
-        var expected = new MachineSettings();
-        foreach (var (expectedSection, actualSection) in expected.HardwareSections.Zip(loaded.HardwareSections))
-        {
-            Assert.Equal(
-                JsonSerializer.Serialize(expectedSection, expectedSection.GetType()),
-                JsonSerializer.Serialize(actualSection, actualSection.GetType()));
-        }
-
-        // A partially adjusted group is a field mapping, not the old default map.
-        settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyIpmFixerBackward] = 27;
-        settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyIpmFixerForward] = 29;
-        // The confirmed single-coil valve retires any previously saved backward output.
-        settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber = 25;
-        settings.ConveyorHardware.Inputs[InputIo.MainConveyorExitCarrierDetected] = 93;
-        settings.BoltFasteningStationHardware.Inputs[InputIo.BoltFasteningHeatSink1Present] = 90;
-        settings.InspectionStationHardware.Inputs[InputIo.InspectionHeatSink2Present] = 95;
-        await settings.SaveAsync(store);
-        loaded = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
+        // The removed IPM backward sensor/output is still retired, independent of addresses.
         settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber = null;
         settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].Feedback = new(
             InputIo.PcbSupplyIpmFixerForward);
@@ -234,7 +221,7 @@ public sealed class MachineStoreTests
         }
 
         var reopened = new MachineStore(store.DatabaseFile);
-        // Opening again must not reverse the corrected input pairs.
+        // Key migrations must preserve the saved input pairs on every reopen.
         var loaded = await MachineSettings.LoadAsync(new MachineStore(reopened.DatabaseFile));
         Assert.Equal(BoltDriver.Io, loaded.Drivers.Bolt);
         Assert.Equal(112, loaded.IoBoltHardware.Inputs[InputIo.PickupBoltReady]);
@@ -251,12 +238,12 @@ public sealed class MachineStoreTests
         Assert.Equal(153, loaded.ConveyorHardware.Inputs[InputIo.MainConveyorManualMode]);
         Assert.Equal(183, loaded.NgConveyorHardware.Inputs[InputIo.NgConveyorManualMode]);
         Assert.Equal(37, loaded.MachineHardware.Inputs[InputIo.AirPressureHigh]);
-        Assert.Equal(57, loaded.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperDown]);
-        Assert.Equal(58, loaded.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperUp]);
-        Assert.Equal(64, loaded.ConveyorHardware.Inputs[InputIo.BoltFasteningStopperDown]);
-        Assert.Equal(65, loaded.ConveyorHardware.Inputs[InputIo.BoltFasteningStopperUp]);
-        Assert.Equal(71, loaded.ConveyorHardware.Inputs[InputIo.InspectionStopperDown]);
-        Assert.Equal(72, loaded.ConveyorHardware.Inputs[InputIo.InspectionStopperUp]);
+        Assert.Equal(58, loaded.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperDown]);
+        Assert.Equal(57, loaded.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperUp]);
+        Assert.Equal(65, loaded.ConveyorHardware.Inputs[InputIo.BoltFasteningStopperDown]);
+        Assert.Equal(64, loaded.ConveyorHardware.Inputs[InputIo.BoltFasteningStopperUp]);
+        Assert.Equal(72, loaded.ConveyorHardware.Inputs[InputIo.InspectionStopperDown]);
+        Assert.Equal(71, loaded.ConveyorHardware.Inputs[InputIo.InspectionStopperUp]);
         Assert.Equal(settings.NgConveyorHardware.Inputs.Count, loaded.NgConveyorHardware.Inputs.Count);
         Assert.Equal(60, loaded.ConveyorHardware.Outputs[OutputIo.MainConveyorForward].Number);
         foreach (var output in new[]
@@ -281,8 +268,8 @@ public sealed class MachineStoreTests
         var ngStopper = loaded.NgConveyorHardware.Outputs[OutputIo.NgConveyorStopperUp];
         Assert.Equal(77, ngStopper.Number);
         Assert.Equal(78, ngStopper.OffNumber);
-        Assert.Equal(87, loaded.NgConveyorHardware.Inputs[InputIo.NgConveyorStopperDown]);
-        Assert.Equal(88, loaded.NgConveyorHardware.Inputs[InputIo.NgConveyorStopperUp]);
+        Assert.Equal(88, loaded.NgConveyorHardware.Inputs[InputIo.NgConveyorStopperDown]);
+        Assert.Equal(87, loaded.NgConveyorHardware.Inputs[InputIo.NgConveyorStopperUp]);
         Assert.Equal(InputIo.NgConveyorStopperUp, ngStopper.Feedback!.OnInput);
         Assert.Equal(InputIo.NgConveyorStopperDown, ngStopper.Feedback.OffInput);
         foreach (var output in new[] { OutputIo.NgCarrierPickupUp, OutputIo.NgCarrierGripperOpen, OutputIo.NgShuttleDown })

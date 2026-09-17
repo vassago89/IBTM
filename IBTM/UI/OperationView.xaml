@@ -11,6 +11,37 @@
     d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
     Background="{StaticResource AppBgBrush}">
     <UserControl.Resources>
+        <DataTemplate x:Key="DoorSensorTemplate" DataType="{x:Type ui:DoorSensorDisplay}">
+            <Border x:Name="DoorCard" Margin="4,0" Padding="10,7" CornerRadius="3"
+                Background="{StaticResource ControlBgBrush}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <DockPanel Margin="0,0,0,4">
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding Input.Address, StringFormat='DI {0}'}"
+                            Foreground="{StaticResource TextMutedBrush}" FontSize="11"/>
+                        <TextBlock Text="{Binding Name}" Foreground="{StaticResource TextSecondaryBrush}"
+                            FontSize="12" FontWeight="SemiBold"/>
+                    </DockPanel>
+                    <TextBlock x:Name="DoorState" Grid.Row="1" Text="UNKNOWN"
+                        Foreground="{StaticResource TextMutedBrush}" FontSize="15" FontWeight="SemiBold"/>
+                </Grid>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Input.IsOn}" Value="True">
+                    <Setter TargetName="DoorState" Property="Text" Value="CLOSED"/>
+                    <Setter TargetName="DoorState" Property="Foreground" Value="{StaticResource AccentGreenBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Input.IsOn}" Value="False">
+                    <Setter TargetName="DoorState" Property="Text" Value="OPEN"/>
+                    <Setter TargetName="DoorState" Property="Foreground" Value="{StaticResource AccentRedBrush}"/>
+                    <Setter TargetName="DoorCard" Property="Background" Value="{StaticResource AlarmStateBackgroundBrush}"/>
+                    <Setter TargetName="DoorCard" Property="BorderBrush" Value="{StaticResource AccentRedBrush}"/>
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
         <Style x:Key="SideLaneStyle" TargetType="Border">
             <Setter Property="BorderBrush" Value="{StaticResource DividerBrush}"/>
             <Setter Property="BorderThickness" Value="0,0,1,0"/>
@@ -53,7 +84,33 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <Viewbox Margin="18,2" Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Center" VerticalAlignment="Top">
+    <Grid Margin="18,8,18,2">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Border Margin="0,0,0,8" Padding="10,8" MaxWidth="1602" HorizontalAlignment="Stretch"
+            Background="{StaticResource PanelBgBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="3">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="136"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="DOOR SENSORS" Foreground="{StaticResource TextPrimaryBrush}" FontSize="13" FontWeight="SemiBold"/>
+                    <TextBlock Text="ON = Closed" Foreground="{StaticResource TextMutedBrush}" FontSize="12" Margin="0,4,0,0"/>
+                </StackPanel>
+                <ItemsControl Grid.Column="1" ItemsSource="{Binding DoorSensors}" ItemTemplate="{StaticResource DoorSensorTemplate}"
+                    ToolTip="Live door contacts: ON = CLOSED, OFF = OPEN. UNKNOWN means feedback is unavailable.">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="6"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </Grid>
+        </Border>
+        <Viewbox Grid.Row="1" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Top">
         <Border Background="{StaticResource EquipBgBrush}" BorderBrush="{StaticResource DividerBrush}" BorderThickness="1" CornerRadius="3"
             ClipToBounds="True">
             <Grid Width="1600">
@@ -192,5 +249,6 @@
                 </Canvas>
             </Grid>
         </Border>
-    </Viewbox>
+        </Viewbox>
+    </Grid>
 </UserControl>

@@ -8,6 +8,8 @@ using IBTM.PcbPlacement;
 
 namespace IBTM.UI;
 
+public sealed record DoorSensorDisplay(string Name, IoInputStatus Input);
+
 public partial class OperationViewModel
 {
     public bool SupplyPositionKnown

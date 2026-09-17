@@ -60,6 +60,14 @@ public partial class OperationViewModel : ObservableObject
     {
         State = state;
         Signals = signals;
+        DoorSensors = [
+            new("DOOR 1", signals.Inputs[InputIo.Door1Open]),
+            new("DOOR 2", signals.Inputs[InputIo.Door2Open]),
+            new("DOOR 3", signals.Inputs[InputIo.Door3Open]),
+            new("DOOR 4", signals.Inputs[InputIo.Door4Open]),
+            new("DOOR 5", signals.Inputs[InputIo.Door5Open]),
+            new("DOOR 6", signals.Inputs[InputIo.Door6Open]),
+        ];
         MainConveyorRun = signals.Outputs[OutputIo.MainConveyorRun];
         NgConveyorRun = signals.Outputs[OutputIo.NgConveyorRun];
         _machine = machine;
@@ -106,6 +114,7 @@ public partial class OperationViewModel : ObservableObject
 
     public MachineState State { get; }
     public IoSignals Signals { get; }
+    public IReadOnlyList<DoorSensorDisplay> DoorSensors { get; }
     public IoOutputStatus MainConveyorRun { get; }
     public IoOutputStatus NgConveyorRun { get; }
     public UnitSettings Units { get; }
