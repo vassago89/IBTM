@@ -16,7 +16,7 @@ public sealed class NgCarrierConveyor : AutoUnit
     private volatile Movement _movement;
     private volatile EjectionPhase _ejectionPhase;
     private bool _repeat;
-    private bool _requiresManualClear;
+    private volatile bool _requiresManualClear;
 
     public bool RequiresManualClear
     {

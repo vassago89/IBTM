@@ -40,7 +40,7 @@ public sealed partial class MachineController
                 + (_units.NgConveyor && _ngConveyor.Position1Occupied ? 1 : 0)
                 + (_units.NgConveyor && _ngConveyor.Position2Occupied ? 1 : 0);
             if (carriers != 1 || _conveyor.ExitCarrierDetected || _ngTransfer.CarrierDetected)
-                throw new InvalidOperationException("Repeat requires one supported carrier with known presence feedback and an empty NG pickup.");
+                throw new InvalidOperationException("Repeat requires one carrier on a support with known presence feedback and an empty NG pickup.");
 
             while (true)
             {

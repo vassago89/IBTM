@@ -265,7 +265,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task SupplyXyExitStopsOnLostPlacementUpAndResumesTowardTheNextPcb()
+    public async Task SupplyXyExitStopsOnLostPlacementUpAndCannotResumeHeldPcb()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
@@ -316,27 +316,12 @@ public sealed partial class MachineLifecycleTests
 
             io.SetInput(InputIo.PcbPlacementHandlerUp, true);
             await machine.ResetAsync();
-            Assert.True(machine.CanStart);
-            using var resumed = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-            void StopAtNextPick(double x, double y, double z)
-            {
-                Assert.Equal(settings.PcbSupply.RotationZ, z);
-                if (Math.Abs(x - 20) <= MotionService.PositionToleranceMillimeters
-                    && Math.Abs(y - settings.PcbSupply.CarrierY) <= MotionService.PositionToleranceMillimeters)
-                    resumed.Cancel();
-            }
-            source.Feedback.PositionChanged += StopAtNextPick;
-            try
-            {
-                await machine.StartAsync(resumed.Token);
-                Assert.Equal((20, settings.PcbSupply.CarrierY, settings.PcbSupply.RotationZ), source.Feedback.GetPosition());
-                Assert.Equal(MachineAlarm.None, state.Alarm);
-                Assert.True(source.PcbReleased);
-            }
-            finally
-            {
-                source.Feedback.PositionChanged -= StopAtNextPick;
-            }
+            Assert.True(machine.RequiresManualClear);
+            Assert.False(machine.CanStart);
+            var stoppedPosition = source.Feedback.GetPosition();
+            await machine.StartAsync();
+            Assert.Equal(stoppedPosition, source.Feedback.GetPosition());
+            Assert.False(source.Feedback.IsMoving);
         }
         finally
         {

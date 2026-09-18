@@ -347,16 +347,16 @@ Supply checks these conditions before retracting each holding actuator. Placemen
 waits for both Supply release endpoints before lifting, then waits for known Supply X
 feedback outside the collision range before moving its axes.
 
-After STOP, an already retracted actuator stays retracted; a remaining release
-requires Placement holding feedback again. If both actuators are retracted,
-Supply can finish its empty exit once Placement Handler Up is confirmed. Supply
+During the current run, each release requires Placement holding feedback.
+After both actuators retract, Supply exits once Placement Handler Up is confirmed. Supply
 horizontal motion with Placement inside the shared area and its cylinder not Up
 is a collision fault. Loss of holding feedback before reaching the
 handoff pose is an error, not permission to release.
 
-An interrupted XY entry resumes at Rotation Z from current axis feedback while
-Placement leaves the path clear. Handoff requires settled X/Y and actual Z at
-Rotation Z. There is no buffer-presence condition or handoff descent.
+STOP does not resume an interrupted XY entry or release. The machine blocks START
+until the operator removes carriers and held parts and presses RESET. Slot progress
+is discarded when the supply run exits. Handoff still requires settled X/Y and actual
+Z at Rotation Z. There is no buffer-presence condition or handoff descent.
 
 After the PCB 1 handoff and unrotation, check PCB 2 on the same carrier.
 After the PCB 2 handoff and unrotation, wait for the next accepted SMEMA carrier and

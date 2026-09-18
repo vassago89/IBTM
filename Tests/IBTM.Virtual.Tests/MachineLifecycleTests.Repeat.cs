@@ -180,7 +180,10 @@ public sealed partial class MachineLifecycleTests
             io.SetInput(InputIo.NgShuttleDown, false);
             io.SetInput(InputIo.NgShuttleCarrierDetected, true);
         }
-        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
+        io.SetInputs(
+            (InputIo.InspectionHeatSink1Present, true),
+            (InputIo.InspectionHeatSink2Present, true));
+        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
         state.RepeatEnabled = true;
         var shuttleOutputs = new ConcurrentQueue<bool>();
         var placedAndReleased = false;
@@ -247,8 +250,10 @@ public sealed partial class MachineLifecycleTests
                 Assert.Equal(new[] { true }, shuttleOutputs.ToArray());
 
                 settings.Units.NgShuttle = true;
-                await WaitUntilAsync(() => state.Display.CanStart);
-                run = machine.StartAsync(timeout.Token);
+                Assert.False(machine.CanStart);
+                await machine.StartAsync(timeout.Token);
+                Assert.Equal(new[] { true }, shuttleOutputs.ToArray());
+                return;
             }
 
             Assert.True(await VirtualTest.WaitUntilAsync(
@@ -375,8 +380,12 @@ public sealed partial class MachineLifecycleTests
             Assert.Contains("one carrier", state.AlarmMessage);
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
 
-            io.SetInput(InputIo.BoltFasteningHeatSink2Present, false);
+            io.SetInputs(
+                (InputIo.PcbPlacementHeatSink2Present, false),
+                (InputIo.BoltFasteningHeatSink2Present, false));
             await machine.ResetAsync();
+            io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
+            await services.GetRequiredService<PcbPlacementWork>().Station.SeatAsync(CancellationToken.None);
             Assert.True(machine.CanStart, machine.StartBlock.ToString());
             run = machine.StartAsync();
             Assert.True(await VirtualTest.WaitUntilAsync(
@@ -408,8 +417,11 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         state.RepeatEnabled = true;
-        // Travel to the NG end with the carrier's heat sinks, then exercise the return.
-        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
+        // Seed real simulated heat sinks before exercising the return interlock.
+        io.SetInputs(
+            (InputIo.InspectionHeatSink1Present, true),
+            (InputIo.InspectionHeatSink2Present, true));
+        await services.GetRequiredService<InspectionWork>().Station.SeatAsync(CancellationToken.None);
         io.SetInput(InputIo.AutoMode, true);
         var returned = false;
         io.OutputChanged += (output, on) =>
@@ -441,7 +453,7 @@ public sealed partial class MachineLifecycleTests
 
     [Fact]
     [Trait("Category", "MachineFlow")]
-    public async Task RepeatStopResumesThePendingReturnAndRejectsUnknownCarrierPosition()
+    public async Task RepeatStopDiscardsReturnPhaseAndBlocksRestart()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
@@ -455,7 +467,7 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
         state.RepeatEnabled = true;
-        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
+        io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
         io.SetInput(InputIo.AutoMode, true);
         var stopOutput = OutputIo.NgConveyorRun;
         void StopOnReverse(OutputIo output, bool on)
@@ -472,43 +484,17 @@ public sealed partial class MachineLifecycleTests
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
             await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(5));
-            await WaitUntilAsync(() => state.Display.RepeatPhase == RepeatPhase.ReturnToShuttle);
+            await WaitUntilAsync(() => state.Display.RepeatPhase == RepeatPhase.Automatic);
             Assert.Equal(MachineAlarm.None, state.Alarm);
-            Assert.True(io.GetInput(InputIo.NgConveyorPosition1Occupied));
+            Assert.True(machine.RequiresManualClear);
+            Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
-
-            // An old destination is not proof that the carrier is still there.
-            io.SetInput(InputIo.NgConveyorPosition1Occupied, false);
-            await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(3));
-            Assert.Equal(MachineAlarm.NgConveyor, state.Alarm);
-            Assert.Contains("known presence", state.AlarmMessage);
+            await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(1));
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
-            io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+            Assert.Equal(0, state.Display.RepeatCycles);
             await machine.ResetAsync();
-            Assert.Equal(MachineAlarm.None, state.Alarm);
-
-            stopOutput = OutputIo.MainConveyorRun;
-            await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(8));
-            Assert.True(state.Display.RepeatPhase == RepeatPhase.ReturnToStart,
-                $"Phase: {state.Display.RepeatPhase}; {state.AlarmDetail}");
-            Assert.Equal(MachineAlarm.None, state.Alarm);
-            Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
-            Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-
-            io.OutputChanged -= StopOnReverse;
-            var resumed = machine.StartAsync(timeout.Token);
-            try
-            {
-                Assert.True(await VirtualTest.WaitUntilAsync(
-                    () => state.Display.RepeatCycles >= 1 || state.IsError, TimeSpan.FromSeconds(8)));
-                Assert.True(state.Alarm == MachineAlarm.None, state.AlarmDetail);
-                Assert.Equal(1, state.Display.RepeatCycles);
-            }
-            finally
-            {
-                machine.Stop();
-                await resumed.WaitAsync(TimeSpan.FromSeconds(3));
-            }
+            Assert.True(machine.RequiresManualClear);
+            Assert.True(state.IsError);
         }
         finally
         {

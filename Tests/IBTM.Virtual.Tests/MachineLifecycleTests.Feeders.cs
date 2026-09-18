@@ -235,7 +235,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task DisabledPickupFeederKeepsLiftInterlockAndResumesWithoutBoltFeedback()
+    public async Task DisabledPickupFeederKeepsLiftInterlockBeforeNewCarrier()
     {
         var settings = FlowSettings();
         settings.Drivers.Bolt = BoltDriver.Io;
@@ -273,8 +273,11 @@ public sealed partial class MachineLifecycleTests
                 Assert.True(gantry.IsAtPickupPosition());
                 Assert.Equal(BoltCylinderState.Down, gantry.PickupHeadPosition);
                 pickups++;
-                settings.Options.TimeoutMilliseconds = 100;
-                io.AutoResponseEnabled = false; // No UP feedback after the empty pickup.
+                if (pickups == 1)
+                {
+                    settings.Options.TimeoutMilliseconds = 100;
+                    io.AutoResponseEnabled = false; // No UP feedback after the empty pickup.
+                }
             }
         };
         try
@@ -292,6 +295,10 @@ public sealed partial class MachineLifecycleTests
 
             settings.Options.TimeoutMilliseconds = 2_000;
             io.AutoResponseEnabled = true;
+            VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+            station.ConfirmManualClear();
+            await gantry.SetVacuumAsync(FasteningHead.Pickup, false, CancellationToken.None);
+            VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
             using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             work.Changed += () =>
             {
@@ -300,7 +307,7 @@ public sealed partial class MachineLifecycleTests
             };
             await station.RunAsync(recipe.BoltFastening, stop.Token);
             Assert.True(work.Completed);
-            Assert.Equal(1, pickups);
+            Assert.Equal(2, pickups);
             Assert.False(gantry.PickupBoltLoaded);
             Assert.Equal(2, starts);
             Assert.Equal(AssemblyResult.Ok, work.Assembly(HeatSinkSlot.HeatSink1).FasteningResult);

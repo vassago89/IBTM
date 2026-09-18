@@ -133,8 +133,8 @@ Automatic transfer selection must be ordered
 from rear to front: Inspection to Rear, Bolt Fastening to Inspection, PCB Placement
 to Bolt Fastening, and Front to PCB Placement. A blocked rear transfer must not block
 a runnable transfer in front of it, and a started transfer must run to its destination
-without being preempted. An active entry or exit boundary sensor is an already-started
-transfer and is resumed before selecting a new station transfer. All four routes use
+without being preempted. An interrupted automatic run requires manual clearing and
+RESET before a new run, even if an entry or exit sensor remains active. All four routes use
 this selection order. `MainConveyorState`
 is derived again from live inputs after each relevant I/O or work-state change; it is
 not a remembered sequence step.
@@ -157,12 +157,10 @@ Stopper is lowered to release its Carrier; a destination Stopper is raised befor
 the belt starts so the arriving Carrier is physically stopped. The destination
 Heat Sink 2 input starts the configured extra belt run to reach the stopper. Only
 after that duration does the belt stop, the Backup Plate rise, and the Stopper return down.
-Stop stops the belt and leaves pneumatic outputs at their current state. If the
-source still detects either heat sink, its completed work remains valid and the
-same transfer can start again. When destination presence changes from absent to present, the
-previous station's process results move with it. The departed station retains those
-results only until its next Carrier arrives. A Carrier stopped between station
-sensors still requires manual recovery because no input identifies its position.
+Stop stops the belt and leaves pneumatic outputs at their current state. A stopped
+transfer cannot start again. During an active transfer, destination arrival transfers
+the source job's results; later input changes after cancellation do not transfer results.
+Pending work remains owned by its original carrier until manual-clear acknowledgement.
 
 Front Available is the receive trigger. After it arrives, PCB Placement raises its
 Stopper and lowers its Backup Plate before Front Ready is asserted and both conveyors
@@ -174,10 +172,11 @@ discharge trigger. Rear wins when it is ready; a blocked Rear does not prevent a
 already-waiting Front carrier from entering. Front Ready and Rear Available are not
 advertised together. Outputs are commands, not state evidence.
 
-After Stop, an active entry sensor resumes the unfinished receive and an active exit
-sensor resumes the unfinished discharge. No transfer phase is persisted. A carrier
-between two point sensors with both inputs off remains intentionally unknown and
-requires manual recovery.
+After an automatic run stops, START is blocked for the whole machine. Remove all carriers
+and held parts, including material between sensors, then press RESET. Empty inputs alone
+do not clear the block. PCB supply, placement, NG conveyor and Repeat route progress do
+not survive the run. Reset restores device readiness and acknowledges manual clearing;
+it never resumes an interrupted sequence or marks unfinished work complete.
 
 The machine has three external SMEMA connections. Front 1 belongs to PCB Supply,
 Front 2 belongs to the main heat sink carrier conveyor, and Rear belongs to the

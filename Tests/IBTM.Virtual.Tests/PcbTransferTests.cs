@@ -590,13 +590,11 @@ public sealed class PcbTransferTests
 
     [Trait("Category", "MachineFlow")]
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(true, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(false, false, true)]
-    public async Task SupplyKeepsCheckedSlotsUntilUpstreamCarrierChanges(
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task SupplySlotProgressDoesNotSurviveTheRun(
         bool secondPcbPresent,
-        bool replaceDuringStop,
         bool stopOnPcbDetection)
     {
         var operations = new OperationCancellation();
@@ -693,14 +691,9 @@ public sealed class PcbTransferTests
         await run.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.True(firstStop.IsCancellationRequested);
         Assert.True(io.GetOutput(OutputIo.PcbSupplyReadyToFront1));
-        // The detected PCB was removed during manual recovery; the upstream carrier stays.
+        // A new component run must start at slot 1 even with unchanged carrier inputs.
         if (stopOnPcbDetection)
             io.SetInput(InputIo.PcbSupplyPcbDetected, false);
-        if (replaceDuringStop)
-        {
-            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
-            io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
-        }
         run = supply.RunAsync(recipe, cancellation.Token);
 
         var checkedBoth = await WaitUntilAsync(
@@ -721,7 +714,7 @@ public sealed class PcbTransferTests
         await run;
 
         Assert.True(checkedBoth);
-        Assert.Equal(replaceDuringStop ? 2 : 1, pcb1Visits);
+        Assert.Equal(2, pcb1Visits);
         Assert.True(atRotationZ);
         Assert.False(readyDroppedBeforeClear);
         Assert.True(nextCarrierAccepted);

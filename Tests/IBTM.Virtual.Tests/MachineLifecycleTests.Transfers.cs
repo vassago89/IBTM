@@ -429,7 +429,7 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task PlacementResumesPressOnlyForTheSameCarrier(bool replaceCarrier)
+    public async Task PlacementPressTracksOnlyTheSameCarrierAndRequiresDownFeedback(bool replaceCarrier)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbPlacement);

@@ -218,7 +218,7 @@ public sealed partial class MachineController
             if (_io.GetInput(input))
                 throw new InvalidOperationException($"Remove the held part at {input} before RESET.");
         }
-        if (_units.PcbSupply && _supplyHandler.UpstreamCarrierAvailable)
+        if (_io.GetInput(InputIo.PcbSupplyAvailableFromFront1))
             throw new InvalidOperationException("Remove the upstream PCB carrier before RESET.");
         if (_conveyor.RunCommandOn || _ngConveyor.RunCommandOn)
             throw new InvalidOperationException("Stop both conveyors before RESET.");

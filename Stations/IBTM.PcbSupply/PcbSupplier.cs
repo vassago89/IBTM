@@ -189,7 +189,7 @@ public sealed class PcbSupplier : AutoUnit
 
         if (_buffer.IsSupplyInside() && pcb != PcbSupplyPcbState.Secured)
         {
-            throw new InvalidOperationException("Supply PCB holding feedback was lost inside the handoff zone. Check both handlers before resuming.");
+            throw new InvalidOperationException("Supply PCB holding feedback was lost inside the handoff zone. Clear both handlers manually before RESET.");
         }
 
         if (pcb == PcbSupplyPcbState.Detected)

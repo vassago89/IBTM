@@ -456,9 +456,7 @@ public sealed class IoStartupTests
         inputs.SetInput(InputIo.NgConveyorPosition1Occupied, true);
         io.SetOutput(OutputIo.NgShuttleDown, false);
         state.RepeatEnabled = true;
-        // Resume the selected return phase directly; this test does not run a full route.
-        typeof(MachineController).GetField("_repeatPhase", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .SetValue(machine, RepeatPhase.ReturnToShuttle);
+        // The carrier is already at the forward route's endpoint.
         Assert.True(machine.CanStart, machine.StartBlock.ToString());
         var returning = false;
         var runFailure = new IOException("Shuttle lowering failed during repeat return.");

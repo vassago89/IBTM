@@ -168,7 +168,7 @@ public sealed class InspectionTests
 
     [Trait("Category", "MachineFlow")]
     [Fact]
-    public async Task InspectionUsesCurrentCarrierSensorsAndRestartsIncompleteWork()
+    public async Task InspectionUsesCurrentCarrierSensorsAndPreservesOwnedResults()
     {
         var io = new VirtualIoService(
             new NgCarrierTransferHardwareSettings().Outputs,
@@ -299,7 +299,8 @@ public sealed class InspectionTests
         var run = station.RunAsync(bolts, cancellation.Token);
         Assert.True(await WaitUntilAsync(() => work.Completed, TimeSpan.FromSeconds(2)));
 
-        Assert.Empty(work.Assembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
+        Assert.Single(work.Assembly(HeatSinkSlot.HeatSink1).BoltPresenceResults);
+        Assert.Equal(firstBarcode, work.Assembly(HeatSinkSlot.HeatSink1).PcbBarcode);
         Assert.Equal(2, work.Assembly(HeatSinkSlot.HeatSink2).BoltPresenceResults.Count);
         Assert.Equal(AssemblyResult.Ok, work.Assembly(HeatSinkSlot.HeatSink2).InspectionResult);
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
