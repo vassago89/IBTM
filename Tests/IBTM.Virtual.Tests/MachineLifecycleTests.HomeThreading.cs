@@ -2,6 +2,8 @@ using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -38,6 +40,7 @@ public sealed partial class MachineLifecycleTests
                     await machine.InitializeAsync();
                     try
                     {
+                        var uiThread = Environment.CurrentManagedThreadId;
                         IAsyncRelayCommand command;
                         if (teachingHome)
                         {
@@ -54,6 +57,11 @@ public sealed partial class MachineLifecycleTests
                         }
 
                         await WaitUntilAsync(() => command.CanExecute(null));
+                        var button = new Button();
+                        button.SetBinding(Button.CommandProperty, new Binding { Source = command });
+                        Assert.True(button.IsEnabled);
+                        feedback.BeforeRead = () => Assert.NotEqual(uiThread, Environment.CurrentManagedThreadId);
+                        feedback.BeforePositionRead = feedback.BeforeRead;
                         feedback.BeforeHome = () =>
                         {
                             entered.TrySetResult(Environment.CurrentManagedThreadId);
@@ -65,12 +73,16 @@ public sealed partial class MachineLifecycleTests
                         var hardwareThread = await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
                         Assert.NotEqual(Environment.CurrentManagedThreadId, hardwareThread);
                         Assert.False(homing.IsCompleted);
+                        command.NotifyCanExecuteChanged();
+                        Assert.False(button.IsEnabled);
                         var responded = false;
                         await dispatcher.InvokeAsync(() => responded = true, DispatcherPriority.Input);
                         Assert.True(responded);
 
                         release.Set();
                         await homing.WaitAsync(TimeSpan.FromSeconds(2));
+                        feedback.BeforeRead = null;
+                        feedback.BeforePositionRead = null;
                         Assert.True(feedback.Motion.GetAxisState(MotionAxis.X).Homed);
                         Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
                     }
@@ -78,6 +90,8 @@ public sealed partial class MachineLifecycleTests
                     {
                         release.Set();
                         feedback.BeforeHome = null;
+                        feedback.BeforeRead = null;
+                        feedback.BeforePositionRead = null;
                         await homing;
                         await machine.ShutdownAsync();
                     }

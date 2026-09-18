@@ -3,6 +3,19 @@
 기준: 2026-09-18. 사용자 확정 동작을 코드에 반영한 기록이다.
 Virtual 검증과 실장비 검증은 구분한다.
 
+## 코드 위치
+
+- `Stations/IBTM.Conveyor/MainConveyor.cs`: 실행 수명, 취소·정지와 출력 정리, 외부 입력.
+- `Stations/IBTM.Conveyor/MainConveyor.Sequence.cs`: 현재 상태 판단, 이송 우선순위, 상태별 실행과 SMEMA.
+- `Stations/IBTM.Conveyor/MainConveyor.Transfer.cs`: 반입·스테이션 간 이송·후방 배출·역방향 복귀.
+  출발지 하강부터 목적지 도착·정지까지는 계속 하나의 비동기 동작이다.
+- `Stations/IBTM.Inspection/InspectionWork.cs`: 현재 캐리어의 검사 요청과 물리 조건.
+- `Stations/IBTM.Inspection/InspectionStation.cs`: 검사·NG 픽업 위치 복귀·NG 이송 실행.
+
+컨베이어 테스트는 `ConveyorTests.cs`의 기동·정지·공통 준비 코드와
+`ConveyorTests.Transfer.cs`, `ConveyorTests.Discharge.cs`, `ConveyorTests.Work.cs`로 나눈다.
+메인·검사 간 순서 검증은 `MachineLifecycleTests.InspectionConveyor.cs`에 둔다.
+
 ## 확정한 물리 동작
 
 **검사는 S3 백업 플레이트 DOWN, 스토퍼 UP, 메인 벨트 정지 상태에서 수행한다.**

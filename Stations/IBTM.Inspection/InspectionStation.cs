@@ -257,12 +257,14 @@ public sealed class InspectionStation : AutoUnit
 
     private InspectionStationState NextInspectionState(BoltTarget? bolt, bool live = true)
     {
-        if (!_work.Enabled || _work.State != InspectionWorkState.ReadyToInspect)
+        var enabled = _work.Enabled;
+        var workState = _work.State;
+        if (!enabled || workState != InspectionWorkState.ReadyToInspect)
         {
-            return WaitAtPickup(
-                _work.Enabled && _work.State == InspectionWorkState.WaitingForConveyor
-                    ? InspectionStationState.WaitingForConveyor : InspectionStationState.Waiting,
-                live);
+            var waiting = enabled && workState == InspectionWorkState.WaitingForConveyor
+                ? InspectionStationState.WaitingForConveyor
+                : InspectionStationState.Waiting;
+            return WaitAtPickup(waiting, live);
         }
 
         if (NextBarcode() is { } pcb)

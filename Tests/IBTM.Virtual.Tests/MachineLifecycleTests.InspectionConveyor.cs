@@ -23,15 +23,9 @@ public sealed partial class MachineLifecycleTests
     [InlineData(true, true)]
     public async Task InspectionParksThenDischargesOrRaisesBeforeOtherTransfers(bool ng, bool rearReady)
     {
-        var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.MainConveyor);
-        settings.Units.Inspection = true;
-        settings.Units.NgCarrierTransfer = ng;
-        settings.Conveyor.CarrierStopDelaySeconds = 0;
-        using var services = CreateServices(settings);
+        using var services = CreateInspectionServices(enableConveyor: true, enableNgTransfer: ng);
         var machine = services.GetRequiredService<MachineController>();
-        var recipe = services.GetRequiredService<Recipe>();
-        PrepareCarrierTeaching(settings, recipe);
+        var machineState = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<InspectionWork>();
         var station = services.GetRequiredService<InspectionStation>();
@@ -50,7 +44,7 @@ public sealed partial class MachineLifecycleTests
 
         var inspected = false;
         var returned = false;
-        var raises = new ConcurrentQueue<bool>();
+        var raises = 0;
         var conveyorSteps = new ConcurrentQueue<string>();
         conveyor.Trace += conveyorSteps.Enqueue;
         var beltStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -79,7 +73,7 @@ public sealed partial class MachineLifecycleTests
             {
                 Assert.True(work.Completed);
                 Assert.True(work.IsTransferAtWaitingPosition());
-                raises.Enqueue(true);
+                Interlocked.Increment(ref raises);
             }
             if (output == OutputIo.NgCarrierPickupDown && on && work.CarrierPresent)
             {
@@ -111,16 +105,16 @@ public sealed partial class MachineLifecycleTests
         {
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => beltStarted.Task.IsCompleted, TimeSpan.FromSeconds(5)),
-                $"State={conveyor.State}; alarm={services.GetRequiredService<MachineState>().AlarmMessage}; "
+                $"State={conveyor.State}; alarm={machineState.AlarmMessage}; "
                     + string.Join(" | ", conveyorSteps));
             if (!ng && rearReady)
             {
-                Assert.Empty(raises);
+                Assert.Equal(0, Volatile.Read(ref raises));
                 Assert.True(discharged.Task.IsCompletedSuccessfully);
             }
             else
             {
-                Assert.Single(raises);
+                Assert.Equal(1, Volatile.Read(ref raises));
                 if (ng)
                 {
                     Assert.True(await VirtualTest.WaitUntilAsync(
@@ -134,11 +128,11 @@ public sealed partial class MachineLifecycleTests
                         () => discharged.Task.IsCompleted, TimeSpan.FromSeconds(5)),
                         $"State={conveyor.State}; completed={work.Completed}; seated={work.CarrierSeated}; "
                             + $"parked={work.IsTransferAtWaitingPosition()}; ready={conveyor.DownstreamReady}; "
-                            + $"alarm={services.GetRequiredService<MachineState>().AlarmMessage}; "
+                            + $"alarm={machineState.AlarmMessage}; "
                             + string.Join(" | ", conveyorSteps));
                 }
             }
-            Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
+            Assert.Equal(MachineAlarm.None, machineState.Alarm);
         }
         finally
         {
@@ -153,14 +147,9 @@ public sealed partial class MachineLifecycleTests
     [InlineData(true)]
     public async Task InspectionArrivalYieldsToStation2RefillAndFrontReceiving(bool carrierWaitingAtS1)
     {
-        var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.MainConveyor);
-        settings.Units.Inspection = true;
-        settings.Conveyor.CarrierStopDelaySeconds = 0;
-        using var services = CreateServices(settings);
+        using var services = CreateInspectionServices(enableConveyor: true);
         var machine = services.GetRequiredService<MachineController>();
-        var recipe = services.GetRequiredService<Recipe>();
-        PrepareCarrierTeaching(settings, recipe);
+        var machineState = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
         var conveyor = services.GetRequiredService<MainConveyor>();
         var inspection = services.GetRequiredService<InspectionStation>();
@@ -182,6 +171,19 @@ public sealed partial class MachineLifecycleTests
         }
         io.SetInput(InputIo.MainConveyorAvailableFromFront2, true);
 
+        var expectedMoves = carrierWaitingAtS1
+            ? new[]
+            {
+                MainConveyorState.MovingBoltFasteningToInspection,
+                MainConveyorState.MovingPcbPlacementToBoltFastening,
+                MainConveyorState.ReceivingFrontCarrier,
+            }
+            : new[]
+            {
+                MainConveyorState.MovingBoltFasteningToInspection,
+                MainConveyorState.ReceivingFrontCarrier,
+                MainConveyorState.MovingPcbPlacementToBoltFastening,
+            };
         var moves = new ConcurrentQueue<MainConveyorState>();
         var trace = new ConcurrentQueue<string>();
         conveyor.Trace += trace.Enqueue;
@@ -200,12 +202,7 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(arrivingJob.Id, work.CurrentJob.Id);
             Assert.Equal("S2-CARRIER", work.Assembly(HeatSinkSlot.HeatSink2).PcbBarcode);
             Assert.Equal(new[] { true, false }, plateMovesBeforeInspection);
-            Assert.Equal(carrierWaitingAtS1
-                ? new[] { MainConveyorState.MovingBoltFasteningToInspection,
-                    MainConveyorState.MovingPcbPlacementToBoltFastening, MainConveyorState.ReceivingFrontCarrier }
-                : new[] { MainConveyorState.MovingBoltFasteningToInspection,
-                    MainConveyorState.ReceivingFrontCarrier, MainConveyorState.MovingPcbPlacementToBoltFastening },
-                moves);
+            Assert.Equal(expectedMoves, moves);
             inspected = true;
         };
         io.OutputChanged += (output, on) =>
@@ -234,9 +231,9 @@ public sealed partial class MachineLifecycleTests
         {
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => work.Completed, TimeSpan.FromSeconds(8)),
-                $"Alarm={services.GetRequiredService<MachineState>().AlarmMessage}; " + string.Join(" | ", trace));
+                $"Alarm={machineState.AlarmMessage}; " + string.Join(" | ", trace));
             Assert.True(inspected);
-            Assert.Equal(MachineAlarm.None, services.GetRequiredService<MachineState>().Alarm);
+            Assert.Equal(MachineAlarm.None, machineState.Alarm);
         }
         finally
         {
@@ -250,12 +247,9 @@ public sealed partial class MachineLifecycleTests
     [Fact]
     public async Task InspectionParksWhileIdleAndRejectsResultsIfConveyorStarts()
     {
-        var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.Inspection);
-        using var services = CreateServices(settings);
+        using var services = CreateInspectionServices(enableConveyor: false);
         var machine = services.GetRequiredService<MachineController>();
-        var recipe = services.GetRequiredService<Recipe>();
-        PrepareCarrierTeaching(settings, recipe);
+        var bolts = services.GetRequiredService<Recipe>().Pcb.GetBolts().ToArray();
         var io = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<InspectionWork>();
         var station = services.GetRequiredService<InspectionStation>();
@@ -275,12 +269,12 @@ public sealed partial class MachineLifecycleTests
                 interrupted.TrySetResult();
         };
         using var stop = new CancellationTokenSource();
-        var run = station.RunAsync(recipe.Pcb.GetBolts().ToArray(), stop.Token);
+        var run = station.RunAsync(bolts, stop.Token);
         try
         {
             Assert.True(await VirtualTest.WaitUntilAsync(
                 () => work.IsTransferAtWaitingPosition(), TimeSpan.FromSeconds(2)));
-            Assert.Equal(InspectionStationState.Waiting, station.State(recipe.Pcb.GetBolts().ToArray()));
+            Assert.Equal(InspectionStationState.Waiting, station.State(bolts));
             io.SetInput(InputIo.InspectionHeatSink1Present, true);
             var assembly = work.Assembly(HeatSinkSlot.HeatSink1);
             assembly.RecordBarcode("PCB-1");
@@ -296,5 +290,17 @@ public sealed partial class MachineLifecycleTests
             await run.WaitAsync(TimeSpan.FromSeconds(2));
             await machine.ShutdownAsync();
         }
+    }
+
+    private static ServiceProvider CreateInspectionServices(bool enableConveyor, bool enableNgTransfer = false)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        settings.Units.MainConveyor = enableConveyor;
+        settings.Units.NgCarrierTransfer = enableNgTransfer;
+        settings.Conveyor.CarrierStopDelaySeconds = 0;
+        var services = CreateServices(settings);
+        PrepareCarrierTeaching(settings, services.GetRequiredService<Recipe>());
+        return services;
     }
 }

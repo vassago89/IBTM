@@ -6,5 +6,7 @@
     <Configurations>Debug;Release;Virtual</Configurations>
     <Deterministic>true</Deterministic>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Offline equipment PCs cannot fetch vulnerability data; keep the failure visible as a warning. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900</WarningsNotAsErrors>
   </PropertyGroup>
 </Project>
