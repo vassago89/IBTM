@@ -36,14 +36,6 @@ public sealed class InspectionGantry
         }
     }
 
-    public bool CanMove
-    {
-        get
-        {
-            return _transfer.IsRaised;
-        }
-    }
-
     public void InitializeMotion()
     {
         _motion.Initialize();
@@ -89,7 +81,7 @@ public sealed class InspectionGantry
 
     public bool CanJog(MotionAxis axis)
     {
-        return axis is MotionAxis.X or MotionAxis.Y && CanMove;
+        return axis is MotionAxis.X or MotionAxis.Y && _transfer.IsRaised;
     }
 
     public Task MoveAxisAsync(
@@ -123,7 +115,7 @@ public sealed class InspectionGantry
     private void EnsureCanMove(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!CanMove)
+        if (!_transfer.IsRaised)
         {
             throw new MotionInterlockException("NG carrier pickup must be raised before inspection XY movement.");
         }

@@ -33,6 +33,7 @@ public partial class TeachingViewModel : TeachingMotionViewModel
     private readonly PcbPlacementHandlerSettings _placementSettings;
     private readonly BoltFasteningSettings _fasteningSettings;
     private readonly NgCarrierTransferSettings _ngTransferSettings;
+    private readonly NgCarrierTransfer _ngTransfer;
     private readonly NgCarrierMove _ngCarrierMove;
     private CancellationTokenSource _recipeImageCancellation = new();
     private Task _recipeImageUpdate = Task.CompletedTask;
@@ -85,6 +86,7 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         PcbPlacementHandlerSettings placementSettings,
         BoltFasteningSettings fasteningSettings,
         NgCarrierTransferSettings ngTransferSettings,
+        NgCarrierTransfer ngTransfer,
         NgCarrierMove ngCarrierMove,
         RecipeEditor recipeEditor,
         MachineStore store,
@@ -108,6 +110,7 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         _placementSettings = placementSettings;
         _fasteningSettings = fasteningSettings;
         _ngTransferSettings = ngTransferSettings;
+        _ngTransfer = ngTransfer;
         _ngCarrierMove = ngCarrierMove;
         RecipeEditor = recipeEditor;
         Preview = new(boltInspector, recipeEditor.Recipe);

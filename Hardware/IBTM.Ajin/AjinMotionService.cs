@@ -13,7 +13,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
 {
     private const uint HomeSuccess = 0x01;
     private const uint HomeSearching = 0x02;
-    private const uint HomeUnknown = 0xFF;
     private const int PositiveLimitBit = 0;
     private const int NegativeLimitBit = 1;
     private const int AlarmBit = 4;
@@ -160,39 +159,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             cancellationToken);
     }
 
-    protected override async Task MoveZToPositiveLimitCoreAsync(
-        double velocity,
-        CancellationToken cancellationToken)
-    {
-        var stopMode = 0U;
-        var positiveLevel = 0U;
-        var negativeLevel = 0U;
-        AjinController.Check(
-            CAXM.AxmSignalGetLimit(_axisZ!.Value, ref stopMode, ref positiveLevel, ref negativeLevel),
-            nameof(CAXM.AxmSignalGetLimit));
-
-        var velocityInUnits = ToUnits(velocity);
-        var acceleration = velocityInUnits / Settings.AccelerationSeconds;
-
-        await RunMoveAsync(
-            () => CAXM.AxmMoveSignalSearch(
-                _axisZ!.Value,
-                velocityInUnits,
-                acceleration,
-                PositiveLimitBit,
-                (int)positiveLevel,
-                (int)stopMode),
-            nameof(CAXM.AxmMoveSignalSearch),
-            [_axisZ.Value],
-            null,
-            cancellationToken);
-
-        if (!GetAxisState(MotionAxis.Z).PositiveLimit)
-        {
-            throw new InvalidOperationException("Z axis stopped before reaching its positive limit.");
-        }
-    }
-
     protected override Task JogCoreAsync(
         MotionAxis axis,
         double velocity,
@@ -317,7 +283,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         {
             try
             {
-                StopAxes(axisNumbers, clearHome: true);
+                StopAxes(axisNumbers);
             }
             catch (Exception exception)
             {
@@ -327,7 +293,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
 
         Exception? failure = null;
         var homed = false;
-        var clearHomeOnFailure = true;
         using (cancellationToken.Register(StopOnCancellation))
         {
             try
@@ -349,7 +314,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                     List<Exception>? homeFailures = null;
                     foreach (var axisNumber in axisNumbers)
                     {
-                        var homeResult = HomeUnknown;
+                        var homeResult = 0U;
                         AjinController.Check(
                             CAXM.AxmHomeGetResult(axisNumber, ref homeResult),
                             $"{nameof(CAXM.AxmHomeGetResult)} (axis={axisNumber})");
@@ -358,8 +323,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                         allHomed = false;
                         if (homeResult != HomeSearching)
                         {
-                            // Preserve the controller's failed result for diagnostics.
-                            clearHomeOnFailure = false;
                             (homeFailures ??= []).Add(new System.IO.IOException(
                                 $"AJIN home failed (axis={axisNumber}): {(AXT_MOTION_HOME_RESULT)homeResult} (0x{homeResult:X2})."));
                         }
@@ -388,7 +351,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             {
                 try
                 {
-                    StopAxes(axisNumbers, clearHome: clearHomeOnFailure);
+                    StopAxes(axisNumbers);
                 }
                 catch (Exception stopFailure)
                 {
@@ -435,9 +398,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         AjinController.Check(
             CAXM.AxmHomeSetMethod(axisNumber, direction, signal, zPhase, clearTime, offset),
             $"{nameof(CAXM.AxmHomeSetMethod)} (axis={axisNumber})");
-        AjinController.Check(
-            CAXM.AxmHomeSetResult(axisNumber, HomeUnknown),
-            $"{nameof(CAXM.AxmHomeSetResult)} (axis={axisNumber})");
         AjinController.Check(
             CAXM.AxmHomeSetVel(
                 axisNumber,
@@ -666,7 +626,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         StopAxes(_axisParameters.Keys);
     }
 
-    private void StopAxes(IEnumerable<int> axes, bool clearHome = false)
+    private void StopAxes(IEnumerable<int> axes)
     {
         List<Exception>? failures = null;
         foreach (var axis in axes)
@@ -678,20 +638,6 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             catch (Exception exception)
             {
                 (failures ??= []).Add(exception);
-            }
-
-            if (clearHome)
-            {
-                try
-                {
-                    AjinController.Check(
-                        CAXM.AxmHomeSetResult(axis, HomeUnknown),
-                        $"{nameof(CAXM.AxmHomeSetResult)} (axis {axis})");
-                }
-                catch (Exception exception)
-                {
-                    (failures ??= []).Add(exception);
-                }
             }
         }
 

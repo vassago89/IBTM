@@ -78,7 +78,7 @@ public sealed partial class MachineController
         if ((group == MotionGroup.InspectionGantry
             || group is null
             && InspectionGantryEnabled)
-            && !_inspectionGantry.CanMove)
+            && !_ngTransfer.IsRaised)
             return HomeBlockReason.NgPickupNotRaised;
 
         return HomeBlockReason.None;
@@ -87,7 +87,6 @@ public sealed partial class MachineController
     internal bool CanHomeAxis(MotionGroup group, MotionAxis axis, bool live = true, bool? running = null)
     {
         return _units.IsMotionEnabled(group)
-            && group != MotionGroup.PcbSupply
             && !(running ?? (live ? _state.IsRunning : _state.Display.IsRunning))
             && AreHomeAxisConditionsReady(group, axis, live);
     }
@@ -121,6 +120,7 @@ public sealed partial class MachineController
                 {
                     var homed = await (group switch
                     {
+                        MotionGroup.PcbSupply => _supplyHandler.HomeAxisAsync(axis, token),
                         MotionGroup.PcbPlacementHandler => _placementHandler.HomeAxisAsync(axis, token),
                         MotionGroup.BoltFastening => _fasteningGantry.HomeAxisAsync(axis, token),
                         MotionGroup.InspectionGantry => _inspectionGantry.HomeAxisAsync(axis, token),
@@ -158,6 +158,12 @@ public sealed partial class MachineController
                     bool homed;
                     switch (group)
                     {
+                        case MotionGroup.PcbSupply:
+                            homed = await _supplyHandler.HomeAxisAsync(MotionAxis.Z, token);
+                            if (homed)
+                                homed = await _supplyHandler.HomeHorizontalAsync(token);
+                            break;
+
                         case MotionGroup.PcbPlacementHandler:
                             homed = await _placementHandler.HomeAxisAsync(MotionAxis.Z, token);
                             if (homed)
@@ -365,7 +371,8 @@ public sealed partial class MachineController
                     _placementHandler.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
                 : Task.CompletedTask,
             _units.PcbSupply
-                ? ObserveHomeStepAsync(_supplyHandler.PrepareHomeAsync(cancellationToken))
+                ? CheckHomeAsync(
+                    _supplyHandler.HomeAxisAsync(MotionAxis.Z, cancellationToken), cancellationToken)
                 : Task.CompletedTask,
             _units.BoltFastening
                 ? CheckHomeAsync(
@@ -380,7 +387,7 @@ public sealed partial class MachineController
                 ? CheckHomeAsync(_placementHandler.HomeHorizontalAsync(cancellationToken), cancellationToken)
                 : Task.CompletedTask,
             _units.PcbSupply
-                ? CheckHomeAsync(_supplyHandler.CompleteHomeAsync(cancellationToken), cancellationToken)
+                ? CheckHomeAsync(_supplyHandler.HomeHorizontalAsync(cancellationToken), cancellationToken)
                 : Task.CompletedTask,
             _units.BoltFastening
                 ? CheckHomeAsync(_fasteningGantry.HomeHorizontalAsync(cancellationToken), cancellationToken)
@@ -396,20 +403,6 @@ public sealed partial class MachineController
         {
             if (!await homing && !cancellationToken.IsCancellationRequested)
                 _state.SetError(MachineAlarm.HomeFailed);
-        }
-        catch (Exception exception)
-        {
-            if (exception is not OperationCanceledException)
-                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.HomeFailed, exception);
-            throw;
-        }
-    }
-
-    private async Task ObserveHomeStepAsync(Task step)
-    {
-        try
-        {
-            await step;
         }
         catch (Exception exception)
         {

@@ -960,7 +960,8 @@ public sealed partial class MachineLifecycleTests
         Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
         Assert.False(state.Homed);
 
-        Assert.False(gantry.CanMove);
+        var transfer = services.GetRequiredService<NgCarrierTransfer>();
+        Assert.False(transfer.IsRaised);
         Assert.True(io.GetOutput(OutputIo.NgCarrierPickupDown));
 
         await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, false);
@@ -971,13 +972,13 @@ public sealed partial class MachineLifecycleTests
         {
             if (moving && state.IsHoming)
             {
-                unsafeMovement |= !gantry.CanMove;
+                unsafeMovement |= !transfer.IsRaised;
             }
         };
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(state.Homed);
         Assert.False(unsafeMovement);
-        Assert.True(gantry.CanMove);
+        Assert.True(transfer.IsRaised);
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
         Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
 

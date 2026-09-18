@@ -360,7 +360,6 @@ public sealed partial class AjinControllerTests
         foreach (var axis in new[] { 9, 10 })
         {
             AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
-            AjinSdk.Results[new(nameof(CAXM.AxmHomeSetResult), Axis: axis, Value: 0xFF)] = 0;
             AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: axis)] = 0;
             AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: axis)] = 0;
         }
@@ -374,6 +373,7 @@ public sealed partial class AjinControllerTests
 
         Assert.Equal(xMethod with { Direction = 1 }, AjinSdk.HomeMethods[9]);
         Assert.Equal(yMethod with { Direction = 0 }, AjinSdk.HomeMethods[10]);
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult));
         foreach (var axis in new[] { 9, 10 })
         {
             Assert.Equal(new double[] { 1000, 3000, 1500, 150, 1000, 1500 }, AjinSdk.HomeVelocities[axis]);
@@ -382,8 +382,6 @@ public sealed partial class AjinControllerTests
                 < Array.IndexOf(operations, nameof(CAXM.AxmHomeSetMethod)));
             Assert.True(Array.IndexOf(operations, nameof(CAXM.AxmHomeSetMethod))
                 < Array.IndexOf(operations, nameof(CAXM.AxmHomeSetStart)));
-            Assert.True(Array.IndexOf(operations, nameof(CAXM.AxmHomeSetResult))
-                < Array.IndexOf(operations, nameof(CAXM.AxmHomeSetVel)));
             Assert.True(Array.IndexOf(operations, nameof(CAXM.AxmHomeSetVel))
                 < Array.IndexOf(operations, nameof(CAXM.AxmHomeSetStart)));
         }
@@ -407,7 +405,6 @@ public sealed partial class AjinControllerTests
         {
             AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 0xFF, ServoOn: 1);
             AjinSdk.HomeMethods[axis] = new(0, 4, 0, 1000, 0);
-            AjinSdk.Results[new(nameof(CAXM.AxmHomeSetResult), Axis: axis, Value: 0xFF)] = 0;
             AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: axis)] = 0;
             AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: axis)] = 0;
         }
@@ -444,7 +441,6 @@ public sealed partial class AjinControllerTests
             controller, new() { Number = 9 }, null, null, new(), new(), operations, null);
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 0xFF, ServoOn: 1);
         AjinSdk.HomeMethods[9] = new(0, 4, 0, 1000, 0);
-        AjinSdk.Results[new(nameof(CAXM.AxmHomeSetResult), Axis: 9, Value: 0xFF)] = 0;
         AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: 9)] = 0;
         AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: 9)] = 0;
         AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 9)] = 0;
@@ -473,7 +469,6 @@ public sealed partial class AjinControllerTests
         AjinSdk.MotionAxes[9] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
         var method = new AjinSdk.HomeMethod(1, 4, 2, 25, 123);
         AjinSdk.HomeMethods[9] = method;
-        AjinSdk.Results[new(nameof(CAXM.AxmHomeSetResult), Axis: 9, Value: 0xFF)] = 0;
         AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: 9)] = 0;
         AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: 9)] = 0;
 
@@ -530,7 +525,6 @@ public sealed partial class AjinControllerTests
         var failedStop = new AjinSdk.Call(nameof(CAXM.AxmMoveSStop), Axis: 9);
         AjinSdk.Results[failedStop] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
         AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 10)] = 0;
-        AjinSdk.Results[new(nameof(CAXM.AxmHomeSetResult), Axis: 9, Value: 0xFF)] = 0;
         AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: 9)] = 0;
         Exception? cancellationFailure = null;
         AjinSdk.BeforeCall = call =>
@@ -581,7 +575,6 @@ public sealed partial class AjinControllerTests
             (uint)AXT_FUNC_RESULT.AXT_RT_MOTION_ERROR_IN_ALARM;
         AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 9)] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
         AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 10)] = 0;
-        AjinSdk.Results[new(nameof(CAXM.AxmHomeSetResult), Axis: 9, Value: 0xFF)] = 0;
         AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: 9)] = 0;
         AjinSdk.BeforeCall = call =>
         {
@@ -625,7 +618,6 @@ public sealed partial class AjinControllerTests
             AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
             AjinSdk.HomeMethods[axis] = new(0, 4, 0, 0, 0);
             AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: axis)] = 0;
-            AjinSdk.Results[new(nameof(CAXM.AxmHomeSetResult), Axis: axis, Value: 0xFF)] = 0;
             AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: axis)] = 0;
             AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: axis)] = 0;
         }

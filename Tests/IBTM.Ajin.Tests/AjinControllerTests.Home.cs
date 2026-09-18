@@ -44,6 +44,7 @@ public sealed partial class AjinControllerTests
         Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
             .Where(call => call.Operation == nameof(CAXM.AxmHomeSetStart)).Select(call => call.Axis!.Value));
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMoveSStop));
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult));
     }
 
     [Theory]
@@ -69,6 +70,7 @@ public sealed partial class AjinControllerTests
         Assert.Contains($"axis={failedAxis}", error.Message);
         Assert.Contains("HOME_ERR_VELOCITY", error.Message);
         Assert.Equal(0x12U, AjinSdk.MotionAxes[failedAxis].HomeResult);
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult));
         Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
             .Where(call => call.Operation == nameof(CAXM.AxmMoveSStop)).Select(call => call.Axis!.Value));
     }
@@ -106,6 +108,7 @@ public sealed partial class AjinControllerTests
 
         var error = await Assert.ThrowsAsync<IOException>(() => motion.HomeHorizontalAsync(1));
         Assert.Contains("AxmHomeSetStart (axis=10)", error.Message);
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult));
         Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
             .Where(call => call.Operation == nameof(CAXM.AxmMoveSStop)).Select(call => call.Axis!.Value));
         Assert.Equal(MotionCommand.None, motion.Command);
@@ -136,11 +139,22 @@ public sealed partial class AjinControllerTests
                 foreach (var axis in new[] { 9, 10 })
                     AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { InMotion = 0 };
             }
+            if (call.Operation == nameof(CAXM.AxmMoveSStop))
+            {
+                var axis = call.Axis!.Value;
+                AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with
+                {
+                    HomeResult = (uint)AXT_MOTION_HOME_RESULT.HOME_ERR_USER_BREAK,
+                };
+            }
         };
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             motion.HomeHorizontalAsync(1, cancellation.Token).WaitAsync(TimeSpan.FromSeconds(2)));
         Assert.True(stopChecks >= 6);
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult));
+        foreach (var axis in new[] { 9, 10 })
+            Assert.Equal((uint)AXT_MOTION_HOME_RESULT.HOME_ERR_USER_BREAK, AjinSdk.MotionAxes[axis].HomeResult);
         Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
             .Where(call => call.Operation == nameof(CAXM.AxmMoveSStop))
             .Select(call => call.Axis!.Value).Distinct());
@@ -164,7 +178,6 @@ public sealed partial class AjinControllerTests
             AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
             AjinSdk.HomeMethods[axis] = new(0, 4, 0, 0, 0);
             AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: axis)] = 0;
-            AjinSdk.Results[new(nameof(CAXM.AxmHomeSetResult), Axis: axis, Value: 0xFF)] = 0;
             AjinSdk.Results[new(nameof(CAXM.AxmHomeSetVel), Axis: axis)] = 0;
             AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: axis)] = 0;
         }

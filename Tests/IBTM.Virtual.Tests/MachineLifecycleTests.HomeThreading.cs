@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -14,6 +15,7 @@ using IBTM.Device;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.UI;
+using IBTM.Virtual;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -32,11 +34,14 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
+        var outputs = new ConcurrentQueue<OutputIo>();
+        services.GetRequiredService<VirtualIoService>().OutputChanged += (output, _) => outputs.Enqueue(output);
         try
         {
             await machine.HomeAsync(default);
 
             Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.Empty(outputs);
             var motions = new[]
             {
                 services.GetRequiredService<PcbPlacementHandler>().Feedback,

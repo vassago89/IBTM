@@ -170,7 +170,9 @@ Home의 허용 조건·차단 이유·실행은 `MachineController.Home.cs`,
 HOME 순서와 추가 이동 제거(2026-09-18):
 
 - 전체 HOME은 `HomeVerticalAxesAsync` → `HomeHorizontalAxesAsync`다.
-  안착·체결은 Z HOME 완료 뒤 X/Y HOME을 수행한다. 티칭 유닛 HOME도 같은 순서다.
+  공급·안착·체결은 Z HOME 완료 뒤 X/Y 동시 HOME을 수행한다. 티칭 유닛 HOME도 같은 순서다.
+  공급기 전용 회전·Z 상한 이동·X→Y→Z 순서와 해당 전용 모션 API를 제거했다.
+  공급기 축별 HOME도 지정 축만 실행하며, HOME은 실린더 출력을 변경하지 않는다.
 - HOME 중 안착의 Handoff / Travel Z, 체결의 Safe Z로 이동하지 않는다.
   전체 HOME 종료 뒤 공급기의 Rotation Z로 이동하던 단계도 제거했다.
 - 단일 축 HOME은 지정한 축만 실행한다. X/Y HOME에서 Z가 미원점이면 오류로 알린다.
@@ -184,7 +186,6 @@ HOME 순서와 추가 이동 제거(2026-09-18):
 
 | 위치 | 기존에 들어 있는 동작 | 이번 처리 |
 | --- | --- | --- |
-| `PcbSupplyHandler.PrepareHomeAsync` / `CompleteHomeAsync` | 회전 → Z 상한 → X HOME → Y HOME → Z HOME | 최초 구현부터 있으나 현재 자료로 원 요청 근거는 확인되지 않음. 공급기의 별도 순서로 유지 |
 | `MotionService.MoveAxisAsync` / `MoveToXYAsync` | X/Y 위치 이동 전에 Z를 운전용 높이로 자동 이동 | HOME 외 운전·티칭 이동에 광범위하게 연결됨. 숨은 선행 동작으로 확인했으며 이번 HOME 변경에서는 유지 |
 
 실린더 상승 피드백·서보·알람·정지 완료 검사는 추가 이동과 별개다.

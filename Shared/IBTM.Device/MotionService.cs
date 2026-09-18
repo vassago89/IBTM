@@ -53,11 +53,6 @@ public interface IAxisMotion : IMotionFeedback
         double velocity,
         CancellationToken cancellationToken = default);
     Task MoveToHorizontalZAsync(CancellationToken cancellationToken = default);
-    Task MoveZToPositiveLimitAsync(double velocity, CancellationToken cancellationToken = default);
-    Task<bool> HomeFromZPositiveLimitAsync(
-        MotionAxis axis,
-        double velocity,
-        CancellationToken cancellationToken = default);
     Task<bool> HomeAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default);
     Task JogAsync(
         MotionAxis axis,
@@ -297,42 +292,6 @@ public abstract class MotionService : IXyMotion
         }
     }
 
-    public async Task MoveZToPositiveLimitAsync(
-        double velocity,
-        CancellationToken cancellationToken = default)
-    {
-        using var operation = Operations.Link(cancellationToken);
-        cancellationToken = operation.Token;
-        ValidateMove(Math.Abs(velocity));
-        EnsureHasZ();
-        EnsureStopped();
-        await MoveZToPositiveLimitCoreAsync(Math.Abs(velocity), cancellationToken);
-    }
-
-    public async Task<bool> HomeFromZPositiveLimitAsync(
-        MotionAxis axis,
-        double velocity,
-        CancellationToken cancellationToken = default)
-    {
-        using var operation = Operations.Link(cancellationToken);
-        cancellationToken = operation.Token;
-        EnsureHasZ();
-        EnsureStopped();
-
-        if (axis is not MotionAxis.X and not MotionAxis.Y || axis == MotionAxis.Y && !HasY)
-        {
-            throw new InvalidOperationException($"This motion group has no horizontal {axis} axis.");
-        }
-
-        ValidateHome(axis, Math.Abs(velocity));
-        if (!GetAxisState(MotionAxis.Z).PositiveLimit)
-        {
-            throw new MotionInterlockException("Z axis must be at its positive limit before horizontal homing.");
-        }
-
-        return await HomeCoreAsync(axis, Math.Abs(velocity), cancellationToken);
-    }
-
     public async Task JogAsync(
         MotionAxis axis,
         double velocity,
@@ -425,10 +384,6 @@ public abstract class MotionService : IXyMotion
     protected abstract Task MoveAxisCoreAsync(
         MotionAxis axis,
         double position,
-        double velocity,
-        CancellationToken cancellationToken);
-
-    protected abstract Task MoveZToPositiveLimitCoreAsync(
         double velocity,
         CancellationToken cancellationToken);
 

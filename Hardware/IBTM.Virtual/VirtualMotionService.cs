@@ -8,7 +8,6 @@ namespace IBTM.Virtual;
 
 public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDiagnostics
 {
-    private readonly double _zPositiveLimitPosition;
     private readonly Func<bool>? _servoPowerOn;
     private static readonly TimeSpan UpdateInterval = TimeSpan.FromMilliseconds(10);
     private static readonly int AxisCount = Enum.GetValues<MotionAxis>().Length;
@@ -18,8 +17,6 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
     private readonly bool[] _homed;
     private readonly bool[] _alarm;
     private OperationCancellation.Operation? _movement;
-    private bool _seekingZPositiveLimit;
-    private bool _zPositiveLimit;
     private double _x;
     private double _y;
     private double _z;
@@ -29,7 +26,6 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
         OperationCancellation operationCancellation,
         bool hasY = true,
         bool hasZ = true,
-        double zPositiveLimitPosition = 100,
         double resolutionMillimeters = 0.001,
         Func<double>? horizontalZ = null,
         Func<bool>? servoPowerOn = null,
@@ -41,7 +37,6 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
             hasZ,
             horizontalZ)
     {
-        _zPositiveLimitPosition = zPositiveLimitPosition;
         _servoPowerOn = servoPowerOn;
         _resolution = axisResolutionMillimeters
             ?? (resolutionMillimeters, resolutionMillimeters, resolutionMillimeters);
@@ -92,21 +87,6 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
         };
     }
 
-    protected override async Task MoveZToPositiveLimitCoreAsync(
-        double velocity,
-        CancellationToken cancellationToken)
-    {
-        _seekingZPositiveLimit = true;
-        try
-        {
-            await SimulateMoveAsync(_x, _y, _zPositiveLimitPosition, velocity, false, cancellationToken);
-        }
-        finally
-        {
-            _seekingZPositiveLimit = false;
-        }
-    }
-
     public override void SetServo(MotionAxis axis, bool on)
     {
         _servoOn[(int)axis] = on;
@@ -143,7 +123,7 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
             InPosition: !IsMoving,
             Emergency: false,
             HomeSensor: GetCoordinate(axis) == 0,
-            PositiveLimit: axis == MotionAxis.Z && _zPositiveLimit,
+            PositiveLimit: false,
             NegativeLimit: false,
             InMotion: IsMoving);
     }
@@ -320,17 +300,6 @@ public sealed class VirtualMotionService : MotionService, IDisposable, IMotionDi
         _x = Quantize(x, _resolution.X);
         _y = Quantize(y, _resolution.Y);
         _z = Quantize(z, _resolution.Z);
-        if (_seekingZPositiveLimit
-            && Math.Abs(_z - _zPositiveLimitPosition) <= _resolution.Z / 2)
-        {
-            _zPositiveLimit = true;
-        }
-        else if (_zPositiveLimit
-            && _z < _zPositiveLimitPosition - _resolution.Z / 2)
-        {
-            _zPositiveLimit = false;
-        }
-
         PublishPositionChanged(_x, _y, _z);
     }
 

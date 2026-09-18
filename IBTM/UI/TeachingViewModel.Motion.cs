@@ -55,7 +55,7 @@ public partial class TeachingViewModel
                 MotionGroup.PcbPlacementHandler when !_placementHandler.HandlerRaised
                     => TeachingMotionHint.RaisePlacementCylinders,
                 MotionGroup.BoltFastening => TeachingMotionHint.BoltAdjustment,
-                MotionGroup.InspectionGantry when !_inspectionGantry.CanMove
+                MotionGroup.InspectionGantry when !_ngTransfer.IsRaised
                     => TeachingMotionHint.RaiseNgPickup,
                 MotionGroup.PcbPlacementHandler when !Motion.IsAtZ(_placementSettings.BufferHandoffPosition.Z)
                     => TeachingMotionHint.SafeZRequired,
@@ -259,7 +259,7 @@ public partial class TeachingViewModel
         {
             MotionGroup.PcbPlacementHandler => _placementHandler.HandlerRaised,
             MotionGroup.BoltFastening => _fasteningGantry.CanMoveHorizontal,
-            MotionGroup.InspectionGantry => _inspectionGantry.CanMove,
+            MotionGroup.InspectionGantry => _ngTransfer.IsRaised,
             _ => false,
         };
     }

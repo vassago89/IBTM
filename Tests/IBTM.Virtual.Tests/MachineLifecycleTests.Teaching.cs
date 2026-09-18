@@ -81,6 +81,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
+    [InlineData(HardwareArea.PcbSupply, MotionGroup.PcbSupply)]
     [InlineData(HardwareArea.PcbPlacementHandler, MotionGroup.PcbPlacementHandler)]
     [InlineData(HardwareArea.BoltFastening, MotionGroup.BoltFastening)]
     public async Task TeachingHomeCompletesZBeforeXYWithoutMovingToTravelHeight(
@@ -88,6 +89,7 @@ public sealed partial class MachineLifecycleTests
         MotionGroup group)
     {
         var settings = FlowSettings();
+        settings.PcbSupply.RotationZ = 8;
         settings.PcbPlacementHandler.BufferHandoffPosition.Z = 8;
         settings.BoltFastening.SafeZ = 8;
         await using var services = CreateServices(settings);
@@ -101,12 +103,15 @@ public sealed partial class MachineLifecycleTests
         var positions = new ConcurrentQueue<(double X, double Y, double Z, bool ZHomed)>();
         motion.PositionChanged += (x, y, z) =>
             positions.Enqueue((x, y, z, motion.GetAxisState(MotionAxis.Z).Homed));
+        var outputs = new ConcurrentQueue<OutputIo>();
+        services.GetRequiredService<VirtualIoService>().OutputChanged += (output, _) => outputs.Enqueue(output);
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = unit;
         await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
 
         await teaching.HomeCommand.ExecuteAsync(null);
 
+        Assert.Empty(outputs);
         var samples = positions.ToArray();
         var firstHorizontal = Array.FindIndex(samples, position => position.X != 10 || position.Y != 7);
         Assert.True(firstHorizontal > 0);
@@ -281,6 +286,8 @@ public sealed partial class MachineLifecycleTests
         var operations = services.GetRequiredService<OperationCancellation>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
+        if (unit == HardwareArea.PcbPlacementHandler)
+            await services.GetRequiredService<PcbPlacementHandler>().MoveToHorizontalZAsync();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         teaching.SelectedTeachingUnit = unit;
         await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));

@@ -386,7 +386,7 @@ public sealed partial class MachineController
         }
         else if (InspectionGantryEnabled
             && _inspectionGantry.Feedback.IsMoving
-            && !_inspectionGantry.CanMove)
+            && !_ngTransfer.IsRaised)
         {
             alarm = MachineAlarm.NgCarrierTransfer;
             interlockDetail = "Inspection/NG horizontal movement requires the pickup Up. "

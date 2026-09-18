@@ -113,17 +113,6 @@ internal static partial class CAXM
         throw new NotSupportedException();
     }
 
-    public static uint AxmMoveSignalSearch(
-        int axis,
-        double velocity,
-        double acceleration,
-        int signal,
-        int edge,
-        int method)
-    {
-        throw new NotSupportedException();
-    }
-
     public static uint AxmMoveSStop(int axis)
     {
         return Command(new(nameof(AxmMoveSStop), Axis: axis));
@@ -133,15 +122,6 @@ internal static partial class CAXM
     {
         value = AjinSdk.MotionAxes[axis].InMotion;
         return AjinSdk.Record(new(nameof(AxmStatusReadInMotion), Axis: axis));
-    }
-
-    public static uint AxmSignalGetLimit(
-        int axis,
-        ref uint stopMode,
-        ref uint positive,
-        ref uint negative)
-    {
-        throw new NotSupportedException();
     }
 
     public static uint AxmHomeGetMethod(

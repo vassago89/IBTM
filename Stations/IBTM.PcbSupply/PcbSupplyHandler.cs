@@ -261,33 +261,15 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
         return _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, closed, cancellationToken);
     }
 
-    public async Task PrepareHomeAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
     {
-        await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, true, cancellationToken);
-        await _motion.MoveZToPositiveLimitAsync(_settings.Motion.ZHome.SearchSpeed, cancellationToken);
+        return await _motion.HomeAsync(axis, _settings.Motion.Home(axis).SearchSpeed, cancellationToken);
     }
 
-    public async Task<bool> CompleteHomeAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> HomeHorizontalAsync(CancellationToken cancellationToken = default)
     {
-        if (!await _motion.HomeFromZPositiveLimitAsync(
-            MotionAxis.X,
+        return await _motion.HomeHorizontalAsync(
             _settings.Motion.HorizontalHome.SearchSpeed,
-            cancellationToken))
-        {
-            return false;
-        }
-
-        if (!await _motion.HomeFromZPositiveLimitAsync(
-            MotionAxis.Y,
-            _settings.Motion.HorizontalHome.SearchSpeed,
-            cancellationToken))
-        {
-            return false;
-        }
-
-        return await _motion.HomeAsync(
-            MotionAxis.Z,
-            _settings.Motion.ZHome.SearchSpeed,
             cancellationToken);
     }
 
