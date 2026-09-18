@@ -111,9 +111,9 @@
                     <Border Margin="-8,-6" Background="{StaticResource MachineGhostBrush}"
                         Tag="{Binding InspectionGantry.Motion.IsMoving}"
                         Style="{StaticResource OverheadBodyStyle}"/>
-                    <Border Tag="{Binding NgCarrierPickupDown}" Style="{StaticResource DownFootprintStyle}"/>
-                    <Border Tag="{Binding NgCarrierGripperClosed}" Style="{StaticResource CarrierPickerLeftJawStyle}"/>
-                    <Border Tag="{Binding NgCarrierGripperClosed}" Style="{StaticResource CarrierPickerRightJawStyle}"/>
+                    <Border Tag="{Binding NgTransfer.Lift}" Style="{StaticResource DownFootprintStyle}"/>
+                    <Border Tag="{Binding NgTransfer.Gripper}" Style="{StaticResource CarrierPickerLeftJawStyle}"/>
+                    <Border Tag="{Binding NgTransfer.Gripper}" Style="{StaticResource CarrierPickerRightJawStyle}"/>
                     <TextBlock Margin="0,5,0,0" VerticalAlignment="Top" Text="NG Pick" Style="{StaticResource EquipmentRoleLabelStyle}"/>
                 </Grid>
                 <Border Width="18" Height="{x:Static ui:MachinePlan.CameraGap}"

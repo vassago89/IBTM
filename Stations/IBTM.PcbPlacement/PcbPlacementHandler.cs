@@ -236,27 +236,10 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
         };
     }
 
-    public bool CanJog(MotionAxis axis, bool live = true)
-    {
-        return axis switch
-        {
-            MotionAxis.X => HandlerRaised && IsAtHorizontalZ(live),
-            MotionAxis.Y => _motion.HasY && HandlerRaised && IsAtHorizontalZ(live),
-            MotionAxis.Z => _motion.HasZ,
-            _ => false,
-        };
-    }
-
-    public void EnsureCanJog(MotionAxis axis, CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (axis is MotionAxis.X or MotionAxis.Y)
-            EnsureCanMoveHorizontal(cancellationToken);
-    }
-
     public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
     {
-        EnsureCanJog(axis, cancellationToken);
+        if (axis is MotionAxis.X or MotionAxis.Y)
+            EnsureCanMoveHorizontal(cancellationToken);
         return _motion.JogAsync(axis, velocity, cancellationToken);
     }
 

@@ -38,7 +38,7 @@ public sealed class InspectionStation : AutoUnit
     public override event Action? Changed;
 
     public InspectionStationState GetState(
-        IReadOnlyList<BoltTarget> bolts,
+        IReadOnlyList<BoltPoint> bolts,
         bool repeat = false,
         bool holdAtShuttle = false,
         bool live = true,
@@ -48,7 +48,7 @@ public sealed class InspectionStation : AutoUnit
             ?? GetNextInspectionState(GetNextBolt(bolts), live);
     }
 
-    public BoltTarget? GetActiveBolt(IReadOnlyList<BoltTarget> bolts)
+    public BoltPoint? GetActiveBolt(IReadOnlyList<BoltPoint> bolts)
     {
         return _work.Enabled
             && _work.State == InspectionWorkState.ReadyToInspect
@@ -57,7 +57,7 @@ public sealed class InspectionStation : AutoUnit
             : null;
     }
 
-    public HeatSinkSlot? GetActivePcb(IReadOnlyList<BoltTarget> bolts)
+    public HeatSinkSlot? GetActivePcb(IReadOnlyList<BoltPoint> bolts)
     {
         return _work.Enabled && _work.State == InspectionWorkState.ReadyToInspect
             ? GetNextBarcode() ?? GetNextBolt(bolts)?.HeatSink
@@ -65,7 +65,7 @@ public sealed class InspectionStation : AutoUnit
     }
 
     public async Task RunAsync(
-        IReadOnlyList<BoltTarget> bolts,
+        IReadOnlyList<BoltPoint> bolts,
         CancellationToken cancellationToken = default,
         bool repeat = false,
         bool holdAtShuttle = false)
@@ -90,7 +90,7 @@ public sealed class InspectionStation : AutoUnit
     }
 
     private async Task ExecuteAsync(
-        IReadOnlyList<BoltTarget> bolts,
+        IReadOnlyList<BoltPoint> bolts,
         bool repeat,
         bool holdAtShuttle,
         CancellationToken cancellationToken)
@@ -181,7 +181,7 @@ public sealed class InspectionStation : AutoUnit
     }
 
     private async Task ExecuteInspectionAsync(
-        IReadOnlyList<BoltTarget> bolts,
+        IReadOnlyList<BoltPoint> bolts,
         CancellationToken cancellationToken)
     {
         var job = _work.CurrentJob;
@@ -266,7 +266,7 @@ public sealed class InspectionStation : AutoUnit
         }
     }
 
-    private InspectionStationState GetNextInspectionState(BoltTarget? bolt, bool live = true)
+    private InspectionStationState GetNextInspectionState(BoltPoint? bolt, bool live = true)
     {
         var enabled = _work.Enabled;
         var workState = _work.State;
@@ -318,7 +318,7 @@ public sealed class InspectionStation : AutoUnit
             .FirstOrDefault();
     }
 
-    private BoltTarget? GetNextBolt(IReadOnlyList<BoltTarget> bolts)
+    private BoltPoint? GetNextBolt(IReadOnlyList<BoltPoint> bolts)
     {
         var targets = _runTargets;
         return bolts.Where(

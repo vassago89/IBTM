@@ -333,36 +333,6 @@ public sealed partial class ConveyorTests
     }
 
     [Fact]
-    public async Task MainConveyorMovesTheRearMostRunnableCarrierFirst()
-    {
-        var virtualIo = CreateIo();
-        IIoService io = virtualIo;
-        _ = new VirtualMachine(virtualIo, []);
-        var conveyor = CreateConveyor(io, placementEnabled: false, boltFasteningEnabled: false);
-        using var cancellation = new CancellationTokenSource();
-
-        io.Initialize();
-        await SetSeatedCarrierAsync(
-            virtualIo,
-            io,
-            InputIo.PcbPlacementHeatSink1Present,
-            OutputIo.PcbPlacementBackupPlateUp);
-        await SetSeatedCarrierAsync(
-            virtualIo,
-            io,
-            InputIo.BoltFasteningHeatSink1Present,
-            OutputIo.BoltFasteningBackupPlateUp);
-        var run = conveyor.RunAsync(cancellation.Token);
-        await io.WaitForInputAsync(InputIo.InspectionHeatSink1Present, true);
-
-        Assert.True(io.GetInput(InputIo.PcbPlacementHeatSink1Present));
-        Assert.False(io.GetInput(InputIo.BoltFasteningHeatSink1Present));
-
-        cancellation.Cancel();
-        await run;
-    }
-
-    [Fact]
     public async Task TransferOwnsSourceLoweringThroughInspectionArrival()
     {
         var io = CreateIo();
@@ -526,14 +496,17 @@ public sealed partial class ConveyorTests
     public async Task CompletedRearCarrierMovesBeforeWaitingInfeed()
     {
         var io = CreateIo();
-        var conveyor = CreateConveyor(io, boltFasteningEnabled: false, inspectionEnabled: false);
+        var conveyor = CreateConveyor(io, placementEnabled: false, boltFasteningEnabled: false, inspectionEnabled: false);
         io.Initialize();
+        await SetSeatedCarrierAsync(
+            io, io, InputIo.PcbPlacementHeatSink1Present, OutputIo.PcbPlacementBackupPlateUp);
         await SetSeatedCarrierAsync(
             io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
         io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
 
         Assert.Equal(MainConveyorState.MovingBoltFasteningToInspection, conveyor.State);
 
+        VirtualTest.SetCarrier(io, InputIo.PcbPlacementHeatSink1Present, false);
         await SetSeatedCarrierAsync(
             io, io, InputIo.InspectionHeatSink1Present, OutputIo.InspectionBackupPlateUp);
         io.SetInput(InputIo.MainConveyorReadyFromRear, true);

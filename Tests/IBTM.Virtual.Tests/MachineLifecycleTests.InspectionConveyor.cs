@@ -249,7 +249,7 @@ public sealed partial class MachineLifecycleTests
     {
         await using var services = CreateInspectionServices(enableConveyor: false);
         var machine = services.GetRequiredService<MachineController>();
-        var bolts = services.GetRequiredService<Recipe>().Pcb.GetBolts().ToArray();
+        var bolts = services.GetRequiredService<Recipe>().Pcb.BoltPoints.ToArray();
         var io = services.GetRequiredService<VirtualIoService>();
         var work = services.GetRequiredService<InspectionWork>();
         var station = services.GetRequiredService<InspectionStation>();

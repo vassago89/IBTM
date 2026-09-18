@@ -29,7 +29,7 @@ public sealed class InspectionGantrySettings : Setting
         ];
     }
 
-    public AxisPosition GetBoltPosition(BoltTarget bolt, CarrierReferenceSettings reference)
+    public AxisPosition GetBoltPosition(BoltPoint bolt, CarrierReferenceSettings reference)
     {
         return CarrierCoordinates.ToMachine(
             new AxisPosition { X = bolt.X!.Value, Y = bolt.Y!.Value, },

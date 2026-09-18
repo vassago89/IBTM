@@ -260,7 +260,7 @@ public sealed partial class MachineLifecycleTests
 
     private static void TeachInspectionFovs(MachineSettings settings, Recipe recipe)
     {
-        recipe.CarrierImages = recipe.Pcb.GetBolts().Select((bolt, index) => new CarrierImageTile
+        recipe.CarrierImages = recipe.Pcb.BoltPoints.Select((bolt, index) => new CarrierImageTile
         {
             Number = index + 1,
             Center = settings.InspectionGantry.GetBoltPosition(bolt, settings.CarrierReference),

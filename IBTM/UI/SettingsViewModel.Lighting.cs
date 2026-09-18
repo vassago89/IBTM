@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -49,7 +50,8 @@ public partial class SettingsViewModel
         OffTestLightCommand.NotifyCanExecuteChanged();
     }
 
-    [RelayCommand(CanExecute = nameof(CanOffTestLight))]
+    public IAsyncRelayCommand OffTestLightCommand { get; }
+
     private async Task OffTestLightAsync()
     {
         if (TestLightCommand.IsRunning)
@@ -107,7 +109,9 @@ public partial class SettingsViewModel
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanTestLight), IncludeCancelCommand = true)]
+    public IAsyncRelayCommand TestLightCommand { get; }
+    public ICommand TestLightCancelCommand { get; }
+
     private async Task TestLightAsync(CancellationToken cancellationToken)
     {
         // MOVS commands have a single channel digit; zero addresses all channels.

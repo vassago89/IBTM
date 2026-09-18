@@ -28,6 +28,10 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
 
     public LogWindowViewModel(ApplicationLog log)
     {
+        ClearCommand = new RelayCommand(Clear);
+        CopyCommand = new RelayCommand(Copy);
+        CopyAllCommand = new RelayCommand(CopyAll);
+
         _log = log;
         // Register on the UI thread before creating the bound collection view.
         BindingOperations.EnableCollectionSynchronization(log.Entries, log.SyncRoot);
@@ -98,7 +102,8 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Text));
     }
 
-    [RelayCommand]
+    public IRelayCommand ClearCommand { get; }
+
     private void Clear()
     {
         _clearedThroughSequence = _log.LatestSequence;
@@ -108,13 +113,15 @@ public partial class LogWindowViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(Text));
     }
 
-    [RelayCommand]
+    public IRelayCommand CopyCommand { get; }
+
     private void Copy()
     {
         CopyText(SelectedText.Length > 0 ? SelectedText : Text);
     }
 
-    [RelayCommand]
+    public IRelayCommand CopyAllCommand { get; }
+
     private void CopyAll()
     {
         CopyText(Text);

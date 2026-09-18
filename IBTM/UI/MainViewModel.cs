@@ -80,6 +80,15 @@ public partial class MainViewModel : ObservableObject
         DiagnosticWindows windows,
         ApplicationLog log)
     {
+        OpenInputsCommand = new RelayCommand(OpenInputs, CanOpenDiagnostic);
+        OpenOutputsCommand = new RelayCommand(OpenOutputs, () => OutputsWindowEnabled);
+        OpenMotionCommand = new RelayCommand(OpenMotion, CanOpenDiagnostic);
+        OpenAdcProtocolCommand = new RelayCommand(OpenAdcProtocol, () => AdcProtocolEnabled);
+        OpenLogsCommand = new RelayCommand(OpenLogs, CanOpenDiagnostic);
+        ResetCommand = new AsyncRelayCommand(
+            ResetAsync, CanReset, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        NavigateCommand = new AsyncRelayCommand<AppPage>(NavigateAsync, CanNavigate);
+
         Operation = operationViewModel;
         _teachingViewModel = teachingViewModel;
         _settingsViewModel = settingsViewModel;
@@ -221,31 +230,36 @@ public partial class MainViewModel : ObservableObject
             RecipeEditor.LoadCommand.Execute(value);
     }
 
-    [RelayCommand(CanExecute = nameof(CanOpenDiagnostic))]
+    public IRelayCommand OpenInputsCommand { get; }
+
     private void OpenInputs()
     {
         _windows.OpenInputs();
     }
 
-    [RelayCommand(CanExecute = nameof(OutputsWindowEnabled))]
+    public IRelayCommand OpenOutputsCommand { get; }
+
     private void OpenOutputs()
     {
         _windows.OpenOutputs();
     }
 
-    [RelayCommand(CanExecute = nameof(CanOpenDiagnostic))]
+    public IRelayCommand OpenMotionCommand { get; }
+
     private void OpenMotion()
     {
         _windows.OpenMotion();
     }
 
-    [RelayCommand(CanExecute = nameof(AdcProtocolEnabled))]
+    public IRelayCommand OpenAdcProtocolCommand { get; }
+
     private void OpenAdcProtocol()
     {
         _windows.OpenAdcProtocol();
     }
 
-    [RelayCommand(CanExecute = nameof(CanOpenDiagnostic))]
+    public IRelayCommand OpenLogsCommand { get; }
+
     private void OpenLogs()
     {
         _windows.OpenLogs();
@@ -309,7 +323,8 @@ public partial class MainViewModel : ObservableObject
             RecipeEditor.ShutdownAsync());
     }
 
-    [RelayCommand(CanExecute = nameof(CanReset), AllowConcurrentExecutions = true)]
+    public IAsyncRelayCommand ResetCommand { get; }
+
     private async Task ResetAsync()
     {
         // Acknowledge even when hardware recovery is blocked; the controller owns admission.
@@ -335,7 +350,8 @@ public partial class MainViewModel : ObservableObject
         return !_shuttingDown;
     }
 
-    [RelayCommand(CanExecute = nameof(CanNavigate))]
+    public IAsyncRelayCommand<AppPage> NavigateCommand { get; }
+
     private async Task NavigateAsync(AppPage page)
     {
         if (page == SelectedPage)

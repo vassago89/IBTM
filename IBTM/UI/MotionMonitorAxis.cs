@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IBTM.Core;
@@ -8,7 +9,7 @@ using IBTM.Device;
 
 namespace IBTM.UI;
 
-public sealed partial class MotionMonitorAxis : ObservableObject
+public sealed class MotionMonitorAxis : ObservableObject
 {
     private readonly MachineController _machine;
     private readonly MachineState _state;
@@ -23,6 +24,10 @@ public sealed partial class MotionMonitorAxis : ObservableObject
         MachineState state,
         UnitSettings units)
     {
+        ToggleServoCommand = new RelayCommand(ToggleServo, CanToggleServo);
+        HomeCommand = new AsyncRelayCommand(HomeAsync, CanHome);
+        HomeCancelCommand = HomeCommand.CreateCancelCommand();
+
         _machine = machine;
         _state = state;
         _units = units;
@@ -54,7 +59,8 @@ public sealed partial class MotionMonitorAxis : ObservableObject
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanToggleServo))]
+    public IRelayCommand ToggleServoCommand { get; }
+
     private void ToggleServo()
     {
         _machine.ToggleServo(Group, Axis);
@@ -66,17 +72,17 @@ public sealed partial class MotionMonitorAxis : ObservableObject
             && _machine.CanSetServo(Group, live: false);
     }
 
-    [RelayCommand(CanExecute = nameof(CanHome), IncludeCancelCommand = true)]
+    public IAsyncRelayCommand HomeCommand { get; }
+    public ICommand HomeCancelCommand { get; }
+
     private async Task HomeAsync(CancellationToken cancellationToken)
     {
-        await _machine.HomeAxisAsync(Group, Axis, cancellationToken);
+        await _machine.HomeAsync(Group, cancellationToken, Axis);
     }
 
     private bool CanHome()
     {
-        return Enabled
-            && _state.Display.Available
-            && _state.Display.HomeableAxes.Contains((Group, Axis));
+        return _state.Display.HomeableAxes.Contains((Group, Axis));
     }
 
     internal bool Refresh()

@@ -87,22 +87,27 @@ public partial class TeachingViewModel
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanMeasureImage))]
-    private void MeasureImage(ImageRuler ruler)
+    public IRelayCommand<ImageRuler> MeasureImageCommand { get; }
+
+    private void MeasureImage(ImageRuler? ruler)
     {
-        if (ruler.PixelLength >= 1)
+        if (ruler is { PixelLength: >= 1 })
             Ruler = ruler;
     }
 
-    private bool CanMeasureImage(ImageRuler ruler)
+    private bool CanMeasureImage(ImageRuler? ruler)
     {
-        if (!IsInspectionSelected || !IsMeasuring || SelectedFov is not { } fov)
+        if (ruler is null
+            || !IsInspectionSelected
+            || !IsMeasuring
+            || SelectedFov is not { } fov)
             return false;
         var bounds = new Rect(0, 0, fov.Image.PixelWidth, fov.Image.PixelHeight);
         return bounds.Contains(ruler.Start) && bounds.Contains(ruler.End);
     }
 
-    [RelayCommand(CanExecute = nameof(CanApplyRulerResolution))]
+    public IAsyncRelayCommand ApplyRulerResolutionCommand { get; }
+
     private async Task ApplyRulerResolutionAsync(CancellationToken cancellationToken)
     {
         var resolution = RulerResolution!.Value;
@@ -165,7 +170,7 @@ public partial class TeachingViewModel
 
     private bool CanApplyRulerResolution()
     {
-        return CanEditInspectionRecipe && IsInspectionSelected && IsMeasuring
+        return CanEditTeaching && IsInspectionSelected && IsMeasuring
             && SelectedFov is not null && RulerResolution is not null
             && RecipeEditor.CanSave && CarrierImages.Count == RecipeEditor.Recipe.CarrierImages.Count;
     }
@@ -263,7 +268,8 @@ public partial class TeachingViewModel
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanReadDataMatrix))]
+    public IAsyncRelayCommand ReadDataMatrixCommand { get; }
+
     private async Task ReadDataMatrixAsync(CancellationToken cancellationToken)
     {
         var fov = SelectedFov!;
@@ -313,7 +319,8 @@ public partial class TeachingViewModel
             && bounds.Bottom <= fov.Image.PixelHeight;
     }
 
-    [RelayCommand(CanExecute = nameof(CanDrawFovRegion))]
+    public IAsyncRelayCommand<Rect> DrawFovRegionCommand { get; }
+
     private async Task DrawFovRegionAsync(Rect bounds)
     {
         FovRegion = bounds;
@@ -323,14 +330,15 @@ public partial class TeachingViewModel
 
     private bool CanDrawFovRegion(Rect bounds)
     {
-        return CanEditInspectionRecipe
+        return CanEditTeaching
             && !IsMeasuring
             && RecipeEditor.CanSave
             && SelectedFov is not null
             && (bounds.IsEmpty || bounds.Width >= 1 && bounds.Height >= 1);
     }
 
-    [RelayCommand(CanExecute = nameof(CanTeachFovRegion))]
+    public IAsyncRelayCommand<Rect> TeachFovRegionCommand { get; }
+
     private async Task TeachFovRegionAsync(Rect bounds)
     {
         var fov = SelectedFov!;
@@ -357,8 +365,8 @@ public partial class TeachingViewModel
             if (bolt is not null)
             {
                 var position = GetBoltCoordinates(fov, region, MillimetersPerPixel);
-                bolt.Point.X = position?.X;
-                bolt.Point.Y = position?.Y;
+                bolt.X = position?.X;
+                bolt.Y = position?.Y;
             }
 
             foreach (var tile in RecipeEditor.Recipe.CarrierImages)
@@ -399,7 +407,7 @@ public partial class TeachingViewModel
 
     private bool CanTeachFovRegion(Rect bounds)
     {
-        return CanEditInspectionRecipe
+        return CanEditTeaching
             && !IsMeasuring
             && RecipeEditor.CanSave
             && SelectedFov is not null
@@ -423,7 +431,8 @@ public partial class TeachingViewModel
             new AxisPosition { X = x, Y = y }, _carrierReference.UpperLeftLocatingPin!);
     }
 
-    [RelayCommand(CanExecute = nameof(CanToggleLiveView))]
+    public IAsyncRelayCommand ToggleLiveViewCommand { get; }
+
     private async Task ToggleLiveViewAsync(CancellationToken cancellationToken)
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
@@ -466,7 +475,8 @@ public partial class TeachingViewModel
             ToggleLiveViewCommand.NotifyCanExecuteChanged();
     }
 
-    [RelayCommand(CanExecute = nameof(CanCaptureCarrierImage))]
+    public IAsyncRelayCommand CaptureCarrierImageCommand { get; }
+
     private async Task CaptureCarrierImageAsync(CancellationToken cancellationToken)
     {
         var commandGroup = ActiveMotionGroup;
@@ -474,7 +484,7 @@ public partial class TeachingViewModel
         var activeToken = cancellationToken;
         try
         {
-            if (!Machine.CanUseManualMotion(commandGroup))
+            if (State.IsRunning)
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
@@ -524,13 +534,15 @@ public partial class TeachingViewModel
     private bool CanCaptureCarrierImage()
     {
         return IsInspectionSelected
-            && Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
+            && !State.Display.IsRunning
+            && Machine.IsManualMotionReady(ActiveMotionGroup, live: false)
             && Motion.Axes.Values.All(axis => axis.State is { InMotion: false, InPosition: true })
             && MillimetersPerPixel > 0
             && RecipeEditor.CanSave;
     }
 
-    [RelayCommand(CanExecute = nameof(CanCaptureInspection))]
+    public IAsyncRelayCommand CaptureInspectionCommand { get; }
+
     private async Task CaptureInspectionAsync(CancellationToken token)
     {
         SelectedCameraTab = 0;
@@ -539,7 +551,7 @@ public partial class TeachingViewModel
         var activeToken = token;
         try
         {
-            if (!Machine.CanUseManualMotion(commandGroup))
+            if (State.IsRunning)
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
@@ -550,6 +562,7 @@ public partial class TeachingViewModel
             activeToken = operation.Token;
             operation.Token.ThrowIfCancellationRequested();
             await StopCameraLiveAsync();
+            operation.Token.ThrowIfCancellationRequested();
             CameraError = null;
             var pcb = SelectedBarcode;
             var bolt = SelectedPoint!.Position.Bolt;
@@ -585,7 +598,8 @@ public partial class TeachingViewModel
                 : SelectedPoint?.Position.Bolt is { } bolt && Inspector.HasPosition(bolt));
     }
 
-    [RelayCommand(CanExecute = nameof(CanReinspectImage))]
+    public IAsyncRelayCommand ReinspectImageCommand { get; }
+
     private async Task ReinspectImageAsync(CancellationToken token)
     {
         CameraError = null;
@@ -629,7 +643,7 @@ public partial class TeachingViewModel
 
     private bool CanReinspectImage()
     {
-        return CanEditInspectionRecipe
+        return CanEditTeaching
             && (IsBoltSelected || IsDataMatrixSelected)
             && Preview.HasImage && Preview.Region is not null;
     }

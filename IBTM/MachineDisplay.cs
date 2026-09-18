@@ -63,9 +63,9 @@ public sealed record MachineDisplay
     public PcbPlacementState PlacementState { get; init; }
     public HeatSinkSlot? PlacementTarget { get; init; }
     public BoltFasteningState FasteningState { get; init; }
-    public BoltTarget? FasteningBolt { get; init; }
+    public BoltPoint? FasteningBolt { get; init; }
     public InspectionStationState InspectionState { get; init; }
-    public BoltTarget? InspectionBolt { get; init; }
+    public BoltPoint? InspectionBolt { get; init; }
     public HeatSinkSlot? InspectionPcb { get; init; }
     public RepeatPhase RepeatPhase { get; init; }
     public int RepeatCycles { get; init; }

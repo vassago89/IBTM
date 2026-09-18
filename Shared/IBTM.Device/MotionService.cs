@@ -209,9 +209,7 @@ public abstract class MotionService : IXyMotion
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         ValidatePositive(Settings.HorizontalSpeed, nameof(Settings.HorizontalSpeed));
-        ValidatePositive(Settings.ZSpeed, nameof(Settings.ZSpeed));
         EnsureHasY();
-        EnsureHasZ();
         ValidateTarget(MotionAxis.X, x);
         ValidateTarget(MotionAxis.Y, y);
         ValidateTarget(MotionAxis.Z, z);
@@ -286,7 +284,7 @@ public abstract class MotionService : IXyMotion
             throw new MotionInterlockException("Z axis must be homed before moving to its reference.");
         }
 
-        if (!IsAtHorizontalZ)
+        if (Math.Abs(GetPosition().Z - HorizontalZ) > PositionToleranceMillimeters)
         {
             await MoveAsync(MotionAxis.Z, HorizontalZ, Settings.ZSpeed, cancellationToken);
         }
@@ -457,7 +455,7 @@ public abstract class MotionService : IXyMotion
         }
     }
 
-    private static void ValidatePositive(double value, string parameterName)
+    protected static void ValidatePositive(double value, string parameterName)
     {
         if (!double.IsFinite(value) || value <= 0)
             throw new ArgumentOutOfRangeException(parameterName, value, "Value must be positive and finite.");

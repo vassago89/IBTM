@@ -11,10 +11,11 @@ namespace IBTM.Ajin.Tests;
 public sealed partial class AjinControllerTests
 {
     [Fact]
-    public async Task AxisMoveAndJogUseAnyWaveUnitsAndAcceleration()
+    public async Task AxisMoveAndJogUseConfiguredAccelerationWithAnyWaveUnits()
     {
         using var controller = new AjinController(new());
-        var motion = CreateHorizontalHome(controller, hasY: false);
+        var settings = new MotionSettings { AccelerationSeconds = 0.2, DecelerationSeconds = 0.75 };
+        var motion = CreateHorizontalHome(controller, hasY: false, settings: settings);
         using var cancellation = new CancellationTokenSource();
         AjinSdk.Results[new(nameof(CAXM.AxmMovePos), Axis: 9)] = 0;
         AjinSdk.Results[new(nameof(CAXM.AxmMoveVel), Axis: 9)] = 0;
@@ -27,6 +28,8 @@ public sealed partial class AjinControllerTests
         };
 
         await motion.MoveAxisAsync(MotionAxis.X, 2.5, 3);
+        settings.AccelerationSeconds = 0.6;
+        settings.DecelerationSeconds = 0.3;
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             motion.JogAsync(MotionAxis.X, -3, cancellation.Token));
 
@@ -34,13 +37,13 @@ public sealed partial class AjinControllerTests
         var move = AjinSdk.Moves[0];
         Assert.Equal(new double[] { 2500 }, move.Positions);
         Assert.Equal(new double[] { 3000 }, move.Velocities);
-        Assert.Equal(new double[] { 6000 }, move.Accelerations);
-        Assert.Equal(move.Accelerations, move.Decelerations);
+        Assert.Equal(new double[] { 15000 }, move.Accelerations);
+        Assert.Equal(new double[] { 4000 }, move.Decelerations);
         var jog = AjinSdk.Moves[1];
         Assert.Null(jog.Positions);
         Assert.Equal(new double[] { -3000 }, jog.Velocities);
-        Assert.Equal(new double[] { -6000 }, jog.Accelerations);
-        Assert.Equal(jog.Accelerations, jog.Decelerations);
+        Assert.Equal(new double[] { 5000 }, jog.Accelerations);
+        Assert.Equal(new double[] { 10000 }, jog.Decelerations);
         Assert.Single(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMoveSStop));
         Assert.Equal(MotionCommand.None, motion.Command);
     }
@@ -80,6 +83,22 @@ public sealed partial class AjinControllerTests
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmMoveSStop));
         Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
             .Where(call => call.Operation == nameof(CAXM.AxmHomeSetResult)).Select(call => call.Axis!.Value));
+    }
+
+    [Fact]
+    public async Task InvalidAccelerationNeverStartsMotionOrHome()
+    {
+        using var controller = new AjinController(new());
+        var settings = new MotionSettings { AccelerationSeconds = 0 };
+        var motion = CreateHorizontalHome(controller, settings: settings);
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => motion.MoveAxisAsync(MotionAxis.X, 2, 1));
+        settings.HorizontalHome.SearchAccelerationSeconds = 0;
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => motion.HomeHorizontalAsync(1));
+
+        Assert.Empty(AjinSdk.Moves);
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetStart));
+        Assert.Equal(MotionCommand.None, motion.Command);
     }
 
     [Theory]
@@ -180,7 +199,10 @@ public sealed partial class AjinControllerTests
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Axis == 10);
     }
 
-    private static AjinMotionService CreateHorizontalHome(AjinController controller, bool hasY = true)
+    private static AjinMotionService CreateHorizontalHome(
+        AjinController controller,
+        bool hasY = true,
+        MotionSettings? settings = null)
     {
         foreach (var axis in hasY ? new[] { 9, 10 } : new[] { 9 })
         {
@@ -192,6 +214,6 @@ public sealed partial class AjinControllerTests
         }
         return new AjinMotionService(
             controller, new() { Number = 9 }, hasY ? new() { Number = 10 } : null,
-            null, new(), new(), new(), null);
+            null, settings ?? new(), new(), new(), null);
     }
 }

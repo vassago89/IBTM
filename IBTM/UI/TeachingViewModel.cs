@@ -19,7 +19,7 @@ using IBTM.Storage;
 
 namespace IBTM.UI;
 
-public partial class TeachingViewModel : TeachingMotionViewModel
+public partial class TeachingViewModel : ObservableObject
 {
     private readonly PcbSupplyHandler _supplyHandler;
     private readonly PcbSupplySettings _supplySettings;
@@ -41,7 +41,6 @@ public partial class TeachingViewModel : TeachingMotionViewModel
     [NotifyPropertyChangedFor(nameof(IsInspectionSelected))]
     [NotifyPropertyChangedFor(nameof(HandoffSaveVisible))]
     [NotifyPropertyChangedFor(nameof(ActiveMotionGroup))]
-    [NotifyPropertyChangedFor(nameof(ActiveTeachingUnit))]
     [NotifyPropertyChangedFor(nameof(TeachingIoGroups))]
     [NotifyCanExecuteChangedFor(nameof(ToggleLiveViewCommand))]
     [NotifyCanExecuteChangedFor(nameof(CaptureCarrierImageCommand))]
@@ -92,14 +91,39 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         RecipeEditor recipeEditor,
         MachineStore store,
         IReadOnlyDictionary<HardwareArea, IoStatus[]> ioGroups,
-        IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : base(
-            state,
-            machine,
-            operations,
-            store,
-            ioGroups,
-            teachingOutputs)
+        IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs)
     {
+        TeachCurrentPositionCommand = new AsyncRelayCommand(TeachCurrentPositionAsync, CanTeachCurrentPosition);
+        MoveToPointCommand = new AsyncRelayCommand(MoveToPointAsync, CanMoveToPoint);
+        SelectPreviousPointCommand = new RelayCommand(SelectPreviousPoint, CanSelectPreviousPoint);
+        SelectNextPointCommand = new RelayCommand(SelectNextPoint, CanSelectNextPoint);
+        JogCommand = new AsyncRelayCommand<TeachingDirection>(JogAsync, CanMoveDirection);
+        StepCommand = new AsyncRelayCommand<TeachingDirection>(StepAsync, CanStep);
+        JogStopCommand = new RelayCommand(JogStop);
+        HomeCommand = new AsyncRelayCommand(HomeAsync, CanHome);
+        MoveToHorizontalZCommand = new AsyncRelayCommand(MoveToHorizontalZAsync, CanJogZ);
+
+        State = state;
+        Machine = machine;
+        Operations = operations;
+        _store = store;
+        _ioGroups = ioGroups;
+        _teachingOutputs = teachingOutputs;
+
+        MeasureImageCommand = new RelayCommand<ImageRuler>(MeasureImage, CanMeasureImage);
+        ApplyRulerResolutionCommand = new AsyncRelayCommand(ApplyRulerResolutionAsync, CanApplyRulerResolution);
+        ReadDataMatrixCommand = new AsyncRelayCommand(ReadDataMatrixAsync, CanReadDataMatrix);
+        DrawFovRegionCommand = new AsyncRelayCommand<Rect>(DrawFovRegionAsync, CanDrawFovRegion);
+        TeachFovRegionCommand = new AsyncRelayCommand<Rect>(TeachFovRegionAsync, CanTeachFovRegion);
+        ToggleLiveViewCommand = new AsyncRelayCommand(ToggleLiveViewAsync, CanToggleLiveView);
+        CaptureCarrierImageCommand = new AsyncRelayCommand(CaptureCarrierImageAsync, CanCaptureCarrierImage);
+        CaptureInspectionCommand = new AsyncRelayCommand(CaptureInspectionAsync, CanCaptureInspection);
+        ReinspectImageCommand = new AsyncRelayCommand(ReinspectImageAsync, CanReinspectImage);
+        AddBoltPointCommand = new RelayCommand(AddBoltPoint, CanAddBoltPoint);
+        RemoveBoltPointCommand = new RelayCommand(RemoveBoltPoint, CanRemoveBoltPoint);
+        SaveHandoffSetupCommand = new AsyncRelayCommand(SaveHandoffSetupAsync, () => CanEditTeaching);
+        ReturnFromPickupCommand = new AsyncRelayCommand(ReturnFromPickupAsync, CanReturnFromPickup);
+
         _supplyHandler = supplyHandler;
         _supplySettings = supplySettings;
         _bufferSettings = bufferSettings;
@@ -177,14 +201,6 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         }
     }
 
-    protected override IReadOnlyList<TeachingPoint> CurrentPoints
-    {
-        get
-        {
-            return FilteredPoints;
-        }
-    }
-
     public HardwareArea[] TeachingUnits { get; } = [
         HardwareArea.PcbSupply,
         HardwareArea.PcbPlacementHandler,
@@ -211,15 +227,7 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         }
     }
 
-    public bool CanEditInspectionRecipe
-    {
-        get
-        {
-            return CanEditRecipe(live: false);
-        }
-    }
-
-    public override TeachingSaveBehavior SaveBehavior
+    public TeachingSaveBehavior SaveBehavior
     {
         get
         {
@@ -287,11 +295,6 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         }
     }
 
-    private bool CanEditRecipe(bool live = true)
-    {
-        return live ? State.SetupEditingEnabled : State.Display.SetupEditingEnabled;
-    }
-
     partial void OnSelectedPcbChanged(HeatSinkSlot value)
     {
         RefreshTeachingPoints();
@@ -314,7 +317,7 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         NotifyManualTeachingCommands();
     }
 
-    protected override void OnPointTaught(TeachingPoint point)
+    private void OnPointTaught(TeachingPoint point)
     {
         if (point.Position.Target == TeachingTarget.CarrierUpperLeftLocatingPin)
         {
@@ -323,7 +326,8 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanAddBoltPoint))]
+    public IRelayCommand AddBoltPointCommand { get; }
+
     private void AddBoltPoint()
     {
         var draft = SelectedFov?.Metadata is { IsBarcode: false, BoltNumber: null } ? SelectedFov : null;
@@ -350,10 +354,11 @@ public partial class TeachingViewModel : TeachingMotionViewModel
 
     private bool CanAddBoltPoint()
     {
-        return CanEditInspectionRecipe && IsInspectionSelected;
+        return CanEditTeaching && IsInspectionSelected;
     }
 
-    [RelayCommand(CanExecute = nameof(CanRemoveBoltPoint))]
+    public IRelayCommand RemoveBoltPointCommand { get; }
+
     private void RemoveBoltPoint()
     {
         var number = SelectedPoint!.BoltNumber;
@@ -370,7 +375,7 @@ public partial class TeachingViewModel : TeachingMotionViewModel
 
     private bool CanRemoveBoltPoint()
     {
-        return CanEditInspectionRecipe
+        return CanEditTeaching
             && IsInspectionSelected
             && SelectedPoint?.Position.Target == TeachingTarget.BoltReference;
     }
@@ -381,14 +386,17 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         RefreshHandoffPoints();
         RecipeEditor.Refresh();
         RefreshTeachingPoints();
-        ActivatePositionUpdates();
+        PositionUpdatesActive = true;
+        OnPropertyChanged(nameof(Motion));
         ShowRecipeImages();
         NotifyManualTeachingCommands();
     }
 
-    public override void Deactivate()
+    public void Deactivate()
     {
-        base.Deactivate();
+        PositionUpdatesActive = false;
+        // Page/application shutdown must still receive an unconfirmed device stop.
+        CancelTeaching(reportDeviceFailure: false);
         _recipeImageCancellation.Cancel();
         CarrierImages = [];
         Preview.Clear();
@@ -398,6 +406,26 @@ public partial class TeachingViewModel : TeachingMotionViewModel
 
     public async Task ShutdownAsync()
     {
+        IAsyncRelayCommand[] commands = [
+            ToggleLiveViewCommand,
+            JogCommand,
+            HomeCommand,
+            StepCommand,
+            MoveToHorizontalZCommand,
+            MoveToPointCommand,
+            ReturnFromPickupCommand,
+            CaptureCarrierImageCommand,
+            ApplyRulerResolutionCommand,
+            CaptureInspectionCommand,
+            ReinspectImageCommand,
+            ReadDataMatrixCommand,
+            DrawFovRegionCommand,
+            TeachFovRegionCommand,
+            TeachCurrentPositionCommand,
+            SaveHandoffSetupCommand,
+            .. OutputCommands,
+        ];
+        var pending = CommandShutdown.Capture(commands);
         Task deactivated;
         try
         {
@@ -410,26 +438,9 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         }
 
         var commandsStopped = CommandShutdown.CancelAndWaitAsync(
+            commands,
             deactivated,
-            [
-                ToggleLiveViewCommand,
-                JogCommand,
-                HomeCommand,
-                StepCommand,
-                MoveToHorizontalZCommand,
-                MoveToPointCommand,
-                ReturnFromPickupCommand,
-                CaptureCarrierImageCommand,
-                ApplyRulerResolutionCommand,
-                CaptureInspectionCommand,
-                ReinspectImageCommand,
-                ReadDataMatrixCommand,
-                DrawFovRegionCommand,
-                TeachFovRegionCommand,
-                TeachCurrentPositionCommand,
-                SaveHandoffSetupCommand,
-                .. OutputCommands,
-            ]);
+            pending);
         try
         {
             await commandsStopped;
@@ -518,8 +529,11 @@ public partial class TeachingViewModel : TeachingMotionViewModel
                 point => point.Position.Target == TeachingTarget.BoltReference && !point.Position.HasPosition);
     }
 
-    protected override void OnTeachingPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
+    partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
     {
+        CancelTeaching();
+        NotifyPointSelectionCommands();
+        OnPropertyChanged(nameof(SaveBehavior));
         NotifyManualTeachingCommands();
         CaptureInspectionCommand.Cancel();
         ReinspectImageCommand.Cancel();
@@ -601,7 +615,7 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         }
     }
 
-    protected override void RefreshPointPositions()
+    private void RefreshPointPositions()
     {
         foreach (var point in FilteredPoints.Where(point => point.Position.Storage != TeachingStorage.Buffer))
             point.Refresh();
@@ -620,7 +634,8 @@ public partial class TeachingViewModel : TeachingMotionViewModel
             .Select(position => new TeachingPoint(position)).ToArray();
     }
 
-    [RelayCommand(CanExecute = nameof(CanEditTeaching))]
+    public IAsyncRelayCommand SaveHandoffSetupCommand { get; }
+
     private async Task SaveHandoffSetupAsync(CancellationToken cancellationToken)
     {
         var viewToken = ViewCancellation;

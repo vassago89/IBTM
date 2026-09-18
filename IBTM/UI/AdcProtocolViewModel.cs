@@ -82,6 +82,24 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         MachineState state,
         ApplicationLog? log = null)
     {
+        QueueResultCommand = new RelayCommand(QueueResult);
+        ToggleConnectionCommand = new AsyncRelayCommand(ToggleConnectionAsync, CanConnect);
+        SelectPresetCommand = new AsyncRelayCommand(SelectPresetAsync, () => ProtocolEnabled);
+        StartCommand = new AsyncRelayCommand(StartAsync, CanTestBoltHead);
+        StopCommand = new AsyncRelayCommand(
+            StopAsync, CanStop, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        ReverseCommand = new AsyncRelayCommand(ReverseAsync, CanTestBoltHead);
+        ReleaseReverseCommand = new RelayCommand(ReleaseReverse);
+        ResetAlarmCommand = new AsyncRelayCommand(ResetAlarmAsync, () => ProtocolEnabled);
+        ReadResultCommand = new AsyncRelayCommand(ReadResultAsync, () => ProtocolEnabled);
+        ReadDeviceInformationCommand = new AsyncRelayCommand(ReadDeviceInformationAsync, () => ProtocolEnabled);
+        CaptureDeviceInformationCommand = new AsyncRelayCommand(CaptureDeviceInformationAsync, () => ProtocolEnabled);
+        ExecuteRegisterCommand = new AsyncRelayCommand(ExecuteRegisterAsync, () => ProtocolEnabled);
+        ClearLogCommand = new RelayCommand(ClearLog);
+        CopyLogCommand = new RelayCommand(CopyLog);
+        CopyAllLogCommand = new RelayCommand(CopyAllLog);
+        RefreshPortsCommand = new RelayCommand(RefreshPorts, () => PortSelectionEnabled);
+
         _bus = bus;
         _settings = settings;
         _machine = machine;
@@ -182,7 +200,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand]
+    public IRelayCommand QueueResultCommand { get; }
+
     private void QueueResult()
     {
         if (_bus is not VirtualAdcBus virtualBus)
@@ -248,7 +267,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         });
     }
 
-    [RelayCommand(CanExecute = nameof(CanConnect))]
+    public IAsyncRelayCommand ToggleConnectionCommand { get; }
+
     private async Task ToggleConnectionAsync()
     {
         OperationCancellation.Operation? operation = null;
@@ -285,7 +305,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand(CanExecute = nameof(ProtocolEnabled))]
+    public IAsyncRelayCommand SelectPresetCommand { get; }
+
     private async Task SelectPresetAsync()
     {
         OperationCancellation.Operation? operation = null;
@@ -309,7 +330,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanTestBoltHead))]
+    public IAsyncRelayCommand StartCommand { get; }
+
     private async Task StartAsync()
     {
         OperationCancellation.Operation? operation = null;
@@ -318,9 +340,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         {
             operation = BeginCommand(CancellationToken.None);
             _machine.EnsureBoltTestAvailable();
-            _state.SetBoltTestRunning(true);
             try
             {
+                _state.SetBoltTestRunning(true);
                 var head = CreateHead();
                 await head.CheckReadyAsync(operation.Token);
                 ResultMessage = "Fastening...";
@@ -349,7 +371,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanStop), AllowConcurrentExecutions = true)]
+    public IAsyncRelayCommand StopCommand { get; }
+
     private async Task StopAsync()
     {
         if (_operationCancellation is { } cancellation)
@@ -399,7 +422,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
 
 
-    [RelayCommand(CanExecute = nameof(CanTestBoltHead))]
+    public IAsyncRelayCommand ReverseCommand { get; }
+
     private async Task ReverseAsync(CancellationToken cancellationToken)
     {
         OperationCancellation.Operation? operation = null;
@@ -408,9 +432,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         {
             operation = BeginCommand(cancellationToken);
             _machine.EnsureBoltTestAvailable();
-            _state.SetBoltTestRunning(true);
             try
             {
+                _state.SetBoltTestRunning(true);
                 ResultMessage = "Loosening — hold to run; release to stop. No automatic completion judgement.";
                 await CreateHead().RunReverseAsync(operation.Token);
             }
@@ -436,7 +460,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand]
+    public IRelayCommand ReleaseReverseCommand { get; }
+
     private void ReleaseReverse()
     {
         ReverseCommand.Cancel();
@@ -447,7 +472,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         return ProtocolEnabled && _machine.CanTestBoltHead;
     }
 
-    [RelayCommand(CanExecute = nameof(ProtocolEnabled))]
+    public IAsyncRelayCommand ResetAlarmCommand { get; }
+
     private async Task ResetAlarmAsync()
     {
         OperationCancellation.Operation? operation = null;
@@ -470,7 +496,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand(CanExecute = nameof(ProtocolEnabled))]
+    public IAsyncRelayCommand ReadResultCommand { get; }
+
     private async Task ReadResultAsync()
     {
         OperationCancellation.Operation? operation = null;
@@ -494,7 +521,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand(CanExecute = nameof(ProtocolEnabled))]
+    public IAsyncRelayCommand ReadDeviceInformationCommand { get; }
+
     private async Task ReadDeviceInformationAsync()
     {
         OperationCancellation.Operation? operation = null;
@@ -517,7 +545,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand(CanExecute = nameof(ProtocolEnabled))]
+    public IAsyncRelayCommand CaptureDeviceInformationCommand { get; }
+
     private async Task CaptureDeviceInformationAsync()
     {
         OperationCancellation.Operation? operation = null;
@@ -549,7 +578,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand(CanExecute = nameof(ProtocolEnabled))]
+    public IAsyncRelayCommand ExecuteRegisterCommand { get; }
+
     private async Task ExecuteRegisterAsync()
     {
         OperationCancellation.Operation? operation = null;
@@ -592,7 +622,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand]
+    public IRelayCommand ClearLogCommand { get; }
+
     private void ClearLog()
     {
         lock (_frameLogGate)
@@ -616,13 +647,15 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(FrameLogText));
     }
 
-    [RelayCommand]
+    public IRelayCommand CopyLogCommand { get; }
+
     private void CopyLog()
     {
         CopyLogText(SelectedLogText.Length > 0 ? SelectedLogText : FrameLogText);
     }
 
-    [RelayCommand]
+    public IRelayCommand CopyAllLogCommand { get; }
+
     private void CopyAllLog()
     {
         CopyLogText(FrameLogText);
@@ -767,7 +800,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         await CommandShutdown.WaitAsync(operation);
     }
 
-    [RelayCommand(CanExecute = nameof(PortSelectionEnabled))]
+    public IRelayCommand RefreshPortsCommand { get; }
+
     private void RefreshPorts()
     {
         var selected = SelectedPort ?? _settings.PortName;

@@ -36,12 +36,6 @@ public sealed partial class MachineController
         }
     }
 
-    internal bool CanUseManualMotion(MotionGroup group, bool live = true)
-    {
-        return !(live ? _state.IsRunning : _state.Display.IsRunning)
-            && IsManualMotionReady(group, live);
-    }
-
     internal bool IsManualMotionReady(MotionGroup group, bool live = true)
     {
         if (_operations.IsShuttingDown

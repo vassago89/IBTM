@@ -23,7 +23,8 @@ public sealed class AjinController : IDisposable
     public AjinController(AjinSettings settings, ApplicationLog? log = null)
     {
         _log = log;
-        _interruptNumber = GetInterruptNumber(settings.InterruptNumber);
+        ArgumentOutOfRangeException.ThrowIfNegative(settings.InterruptNumber);
+        _interruptNumber = settings.InterruptNumber;
         _inputModules = CaptureModules(
             settings.RtexInputModules,
             nameof(settings.RtexInputModules));
@@ -263,12 +264,6 @@ public sealed class AjinController : IDisposable
         if (modules.Any(module => module < 0))
             throw new ArgumentException("AJIN DIO module numbers must be nonnegative.", name);
         return (int[])modules.Clone();
-    }
-
-    private static int GetInterruptNumber(int value)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(value, nameof(AjinSettings.InterruptNumber));
-        return value;
     }
 
     private static (int Module, int Offset) GetRtexAddress(

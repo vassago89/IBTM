@@ -52,6 +52,13 @@ public partial class SettingsViewModel : ObservableObject
         ILightController light,
         ApplicationLog log)
     {
+        SaveSettingsCommand = new AsyncRelayCommand(SaveSettingsAsync, () => CanEditSettings);
+        LoadVirtualImageCommand = new AsyncRelayCommand<string?>(LoadVirtualImageAsync, _ => CanChangeVirtualImage());
+        ClearVirtualImageCommand = new RelayCommand(ClearVirtualImage, CanClearVirtualImage);
+        OffTestLightCommand = new AsyncRelayCommand(OffTestLightAsync, CanOffTestLight);
+        TestLightCommand = new AsyncRelayCommand(TestLightAsync, CanTestLight);
+        TestLightCancelCommand = TestLightCommand.CreateCancelCommand();
+
         _state = state;
         _store = store;
         _operations = operations;
@@ -214,7 +221,8 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanEditSettings))]
+    public IAsyncRelayCommand SaveSettingsCommand { get; }
+
     private async Task SaveSettingsAsync()
     {
         DatabaseMessage = "Saving settings...";
@@ -256,7 +264,8 @@ public partial class SettingsViewModel : ObservableObject
         OnPropertyChanged(nameof(CanChangeDrivers));
     }
 
-    [RelayCommand(CanExecute = nameof(CanChangeVirtualImage))]
+    public IAsyncRelayCommand<string?> LoadVirtualImageCommand { get; }
+
     private async Task LoadVirtualImageAsync(string? path, CancellationToken cancellationToken)
     {
         if (path is null)
@@ -308,7 +317,8 @@ public partial class SettingsViewModel : ObservableObject
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanClearVirtualImage))]
+    public IRelayCommand ClearVirtualImageCommand { get; }
+
     private void ClearVirtualImage()
     {
         _virtualCamera!.SourceImage = null;
@@ -332,11 +342,7 @@ public partial class SettingsViewModel : ObservableObject
         try
         {
             await CommandShutdown.CancelAndWaitAsync(
-                null,
-                SaveSettingsCommand,
-                LoadVirtualImageCommand,
-                TestLightCommand,
-                OffTestLightCommand);
+                [SaveSettingsCommand, LoadVirtualImageCommand, TestLightCommand, OffTestLightCommand]);
         }
         catch (Exception exception)
         {

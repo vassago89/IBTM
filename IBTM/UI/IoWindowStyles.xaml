@@ -274,7 +274,7 @@
         </DataTemplate.Triggers>
     </DataTemplate>
 
-    <DataTemplate x:Key="IoStatusTemplate" DataType="{x:Type ui:TeachingMotionViewModel}">
+    <DataTemplate x:Key="IoStatusTemplate" DataType="{x:Type ui:TeachingViewModel}">
         <DockPanel LastChildFill="True">
             <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
                 <TextBlock Text="Related I/O" Style="{StaticResource PanelTitleStyle}"/>

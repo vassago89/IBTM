@@ -34,6 +34,10 @@ public partial class RecipeEditor : ObservableObject
         Recipe recipe,
         OperationCancellation operations)
     {
+        SaveCommand = new AsyncRelayCommand(SaveAsync, () => CanSave);
+        LoadCommand = new AsyncRelayCommand<string>(LoadAsync);
+        NewCommand = new RelayCommand(New);
+
         _store = store;
         _selection = selection;
         _recipe = recipe;
@@ -80,7 +84,8 @@ public partial class RecipeEditor : ObservableObject
         return CommandShutdown.WaitAsync(CommandShutdown.Capture(SaveCommand, LoadCommand));
     }
 
-    [RelayCommand(CanExecute = nameof(CanSave))]
+    public IAsyncRelayCommand SaveCommand { get; }
+
     public async Task SaveAsync(CancellationToken cancellationToken = default)
     {
         if (!ValidateName())
@@ -107,12 +112,14 @@ public partial class RecipeEditor : ObservableObject
         }
     }
 
-    [RelayCommand]
-    private async Task LoadAsync(string recipeName)
+    public IAsyncRelayCommand<string> LoadCommand { get; }
+
+    private async Task LoadAsync(string? recipeName)
     {
         Error = null;
         try
         {
+            ArgumentNullException.ThrowIfNull(recipeName);
             using var operation = _operations.Link();
             var loaded = await _store.LoadRecipeAsync(recipeName, operation.Token);
             await _store.Database.SaveSettingsAsync(
@@ -136,7 +143,8 @@ public partial class RecipeEditor : ObservableObject
         }
     }
 
-    [RelayCommand]
+    public IRelayCommand NewCommand { get; }
+
     private void New()
     {
         Error = null;

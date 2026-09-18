@@ -79,7 +79,7 @@
                 Style="{StaticResource EquipmentRoleLabelStyle}"/>
 
             <Border Canvas.Left="{x:Static ui:MachinePlan.FirstPlateLeft}" Canvas.Top="{x:Static ui:MachinePlan.PlateTop}"
-                Tag="{Binding PcbPlacementBackupPlateUp}"
+                Tag="{Binding PcbPlacementWork.Station.BackupPlate}"
                 ToolTip="Placement backup plate" Style="{StaticResource BackupPlateVisualStyle}"/>
             <ui:CarrierView Canvas.Left="{x:Static ui:MachinePlan.PlacementCarrierLeft}" Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}"
                 Panel.ZIndex="2"
@@ -104,10 +104,10 @@
                 </ui:CarrierView.Style>
             </ui:CarrierView>
             <Border Canvas.Left="{x:Static ui:MachinePlan.PlacementStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
-                Tag="{Binding PcbPlacementStopperUp}"
+                Tag="{Binding PcbPlacementWork.Station.Stopper}"
                 ToolTip="Placement stopper" Style="{StaticResource StopperVisualStyle}"/>
             <Border Canvas.Left="{x:Static ui:MachinePlan.FasteningPlateLeft}" Canvas.Top="{x:Static ui:MachinePlan.PlateTop}"
-                Tag="{Binding BoltFasteningBackupPlateUp}"
+                Tag="{Binding BoltFasteningWork.Station.BackupPlate}"
                 ToolTip="Bolt fastening backup plate" Style="{StaticResource BackupPlateVisualStyle}"/>
             <ui:CarrierView Canvas.Left="{x:Static ui:MachinePlan.FasteningCarrierLeft}" Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}"
                 Panel.ZIndex="2"
@@ -131,10 +131,10 @@
                 </ui:CarrierView.Style>
             </ui:CarrierView>
             <Border Canvas.Left="{x:Static ui:MachinePlan.FasteningStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
-                Tag="{Binding BoltFasteningStopperUp}"
+                Tag="{Binding BoltFasteningWork.Station.Stopper}"
                 ToolTip="Bolt fastening stopper" Style="{StaticResource StopperVisualStyle}"/>
             <Border Canvas.Left="{x:Static ui:MachinePlan.InspectionPlateLeft}" Canvas.Top="{x:Static ui:MachinePlan.PlateTop}"
-                Tag="{Binding InspectionBackupPlateUp}"
+                Tag="{Binding InspectionWork.Station.BackupPlate}"
                 ToolTip="Inspection backup plate" Style="{StaticResource BackupPlateVisualStyle}"/>
             <ui:CarrierView x:Name="InspectionCarrier" Canvas.Left="{x:Static ui:MachinePlan.InspectionCarrierLeft}"
                 Canvas.Top="{x:Static ui:MachinePlan.CarrierTop}" Panel.ZIndex="2"
@@ -159,7 +159,7 @@
                 </ui:CarrierView.Style>
             </ui:CarrierView>
             <Border Canvas.Left="{x:Static ui:MachinePlan.InspectionStopperLeft}" Canvas.Top="{x:Static ui:MachinePlan.StopperTop}"
-                Tag="{Binding InspectionStopperUp}"
+                Tag="{Binding InspectionWork.Station.Stopper}"
                 ToolTip="Inspection stopper" Style="{StaticResource StopperVisualStyle}"/>
             <Ellipse Canvas.Left="1368" Canvas.Top="108"
                 Tag="{Binding Signals.Inputs[MainConveyorExitCarrierDetected].IsOn}"

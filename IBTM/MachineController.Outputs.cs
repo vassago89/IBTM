@@ -216,7 +216,7 @@ public sealed partial class MachineController
         return (live ? _state.ManualSetupEnabled : _state.Display.ManualSetupEnabled)
             && IsTeachingOutputInterlockReady(output.Signal, live)
             && (output.Signal != OutputIo.PcbSupplyRotate
-                || CanUseManualMotion(MotionGroup.PcbSupply, live));
+                || IsManualMotionReady(MotionGroup.PcbSupply, live));
     }
 
     private bool IsTeachingOutputInterlockReady(OutputIo signal, bool live)

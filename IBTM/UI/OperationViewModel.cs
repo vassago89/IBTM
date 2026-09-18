@@ -53,6 +53,11 @@ public partial class OperationViewModel : ObservableObject
         BoltFasteningGantry fastening,
         InspectionGantry inspectionGantry)
     {
+        StartCommand = new AsyncRelayCommand(StartAsync);
+        StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+        RaiseCylindersCommand = new AsyncRelayCommand(RaiseCylindersAsync);
+        HomeCommand = new AsyncRelayCommand(HomeAsync);
+
         State = state;
         Signals = signals;
         DoorSensors = [
@@ -226,27 +231,11 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public bool PcbPlacementHandlerDown
-    {
-        get
-        {
-            return Placement.Lift == PlacementCylinderState.Down;
-        }
-    }
-
     public bool PcbPlacementIpmDown
     {
         get
         {
             return Placement.IpmLift == PlacementCylinderState.Down;
-        }
-    }
-
-    public bool PcbSupplyIpmFixed
-    {
-        get
-        {
-            return Supply.IpmFixed;
         }
     }
 
@@ -263,30 +252,6 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return Placement.IpmGripper == PlacementGripperState.Closed;
-        }
-    }
-
-    public bool PcbPlacementStopperUp
-    {
-        get
-        {
-            return PcbPlacementWork.Station.Stopper == StationCylinderState.Up;
-        }
-    }
-
-    public bool PcbPlacementBackupPlateUp
-    {
-        get
-        {
-            return PcbPlacementWork.Station.BackupPlate == StationCylinderState.Up;
-        }
-    }
-
-    public bool PcbSupplyRotated
-    {
-        get
-        {
-            return Supply.Rotation == PcbSupplyRotationState.Rotated;
         }
     }
 
@@ -322,22 +287,6 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public bool BoltFasteningStopperUp
-    {
-        get
-        {
-            return BoltFasteningWork.Station.Stopper == StationCylinderState.Up;
-        }
-    }
-
-    public bool BoltFasteningBackupPlateUp
-    {
-        get
-        {
-            return BoltFasteningWork.Station.BackupPlate == StationCylinderState.Up;
-        }
-    }
-
     public bool InspectionHeatSink1Present
     {
         get
@@ -354,38 +303,6 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public bool InspectionStopperUp
-    {
-        get
-        {
-            return InspectionWork.Station.Stopper == StationCylinderState.Up;
-        }
-    }
-
-    public bool InspectionBackupPlateUp
-    {
-        get
-        {
-            return InspectionWork.Station.BackupPlate == StationCylinderState.Up;
-        }
-    }
-
-    public bool PickupHeadDown
-    {
-        get
-        {
-            return Fastening.PickupHeadPosition == BoltCylinderState.Down;
-        }
-    }
-
-    public bool ShootingHeadDown
-    {
-        get
-        {
-            return Fastening.ShootingHeadPosition == BoltCylinderState.Down;
-        }
-    }
-
     public bool PickupFeederBoltDetected
     {
         get
@@ -399,22 +316,6 @@ public partial class OperationViewModel : ObservableObject
         get
         {
             return _shootingFeeder.State == BoltFeederState.BoltReady;
-        }
-    }
-
-    public bool NgCarrierGripperClosed
-    {
-        get
-        {
-            return NgTransfer.Gripper == NgTransferGripperState.Closed;
-        }
-    }
-
-    public bool NgCarrierPickupDown
-    {
-        get
-        {
-            return NgTransfer.Lift == NgTransferLiftState.Down;
         }
     }
 
@@ -440,7 +341,7 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public BoltTarget? BoltFasteningActiveBolt
+    public BoltPoint? BoltFasteningActiveBolt
     {
         get
         {
@@ -448,7 +349,7 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    public BoltTarget? InspectionActiveBolt
+    public BoltPoint? InspectionActiveBolt
     {
         get
         {
@@ -484,7 +385,23 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return CreateFasteningTargets();
+            if (!Units.BoltFastening || !_map.FasteningDefined)
+                return [];
+
+            var active = BoltFasteningActiveBolt;
+            var targets = new List<BoltTargetView>();
+            foreach (var bolt in _recipe.Pcb.BoltPoints)
+            {
+                if (bolt.X is null || bolt.Y is null
+                    || !Fastening.HasReference(bolt.Head)
+                    || !BoltFasteningWork.Station.IsHeatSinkPresent(bolt.HeatSink))
+                    continue;
+
+                var position = _map.GetFasteningTargetPosition(bolt);
+                var state = bolt == active ? BoltTargetState.Active : GetFasteningTargetState(bolt);
+                targets.Add(new(bolt.Number, bolt.Head, position.X, position.Y, state));
+            }
+            return targets;
         }
     }
 
@@ -492,7 +409,22 @@ public partial class OperationViewModel : ObservableObject
     {
         get
         {
-            return CreateInspectionTargets();
+            if (!Units.Inspection || !_map.InspectionDefined)
+                return [];
+
+            var active = InspectionActiveBolt;
+            var targets = new List<BoltTargetView>();
+            foreach (var bolt in _recipe.Pcb.BoltPoints)
+            {
+                if (bolt.X is null || bolt.Y is null
+                    || !InspectionWork.Station.IsHeatSinkPresent(bolt.HeatSink))
+                    continue;
+
+                var position = _map.GetInspectionTargetPosition(bolt);
+                var state = bolt == active ? BoltTargetState.Active : GetInspectionTargetState(bolt);
+                targets.Add(new(bolt.Number, bolt.Head, position.X, position.Y, state));
+            }
+            return targets;
         }
     }
 
@@ -617,29 +549,28 @@ public partial class OperationViewModel : ObservableObject
     {
         Deactivate();
         return CommandShutdown.CancelAndWaitAsync(
-            null,
-            StopCommand,
-            StartCommand,
-            HomeCommand,
-            RaiseCylindersCommand);
+            [StopCommand, StartCommand, HomeCommand, RaiseCylindersCommand]);
     }
 
-    [RelayCommand]
+    public IAsyncRelayCommand StartCommand { get; }
+
     private async Task StartAsync(CancellationToken cancellationToken)
     {
         await _machine.StartAsync(cancellationToken);
     }
 
-    [RelayCommand(AllowConcurrentExecutions = true)]
+    public IAsyncRelayCommand StopCommand { get; }
+
     private async Task StopAsync()
     {
         try
         {
+            IAsyncRelayCommand[] commands = [StartCommand, RaiseCylindersCommand, HomeCommand];
+            var pending = CommandShutdown.Capture(commands);
             await CommandShutdown.CancelAndWaitAsync(
+                commands,
                 _machine.StopAsync(),
-                StartCommand,
-                RaiseCylindersCommand,
-                HomeCommand);
+                pending);
         }
         catch (Exception exception)
         {
@@ -650,13 +581,15 @@ public partial class OperationViewModel : ObservableObject
         }
     }
 
-    [RelayCommand]
+    public IAsyncRelayCommand RaiseCylindersCommand { get; }
+
     private async Task RaiseCylindersAsync(CancellationToken cancellationToken)
     {
         await _machine.RaiseCylindersAsync(cancellationToken);
     }
 
-    [RelayCommand]
+    public IAsyncRelayCommand HomeCommand { get; }
+
     private async Task HomeAsync(CancellationToken cancellationToken)
     {
         await _machine.HomeAsync(cancellationToken);
@@ -683,61 +616,7 @@ public partial class OperationViewModel : ObservableObject
         return assembly.FasteningResult;
     }
 
-    private IReadOnlyList<BoltTargetView> CreateFasteningTargets()
-    {
-        if (!Units.BoltFastening || !_map.FasteningDefined)
-        {
-            return [];
-        }
-
-        var active = BoltFasteningActiveBolt;
-        return CreateTargets(
-            _recipe.Pcb.GetBolts().Where(bolt => Fastening.HasReference(bolt.Head)),
-            BoltFasteningHeatSink1Present,
-            BoltFasteningHeatSink2Present,
-            _map.GetFasteningTargetPosition,
-            bolt => bolt == active ? BoltTargetState.Active : GetFasteningTargetState(bolt));
-    }
-
-    private IReadOnlyList<BoltTargetView> CreateInspectionTargets()
-    {
-        if (!Units.Inspection || !_map.InspectionDefined)
-        {
-            return [];
-        }
-
-        var active = InspectionActiveBolt;
-        return CreateTargets(
-            _recipe.Pcb.GetBolts().ToArray(),
-            InspectionHeatSink1Present,
-            InspectionHeatSink2Present,
-            _map.GetInspectionTargetPosition,
-            bolt => bolt == active ? BoltTargetState.Active : GetInspectionTargetState(bolt));
-    }
-
-    private IReadOnlyList<BoltTargetView> CreateTargets(
-        IEnumerable<BoltTarget> bolts,
-        bool heatSink1Present,
-        bool heatSink2Present,
-        Func<BoltTarget, (double X, double Y)> position,
-        Func<BoltTarget, BoltTargetState> state)
-    {
-        return bolts.Where(
-            bolt =>
-                bolt.X is not null
-                    && bolt.Y is not null
-                    && ((bolt.HeatSink == HeatSinkSlot.HeatSink1 && heatSink1Present)
-                        || (bolt.HeatSink == HeatSinkSlot.HeatSink2 && heatSink2Present)))
-            .Select(
-                bolt =>
-                {
-                    var target = position(bolt);
-                    return new BoltTargetView(bolt.Number, bolt.Head, target.X, target.Y, state(bolt));
-                })
-            .ToArray();
-    }
-
-    private BoltTargetState GetFasteningTargetState(BoltTarget bolt)
+    private BoltTargetState GetFasteningTargetState(BoltPoint bolt)
     {
         var assembly = BoltFasteningWork.Assemblies.FirstOrDefault(
             item => item.HeatSink == bolt.HeatSink);
@@ -756,7 +635,7 @@ public partial class OperationViewModel : ObservableObject
         return seating == BoltTargetState.Ng || final == BoltTargetState.Ng ? BoltTargetState.Ng : final;
     }
 
-    private BoltTargetState GetInspectionTargetState(BoltTarget bolt)
+    private BoltTargetState GetInspectionTargetState(BoltPoint bolt)
     {
         var assembly = InspectionWork.Assemblies.FirstOrDefault(item => item.HeatSink == bolt.HeatSink);
         if (assembly is null
@@ -770,17 +649,9 @@ public partial class OperationViewModel : ObservableObject
 
     private static BoltTargetState GetResultState(IReadOnlyDictionary<int, BoltResult> results, int number)
     {
-        if (results.TryGetValue(number, out var result))
-        {
-            if (result.Success)
-            {
-                return BoltTargetState.Ok;
-            }
-
-            return BoltTargetState.Ng;
-        }
-
-        return BoltTargetState.Pending;
+        if (!results.TryGetValue(number, out var result))
+            return BoltTargetState.Pending;
+        return result.Success ? BoltTargetState.Ok : BoltTargetState.Ng;
     }
 
     private void OnPcbSupplyMotionChanged(object? _, PropertyChangedEventArgs e)
@@ -877,9 +748,7 @@ public partial class OperationViewModel : ObservableObject
 
         OnPropertyChanged(nameof(PcbSupplyPcbDetected));
         OnPropertyChanged(nameof(PcbSupplyPcbSecured));
-        OnPropertyChanged(nameof(PcbSupplyIpmFixed));
         OnPropertyChanged(nameof(PcbSupplyGripperClosed));
-        OnPropertyChanged(nameof(PcbSupplyRotated));
         OnPropertyChanged(nameof(Supply));
         OnPropertyChanged(nameof(SupplyDisplayState));
     }
@@ -891,12 +760,9 @@ public partial class OperationViewModel : ObservableObject
 
         OnPropertyChanged(nameof(PlacementStatus));
         OnPropertyChanged(nameof(PcbPlacementPcbDetected));
-        OnPropertyChanged(nameof(PcbPlacementHandlerDown));
         OnPropertyChanged(nameof(PcbPlacementIpmDown));
         OnPropertyChanged(nameof(Placement));
         OnPropertyChanged(nameof(PcbPlacementIpmGripperClosed));
-        OnPropertyChanged(nameof(PcbPlacementStopperUp));
-        OnPropertyChanged(nameof(PcbPlacementBackupPlateUp));
         OnPropertyChanged(nameof(Buffer));
         OnPropertyChanged(nameof(PcbPlacementWork));
         OnPropertyChanged(nameof(PcbPlacementHeatSink1Present));
@@ -925,10 +791,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(BoltFasteningWork));
         OnPropertyChanged(nameof(BoltFasteningHeatSink1Present));
         OnPropertyChanged(nameof(BoltFasteningHeatSink2Present));
-        OnPropertyChanged(nameof(BoltFasteningStopperUp));
-        OnPropertyChanged(nameof(BoltFasteningBackupPlateUp));
-        OnPropertyChanged(nameof(PickupHeadDown));
-        OnPropertyChanged(nameof(ShootingHeadDown));
         OnPropertyChanged(nameof(Fastening));
         OnPropertyChanged(nameof(PickupFeederBoltDetected));
         OnPropertyChanged(nameof(ShootingFeederBoltDetected));
@@ -948,8 +810,6 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(InspectionWork));
         OnPropertyChanged(nameof(InspectionHeatSink1Present));
         OnPropertyChanged(nameof(InspectionHeatSink2Present));
-        OnPropertyChanged(nameof(InspectionStopperUp));
-        OnPropertyChanged(nameof(InspectionBackupPlateUp));
         OnPropertyChanged(nameof(InspectionActiveBolt));
         OnPropertyChanged(nameof(InspectionActivePcb));
         OnPropertyChanged(nameof(InspectionPcb1Barcode));
@@ -970,7 +830,5 @@ public partial class OperationViewModel : ObservableObject
         OnPropertyChanged(nameof(NgTransfer));
         OnPropertyChanged(nameof(NgShuttle));
         OnPropertyChanged(nameof(NgConveyor));
-        OnPropertyChanged(nameof(NgCarrierGripperClosed));
-        OnPropertyChanged(nameof(NgCarrierPickupDown));
     }
 }

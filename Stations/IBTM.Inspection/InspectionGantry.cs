@@ -79,11 +79,6 @@ public sealed class InspectionGantry
         return _motion.MoveToXYAsync(position.X, position.Y, velocity, cancellationToken);
     }
 
-    public bool CanJog(MotionAxis axis)
-    {
-        return axis is MotionAxis.X or MotionAxis.Y && _transfer.IsRaised;
-    }
-
     public Task MoveAxisAsync(
         MotionAxis axis,
         double position,
@@ -91,21 +86,12 @@ public sealed class InspectionGantry
         CancellationToken cancellationToken = default)
     {
         EnsureCanMove(cancellationToken);
-        if (axis is not (MotionAxis.X or MotionAxis.Y))
-            throw new ArgumentOutOfRangeException(nameof(axis));
         return _motion.MoveAxisAsync(axis, position, velocity, cancellationToken);
-    }
-
-    public void EnsureCanJog(MotionAxis axis, CancellationToken cancellationToken = default)
-    {
-        EnsureCanMove(cancellationToken);
-        if (axis is not (MotionAxis.X or MotionAxis.Y))
-            throw new ArgumentOutOfRangeException(nameof(axis));
     }
 
     public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
     {
-        EnsureCanJog(axis, cancellationToken);
+        EnsureCanMove(cancellationToken);
         return _motion.JogAsync(axis, velocity, cancellationToken);
     }
 

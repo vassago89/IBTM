@@ -11,6 +11,22 @@ namespace IBTM.Virtual.Tests;
 public sealed class CommandShutdownTests
 {
     [Fact]
+    public async Task StopRetainsCommandFailureThatCompletesBeforeCancellationWait()
+    {
+        var failure = new IOException("Command cleanup failed during STOP.");
+        var pending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var command = new AsyncRelayCommand(() => pending.Task);
+        var execution = command.ExecuteAsync(null);
+        var running = CommandShutdown.Capture(command);
+        pending.SetException(failure);
+
+        var shutdown = CommandShutdown.CancelAndWaitAsync([command], Task.CompletedTask, running);
+
+        Assert.Same(failure, await Assert.ThrowsAsync<IOException>(() => execution));
+        Assert.Same(failure, await Assert.ThrowsAsync<IOException>(() => shutdown));
+    }
+
+    [Fact]
     public async Task WaitDrainsEveryTaskAndPreservesEveryFailure()
     {
         var firstFailure = new IOException("First device stop failed.");
@@ -54,7 +70,7 @@ public sealed class CommandShutdownTests
             await pending.Task;
         });
         var execution = command.ExecuteAsync(null);
-        var shutdown = CommandShutdown.CancelAndWaitAsync(Task.FromException(stopFailure), command);
+        var shutdown = CommandShutdown.CancelAndWaitAsync([command], Task.FromException(stopFailure));
 
         await canceled.Task.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.True(command.IsCancellationRequested);
@@ -82,7 +98,7 @@ public sealed class CommandShutdownTests
         var secondRun = second.ExecuteAsync(null);
         try
         {
-            var shutdown = CommandShutdown.CancelAndWaitAsync(Task.CompletedTask, first, second);
+            var shutdown = CommandShutdown.CancelAndWaitAsync([first, second]);
             await Assert.ThrowsAnyAsync<OperationCanceledException>(
                 () => secondRun.WaitAsync(TimeSpan.FromSeconds(2)));
             Assert.True(first.IsCancellationRequested);

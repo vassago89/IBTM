@@ -74,7 +74,7 @@ PCB 공급의 `ExecuteAsync(recipe, cancellationToken)`도 독립 메서드로 �
 | 티칭 화면 배치 | `IBTM/UI/TeachingView.xaml` |
 | 공통 티칭 I/O 행·그룹 템플릿 | `IBTM/UI/IoWindowStyles.xaml` |
 | 티칭 포인트·선택 | `IBTM/UI/TeachingViewModel.cs` |
-| 티칭 Home / 조그 / Move To | `IBTM/UI/TeachingViewModel.Motion.cs`, `TeachingMotionViewModel.cs` |
+| 티칭 Home / 조그 / Move To | `IBTM/UI/TeachingViewModel.Motion.cs`, `TeachingViewModel.Commands.cs` |
 | Live / FOV 추가 / ROI 저장 / Data Matrix | `IBTM/UI/TeachingViewModel.Camera.cs` |
 | 이미지 위 ROI·십자선 그리기 | `IBTM/UI/ImageTeachingView.cs` |
 | 실제 검사 이동·촬영·판정 | `Stations/IBTM.Inspection/BoltInspector.cs` |
@@ -131,21 +131,26 @@ Move To는 Safe Z에서 위치만 확인한다. 각 Z 티칭값은 설비 설정
 검사 볼트는 Add Bolt로 생성하고 FOV/ROI를 연결한다. 좌표 없는 안내 항목은 목록에 넣지 않는다.
 
 1. XAML의 `Command` / `IsEnabled` 바인딩 이름을 찾는다.
-2. ViewModel의 `[RelayCommand(CanExecute = nameof(...))]`가 가리키는 조건을 본다.
+2. ViewModel 생성자의 `new RelayCommand(...)` / `new AsyncRelayCommand(...)`에서 실행 메서드와 조건을 본다. 커맨드는 자동 생성 특성 없이 읽기 전용 속성으로 직접 선언하고, 취소 커맨드와 동시 실행 옵션도 생성자에서 연결한다.
 3. 실제 실행 메서드에서 `MachineController` 또는 유닛 호출을 따라간다.
 4. 유닛의 현재 상태 분기에서 읽는 **DI/축 피드백을 실장비와 대조**한다.
 5. 명령이 나갔다면 TX/DO 로그와 실제 RX/DI를 나눠 확인한다. DO ON 로그만으로 구동 성공을 단정하지 않는다.
 
-생성된 `*Command` 코드를 수정하지 말고 해당 ViewModel의 이름 있는 메서드를 수정한다.
+커맨드 속성 바로 아래의 이름 있는 실행 메서드에서 동작을 수정한다.
 알람 전체 조건과 개별 동작의 간섭 조건을 섞지 않는다. 임의의 지연·재시도·catch로 원인을 감추지 않는다.
 
 티칭 조그의 순서는 `TeachingViewModel.JogAsync` 한 곳에서 관리한다.
-장비 준비 확인 → `BeginManualOperation`으로 실행권 확보 → 유닛의 `JogAsync` 실행 →
-실행권 반환 순서다. 준비 함수는 반환되고, 티칭 함수가 유닛을 직접 호출한다.
+동작 중 여부 확인 → `BeginManualOperation`으로 실행권 확보와 현재 피드백 확인 →
+유닛의 `JogAsync` 실행 → 실행권 반환 순서다. 시작 직전 같은 피드백을 두 번 확인하지 않는다.
 유닛은 해당 장치의 간섭 확인과 장치 제어를 맡는다. 유닛을 건너뛰어 장치를 노출하지 않는다.
 드라이버도 공통 `ValidateJog` 호출이 돌아온 뒤 SDK 시작 → 완료/취소 대기 → 종료를 직접 수행한다.
 오류가 발생하면 티칭 함수에서 `MachineController.ReportManualFailure`를 호출한다.
 전체 STOP·실린더 간섭 감시는 기존 장비 감시에서 유지한다.
+
+버튼의 조그 조건은 티칭 ViewModel에 모으고 유닛별 `CanJog` 전달 함수는 두지 않는다.
+HOME 버튼은 표시 갱신에서 계산한 `HomeableAxes`를 쓰며, 실제 HOME은 실행권 확보 후 현재 조건을 확인한다.
+공통 HOME 조건과 수평축이 공유하는 설정 검증은 축마다 반복하지 않는다.
+테스트는 실제 진입점과 SDK 대역을 사용하고, private 변환 함수의 리플렉션 검사나 같은 분기의 숫자 조합은 반복하지 않는다.
 
 티칭 DO는 `ToggleOutputCommand` → `MachineController.ToggleTeachingOutputAsync`에서
 현재 DO를 읽어 반전한다. XAML은 ON/OFF에 따라 명령을 교체하지 않는다.
@@ -198,10 +203,13 @@ HOME 순서와 추가 이동 제거(2026-09-18):
   취소·실패 시 두 축의 정지 확인과 오류 수거를 끝내야 HOME이 반환한다.
   상위 단계도 한 유닛의 시작 오류 때문에 이미 시작한 다른 유닛을 남겨 두지 않는다.
 - AJIN 디바이스 동작은 `C:\git\AnyWave\AnyWave.Device\Motions\Ajin\AjinService.cs`가 기준이다.
-  원본의 HOME 결과 초기화·Z HOME 방식·속도 비율·Task.Run을 복원했다.
+  원본의 HOME 결과 초기화·Z HOME 방식·Task.Run과 시작/대기 순서를 유지한다.
   HOME 시작/결과 실패는 원본처럼 false로 반환하고, 상위에서 HomeFailed를 처리한다.
-  이동 가감속은 속도의 2배, XY 속도 배분은 각 축 이동거리 / 두 축 이동거리 합이다.
-  별도로 추가했던 HOME 방향·세부 속도·가감속 시간 설정과 범용 이동 실행기를 제거했다.
+  이동 가감속은 속도 크기 / 설정 시간(초)으로 SDK 단위에 맞춘다. 기본값 0.5초는 원본의 속도 2배와 같다.
+  XY 속도 배분은 원본의 각 축 이동거리 / 두 축 이동거리 합을 유지한다.
+  HOME 방향은 축별 `AxisHardware.HomeDirection`, 검색 이후 속도와 가속 시간은 `HomeSettings`를 적용한다.
+  XY의 센서·Z상·클리어 시간·오프셋은 SDK 설정을 보존하고, Z HOME 방식은 원본을 유지한다.
+  설정은 기존 JSON 이름으로 복원했으며 Settings의 Motion 화면에서 수정한다. 범용 이동 실행기는 다시 넣지 않는다.
   IBTM 연결에 필요한 취소, SDK 오류, 실제 이동·정지 피드백 처리는 유지한다.
 
 추가 동작 점검에서 남긴 검토 항목:

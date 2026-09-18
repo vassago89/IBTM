@@ -84,17 +84,9 @@ public sealed partial class MachineController
         return HomeBlockReason.None;
     }
 
-    internal bool CanHomeAxis(MotionGroup group, MotionAxis axis, bool live = true, bool? running = null)
+    private bool AreHomeAxisConditionsReady(MotionGroup group, MotionAxis? axis = null, bool live = true)
     {
-        return _units.IsMotionEnabled(group)
-            && !(running ?? (live ? _state.IsRunning : _state.Display.IsRunning))
-            && AreHomeAxisConditionsReady(group, axis, live);
-    }
-
-    private bool AreHomeAxisConditionsReady(MotionGroup group, MotionAxis axis, bool live = true)
-    {
-        if (!_units.IsMotionEnabled(group)
-            || !_state.ManualMode
+        if (!_state.ManualMode
             || !_state.SafetyReady
             || !_state.ServoMainContactorOn
             || GetHomeBlock(group) != HomeBlockReason.None)
@@ -102,84 +94,29 @@ public sealed partial class MachineController
 
         var motion = _state.GetMotionStatus(group);
         return motion.IsReady(live)
-            && motion.Feedback.Axes.Where(candidate => candidate == axis || candidate == MotionAxis.Z)
+            && motion.Feedback.Axes.Where(candidate => axis is null || candidate == axis || candidate == MotionAxis.Z)
                 .All(
                     candidate =>
                         (live ? motion.Feedback.GetAxisState(candidate) : motion.Axes[candidate].State)
                             is { ServoOn: true, Alarm: false, Emergency: false });
     }
 
-    internal async Task HomeAxisAsync(MotionGroup group, MotionAxis axis, CancellationToken cancellationToken)
+    internal async Task HomeAsync(
+        MotionGroup group,
+        CancellationToken cancellationToken,
+        MotionAxis? axis = null)
     {
         // Admission and HOME startup read the synchronous SDK before the first asynchronous wait.
         await Task.Run(async () =>
         {
-            var viewToken = CancellationToken.None;
             var activeToken = cancellationToken;
             try
             {
-                if (!CanHomeAxis(group, axis))
+                if (_state.IsRunning)
                     return;
                 using var operation = BeginManualOperation(
                     () => AreHomeAxisConditionsReady(group, axis),
-                    cancellationToken,
-                    viewToken);
-                if (operation is null)
-                    return;
-                activeToken = operation.Token;
-                operation.Token.ThrowIfCancellationRequested();
-                _state.SetHoming(true);
-                try
-                {
-                    var homed = await (group switch
-                    {
-                        MotionGroup.PcbSupply => _supplyHandler.HomeAxisAsync(axis, operation.Token),
-                        MotionGroup.PcbPlacementHandler => _placementHandler.HomeAxisAsync(axis, operation.Token),
-                        MotionGroup.BoltFastening => _fasteningGantry.HomeAxisAsync(axis, operation.Token),
-                        MotionGroup.InspectionGantry => _inspectionGantry.HomeAxisAsync(axis, operation.Token),
-                        _ => throw new ArgumentOutOfRangeException(nameof(group)),
-                    });
-                    if (!homed && !operation.Token.IsCancellationRequested)
-                        _state.SetError(MachineAlarm.HomeFailed);
-                }
-                finally
-                {
-                    _state.SetHoming(false);
-                    _state.Refresh();
-                }
-            }
-            catch (OperationCanceledException) when (activeToken.IsCancellationRequested
-                || viewToken.IsCancellationRequested
-                || _operations.IsShuttingDown)
-            {
-            }
-            catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
-            {
-                ReportManualFailure(MachineAlarm.HomeFailed, exception);
-            }
-        });
-    }
-
-    internal bool CanHomeUnit(MotionGroup group, bool live = true)
-    {
-        return _state.GetMotionStatus(group).Feedback.Axes
-            .All(axis => CanHomeAxis(group, axis, live));
-    }
-
-    internal async Task HomeUnitAsync(MotionGroup group, CancellationToken cancellationToken)
-    {
-        await Task.Run(async () =>
-        {
-            var viewToken = CancellationToken.None;
-            var activeToken = cancellationToken;
-            try
-            {
-                if (!CanHomeUnit(group))
-                    return;
-                using var operation = BeginManualOperation(
-                    () => _state.GetMotionStatus(group).Feedback.Axes.All(axis => AreHomeAxisConditionsReady(group, axis)),
-                    cancellationToken,
-                    viewToken);
+                    cancellationToken);
                 if (operation is null)
                     return;
                 activeToken = operation.Token;
@@ -191,22 +128,24 @@ public sealed partial class MachineController
                     switch (group)
                     {
                         case MotionGroup.PcbSupply:
-                            homed = await _supplyHandler.HomeAxisAsync(MotionAxis.Z, operation.Token);
-                            if (homed)
+                            homed = await _supplyHandler.HomeAxisAsync(axis ?? MotionAxis.Z, operation.Token);
+                            if (homed && axis is null)
                                 homed = await _supplyHandler.HomeHorizontalAsync(operation.Token);
                             break;
                         case MotionGroup.PcbPlacementHandler:
-                            homed = await _placementHandler.HomeAxisAsync(MotionAxis.Z, operation.Token);
-                            if (homed)
+                            homed = await _placementHandler.HomeAxisAsync(axis ?? MotionAxis.Z, operation.Token);
+                            if (homed && axis is null)
                                 homed = await _placementHandler.HomeHorizontalAsync(operation.Token);
                             break;
                         case MotionGroup.BoltFastening:
-                            homed = await _fasteningGantry.HomeAxisAsync(MotionAxis.Z, operation.Token);
-                            if (homed)
+                            homed = await _fasteningGantry.HomeAxisAsync(axis ?? MotionAxis.Z, operation.Token);
+                            if (homed && axis is null)
                                 homed = await _fasteningGantry.HomeHorizontalAsync(operation.Token);
                             break;
                         case MotionGroup.InspectionGantry:
-                            homed = await _inspectionGantry.HomeHorizontalAsync(operation.Token);
+                            homed = axis is { } selectedAxis
+                                ? await _inspectionGantry.HomeAxisAsync(selectedAxis, operation.Token)
+                                : await _inspectionGantry.HomeHorizontalAsync(operation.Token);
                             break;
                         default:
                             throw new ArgumentOutOfRangeException(nameof(group));
@@ -222,11 +161,10 @@ public sealed partial class MachineController
                 }
             }
             catch (OperationCanceledException) when (activeToken.IsCancellationRequested
-                || viewToken.IsCancellationRequested
                 || _operations.IsShuttingDown)
             {
             }
-            catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+            catch (Exception exception) when (IsDeviceFailure(exception))
             {
                 ReportManualFailure(MachineAlarm.HomeFailed, exception);
             }

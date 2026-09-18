@@ -5,12 +5,14 @@ using IBTM.Device;
 
 namespace IBTM.UI;
 
-public partial class OutputWindowViewModel : ObservableObject
+public class OutputWindowViewModel : ObservableObject
 {
     private readonly MachineState _state;
 
     public OutputWindowViewModel(IoSignals signals, MachineController machine, MachineState state)
     {
+        RefreshCommand = new RelayCommand(Refresh);
+
         _state = state;
         Rows = signals.Outputs.Values.OrderBy(row => row.Signal)
             .Select(row => new OutputWindowRow(row, machine))
@@ -23,7 +25,8 @@ public partial class OutputWindowViewModel : ObservableObject
     public OutputWindowRow[] Rows { get; }
     public IoList<OutputWindowRow, OutputIo> Filter { get; }
 
-    [RelayCommand]
+    public IRelayCommand RefreshCommand { get; }
+
     private void Refresh()
     {
         _state.RequestDisplayRefresh();

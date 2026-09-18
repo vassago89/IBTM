@@ -6,7 +6,7 @@ using IBTM.Device;
 
 namespace IBTM.UI;
 
-public sealed partial class TeachingOutputRow : ObservableObject
+public sealed class TeachingOutputRow : ObservableObject
 {
     private readonly MachineController _machine;
 
@@ -15,6 +15,8 @@ public sealed partial class TeachingOutputRow : ObservableObject
         TeachingOutput? output,
         MachineController machine)
     {
+        ToggleOutputCommand = new AsyncRelayCommand(ToggleOutputAsync, CanToggleOutput);
+
         _machine = machine;
         Io = io;
         Output = output;
@@ -31,7 +33,8 @@ public sealed partial class TeachingOutputRow : ObservableObject
             && _machine.CanSetTeachingOutput(Output, live: false);
     }
 
-    [RelayCommand(CanExecute = nameof(CanToggleOutput))]
+    public IAsyncRelayCommand ToggleOutputCommand { get; }
+
     private Task ToggleOutputAsync(CancellationToken cancellationToken)
     {
         if (Output is null)

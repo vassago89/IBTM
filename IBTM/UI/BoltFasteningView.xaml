@@ -122,7 +122,7 @@
                     </TextBlock>
                     <Grid Canvas.Left="{x:Static ui:MachinePlan.PickupHeadLeft}" Canvas.Top="{x:Static ui:MachinePlan.HeadTop}"
                         Width="{x:Static ui:MachinePlan.HeadSize}" Height="{x:Static ui:MachinePlan.HeadSize}" Panel.ZIndex="5">
-                        <Border Tag="{Binding PickupHeadDown}" Style="{StaticResource ToolHeadFootprintStyle}"/>
+                        <Border Tag="{Binding Fastening.PickupHeadPosition}" Style="{StaticResource ToolHeadFootprintStyle}"/>
                         <Border Width="14" Height="4" Background="{StaticResource TextMutedBrush}" CornerRadius="2"/>
                         <Ellipse Style="{StaticResource VacuumDetectedVisualStyle}"
                             Visibility="{Binding Fastening.PickupBoltLoaded,
@@ -130,7 +130,7 @@
                     </Grid>
                     <Grid Canvas.Left="{x:Static ui:MachinePlan.ShootingHeadLeft}" Canvas.Top="{x:Static ui:MachinePlan.HeadTop}"
                         Width="{x:Static ui:MachinePlan.HeadSize}" Height="{x:Static ui:MachinePlan.HeadSize}" Panel.ZIndex="5">
-                        <Border Tag="{Binding ShootingHeadDown}" Style="{StaticResource ToolHeadFootprintStyle}"/>
+                        <Border Tag="{Binding Fastening.ShootingHeadPosition}" Style="{StaticResource ToolHeadFootprintStyle}"/>
                         <Ellipse Width="12" Height="12" Fill="{StaticResource EquipBgBrush}" Stroke="{StaticResource TextMutedBrush}"
                             StrokeThickness="2"/>
                         <Ellipse Style="{StaticResource VacuumDetectedVisualStyle}"

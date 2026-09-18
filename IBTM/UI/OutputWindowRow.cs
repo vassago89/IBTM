@@ -14,13 +14,16 @@ public sealed partial class OutputWindowRow : ObservableObject
 
     public OutputWindowRow(IoOutputStatus io, MachineController machine)
     {
+        ToggleCommand = new RelayCommand(Toggle);
+
         _machine = machine;
         Io = io;
     }
 
     public IoOutputStatus Io { get; }
 
-    [RelayCommand]
+    public IRelayCommand ToggleCommand { get; }
+
     private void Toggle()
     {
         ActionMessage = null;

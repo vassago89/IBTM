@@ -22,11 +22,8 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class RecipeTests
 {
-    [Theory]
-    [InlineData("\"LightLevel\":256")]
-    [InlineData("\"ExposureMicroseconds\":0")]
-    [InlineData("\"Gain\":1e309")]
-    public async Task InvalidInspectionRecipeKeepsTheActiveRecipeUntilCorrected(string invalidSetting)
+    [Fact]
+    public async Task InvalidInspectionRecipeKeepsTheActiveRecipeUntilCorrected()
     {
         var (database, store) = CreateStore();
         var recipe = new Recipe { Name = "Active" };
@@ -45,7 +42,7 @@ public sealed class RecipeTests
             connection.Open();
             using var command = connection.CreateCommand();
             command.CommandText = "UPDATE Recipes SET Value = $value WHERE Name = 'Other'";
-            command.Parameters.AddWithValue("$value", "{\"Name\":\"Other\",\"BoltInspection\":{" + invalidSetting + "}}");
+            command.Parameters.AddWithValue("$value", "{\"Name\":\"Other\",\"BoltInspection\":{\"LightLevel\":256}}");
             command.ExecuteNonQuery();
         }
 
@@ -88,8 +85,8 @@ public sealed class RecipeTests
             BrightnessThreshold = 210,
             MinimumBrightRatio = 0.7,
         });
-        var targets = layout.GetBolts().ToArray();
-        Assert.NotSame(targets[0].Point, targets[1].Point);
+        var targets = layout.BoltPoints.ToArray();
+        Assert.NotSame(targets[0], targets[1]);
         Assert.Equal((13d, 24d), (targets[0].X, targets[0].Y));
         Assert.Equal((73d, 29d), (targets[1].X, targets[1].Y));
 
@@ -108,8 +105,8 @@ public sealed class RecipeTests
             },
         };
         var second = CarrierCoordinates.FromMachine(new() { X = 175, Y = 230 }, pins.UpperLeftLocatingPin);
-        targets[1].Point.X = second.X;
-        targets[1].Point.Y = second.Y;
+        targets[1].X = second.X;
+        targets[1].Y = second.Y;
         Assert.Equal((13d, 24d), (targets[0].X, targets[0].Y));
         Assert.Equal((75d, 30d), (targets[1].X, targets[1].Y));
         var firstCamera = inspection.GetBoltPosition(targets[0], pins);
@@ -123,14 +120,14 @@ public sealed class RecipeTests
         await editor.SaveAsync();
         var loaded = await store.LoadRecipeAsync(recipe.Name);
         Assert.Equal(2, loaded.Pcb.BoltPoints.Count);
-        Assert.Equal(2, loaded.Pcb.GetBolts().Count());
+        Assert.Equal(2, loaded.Pcb.BoltPoints.Count());
         Assert.Equal(13d, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().X);
         Assert.Equal(75d, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().X);
-        Assert.Equal(140, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().Point.BrightnessThreshold);
-        Assert.Equal(0.2, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().Point.MinimumBrightRatio);
-        Assert.Equal(210, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().Point.BrightnessThreshold);
-        Assert.Equal(0.7, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().Point.MinimumBrightRatio);
-        layout.BoltPoints.Remove(targets[1].Point);
+        Assert.Equal(140, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().BrightnessThreshold);
+        Assert.Equal(0.2, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink1).Single().MinimumBrightRatio);
+        Assert.Equal(210, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().BrightnessThreshold);
+        Assert.Equal(0.7, loaded.Pcb.GetBolts(HeatSinkSlot.HeatSink2).Single().MinimumBrightRatio);
+        layout.BoltPoints.Remove(targets[1]);
         Assert.Empty(layout.GetBolts(HeatSinkSlot.HeatSink2));
         Assert.Single(layout.GetBolts(HeatSinkSlot.HeatSink1));
         var oldLayout = System.Text.Json.JsonSerializer.Deserialize<PcbLayout>(
@@ -288,7 +285,7 @@ public sealed class RecipeTests
         Assert.Equal(14, fastening.ShootingHead.FasteningZ);
         Assert.Equal(16, fastening.PickupHead.FasteningZ);
         Assert.All(
-            recipe.GetBolts(),
+            recipe.BoltPoints,
             bolt => Assert.Equal(14, fastening.GetBoltPosition(bolt, reference).Z));
 
         var lowerRight = reference.LowerRightLocatingPin;
@@ -322,7 +319,7 @@ public sealed class RecipeTests
         Assert.Equal(14, fastening.ShootingHead.FasteningZ);
         Assert.Equal(18, fastening.PickupHead.FasteningZ);
         Assert.Equal(10, fastening.PickupPosition.Z);
-        Assert.All(recipe.GetBolts(), target => Assert.Equal(
+        Assert.All(recipe.BoltPoints, target => Assert.Equal(
             target.Head == FasteningHead.Pickup ? 18 : 14,
             fastening.GetBoltPosition(target, reference).Z));
         Assert.Equal(

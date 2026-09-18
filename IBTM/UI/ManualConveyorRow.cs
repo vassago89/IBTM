@@ -16,13 +16,17 @@ public sealed partial class ManualConveyorRow : ObservableObject
 
     public ManualConveyorRow(IoOutputStatus io, MachineController machine)
     {
+        RunCommand = new AsyncRelayCommand(RunAsync);
+        StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+
         _machine = machine;
         Io = io;
     }
 
     public IoOutputStatus Io { get; }
 
-    [RelayCommand]
+    public IAsyncRelayCommand RunCommand { get; }
+
     private async Task RunAsync(CancellationToken cancellationToken)
     {
         ActionMessage = null;
@@ -42,14 +46,17 @@ public sealed partial class ManualConveyorRow : ObservableObject
         }
     }
 
-    [RelayCommand(AllowConcurrentExecutions = true)]
+    public IAsyncRelayCommand StopCommand { get; }
+
     private async Task StopAsync()
     {
         try
         {
+            var pending = CommandShutdown.Capture(RunCommand);
             await CommandShutdown.CancelAndWaitAsync(
+                [RunCommand],
                 _machine.StopManualConveyorAsync(Io.Signal),
-                RunCommand);
+                pending);
         }
         catch (Exception exception)
         {

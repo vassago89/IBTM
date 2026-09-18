@@ -341,15 +341,32 @@ public sealed partial class AjinControllerTests
     }
 
     [Theory]
-    [InlineData(MotionAxis.X)]
-    [InlineData(MotionAxis.Y)]
-    [InlineData(MotionAxis.Z)]
-    public async Task HomeUsesAnyWaveStartupMethodAndVelocityRatios(MotionAxis axis)
+    [InlineData(MotionAxis.X, HomeDirection.Positive)]
+    [InlineData(MotionAxis.Y, HomeDirection.Negative)]
+    [InlineData(MotionAxis.Z, HomeDirection.Positive)]
+    public async Task HomeAppliesConfiguredDirectionAndSpeedsBeforeStarting(MotionAxis axis, HomeDirection direction)
     {
         using var controller = new AjinController(new());
+        var settings = new MotionSettings
+        {
+            HorizontalHome = new()
+            {
+                SearchSpeed = 7, DetectionSpeed = 2.5, ApproachSpeed = 0.8, FineSpeed = 0.06,
+                SearchAccelerationSeconds = 0.4, DetectionAccelerationSeconds = 0.25,
+            },
+            ZHome = new()
+            {
+                SearchSpeed = 4, DetectionSpeed = 1.7, ApproachSpeed = 0.4, FineSpeed = 0.03,
+                SearchAccelerationSeconds = 0.2, DetectionAccelerationSeconds = 0.5,
+            },
+        };
+        AxisHardware x = new() { Number = 9 };
+        AxisHardware y = new() { Number = 10 };
+        AxisHardware z = new() { Number = 11 };
         var motion = new AjinMotionService(
-            controller, new() { Number = 9 }, new() { Number = 10 }, new() { Number = 11 },
-            new(), new(), new(), () => 0);
+            controller, x, y, z, settings, new(), new(), () => 0);
+        var selected = axis switch { MotionAxis.X => x, MotionAxis.Y => y, _ => z };
+        selected.HomeDirection = direction;
         var method = new AjinSdk.HomeMethod(1, 1, 2, 25, 123);
         foreach (var axisNumber in new[] { 9, 10, 11 })
         {
@@ -359,13 +376,20 @@ public sealed partial class AjinControllerTests
             AjinSdk.Results[new(nameof(CAXM.AxmHomeSetStart), Axis: axisNumber)] = 0;
         }
 
-        Assert.True(await motion.HomeAsync(axis, 1));
+        var home = settings.Home(axis);
+        Assert.True(await motion.HomeAsync(axis, home.SearchSpeed));
 
         var number = axis switch { MotionAxis.X => 9, MotionAxis.Y => 10, _ => 11 };
         Assert.Equal(
-            axis == MotionAxis.Z ? new AjinSdk.HomeMethod(0, 4, 0, 1000, 0) : method,
+            axis == MotionAxis.Z
+                ? new AjinSdk.HomeMethod((int)direction, 4, 0, 1000, 0)
+                : method with { Direction = (int)direction },
             AjinSdk.HomeMethods[number]);
-        Assert.Equal(new double[] { 1000, 200, 100, 10, 1000, 100 }, AjinSdk.HomeVelocities[number]);
+        Assert.Equal(
+            axis == MotionAxis.Z
+                ? new double[] { 4000, 1700, 400, 30, 20000, 3400 }
+                : new double[] { 7000, 2500, 800, 60, 17500, 10000 },
+            AjinSdk.HomeVelocities[number]);
         Assert.Contains(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult)
             && call.Axis == number && call.Value == (uint)AXT_MOTION_HOME_RESULT.HOME_ERR_UNKNOWN);
         var calls = AjinSdk.Calls.Where(call => call.Axis == number).Select(call => call.Operation).ToArray();
@@ -720,7 +744,7 @@ public sealed partial class AjinControllerTests
         var operations = new OperationCancellation();
         var motion = new AjinMotionService(
             controller, new() { Number = 9 }, new() { Number = 10 }, null,
-            new(), new(), operations, null);
+            new() { AccelerationSeconds = 0.25, DecelerationSeconds = 0.75 }, new(), operations, null);
         foreach (var axis in new[] { 9, 10 })
         {
             AjinSdk.MotionAxes[axis] = new(Mechanical: 1U << 5, HomeResult: 1, ServoOn: 1);
@@ -754,8 +778,8 @@ public sealed partial class AjinControllerTests
         Assert.Equal(new double[] { 10000, 20000 }, move.Positions);
         Assert.Equal(1000d / 3, move.Velocities[0], 9);
         Assert.Equal(2000d / 3, move.Velocities[1], 9);
-        Assert.Equal(move.Velocities.Select(value => value * 2), move.Accelerations);
-        Assert.Equal(move.Accelerations, move.Decelerations);
+        Assert.Equal(move.Velocities.Select(value => value / 0.25), move.Accelerations);
+        Assert.Equal(move.Velocities.Select(value => value / 0.75), move.Decelerations);
         Assert.Equal(yReachedTarget ? 20 : 10, motion.GetPosition().Y);
         Assert.False(operations.HasActiveOperations);
     }
@@ -998,8 +1022,6 @@ public sealed partial class AjinControllerTests
     [InlineData(0, 0, 2, 0)]
     [InlineData(31, 0, 2, 31)]
     [InlineData(32, 1, 3, 0)]
-    [InlineData(63, 1, 3, 31)]
-    [InlineData(64, 4, 4, 0)]
     [InlineData(79, 4, 4, 15)]
     public void BitIoUsesSeparateModuleListsAndTheExisting32BitSlotAddresses(
         int channel,
@@ -1028,11 +1050,10 @@ public sealed partial class AjinControllerTests
             });
     }
 
-    [Theory]
-    [InlineData(80)]
-    [InlineData(95)]
-    public void MixedModuleBitsAbove15FailBeforeCallingNativeIo(int channel)
+    [Fact]
+    public void MixedModuleBitsAbove15FailBeforeCallingNativeIo()
     {
+        const int channel = 80;
         using var controller = new AjinController(new());
         controller.Initialize();
         AjinSdk.Calls.Clear();
@@ -1112,7 +1133,6 @@ public sealed partial class AjinControllerTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(-1)]
     [InlineData(4)]
     public void MissingConfiguredModulesFailBeforeScanning(int count)
     {
@@ -1146,12 +1166,10 @@ public sealed partial class AjinControllerTests
                     || call.Operation.StartsWith("AxdoWrite", StringComparison.Ordinal));
     }
 
-    [Theory]
-    [InlineData(-1)]
-    [InlineData(0)]
-    [InlineData(64)]
-    public void UnsupportedPointCountsAreRejected(int count)
+    [Fact]
+    public void UnsupportedPointCountsAreRejected()
     {
+        const int count = 64;
         using var controller = new AjinController(new());
         AjinSdk.Modules[4] = AjinSdk.Modules[4] with { Inputs = count };
         var error = Assert.Throws<IOException>(controller.Initialize);

@@ -30,6 +30,8 @@ public partial class MotionWindowViewModel : ObservableObject
 
     public MotionWindowViewModel(MachineController machine, MachineState state, MachineSettings settings)
     {
+        StopCommand = new AsyncRelayCommand(StopAsync, AsyncRelayCommandOptions.AllowConcurrentExecutions);
+
         _machine = machine;
         _state = state;
         // Capture the running application's axis numbers, not later unsaved mapping edits.
@@ -100,14 +102,18 @@ public partial class MotionWindowViewModel : ObservableObject
         View.Refresh();
     }
 
-    [RelayCommand(AllowConcurrentExecutions = true)]
+    public IAsyncRelayCommand StopCommand { get; }
+
     private async Task StopAsync()
     {
         try
         {
+            var commands = Axes.Select(axis => axis.HomeCommand).ToArray();
+            var pending = CommandShutdown.Capture(commands);
             await CommandShutdown.CancelAndWaitAsync(
+                commands,
                 _machine.StopAsync(),
-                Axes.Select(axis => axis.HomeCommand).ToArray());
+                pending);
         }
         catch (Exception exception)
         {
@@ -182,6 +188,6 @@ public partial class MotionWindowViewModel : ObservableObject
 
     public Task ShutdownAsync()
     {
-        return CommandShutdown.CancelAndWaitAsync(null, [StopCommand, .. Axes.Select(axis => axis.HomeCommand)]);
+        return CommandShutdown.CancelAndWaitAsync([StopCommand, .. Axes.Select(axis => axis.HomeCommand)]);
     }
 }

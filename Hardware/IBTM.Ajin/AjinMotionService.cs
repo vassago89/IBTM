@@ -24,7 +24,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
     private readonly int _axisX;
     private readonly int? _axisY;
     private readonly int? _axisZ;
-    private readonly Dictionary<int, (double Unit, int Pulse)> _axisParameters;
+    private readonly Dictionary<int, AxisHardware> _axisParameters;
 
     public AjinMotionService(
         AjinController controller,
@@ -49,7 +49,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         _axisZ = axisZ?.Number;
         _axisParameters = new[] { axisX, axisY, axisZ }
             .OfType<AxisHardware>()
-            .ToDictionary(axis => axis.Number, axis => (axis.MoveUnit, axis.MovePulse));
+            .ToDictionary(axis => axis.Number);
     }
 
     public override bool IsReady
@@ -98,7 +98,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
 
             var scale = _axisParameters[axis];
             AjinController.Check(
-                CAXM.AxmMotSetMoveUnitPerPulse(axis, scale.Unit, scale.Pulse),
+                CAXM.AxmMotSetMoveUnitPerPulse(axis, scale.MoveUnit, scale.MovePulse),
                 $"{nameof(CAXM.AxmMotSetMoveUnitPerPulse)} (axis={axis})");
             AjinController.Check(
                 CAXM.AxmMotSetAccelUnit(axis, AccelerationInUnitsPerSecondSquared),
@@ -139,6 +139,8 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             return;
         }
 
+        ValidatePositive(Settings.AccelerationSeconds, nameof(Settings.AccelerationSeconds));
+        ValidatePositive(Settings.DecelerationSeconds, nameof(Settings.DecelerationSeconds));
         var totalDistance = distanceX + distanceY;
         var velocityX = ToUnits(velocity * distanceX / totalDistance);
         var velocityY = ToUnits(velocity * distanceY / totalDistance);
@@ -160,8 +162,8 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                         axes,
                         [ToUnits(x), ToUnits(y)],
                         [velocityX, velocityY],
-                        [velocityX * 2, velocityY * 2],
-                        [velocityX * 2, velocityY * 2]),
+                        [velocityX / Settings.AccelerationSeconds, velocityY / Settings.AccelerationSeconds],
+                        [velocityX / Settings.DecelerationSeconds, velocityY / Settings.DecelerationSeconds]),
                     nameof(CAXM.AxmMoveMultiPos));
             }).ConfigureAwait(false);
             await WaitForMoveAsync(axes, cancellationToken).ConfigureAwait(false);
@@ -188,15 +190,19 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
         ValidateJog(axis, velocity, atCurrentHeight);
+        ValidatePositive(Settings.AccelerationSeconds, nameof(Settings.AccelerationSeconds));
+        ValidatePositive(Settings.DecelerationSeconds, nameof(Settings.DecelerationSeconds));
         var axisNumber = GetAxis(axis);
         var velocityInUnits = ToUnits(velocity);
+        var acceleration = Math.Abs(velocityInUnits) / Settings.AccelerationSeconds;
+        var deceleration = Math.Abs(velocityInUnits) / Settings.DecelerationSeconds;
         cancellationToken.ThrowIfCancellationRequested();
         EnsureAxisParameters(axisNumber);
         try
         {
             BeginMotion(axis != MotionAxis.Z, adjustment: atCurrentHeight);
             AjinController.Check(
-                CAXM.AxmMoveVel(axisNumber, velocityInUnits, velocityInUnits * 2, velocityInUnits * 2),
+                CAXM.AxmMoveVel(axisNumber, velocityInUnits, acceleration, deceleration),
                 nameof(CAXM.AxmMoveVel));
             await WaitForMoveAsync([axisNumber], cancellationToken).ConfigureAwait(false);
         }
@@ -290,6 +296,12 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
     {
         cancellationToken.ThrowIfCancellationRequested();
         var axisNumbers = axes.Select(GetAxis).ToArray();
+        var home = Settings.Home(axes[0]);
+        ValidatePositive(home.DetectionSpeed, nameof(home.DetectionSpeed));
+        ValidatePositive(home.ApproachSpeed, nameof(home.ApproachSpeed));
+        ValidatePositive(home.FineSpeed, nameof(home.FineSpeed));
+        ValidatePositive(home.SearchAccelerationSeconds, nameof(home.SearchAccelerationSeconds));
+        ValidatePositive(home.DetectionAccelerationSeconds, nameof(home.DetectionAccelerationSeconds));
         foreach (var axis in axisNumbers)
             EnsureAxisParameters(axis);
 
@@ -302,14 +314,34 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var axisNumber = GetAxis(axis);
+                var direction = 0;
+                var signal = 4U;
+                var zPhase = 0U;
+                var clearTime = 1000d;
+                var offset = 0d;
+                if (axis != MotionAxis.Z)
+                {
+                    AjinController.Check(
+                        CAXM.AxmHomeGetMethod(
+                            axisNumber, ref direction, ref signal, ref zPhase, ref clearTime, ref offset),
+                        $"{nameof(CAXM.AxmHomeGetMethod)} (axis={axisNumber})");
+                }
+                direction = _axisParameters[axisNumber].HomeDirection switch
+                {
+                    HomeDirection.Negative => 0,
+                    HomeDirection.Positive => 1,
+                    var value => throw new InvalidOperationException($"Invalid home direction for axis {axisNumber}: {value}."),
+                };
                 if (CAXM.AxmHomeSetResult(axisNumber, (uint)AXT_MOTION_HOME_RESULT.HOME_ERR_UNKNOWN)
                         != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
-                    || axis == MotionAxis.Z
-                        && CAXM.AxmHomeSetMethod(axisNumber, 0, 4, 0, 1000, 0)
-                            != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
+                    || CAXM.AxmHomeSetMethod(axisNumber, direction, signal, zPhase, clearTime, offset)
+                        != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
                     || CAXM.AxmHomeSetVel(
-                        axisNumber, velocity, velocity / 5, velocity / 10, velocity / 100,
-                        velocity, velocity / 10) != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
+                        axisNumber, velocity,
+                        ToUnits(home.DetectionSpeed), ToUnits(home.ApproachSpeed), ToUnits(home.FineSpeed),
+                        velocity / home.SearchAccelerationSeconds,
+                        ToUnits(home.DetectionSpeed) / home.DetectionAccelerationSeconds)
+                        != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
                     || CAXM.AxmHomeSetStart(axisNumber) != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS)
                 {
                     StopAxes(axisNumbers);
@@ -379,6 +411,8 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        ValidatePositive(Settings.AccelerationSeconds, nameof(Settings.AccelerationSeconds));
+        ValidatePositive(Settings.DecelerationSeconds, nameof(Settings.DecelerationSeconds));
         var axisNumber = GetAxis(axis);
         EnsureAxisParameters(axisNumber);
         var velocityInUnits = velocity * 1000;
@@ -390,7 +424,9 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
                 cancellationToken.ThrowIfCancellationRequested();
                 AjinController.Check(
                     CAXM.AxmMovePos(
-                        axisNumber, position * 1000, velocityInUnits, velocityInUnits * 2, velocityInUnits * 2),
+                        axisNumber, position * 1000, velocityInUnits,
+                        velocityInUnits / Settings.AccelerationSeconds,
+                        velocityInUnits / Settings.DecelerationSeconds),
                     $"{nameof(CAXM.AxmMovePos)} (axis={axisNumber})");
             }).ConfigureAwait(false);
             await WaitForMoveAsync([axisNumber], cancellationToken).ConfigureAwait(false);
@@ -589,8 +625,8 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             CAXM.AxmMotGetAccelUnit(axis, ref accelerationUnit),
             $"{nameof(CAXM.AxmMotGetAccelUnit)} (axis={axis})");
         var expected = _axisParameters[axis];
-        return unit == expected.Unit
-            && pulse == expected.Pulse
+        return unit == expected.MoveUnit
+            && pulse == expected.MovePulse
             && accelerationUnit == AccelerationInUnitsPerSecondSquared;
     }
 
@@ -612,7 +648,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
     {
         var expected = _axisParameters[axis];
         // Convert a different live scale through raw pulses before converting micrometers to mm.
-        return position * pulse / unit * expected.Unit / expected.Pulse / 1000;
+        return position * pulse / unit * expected.MoveUnit / expected.MovePulse / 1000;
     }
 
     private int GetAxis(MotionAxis axis)

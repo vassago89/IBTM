@@ -77,7 +77,7 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         var settings = services.GetRequiredService<InspectionGantrySettings>();
         await feedback.Motion.MoveToXYAsync(10, 0, 10_000);
-        settings.Motion.HorizontalHome.SearchSpeed = 1;
+        settings.Motion.HorizontalHome.SearchSpeed = 10_000;
         using var entered = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
         var pauseAdmission = new AsyncLocal<bool>();
@@ -100,15 +100,15 @@ public sealed partial class MachineLifecycleTests
         var first = Task.Run(() =>
         {
             pauseAdmission.Value = true;
-            return machine.HomeAxisAsync(MotionGroup.InspectionGantry, MotionAxis.X, default);
+            return machine.HomeAsync(MotionGroup.InspectionGantry, default, MotionAxis.X);
         });
         Task second = Task.CompletedTask;
         try
         {
             Assert.True(await Task.Run(() => entered.Wait(TimeSpan.FromSeconds(3))));
-            second = machine.HomeAxisAsync(MotionGroup.InspectionGantry, MotionAxis.X, default);
-            await WaitUntilAsync(() => Volatile.Read(ref starts) > 0);
-            Assert.Equal(1, Volatile.Read(ref starts));
+            second = machine.HomeAsync(MotionGroup.InspectionGantry, default, MotionAxis.X);
+            await second.WaitAsync(TimeSpan.FromSeconds(3));
+            Assert.Equal(0, Volatile.Read(ref starts));
             release.Set();
             await first.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.Equal(1, Volatile.Read(ref starts));
@@ -140,7 +140,7 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         try
         {
-            Assert.True(machine.CanUseManualMotion(MotionGroup.InspectionGantry));
+            Assert.True(machine.IsManualMotionReady(MotionGroup.InspectionGantry));
             machine.ReportManualFailure(
                 machine.GetMotionAlarm(MotionGroup.InspectionGantry),
                 new IOException("Manual gantry I/O failure."));
@@ -181,7 +181,7 @@ public sealed partial class MachineLifecycleTests
         await machine.HomeAsync(CancellationToken.None);
         try
         {
-            Assert.True(machine.CanUseManualMotion(MotionGroup.InspectionGantry));
+            Assert.True(machine.IsManualMotionReady(MotionGroup.InspectionGantry));
             if (failureKind == ManualCommandFailure.Programming)
             {
                 Assert.False(MachineController.IsDeviceFailure(failure));
@@ -250,6 +250,48 @@ public sealed partial class MachineLifecycleTests
         }
         finally
         {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BoltTestStartupFailureClearsRunningState(bool reverse)
+    {
+        var settings = new MachineSettings { Units = EnableOnly(MachineUnit.NgConveyor) };
+        await using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        await machine.InitializeAsync();
+        var failure = new IOException("Feedback failed while entering bolt test.");
+        void FailWhenTestingStarts()
+        {
+            if (!state.BoltTestRunning)
+                return;
+            state.Changed -= FailWhenTestingStarts;
+            throw failure;
+        }
+
+        var bus = new AdcProtocolTests.ControllerBus();
+        using var diagnostics = new AdcProtocolViewModel(bus, settings.Hantas, machine, state);
+        state.Changed += FailWhenTestingStarts;
+        try
+        {
+            var command = reverse ? diagnostics.ReverseCommand : diagnostics.StartCommand;
+            await command.ExecuteAsync(null);
+
+            Assert.False(state.BoltTestRunning);
+            Assert.False(state.IsRunning);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+            Assert.Equal(MachineAlarm.BoltFastening, state.Alarm);
+            Assert.Contains(failure.Message, state.AlarmDetail);
+            Assert.Equal(0, bus.StartWrites);
+        }
+        finally
+        {
+            state.Changed -= FailWhenTestingStarts;
+            state.SetBoltTestRunning(false);
             await machine.ShutdownAsync();
         }
     }
@@ -578,9 +620,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.Null(state.AlarmDetail);
         using var stopped = new CancellationTokenSource();
-        gantry.EnsureCanJog(MotionAxis.X, stopped.Token);
-        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
-        var jog = motion.JogAsync(MotionAxis.X, 10, stopped.Token);
+        var jog = gantry.JogAsync(MotionAxis.X, 10, stopped.Token);
         Assert.True(gantry.Feedback.IsMoving);
         stopped.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
@@ -976,7 +1016,7 @@ public sealed partial class MachineLifecycleTests
 
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);
-        Assert.Throws<MotionInterlockException>(() => gantry.EnsureCanJog(MotionAxis.X));
+        await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.JogAsync(MotionAxis.X, 10));
         await Assert.ThrowsAsync<MotionInterlockException>(
             async () => await gantry.MoveToAsync(new AxisPosition { X = 20, Y = 10 }, 100));
         io.SetInput(InputIo.NgCarrierPickupDown, false);
@@ -1041,7 +1081,7 @@ public sealed partial class MachineLifecycleTests
                 ? placement.HomeAxisAsync(MotionAxis.X)
                 : fastening.HomeAxisAsync(MotionAxis.X));
         if (isPlacement)
-            Assert.Throws<MotionInterlockException>(() => placement.EnsureCanJog(MotionAxis.Y));
+            await Assert.ThrowsAsync<MotionInterlockException>(() => placement.JogAsync(MotionAxis.Y, 10));
 
         io.SetInput(up, true);
         await Assert.ThrowsAsync<MotionInterlockException>(MoveXY);

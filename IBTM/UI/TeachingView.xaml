@@ -225,7 +225,7 @@
                                         Visibility="{Binding IsBoltSelected, Converter={StaticResource BoolToVis}}">
                                         <StackPanel Margin="0,0,10,0">
                                             <TextBlock Text="Selected bolt · binary check" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                                            <StackPanel IsEnabled="{Binding CanEditInspectionRecipe}">
+                                            <StackPanel IsEnabled="{Binding CanEditTeaching}">
                                                 <TextBlock Text="Threshold (0–255)" Margin="0,8,0,4"/>
                                                 <TextBox x:Name="InspectionThresholdInput"
                                                     Text="{Binding Preview.BrightnessThreshold, BindingGroupName=RecipeInputs, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
@@ -295,7 +295,7 @@
                             <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="4">
                                 <StackPanel Margin="0,0,12,0">
                                     <TextBlock Text="Camera / Lighting" Style="{StaticResource PanelTitleStyle}" Margin="0,12,0,0"/>
-                                    <Grid Margin="0,12,0,0" IsEnabled="{Binding CanEditInspectionRecipe}">
+                                    <Grid Margin="0,12,0,0" IsEnabled="{Binding CanEditTeaching}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="0.7*"/>
@@ -361,7 +361,7 @@
                     <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource IoStatusTemplate}"/>
                     <StackPanel Grid.Row="1"
                         Visibility="{Binding BoltPresetEditorVisible, Converter={StaticResource BoolToVis}}"
-                        IsEnabled="{Binding CanEditInspectionRecipe}">
+                        IsEnabled="{Binding CanEditTeaching}">
                         <TextBlock Text="Bolt presets" FontWeight="SemiBold" Margin="0,12,0,4"/>
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                             <TextBlock Text="PCB" VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>

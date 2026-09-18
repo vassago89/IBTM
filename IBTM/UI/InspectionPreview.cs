@@ -17,7 +17,7 @@ public partial class InspectionPreview : ObservableObject
     private ImageFrame? _frame;
     private BinaryCheckResult? _check;
     private HeatSinkSlot? _pcb;
-    private BoltTarget? _bolt;
+    private BoltPoint? _bolt;
     private PixelRegion? _sourceRegion;
     [ObservableProperty]
     private BitmapSource? _image;
@@ -48,14 +48,14 @@ public partial class InspectionPreview : ObservableObject
     {
         get
         {
-            return _bolt?.Point.BrightnessThreshold ?? _recipe.BoltInspection.BrightnessThreshold;
+            return _bolt?.BrightnessThreshold ?? _recipe.BoltInspection.BrightnessThreshold;
         }
 
         set
         {
             if (_bolt is null)
                 throw new InvalidOperationException("Select a bolt before changing its threshold.");
-            _bolt.Point.BrightnessThreshold = value;
+            _bolt.BrightnessThreshold = value;
             if (_check is not null)
             {
                 _check = _inspector.Check(_frame!, _sourceRegion!, _bolt);
@@ -70,7 +70,7 @@ public partial class InspectionPreview : ObservableObject
     {
         get
         {
-            return (_bolt?.Point.MinimumBrightRatio ?? _recipe.BoltInspection.MinimumBrightRatio) * 100;
+            return (_bolt?.MinimumBrightRatio ?? _recipe.BoltInspection.MinimumBrightRatio) * 100;
         }
 
         set
@@ -79,13 +79,13 @@ public partial class InspectionPreview : ObservableObject
                 throw new ArgumentOutOfRangeException(nameof(value), "Use 0 to 100 percent.");
             if (_bolt is null)
                 throw new InvalidOperationException("Select a bolt before changing its required bright percentage.");
-            _bolt.Point.MinimumBrightRatio = value / 100;
+            _bolt.MinimumBrightRatio = value / 100;
             RefreshResult();
             OnPropertyChanged();
         }
     }
 
-    public void Clear(HeatSinkSlot? pcb = null, BoltTarget? bolt = null)
+    public void Clear(HeatSinkSlot? pcb = null, BoltPoint? bolt = null)
     {
         _pcb = pcb;
         _bolt = bolt;
@@ -166,7 +166,7 @@ public partial class InspectionPreview : ObservableObject
         if (_check is null)
             return;
         var ratio = _check.BrightRatio;
-        var minimum = _bolt?.Point.MinimumBrightRatio ?? _recipe.BoltInspection.MinimumBrightRatio;
+        var minimum = _bolt?.MinimumBrightRatio ?? _recipe.BoltInspection.MinimumBrightRatio;
         Result = $"{(ratio >= minimum ? "OK" : "NG")} · Bright {ratio * 100:0.###}%";
     }
 

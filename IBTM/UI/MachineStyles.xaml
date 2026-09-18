@@ -1,6 +1,10 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+    xmlns:device="clr-namespace:IBTM.Device;assembly=IBTM.Device"
+    xmlns:placement="clr-namespace:IBTM.PcbPlacement;assembly=IBTM.PcbPlacement"
+    xmlns:fastening="clr-namespace:IBTM.BoltFastening;assembly=IBTM.BoltFastening"
+    xmlns:inspection="clr-namespace:IBTM.Inspection;assembly=IBTM.Inspection"
     xmlns:ui="clr-namespace:IBTM.UI"
     xmlns:core="clr-namespace:IBTM.Core;assembly=IBTM.Core">
     <SolidColorBrush x:Key="MaterialPcbBrush" Color="#68A97B"/>
@@ -250,10 +254,7 @@
         <Setter Property="BorderThickness" Value="3"/>
         <Setter Property="CornerRadius" Value="17"/>
         <Style.Triggers>
-            <Trigger Property="Tag">
-                <Trigger.Value>
-                    <sys:Boolean>True</sys:Boolean>
-                </Trigger.Value>
+            <Trigger Property="Tag" Value="{x:Static fastening:BoltCylinderState.Down}">
                 <Setter Property="Background" Value="{StaticResource ActiveStateBackgroundBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                 <Setter Property="BorderThickness" Value="4"/>
@@ -316,10 +317,7 @@
         <Setter Property="BorderThickness" Value="2"/>
         <Setter Property="CornerRadius" Value="2"/>
         <Style.Triggers>
-            <Trigger Property="Tag">
-                <Trigger.Value>
-                    <sys:Boolean>True</sys:Boolean>
-                </Trigger.Value>
+            <Trigger Property="Tag" Value="{x:Static inspection:NgTransferLiftState.Down}">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
             </Trigger>
         </Style.Triggers>
@@ -327,7 +325,7 @@
 
     <Style x:Key="PlacementBodyStyle" TargetType="Border" BasedOn="{StaticResource OverheadBodyStyle}">
         <Style.Triggers>
-            <DataTrigger Binding="{Binding PcbPlacementHandlerDown}" Value="True">
+            <DataTrigger Binding="{Binding Placement.Lift}" Value="{x:Static placement:PlacementCylinderState.Down}">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                 <Setter Property="BorderThickness" Value="2"/>
             </DataTrigger>
@@ -373,10 +371,7 @@
         <Setter Property="Background" Value="{StaticResource TextMutedBrush}"/>
         <Setter Property="CornerRadius" Value="1"/>
         <Style.Triggers>
-            <Trigger Property="Tag">
-                <Trigger.Value>
-                    <sys:Boolean>True</sys:Boolean>
-                </Trigger.Value>
+            <Trigger Property="Tag" Value="{x:Static inspection:NgTransferGripperState.Closed}">
                 <Setter Property="Margin" Value="-2,8,0,8"/>
                 <Setter Property="Background" Value="{StaticResource AccentGreenBrush}"/>
             </Trigger>
@@ -387,10 +382,7 @@
         <Setter Property="HorizontalAlignment" Value="Right"/>
         <Setter Property="Margin" Value="0,8,-6,8"/>
         <Style.Triggers>
-            <Trigger Property="Tag">
-                <Trigger.Value>
-                    <sys:Boolean>True</sys:Boolean>
-                </Trigger.Value>
+            <Trigger Property="Tag" Value="{x:Static inspection:NgTransferGripperState.Closed}">
                 <Setter Property="Margin" Value="0,8,-2,8"/>
             </Trigger>
         </Style.Triggers>
@@ -405,10 +397,7 @@
         <Setter Property="CornerRadius" Value="4"/>
         <Setter Property="Panel.ZIndex" Value="1"/>
         <Style.Triggers>
-            <Trigger Property="Tag">
-                <Trigger.Value>
-                    <sys:Boolean>True</sys:Boolean>
-                </Trigger.Value>
+            <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Up}">
                 <Setter Property="BorderBrush" Value="{StaticResource AccentBlueBrush}"/>
                 <Setter Property="BorderThickness" Value="2"/>
             </Trigger>
@@ -425,10 +414,7 @@
         <Setter Property="Opacity" Value="0.3"/>
         <Setter Property="Panel.ZIndex" Value="3"/>
         <Style.Triggers>
-            <Trigger Property="Tag">
-                <Trigger.Value>
-                    <sys:Boolean>True</sys:Boolean>
-                </Trigger.Value>
+            <Trigger Property="Tag" Value="{x:Static device:StationCylinderState.Up}">
                 <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
                 <Setter Property="BorderThickness" Value="2"/>

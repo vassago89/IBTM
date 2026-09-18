@@ -25,7 +25,7 @@ public partial class TeachingViewModel
         }
     }
 
-    public override TeachingMotionHint MotionHint
+    public TeachingMotionHint MotionHint
     {
         get
         {
@@ -44,7 +44,7 @@ public partial class TeachingViewModel
                 if (Motion.Axes.Values.Any(axis => axis.State is { Homed: false }))
                     return TeachingMotionHint.HomeRequired;
             }
-            if (ActiveTeachingUnit == HardwareArea.NgCarrierTransfer
+            if (SelectedTeachingUnit == HardwareArea.NgCarrierTransfer
                 && _ngTransferSettings.PickupSafeX is null)
                 return TeachingMotionHint.NgPickupSafeXRequired;
             return ActiveMotionGroup switch
@@ -77,13 +77,13 @@ public partial class TeachingViewModel
     {
         get
         {
-            return ActiveTeachingUnit == HardwareArea.NgCarrierTransfer
+            return SelectedTeachingUnit == HardwareArea.NgCarrierTransfer
                 ? _ngTransferSettings.Speed
                 : _inspectionGantrySettings.Motion.HorizontalSpeed;
         }
     }
 
-    public override MotionGroup ActiveMotionGroup
+    public MotionGroup ActiveMotionGroup
     {
         get
         {
@@ -99,28 +99,27 @@ public partial class TeachingViewModel
         }
     }
 
-    public override HardwareArea ActiveTeachingUnit
+    private bool CanJog(MotionAxis axis)
     {
-        get
-        {
-            return SelectedTeachingUnit;
-        }
-    }
-
-    protected override bool CanJog(MotionAxis axis)
-    {
-        return Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
+        return !State.Display.IsRunning
+            && Machine.IsManualMotionReady(ActiveMotionGroup, live: false)
+            && Motion.Feedback.Axes.Contains(axis)
             && ActiveMotionGroup switch
             {
-                MotionGroup.PcbSupply => _supplyHandler.CanJog(axis, live: false),
-                MotionGroup.PcbPlacementHandler => _placementHandler.CanJog(axis, live: false),
-                MotionGroup.BoltFastening => _fasteningGantry.CanJog(axis),
-                MotionGroup.InspectionGantry => _inspectionGantry.CanJog(axis),
+                MotionGroup.PcbSupply => axis == MotionAxis.Z
+                    ? _supplyHandler.IsInsideBuffer(live: false) == false
+                    : _supplyHandler.IsAtRotationZ(live: false),
+                MotionGroup.PcbPlacementHandler => axis == MotionAxis.Z
+                    || _placementHandler.HandlerRaised && _placementHandler.IsAtHorizontalZ(live: false),
+                MotionGroup.BoltFastening => true,
+                MotionGroup.InspectionGantry => _ngTransfer.IsRaised,
                 _ => false,
             };
     }
 
-    protected override async Task JogAsync(TeachingDirection direction, CancellationToken cancellationToken)
+    public IAsyncRelayCommand<TeachingDirection> JogCommand { get; }
+
+    private async Task JogAsync(TeachingDirection direction, CancellationToken cancellationToken)
     {
         var group = ActiveMotionGroup;
         var (axis, sign) = Resolve(direction);
@@ -129,7 +128,7 @@ public partial class TeachingViewModel
         var activeCancellation = cancellationToken;
         try
         {
-            if (!Machine.CanUseManualMotion(group))
+            if (State.IsRunning)
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(group),
@@ -159,14 +158,16 @@ public partial class TeachingViewModel
         }
     }
 
-    protected override async Task MoveToHorizontalZAsync(CancellationToken cancellationToken)
+    public IAsyncRelayCommand MoveToHorizontalZCommand { get; }
+
+    private async Task MoveToHorizontalZAsync(CancellationToken cancellationToken)
     {
         var commandGroup = ActiveMotionGroup;
         var viewToken = ViewCancellation;
         var activeToken = cancellationToken;
         try
         {
-            if (!Machine.CanUseManualMotion(commandGroup))
+            if (State.IsRunning)
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
@@ -196,14 +197,16 @@ public partial class TeachingViewModel
         }
     }
 
-    protected override async Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken)
+    public IAsyncRelayCommand<TeachingDirection> StepCommand { get; }
+
+    private async Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken)
     {
         var commandGroup = ActiveMotionGroup;
         var viewToken = ViewCancellation;
         var activeToken = cancellationToken;
         try
         {
-            if (!Machine.CanUseManualMotion(commandGroup))
+            if (State.IsRunning)
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
@@ -234,7 +237,8 @@ public partial class TeachingViewModel
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanReturnFromPickup))]
+    public IAsyncRelayCommand ReturnFromPickupCommand { get; }
+
     private async Task ReturnFromPickupAsync(CancellationToken cancellationToken)
     {
         var commandGroup = ActiveMotionGroup;
@@ -242,7 +246,7 @@ public partial class TeachingViewModel
         var activeToken = cancellationToken;
         try
         {
-            if (!Machine.CanUseManualMotion(commandGroup))
+            if (State.IsRunning)
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
@@ -268,10 +272,13 @@ public partial class TeachingViewModel
     private bool CanReturnFromPickup()
     {
         return ActiveMotionGroup == MotionGroup.BoltFastening
-            && Machine.CanUseManualMotion(ActiveMotionGroup, live: false);
+            && !State.Display.IsRunning
+            && Machine.IsManualMotionReady(ActiveMotionGroup, live: false);
     }
 
-    protected override async Task MoveToPointAsync(CancellationToken cancellationToken)
+    public IAsyncRelayCommand MoveToPointCommand { get; }
+
+    private async Task MoveToPointAsync(CancellationToken cancellationToken)
     {
         var point = SelectedPoint!;
         var commandGroup = ActiveMotionGroup;
@@ -279,7 +286,7 @@ public partial class TeachingViewModel
         var activeToken = cancellationToken;
         try
         {
-            if (!Machine.CanUseManualMotion(commandGroup))
+            if (State.IsRunning)
                 return;
             using var operation = Machine.BeginManualOperation(
                 () => Machine.IsManualMotionReady(commandGroup),
@@ -313,23 +320,22 @@ public partial class TeachingViewModel
         }
     }
 
-    protected override bool CanMoveToPoint()
+    private bool CanMoveToPoint()
     {
-        if (ActiveMotionGroup == MotionGroup.PcbSupply)
-        {
-            return SelectedPoint is { } point
-                && Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
-                && _supplyHandler.CanMoveToTeachingPosition(point.Position, live: false);
-        }
+        if (SelectedPoint is not { } point
+            || State.Display.IsRunning
+            || !Machine.IsManualMotionReady(ActiveMotionGroup, live: false))
+            return false;
 
-        return SelectedPoint is not null
-            && Machine.CanUseManualMotion(ActiveMotionGroup, live: false)
-            && (SelectedPoint.Position.Mode == TeachMode.ZOnly || CanMoveHorizontal())
-            && (SelectedPoint.Position.Target != TeachingTarget.NgCarrierPickup
+        if (ActiveMotionGroup == MotionGroup.PcbSupply)
+            return _supplyHandler.CanMoveToTeachingPosition(point.Position, live: false);
+
+        return (point.Position.Mode == TeachMode.ZOnly || CanMoveHorizontal())
+            && (point.Position.Target != TeachingTarget.NgCarrierPickup
                 || _ngTransferSettings.PickupSafeX is not null)
-            && (IsInspectionSelected && SelectedPoint.Position.Bolt is { } bolt
+            && (IsInspectionSelected && point.Position.Bolt is { } bolt
                 ? Inspector.HasPosition(bolt)
-                : SelectedPoint.Position.HasPosition);
+                : point.Position.HasPosition);
     }
 
     private bool CanMoveHorizontal()
@@ -343,10 +349,9 @@ public partial class TeachingViewModel
         };
     }
 
-    protected override void NotifyManualTeachingCommands()
+    private void NotifyManualTeachingCommands()
     {
         OnPropertyChanged(nameof(HomeBlock));
-        OnPropertyChanged(nameof(CanEditInspectionRecipe));
         if (!State.ManualMode && (Inspector.IsLiveView || ToggleLiveViewCommand.IsRunning))
         {
             _ = RequestCameraStopAsync();

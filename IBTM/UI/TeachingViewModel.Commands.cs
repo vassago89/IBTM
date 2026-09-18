@@ -66,7 +66,7 @@ public enum TeachingMotionHint
     NgPickupSafeXRequired,
 }
 
-public abstract partial class TeachingMotionViewModel : ObservableObject
+public partial class TeachingViewModel
 {
     private readonly MachineStore _store;
     private readonly IReadOnlyDictionary<HardwareArea, IoStatus[]> _ioGroups;
@@ -94,22 +94,6 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
 
     [ObservableProperty]
     private string? _saveError;
-
-    protected TeachingMotionViewModel(
-        MachineState state,
-        MachineController machine,
-        OperationCancellation operations,
-        MachineStore store,
-        IReadOnlyDictionary<HardwareArea, IoStatus[]> ioGroups,
-        IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs)
-    {
-        State = state;
-        Machine = machine;
-        Operations = operations;
-        _store = store;
-        _ioGroups = ioGroups;
-        _teachingOutputs = teachingOutputs;
-    }
 
     public TeachingMoveMode[] MoveModes { get; } = Enum.GetValues<TeachingMoveMode>();
 
@@ -147,32 +131,29 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
         }
     }
 
-    public abstract TeachingMotionHint MotionHint { get; }
-    public abstract TeachingSaveBehavior SaveBehavior { get; }
-
     public IReadOnlyList<TeachingIoGroup> TeachingIoGroups
     {
         get
         {
-            if (!_teachingIoGroups.TryGetValue(ActiveTeachingUnit, out var groups))
+            if (!_teachingIoGroups.TryGetValue(SelectedTeachingUnit, out var groups))
             {
-                groups = _ioGroups[ActiveTeachingUnit].Select(
+                groups = _ioGroups[SelectedTeachingUnit].Select(
                     io =>
                         new TeachingIoGroup(
                             io,
-                            _teachingOutputs[ActiveTeachingUnit],
+                            _teachingOutputs[SelectedTeachingUnit],
                             Machine))
                     .ToArray();
                 foreach (var row in groups.SelectMany(group => group.Outputs))
                     row.ViewCancellation = ViewCancellation;
-                _teachingIoGroups.Add(ActiveTeachingUnit, groups);
+                _teachingIoGroups.Add(SelectedTeachingUnit, groups);
             }
 
             return groups;
         }
     }
 
-    protected IAsyncRelayCommand[] OutputCommands
+    private IAsyncRelayCommand[] OutputCommands
     {
         get
         {
@@ -191,16 +172,13 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
         }
     }
 
-    protected MachineController Machine { get; }
-    protected MachineState State { get; }
-    protected OperationCancellation Operations { get; }
+    private MachineController Machine { get; }
+    private MachineState State { get; }
+    private OperationCancellation Operations { get; }
 
-    public abstract MotionGroup ActiveMotionGroup { get; }
-    public abstract HardwareArea ActiveTeachingUnit { get; }
+    private bool PositionUpdatesActive { get; set; }
 
-    protected bool PositionUpdatesActive { get; private set; }
-
-    protected CancellationToken ViewCancellation
+    private CancellationToken ViewCancellation
     {
         get
         {
@@ -208,30 +186,19 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
         }
     }
 
-    protected abstract IReadOnlyList<TeachingPoint> CurrentPoints { get; }
-
     private int CurrentPointIndex
     {
         get
         {
-            for (var index = 0; index < CurrentPoints.Count; index++)
-                if (CurrentPoints[index] == SelectedPoint)
+            for (var index = 0; index < FilteredPoints.Count; index++)
+                if (FilteredPoints[index] == SelectedPoint)
                     return index;
             return -1;
         }
     }
 
-    partial void OnSelectedPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue)
-    {
-        CancelTeaching();
-        NotifyPointSelectionCommands();
-        OnPropertyChanged(nameof(SaveBehavior));
-        OnTeachingPointChanged(oldValue, newValue);
-    }
+    public IAsyncRelayCommand TeachCurrentPositionCommand { get; }
 
-    protected abstract void OnTeachingPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue);
-
-    [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
     private async Task TeachCurrentPositionAsync(CancellationToken cancellationToken)
     {
         var viewToken = ViewCancellation;
@@ -265,6 +232,7 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
             RefreshPointPositions();
             if (point.Position.Storage == TeachingStorage.Machine && !await SaveSettingsAsync(operation.Token, point.Position.Setting!))
                 return;
+            operation.Token.ThrowIfCancellationRequested();
             OnPointTaught(point);
             NotifyManualTeachingCommands();
         }
@@ -303,19 +271,7 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
                 is { Homed: true, InMotion: false });
     }
 
-    protected abstract void RefreshPointPositions();
-
-    protected virtual void OnPointTaught(TeachingPoint point)
-    {
-    }
-
-    // Concrete views keep command execution and device selection together.
-    [RelayCommand(CanExecute = nameof(CanMoveToPoint))]
-    protected abstract Task MoveToPointAsync(CancellationToken cancellationToken);
-
-    protected abstract bool CanMoveToPoint();
-
-    protected async Task<bool> SaveSettingsAsync(
+    private async Task<bool> SaveSettingsAsync(
         CancellationToken cancellationToken,
         params Setting[] settings)
     {
@@ -344,16 +300,18 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
         }
     }
 
-    [RelayCommand(CanExecute = nameof(CanSelectPreviousPoint))]
+    public IRelayCommand SelectPreviousPointCommand { get; }
+
     private void SelectPreviousPoint()
     {
-        SelectedPoint = CurrentPoints[CurrentPointIndex - 1];
+        SelectedPoint = FilteredPoints[CurrentPointIndex - 1];
     }
 
-    [RelayCommand(CanExecute = nameof(CanSelectNextPoint))]
+    public IRelayCommand SelectNextPointCommand { get; }
+
     private void SelectNextPoint()
     {
-        SelectedPoint = CurrentPoints[CurrentPointIndex + 1];
+        SelectedPoint = FilteredPoints[CurrentPointIndex + 1];
     }
 
     private bool CanSelectPreviousPoint()
@@ -363,22 +321,16 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
 
     private bool CanSelectNextPoint()
     {
-        return CurrentPointIndex < CurrentPoints.Count - 1;
+        return CurrentPointIndex < FilteredPoints.Count - 1;
     }
 
-    protected void NotifyPointSelectionCommands()
+    private void NotifyPointSelectionCommands()
     {
         SelectPreviousPointCommand.NotifyCanExecuteChanged();
         SelectNextPointCommand.NotifyCanExecuteChanged();
     }
 
-    [RelayCommand(CanExecute = nameof(CanMoveDirection))]
-    protected abstract Task JogAsync(TeachingDirection direction, CancellationToken cancellationToken);
-
-    [RelayCommand(CanExecute = nameof(CanStep))]
-    protected abstract Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken);
-
-    protected (MotionAxis Axis, double Position) GetStepTarget(
+    private (MotionAxis Axis, double Position) GetStepTarget(
         TeachingDirection direction,
         (double X, double Y, double Z) current)
     {
@@ -411,7 +363,7 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
         return double.IsFinite(current.Value + sign * StepDistance);
     }
 
-    protected static (MotionAxis Axis, int Sign) Resolve(TeachingDirection direction)
+    private static (MotionAxis Axis, int Sign) Resolve(TeachingDirection direction)
     {
         return direction switch
         {
@@ -430,7 +382,8 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
         return CanJog(Resolve(direction).Axis);
     }
 
-    [RelayCommand]
+    public IRelayCommand JogStopCommand { get; }
+
     private void JogStop()
     {
         CancelTeaching();
@@ -441,29 +394,23 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
         return CanJog(MotionAxis.Z);
     }
 
-    protected abstract bool CanJog(MotionAxis axis);
+    public IAsyncRelayCommand HomeCommand { get; }
 
-    protected abstract void NotifyManualTeachingCommands();
-
-    [RelayCommand(CanExecute = nameof(CanHome))]
     private async Task HomeAsync(CancellationToken cancellationToken)
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
             ViewCancellation);
         var group = ActiveMotionGroup;
-        await Machine.HomeUnitAsync(group, cancellation.Token);
+        await Machine.HomeAsync(group, cancellation.Token);
     }
 
     private bool CanHome()
     {
-        return Machine.CanHomeUnit(ActiveMotionGroup, live: false);
+        return Motion.Feedback.Axes.All(axis => State.Display.HomeableAxes.Contains((ActiveMotionGroup, axis)));
     }
 
-    [RelayCommand(CanExecute = nameof(CanJogZ))]
-    protected abstract Task MoveToHorizontalZAsync(CancellationToken cancellationToken);
-
-    protected void CancelTeaching(bool reportDeviceFailure = true)
+    private void CancelTeaching(bool reportDeviceFailure = true)
     {
         var cancellation = _viewCancellation;
         _viewCancellation = new CancellationTokenSource();
@@ -492,7 +439,7 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
         }
     }
 
-    protected void NotifyMotionCommands()
+    private void NotifyMotionCommands()
     {
         HomeCommand.NotifyCanExecuteChanged();
         JogCommand.NotifyCanExecuteChanged();
@@ -507,20 +454,7 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
         OnPropertyChanged(nameof(MotionHint));
     }
 
-    protected void ActivatePositionUpdates()
-    {
-        PositionUpdatesActive = true;
-        OnPropertyChanged(nameof(Motion));
-    }
-
-    public virtual void Deactivate()
-    {
-        PositionUpdatesActive = false;
-        // Page/application shutdown must still receive an unconfirmed device stop.
-        CancelTeaching(reportDeviceFailure: false);
-    }
-
-    protected void QueueManualCommandRefresh()
+    private void QueueManualCommandRefresh()
     {
         if (!PositionUpdatesActive
             || Interlocked.Exchange(ref _manualCommandRefreshQueued, 1) != 0)

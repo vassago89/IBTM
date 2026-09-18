@@ -75,9 +75,12 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal((0, 0, 0), gantry.Feedback.GetPosition());
 
         await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, true);
-        Assert.False(teaching.HomeCommand.CanExecute(null));
+        var homeStarted = false;
+        gantry.Feedback.MovingChanged += moving => homeStarted |= moving;
         await teaching.HomeCommand.ExecuteAsync(null);
+        Assert.False(homeStarted);
         Assert.Equal((0, 0, 0), gantry.Feedback.GetPosition());
+        await WaitUntilAsync(() => !teaching.HomeCommand.CanExecute(null));
     }
 
     [Theory]
@@ -97,7 +100,7 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
         var motion = services.GetRequiredKeyedService<IXyMotion>(group);
-        await machine.HomeAxisAsync(group, MotionAxis.Z, CancellationToken.None);
+        await machine.HomeAsync(group, CancellationToken.None, MotionAxis.Z);
         await motion.MoveToXYAsync(10, 7, 10_000);
         await motion.MoveAxisAsync(MotionAxis.Z, 20, 10_000);
         var positions = new ConcurrentQueue<(double X, double Y, double Z, bool ZHomed)>();
@@ -368,7 +371,7 @@ public sealed partial class MachineLifecycleTests
         await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
         var motion = teaching.Motion.Feedback;
         // Simulate a native STOP failure in the cancellation callback without loading the SDK.
-        var viewToken = (CancellationToken)typeof(TeachingMotionViewModel)
+        var viewToken = (CancellationToken)typeof(TeachingViewModel)
             .GetProperty("ViewCancellation", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(teaching)!;
         var stopError = new MotionException("Stop axes", new IOException("Axis STOP write failed."));
@@ -704,7 +707,7 @@ public sealed partial class MachineLifecycleTests
         Assert.All(teaching.FilteredPoints, point => Assert.Equal(MotionGroup.PcbPlacementHandler, point.Position.MotionGroup));
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.PlacementBufferHandoff);
-        Assert.Equal(HardwareArea.PcbPlacementHandler, teaching.ActiveTeachingUnit);
+        Assert.Equal(HardwareArea.PcbPlacementHandler, teaching.SelectedTeachingUnit);
         Assert.Same(placement.Feedback, teaching.Motion.Feedback);
         Assert.Contains(OutputIo.PcbPlacementIpmGripperClose, TeachingRows(teaching).Keys);
         Assert.DoesNotContain(OutputIo.PcbSupplyGripperClosed, TeachingRows(teaching).Keys);
@@ -1225,6 +1228,52 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(recipeBefore, JsonSerializer.Serialize(teaching.RecipeEditor.Recipe));
         Assert.Equal(settingsBefore, JsonSerializer.Serialize(settings));
         Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+    }
+
+    [Fact]
+    public async Task CancelledInspectionCaptureKeepsPreviewAfterWaitingForLiveStop()
+    {
+        var settings = FlowSettings();
+        var recipe = new Recipe();
+        TeachInspectionFovs(settings, recipe);
+        await using var services = new ServiceCollection()
+            .AddIbtmApplication(settings, recipe)
+            .BuildServiceProvider();
+        var machine = services.GetRequiredService<MachineController>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var inspector = services.GetRequiredService<BoltInspector>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        teaching.SelectedPoint = teaching.FilteredPoints.Single(
+            point => point.Position.Target == TeachingTarget.DataMatrix);
+        await WaitUntilAsync(() => teaching.CaptureInspectionCommand.CanExecute(null));
+        var frame = await services.GetRequiredService<ICamera>().CaptureAsync(100, 0);
+        await teaching.Preview.SetImageAsync(frame, CancellationToken.None);
+        var image = teaching.Preview.Image;
+        var stopped = false;
+        void CancelCapture()
+        {
+            inspector.LiveViewChanged -= CancelCapture;
+            stopped = true;
+            teaching.CaptureInspectionCommand.Cancel();
+        }
+
+        inspector.LiveViewChanged += CancelCapture;
+        try
+        {
+            await teaching.CaptureInspectionCommand.ExecuteAsync(null).WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.True(stopped);
+            Assert.True(teaching.Preview.HasImage);
+            Assert.Same(image, teaching.Preview.Image);
+            Assert.Null(teaching.CameraError);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            inspector.LiveViewChanged -= CancelCapture;
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]

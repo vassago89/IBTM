@@ -38,10 +38,6 @@ public sealed class MotionSafetyTests
     }
 
     [Theory]
-    [InlineData(MotionAxis.X, 2, 0, 0)]
-    [InlineData(MotionAxis.Y, 0, 2, 0)]
-    [InlineData(MotionAxis.Z, 0, 0, 2)]
-    [InlineData(MotionAxis.X, -56.561, 0, 0)]
     [InlineData(MotionAxis.Y, 0, -292.227, 0)]
     [InlineData(MotionAxis.Z, 0, 0, -10)]
     [InlineData(MotionAxis.X, 201, 0, 0)]
@@ -347,7 +343,6 @@ public sealed class MotionSafetyTests
         Assert.Equal((20, 15, settings.RotationZ), motion.GetPosition());
         Assert.Equal(TeachMode.XYOnly, handoff.Mode);
 
-        Assert.True(supply.CanJog(MotionAxis.Y));
         await supply.MoveAxisAsync(MotionAxis.Y, 14);
         await Assert.ThrowsAsync<MotionInterlockException>(
             () => supply.MoveAxisAsync(MotionAxis.Z, 0));

@@ -124,12 +124,12 @@ public sealed class BoltFasteningGantry
             && (live ? _motion.IsAtHorizontalZ : Motion.IsAtZ(_settings.SafeZ));
     }
 
-    internal bool IsAt(BoltTarget bolt, bool live = true)
+    internal bool IsAt(BoltPoint bolt, bool live = true)
     {
         return IsAt(_settings.GetBoltPosition(bolt, _carrierReference), live);
     }
 
-    internal bool HasPosition(BoltTarget bolt)
+    internal bool HasPosition(BoltPoint bolt)
     {
         return _settings.HasBoltPosition(bolt, _carrierReference);
     }
@@ -229,17 +229,6 @@ public sealed class BoltFasteningGantry
         };
     }
 
-    public bool CanJog(MotionAxis axis)
-    {
-        return axis switch
-        {
-            MotionAxis.X => true,
-            MotionAxis.Y => _motion.HasY,
-            MotionAxis.Z => _motion.HasZ,
-            _ => false,
-        };
-    }
-
     public Task AdjustAxisAsync(
         MotionAxis axis,
         double position,
@@ -287,7 +276,7 @@ public sealed class BoltFasteningGantry
         }
     }
 
-    internal async Task MoveToBoltAsync(BoltTarget bolt, CancellationToken cancellationToken = default)
+    internal async Task MoveToBoltAsync(BoltPoint bolt, CancellationToken cancellationToken = default)
     {
         var position = _settings.GetBoltPosition(bolt, _carrierReference);
         // XY travel uses Safe Z. Approach the work height with both heads raised.

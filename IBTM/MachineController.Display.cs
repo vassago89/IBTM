@@ -46,7 +46,7 @@ public sealed partial class MachineController
         var running = _state.GetIsRunning(mainRunning, ngRunning);
         var safetyReady = _state.SafetyReady;
         var teachingReady = TeachingReady;
-        var bolts = _recipe.Pcb.GetBolts().ToArray();
+        var bolts = _recipe.Pcb.BoltPoints.ToArray();
         var automatic = _state.AutomaticRunning;
         var setupEditing = _state.SetupEditingEnabled;
         var manualSetup = setupEditing && !running && safetyReady;
@@ -90,7 +90,7 @@ public sealed partial class MachineController
                         axis => (
                             group,
                             axis)))
-                .Where(item => CanHomeAxis(item.group, item.axis, live: false, running: running))
+                .Where(item => !running && AreHomeAxisConditionsReady(item.group, item.axis, live: false))
                 .ToHashSet(),
             ManualBlock = _state.GetManualBlock(motion, conflict, running),
             SetupEditingEnabled = setupEditing,

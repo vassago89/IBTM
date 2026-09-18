@@ -111,10 +111,10 @@ public sealed class BoltInspector
             ExceptionDispatchInfo.Throw(failure);
     }
 
-    public BinaryCheckResult Check(ImageFrame image, PixelRegion region, BoltTarget point)
+    public BinaryCheckResult Check(ImageFrame image, PixelRegion region, BoltPoint point)
     {
         return BinaryChecker.Check(image, region,
-            point.Point.BrightnessThreshold ?? getRecipe().BrightnessThreshold);
+            point.BrightnessThreshold ?? getRecipe().BrightnessThreshold);
     }
 
     public bool HasBarcodeRegion(HeatSinkSlot pcb)
@@ -180,7 +180,7 @@ public sealed class BoltInspector
                 $"Data Matrix could not be read for {pcb.GetDescription()}. Check the PCB and camera image.");
     }
 
-    public bool HasPosition(BoltTarget point)
+    public bool HasPosition(BoltPoint point)
     {
         var size = camera.FrameSize;
         var fovs = getFovs().Where(fov =>
@@ -192,7 +192,7 @@ public sealed class BoltInspector
             && region.IsInside(size.Width, size.Height);
     }
 
-    public CarrierImageTile GetFov(BoltTarget point)
+    public CarrierImageTile GetFov(BoltPoint point)
     {
         var fov = getFovs().SingleOrDefault(fov =>
             !fov.IsBarcode
@@ -205,12 +205,12 @@ public sealed class BoltInspector
         return fov;
     }
 
-    internal bool IsAt(BoltTarget point, bool live = true)
+    internal bool IsAt(BoltPoint point, bool live = true)
     {
         return gantry.IsAt(GetFov(point).Center, live);
     }
 
-    public Task MoveToAsync(BoltTarget point, CancellationToken cancellationToken = default)
+    public Task MoveToAsync(BoltPoint point, CancellationToken cancellationToken = default)
     {
         return MoveToAsync(GetFov(point).Center, cancellationToken);
     }
@@ -237,14 +237,14 @@ public sealed class BoltInspector
     }
 
     public async Task<ImageFrame> CaptureAsync(
-        BoltTarget point,
+        BoltPoint point,
         CancellationToken cancellationToken = default)
     {
         await MoveToAsync(point, cancellationToken);
         return await CaptureCurrentAsync(cancellationToken);
     }
 
-    internal async Task<bool> InspectAsync(BoltTarget point, CancellationToken cancellationToken = default)
+    internal async Task<bool> InspectAsync(BoltPoint point, CancellationToken cancellationToken = default)
     {
         var region = GetFov(point).Region!;
         var image = await CaptureCurrentAsync(cancellationToken).ConfigureAwait(false);
@@ -253,7 +253,7 @@ public sealed class BoltInspector
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var present = Check(image, region, point).BrightRatio
-                    >= (point.Point.MinimumBrightRatio ?? getRecipe().MinimumBrightRatio);
+                    >= (point.MinimumBrightRatio ?? getRecipe().MinimumBrightRatio);
                 cancellationToken.ThrowIfCancellationRequested();
                 return present;
             },

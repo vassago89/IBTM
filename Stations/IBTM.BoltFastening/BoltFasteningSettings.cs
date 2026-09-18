@@ -87,7 +87,7 @@ public sealed class BoltFasteningSettings : Setting
         ];
     }
 
-    private TeachingPosition GetBoltTeachingPosition(BoltTarget bolt, CarrierReferenceSettings reference)
+    private TeachingPosition GetBoltTeachingPosition(BoltPoint bolt, CarrierReferenceSettings reference)
     {
         return new(
             TeachingTarget.BoltPosition,
@@ -99,7 +99,7 @@ public sealed class BoltFasteningSettings : Setting
         { Bolt = bolt };
     }
 
-    internal bool HasBoltPosition(BoltTarget bolt, CarrierReferenceSettings reference)
+    internal bool HasBoltPosition(BoltPoint bolt, CarrierReferenceSettings reference)
     {
         var head = GetHead(bolt.Head);
         return reference.IsDefined
@@ -117,7 +117,7 @@ public sealed class BoltFasteningSettings : Setting
         };
     }
 
-    public AxisPosition GetBoltPosition(BoltTarget bolt, CarrierReferenceSettings reference)
+    public AxisPosition GetBoltPosition(BoltPoint bolt, CarrierReferenceSettings reference)
     {
         var head = GetHead(bolt.Head);
         var position = CarrierCoordinates.ToMachine(

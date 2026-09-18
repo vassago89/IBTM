@@ -176,7 +176,7 @@ public sealed class MachineMap
             mapped.Y + MachinePlan.PickupToolCenter.Y + PickupFeederOffset.Y);
     }
 
-    public (double X, double Y) GetFasteningTargetPosition(BoltTarget bolt)
+    public (double X, double Y) GetFasteningTargetPosition(BoltPoint bolt)
     {
         var target = _fastening.GetBoltPosition(bolt, _carrier);
         var mapped = MapFastening(target.X, target.Y);
@@ -193,7 +193,7 @@ public sealed class MachineMap
         return current is { X: { } x, Y: { } y } ? MapInspection(x, y) : null;
     }
 
-    public (double X, double Y) GetInspectionTargetPosition(BoltTarget bolt)
+    public (double X, double Y) GetInspectionTargetPosition(BoltPoint bolt)
     {
         var target = _inspection.GetBoltPosition(bolt, _carrier);
         var mapped = MapInspection(target.X, target.Y);

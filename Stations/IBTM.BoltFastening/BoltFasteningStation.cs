@@ -305,7 +305,7 @@ public sealed class BoltFasteningStation : AutoUnit
             ?? BoltFasteningState.CompletingCarrier;
     }
 
-    public BoltTarget? GetActiveBolt(BoltFasteningState? state = null)
+    public BoltPoint? GetActiveBolt(BoltFasteningState? state = null)
     {
         if (PendingResult is { } pending)
         {
@@ -332,7 +332,7 @@ public sealed class BoltFasteningStation : AutoUnit
         };
     }
 
-    private BoltFasteningState? GetPcbState(BoltTarget? bolt, bool live = true)
+    private BoltFasteningState? GetPcbState(BoltPoint? bolt, bool live = true)
     {
         var feeding = IsFeederEnabled(FasteningHead.Shooting);
         if ((bolt is null || !_gantry.IsAt(bolt, live) || feeding && !_gantry.ShootingBoltLoaded)
@@ -378,7 +378,7 @@ public sealed class BoltFasteningStation : AutoUnit
         return BoltFasteningState.FasteningPcb;
     }
 
-    private BoltFasteningState? GetIpmSeatingState(BoltTarget? bolt, bool live = true)
+    private BoltFasteningState? GetIpmSeatingState(BoltPoint? bolt, bool live = true)
     {
         if (bolt is null)
         {
@@ -437,7 +437,7 @@ public sealed class BoltFasteningStation : AutoUnit
         return BoltFasteningState.SeatingIpm;
     }
 
-    private BoltFasteningState? GetIpmFinalState(BoltTarget? bolt, bool live = true)
+    private BoltFasteningState? GetIpmFinalState(BoltPoint? bolt, bool live = true)
     {
         if (bolt is null)
         {
@@ -527,7 +527,7 @@ public sealed class BoltFasteningStation : AutoUnit
         _pendingFastening = null;
     }
 
-    private async Task MoveToBoltAsync(BoltTarget bolt, CancellationToken cancellationToken)
+    private async Task MoveToBoltAsync(BoltPoint bolt, CancellationToken cancellationToken)
     {
         await _gantry.RaiseCylindersAsync(cancellationToken);
         await _gantry.MoveToBoltAsync(bolt, cancellationToken);
@@ -556,14 +556,14 @@ public sealed class BoltFasteningStation : AutoUnit
         _work.Complete(job);
     }
 
-    private IEnumerable<BoltTarget> GetPendingPcbBolts()
+    private IEnumerable<BoltPoint> GetPendingPcbBolts()
     {
         return GetApplicableBolts()
             .Where(bolt => bolt.Head == FasteningHead.Shooting)
             .Where(bolt => FindAssembly(bolt.HeatSink)?.PcbBoltResults.ContainsKey(bolt.Number) != true);
     }
 
-    private IEnumerable<BoltTarget> GetPendingIpmSeatingBolts()
+    private IEnumerable<BoltPoint> GetPendingIpmSeatingBolts()
     {
         return GetApplicableBolts()
             .Where(bolt => bolt.Head == FasteningHead.Pickup)
@@ -571,7 +571,7 @@ public sealed class BoltFasteningStation : AutoUnit
                 bolt => FindAssembly(bolt.HeatSink)?.IpmSeatingResults.ContainsKey(bolt.Number) != true);
     }
 
-    private IEnumerable<BoltTarget> GetPendingIpmFinalBolts()
+    private IEnumerable<BoltPoint> GetPendingIpmFinalBolts()
     {
         return GetApplicableBolts()
             .Where(bolt => bolt.Head == FasteningHead.Pickup)
@@ -583,10 +583,10 @@ public sealed class BoltFasteningStation : AutoUnit
         return _work.Assemblies.FirstOrDefault(assembly => assembly.HeatSink == heatSink);
     }
 
-    private IEnumerable<BoltTarget> GetApplicableBolts()
+    private IEnumerable<BoltPoint> GetApplicableBolts()
     {
         return _getPcb()
-            .GetBolts()
+            .BoltPoints
             .Where(bolt => Targets.Contains(bolt.HeatSink))
             .OrderBy(bolt => bolt.HeatSink)
             .ThenBy(bolt => bolt.Number);
@@ -598,7 +598,7 @@ public sealed class BoltFasteningStation : AutoUnit
     }
 
     private sealed record PendingFastening(
-            BoltTarget Bolt, StationWork.Job Job, HeatSinkAssembly Assembly, FasteningPass Pass);
+            BoltPoint Bolt, StationWork.Job Job, HeatSinkAssembly Assembly, FasteningPass Pass);
 
-    private sealed record PickupAttempt(StationWork.Job Job, BoltTarget Bolt);
+    private sealed record PickupAttempt(StationWork.Job Job, BoltPoint Bolt);
 }

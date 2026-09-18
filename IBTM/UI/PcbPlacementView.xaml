@@ -4,6 +4,7 @@
     xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:supply="clr-namespace:IBTM.PcbSupply;assembly=IBTM.PcbSupply"
     xmlns:ui="clr-namespace:IBTM.UI"
     mc:Ignorable="d"
     d:DataContext="{d:DesignInstance Type=ui:OperationViewModel, IsDesignTimeCreatable=False}"
@@ -105,7 +106,7 @@
                             <Border.Style>
                                 <Style TargetType="Border">
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding PcbSupplyRotated}" Value="True">
+                                        <DataTrigger Binding="{Binding Supply.Rotation}" Value="{x:Static supply:PcbSupplyRotationState.Rotated}">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -113,8 +114,8 @@
                             </Border.Style>
                         </Border>
                     </Grid>
-                    <Border Tag="{Binding PcbSupplyIpmFixed}" Style="{StaticResource LeftGripperJawStyle}"/>
-                    <Border Tag="{Binding PcbSupplyIpmFixed}" Style="{StaticResource RightGripperJawStyle}"/>
+                    <Border Tag="{Binding Supply.IpmFixed}" Style="{StaticResource LeftGripperJawStyle}"/>
+                    <Border Tag="{Binding Supply.IpmFixed}" Style="{StaticResource RightGripperJawStyle}"/>
                 </Grid>
             </Grid>
 

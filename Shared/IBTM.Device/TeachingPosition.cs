@@ -152,7 +152,7 @@ public sealed class TeachingPosition
     public MotionGroup MotionGroup { get; }
     public TeachMode Mode { get; }
     public Setting? Setting { get; }
-    public BoltTarget? Bolt { get; init; }
+    public BoltPoint? Bolt { get; init; }
     public bool Staged { get; init; }
 
     public TeachingStorage Storage

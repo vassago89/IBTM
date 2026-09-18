@@ -133,7 +133,7 @@ public sealed class InspectionTests
             Assert.NotEmpty(image.Frame.Pixels);
         }
 
-        var bolt = new BoltTarget(new() { Number = 1, X = 999, Y = 999 });
+        var bolt = new BoltPoint { Number = 1, X = 999, Y = 999 };
         var capturedFov = await inspector.CaptureAsync(bolt);
         Assert.True(gantry.IsAt(fov.Center)); // Never move the camera center to the bolt / ROI center.
         Assert.Equal(fov.Region!.Width, inspector.Check(capturedFov, fov.Region, bolt).Image.Width);
@@ -191,7 +191,7 @@ public sealed class InspectionTests
         var gantry = new InspectionGantry(motion, transfer, operations, gantrySettings);
         var transferSettings = new NgCarrierTransferSettings { PickupSafeX = 0 };
         var work = new InspectionWork(io, transfer, gantry, transferSettings);
-        BoltTarget[] bolts = [
+        BoltPoint[] bolts = [
             Bolt(1, HeatSinkSlot.HeatSink1, 9, 9, carrierReference),
             Bolt(2, HeatSinkSlot.HeatSink1, 9, 21, carrierReference),
             Bolt(3, HeatSinkSlot.HeatSink2, 31, 9, carrierReference),
@@ -381,7 +381,7 @@ public sealed class InspectionTests
         Assert.Equal(InspectionStationState.Waiting, station.GetState(bolts));
     }
 
-    private static BoltTarget Bolt(
+    private static BoltPoint Bolt(
         int number,
         HeatSinkSlot heatSink,
         double x,
@@ -391,7 +391,7 @@ public sealed class InspectionTests
         var position = CarrierCoordinates.FromMachine(
             new AxisPosition { X = x, Y = y },
             reference.UpperLeftLocatingPin!);
-        return new BoltTarget(new BoltPoint { Number = number, HeatSink = heatSink, X = position.X, Y = position.Y });
+        return new BoltPoint { Number = number, HeatSink = heatSink, X = position.X, Y = position.Y };
     }
 
     private sealed class MissingBoltCamera : ICamera

@@ -38,14 +38,14 @@ public sealed partial class MachineController
 
             if (_units.BoltFastening
                 && (!_carrierReference.IsDefined
-                    || _recipe.Pcb.GetBolts().Any(bolt =>
+                    || _recipe.Pcb.BoltPoints.Any(bolt =>
                         bolt.X is null || bolt.Y is null || !_fasteningGantry.HasReference(bolt.Head))))
             {
                 return false;
             }
 
             return !_units.Inspection
-                || _recipe.Pcb.GetBolts().All(_boltInspector.HasPosition)
+                || _recipe.Pcb.BoltPoints.All(_boltInspector.HasPosition)
                     && Enum.GetValues<HeatSinkSlot>().All(_boltInspector.HasBarcodeRegion);
         }
     }
@@ -320,7 +320,7 @@ public sealed partial class MachineController
             runningUnits.Add(ObserveAutomaticUnitAsync(
                 _units.Inspection ? MachineAlarm.Inspection : MachineAlarm.NgCarrierTransfer,
                 _inspectionStation.RunAsync(
-                    _recipe.Pcb.GetBolts().ToArray(),
+                    _recipe.Pcb.BoltPoints.ToArray(),
                     cycle.Token,
                     repeat,
                     holdAtShuttle: repeat && !_units.NgShuttle),
