@@ -976,6 +976,46 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
+    public async Task TeachingAllowsBothHandlersAtHandoffWithPlacementRaised()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.PcbSupply);
+        settings.Units.PcbPlacement = true;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        var supply = services.GetRequiredService<PcbSupplyHandler>();
+        var placement = services.GetRequiredService<PcbPlacementHandler>();
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(CancellationToken.None);
+            await supply.MoveToHandoffAsync(CancellationToken.None);
+            await placement.MoveAboveBufferAsync();
+            Assert.True(state.Buffer.IsSupplyInside());
+            Assert.True(state.Buffer.IsPlacementInside());
+
+            foreach (var group in new[] { HardwareArea.PcbSupply, HardwareArea.PcbPlacementHandler })
+            {
+                teaching.SelectedTeachingUnit = group;
+                await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
+                var feedback = group == HardwareArea.PcbSupply ? supply.Feedback : placement.Feedback;
+                var expectedX = feedback.GetPosition().X + teaching.StepDistance;
+
+                await teaching.StepCommand.ExecuteAsync(TeachingDirection.XPlus);
+
+                Assert.Equal(expectedX, feedback.GetPosition().X, 6);
+                Assert.Equal(MachineAlarm.None, state.Alarm);
+            }
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public async Task TeachingControlsOnlyItsOwnBackupPlate()
     {
         var settings = FlowSettings();
@@ -1037,7 +1077,7 @@ public sealed partial class MachineLifecycleTests
         await supply.MoveAxisAsync(MotionAxis.X, settings.PcbSupply.BufferHandoffPosition.X, 1_000);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;
         Assert.True(state.Buffer.IsSupplyInside());
-        await WaitUntilAsync(() => !teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
+        await WaitUntilAsync(() => teaching.JogCommand.CanExecute(TeachingDirection.XPlus));
         var placementPlate = teaching.TeachingOutputs[OutputIo.PcbPlacementBackupPlateUp];
         await WaitUntilAsync(() => teaching.ToggleOutputCommand.CanExecute(placementPlate));
         await teaching.ToggleOutputCommand.ExecuteAsync(placementPlate);

@@ -665,7 +665,7 @@ public sealed partial class MachineLifecycleTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task HomeIgnoresConveyorCarrierInputsBeforeAndDuringMotion(bool individualAxis)
+    public async Task HomeCanRepeatAndIgnoresCarrierInputs(bool individualAxis)
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.Inspection);
@@ -686,19 +686,69 @@ public sealed partial class MachineLifecycleTests
             var axis = manual.Axes.Single(
                 row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
             await WaitUntilAsync(() => manual.HomeAxisCommand.CanExecute(axis));
+            var moved = false;
             gantry.Feedback.MovingChanged += moving =>
             {
                 if (moving)
+                {
+                    moved = true;
                     io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+                    io.SetInput(InputIo.NgCarrierDetected, true);
+                }
             };
 
-            if (individualAxis)
-                await manual.HomeAxisCommand.ExecuteAsync(axis);
-            else
-                await machine.HomeAsync(CancellationToken.None);
+            for (var run = 0; run < 2; run++)
+            {
+                moved = false;
+                Assert.True(machine.CanHome);
+                if (individualAxis)
+                    await manual.HomeAxisCommand.ExecuteAsync(axis);
+                else
+                    await machine.HomeAsync(CancellationToken.None);
 
-            Assert.True(io.GetInput(InputIo.NgConveyorPosition1Occupied));
-            Assert.True(gantry.Feedback.GetAxisState(MotionAxis.X).Homed);
+                Assert.True(moved);
+                Assert.True(io.GetInput(InputIo.NgConveyorPosition1Occupied));
+                Assert.True(io.GetInput(InputIo.NgCarrierDetected));
+                Assert.True(gantry.Feedback.GetAxisState(MotionAxis.X).Homed);
+                Assert.Equal(MachineAlarm.None, state.Alarm);
+                Assert.False(state.IsHoming);
+            }
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
+    public async Task BoltHomeIgnoresStationaryNgPickupState()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.BoltFastening);
+        settings.Units.NgCarrierTransfer = true;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var gantry = services.GetRequiredService<InspectionGantry>();
+        var teaching = services.GetRequiredService<TeachingViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, true);
+            io.SetInput(InputIo.NgCarrierDetected, true);
+            var ngMoved = false;
+            gantry.Feedback.MovingChanged += moving => ngMoved |= moving;
+            teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
+            await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
+
+            await teaching.HomeCommand.ExecuteAsync(null);
+
+            var fastening = services.GetRequiredService<BoltFasteningGantry>();
+            Assert.All(fastening.Feedback.Axes, axis => Assert.True(fastening.Feedback.GetAxisState(axis).Homed));
+            Assert.False(ngMoved);
+            Assert.True(io.GetInput(InputIo.NgCarrierPickupDown));
+            Assert.True(io.GetInput(InputIo.NgCarrierDetected));
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.False(state.IsHoming);
         }
@@ -744,10 +794,7 @@ public sealed partial class MachineLifecycleTests
         io.OutputChanged += (output, _) => outputChanges.Enqueue(output);
 
         io.SetInput(InputIo.NgShuttleCarrierDetected, true);
-        Assert.False(machine.CanRaiseCylinders);
-        await machine.RaiseCylindersAsync(CancellationToken.None);
-        Assert.Empty(outputChanges);
-        io.SetInput(InputIo.NgShuttleCarrierDetected, false);
+        Assert.True(machine.CanRaiseCylinders);
         io.SetInput(InputIo.PcbPlacementPcbDetected, true);
         Assert.False(machine.CanRaiseCylinders);
         await machine.RaiseCylindersAsync(CancellationToken.None);
@@ -901,7 +948,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task InspectionHomeRequiresReleasedCarrierAndRaisedPickupBeforeXy()
+    public async Task InspectionHomeRequiresRaisedPickupAndIgnoresCarrierInput()
     {
         var settings = new MachineSettings
         {
@@ -925,16 +972,9 @@ public sealed partial class MachineLifecycleTests
         Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
         Assert.False(state.Homed);
 
-        io.SetInput(InputIo.NgCarrierDetected, false);
-        Assert.False(machine.CanHome);
         Assert.False(gantry.CanMove);
-        await machine.HomeAsync(CancellationToken.None);
-        await Assert.ThrowsAsync<MotionInterlockException>(() => gantry.HomeAxisAsync(MotionAxis.X));
-        Assert.False(state.Homed);
         Assert.True(io.GetOutput(OutputIo.NgCarrierPickupDown));
-        Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
 
-        await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierGripperClose, false);
         await signals.SetOutputAndWaitAsync(OutputIo.NgCarrierPickupDown, false);
         Assert.True(machine.CanHome);
 
@@ -943,15 +983,15 @@ public sealed partial class MachineLifecycleTests
         {
             if (moving && state.IsHoming)
             {
-                unsafeMovement |= !gantry.CanMove
-                    || !gantry.CanHome
-                    || !io.GetInput(InputIo.NgCarrierGripperOpen);
+                unsafeMovement |= !gantry.CanMove;
             }
         };
         await machine.HomeAsync(CancellationToken.None);
         Assert.True(state.Homed);
         Assert.False(unsafeMovement);
         Assert.True(gantry.CanMove);
+        Assert.True(io.GetInput(InputIo.NgCarrierDetected));
+        Assert.True(io.GetOutput(OutputIo.NgCarrierGripperClose));
 
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);

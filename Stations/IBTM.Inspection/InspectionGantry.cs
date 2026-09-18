@@ -44,14 +44,6 @@ public sealed class InspectionGantry
         }
     }
 
-    public bool CanHome
-    {
-        get
-        {
-            return _transfer.IsClear;
-        }
-    }
-
     public void InitializeMotion()
     {
         _motion.Initialize();
@@ -70,14 +62,14 @@ public sealed class InspectionGantry
     public async Task<bool> HomeAxisAsync(MotionAxis axis, CancellationToken cancellationToken = default)
     {
         using var operation = _operations.Link(cancellationToken);
-        EnsureCanHome(operation.Token);
+        EnsureCanMove(operation.Token);
         return await _motion.HomeAsync(axis, _settings.Home(axis).SearchSpeed, operation.Token);
     }
 
     public async Task<bool> HomeHorizontalAsync(CancellationToken cancellationToken = default)
     {
         using var operation = _operations.Link(cancellationToken);
-        EnsureCanHome(operation.Token);
+        EnsureCanMove(operation.Token);
         return await _motion.HomeHorizontalAsync(_settings.HorizontalHome.SearchSpeed, operation.Token);
     }
 
@@ -129,15 +121,6 @@ public sealed class InspectionGantry
         if (!CanMove)
         {
             throw new MotionInterlockException("NG carrier pickup must be raised before inspection XY movement.");
-        }
-    }
-
-    private void EnsureCanHome(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        if (!CanHome)
-        {
-            throw new MotionInterlockException("Release the NG carrier and raise the pickup before homing the inspection XY axes.");
         }
     }
 }

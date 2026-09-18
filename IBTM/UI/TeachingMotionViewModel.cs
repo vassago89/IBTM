@@ -44,10 +44,6 @@ public enum TeachingMotionHint
     None,
     [Description("This unit is disabled in Settings.")]
     UnitDisabled,
-    [Description("Supply is inside the handoff interference area.")]
-    SupplyInBuffer,
-    [Description("Placement is inside the handoff interference area.")]
-    PlacementInBuffer,
     [Description("Raise the NG pickup before moving XY.")]
     RaiseNgPickup,
     [Description("Raise the placement handler before moving X/Y.")]

@@ -284,8 +284,7 @@ public sealed partial class MachineController
             or InputIo.ShootingHeadUp
             or InputIo.ShootingHeadDown
             or InputIo.NgCarrierPickupUp
-            or InputIo.NgCarrierPickupDown
-            or InputIo.NgCarrierDetected)
+            or InputIo.NgCarrierPickupDown)
         {
             CheckMotionInterlocks();
         }
@@ -348,14 +347,11 @@ public sealed partial class MachineController
         }
         else if (InspectionGantryEnabled
             && _inspectionGantry.Feedback.IsMoving
-            && (!_inspectionGantry.CanMove || _state.IsHoming && !_inspectionGantry.CanHome))
+            && !_inspectionGantry.CanMove)
         {
             alarm = MachineAlarm.NgCarrierTransfer;
-            interlockDetail = _state.IsHoming
-                ? "Inspection/NG homing requires the pickup Up and no carrier at the pickup. "
-                    + $"Current lift: {_ngTransfer.Lift}; carrier detected: {_ngTransfer.CarrierDetected}."
-                : "Inspection/NG horizontal movement requires the pickup Up. "
-                    + $"Current lift: {_ngTransfer.Lift}.";
+            interlockDetail = "Inspection/NG horizontal movement requires the pickup Up. "
+                + $"Current lift: {_ngTransfer.Lift}.";
         }
 
         if (alarm != MachineAlarm.None)
