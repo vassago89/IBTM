@@ -427,7 +427,8 @@ public abstract partial class TeachingMotionViewModel(
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
             ViewCancellation);
-        await Machine.HomeUnitAsync(ActiveMotionGroup, cancellation.Token);
+        var group = ActiveMotionGroup;
+        await Task.Run(() => Machine.HomeUnitAsync(group, cancellation.Token));
     }
 
     private bool CanHome()

@@ -976,7 +976,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task TeachingAllowsBothHandlersAtHandoffWithPlacementRaised()
+    public async Task TeachingAllowsMovementAndHomeWithBothHandlersAtHandoff()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.PcbSupply);
@@ -987,9 +987,12 @@ public sealed partial class MachineLifecycleTests
         var teaching = services.GetRequiredService<TeachingViewModel>();
         var supply = services.GetRequiredService<PcbSupplyHandler>();
         var placement = services.GetRequiredService<PcbPlacementHandler>();
+        var io = services.GetRequiredService<VirtualIoService>();
         await machine.InitializeAsync();
         try
         {
+            io.SetInput(InputIo.PcbSupplyPcbDetected, true);
+            Assert.True(machine.CanHome);
             await machine.HomeAsync(CancellationToken.None);
             await supply.MoveToHandoffAsync(CancellationToken.None);
             await placement.MoveAboveBufferAsync();
@@ -1008,6 +1011,20 @@ public sealed partial class MachineLifecycleTests
                 Assert.Equal(expectedX, feedback.GetPosition().X, 6);
                 Assert.Equal(MachineAlarm.None, state.Alarm);
             }
+
+            var supplyPosition = supply.Feedback.GetPosition();
+            var manual = services.GetRequiredService<MotionWindowViewModel>();
+            var placementX = manual.Axes.Single(
+                row => row.Group == MotionGroup.PcbPlacementHandler && row.Axis == MotionAxis.X);
+            await WaitUntilAsync(() => manual.HomeAxisCommand.CanExecute(placementX));
+            await manual.HomeAxisCommand.ExecuteAsync(placementX);
+            Assert.Equal(0, placement.Feedback.GetPosition().X);
+
+            await WaitUntilAsync(() => teaching.HomeCommand.CanExecute(null));
+            await teaching.HomeCommand.ExecuteAsync(null);
+            Assert.Equal((0, 0, settings.PcbPlacementHandler.BufferHandoffPosition.Z), placement.Feedback.GetPosition());
+            Assert.Equal(supplyPosition, supply.Feedback.GetPosition());
+            Assert.Equal(MachineAlarm.None, state.Alarm);
         }
         finally
         {

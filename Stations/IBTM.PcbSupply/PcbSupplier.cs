@@ -20,14 +20,6 @@ public sealed class PcbSupplier : AutoUnit
         _handler.Changed += OnHandlerChanged;
     }
 
-    public bool CanHome
-    {
-        get
-        {
-            return _handler.CanPrepareHome;
-        }
-    }
-
     public override event Action? Changed
     {
         add

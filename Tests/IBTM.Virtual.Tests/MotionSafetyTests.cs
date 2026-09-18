@@ -257,12 +257,19 @@ public sealed class MotionSafetyTests
             previous = (x, y, z);
         };
 
+        io.AutoResponseEnabled = false;
         io.SetInput(InputIo.PcbSupplyPcbDetected, true);
-        Assert.False(supply.CanPrepareHome);
-        io.SetInput(InputIo.PcbSupplyPcbDetected, false);
+        io.SetInput(InputIo.PcbSupplyUnrotated, false);
+        Assert.Equal(PcbSupplyRotationState.Between, supply.Rotation);
 
-        var prepared = await supply.PrepareHomeAsync();
-        var homed = prepared && await supply.CompleteHomeAsync();
+        var preparing = supply.PrepareHomeAsync();
+        Assert.True(io.GetOutput(OutputIo.PcbSupplyRotate));
+        Assert.False(preparing.IsCompleted);
+        Assert.False(motion.IsMoving);
+        Assert.Equal(previous, motion.GetPosition());
+        io.SetInput(InputIo.PcbSupplyRotated, true);
+        await preparing;
+        var homed = await supply.CompleteHomeAsync();
 
         Assert.True(homed);
         Assert.True(rotatedBeforeMotion);

@@ -120,7 +120,7 @@ public partial class MotionWindowViewModel : ObservableObject
                     ? "AUTO · monitoring only."
                     : _state.Display.IsRunning
                         ? "Operation in progress · monitoring remains available."
-                        : $"MANUAL · {_state.Display.HomeBlock.GetDescription()}";
+                        : "MANUAL";
         }
     }
 
@@ -149,7 +149,7 @@ public partial class MotionWindowViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanHomeAxis), IncludeCancelCommand = true)]
     private Task HomeAxisAsync(MotionMonitorAxis row, CancellationToken cancellationToken)
     {
-        return _machine.HomeAxisAsync(row.Group, row.Axis, cancellationToken);
+        return Task.Run(() => _machine.HomeAxisAsync(row.Group, row.Axis, cancellationToken));
     }
 
     private bool CanHomeAxis(MotionMonitorAxis? row)

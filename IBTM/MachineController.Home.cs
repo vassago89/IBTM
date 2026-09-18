@@ -29,8 +29,7 @@ public sealed partial class MachineController
             && _state.ServoMainContactorOn
             && !_state.IsError
             && !(running ?? _state.IsRunning)
-            && HomeBlock == HomeBlockReason.None
-            && (!_units.PcbSupply || _pcbSupply.CanHome);
+            && HomeBlock == HomeBlockReason.None;
     }
 
     public HomeBlockReason HomeBlock
@@ -90,7 +89,6 @@ public sealed partial class MachineController
         return _units.IsMotionEnabled(group)
             && group != MotionGroup.PcbSupply
             && !(running ?? (live ? _state.IsRunning : _state.Display.IsRunning))
-            && (group != MotionGroup.PcbPlacementHandler || !_state.Buffer.IsSupplyInside(live))
             && HomeAxisConditionsReady(group, axis, live);
     }
 
@@ -370,7 +368,7 @@ public sealed partial class MachineController
 
             if (_units.PcbSupply)
             {
-                zHomeTasks.Add(CheckHomeAsync(_supplyHandler.PrepareHomeAsync(cancellationToken)));
+                zHomeTasks.Add(RunHomeStepAsync(_supplyHandler.PrepareHomeAsync(cancellationToken)));
             }
 
             if (_units.BoltFastening)

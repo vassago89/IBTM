@@ -233,6 +233,7 @@ public sealed partial class MachineLifecycleTests
 
         public Action? BeforeRead;
         public Action? BeforePositionRead;
+        public Action? BeforeHome;
         public Exception? DiagnosticReadError;
         public Action<MotionAxis>? AfterDiagnosticStateRead;
         public MotionAxis? LastMovedAxis { get; private set; }
@@ -255,6 +256,8 @@ public sealed partial class MachineLifecycleTests
 
         protected override object? Invoke(MethodInfo? method, object?[]? arguments)
         {
+            if (method!.Name is nameof(IAxisMotion.HomeAsync) or nameof(IXyMotion.HomeHorizontalAsync))
+                BeforeHome?.Invoke();
             if (method!.Name == nameof(IMotionFeedback.GetAxisState))
                 BeforeRead?.Invoke();
             if (method.Name == nameof(IMotionFeedback.GetPosition))

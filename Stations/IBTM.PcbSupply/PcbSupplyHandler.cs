@@ -136,17 +136,6 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
         }
     }
 
-    public bool CanPrepareHome
-    {
-        get
-        {
-            var rotation = Rotation;
-            return rotation != PcbSupplyRotationState.Between
-                && (rotation != PcbSupplyRotationState.Unrotated
-                    || Pcb == PcbSupplyPcbState.None);
-        }
-    }
-
     public void InitializeMotion()
     {
         _motion.Initialize();
@@ -267,17 +256,10 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
         return _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyGripperClosed, closed, cancellationToken);
     }
 
-    public async Task<bool> PrepareHomeAsync(CancellationToken cancellationToken = default)
+    public async Task PrepareHomeAsync(CancellationToken cancellationToken = default)
     {
-        if (!CanPrepareHome)
-        {
-            return false;
-        }
-
         await _io.SetOutputAndWaitAsync(OutputIo.PcbSupplyRotate, true, cancellationToken);
-
         await _motion.MoveZToPositiveLimitAsync(_settings.Motion.ZHome.SearchSpeed, cancellationToken);
-        return true;
     }
 
     public async Task<bool> CompleteHomeAsync(CancellationToken cancellationToken = default)
