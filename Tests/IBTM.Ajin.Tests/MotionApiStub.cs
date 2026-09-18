@@ -157,7 +157,10 @@ internal static partial class CAXM
 
     public static uint AxmHomeSetResult(int axis, uint result)
     {
-        return Command(new(nameof(AxmHomeSetResult), Axis: axis, Value: result));
+        var error = AjinSdk.Record(new(nameof(AxmHomeSetResult), Axis: axis, Value: result));
+        if (error == 0)
+            AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { HomeResult = result };
+        return error;
     }
 
     public static uint AxmHomeSetVel(
@@ -177,6 +180,9 @@ internal static partial class CAXM
 
     public static uint AxmHomeSetStart(int axis)
     {
+        // A configured successful command completes immediately unless BeforeCall simulates progress/failure.
+        if (AjinSdk.Results.TryGetValue(new(nameof(AxmHomeSetStart), Axis: axis), out var result) && result == 0)
+            AjinSdk.MotionAxes[axis] = AjinSdk.MotionAxes[axis] with { HomeResult = 1 };
         return Command(new(nameof(AxmHomeSetStart), Axis: axis));
     }
 }

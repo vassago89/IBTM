@@ -340,7 +340,7 @@ public abstract class MotionService : IXyMotion
             throw new InvalidOperationException($"This motion group has no {axis} axis.");
         }
 
-        ValidateHome(axis, velocity);
+        ValidatePositive(velocity, nameof(velocity));
         EnsureStopped();
         if (axis != MotionAxis.Z)
             EnsureZHomed();
@@ -354,9 +354,7 @@ public abstract class MotionService : IXyMotion
     {
         using var operation = Operations.Link(cancellationToken);
         cancellationToken = operation.Token;
-        ValidateHome(MotionAxis.X, velocity);
-        if (HasY)
-            ValidateHome(MotionAxis.Y, velocity);
+        ValidatePositive(velocity, nameof(velocity));
         EnsureStopped();
         EnsureZHomed();
         return await HomeHorizontalCoreAsync(velocity, cancellationToken);
@@ -478,19 +476,6 @@ public abstract class MotionService : IXyMotion
     private void ValidateMove(double velocity)
     {
         ValidatePositive(velocity, nameof(velocity));
-        ValidatePositive(Settings.AccelerationSeconds, nameof(Settings.AccelerationSeconds));
-        ValidatePositive(Settings.DecelerationSeconds, nameof(Settings.DecelerationSeconds));
-    }
-
-    private void ValidateHome(MotionAxis axis, double velocity)
-    {
-        ValidatePositive(velocity, nameof(velocity));
-        var home = Settings.Home(axis);
-        ValidatePositive(home.DetectionSpeed, $"{axis} home detection speed");
-        ValidatePositive(home.ApproachSpeed, $"{axis} home approach speed");
-        ValidatePositive(home.FineSpeed, $"{axis} home fine speed");
-        ValidatePositive(home.SearchAccelerationSeconds, $"{axis} home search acceleration time");
-        ValidatePositive(home.DetectionAccelerationSeconds, $"{axis} home detection acceleration time");
     }
 
     private static void ValidatePositive(double value, string parameterName)

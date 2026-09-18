@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Device;
@@ -11,8 +10,6 @@ namespace IBTM.Ajin;
 
 public class AjinMotionService : MotionService, IMotionDiagnostics
 {
-    private const uint HomeSuccess = 0x01;
-    private const uint HomeSearching = 0x02;
     private const int PositiveLimitBit = 0;
     private const int NegativeLimitBit = 1;
     private const int AlarmBit = 4;
@@ -27,7 +24,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
     private readonly int _axisX;
     private readonly int? _axisY;
     private readonly int? _axisZ;
-    private readonly Dictionary<int, (double Unit, int Pulse, HomeDirection HomeDirection)> _axisParameters;
+    private readonly Dictionary<int, (double Unit, int Pulse)> _axisParameters;
 
     public AjinMotionService(
         AjinController controller,
@@ -52,7 +49,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         _axisZ = axisZ?.Number;
         _axisParameters = new[] { axisX, axisY, axisZ }
             .OfType<AxisHardware>()
-            .ToDictionary(axis => axis.Number, axis => (axis.MoveUnit, axis.MovePulse, axis.HomeDirection));
+            .ToDictionary(axis => axis.Number, axis => (axis.MoveUnit, axis.MovePulse));
     }
 
     public override bool IsReady
@@ -114,7 +111,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         PublishStateChanged();
     }
 
-    protected override Task MoveXYCoreAsync(
+    protected override async Task MoveXYCoreAsync(
         double x,
         double y,
         double velocity,
@@ -127,53 +124,87 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
 
         if (distanceX == 0 && distanceY == 0)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         if (distanceX == 0)
         {
-            return MoveAxisCoreAsync(MotionAxis.Y, y, velocity, cancellationToken);
+            await MoveAxisCoreAsync(MotionAxis.Y, y, velocity, cancellationToken).ConfigureAwait(false);
+            return;
         }
 
         if (distanceY == 0)
         {
-            return MoveAxisCoreAsync(MotionAxis.X, x, velocity, cancellationToken);
+            await MoveAxisCoreAsync(MotionAxis.X, x, velocity, cancellationToken).ConfigureAwait(false);
+            return;
         }
 
-        var totalDistance = Math.Sqrt(distanceX * distanceX + distanceY * distanceY);
+        var totalDistance = distanceX + distanceY;
         var velocityX = ToUnits(velocity * distanceX / totalDistance);
         var velocityY = ToUnits(velocity * distanceY / totalDistance);
         var axes = new[] { _axisX, axisYNumber };
 
-        return RunMoveAsync(
-            () => CAXM.AxmMoveMultiPos(
-                axes.Length,
-                axes,
-                [ToUnits(x), ToUnits(y)],
-                [velocityX, velocityY],
-                [velocityX / Settings.AccelerationSeconds, velocityY / Settings.AccelerationSeconds],
-                [velocityX / Settings.DecelerationSeconds, velocityY / Settings.DecelerationSeconds]),
-            nameof(CAXM.AxmMoveMultiPos),
-            axes,
-            [x, y],
-            cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        foreach (var axis in axes)
+            EnsureAxisParameters(axis);
+
+        try
+        {
+            BeginMotion(horizontal: true);
+            await Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                AjinController.Check(
+                    CAXM.AxmMoveMultiPos(
+                        axes.Length,
+                        axes,
+                        [ToUnits(x), ToUnits(y)],
+                        [velocityX, velocityY],
+                        [velocityX * 2, velocityY * 2],
+                        [velocityX * 2, velocityY * 2]),
+                    nameof(CAXM.AxmMoveMultiPos));
+            }).ConfigureAwait(false);
+            await WaitForMoveAsync(axes, cancellationToken).ConfigureAwait(false);
+            CheckPosition(_axisX, x);
+            CheckPosition(axisYNumber, y);
+        }
+        catch (Exception exception)
+        {
+            await StopAfterFailureAsync(axes, exception).ConfigureAwait(false);
+            throw;
+        }
+        finally
+        {
+            EndMotion(horizontal: true);
+        }
     }
 
-    protected override Task JogCoreAsync(
+    protected override async Task JogCoreAsync(
         MotionAxis axis,
         double velocity,
         CancellationToken cancellationToken)
     {
         var axisNumber = GetAxis(axis);
         var velocityInUnits = ToUnits(velocity);
-        var acceleration = Math.Abs(velocityInUnits) / Settings.AccelerationSeconds;
-        var deceleration = Math.Abs(velocityInUnits) / Settings.DecelerationSeconds;
-        return RunMoveAsync(
-            () => CAXM.AxmMoveVel(axisNumber, velocityInUnits, acceleration, deceleration),
-            nameof(CAXM.AxmMoveVel),
-            [axisNumber],
-            null,
-            cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        EnsureAxisParameters(axisNumber);
+        try
+        {
+            BeginMotion(axis != MotionAxis.Z);
+            AjinController.Check(
+                CAXM.AxmMoveVel(axisNumber, velocityInUnits, velocityInUnits * 2, velocityInUnits * 2),
+                nameof(CAXM.AxmMoveVel));
+            await WaitForMoveAsync([axisNumber], cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            await StopAfterFailureAsync([axisNumber], exception).ConfigureAwait(false);
+            throw;
+        }
+        finally
+        {
+            EndMotion(axis != MotionAxis.Z);
+        }
     }
 
     public override void SetServo(MotionAxis axis, bool on)
@@ -232,7 +263,7 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
             return (null, error);
 
         return (new AxisState(
-            Homed: homeResult == HomeSuccess,
+            Homed: homeResult == (uint)AXT_MOTION_HOME_RESULT.HOME_SUCCESS,
             ServoOn: servoOn != 0,
             Alarm: IsBitSet(mechanical, AlarmBit),
             InPosition: IsBitSet(mechanical, InPositionBit),
@@ -271,145 +302,75 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
     {
         cancellationToken.ThrowIfCancellationRequested();
         var axisNumbers = axes.Select(GetAxis).ToArray();
-        foreach (var axis in axes)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            ConfigureHome(axis, velocity);
-        }
+        foreach (var axis in axisNumbers)
+            EnsureAxisParameters(axis);
 
         var horizontal = axes.Any(axis => axis != MotionAxis.Z);
-        Exception? cancellationFailure = null;
-        void StopOnCancellation()
+        try
         {
-            try
+            BeginMotion(horizontal);
+            velocity *= 1000;
+            foreach (var axis in axes)
             {
-                StopAxes(axisNumbers);
-            }
-            catch (Exception exception)
-            {
-                cancellationFailure = exception;
-            }
-        }
-
-        Exception? failure = null;
-        var homed = false;
-        using (cancellationToken.Register(StopOnCancellation))
-        {
-            try
-            {
-                BeginMotion(horizontal);
-                // Start every axis before waiting. One HOME operation owns X/Y cancellation and cleanup.
-                foreach (var axisNumber in axisNumbers)
+                cancellationToken.ThrowIfCancellationRequested();
+                var axisNumber = GetAxis(axis);
+                if (CAXM.AxmHomeSetResult(axisNumber, (uint)AXT_MOTION_HOME_RESULT.HOME_ERR_UNKNOWN)
+                        != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
+                    || axis == MotionAxis.Z
+                        && CAXM.AxmHomeSetMethod(axisNumber, 0, 4, 0, 1000, 0)
+                            != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
+                    || CAXM.AxmHomeSetVel(
+                        axisNumber, velocity, velocity / 5, velocity / 10, velocity / 100,
+                        velocity, velocity / 10) != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS
+                    || CAXM.AxmHomeSetStart(axisNumber) != (uint)AXT_FUNC_RESULT.AXT_RT_SUCCESS)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    AjinController.Check(
-                        CAXM.AxmHomeSetStart(axisNumber),
-                        $"{nameof(CAXM.AxmHomeSetStart)} (axis={axisNumber})");
+                    StopAxes(axisNumbers);
+                    await WaitForStopAsync(axisNumbers).ConfigureAwait(false);
+                    return false;
                 }
+            }
 
+            return await Task.Run(async () =>
+            {
                 while (true)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var allHomed = true;
-                    List<Exception>? homeFailures = null;
                     foreach (var axisNumber in axisNumbers)
                     {
-                        var homeResult = 0U;
+                        uint result = 0;
                         AjinController.Check(
-                            CAXM.AxmHomeGetResult(axisNumber, ref homeResult),
+                            CAXM.AxmHomeGetResult(axisNumber, ref result),
                             $"{nameof(CAXM.AxmHomeGetResult)} (axis={axisNumber})");
-                        if (homeResult == HomeSuccess)
+                        if (result == (uint)AXT_MOTION_HOME_RESULT.HOME_SUCCESS)
                             continue;
-                        allHomed = false;
-                        if (homeResult != HomeSearching)
+                        if (result != (uint)AXT_MOTION_HOME_RESULT.HOME_SEARCHING)
                         {
-                            (homeFailures ??= []).Add(new System.IO.IOException(
-                                $"AJIN home failed (axis={axisNumber}): {(AXT_MOTION_HOME_RESULT)homeResult} (0x{homeResult:X2})."));
+                            StopAxes(axisNumbers);
+                            await WaitForStopAsync(axisNumbers).ConfigureAwait(false);
+                            return false;
                         }
+                        allHomed = false;
                     }
-
-                    if (homeFailures is { Count: 1 })
-                        throw homeFailures[0];
-                    if (homeFailures is not null)
-                        throw new MotionException("Home axes", new AggregateException(homeFailures));
-
-                    PublishPosition();
                     if (allHomed)
                     {
-                        homed = true;
-                        break;
+                        await WaitForStopAsync(axisNumbers).ConfigureAwait(false);
+                        return true;
                     }
-                    await Task.Delay(StatusPollInterval, cancellationToken).ConfigureAwait(false);
+                    await Task.Delay(100, cancellationToken).ConfigureAwait(false);
                 }
-            }
-            catch (Exception exception)
-            {
-                failure = exception;
-            }
-
-            if (!homed)
-            {
-                try
-                {
-                    StopAxes(axisNumbers);
-                }
-                catch (Exception stopFailure)
-                {
-                    failure = new MotionException("Stop home", new AggregateException(failure!, stopFailure));
-                }
-            }
-
-            failure = await EndMotionAsync(axisNumbers, horizontal, failure).ConfigureAwait(false);
+            }).ConfigureAwait(false);
         }
-
-        // Registration disposal joins any STOP callback before its failure is collected.
-        if (cancellationFailure is not null)
+        catch (Exception exception)
         {
-            failure = failure is null
-                ? cancellationFailure
-                : new MotionException("Cancel home", new AggregateException(failure, cancellationFailure));
+            await StopAfterFailureAsync(axisNumbers, exception).ConfigureAwait(false);
+            throw;
         }
-        if (failure is not null)
-            ExceptionDispatchInfo.Throw(failure);
-        return homed;
-    }
-
-    private void ConfigureHome(MotionAxis axis, double velocity)
-    {
-        var axisNumber = GetAxis(axis);
-        EnsureAxisParameters(axisNumber);
-        var velocityInUnits = ToUnits(velocity);
-        var home = Settings.Home(axis);
-        var direction = 0;
-        var signal = 0U;
-        var zPhase = 0U;
-        var clearTime = 0d;
-        var offset = 0d;
-        AjinController.Check(
-            CAXM.AxmHomeGetMethod(
-                axisNumber, ref direction, ref signal, ref zPhase, ref clearTime, ref offset),
-            $"{nameof(CAXM.AxmHomeGetMethod)} (axis={axisNumber})");
-        direction = _axisParameters[axisNumber].HomeDirection switch
+        finally
         {
-            HomeDirection.Negative => 0, // AJIN DIR_CCW
-            HomeDirection.Positive => 1, // AJIN DIR_CW
-            var value => throw new InvalidOperationException($"Invalid home direction for axis {axisNumber}: {value}."),
-        };
-        AjinController.Check(
-            CAXM.AxmHomeSetMethod(axisNumber, direction, signal, zPhase, clearTime, offset),
-            $"{nameof(CAXM.AxmHomeSetMethod)} (axis={axisNumber})");
-        AjinController.Check(
-            CAXM.AxmHomeSetVel(
-                axisNumber,
-                velocityInUnits,
-                ToUnits(home.DetectionSpeed),
-                ToUnits(home.ApproachSpeed),
-                ToUnits(home.FineSpeed),
-                velocityInUnits / home.SearchAccelerationSeconds,
-                ToUnits(home.DetectionSpeed) / home.DetectionAccelerationSeconds),
-            $"{nameof(CAXM.AxmHomeSetVel)} (axis={axisNumber})");
+            EndMotion(horizontal);
+        }
     }
-
     protected override void ResetAlarm()
     {
         foreach (var axis in _axisParameters.Keys)
@@ -422,142 +383,76 @@ public class AjinMotionService : MotionService, IMotionDiagnostics
         PublishStateChanged();
     }
 
-    protected override Task MoveAxisCoreAsync(
+    protected override async Task MoveAxisCoreAsync(
         MotionAxis axis,
         double position,
         double velocity,
         CancellationToken cancellationToken)
     {
-        var axisNumber = GetAxis(axis);
-        var velocityInUnits = ToUnits(velocity);
-        var acceleration = velocityInUnits / Settings.AccelerationSeconds;
-        var deceleration = velocityInUnits / Settings.DecelerationSeconds;
-
-        return RunMoveAsync(
-            () => CAXM.AxmMovePos(
-                axisNumber,
-                ToUnits(position),
-                velocityInUnits,
-                acceleration,
-                deceleration),
-            nameof(CAXM.AxmMovePos),
-            [axisNumber],
-            [position],
-            cancellationToken);
-    }
-
-    private async Task RunMoveAsync(
-        Func<uint> move,
-        string operation,
-        int[] axes,
-        double[]? targets,
-        CancellationToken cancellationToken)
-    {
         cancellationToken.ThrowIfCancellationRequested();
-        foreach (var axis in axes)
+        var axisNumber = GetAxis(axis);
+        EnsureAxisParameters(axisNumber);
+        var velocityInUnits = velocity * 1000;
+        try
         {
-            EnsureAxisParameters(axis);
-        }
-
-        var horizontal = Array.Exists(axes, axis => axis != _axisZ);
-        Exception? cancellationFailure = null;
-        void StopOnCancellation()
-        {
-            try
+            BeginMotion(axis != MotionAxis.Z);
+            await Task.Run(() =>
             {
-                StopAxes(_axisParameters.Keys);
-            }
-            catch (Exception exception)
-            {
-                cancellationFailure = exception;
-            }
-        }
-
-        Exception? failure = null;
-        using (cancellationToken.Register(StopOnCancellation))
-        {
-            try
-            {
-                BeginMotion(horizontal);
                 cancellationToken.ThrowIfCancellationRequested();
-                AjinController.Check(move(), operation);
-                await WaitForMoveAsync(axes, cancellationToken).ConfigureAwait(false);
-                if (targets is not null)
-                {
-                    for (var index = 0; index < axes.Length; index++)
-                    {
-                        var actual = ReadPosition(axes[index]);
-                        if (Math.Abs(actual - targets[index]) > PositionToleranceMillimeters)
-                        {
-                            throw new InvalidOperationException(
-                                $"Axis stopped before reaching its target (axis={axes[index]}, "
-                                + $"target={targets[index]:F3}, actual={actual:F3} mm).");
-                        }
-                    }
-                }
-            }
-            catch (Exception exception)
-            {
-                failure = exception is OperationCanceledException
-                    ? exception
-                    : new MotionException(operation, exception);
-                try
-                {
-                    StopAxes(_axisParameters.Keys);
-                }
-                catch (Exception stopFailure)
-                {
-                    failure = new MotionException("Stop motion", new AggregateException(failure, stopFailure));
-                }
-            }
-
-            failure = await EndMotionAsync(axes, horizontal, failure).ConfigureAwait(false);
+                AjinController.Check(
+                    CAXM.AxmMovePos(
+                        axisNumber, position * 1000, velocityInUnits, velocityInUnits * 2, velocityInUnits * 2),
+                    $"{nameof(CAXM.AxmMovePos)} (axis={axisNumber})");
+            }).ConfigureAwait(false);
+            await WaitForMoveAsync([axisNumber], cancellationToken).ConfigureAwait(false);
+            CheckPosition(axisNumber, position);
         }
-
-        // Keep STOP failures on the motion task, not on the input monitor that canceled it.
-        if (cancellationFailure is not null)
+        catch (Exception exception)
         {
-            failure = failure is null
-                ? cancellationFailure
-                : new MotionException("Cancel motion", new AggregateException(failure, cancellationFailure));
+            await StopAfterFailureAsync([axisNumber], exception).ConfigureAwait(false);
+            throw;
         }
-        if (failure is not null)
-            ExceptionDispatchInfo.Throw(failure);
+        finally
+        {
+            EndMotion(axis != MotionAxis.Z);
+        }
     }
 
-    private async Task<Exception?> EndMotionAsync(int[] axes, bool horizontal, Exception? failure)
+    private void CheckPosition(int axis, double target)
     {
-        Exception? cleanupFailure = null;
+        var actual = ReadPosition(axis);
+        if (Math.Abs(actual - target) > PositionToleranceMillimeters)
+        {
+            throw new MotionException("Move", new InvalidOperationException(
+                $"Axis stopped before reaching its target (axis={axis}, "
+                + $"target={target:F3}, actual={actual:F3} mm)."));
+        }
+    }
+
+    private async Task StopAfterFailureAsync(int[] axes, Exception failure)
+    {
+        List<Exception> failures = [failure];
+        try
+        {
+            StopAxes(axes);
+        }
+        catch (Exception exception)
+        {
+            failures.Add(exception);
+        }
+
         try
         {
             await WaitForStopAsync(axes).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
-            cleanupFailure = new MotionException("Wait for motion stop", exception);
+            failures.Add(exception);
         }
 
-        try
-        {
-            EndMotion(horizontal);
-            PublishPosition();
-        }
-        catch (Exception exception)
-        {
-            cleanupFailure = cleanupFailure is null
-                ? exception
-                : new AggregateException(cleanupFailure, exception);
-        }
-
-        if (cleanupFailure is not null)
-        {
-            return new MotionException(
-                "Finish motion",
-                failure is null ? cleanupFailure : new AggregateException(failure, cleanupFailure));
-        }
-        return failure;
+        if (failures.Count > 1)
+            throw new MotionException("Stop motion", new AggregateException(failures));
     }
-
     protected async Task WaitForStopAsync(int[] axes)
     {
         var started = Stopwatch.GetTimestamp();

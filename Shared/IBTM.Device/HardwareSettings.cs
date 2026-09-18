@@ -27,23 +27,12 @@ public sealed class OutputHardware
     public OutputFeedback? Feedback { get; set; }
 }
 
-[JsonConverter(typeof(JsonStringEnumConverter<HomeDirection>))]
-public enum HomeDirection
-{
-    [Description("− (Negative)")]
-    Negative,
-
-    [Description("+ (Positive)")]
-    Positive,
-}
-
 public sealed class AxisHardware
 {
     private double _moveUnit = 1;
     private int _movePulse = 1;
 
     public int Number { get; set; }
-    public HomeDirection HomeDirection { get; set; } = HomeDirection.Negative;
 
     public double MoveUnit
     {
