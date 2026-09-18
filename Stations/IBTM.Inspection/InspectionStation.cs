@@ -105,13 +105,15 @@ public sealed class InspectionStation : AutoUnit
 
         var inspectionState = NextInspectionState(NextBolt(bolts));
         TraceStep(inspectionState, workId: _work.CurrentJob.Id,
-            waitingFor: inspectionState == InspectionStationState.Waiting ? _work.State.ToString() : null);
+            waitingFor: inspectionState is InspectionStationState.Waiting or InspectionStationState.WaitingForConveyor
+                ? _work.State.ToString() : null);
         if (inspectionState == InspectionStationState.ReturningToNgPickup)
         {
             await _move.MoveToCarrierAsync(NgTransferDestination.Station, cancellationToken);
             return;
         }
         if (inspectionState is InspectionStationState.Waiting
+            or InspectionStationState.WaitingForConveyor
             or InspectionStationState.BarcodeTeachingRequired
             or InspectionStationState.FovTeachingRequired)
         {
@@ -175,7 +177,7 @@ public sealed class InspectionStation : AutoUnit
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckWorkPosition()
         {
-            if (!_work.AtInspectionPosition || !_transfer.IsClear)
+            if (_work.State != InspectionWorkState.ReadyToInspect)
             {
                 operation.Cancel();
             }
@@ -257,7 +259,10 @@ public sealed class InspectionStation : AutoUnit
     {
         if (!_work.Enabled || _work.State != InspectionWorkState.ReadyToInspect)
         {
-            return WaitAtPickup(InspectionStationState.Waiting, live);
+            return WaitAtPickup(
+                _work.Enabled && _work.State == InspectionWorkState.WaitingForConveyor
+                    ? InspectionStationState.WaitingForConveyor : InspectionStationState.Waiting,
+                live);
         }
 
         if (NextBarcode() is { } pcb)

@@ -18,4 +18,7 @@ internal enum InspectionWorkState
 
     [Description("Waiting for Transfer")]
     WaitingForTransfer,
+
+    [Description("Waiting for other carrier transfers before inspection")]
+    WaitingForConveyor,
 }

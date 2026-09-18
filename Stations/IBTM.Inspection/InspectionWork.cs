@@ -12,6 +12,9 @@ public sealed class InspectionWork : StationWork
     private readonly InspectionGantry _gantry;
     private readonly NgCarrierTransferSettings _transferSettings;
     private readonly Func<bool>? _isGantryEnabled;
+    private readonly Func<bool>? _isConveyorEnabled;
+    // Scheduling ownership for this job only; never a physical position or restart checkpoint.
+    private volatile Job? _inspectionRequestedJob;
 
     public InspectionWork(
         IIoService io,
@@ -19,13 +22,15 @@ public sealed class InspectionWork : StationWork
         InspectionGantry gantry,
         NgCarrierTransferSettings transferSettings,
         Func<bool>? isEnabled = null,
-        Func<bool>? isGantryEnabled = null) : base(ConveyorStation.Inspection(io), isEnabled)
+        Func<bool>? isGantryEnabled = null,
+        Func<bool>? isConveyorEnabled = null) : base(ConveyorStation.Inspection(io), isEnabled)
     {
         _io = io;
         _transferFeedback = transferFeedback;
         _gantry = gantry;
         _transferSettings = transferSettings;
         _isGantryEnabled = isGantryEnabled;
+        _isConveyorEnabled = isConveyorEnabled;
         transferFeedback.Changed += NotifyChanged;
         // Conveyor release depends on the transfer's actual waiting position.
         gantry.Feedback.StateChanged += NotifyChanged;
@@ -41,6 +46,29 @@ public sealed class InspectionWork : StationWork
                 && Stopper == StationCylinderState.Up
                 && !_io.GetOutput(OutputIo.MainConveyorRun);
         }
+    }
+
+    public bool InspectionRequested
+    {
+        get
+        {
+            return ReferenceEquals(_inspectionRequestedJob, CurrentJob);
+        }
+    }
+
+    public void RequestInspection(Job job)
+    {
+        RequireCurrentJob(job);
+        if (!AtInspectionPosition || !PickupClear)
+            throw new InvalidOperationException("Inspection requires a present carrier, plate DOWN, stopper UP, stopped belt and clear pickup.");
+        _inspectionRequestedJob = job;
+        NotifyChanged();
+    }
+
+    public void ClearInspectionRequest()
+    {
+        _inspectionRequestedJob = null;
+        NotifyChanged();
     }
 
     public bool PickupClear
@@ -116,6 +144,9 @@ public sealed class InspectionWork : StationWork
             {
                 return InspectionWorkState.WaitingForTransfer;
             }
+
+            if ((_isConveyorEnabled?.Invoke() ?? false) && !InspectionRequested)
+                return InspectionWorkState.WaitingForConveyor;
 
             if (!AtInspectionPosition)
             {

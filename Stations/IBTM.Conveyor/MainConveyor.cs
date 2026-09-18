@@ -162,15 +162,6 @@ public sealed class MainConveyor : AutoUnit
         if (runCommandOn)
             return MainConveyorState.Running;
 
-        if (_inspectionWork.CarrierPresent
-            && !_inspectionWork.Completed
-            && !_inspectionWork.AtInspectionPosition)
-        {
-            return _inspectionWork.PickupClear
-                ? MainConveyorState.PreparingInspectionCarrier
-                : MainConveyorState.WaitingForInspectionTransfer;
-        }
-
         if (_boltFasteningWork.CarrierPresent && !_boltFasteningWork.CarrierSeated)
         {
             return MainConveyorState.SeatingBoltFasteningCarrier;
@@ -185,11 +176,29 @@ public sealed class MainConveyor : AutoUnit
         if (_inspectionWork.CarrierPresent)
         {
             if (!_inspectionWork.Completed)
-                return MainConveyorState.WaitingForInspection;
-
-            // A carrier on the belt must either leave now or be lifted before
-            // any other conveyor transfer. Inspection always finishes at NG pickup.
-            if (!_inspectionWork.CarrierSeated)
+            {
+                // Drain runnable logistics before committing this carrier to inspection.
+                // Once requested, new arrivals wait until inspection and parking finish.
+                if (!_inspectionWork.InspectionRequested && CanMoveOtherCarrierBeforeInspection)
+                {
+                    if (!_inspectionWork.CarrierSeated)
+                    {
+                        return _inspectionWork.IsTransferAtWaitingPosition(live)
+                            ? MainConveyorState.RaisingInspectionCarrierForOtherTransfers
+                            : MainConveyorState.WaitingForInspectionTransfer;
+                    }
+                }
+                else
+                {
+                    if (_inspectionWork.InspectionRequested && _inspectionWork.AtInspectionPosition)
+                        return MainConveyorState.WaitingForInspection;
+                    return _inspectionWork.PickupClear
+                        ? MainConveyorState.PreparingInspectionCarrier
+                        : MainConveyorState.WaitingForInspectionTransfer;
+                }
+            }
+            // A completed carrier either leaves now or waits off the belt.
+            else if (!_inspectionWork.CarrierSeated)
             {
                 if (!_inspectionWork.IsTransferAtWaitingPosition(live))
                     return MainConveyorState.WaitingForInspectionTransfer;
@@ -264,6 +273,7 @@ public sealed class MainConveyor : AutoUnit
         finally
         {
             _repeat = false;
+            _inspectionWork.ClearInspectionRequest();
         }
     }
 
@@ -439,15 +449,21 @@ public sealed class MainConveyor : AutoUnit
             switch (state)
             {
                 case MainConveyorState.PreparingInspectionCarrier:
+                    var inspectionJob = _inspectionWork.CurrentJob;
                     await _io.SetOutputAndWaitAsync(OutputIo.InspectionStopperUp, true, cancellationToken);
                     await _io.SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, false, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!_inspectionWork.InspectionRequested && CanMoveOtherCarrierBeforeInspection)
+                        break;
+                    _inspectionWork.RequestInspection(inspectionJob);
                     break;
+                case MainConveyorState.RaisingInspectionCarrierForOtherTransfers:
                 case MainConveyorState.RaisingInspectionCarrier:
                     await _inspection.SeatAsync(cancellationToken);
                     break;
                 case MainConveyorState.SeatingBoltFasteningCarrier:
                 case MainConveyorState.SeatingPcbPlacementCarrier:
-                    // S1/S2 work raised; S3 inspection stays down on the stopped belt.
+                    // S1/S2 can prepare their work without moving the belt.
                     var seating = new List<Task>(2);
                     if (_boltFasteningWork.CarrierPresent && !_boltFasteningWork.CarrierSeated)
                         seating.Add(_boltFastening.SeatAsync(cancellationToken));
@@ -571,6 +587,16 @@ public sealed class MainConveyor : AutoUnit
             return _placementWork.CanReceive
                 && (EntryCarrierDetected
                     || !_repeat && UpstreamCarrierAvailable);
+        }
+    }
+
+    private bool CanMoveOtherCarrierBeforeInspection
+    {
+        get
+        {
+            return ExitCarrierDetected
+                ? DownstreamReady
+                : CanMovePlacementToBoltFastening || CanReceiveAtPlacement;
         }
     }
 
@@ -802,6 +828,11 @@ public sealed class MainConveyor : AutoUnit
                 }
                 else if (!firstClear.Task.IsCompleted)
                 {
+                    if (!ExitCarrierDetected)
+                    {
+                        firstClear.TrySetResult(Stopwatch.GetTimestamp());
+                        continue;
+                    }
                     remaining = timeout - Stopwatch.GetElapsedTime(await arrived.Task);
                     if (remaining <= TimeSpan.Zero)
                         throw new IoTimeoutException(InputIo.MainConveyorExitCarrierDetected, false, _io.TimeoutMilliseconds);

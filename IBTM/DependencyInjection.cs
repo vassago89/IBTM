@@ -176,7 +176,8 @@ public static class DependencyInjection
                     provider.GetRequiredService<InspectionGantry>(),
                     settings.NgCarrierTransfer,
                     () => units.Inspection,
-                    () => units.Inspection || units.NgCarrierTransfer);
+                    () => units.Inspection || units.NgCarrierTransfer,
+                    () => units.MainConveyor);
             });
         services.AddSingleton(
             provider =>

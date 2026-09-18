@@ -62,4 +62,7 @@ public enum InspectionStationState
 
     [Description("Returning to NG pickup waiting position")]
     ReturningToNgPickup,
+
+    [Description("Waiting for other carrier transfers before inspection")]
+    WaitingForConveyor,
 }

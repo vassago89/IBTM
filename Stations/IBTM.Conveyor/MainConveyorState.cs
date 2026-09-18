@@ -51,4 +51,7 @@ public enum MainConveyorState
 
     [Description("Waiting for transfer at NG pickup")]
     WaitingForInspectionTransfer,
+
+    [Description("Raising S3 to move other carriers before inspection")]
+    RaisingInspectionCarrierForOtherTransfers,
 }

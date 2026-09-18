@@ -1222,7 +1222,8 @@ public sealed class ConveyorTests
             conveyor.Stop();
             await run.WaitAsync(TimeSpan.FromSeconds(2));
         }
-        Assert.Equal(MainConveyorState.WaitingForInspection, conveyor.State);
+        Assert.False(destination.InspectionRequested);
+        Assert.Equal(MainConveyorState.PreparingInspectionCarrier, conveyor.State);
     }
 
     [Theory]
@@ -1612,7 +1613,7 @@ public sealed class ConveyorTests
     {
         var io = CreateIo();
         Assert.Equal(0.3, new ConveyorSettings().ExitSensorClearDelaySeconds);
-        var settings = new ConveyorSettings { ExitSensorClearDelaySeconds = 0.15 };
+        var settings = new ConveyorSettings { ExitSensorClearDelaySeconds = 0.3 };
         var conveyor = CreateConveyor(io, inspectionEnabled: false, settings: settings);
         io.Initialize();
         await SetSeatedCarrierAsync(io, io, InputIo.InspectionHeatSink1Present, OutputIo.InspectionBackupPlateUp);
@@ -1623,10 +1624,10 @@ public sealed class ConveyorTests
         {
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
             VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
-            await Task.Delay(250);
+            await Task.Delay(400);
             Assert.True(conveyor.RunCommandOn); // OFF before any detection is not an exit.
             io.SetInput(InputIo.MainConveyorExitCarrierDetected, true);
-            await Task.Delay(250); // The ON duration does not count toward the hole margin.
+            await Task.Delay(400); // The ON duration does not count toward the hole margin.
             var elapsed = Stopwatch.StartNew();
             var stopped = new TaskCompletionSource<TimeSpan>(TaskCreationOptions.RunContinuationsAsynchronously);
             io.OutputChanged += (output, on) =>
@@ -1638,11 +1639,14 @@ public sealed class ConveyorTests
             await Task.Delay(40);
             Assert.True(conveyor.RunCommandOn);
             io.SetInput(InputIo.MainConveyorExitCarrierDetected, true);
-            await Task.Delay(160);
+            await Task.Delay(320);
             Assert.True(conveyor.RunCommandOn); // An earlier OFF pulse cannot override current ON.
+            var lastClearAt = elapsed.Elapsed;
             io.SetInput(InputIo.MainConveyorExitCarrierDetected, false);
             var stopDelay = await stopped.Task.WaitAsync(TimeSpan.FromSeconds(2));
-            Assert.True(stopDelay >= TimeSpan.FromSeconds(0.15));
+            Assert.True(stopDelay >= TimeSpan.FromSeconds(settings.ExitSensorClearDelaySeconds));
+            Assert.True(stopDelay - lastClearAt < TimeSpan.FromSeconds(settings.ExitSensorClearDelaySeconds),
+                "A later OFF must not restart the first-OFF margin.");
             Assert.False(run.IsCompleted);
         }
         finally
@@ -1683,7 +1687,7 @@ public sealed class ConveyorTests
     [InlineData(true)]
     public async Task DischargeStillFaultsWhenExitFeedbackNeverArrivesOrNeverClears(bool stuckOn)
     {
-        var io = CreateIo(timeoutMilliseconds: 200);
+        var io = CreateIo(timeoutMilliseconds: 1_000);
         var settings = new ConveyorSettings { ExitSensorClearDelaySeconds = 0.05 };
         var conveyor = CreateConveyor(io, inspectionEnabled: false, settings: settings);
         io.Initialize();
@@ -1691,7 +1695,9 @@ public sealed class ConveyorTests
         io.SetInput(InputIo.MainConveyorExitCarrierDetected, stuckOn);
         io.SetInput(InputIo.MainConveyorReadyFromRear, true);
 
-        await Assert.ThrowsAsync<IoTimeoutException>(() => conveyor.RunAsync());
+        var error = await Assert.ThrowsAsync<IoTimeoutException>(() => conveyor.RunAsync());
+        Assert.Equal(new IoTimeoutException(
+            InputIo.MainConveyorExitCarrierDetected, !stuckOn, io.TimeoutMilliseconds).Message, error.Message);
 
         Assert.False(conveyor.RunCommandOn);
         Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
