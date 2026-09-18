@@ -347,7 +347,8 @@ public sealed partial class MachineLifecycleTests
         Assert.False(gantry.Feedback.IsMoving);
         await machine.ResetAsync();
         Assert.True(machine.RequiresManualClear);
-        Assert.True(state.IsError);
+        Assert.False(state.IsError);
+        Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
         await machine.ShutdownAsync();
     }

@@ -158,9 +158,12 @@ completed carriers from downstream to upstream: discharge S3, S2 to S3, S1 to S2
 then new infeed. An occupied destination blocks that transfer; other raised stations
 continue working. This normal seating does not bypass the interrupted-run RESET block.
 
-Only the backup plates participating in a future transfer are lowered. A source
-Stopper is lowered to release its Carrier; a destination Stopper is raised before
-the belt starts so the arriving Carrier is physically stopped. The destination
+Only the backup plates participating in a future transfer are lowered. Before
+lowering the source carrier onto the belt, the destination must have confirmed
+Stopper Up and Backup Plate Down feedback and still be empty. Source release,
+belt movement, arrival and destination seating belong to one transfer command;
+its Moving state remains active until seating finishes, including while the belt
+is stopped for lowering or raising. The destination
 Heat Sink 2 input starts the configured extra belt run to reach the stopper. Only
 after that duration does the belt stop, the Backup Plate rise, and the Stopper return down.
 Stop stops the belt and leaves pneumatic outputs at their current state. A stopped

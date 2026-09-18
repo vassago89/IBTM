@@ -11,7 +11,7 @@ namespace IBTM.Virtual.Tests;
 public sealed partial class MachineLifecycleTests
 {
     [Fact]
-    public async Task AutomaticStopRequiresExplicitEmptyMachineResetEvenWithMainConveyorDisabled()
+    public async Task ResetClearsAlarmWithoutAcknowledgingHeldMaterialAfterAutomaticStop()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
@@ -42,15 +42,18 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(0, writes);
 
             io.SetInput(InputIo.PcbPlacementPcbDetected, true);
+            state.SetError(MachineAlarm.PcbPlacement);
             await machine.ResetAsync();
             Assert.True(machine.RequiresManualClear);
-            Assert.True(state.IsError);
+            Assert.False(state.IsError);
+            Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
             io.SetInput(InputIo.PcbPlacementPcbDetected, false);
             Assert.True(machine.RequiresManualClear);
             // Disabling Supply must not hide the physical upstream carrier at RESET.
             io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
             await machine.ResetAsync();
             Assert.True(machine.RequiresManualClear);
+            Assert.False(state.IsError);
             io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
             await machine.ResetAsync();
             Assert.False(machine.RequiresManualClear);

@@ -24,6 +24,8 @@ public sealed class MainConveyor : AutoUnit
     // An interrupted automatic move needs operator acknowledgement, never step replay.
     private volatile bool _requiresManualClear;
     private StationWork.Job? _transferJob;
+    // The command currently being awaited, not a physical position or a resumable phase.
+    private volatile MainConveyorState _executingTransfer = MainConveyorState.Idle;
     private bool _repeat;
     // Commissioning inputs, kept only for this application session.
     private volatile bool _testUpstreamCarrierAvailable;
@@ -157,6 +159,9 @@ public sealed class MainConveyor : AutoUnit
     {
         if (RequiresManualClear)
             return MainConveyorState.ManualClearRequired;
+        var executingTransfer = _executingTransfer;
+        if (executingTransfer != MainConveyorState.Idle)
+            return executingTransfer;
         if (runCommandOn)
             return MainConveyorState.Running;
 
@@ -390,8 +395,17 @@ public sealed class MainConveyor : AutoUnit
             MainConveyorState.Idle => "station work complete and destination vacant",
             _ => null,
         });
+        var transferring = state is MainConveyorState.ReceivingFrontCarrier
+            or MainConveyorState.MovingPcbPlacementToBoltFastening
+            or MainConveyorState.MovingBoltFasteningToInspection
+            or MainConveyorState.DischargingInspectionCarrier;
         try
         {
+            if (transferring)
+            {
+                _executingTransfer = state;
+                Changed?.Invoke();
+            }
             switch (state)
             {
                 case MainConveyorState.SeatingInspectionCarrier:
@@ -438,6 +452,14 @@ public sealed class MainConveyor : AutoUnit
             _requiresManualClear = true;
             Changed?.Invoke();
             throw;
+        }
+        finally
+        {
+            if (transferring)
+            {
+                _executingTransfer = MainConveyorState.Idle;
+                Changed?.Invoke();
+            }
         }
     }
 
@@ -607,7 +629,8 @@ public sealed class MainConveyor : AutoUnit
     {
         var source = sourceWork.Station;
         var destination = destinationWork.Station;
-        _transferJob = sourceWork.CurrentJob;
+        var departingJob = sourceWork.CurrentJob;
+        _transferJob = departingJob;
         void TransferArrivingWork(bool present)
         {
             if (present
@@ -617,14 +640,23 @@ public sealed class MainConveyor : AutoUnit
                 sourceWork.TransferAssembliesTo(destinationWork, job);
             }
         }
-        destination.CarrierChanged += TransferArrivingWork;
         Exception? failure = null;
         try
         {
             StopOutputs(null, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
-            await Task.WhenAll(
-                source.ReleaseAsync(cancellationToken),
-                destination.PrepareToReceiveAsync(cancellationToken));
+            // Keep the carrier off the belt until its destination is ready.
+            await destination.PrepareToReceiveAsync(cancellationToken);
+            RequireSeatingPushPosition(destination);
+            sourceWork.RequireCurrentJob(departingJob);
+            if (!sourceWork.CarrierSeated
+                || !sourceWork.CanTransfer
+                || !destinationWork.CanReceive)
+            {
+                throw new InvalidOperationException(
+                    "Transfer requires the completed source carrier to remain seated and the destination to remain empty.");
+            }
+            destination.CarrierChanged += TransferArrivingWork;
+            await source.ReleaseAsync(cancellationToken);
             RequireSeatingPushPosition(destination);
             await RunToStationAsync(destinationWork, cancellationToken);
         }
@@ -700,7 +732,7 @@ public sealed class MainConveyor : AutoUnit
             await arrived.Task.WaitAsync(cancellationToken);
             if (!destination.CarrierPresent)
                 carrierLeft.Set();
-            TraceStep(MainConveyorState.Running, target: "seating push", workId: destinationWork.CurrentJob.Id, waitingFor:
+            TraceStep(State, target: "seating push", workId: destinationWork.CurrentJob.Id, waitingFor:
                 $"Heat Sink 2 detected; push for {_settings.CarrierStopDelaySeconds} s");
             var lostCarrier = await carrierLeft.WaitAsync(
                 TimeSpan.FromSeconds(_settings.CarrierStopDelaySeconds),

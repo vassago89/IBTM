@@ -20,7 +20,7 @@ namespace IBTM.Virtual.Tests;
 public sealed class AlarmRecoveryTests
 {
     [Fact]
-    public async Task ResetAcknowledgesInterruptedConveyorOnlyAfterManualClear()
+    public async Task ResetClearsAlarmButKeepsInterruptedConveyorStartBlockUntilManualClear()
     {
         using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
@@ -46,9 +46,12 @@ public sealed class AlarmRecoveryTests
             Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
             Assert.False(machine.CanStart);
             Assert.True(machine.CanReset);
+            SetAlarm(state, MachineAlarm.MainConveyor);
             await machine.ResetAsync();
             Assert.True(conveyor.RequiresManualClear);
-            Assert.Equal(MachineAlarm.MainConveyor, state.Alarm);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
+            Assert.False(machine.CanStart);
 
             io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
             await machine.ResetAsync();

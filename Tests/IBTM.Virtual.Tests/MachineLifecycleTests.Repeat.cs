@@ -494,7 +494,8 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(0, state.Display.RepeatCycles);
             await machine.ResetAsync();
             Assert.True(machine.RequiresManualClear);
-            Assert.True(state.IsError);
+            Assert.False(state.IsError);
+            Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
         }
         finally
         {

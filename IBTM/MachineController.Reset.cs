@@ -178,8 +178,8 @@ public sealed partial class MachineController
 
         try
         {
-            ConfirmAutomaticManualClear();
-            _conveyor.ConfirmManualClear();
+            if (TryConfirmAutomaticManualClear())
+                _automaticNeedsManualClear = false;
         }
         catch (Exception exception)
         {
@@ -188,23 +188,25 @@ public sealed partial class MachineController
             return;
         }
 
-        _automaticNeedsManualClear = false;
         _state.ClearError();
         _state.Refresh();
+        if (RequiresManualClear)
+            _log?.Write("Machine RESET completed; START remains blocked until interrupted work is manually cleared and acknowledged.");
     }
 
-    private void ConfirmAutomaticManualClear()
+    private bool TryConfirmAutomaticManualClear()
     {
         if (!RequiresManualClear)
-            return;
+            return true;
 
         _io.CheckReady();
+        // Material presence blocks acknowledgement of interrupted work, not alarm reset.
         // RESET acknowledges manual removal even in gaps between presence sensors.
         // Never infer that a stopped motion can continue from its previous destination.
         foreach (var input in CarrierInputs)
         {
             if (_io.GetInput(input))
-                throw new InvalidOperationException($"Remove the carrier at {input} before RESET.");
+                return false;
         }
         InputIo[] heldParts = [
             InputIo.PcbSupplyPcbDetected,
@@ -216,16 +218,18 @@ public sealed partial class MachineController
         foreach (var input in heldParts)
         {
             if (_io.GetInput(input))
-                throw new InvalidOperationException($"Remove the held part at {input} before RESET.");
+                return false;
         }
         if (_io.GetInput(InputIo.PcbSupplyAvailableFromFront1))
-            throw new InvalidOperationException("Remove the upstream PCB carrier before RESET.");
+            return false;
         if (_conveyor.RunCommandOn || _ngConveyor.RunCommandOn)
-            throw new InvalidOperationException("Stop both conveyors before RESET.");
+            return false;
 
+        _conveyor.ConfirmManualClear();
         _fasteningStation.ConfirmManualClear();
         _ngConveyor.ConfirmManualClear();
         _log?.Write("Operator confirmed the machine empty; interrupted automatic work abandoned.");
+        return true;
     }
 
     private async Task<(MachineAlarm Alarm, Exception? Error)> InitializeIoAsync(
