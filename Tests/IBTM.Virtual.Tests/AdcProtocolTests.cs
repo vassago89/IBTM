@@ -12,7 +12,7 @@ namespace IBTM.Virtual.Tests;
 public sealed class AdcProtocolTests
 {
     [Fact]
-    public async Task FailedFeedStopsTheMotorAndRequiresRecoveryDespiteALateResult()
+    public async Task FailedFeedStopsTheMotorAndCannotRestartDespiteALateResult()
     {
         var bus = new ControllerBus();
         var head = new AdcBoltHead(bus, new HantasSettings(), 1);
@@ -98,7 +98,7 @@ public sealed class AdcProtocolTests
     }
 
     [Fact]
-    public async Task InterruptedFasteningRejectsAChangedPresetBeforeRestarting()
+    public async Task InterruptedFasteningCannotRestartWithEitherPreset()
     {
         IAdcBus bus = new VirtualAdcBus();
         var head = new AdcBoltHead(bus, new HantasSettings(), 1);
@@ -111,15 +111,16 @@ public sealed class AdcProtocolTests
 
         await bus.SelectPresetAsync(1, 7);
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
-        Assert.Contains("requires preset 3", failure.Message);
+        Assert.Contains("interrupted", failure.Message);
         Assert.True(head.HasPendingResult);
         Assert.Equal(0, (await bus.ReadFasteningResultAsync(1)).EventCount);
         Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
 
         await bus.SelectPresetAsync(1, 3);
-        Assert.True((await head.TightenAsync()).Success);
-        Assert.False(head.HasPendingResult);
-        Assert.Equal(3, (await bus.ReadFasteningResultAsync(1)).Preset);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
+        Assert.True(head.HasPendingResult);
+        Assert.Equal(0, (await bus.ReadFasteningResultAsync(1)).EventCount);
+        Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
     }
 
     [Theory]

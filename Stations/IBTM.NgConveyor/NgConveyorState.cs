@@ -4,9 +4,6 @@ namespace IBTM.NgConveyor;
 
 public enum NgConveyorState
 {
-    [Description("Manual clear required")]
-    ManualClearRequired,
-
     [Description("Waiting for NG Carrier")]
     WaitingForCarrier,
 
@@ -48,6 +45,9 @@ public enum NgConveyorState
 
     [Description("Carrier Position Unknown")]
     CarrierPositionUnknown,
+
+    [Description("Manual clear required")]
+    ManualClearRequired,
 }
 
 public enum NgShuttleState

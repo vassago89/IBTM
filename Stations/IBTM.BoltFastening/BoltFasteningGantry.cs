@@ -38,6 +38,14 @@ public sealed class BoltFasteningGantry
 
     public MotionStatus Motion { get; }
 
+    public bool HasPendingResult
+    {
+        get
+        {
+            return _pickupHead.HasPendingResult || _shootingHead.HasPendingResult;
+        }
+    }
+
     public IMotionFeedback Feedback
     {
         get

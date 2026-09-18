@@ -18,7 +18,7 @@ namespace IBTM.Virtual.Tests;
 public sealed class PcbPlacementRepeatTests
 {
     [Fact]
-    public async Task RepeatReusesBothPcbsAndResumesTheSameTripAfterStopAtHandoff()
+    public async Task RepeatReusesBothPcbsWithoutSupply()
     {
         using var rig = new RepeatRig();
         await rig.InitializeAsync(loadPcbs: true);
@@ -42,32 +42,13 @@ public sealed class PcbPlacementRepeatTests
                 handoffVisits++;
             insideHandoff = atHandoff;
         };
-        rig.Placer.Trace += message =>
+        rig.Work.Changed += () =>
         {
-            if (message.StartsWith("PcbPlacer: MovingToWaitPosition ", StringComparison.Ordinal)
-                && rig.Handler.IsAtBufferXY())
+            if (rig.Work.Completed)
                 firstStop.Cancel();
         };
 
         await rig.Placer.RunAsync(rig.Recipe, firstStop.Token, repeat: true);
-        Assert.True(rig.Handler.PcbSecured);
-        Assert.True(rig.Handler.IsAtBufferXY());
-        Assert.Equal(HeatSinkSlot.HeatSink1, rig.Placer.TargetHeatSink);
-        Assert.Empty(rig.Work.Assemblies);
-        Assert.False(rig.Work.Completed);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => rig.Placer.RunAsync(rig.Recipe));
-        Assert.Throws<InvalidOperationException>(
-            () => rig.Placer.PrepareRecovery([(HeatSinkSlot.HeatSink1, true)]));
-        rig.Placer.PrepareRecovery([(HeatSinkSlot.HeatSink1, false), (HeatSinkSlot.HeatSink2, false)]);
-
-        using var resumed = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        rig.Work.Changed += () =>
-        {
-            if (rig.Work.Completed)
-                resumed.Cancel();
-        };
-        await rig.Placer.RunAsync(rig.Recipe, resumed.Token, repeat: true);
-
         Assert.True(rig.Work.Completed, rig.Placer.State(rig.Recipe).ToString());
         Assert.Equal(2, rig.Work.Assemblies.Count());
         Assert.Equal(2, handoffVisits);
@@ -122,12 +103,9 @@ public sealed class PcbPlacementRepeatTests
             rig.Io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
             await Assert.ThrowsAsync<InvalidOperationException>(
                 () => rig.Placer.RunAsync(rig.Recipe, timeout.Token, repeat: true));
-            Assert.Equal(HeatSinkSlot.HeatSink1, rig.Placer.TargetHeatSink);
-            Assert.Throws<InvalidOperationException>(
-                () => rig.Placer.PrepareRecovery([(HeatSinkSlot.HeatSink2, false)]));
+            Assert.Equal(HeatSinkSlot.HeatSink2, rig.Placer.TargetHeatSink);
             await rig.Handler.SetVacuumAsync(false);
             await rig.Handler.SetIpmGripperAsync(false);
-            rig.Placer.PrepareRecovery([(HeatSinkSlot.HeatSink2, false)]);
             Assert.Equal(HeatSinkSlot.HeatSink2, rig.Placer.TargetHeatSink);
         }
     }

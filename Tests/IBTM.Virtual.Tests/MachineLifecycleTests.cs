@@ -308,7 +308,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task NgTransferResumesCarryingWithoutReturningToPickup()
+    public async Task StoppedNgTransferCannotResumeWhileHoldingCarrier()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
@@ -340,26 +340,16 @@ public sealed partial class MachineLifecycleTests
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
         Assert.Equal(MachineAlarm.None, state.Alarm);
 
-        var minimumX = stoppedX;
-        gantry.Feedback.PositionChanged += (x, _, _) => minimumX = Math.Min(minimumX, x);
-        var resumed = machine.StartAsync();
-        try
-        {
-            Assert.True(
-                await VirtualTest.WaitUntilAsync(
-                    () => io.GetInput(InputIo.NgShuttleCarrierDetected)
-                        && io.GetInput(InputIo.NgCarrierPickupUp)
-                        && !io.GetInput(InputIo.NgCarrierDetected),
-                    TimeSpan.FromSeconds(5)));
-        }
-        finally
-        {
-            machine.Stop();
-            await resumed;
-        }
-
-        Assert.True(minimumX >= stoppedX);
-        Assert.Equal(MachineAlarm.None, state.Alarm);
+        Assert.True(machine.RequiresManualClear);
+        Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
+        await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(1));
+        Assert.Equal(stoppedX, gantry.Feedback.GetPosition().X);
+        Assert.False(gantry.Feedback.IsMoving);
+        await machine.ResetAsync();
+        Assert.True(machine.RequiresManualClear);
+        Assert.True(state.IsError);
+        Assert.True(io.GetInput(InputIo.NgCarrierDetected));
+        await machine.ShutdownAsync();
     }
 
     [Theory]
@@ -577,11 +567,12 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(interruptedEvent, (await bus.ReadFasteningResultAsync(slave)).EventCount);
         Assert.Null(await productionHead.ReadPendingResultAsync());
 
-        // Recovery explicitly retires the interrupted operation before testing the driver.
-        station.PrepareRecovery([
-            (HeatSinkSlot.HeatSink1, 1,
-                selected == FasteningHead.Pickup ? FasteningPass.IpmSeating : FasteningPass.Pcb, true),
-        ]);
+        // Only explicit empty-machine acknowledgement retires the interrupted operation.
+        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+        io.SetInputs(
+            (InputIo.PickupHeadVacuumDetected, false),
+            (InputIo.ShootingHeadVacuumDetected, false));
+        await machine.ResetAsync();
         Assert.True(machine.CanTestBoltHead);
         await machine.RunAdcProtocolAsync(
             token => machine.RunBoltTestAsync(testToken => manualHead.TightenAsync(testToken), token),

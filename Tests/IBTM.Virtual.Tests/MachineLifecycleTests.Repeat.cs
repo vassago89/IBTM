@@ -241,7 +241,7 @@ public sealed partial class MachineLifecycleTests
                 await run.WaitAsync(TimeSpan.FromSeconds(5));
                 Assert.True(stoppedForConfiguration);
                 settings.Units.NgShuttle = false;
-                Assert.Equal(StartBlockReason.RepeatReturnUnitDisabled, machine.StartBlock);
+                Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
                 Assert.False(machine.CanStart);
                 await machine.StartAsync();
                 Assert.Equal(new[] { true }, shuttleOutputs.ToArray());

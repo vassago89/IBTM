@@ -261,8 +261,7 @@ public sealed partial class MachineController
         }
         finally
         {
-            if (_fasteningGantry.GetHead(FasteningHead.Pickup).HasPendingResult
-                || _fasteningGantry.GetHead(FasteningHead.Shooting).HasPendingResult)
+            if (_fasteningGantry.HasPendingResult)
                 _automaticNeedsManualClear = true;
             _state.SetBoltTestRunning(false);
         }

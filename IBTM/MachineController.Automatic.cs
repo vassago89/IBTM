@@ -21,9 +21,7 @@ public sealed partial class MachineController
             return _automaticNeedsManualClear
                 || _conveyor.RequiresManualClear
                 || _ngConveyor.RequiresManualClear
-                || !_state.AutomaticRunning
-                    && (_fasteningGantry.GetHead(FasteningHead.Pickup).HasPendingResult
-                        || _fasteningGantry.GetHead(FasteningHead.Shooting).HasPendingResult);
+                || !_state.AutomaticRunning && _fasteningGantry.HasPendingResult;
         }
     }
 
