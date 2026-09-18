@@ -556,7 +556,12 @@ public sealed class MachineState : IDisposable, INotifyPropertyChanged
     {
         get
         {
-            return !_operations.IsShuttingDown && ManualMode && !IsRunning;
+            return !_operations.IsShuttingDown
+                && ManualMode
+                && !_operations.HasActiveOperations
+                && !AutomaticRunning
+                && !BoltTestRunning
+                && !IsHoming;
         }
     }
 

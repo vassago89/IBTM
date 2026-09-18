@@ -169,13 +169,23 @@ public sealed partial class MachineController
             failure = exception;
         }
 
-        try
+        Action[] stops = [
+            StopRunOutputs,
+            _supplyHandler.StopMotion,
+            _placementHandler.StopMotion,
+            _fasteningGantry.StopMotion,
+            _inspectionGantry.StopMotion,
+        ];
+        foreach (var stop in stops)
         {
-            StopRunOutputs();
-        }
-        catch (Exception exception)
-        {
-            failure = failure is null ? exception : new AggregateException(failure, exception);
+            try
+            {
+                stop();
+            }
+            catch (Exception exception)
+            {
+                failure = failure is null ? exception : new AggregateException(failure, exception);
+            }
         }
 
         try

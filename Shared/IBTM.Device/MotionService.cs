@@ -46,6 +46,7 @@ public interface IMotionFeedback
 public interface IAxisMotion : IMotionFeedback
 {
     void Initialize();
+    void Stop();
     Task MoveAxisAsync(
         MotionAxis axis,
         double position,
@@ -416,6 +417,7 @@ public abstract class MotionService(
     }
 
     protected abstract void ResetAlarm();
+    public abstract void Stop();
 
     public void Reset()
     {

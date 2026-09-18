@@ -148,6 +148,11 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
         _motion.Initialize();
     }
 
+    public void StopMotion()
+    {
+        _motion.Stop();
+    }
+
     public void ResetMotion()
     {
         _motion.Reset();

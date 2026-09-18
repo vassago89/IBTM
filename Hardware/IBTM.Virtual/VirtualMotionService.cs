@@ -195,6 +195,11 @@ public sealed class VirtualMotionService(
         _movement?.Cancel();
     }
 
+    public override void Stop()
+    {
+        _movement?.Cancel();
+    }
+
     private async Task SimulateMoveAsync(
         double x,
         double y,

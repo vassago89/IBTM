@@ -48,8 +48,8 @@ public sealed partial class MachineController
         var teachingReady = TeachingReady;
         var bolts = _recipe.Pcb.GetBolts().ToArray();
         var automatic = _state.AutomaticRunning;
-        var setupEditing = !_operations.IsShuttingDown && _state.ManualMode && !running;
-        var manualSetup = setupEditing && safetyReady;
+        var setupEditing = _state.SetupEditingEnabled;
+        var manualSetup = setupEditing && !running && safetyReady;
         var fasteningState = teachingReady && _units.BoltFastening
             ? _fasteningStation.State(live: false)
             : BoltFasteningState.Waiting;

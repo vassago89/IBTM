@@ -148,8 +148,7 @@ public partial class MainViewModel : ObservableObject
         {
             return !_shuttingDown
                 && !IsClosing
-                && _state.ManualMode
-                && !_state.IsRunning
+                && _state.SetupEditingEnabled
                 && Array.TrueForAll(_recipeEditingCommands, static command => !command.IsRunning);
         }
     }

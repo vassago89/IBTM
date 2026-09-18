@@ -321,6 +321,28 @@ public sealed class AjinControllerTests
         Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation.StartsWith("AxmMove"));
     }
 
+    [Fact]
+    public void StopReachesEveryAxisWithoutAnApplicationMoveAndKeepsActualFeedback()
+    {
+        using var controller = new AjinController(new());
+        var motion = new AjinMotionService(
+            controller, new() { Number = 9 }, new() { Number = 10 }, null,
+            new(), new(), new(), null);
+        AjinSdk.MotionAxes[9] = new(InMotion: 1);
+        AjinSdk.MotionAxes[10] = new(InMotion: 1);
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 9)] = (uint)AXT_FUNC_RESULT.AXT_RT_NOT_OPEN;
+        AjinSdk.Results[new(nameof(CAXM.AxmMoveSStop), Axis: 10)] = 0;
+
+        var error = Assert.Throws<MotionException>(motion.Stop);
+
+        Assert.Contains("axis 9", error.ToString());
+        Assert.Equal(new[] { 9, 10 }, AjinSdk.Calls
+            .Where(call => call.Operation == nameof(CAXM.AxmMoveSStop))
+            .Select(call => call.Axis!.Value));
+        Assert.True(motion.IsMoving);
+        Assert.DoesNotContain(AjinSdk.Calls, call => call.Operation == nameof(CAXM.AxmHomeSetResult));
+    }
+
     public AjinControllerTests()
     {
         AjinSdk.Reset();

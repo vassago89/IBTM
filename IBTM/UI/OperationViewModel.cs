@@ -682,11 +682,11 @@ public partial class OperationViewModel : ObservableObject
     {
         try
         {
-            await CommandShutdown.StopAsync(
+            await Task.Run(() => CommandShutdown.StopAsync(
                 _machine.Stop,
                 StartCommand,
                 RaiseCylindersCommand,
-                HomeCommand);
+                HomeCommand));
         }
         catch (Exception exception)
         {

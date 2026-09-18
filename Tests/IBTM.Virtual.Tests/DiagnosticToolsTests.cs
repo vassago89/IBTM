@@ -247,9 +247,25 @@ public sealed class DiagnosticToolsTests
             Assert.True(
                 await VirtualTest.WaitUntilAsync(() => state.IsRunning, TimeSpan.FromSeconds(2)));
             Assert.False(machine.CanReset);
-            diagnostics.InMotion = false;
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+            Assert.True(state.SetupEditingEnabled);
+            Assert.True(services.GetRequiredService<SettingsViewModel>().CanEditSettings);
+            Assert.True(await VirtualTest.WaitUntilAsync(
+                () => state.Display.IsRunning && state.Display.SetupEditingEnabled,
+                TimeSpan.FromSeconds(2)));
+            Assert.False(state.Display.ManualSetupEnabled);
+
+            await view.StopCommand.ExecuteAsync(null);
+            Assert.Equal(1, diagnostics.Stops);
             Assert.True(
                 await VirtualTest.WaitUntilAsync(() => !state.IsRunning, TimeSpan.FromSeconds(2)));
+
+            using (services.GetRequiredService<OperationCancellation>().TryBegin())
+            {
+                Assert.False(state.SetupEditingEnabled);
+                Assert.False(services.GetRequiredService<SettingsViewModel>().CanEditSettings);
+            }
+            Assert.True(state.SetupEditingEnabled);
 
             diagnostics.FailX = true;
             diagnostics.Position = 43;
@@ -328,6 +344,7 @@ public sealed class DiagnosticToolsTests
         public volatile bool InMotion;
         public int Position;
         public int Reads;
+        public int Stops;
         public (AxisState? State, Exception? Error) ReadDiagnosticState(MotionAxis axis)
         {
             Interlocked.Increment(ref Reads);
@@ -345,6 +362,11 @@ public sealed class DiagnosticToolsTests
 
         protected override object? Invoke(System.Reflection.MethodInfo? method, object?[]? arguments)
         {
+            if (method!.Name == nameof(IAxisMotion.Stop))
+            {
+                Interlocked.Increment(ref Stops);
+                InMotion = false;
+            }
             if (method!.Name == "get_IsMoving")
                 throw new IOException("Command availability must use the independent monitor snapshot.");
             if (FailControl && method!.Name == "get_" + nameof(IMotionFeedback.IsReady))

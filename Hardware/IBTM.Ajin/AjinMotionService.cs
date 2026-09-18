@@ -651,6 +651,11 @@ public class AjinMotionService(
         return (moving, inPosition, faulted);
     }
 
+    public override void Stop()
+    {
+        StopAxes(_axes);
+    }
+
     private void StopAxes(int[] axes, bool clearHome = false)
     {
         List<Exception>? failures = null;
