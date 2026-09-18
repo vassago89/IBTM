@@ -147,15 +147,27 @@ public sealed partial class MainConveyor : AutoUnit
         }
     }
 
-    public Task RunMotorAsync(CancellationToken cancellationToken = default)
+    public async Task RunMotorAsync(CancellationToken cancellationToken = default)
     {
-        return RunControlledAsync(
-            async token =>
-            {
-                StartMotor(token);
-                await Task.Delay(Timeout.Infinite, token).ConfigureAwait(false);
-            },
-            cancellationToken);
+        Stop();
+        using var runCancellation = _operations.Link(cancellationToken);
+        _runCancellation = runCancellation;
+        runCancellation.Disposed += () =>
+        {
+            if (ReferenceEquals(_runCancellation, runCancellation))
+                _runCancellation = null;
+        };
+        cancellationToken = runCancellation.Token;
+        using var motor = new ConveyorRun(_io, OutputIo.MainConveyorRun, cancellationToken, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
+        try
+        {
+            StartMotor(cancellationToken);
+            await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            motor.Failure = exception;
+        }
     }
 
     public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
@@ -163,7 +175,38 @@ public sealed partial class MainConveyor : AutoUnit
         _repeat = repeat;
         try
         {
-            await RunControlledAsync(token => RunLoopAsync(ExecuteAsync, token), cancellationToken);
+            Stop();
+            using var runCancellation = _operations.Link(cancellationToken);
+            _runCancellation = runCancellation;
+            runCancellation.Disposed += () =>
+            {
+                if (ReferenceEquals(_runCancellation, runCancellation))
+                    _runCancellation = null;
+            };
+            cancellationToken = runCancellation.Token;
+            using var motor = new ConveyorRun(_io, OutputIo.MainConveyorRun, cancellationToken, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
+            try
+            {
+                BeginRun();
+                try
+                {
+                    while (!cancellationToken.IsCancellationRequested)
+                    {
+                        await ExecuteAsync(cancellationToken);
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                }
+                finally
+                {
+                    EndRun(cancellationToken);
+                }
+            }
+            catch (Exception exception)
+            {
+                motor.Failure = exception;
+            }
         }
         finally
         {
@@ -176,11 +219,27 @@ public sealed partial class MainConveyor : AutoUnit
     {
         if (CarrierCount > 1 || ExitCarrierDetected)
             throw new InvalidOperationException("Main conveyor return requires one carrier and a clear exit.");
-
         _repeat = true;
         try
         {
-            await RunControlledAsync(ReturnCarrierAsync, cancellationToken);
+            Stop();
+            using var runCancellation = _operations.Link(cancellationToken);
+            _runCancellation = runCancellation;
+            runCancellation.Disposed += () =>
+            {
+                if (ReferenceEquals(_runCancellation, runCancellation))
+                    _runCancellation = null;
+            };
+            cancellationToken = runCancellation.Token;
+            using var motor = new ConveyorRun(_io, OutputIo.MainConveyorRun, cancellationToken, OutputIo.MainConveyorReadyToFront2, OutputIo.MainConveyorAvailableToRear);
+            try
+            {
+                await ReturnCarrierAsync(cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                motor.Failure = exception;
+            }
         }
         finally
         {
@@ -188,63 +247,6 @@ public sealed partial class MainConveyor : AutoUnit
         }
     }
 
-    internal async Task RunControlledAsync(
-        Func<CancellationToken, Task> run,
-        CancellationToken cancellationToken)
-    {
-        Stop();
-        using var runCancellation = _operations.Link(cancellationToken);
-        _runCancellation = runCancellation;
-        cancellationToken = runCancellation.Token;
-        Exception? cancellationFailure = null;
-        void StopOnCancellation()
-        {
-            try
-            {
-                _io.SetOutput(OutputIo.MainConveyorRun, false);
-            }
-            catch (Exception exception)
-            {
-                cancellationFailure = exception;
-            }
-        }
-
-        Exception? failure = null;
-        try
-        {
-            using (cancellationToken.Register(StopOnCancellation))
-            {
-                try
-                {
-                    await run(cancellationToken);
-                }
-                catch (Exception exception)
-                {
-                    failure = exception;
-                }
-            }
-
-            if (cancellationFailure is not null)
-                failure = failure is null ? cancellationFailure : new AggregateException(failure, cancellationFailure);
-            if (failure is not null)
-                ExceptionDispatchInfo.Throw(failure);
-        }
-        finally
-        {
-            try
-            {
-                StopOutputs(failure,
-                    OutputIo.MainConveyorRun,
-                    OutputIo.MainConveyorReadyToFront2,
-                    OutputIo.MainConveyorAvailableToRear);
-            }
-            finally
-            {
-                if (ReferenceEquals(_runCancellation, runCancellation))
-                    _runCancellation = null;
-            }
-        }
-    }
 
     public void Stop()
     {

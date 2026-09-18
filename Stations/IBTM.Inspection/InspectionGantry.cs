@@ -103,6 +103,12 @@ public sealed class InspectionGantry
             throw new ArgumentOutOfRangeException(nameof(axis));
     }
 
+    public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
+    {
+        EnsureCanJog(axis, cancellationToken);
+        return _motion.JogAsync(axis, velocity, cancellationToken);
+    }
+
     public bool IsAt(AxisPosition position, bool live = true)
     {
         var current = Motion.ReadPosition(live);

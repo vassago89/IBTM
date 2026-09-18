@@ -38,31 +38,19 @@ public abstract class AutoUnit
         return _stateChanged.WaitAsync(cancellationToken);
     }
 
-    protected async Task RunLoopAsync(
-        Func<CancellationToken, Task> execute,
-        CancellationToken cancellationToken,
-        Func<bool>? completed = null)
+    protected void BeginRun()
     {
         _lastStep = null;
         _waiting = false;
         Trace?.Invoke($"{GetType().Name}: run started.");
         Changed += _stateChanged.Set;
-        try
-        {
-            while (!cancellationToken.IsCancellationRequested && completed?.Invoke() != true)
-            {
-                await execute(cancellationToken);
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            Changed -= _stateChanged.Set;
-            Trace?.Invoke(
-                $"{GetType().Name}: run ended; cancelled={cancellationToken.IsCancellationRequested}; "
-                    + $"last={_lastStep ?? "no step"}.");
-        }
+    }
+
+    protected void EndRun(CancellationToken cancellationToken)
+    {
+        Changed -= _stateChanged.Set;
+        Trace?.Invoke(
+            $"{GetType().Name}: run ended; cancelled={cancellationToken.IsCancellationRequested}; "
+                + $"last={_lastStep ?? "no step"}.");
     }
 }

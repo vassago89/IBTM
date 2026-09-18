@@ -793,11 +793,12 @@ public sealed partial class MachineLifecycleTests
         var handler = services.GetRequiredService<PcbSupplyHandler>();
         Assert.True(state.Homed, state.AlarmDetail);
         var rotation = TeachingRows(teaching)[OutputIo.PcbSupplyRotate];
+        var wasRotated = io.GetOutput(OutputIo.PcbSupplyRotate);
         await handler.MoveAxisAsync(MotionAxis.Z, 5);
         await WaitUntilAsync(() => rotation.ToggleOutputCommand.CanExecute(null));
         await rotation.ToggleOutputCommand.ExecuteAsync(null);
         Assert.Equal(0, handler.Feedback.GetPosition().Z);
-        Assert.Equal(PcbSupplyRotationState.Unrotated, handler.Rotation);
+        Assert.Equal(wasRotated ? PcbSupplyRotationState.Unrotated : PcbSupplyRotationState.Rotated, handler.Rotation);
         await rotation.ToggleOutputCommand.ExecuteAsync(null);
         await handler.MoveAxisAsync(MotionAxis.X, 80);
         await WaitUntilAsync(() => !rotation.ToggleOutputCommand.CanExecute(null));
@@ -889,6 +890,8 @@ public sealed partial class MachineLifecycleTests
         var state = services.GetRequiredService<MachineState>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
+        // HOME ends at the origin; this test explicitly prepares the horizontal travel height.
+        await services.GetRequiredService<PcbPlacementHandler>().MoveToHorizontalZAsync();
         var teaching = services.GetRequiredService<TeachingViewModel>();
         Assert.True(state.Ready, state.AlarmDetail);
         teaching.SelectedTeachingUnit = HardwareArea.PcbPlacementHandler;

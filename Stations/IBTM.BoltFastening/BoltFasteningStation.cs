@@ -104,7 +104,21 @@ public sealed class BoltFasteningStation : AutoUnit
         Exception? failure = null;
         try
         {
-            await RunLoopAsync(token => RunCarrierAsync(recipe, token), cancellationToken);
+            BeginRun();
+            try
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    await RunCarrierAsync(recipe, cancellationToken);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            finally
+            {
+                EndRun(cancellationToken);
+            }
         }
         catch (Exception exception)
         {

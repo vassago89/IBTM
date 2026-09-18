@@ -20,7 +20,7 @@ public sealed class ManualHardwareViewModel : ObservableObject
     public Task ShutdownAsync()
     {
         // Application shutdown only. Leaving the page does not operate equipment.
-        return CommandShutdown.StopAsync(
+        return CommandShutdown.CancelAndWaitAsync(
             null,
             Conveyors.SelectMany(row => new[] { row.StopCommand, row.RunCommand }).ToArray());
     }

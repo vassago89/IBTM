@@ -98,12 +98,14 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
     protected TeachingMotionViewModel(
         MachineState state,
         MachineController machine,
+        OperationCancellation operations,
         MachineStore store,
         IReadOnlyDictionary<HardwareArea, IoStatus[]> ioGroups,
         IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs)
     {
         State = state;
         Machine = machine;
+        Operations = operations;
         _store = store;
         _ioGroups = ioGroups;
         _teachingOutputs = teachingOutputs;
@@ -191,6 +193,7 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
 
     protected MachineController Machine { get; }
     protected MachineState State { get; }
+    protected OperationCancellation Operations { get; }
 
     public abstract MotionGroup ActiveMotionGroup { get; }
     public abstract HardwareArea ActiveTeachingUnit { get; }
@@ -229,37 +232,51 @@ public abstract partial class TeachingMotionViewModel : ObservableObject
     protected abstract void OnTeachingPointChanged(TeachingPoint? oldValue, TeachingPoint? newValue);
 
     [RelayCommand(CanExecute = nameof(CanTeachCurrentPosition))]
-    private Task TeachCurrentPositionAsync(CancellationToken cancellationToken)
+    private async Task TeachCurrentPositionAsync(CancellationToken cancellationToken)
     {
-        return Machine.RunTeachingEditAsync(
-            async token =>
+        var viewToken = ViewCancellation;
+        var activeToken = cancellationToken;
+        try
+        {
+            if (!(State.SetupEditingEnabled))
+                return;
+            using var operation = Machine.BeginManualOperation(
+                () => State.ManualMode,
+                cancellationToken,
+                viewToken);
+            if (operation is null)
+                return;
+            activeToken = operation.Token;
+            operation.Token.ThrowIfCancellationRequested();
+            if (SelectedPoint is not { Position.Mode: not TeachMode.Image, Position.CanTeach: true } point)
+                return;
+            if (!Motion.Feedback.IsReady || !CanReadTeachingPosition(point, live: true))
             {
-                if (SelectedPoint is not { Position.Mode: not TeachMode.Image, Position.CanTeach: true } point)
-                    return;
-                if (!Motion.Feedback.IsReady || !CanReadTeachingPosition(point, live: true))
-                {
-                    SaveError = "Home the axes used by this teaching position and wait for them to stop before teaching.";
-                    return;
-                }
+                SaveError = "Home the axes used by this teaching position and wait for them to stop before teaching.";
+                return;
+            }
 
-                SaveError = null;
-                var current = Motion.Feedback.GetPosition();
-                point.Teach(current.X, current.Y, current.Z);
-                if (point.Position.Storage == TeachingStorage.Buffer)
-                    return;
-
-                point.Apply();
-                RefreshPointPositions();
-                if (point.Position.Storage == TeachingStorage.Machine
-                    && !await SaveSettingsAsync(token, point.Position.Setting!))
-                    return;
-
-                token.ThrowIfCancellationRequested();
-                OnPointTaught(point);
-                NotifyManualTeachingCommands();
-            },
-            cancellationToken,
-            ViewCancellation);
+            SaveError = null;
+            var current = Motion.Feedback.GetPosition();
+            point.Teach(current.X, current.Y, current.Z);
+            if (point.Position.Storage == TeachingStorage.Buffer)
+                return;
+            point.Apply();
+            RefreshPointPositions();
+            if (point.Position.Storage == TeachingStorage.Machine && !await SaveSettingsAsync(operation.Token, point.Position.Setting!))
+                return;
+            OnPointTaught(point);
+            NotifyManualTeachingCommands();
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+            || viewToken.IsCancellationRequested
+            || Operations.IsShuttingDown)
+        {
+        }
+        catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+        {
+            Machine.ReportManualFailure(MachineAlarm.IoCommunication, exception);
+        }
     }
 
     private bool CanTeachCurrentPosition()

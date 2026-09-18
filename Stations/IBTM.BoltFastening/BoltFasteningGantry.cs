@@ -249,6 +249,11 @@ public sealed class BoltFasteningGantry
         return _motion.AdjustAxisAsync(axis, position, velocity, cancellationToken);
     }
 
+    public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
+    {
+        return _motion.JogAsync(axis, velocity, cancellationToken, atCurrentHeight: true);
+    }
+
     public async Task CheckReadyAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();

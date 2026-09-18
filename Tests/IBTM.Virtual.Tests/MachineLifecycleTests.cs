@@ -636,10 +636,12 @@ public sealed partial class MachineLifecycleTests
         Assert.True(productionHead.HasPendingResult);
         Assert.True(station.HasPendingResult);
 
-        var manualHead = new AdcBoltHead(bus, settings.Hantas, slave);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => machine.RunAdcProtocolAsync(
-            token => machine.RunBoltTestAsync(testToken => manualHead.TightenAsync(testToken), token),
-            CancellationToken.None));
+        using var diagnostics = new AdcProtocolViewModel(bus, settings.Hantas, machine, state)
+        {
+            SlaveText = slave.ToString(),
+        };
+        await diagnostics.StartCommand.ExecuteAsync(null);
+        Assert.Contains("production fastening result is still pending", diagnostics.ConnectionStatus);
         Assert.False(machine.CanTestBoltHead);
         Assert.True(machine.CanUseAdcProtocol);
         Assert.False(state.IsRunning);
@@ -666,9 +668,8 @@ public sealed partial class MachineLifecycleTests
         await machine.ResetAsync();
         Assert.True(machine.CanTestBoltHead);
         Assert.True(io.GetInput(InputIo.PcbPlacementHeatSink1Present));
-        await machine.RunAdcProtocolAsync(
-            token => machine.RunBoltTestAsync(testToken => manualHead.TightenAsync(testToken), token),
-            CancellationToken.None);
+        await diagnostics.StartCommand.ExecuteAsync(null);
+        Assert.StartsWith("OK", diagnostics.ResultMessage);
         Assert.False(productionHead.HasPendingResult);
         Assert.Equal(interruptedEvent + 1, (await bus.ReadFasteningResultAsync(slave)).EventCount);
     }
@@ -684,15 +685,13 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
         var io = services.GetRequiredService<VirtualIoService>();
-        var head = new StoppingBoltHead();
+        var bus = new AdcProtocolTests.ControllerBus { StopPollsRemaining = -1 };
         await machine.InitializeAsync();
-
-        var testing = machine.RunAdcProtocolAsync(
-            token => head.TightenAsync(token),
-            CancellationToken.None);
+        using var diagnostics = new AdcProtocolViewModel(bus, settings.Hantas, machine, state);
+        var testing = diagnostics.StartCommand.ExecuteAsync(null);
         Assert.True(state.IsRunning);
         machine.Stop();
-        await head.Stopping.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await WaitUntilAsync(() => bus.StopWrites > 0);
         io.SetInput(InputIo.AutoMode, false);
         Assert.True(state.IsRunning);
         Assert.False(machine.CanStart);
@@ -701,8 +700,8 @@ public sealed partial class MachineLifecycleTests
         await machine.StartAsync();
         Assert.False(state.AutomaticRunning);
 
-        head.Stopped.SetResult();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => testing);
+        bus.StopPollsRemaining = 0;
+        await testing.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(state.IsRunning);
         Assert.True(machine.CanStart);
     }

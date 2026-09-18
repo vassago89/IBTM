@@ -131,119 +131,138 @@ public partial class TeachingViewModel
         {
             if (!Machine.CanUseManualMotion(group))
                 return;
-            using var operation = _operations.TryBegin(cancellationToken, viewCancellation);
+            using var operation = Machine.BeginManualOperation(
+                () => Machine.IsManualMotionReady(group),
+                cancellationToken,
+                viewCancellation);
             if (operation is null)
                 return;
             activeCancellation = operation.Token;
-            void StopWhenUnavailable()
+            operation.Token.ThrowIfCancellationRequested();
+            await (group switch
             {
-                if (!operation.IsCancellationRequested && !Machine.IsManualMotionReady(group))
-                    operation.Cancel();
-            }
-
-            State.Changed += StopWhenUnavailable;
-            try
-            {
-                StopWhenUnavailable();
-                operation.Token.ThrowIfCancellationRequested();
-                IXyMotion motion;
-                switch (group)
-                {
-                    case MotionGroup.PcbSupply:
-                        _supplyHandler.EnsureCanJog(axis, operation.Token);
-                        motion = _supplyMotion;
-                        break;
-                    case MotionGroup.PcbPlacementHandler:
-                        _placementHandler.EnsureCanJog(axis, operation.Token);
-                        motion = _placementMotion;
-                        break;
-                    case MotionGroup.BoltFastening:
-                        motion = _fasteningMotion;
-                        break;
-                    case MotionGroup.InspectionGantry:
-                        _inspectionGantry.EnsureCanJog(axis, operation.Token);
-                        motion = _inspectionMotion;
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(group));
-                }
-
-                await motion.JogAsync(
-                    axis,
-                    velocity,
-                    operation.Token,
-                    atCurrentHeight: group == MotionGroup.BoltFastening);
-            }
-            finally
-            {
-                State.Changed -= StopWhenUnavailable;
-            }
+                MotionGroup.PcbSupply => _supplyHandler.JogAsync(axis, velocity, operation.Token),
+                MotionGroup.PcbPlacementHandler => _placementHandler.JogAsync(axis, velocity, operation.Token),
+                MotionGroup.BoltFastening => _fasteningGantry.JogAsync(axis, velocity, operation.Token),
+                MotionGroup.InspectionGantry => _inspectionGantry.JogAsync(axis, velocity, operation.Token),
+                _ => throw new ArgumentOutOfRangeException(nameof(group)),
+            });
         }
         catch (OperationCanceledException) when (activeCancellation.IsCancellationRequested
             || viewCancellation.IsCancellationRequested
-            || _operations.IsShuttingDown)
+            || Operations.IsShuttingDown)
         {
         }
-        catch (Exception exception) when (
-            exception is IOException or MotionException or MotionInterlockException or IoTimeoutException
-            || exception is AggregateException aggregate
-                && aggregate.Flatten().InnerExceptions.Any(
-                    error => error is IOException or MotionException or MotionInterlockException or IoTimeoutException))
+        catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
         {
-            Machine.ReportManualMotionFailure(group, exception);
+            Machine.ReportManualFailure(Machine.GetMotionAlarm(group), exception);
         }
     }
 
-    protected override Task MoveToHorizontalZAsync(CancellationToken cancellationToken)
+    protected override async Task MoveToHorizontalZAsync(CancellationToken cancellationToken)
     {
-        return Machine.RunManualMotionAsync(
-            ActiveMotionGroup,
-            token => ActiveMotionGroup switch
+        var commandGroup = ActiveMotionGroup;
+        var viewToken = ViewCancellation;
+        var activeToken = cancellationToken;
+        try
+        {
+            if (!Machine.CanUseManualMotion(commandGroup))
+                return;
+            using var operation = Machine.BeginManualOperation(
+                () => Machine.IsManualMotionReady(commandGroup),
+                cancellationToken,
+                viewToken);
+            if (operation is null)
+                return;
+            activeToken = operation.Token;
+            operation.Token.ThrowIfCancellationRequested();
+            await (commandGroup switch
             {
-                MotionGroup.PcbSupply => _supplyHandler.MoveToRotationZAsync(token),
-                MotionGroup.PcbPlacementHandler => _placementHandler.MoveToHorizontalZAsync(token),
-                MotionGroup.BoltFastening => _fasteningGantry.MoveToSafeZAsync(token),
+                MotionGroup.PcbSupply => _supplyHandler.MoveToRotationZAsync(operation.Token),
+                MotionGroup.PcbPlacementHandler => _placementHandler.MoveToHorizontalZAsync(operation.Token),
+                MotionGroup.BoltFastening => _fasteningGantry.MoveToSafeZAsync(operation.Token),
                 MotionGroup.InspectionGantry => Task.CompletedTask,
                 _ => throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup)),
-            },
-            cancellationToken,
-            ViewCancellation);
+            });
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+            || viewToken.IsCancellationRequested
+            || Operations.IsShuttingDown)
+        {
+        }
+        catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+        {
+            Machine.ReportManualFailure(Machine.GetMotionAlarm(commandGroup), exception);
+        }
     }
 
-    protected override Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken)
+    protected override async Task StepAsync(TeachingDirection direction, CancellationToken cancellationToken)
     {
-        return Machine.RunManualMotionAsync(
-            ActiveMotionGroup,
-            token =>
+        var commandGroup = ActiveMotionGroup;
+        var viewToken = ViewCancellation;
+        var activeToken = cancellationToken;
+        try
+        {
+            if (!Machine.CanUseManualMotion(commandGroup))
+                return;
+            using var operation = Machine.BeginManualOperation(
+                () => Machine.IsManualMotionReady(commandGroup),
+                cancellationToken,
+                viewToken);
+            if (operation is null)
+                return;
+            activeToken = operation.Token;
+            operation.Token.ThrowIfCancellationRequested();
+            var (axis, target) = GetStepTarget(direction, Motion.Feedback.GetPosition());
+            await (commandGroup switch
             {
-                var (axis, target) = GetStepTarget(direction, Motion.Feedback.GetPosition());
-                return ActiveMotionGroup switch
-                {
-                    MotionGroup.PcbSupply => _supplyHandler.MoveAxisAsync(axis, target, token),
-                    MotionGroup.PcbPlacementHandler
-                        => _placementHandler.MoveAxisAsync(axis, target, token),
-                    MotionGroup.BoltFastening
-                        => _fasteningGantry.AdjustAxisAsync(axis, target, JogSpeed, token),
-                    MotionGroup.InspectionGantry => _inspectionGantry.MoveAxisAsync(
-                        axis,
-                        target,
-                        TeachingXySpeed,
-                        token),
-                    _ => throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup)),
-                };
-            },
-            cancellationToken,
-            ViewCancellation);
+                MotionGroup.PcbSupply => _supplyHandler.MoveAxisAsync(axis, target, operation.Token),
+                MotionGroup.PcbPlacementHandler => _placementHandler.MoveAxisAsync(axis, target, operation.Token),
+                MotionGroup.BoltFastening => _fasteningGantry.AdjustAxisAsync(axis, target, JogSpeed, operation.Token),
+                MotionGroup.InspectionGantry => _inspectionGantry.MoveAxisAsync(axis, target, TeachingXySpeed, operation.Token),
+                _ => throw new ArgumentOutOfRangeException(nameof(ActiveMotionGroup)),
+            });
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+            || viewToken.IsCancellationRequested
+            || Operations.IsShuttingDown)
+        {
+        }
+        catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+        {
+            Machine.ReportManualFailure(Machine.GetMotionAlarm(commandGroup), exception);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanReturnFromPickup))]
-    private Task ReturnFromPickupAsync(CancellationToken cancellationToken)
+    private async Task ReturnFromPickupAsync(CancellationToken cancellationToken)
     {
-        return Machine.RunManualMotionAsync(
-            ActiveMotionGroup,
-            _fasteningGantry.ReturnFromPickupAsync,
-            cancellationToken,
-            ViewCancellation);
+        var commandGroup = ActiveMotionGroup;
+        var viewToken = ViewCancellation;
+        var activeToken = cancellationToken;
+        try
+        {
+            if (!Machine.CanUseManualMotion(commandGroup))
+                return;
+            using var operation = Machine.BeginManualOperation(
+                () => Machine.IsManualMotionReady(commandGroup),
+                cancellationToken,
+                viewToken);
+            if (operation is null)
+                return;
+            activeToken = operation.Token;
+            operation.Token.ThrowIfCancellationRequested();
+            await _fasteningGantry.ReturnFromPickupAsync(operation.Token);
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+            || viewToken.IsCancellationRequested
+            || Operations.IsShuttingDown)
+        {
+        }
+        catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+        {
+            Machine.ReportManualFailure(Machine.GetMotionAlarm(commandGroup), exception);
+        }
     }
 
     private bool CanReturnFromPickup()
@@ -252,41 +271,46 @@ public partial class TeachingViewModel
             && Machine.CanUseManualMotion(ActiveMotionGroup, live: false);
     }
 
-    protected override Task MoveToPointAsync(CancellationToken cancellationToken)
+    protected override async Task MoveToPointAsync(CancellationToken cancellationToken)
     {
         var point = SelectedPoint!;
-        return Machine.RunManualMotionAsync(
-            ActiveMotionGroup,
-            token => point.Position.MotionGroup switch
+        var commandGroup = ActiveMotionGroup;
+        var viewToken = ViewCancellation;
+        var activeToken = cancellationToken;
+        try
+        {
+            if (!Machine.CanUseManualMotion(commandGroup))
+                return;
+            using var operation = Machine.BeginManualOperation(
+                () => Machine.IsManualMotionReady(commandGroup),
+                cancellationToken,
+                viewToken);
+            if (operation is null)
+                return;
+            activeToken = operation.Token;
+            operation.Token.ThrowIfCancellationRequested();
+            await (point.Position.MotionGroup switch
             {
-                MotionGroup.PcbSupply => _supplyHandler.MoveToTeachingPositionAsync(
-                    point.Position,
-                    point.Read(),
-                    token),
-                MotionGroup.PcbPlacementHandler => _placementHandler.MoveToTeachingPositionAsync(
-                    point.Position,
-                    point.Read(),
-                    token),
-                MotionGroup.BoltFastening => _fasteningGantry.MoveToTeachingPositionAsync(
-                    point.Position,
-                    point.Read(),
-                    token),
-                MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgPickupSafeX
-                    => _inspectionGantry.MoveAxisAsync(MotionAxis.X, point.X, TeachingXySpeed, token),
-                MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgCarrierPickup
-                    => _ngCarrierMove.MoveToCarrierAsync(NgTransferDestination.Station, token),
-                MotionGroup.InspectionGantry when point.Position.Bolt is { } bolt
-                    => Inspector.MoveToAsync(bolt, token),
-                MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.DataMatrix
-                    => Inspector.MoveToBarcodeAsync(SelectedPcb, token),
-                MotionGroup.InspectionGantry => _inspectionGantry.MoveToAsync(
-                    new AxisPosition { X = point.X, Y = point.Y },
-                    TeachingXySpeed,
-                    token),
+                MotionGroup.PcbSupply => _supplyHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token),
+                MotionGroup.PcbPlacementHandler => _placementHandler.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token),
+                MotionGroup.BoltFastening => _fasteningGantry.MoveToTeachingPositionAsync(point.Position, point.Read(), operation.Token),
+                MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgPickupSafeX => _inspectionGantry.MoveAxisAsync(MotionAxis.X, point.X, TeachingXySpeed, operation.Token),
+                MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.NgCarrierPickup => _ngCarrierMove.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token),
+                MotionGroup.InspectionGantry when point.Position.Bolt is { } bolt => Inspector.MoveToAsync(bolt, operation.Token),
+                MotionGroup.InspectionGantry when point.Position.Target == TeachingTarget.DataMatrix => Inspector.MoveToBarcodeAsync(SelectedPcb, operation.Token),
+                MotionGroup.InspectionGantry => _inspectionGantry.MoveToAsync(new AxisPosition { X = point.X, Y = point.Y }, TeachingXySpeed, operation.Token),
                 _ => throw new ArgumentOutOfRangeException(nameof(point)),
-            },
-            cancellationToken,
-            ViewCancellation);
+            });
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+            || viewToken.IsCancellationRequested
+            || Operations.IsShuttingDown)
+        {
+        }
+        catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+        {
+            Machine.ReportManualFailure(Machine.GetMotionAlarm(commandGroup), exception);
+        }
     }
 
     protected override bool CanMoveToPoint()

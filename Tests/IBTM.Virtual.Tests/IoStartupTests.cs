@@ -398,6 +398,8 @@ public sealed class IoStartupTests
         var io = services.GetRequiredService<StartupIo>();
         var feedback = services.GetRequiredService<MachineFeedbackMonitor>();
         await machine.InitializeAsync();
+        // Physical SMEMA outputs are enabled in automatic mode, not teaching mode.
+        services.GetRequiredService<VirtualIoService>().SetInput(InputIo.AutoMode, false);
         var running = Record.ExceptionAsync(() => machine.StartAsync());
         try
         {
@@ -507,20 +509,15 @@ public sealed class IoStartupTests
         Assert.True(state.SetupEditingEnabled);
         try
         {
-            var commandFailure = await Record.ExceptionAsync(() => machine.RunTeachingEditAsync(
-                _ =>
-                {
-                    io.SetOutput(OutputIo.MainConveyorRun, true);
-                    io.SetOutput(OutputIo.NgConveyorRun, true);
-                    io.BeforeOutputWrite = (output, on) =>
-                    {
-                        if (output == OutputIo.MainConveyorRun && !on)
-                            throw stopFailure;
-                    };
-                    return Task.FromException(operationFailure);
-                },
-                CancellationToken.None,
-                CancellationToken.None));
+            io.SetOutput(OutputIo.MainConveyorRun, true);
+            io.SetOutput(OutputIo.NgConveyorRun, true);
+            io.BeforeOutputWrite = (output, on) =>
+            {
+                if (output == OutputIo.MainConveyorRun && !on)
+                    throw stopFailure;
+            };
+            var commandFailure = Record.Exception(() =>
+                machine.ReportManualFailure(MachineAlarm.IoCommunication, operationFailure));
 
             Assert.Null(commandFailure);
             Assert.Equal(MachineAlarm.IoCommunication, state.Alarm);
@@ -887,21 +884,18 @@ public sealed class IoStartupTests
         io.Initialize();
         var cancelError = new IOException("Conveyor cancellation callback failed.");
         var stopError = new IOException("Conveyor output OFF failed.");
-        var run = conveyor.RunControlledAsync(
-            async token =>
-            {
-                using var registration = token.Register(() => throw cancelError);
-                await Task.Delay(Timeout.Infinite, token);
-            },
-            CancellationToken.None);
-        io.BeforeOutputWrite = (output, _) =>
+        using var cancellation = new CancellationTokenSource();
+        var run = conveyor.RunMotorAsync(cancellation.Token);
+        var stopAttempts = 0;
+        io.BeforeOutputWrite = (output, on) =>
         {
-            if (output == OutputIo.MainConveyorRun)
-                throw stopError;
+            if (output == OutputIo.MainConveyorRun && !on)
+                throw Interlocked.Increment(ref stopAttempts) == 1 ? cancelError : stopError;
         };
         try
         {
-            var failure = Assert.Throws<AggregateException>(conveyor.Stop);
+            cancellation.Cancel();
+            var failure = await Assert.ThrowsAsync<AggregateException>(() => run);
             Assert.Contains(cancelError, failure.Flatten().InnerExceptions);
             Assert.Contains(stopError, failure.Flatten().InnerExceptions);
         }

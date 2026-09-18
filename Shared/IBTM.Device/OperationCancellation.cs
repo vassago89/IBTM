@@ -190,6 +190,8 @@ public sealed class OperationCancellation
 
     public sealed class Operation : IDisposable
     {
+        public event Action? Disposed;
+
         private readonly OperationCancellation _owner;
         private readonly CancellationTokenSource _source;
         private readonly Lock _gate;
@@ -272,8 +274,15 @@ public sealed class OperationCancellation
                     return;
             }
 
-            _source.Dispose();
-            _owner.CompleteOperation();
+            try
+            {
+                Disposed?.Invoke();
+            }
+            finally
+            {
+                _source.Dispose();
+                _owner.CompleteOperation();
+            }
         }
     }
 }

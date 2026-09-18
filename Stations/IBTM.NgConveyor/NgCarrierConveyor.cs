@@ -230,86 +230,66 @@ public sealed class NgCarrierConveyor : AutoUnit
         return Position1Occupied ? NgConveyorState.ReadyToEject : NgConveyorState.WaitingForCarrier;
     }
 
-    public Task RunMotorAsync(CancellationToken cancellationToken)
+    public async Task RunMotorAsync(CancellationToken cancellationToken)
     {
-        return RunControlledAsync(
-            async token =>
-            {
-                StartConveyor(token);
-                await Task.Delay(Timeout.Infinite, token).ConfigureAwait(false);
-            },
-            cancellationToken);
-    }
-
-    public Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
-    {
-        _repeat = repeat;
-        return RunControlledAsync(
-            async token =>
-            {
-                if (!repeat && _ejectionPhase == EjectionPhase.Idle && EjectRequested)
-                {
-                    _ejectionPhase = EjectionPhase.WaitingForButtonRelease;
-                    Changed?.Invoke();
-                }
-
-                await RunLoopAsync(ExecuteAsync, token);
-            },
-            cancellationToken);
-    }
-
-    private async Task RunControlledAsync(
-        Func<CancellationToken, Task> run,
-        CancellationToken cancellationToken)
-    {
-        Exception? cancellationFailure = null;
-        void StopOnCancellation()
-        {
-            try
-            {
-                StopConveyor();
-            }
-            catch (Exception exception)
-            {
-                cancellationFailure = exception;
-            }
-        }
-
-        Exception? failure = null;
+        using var motor = new ConveyorRun(_io, OutputIo.NgConveyorRun, cancellationToken, OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
         try
         {
-            using (cancellationToken.Register(StopOnCancellation))
-            {
-                try
-                {
-                    await run(cancellationToken);
-                }
-                catch (Exception exception)
-                {
-                    failure = exception;
-                }
-            }
-
-            if (cancellationFailure is not null)
-                failure = failure is null ? cancellationFailure : new AggregateException(failure, cancellationFailure);
-            if (failure is not null)
-                ExceptionDispatchInfo.Throw(failure);
+            StartConveyor(cancellationToken);
+            await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            motor.Failure = exception;
         }
         finally
         {
             _repeat = false;
             _movement = Movement.None;
             _ejectionPhase = EjectionPhase.Idle;
-            try
-            {
-                Stop();
-            }
-            catch (Exception cleanupFailure) when (failure is not null)
-            {
-                throw new AggregateException(failure, cleanupFailure);
-            }
         }
     }
+
+    public async Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
+    {
+        _repeat = repeat;
+        using var motor = new ConveyorRun(_io, OutputIo.NgConveyorRun, cancellationToken, OutputIo.NgCarrierEjectLamp, OutputIo.NgCarrierEjectCompleteLamp);
+        try
+        {
+            if (!repeat && _ejectionPhase == EjectionPhase.Idle && EjectRequested)
+            {
+                _ejectionPhase = EjectionPhase.WaitingForButtonRelease;
+                Changed?.Invoke();
+            }
+
+            BeginRun();
+            try
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    await ExecuteAsync(cancellationToken);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            finally
+            {
+                EndRun(cancellationToken);
+            }
+        }
+        catch (Exception exception)
+        {
+            motor.Failure = exception;
+        }
+        finally
+        {
+            _repeat = false;
+            _movement = Movement.None;
+            _ejectionPhase = EjectionPhase.Idle;
+        }
+    }
+
 
     public async Task ReturnToShuttleAsync(CancellationToken cancellationToken)
     {

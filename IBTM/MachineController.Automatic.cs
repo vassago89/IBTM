@@ -262,64 +262,64 @@ public sealed partial class MachineController
     private async Task RunAutomaticUnitsAsync(CancellationTokenSource cycle, bool repeat)
     {
         var runningUnits = new List<Task>();
-        if (_units.MainConveyor)
+        if (!cycle.IsCancellationRequested && _units.MainConveyor)
         {
-            runningUnits.Add(RunAutomaticUnitAsync(
+            runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.MainConveyor,
-                () => _conveyor.RunAsync(cycle.Token, repeat),
+                _conveyor.RunAsync(cycle.Token, repeat),
                 cycle));
         }
 
         // Repeat reuses the PCB on the carrier instead of feeding a new PCB.
-        if (_units.PcbSupply && !repeat)
+        if (!cycle.IsCancellationRequested && (_units.PcbSupply && !repeat))
         {
-            runningUnits.Add(RunAutomaticUnitAsync(
+            runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.PcbSupply,
-                () => _pcbSupply.RunAsync(_recipe.PcbSupply, cycle.Token),
+                _pcbSupply.RunAsync(_recipe.PcbSupply, cycle.Token),
                 cycle));
         }
 
-        if (_units.PcbPlacement)
+        if (!cycle.IsCancellationRequested && _units.PcbPlacement)
         {
-            runningUnits.Add(RunAutomaticUnitAsync(
+            runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.PcbPlacement,
-                () => _pcbPlacement.RunAsync(_recipe.PcbPlacement, cycle.Token, repeat),
+                _pcbPlacement.RunAsync(_recipe.PcbPlacement, cycle.Token, repeat),
                 cycle));
         }
 
-        if (_units.PickupBoltFeeder)
+        if (!cycle.IsCancellationRequested && _units.PickupBoltFeeder)
         {
-            runningUnits.Add(RunAutomaticUnitAsync(
+            runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.PickupBoltFeeder,
-                () => _pickupBoltFeeder.RunAsync(cycle.Token),
+                _pickupBoltFeeder.RunAsync(cycle.Token),
                 cycle));
         }
 
-        if (_units.ShootingBoltFeeder)
+        if (!cycle.IsCancellationRequested && _units.ShootingBoltFeeder)
         {
-            runningUnits.Add(RunAutomaticUnitAsync(
+            runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.ShootingBoltFeeder,
-                () => _shootingBoltFeeder.RunAsync(cycle.Token),
+                _shootingBoltFeeder.RunAsync(cycle.Token),
                 cycle));
         }
 
-        if (_units.BoltFastening)
+        if (!cycle.IsCancellationRequested && _units.BoltFastening)
         {
             if (!_units.PickupBoltFeeder)
                 _log?.Write("Pickup Feeder OFF; pickup motion and vacuum remain active without bolt detection waits. Motor START and fastening result collection remain active.");
             if (!_units.ShootingBoltFeeder)
                 _log?.Write("Shooting Feeder OFF; bolt supply and shooting are skipped. Motor START and fastening result collection remain active.");
-            runningUnits.Add(RunAutomaticUnitAsync(
+            runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.BoltFastening,
-                () => _fasteningStation.RunAsync(_recipe.BoltFastening, cycle.Token),
+                _fasteningStation.RunAsync(_recipe.BoltFastening, cycle.Token),
                 cycle));
         }
 
-        if (InspectionGantryEnabled)
+        if (!cycle.IsCancellationRequested && InspectionGantryEnabled)
         {
-            runningUnits.Add(RunAutomaticUnitAsync(
+            runningUnits.Add(ObserveAutomaticUnitAsync(
                 _units.Inspection ? MachineAlarm.Inspection : MachineAlarm.NgCarrierTransfer,
-                () => _inspectionStation.RunAsync(
+                _inspectionStation.RunAsync(
                     _recipe.Pcb.GetBolts().ToArray(),
                     cycle.Token,
                     repeat,
@@ -327,19 +327,19 @@ public sealed partial class MachineController
                 cycle));
         }
 
-        if (_units.NgShuttle && (!repeat || _units.NgConveyor))
+        if (!cycle.IsCancellationRequested && (_units.NgShuttle && (!repeat || _units.NgConveyor)))
         {
-            runningUnits.Add(RunAutomaticUnitAsync(
+            runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.NgShuttle,
-                () => _ngShuttle.RunAsync(cycle.Token),
+                _ngShuttle.RunAsync(cycle.Token),
                 cycle));
         }
 
-        if (_units.NgConveyor)
+        if (!cycle.IsCancellationRequested && _units.NgConveyor)
         {
-            runningUnits.Add(RunAutomaticUnitAsync(
+            runningUnits.Add(ObserveAutomaticUnitAsync(
                 MachineAlarm.NgConveyor,
-                () => _ngConveyor.RunAsync(cycle.Token, repeat),
+                _ngConveyor.RunAsync(cycle.Token, repeat),
                 cycle));
         }
 
@@ -347,21 +347,14 @@ public sealed partial class MachineController
         await Task.WhenAll(runningUnits).ConfigureAwait(false);
     }
 
-    private async Task RunAutomaticUnitAsync(
+    private async Task ObserveAutomaticUnitAsync(
         MachineAlarm alarm,
-        Func<Task> start,
+        Task running,
         CancellationTokenSource cycle)
     {
-        // An earlier unit can fail or receive STOP before its first await.
-        if (cycle.IsCancellationRequested)
-        {
-            return;
-        }
-
         try
         {
-            // Invoke inside the error boundary to include synchronous startup failures.
-            await start();
+            await running;
             if (!cycle.IsCancellationRequested && !_state.IsError)
             {
                 _state.SetError(alarm, new InvalidOperationException(

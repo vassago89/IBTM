@@ -16,17 +16,11 @@ using IBTM.PcbBuffer;
 using IBTM.PcbPlacement;
 using IBTM.PcbSupply;
 using IBTM.Storage;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace IBTM.UI;
 
 public partial class TeachingViewModel : TeachingMotionViewModel
 {
-    private readonly OperationCancellation _operations;
-    private readonly IXyMotion _supplyMotion;
-    private readonly IXyMotion _placementMotion;
-    private readonly IXyMotion _fasteningMotion;
-    private readonly IXyMotion _inspectionMotion;
     private readonly PcbSupplyHandler _supplyHandler;
     private readonly PcbSupplySettings _supplySettings;
     private readonly PcbBufferSettings _bufferSettings;
@@ -88,10 +82,6 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         MachineState state,
         MachineController machine,
         OperationCancellation operations,
-        [FromKeyedServices(MotionGroup.PcbSupply)] IXyMotion supplyMotion,
-        [FromKeyedServices(MotionGroup.PcbPlacementHandler)] IXyMotion placementMotion,
-        [FromKeyedServices(MotionGroup.BoltFastening)] IXyMotion fasteningMotion,
-        [FromKeyedServices(MotionGroup.InspectionGantry)] IXyMotion inspectionMotion,
         InspectionGantrySettings inspectionGantrySettings,
         CarrierReferenceSettings carrierReference,
         PcbPlacementHandlerSettings placementSettings,
@@ -105,15 +95,11 @@ public partial class TeachingViewModel : TeachingMotionViewModel
         IReadOnlyDictionary<HardwareArea, IReadOnlyDictionary<OutputIo, TeachingOutput>> teachingOutputs) : base(
             state,
             machine,
+            operations,
             store,
             ioGroups,
             teachingOutputs)
     {
-        _operations = operations;
-        _supplyMotion = supplyMotion;
-        _placementMotion = placementMotion;
-        _fasteningMotion = fasteningMotion;
-        _inspectionMotion = inspectionMotion;
         _supplyHandler = supplyHandler;
         _supplySettings = supplySettings;
         _bufferSettings = bufferSettings;
@@ -412,12 +398,19 @@ public partial class TeachingViewModel : TeachingMotionViewModel
 
     public async Task ShutdownAsync()
     {
-        var commandsStopped = CommandShutdown.StopAsync(
-            () =>
-            {
-                Deactivate();
-                return Task.CompletedTask;
-            },
+        Task deactivated;
+        try
+        {
+            Deactivate();
+            deactivated = Task.CompletedTask;
+        }
+        catch (Exception exception)
+        {
+            deactivated = Task.FromException(exception);
+        }
+
+        var commandsStopped = CommandShutdown.CancelAndWaitAsync(
+            deactivated,
             [
                 ToggleLiveViewCommand,
                 JogCommand,
@@ -628,19 +621,35 @@ public partial class TeachingViewModel : TeachingMotionViewModel
     }
 
     [RelayCommand(CanExecute = nameof(CanEditTeaching))]
-    private Task SaveHandoffSetupAsync(CancellationToken cancellationToken)
+    private async Task SaveHandoffSetupAsync(CancellationToken cancellationToken)
     {
-        return Machine.RunTeachingEditAsync(
-            async token =>
-            {
-                foreach (var point in _handoffPoints)
-                    point.Apply();
-                await SaveSettingsAsync(
-                    token,
-                    _handoffPoints.Select(point => point.Position.Setting!).Distinct().ToArray());
-                NotifyManualTeachingCommands();
-            },
-            cancellationToken,
-            ViewCancellation);
+        var viewToken = ViewCancellation;
+        var activeToken = cancellationToken;
+        try
+        {
+            if (!(State.SetupEditingEnabled))
+                return;
+            using var operation = Machine.BeginManualOperation(
+                () => State.ManualMode,
+                cancellationToken,
+                viewToken);
+            if (operation is null)
+                return;
+            activeToken = operation.Token;
+            operation.Token.ThrowIfCancellationRequested();
+            foreach (var point in _handoffPoints)
+                point.Apply();
+            await SaveSettingsAsync(operation.Token, _handoffPoints.Select(point => point.Position.Setting!).Distinct().ToArray());
+            NotifyManualTeachingCommands();
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+            || viewToken.IsCancellationRequested
+            || Operations.IsShuttingDown)
+        {
+        }
+        catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+        {
+            Machine.ReportManualFailure(MachineAlarm.IoCommunication, exception);
+        }
     }
 }

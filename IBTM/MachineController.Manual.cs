@@ -58,9 +58,9 @@ public sealed partial class MachineController
                         is { Homed: true, ServoOn: true, Alarm: false, Emergency: false });
     }
 
-    internal void ReportManualMotionFailure(MotionGroup group, Exception exception)
+    internal MachineAlarm GetMotionAlarm(MotionGroup group)
     {
-        var alarm = group switch
+        return group switch
         {
             MotionGroup.PcbSupply => MachineAlarm.PcbSupply,
             MotionGroup.PcbPlacementHandler => MachineAlarm.PcbPlacement,
@@ -70,114 +70,57 @@ public sealed partial class MachineController
                 : MachineAlarm.NgCarrierTransfer,
             _ => throw new ArgumentOutOfRangeException(nameof(group)),
         };
+    }
+
+    // Acquires ownership and watches availability. The caller executes the device command.
+    internal OperationCancellation.Operation? BeginManualOperation(
+        Func<bool> available,
+        CancellationToken cancellationToken,
+        CancellationToken viewCancellation = default)
+    {
+        var operation = _operations.TryBegin(cancellationToken, viewCancellation);
+        if (operation is null)
+            return null;
+
+        void StopWhenUnavailable()
+        {
+            if (!operation.IsCancellationRequested && !available())
+                operation.Cancel();
+        }
+
+        _state.Changed += StopWhenUnavailable;
+        operation.Disposed += () => _state.Changed -= StopWhenUnavailable;
+        try
+        {
+            StopWhenUnavailable();
+            return operation;
+        }
+        catch
+        {
+            operation.Dispose();
+            throw;
+        }
+    }
+
+    internal static bool IsDeviceFailure(Exception exception)
+    {
+        return exception is IOException or MotionException or MotionInterlockException or IoTimeoutException
+            || exception is AggregateException aggregate
+                && aggregate.Flatten().InnerExceptions.Any(
+                    error => error is IOException or MotionException or MotionInterlockException or IoTimeoutException);
+    }
+
+    internal void ReportManualFailure(MachineAlarm alarm, Exception exception)
+    {
         if (_state.IsError)
             alarm = _state.Alarm;
-        else if (IsMotionFailure(exception))
+        else if (IsMotionFailure(exception) && alarm != MachineAlarm.HomeFailed)
             alarm = MachineAlarm.MotionUnavailable;
 
         if (exception is IoTimeoutException)
             _state.SetError(alarm, exception);
         else
             StopAndReportFailure(alarm, exception);
-    }
-
-    internal Task RunManualMotionAsync(
-        MotionGroup group,
-        Func<CancellationToken, Task> move,
-        CancellationToken cancellationToken,
-        CancellationToken viewCancellation)
-    {
-        return RunManualAsync(
-            move,
-            group switch
-            {
-                MotionGroup.PcbSupply => MachineAlarm.PcbSupply,
-                MotionGroup.PcbPlacementHandler => MachineAlarm.PcbPlacement,
-                MotionGroup.BoltFastening => MachineAlarm.BoltFastening,
-                MotionGroup.InspectionGantry => _units.Inspection
-                    ? MachineAlarm.Inspection
-                    : MachineAlarm.NgCarrierTransfer,
-                _ => throw new ArgumentOutOfRangeException(nameof(group)),
-            },
-            () => CanUseManualMotion(group),
-            cancellationToken,
-            viewCancellation,
-            canContinue: () => IsManualMotionReady(group));
-    }
-
-    internal Task RunTeachingEditAsync(
-        Func<CancellationToken, Task> edit,
-        CancellationToken cancellationToken,
-        CancellationToken viewCancellation)
-    {
-        return RunManualAsync(
-            edit,
-            MachineAlarm.IoCommunication,
-            () => _state.SetupEditingEnabled,
-            cancellationToken,
-            viewCancellation,
-            canContinue: () => _state.ManualMode);
-    }
-
-    private async Task RunManualAsync(
-        Func<CancellationToken, Task> execute,
-        MachineAlarm alarm,
-        Func<bool> canStart,
-        CancellationToken cancellationToken,
-        CancellationToken viewCancellation = default,
-        Func<bool>? canContinue = null)
-    {
-        var activeCancellation = cancellationToken;
-        try
-        {
-            if (!canStart())
-                return;
-            using var operation = _operations.TryBegin(cancellationToken, viewCancellation);
-            if (operation is null)
-                return;
-            activeCancellation = operation.Token;
-            void StopWhenUnavailable()
-            {
-                if (operation.IsCancellationRequested)
-                    return;
-                if (!(canContinue?.Invoke() ?? (_io.IsReady && _state.ManualMode && _state.SafetyReady)))
-                    operation.Cancel();
-            }
-
-            _state.Changed += StopWhenUnavailable;
-            try
-            {
-                StopWhenUnavailable();
-                operation.Token.ThrowIfCancellationRequested();
-                await execute(operation.Token);
-            }
-            finally
-            {
-                _state.Changed -= StopWhenUnavailable;
-            }
-        }
-        catch (OperationCanceledException) when (activeCancellation.IsCancellationRequested
-            || viewCancellation.IsCancellationRequested
-            || _operations.IsShuttingDown)
-        {
-        }
-        catch (IoTimeoutException exception)
-        {
-            _state.SetError(_state.IsError ? _state.Alarm : alarm, exception);
-        }
-        catch (Exception exception) when (exception is IOException or MotionException or MotionInterlockException
-            || exception is AggregateException aggregate
-                && aggregate.Flatten().InnerExceptions.Any(
-                    error => error is IOException or MotionException or MotionInterlockException or IoTimeoutException))
-        {
-            StopAndReportFailure(
-                _state.IsError
-                    ? _state.Alarm
-                    : IsMotionFailure(exception) && alarm != MachineAlarm.HomeFailed
-                        ? MachineAlarm.MotionUnavailable
-                        : alarm,
-                exception);
-        }
     }
 
     internal bool CanSetServo(MotionGroup group, bool live = true)
@@ -227,42 +170,21 @@ public sealed partial class MachineController
         }
     }
 
-    public async Task RunAdcProtocolAsync(
-        Func<CancellationToken, Task> command,
-        CancellationToken cancellationToken)
+    internal OperationCancellation.Operation BeginAdcProtocol(CancellationToken cancellationToken)
     {
         if (!CanUseAdcProtocol)
         {
             throw new InvalidOperationException("ADC diagnostics require an idle machine in manual mode.");
         }
 
-        using var operation = _operations.TryBegin(cancellationToken);
+        var operation = _operations.TryBegin(cancellationToken);
         if (operation is null)
             throw new InvalidOperationException("Another machine operation acquired control before ADC diagnostics started.");
-        void StopWhenUnavailable()
-        {
-            if (!AdcProtocolAvailable)
-                operation.Cancel();
-        }
-
-        _state.Changed += StopWhenUnavailable;
-        try
-        {
-            StopWhenUnavailable();
-            operation.Token.ThrowIfCancellationRequested();
-            await command(operation.Token);
-        }
-        finally
-        {
-            _state.Changed -= StopWhenUnavailable;
-        }
+        return operation;
     }
 
-    internal async Task RunBoltTestAsync(
-        Func<CancellationToken, Task> test,
-        CancellationToken cancellationToken)
+    internal void EnsureBoltTestAvailable()
     {
-        // RunAdcProtocolAsync owns admission and cancellation for this command.
         if (!AdcProtocolAvailable)
         {
             throw new InvalidOperationException("Bolt testing requires safe manual mode.");
@@ -274,19 +196,5 @@ public sealed partial class MachineController
                 "A production fastening result is still pending. Resolve that result before testing a bolt head.");
         }
 
-        try
-        {
-            _state.SetBoltTestRunning(true);
-            await test(cancellationToken);
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.BoltFastening, exception);
-            throw;
-        }
-        finally
-        {
-            _state.SetBoltTestRunning(false);
-        }
     }
 }

@@ -254,6 +254,12 @@ public sealed class PcbPlacementHandler : IPcbHandoffReceiver
             EnsureCanMoveHorizontal(cancellationToken);
     }
 
+    public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
+    {
+        EnsureCanJog(axis, cancellationToken);
+        return _motion.JogAsync(axis, velocity, cancellationToken);
+    }
+
     public Task SetLiftDownAsync(bool down, CancellationToken cancellationToken = default)
     {
         return _io.SetOutputAndWaitAsync(OutputIo.PcbPlacementHandlerDown, down, cancellationToken);

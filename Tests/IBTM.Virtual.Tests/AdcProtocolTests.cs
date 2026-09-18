@@ -179,6 +179,7 @@ public sealed class AdcProtocolTests
         public AdcDirection? ResultDirection { get; init; }
         public int StopPollsRemaining { get; set; }
         public IOException? StopReadFailure { get; init; }
+        public Action? Started { get; init; }
         public bool Running { get; private set; }
         public int StartWrites { get; private set; }
         public int StopWrites { get; private set; }
@@ -221,6 +222,7 @@ public sealed class AdcProtocolTests
                     {
                         StartWrites++;
                         Running = true;
+                        Started?.Invoke();
                     }
                     else
                     {

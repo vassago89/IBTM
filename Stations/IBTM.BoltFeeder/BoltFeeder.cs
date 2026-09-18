@@ -37,7 +37,21 @@ public abstract class BoltFeeder : AutoUnit
         Exception? failure = null;
         try
         {
-            await RunLoopAsync(ExecuteAsync, cancellationToken);
+            BeginRun();
+            try
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    await ExecuteAsync(cancellationToken);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            finally
+            {
+                EndRun(cancellationToken);
+            }
         }
         catch (Exception exception)
         {

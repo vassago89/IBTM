@@ -60,7 +60,21 @@ public sealed partial class PcbPlacer : AutoUnit
         _runTargets = null;
         try
         {
-            await RunLoopAsync(token => ExecuteAsync(recipe, token), cancellationToken);
+            BeginRun();
+            try
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    await ExecuteAsync(recipe, cancellationToken);
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            finally
+            {
+                EndRun(cancellationToken);
+            }
         }
         finally
         {

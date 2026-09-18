@@ -109,37 +109,52 @@ public partial class TeachingViewModel
         CameraError = null;
         try
         {
-            await Machine.RunTeachingEditAsync(
-                async token =>
+            var viewToken = ViewCancellation;
+            var activeToken = cancellationToken;
+            try
+            {
+                if (!(State.SetupEditingEnabled))
+                    return;
+                using var operation = Machine.BeginManualOperation(
+                    () => State.ManualMode,
+                    cancellationToken,
+                    viewToken);
+                if (operation is null)
+                    return;
+                activeToken = operation.Token;
+                operation.Token.ThrowIfCancellationRequested();
+                var positions = new List<(BoltPoint Bolt, AxisPosition? Position)>();
+                foreach (var bolt in RecipeEditor.Recipe.Pcb.BoltPoints)
                 {
-                    // Calculate every saved bolt ROI before changing the recipe. Capture XY stays fixed.
-                    var positions = new List<(BoltPoint Bolt, AxisPosition? Position)>();
-                    foreach (var bolt in RecipeEditor.Recipe.Pcb.BoltPoints)
-                    {
-                        var fov = CarrierImages.SingleOrDefault(image =>
-                            !image.Metadata.IsBarcode
-                            && image.Metadata.HeatSink == bolt.HeatSink
-                            && image.Metadata.BoltNumber == bolt.Number);
-                        if (fov?.Metadata.Region is not { } region)
-                            continue;
-                        if (!region.IsInside(fov.Image.PixelWidth, fov.Image.PixelHeight))
-                            throw new InvalidOperationException($"Check the ROI of FOV {fov.Metadata.Number} before applying resolution.");
-                        positions.Add((bolt, GetBoltCoordinates(fov, region, resolution)));
-                    }
-                    MillimetersPerPixel = resolution;
-                    foreach (var (bolt, position) in positions)
-                    {
-                        bolt.X = position?.X;
-                        bolt.Y = position?.Y;
-                    }
-                    RefreshPointPositions();
-                    await RecipeEditor.SaveAsync(token);
-                },
-                cancellationToken,
-                ViewCancellation);
+                    var fov = CarrierImages.SingleOrDefault(image => !image.Metadata.IsBarcode && image.Metadata.HeatSink == bolt.HeatSink && image.Metadata.BoltNumber == bolt.Number);
+                    if (fov?.Metadata.Region is not { } region)
+                        continue;
+                    if (!region.IsInside(fov.Image.PixelWidth, fov.Image.PixelHeight))
+                        throw new InvalidOperationException($"Check the ROI of FOV {fov.Metadata.Number} before applying resolution.");
+                    positions.Add((bolt, GetBoltCoordinates(fov, region, resolution)));
+                }
+
+                MillimetersPerPixel = resolution;
+                foreach (var (bolt, position) in positions)
+                {
+                    bolt.X = position?.X;
+                    bolt.Y = position?.Y;
+                }
+
+                RefreshPointPositions();
+                await RecipeEditor.SaveAsync(operation.Token);
+            }
+            catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+                || viewToken.IsCancellationRequested
+                || Operations.IsShuttingDown)
+            {
+            }
+            catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+            {
+                Machine.ReportManualFailure(MachineAlarm.IoCommunication, exception);
+            }
         }
-        catch (OperationCanceledException) when (
-            cancellationToken.IsCancellationRequested || ViewCancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || ViewCancellation.IsCancellationRequested)
         {
         }
         catch (Exception exception)
@@ -325,46 +340,58 @@ public partial class TeachingViewModel
         var pcb = SelectedPcb;
         var left = (int)Math.Floor(bounds.Left);
         var top = (int)Math.Floor(bounds.Top);
-        var region = new PixelRegion(left, top,
-            (int)Math.Ceiling(bounds.Right) - left, (int)Math.Ceiling(bounds.Bottom) - top);
+        var region = new PixelRegion(left, top, (int)Math.Ceiling(bounds.Right) - left, (int)Math.Ceiling(bounds.Bottom) - top);
         if (!region.IsInside(fov.Image.PixelWidth, fov.Image.PixelHeight))
             return;
-
-        await Machine.RunTeachingEditAsync(
-            async token =>
+        var viewToken = ViewCancellation;
+        var activeToken = CancellationToken.None;
+        try
+        {
+            if (!(State.SetupEditingEnabled))
+                return;
+            using var operation = Machine.BeginManualOperation(() => State.ManualMode, CancellationToken.None, viewToken);
+            if (operation is null)
+                return;
+            activeToken = operation.Token;
+            operation.Token.ThrowIfCancellationRequested();
+            if (bolt is not null)
             {
-                if (bolt is not null)
+                var position = GetBoltCoordinates(fov, region, MillimetersPerPixel);
+                bolt.Point.X = position?.X;
+                bolt.Point.Y = position?.Y;
+            }
+
+            foreach (var tile in RecipeEditor.Recipe.CarrierImages)
+            {
+                if (tile == fov.Metadata)
                 {
-                    var position = GetBoltCoordinates(fov, region, MillimetersPerPixel);
-                    bolt.Point.X = position?.X;
-                    bolt.Point.Y = position?.Y;
+                    tile.Region = region;
+                    tile.BoltNumber = bolt?.Number;
+                    tile.IsBarcode = barcode is not null;
+                    tile.HeatSink = pcb;
                 }
-                foreach (var tile in RecipeEditor.Recipe.CarrierImages)
+                else if (tile.HeatSink == pcb && (barcode is not null ? tile.IsBarcode : !tile.IsBarcode && tile.BoltNumber == bolt!.Number))
                 {
-                    if (tile == fov.Metadata)
-                    {
-                        tile.Region = region;
-                        tile.BoltNumber = bolt?.Number;
-                        tile.IsBarcode = barcode is not null;
-                        tile.HeatSink = pcb;
-                    }
-                    else if (tile.HeatSink == pcb
-                        && (barcode is not null
-                            ? tile.IsBarcode
-                            : !tile.IsBarcode && tile.BoltNumber == bolt!.Number))
-                    {
-                        tile.Region = null;
-                        tile.BoltNumber = null;
-                        tile.IsBarcode = false;
-                    }
+                    tile.Region = null;
+                    tile.BoltNumber = null;
+                    tile.IsBarcode = false;
                 }
-                OnSelectedFovChanged(SelectedFov);
-                RefreshPointPositions();
-                await RecipeEditor.SaveAsync(token);
-                NotifyManualTeachingCommands();
-            },
-            CancellationToken.None,
-            ViewCancellation);
+            }
+
+            OnSelectedFovChanged(SelectedFov);
+            RefreshPointPositions();
+            await RecipeEditor.SaveAsync(operation.Token);
+            NotifyManualTeachingCommands();
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+            || viewToken.IsCancellationRequested
+            || Operations.IsShuttingDown)
+        {
+        }
+        catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+        {
+            Machine.ReportManualFailure(MachineAlarm.IoCommunication, exception);
+        }
 
         if (barcode is not null && ReadDataMatrixCommand.CanExecute(null))
             await ReadDataMatrixCommand.ExecuteAsync(null);
@@ -440,30 +467,58 @@ public partial class TeachingViewModel
     }
 
     [RelayCommand(CanExecute = nameof(CanCaptureCarrierImage))]
-    private Task CaptureCarrierImageAsync(CancellationToken cancellationToken)
+    private async Task CaptureCarrierImageAsync(CancellationToken cancellationToken)
     {
-        return RunInspectionAsync(
-            async token =>
+        var commandGroup = ActiveMotionGroup;
+        var viewToken = ViewCancellation;
+        var activeToken = cancellationToken;
+        try
+        {
+            if (!Machine.CanUseManualMotion(commandGroup))
+                return;
+            using var operation = Machine.BeginManualOperation(
+                () => Machine.IsManualMotionReady(commandGroup),
+                cancellationToken,
+                viewToken);
+            if (operation is null)
+                return;
+            activeToken = operation.Token;
+            operation.Token.ThrowIfCancellationRequested();
+            CameraError = null;
+            await _recipeImageUpdate;
+            operation.Token.ThrowIfCancellationRequested();
+            if (CarrierImages.Count != RecipeEditor.Recipe.CarrierImages.Count)
+                throw new InvalidOperationException("Load the saved FOV images before adding another image.");
+            var captured = await Inspector.CaptureCarrierImageAsync(operation.Token);
+            var image = await Task.Run(() => InspectionPreview.CreateBitmap(captured.Frame), operation.Token);
+            var number = CarrierImages.Count == 0 ? 1 : CarrierImages.Max(tile => tile.Metadata.Number) + 1;
+            var metadata = new CarrierImageTile
             {
-                await _recipeImageUpdate;
-                token.ThrowIfCancellationRequested();
-                if (CarrierImages.Count != RecipeEditor.Recipe.CarrierImages.Count)
-                    throw new InvalidOperationException("Load the saved FOV images before adding another image.");
-                var captured = await Inspector.CaptureCarrierImageAsync(token);
-                var image = await Task.Run(
-                    () => InspectionPreview.CreateBitmap(captured.Frame),
-                    token);
-                var number = CarrierImages.Count == 0 ? 1 : CarrierImages.Max(tile => tile.Metadata.Number) + 1;
-                var metadata = new CarrierImageTile { Number = number, Center = captured.Center };
-                CarrierImageTileView[] images = [.. CarrierImages, new(metadata, image)];
-                if (await RecipeEditor.SaveCarrierImagesAsync(images, token))
-                {
-                    CarrierImages = images;
-                    SelectedFov = images[^1];
-                }
-            },
-            cancellationToken,
-            stopLiveView: false);
+                Number = number,
+                Center = captured.Center
+            };
+            CarrierImageTileView[] images = [.. CarrierImages, new(metadata, image)];
+            if (await RecipeEditor.SaveCarrierImagesAsync(images, operation.Token))
+            {
+                CarrierImages = images;
+                SelectedFov = images[^1];
+            }
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+            || viewToken.IsCancellationRequested
+            || Operations.IsShuttingDown)
+        {
+        }
+        catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+        {
+            Machine.ReportManualFailure(Machine.GetMotionAlarm(commandGroup), exception);
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Trace.TraceError("Teaching inspection failed. {0}", exception);
+            if (!activeToken.IsCancellationRequested)
+                CameraError = exception.Message;
+        }
     }
 
     private bool CanCaptureCarrierImage()
@@ -476,25 +531,49 @@ public partial class TeachingViewModel
     }
 
     [RelayCommand(CanExecute = nameof(CanCaptureInspection))]
-    private Task CaptureInspectionAsync(CancellationToken token)
+    private async Task CaptureInspectionAsync(CancellationToken token)
     {
         SelectedCameraTab = 0;
-        return RunInspectionAsync(
-            async ct =>
-            {
-                var pcb = SelectedBarcode;
-                var bolt = SelectedPoint!.Position.Bolt;
-                var region = pcb is { } target
-                    ? Inspector.GetBarcodeFov(target).Region
-                    : Inspector.GetFov(bolt!).Region;
-                Preview.Clear(pcb, bolt);
-                var frame = pcb is { } barcode
-                    ? await Inspector.CaptureBarcodeAsync(barcode, ct)
-                    : await Inspector.CaptureAsync(bolt!, ct);
-                await Preview.SetImageAsync(frame, ct, region);
-                await Preview.InspectAsync(ct);
-            },
-            token);
+        var commandGroup = ActiveMotionGroup;
+        var viewToken = ViewCancellation;
+        var activeToken = token;
+        try
+        {
+            if (!Machine.CanUseManualMotion(commandGroup))
+                return;
+            using var operation = Machine.BeginManualOperation(
+                () => Machine.IsManualMotionReady(commandGroup),
+                token,
+                viewToken);
+            if (operation is null)
+                return;
+            activeToken = operation.Token;
+            operation.Token.ThrowIfCancellationRequested();
+            await StopCameraLiveAsync();
+            CameraError = null;
+            var pcb = SelectedBarcode;
+            var bolt = SelectedPoint!.Position.Bolt;
+            var region = pcb is { } target ? Inspector.GetBarcodeFov(target).Region : Inspector.GetFov(bolt!).Region;
+            Preview.Clear(pcb, bolt);
+            var frame = pcb is { } barcode ? await Inspector.CaptureBarcodeAsync(barcode, operation.Token) : await Inspector.CaptureAsync(bolt!, operation.Token);
+            await Preview.SetImageAsync(frame, operation.Token, region);
+            await Preview.InspectAsync(operation.Token);
+        }
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+            || viewToken.IsCancellationRequested
+            || Operations.IsShuttingDown)
+        {
+        }
+        catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+        {
+            Machine.ReportManualFailure(Machine.GetMotionAlarm(commandGroup), exception);
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Trace.TraceError("Teaching inspection failed. {0}", exception);
+            if (!activeToken.IsCancellationRequested)
+                CameraError = exception.Message;
+        }
     }
 
     private bool CanCaptureInspection()
@@ -512,14 +591,33 @@ public partial class TeachingViewModel
         CameraError = null;
         try
         {
-            await Machine.RunTeachingEditAsync(
-                Preview.InspectAsync,
-                token,
-                ViewCancellation);
+            var viewToken = ViewCancellation;
+            var activeToken = token;
+            try
+            {
+                if (!(State.SetupEditingEnabled))
+                    return;
+                using var operation = Machine.BeginManualOperation(
+                    () => State.ManualMode,
+                    token,
+                    viewToken);
+                if (operation is null)
+                    return;
+                activeToken = operation.Token;
+                operation.Token.ThrowIfCancellationRequested();
+                await Preview.InspectAsync(operation.Token);
+            }
+            catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+                || viewToken.IsCancellationRequested
+                || Operations.IsShuttingDown)
+            {
+            }
+            catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+            {
+                Machine.ReportManualFailure(MachineAlarm.IoCommunication, exception);
+            }
         }
-        catch (OperationCanceledException) when (
-            token.IsCancellationRequested
-            || ViewCancellation.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested || ViewCancellation.IsCancellationRequested)
         {
         }
         catch (Exception exception)
@@ -536,38 +634,6 @@ public partial class TeachingViewModel
             && Preview.HasImage && Preview.Region is not null;
     }
 
-    private async Task RunInspectionAsync(
-        Func<CancellationToken, Task> action,
-        CancellationToken token,
-        bool stopLiveView = true)
-    {
-        var activeCancellation = token;
-        try
-        {
-            await Machine.RunManualMotionAsync(
-                ActiveMotionGroup,
-                async ct =>
-                {
-                    activeCancellation = ct;
-                    if (stopLiveView)
-                        await StopCameraLiveAsync();
-                    ct.ThrowIfCancellationRequested();
-                    CameraError = null;
-                    await action(ct);
-                },
-                token,
-                ViewCancellation);
-        }
-        catch (OperationCanceledException) when (activeCancellation.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception)
-        {
-            System.Diagnostics.Trace.TraceError("Teaching inspection failed. {0}", exception);
-            if (!activeCancellation.IsCancellationRequested)
-                CameraError = exception.Message;
-        }
-    }
 
     private Task StopCameraLiveAsync()
     {

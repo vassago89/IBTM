@@ -54,7 +54,7 @@ public sealed class CommandShutdownTests
             await pending.Task;
         });
         var execution = command.ExecuteAsync(null);
-        var shutdown = CommandShutdown.StopAsync(() => throw stopFailure, command);
+        var shutdown = CommandShutdown.CancelAndWaitAsync(Task.FromException(stopFailure), command);
 
         await canceled.Task.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.True(command.IsCancellationRequested);
@@ -82,7 +82,7 @@ public sealed class CommandShutdownTests
         var secondRun = second.ExecuteAsync(null);
         try
         {
-            var shutdown = CommandShutdown.StopAsync(() => Task.CompletedTask, first, second);
+            var shutdown = CommandShutdown.CancelAndWaitAsync(Task.CompletedTask, first, second);
             await Assert.ThrowsAnyAsync<OperationCanceledException>(
                 () => secondRun.WaitAsync(TimeSpan.FromSeconds(2)));
             Assert.True(first.IsCancellationRequested);

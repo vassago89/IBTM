@@ -231,57 +231,66 @@ public sealed partial class MachineController
         };
     }
 
-    internal Task ToggleTeachingOutputAsync(
+    internal async Task ToggleTeachingOutputAsync(
         TeachingOutput output,
         CancellationToken cancellationToken,
         CancellationToken viewCancellation)
     {
-        Task ToggleOutput(CancellationToken token)
+        var viewToken = viewCancellation;
+        var activeToken = cancellationToken;
+        try
         {
-            token.ThrowIfCancellationRequested();
+            if (!CanSetTeachingOutput(output))
+                return;
+            using var operation = BeginManualOperation(
+                () => _io.IsReady && _state.ManualMode && _state.SafetyReady,
+                cancellationToken,
+                viewToken);
+            if (operation is null)
+                return;
+            activeToken = operation.Token;
+            operation.Token.ThrowIfCancellationRequested();
             var value = !_io.GetOutput(output.Signal);
             if (output.Signal == OutputIo.ShootBolt)
             {
                 _io.SetOutput(output.Signal, value);
-                return Task.CompletedTask;
+                return;
             }
-
-            return output.Signal switch
+            await (output.Signal switch
             {
-                OutputIo.PcbSupplyGripperClosed => _supplyHandler.SetGripperClosedAsync(value, token),
-                OutputIo.PcbSupplyIpmFixerForward => _supplyHandler.SetIpmFixerAsync(value, token),
-                OutputIo.PcbSupplyRotate => _supplyHandler.SetRotatedAsync(value, token),
-                OutputIo.PcbPlacementHandlerDown => _placementHandler.SetLiftDownAsync(value, token),
-                OutputIo.PcbPlacementIpmDown => _placementHandler.SetIpmLiftDownAsync(value, token),
-                OutputIo.PcbPlacementIpmGripperClose
-                    => _placementHandler.SetIpmGripperAsync(value, token),
-                OutputIo.PcbPlacementVacuumEjector => _placementHandler.SetVacuumAsync(value, token),
-                OutputIo.PcbPlacementHandlerRotate => _placementHandler.SetRotatedAsync(value, token),
-                OutputIo.PickupHeadDown
-                    => _fasteningGantry.SetHeadDownAsync(FasteningHead.Pickup, value, token),
-                OutputIo.ShootingHeadDown
-                    => _fasteningGantry.SetHeadDownAsync(FasteningHead.Shooting, value, token),
-                OutputIo.PickupHeadVacuumPump
-                    => _fasteningGantry.SetVacuumAsync(FasteningHead.Pickup, value, token),
-                OutputIo.ShootingHeadVacuumPump
-                    => _fasteningGantry.SetVacuumAsync(FasteningHead.Shooting, value, token),
-                OutputIo.NgCarrierPickupDown => _ngTransfer.SetLiftUpAsync(!value, token),
-                OutputIo.NgCarrierGripperClose => _ngTransfer.SetGripperOpenAsync(!value, token),
-                OutputIo.NgShuttleDown => _ngShuttle.SetDownAsync(value, token),
+                OutputIo.PcbSupplyGripperClosed => _supplyHandler.SetGripperClosedAsync(value, operation.Token),
+                OutputIo.PcbSupplyIpmFixerForward => _supplyHandler.SetIpmFixerAsync(value, operation.Token),
+                OutputIo.PcbSupplyRotate => _supplyHandler.SetRotatedAsync(value, operation.Token),
+                OutputIo.PcbPlacementHandlerDown => _placementHandler.SetLiftDownAsync(value, operation.Token),
+                OutputIo.PcbPlacementIpmDown => _placementHandler.SetIpmLiftDownAsync(value, operation.Token),
+                OutputIo.PcbPlacementIpmGripperClose => _placementHandler.SetIpmGripperAsync(value, operation.Token),
+                OutputIo.PcbPlacementVacuumEjector => _placementHandler.SetVacuumAsync(value, operation.Token),
+                OutputIo.PcbPlacementHandlerRotate => _placementHandler.SetRotatedAsync(value, operation.Token),
+                OutputIo.PickupHeadDown => _fasteningGantry.SetHeadDownAsync(FasteningHead.Pickup, value, operation.Token),
+                OutputIo.ShootingHeadDown => _fasteningGantry.SetHeadDownAsync(FasteningHead.Shooting, value, operation.Token),
+                OutputIo.PickupHeadVacuumPump => _fasteningGantry.SetVacuumAsync(FasteningHead.Pickup, value, operation.Token),
+                OutputIo.ShootingHeadVacuumPump => _fasteningGantry.SetVacuumAsync(FasteningHead.Shooting, value, operation.Token),
+                OutputIo.NgCarrierPickupDown => _ngTransfer.SetLiftUpAsync(!value, operation.Token),
+                OutputIo.NgCarrierGripperClose => _ngTransfer.SetGripperOpenAsync(!value, operation.Token),
+                OutputIo.NgShuttleDown => _ngShuttle.SetDownAsync(value, operation.Token),
                 OutputIo.PcbPlacementBackupPlateUp
                     or OutputIo.BoltFasteningBackupPlateUp
                     or OutputIo.InspectionBackupPlateUp
                     or OutputIo.PcbPlacementStopperUp
                     or OutputIo.BoltFasteningStopperUp
                     or OutputIo.InspectionStopperUp
-                    => _io.SetOutputAndWaitAsync(output.Signal, value, token),
+                    => _io.SetOutputAndWaitAsync(output.Signal, value, operation.Token),
                 _ => throw new ArgumentOutOfRangeException(nameof(output)),
-            };
+            });
         }
-
-        return RunManualAsync(
-            ToggleOutput,
-            output.Owner switch
+        catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+            || viewToken.IsCancellationRequested
+            || _operations.IsShuttingDown)
+        {
+        }
+        catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+        {
+            ReportManualFailure(output.Owner switch
             {
                 HardwareArea.MainConveyor => MachineAlarm.MainConveyor,
                 HardwareArea.PcbSupply => MachineAlarm.PcbSupply,
@@ -290,9 +299,7 @@ public sealed partial class MachineController
                 HardwareArea.NgCarrierTransfer => MachineAlarm.NgCarrierTransfer,
                 HardwareArea.NgShuttle => MachineAlarm.NgShuttle,
                 _ => throw new ArgumentOutOfRangeException(nameof(output)),
-            },
-            () => CanSetTeachingOutput(output),
-            cancellationToken,
-            viewCancellation);
+            }, exception);
+        }
     }
 }

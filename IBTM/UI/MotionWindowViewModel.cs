@@ -105,8 +105,8 @@ public partial class MotionWindowViewModel : ObservableObject
     {
         try
         {
-            await CommandShutdown.StopAsync(
-                _machine.StopAsync,
+            await CommandShutdown.CancelAndWaitAsync(
+                _machine.StopAsync(),
                 Axes.Select(axis => axis.HomeCommand).ToArray());
         }
         catch (Exception exception)
@@ -182,6 +182,6 @@ public partial class MotionWindowViewModel : ObservableObject
 
     public Task ShutdownAsync()
     {
-        return CommandShutdown.StopAsync(null, [StopCommand, .. Axes.Select(axis => axis.HomeCommand)]);
+        return CommandShutdown.CancelAndWaitAsync(null, [StopCommand, .. Axes.Select(axis => axis.HomeCommand)]);
     }
 }

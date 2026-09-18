@@ -7,13 +7,13 @@ namespace IBTM.UI;
 
 internal static class CommandShutdown
 {
-    public static async Task StopAsync(Func<Task>? stop, params IAsyncRelayCommand[] commands)
+    public static async Task CancelAndWaitAsync(Task? stopping, params IAsyncRelayCommand[] commands)
     {
         var pending = Capture(commands);
         try
         {
-            if (stop is not null)
-                await stop();
+            if (stopping is not null)
+                await stopping;
         }
         catch (Exception exception)
         {

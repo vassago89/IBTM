@@ -304,6 +304,12 @@ public sealed class PcbSupplyHandler : IPcbHandoffSource
             throw new MotionInterlockException("Supply Z cannot jog inside the handoff area.");
     }
 
+    public Task JogAsync(MotionAxis axis, double velocity, CancellationToken cancellationToken = default)
+    {
+        EnsureCanJog(axis, cancellationToken);
+        return _motion.JogAsync(axis, velocity, cancellationToken);
+    }
+
     public bool? IsInsideBuffer(bool live)
     {
         var x = live ? _motion.GetPosition().X : Motion.Position.X;

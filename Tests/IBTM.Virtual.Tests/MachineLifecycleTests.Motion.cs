@@ -75,6 +75,9 @@ public sealed partial class MachineLifecycleTests
         var machine = services.GetRequiredService<MachineController>();
         await machine.InitializeAsync();
         await machine.HomeAsync(CancellationToken.None);
+        var settings = services.GetRequiredService<InspectionGantrySettings>();
+        await feedback.Motion.MoveToXYAsync(10, 0, 10_000);
+        settings.Motion.HorizontalHome.SearchSpeed = 1;
         using var entered = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
         var pauseAdmission = new AsyncLocal<bool>();
@@ -87,22 +90,24 @@ public sealed partial class MachineLifecycleTests
                 Assert.True(release.Wait(TimeSpan.FromSeconds(5)));
             }
         };
-        Task Move(CancellationToken token)
+        void CountStart(bool moving)
         {
-            Interlocked.Increment(ref starts);
-            return Task.Delay(Timeout.Infinite, token);
+            if (moving)
+                Interlocked.Increment(ref starts);
         }
+        feedback.Motion.MovingChanged += CountStart;
 
         var first = Task.Run(() =>
         {
             pauseAdmission.Value = true;
-            return machine.RunManualMotionAsync(MotionGroup.InspectionGantry, Move, default, default);
+            return machine.HomeAxisAsync(MotionGroup.InspectionGantry, MotionAxis.X, default);
         });
         Task second = Task.CompletedTask;
         try
         {
             Assert.True(await Task.Run(() => entered.Wait(TimeSpan.FromSeconds(3))));
-            second = machine.RunManualMotionAsync(MotionGroup.InspectionGantry, Move, default, default);
+            second = machine.HomeAxisAsync(MotionGroup.InspectionGantry, MotionAxis.X, default);
+            await WaitUntilAsync(() => Volatile.Read(ref starts) > 0);
             Assert.Equal(1, Volatile.Read(ref starts));
             release.Set();
             await first.WaitAsync(TimeSpan.FromSeconds(3));
@@ -112,6 +117,7 @@ public sealed partial class MachineLifecycleTests
         {
             release.Set();
             feedback.BeforeRead = null;
+            feedback.Motion.MovingChanged -= CountStart;
             machine.Stop();
             await Task.WhenAll(first, second).WaitAsync(TimeSpan.FromSeconds(3));
             await machine.ShutdownAsync();
@@ -135,11 +141,9 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.True(machine.CanUseManualMotion(MotionGroup.InspectionGantry));
-            await machine.RunManualMotionAsync(
-                MotionGroup.InspectionGantry,
-                _ => Task.FromException(new IOException("Manual gantry I/O failure.")),
-                CancellationToken.None,
-                CancellationToken.None);
+            machine.ReportManualFailure(
+                machine.GetMotionAlarm(MotionGroup.InspectionGantry),
+                new IOException("Manual gantry I/O failure."));
             Assert.Equal(expectedAlarm, state.Alarm);
             Assert.Equal("Manual gantry I/O failure.", state.AlarmMessage);
         }
@@ -178,29 +182,20 @@ public sealed partial class MachineLifecycleTests
         try
         {
             Assert.True(machine.CanUseManualMotion(MotionGroup.InspectionGantry));
-            var command = machine.RunManualMotionAsync(
-                MotionGroup.InspectionGantry,
-                _ =>
-                {
-                    if (failureKind != ManualCommandFailure.Programming)
-                        io.SetOutput(OutputIo.MainConveyorReadyToFront2, true);
-                    if (failureKind == ManualCommandFailure.Canceled)
-                        cancellation.Cancel();
-                    if (failureKind == ManualCommandFailure.Safety)
-                        io.SetInput(InputIo.EmergencyStop1Pressed, true);
-                    return Task.FromException(failure);
-                },
-                cancellation.Token,
-                CancellationToken.None);
-
             if (failureKind == ManualCommandFailure.Programming)
             {
-                Assert.Same(failure, await Assert.ThrowsAsync<AggregateException>(() => command));
+                Assert.False(MachineController.IsDeviceFailure(failure));
                 Assert.Equal(MachineAlarm.None, state.Alarm);
             }
             else
             {
-                await command;
+                Assert.True(MachineController.IsDeviceFailure(failure));
+                io.SetOutput(OutputIo.MainConveyorReadyToFront2, true);
+                if (failureKind == ManualCommandFailure.Canceled)
+                    cancellation.Cancel();
+                if (failureKind == ManualCommandFailure.Safety)
+                    io.SetInput(InputIo.EmergencyStop1Pressed, true);
+                machine.ReportManualFailure(machine.GetMotionAlarm(MotionGroup.InspectionGantry), failure);
                 Assert.Equal(
                     failureKind switch
                     {
@@ -235,24 +230,19 @@ public sealed partial class MachineLifecycleTests
         await machine.InitializeAsync();
         try
         {
-            var testing = machine.RunAdcProtocolAsync(
-                token => machine.RunBoltTestAsync(
-                    testToken =>
-                    {
-                        Assert.True(state.BoltTestRunning);
-                        if (emergencyStop)
-                        {
-                            io.SetInput(InputIo.EmergencyStop1Pressed, true);
-                            Assert.True(testToken.IsCancellationRequested);
-                            Assert.Equal(MachineAlarm.EmergencyStop, state.Alarm);
-                        }
-
-                        return Task.FromException(failure);
-                    },
-                    token),
-                CancellationToken.None);
-
-            Assert.Same(failure, await Assert.ThrowsAsync<IOException>(() => testing));
+            var bus = new AdcProtocolTests.ControllerBus
+            {
+                StopReadFailure = failure,
+                Started = () =>
+                {
+                    Assert.True(state.BoltTestRunning);
+                    if (emergencyStop)
+                        io.SetInput(InputIo.EmergencyStop1Pressed, true);
+                },
+            };
+            using var diagnostics = new AdcProtocolViewModel(bus, settings.Hantas, machine, state);
+            await diagnostics.StartCommand.ExecuteAsync(null);
+            Assert.Contains("failed", diagnostics.ResultMessage);
             Assert.Equal(emergencyStop ? MachineAlarm.EmergencyStop : MachineAlarm.BoltFastening, state.Alarm);
             Assert.Contains(failure.Message, state.AlarmDetail);
             Assert.False(state.BoltTestRunning);

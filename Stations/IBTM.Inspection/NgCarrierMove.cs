@@ -183,11 +183,23 @@ public sealed class NgCarrierMove : AutoUnit
         NgTransferDestination destination,
         CancellationToken cancellationToken)
     {
-        await RunLoopAsync(
-            token => ExecuteAsync(destination, GetState(destination, canPickUp: true), token)
-                ?? WaitForChangeAsync(token),
-            cancellationToken,
-            () => GetState(destination, canPickUp: true) == NgTransferState.Completed);
+        BeginRun();
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested
+                && GetState(destination, canPickUp: true) != NgTransferState.Completed)
+            {
+                await (ExecuteAsync(destination, GetState(destination, canPickUp: true), cancellationToken)
+                    ?? WaitForChangeAsync(cancellationToken));
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            EndRun(cancellationToken);
+        }
         cancellationToken.ThrowIfCancellationRequested();
     }
 

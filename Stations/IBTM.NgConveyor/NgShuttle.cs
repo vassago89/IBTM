@@ -76,9 +76,23 @@ public sealed class NgShuttle : AutoUnit
             && (!useConveyor || _conveyor.CanAcceptCarrier(conveyorRunning));
     }
 
-    public Task RunAsync(CancellationToken cancellationToken = default)
+    public async Task RunAsync(CancellationToken cancellationToken = default)
     {
-        return RunLoopAsync(ExecuteAsync, cancellationToken);
+        BeginRun();
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await ExecuteAsync(cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            EndRun(cancellationToken);
+        }
     }
 
     private Task ExecuteAsync(CancellationToken cancellationToken)

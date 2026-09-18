@@ -331,7 +331,7 @@ public partial class SettingsViewModel : ObservableObject
         Exception? failure = null;
         try
         {
-            await CommandShutdown.StopAsync(
+            await CommandShutdown.CancelAndWaitAsync(
                 null,
                 SaveSettingsCommand,
                 LoadVirtualImageCommand,

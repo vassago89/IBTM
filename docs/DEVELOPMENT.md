@@ -93,7 +93,8 @@ PCB 공급의 `ExecuteAsync(recipe, cancellationToken)`도 독립 메서드로 �
 
 모든 화면의 명령과 편집값은 XAML에서 해당 ViewModel에 바인딩한다. ADC 진단도 창 객체가 아니라
 `AdcProtocolViewModel`이 포트·슬레이브·레지스터·프리셋 입력과 통신 작업을 소유한다.
-명령의 장치 진입은 기존 `MachineController.RunAdcProtocolAsync`와 `RunBoltTestAsync`를 거친다.
+`BeginAdcProtocol`에서 실행권을 얻은 뒤 ViewModel의 명령 본문이 통신과 헤드 동작을 직접 호출한다.
+체결 테스트의 시작 조건은 `EnsureBoltTestAvailable`에서 확인하고, 실행과 결과 처리는 명령 본문에 둔다.
 ADC는 별도 busy 플래그 없이 현재 작업의 취소 소스로 실행 중 여부를 판단한다.
 STOP과 창 닫기는 현재 작업을 취소하고 완료를 기다리며, 모터 정지는 실제 RUN OFF로 확인한다.
 화면의 실행 가능 조건은 `CanExecute`·`IsEnabled`에서 처리하고, 명령 본문에서 같은 조건을 반복 검사하지 않는다.
@@ -139,11 +140,11 @@ Move To는 Safe Z에서 위치만 확인한다. 각 Z 티칭값은 설비 설정
 알람 전체 조건과 개별 동작의 간섭 조건을 섞지 않는다. 임의의 지연·재시도·catch로 원인을 감추지 않는다.
 
 티칭 조그의 순서는 `TeachingViewModel.JogAsync` 한 곳에서 관리한다.
-장비 준비 확인 → 실행권 확보 → 유닛의 `EnsureCanJog`로 간섭 확인 → 선택된 모션 장치의
-`JogAsync` 실행 → 구독 해제·실행권 반환 순서로, 각 호출은 티칭 함수로 돌아온다.
-`MachineController`와 유닛은 조그 실행을 감싸거나 다음 계층으로 전달하지 않는다.
+장비 준비 확인 → `BeginManualOperation`으로 실행권 확보 → 유닛의 `JogAsync` 실행 →
+실행권 반환 순서다. 준비 함수는 반환되고, 티칭 함수가 유닛을 직접 호출한다.
+유닛은 해당 장치의 간섭 확인과 장치 제어를 맡는다. 유닛을 건너뛰어 장치를 노출하지 않는다.
 드라이버도 공통 `ValidateJog` 호출이 돌아온 뒤 SDK 시작 → 완료/취소 대기 → 종료를 직접 수행한다.
-오류가 발생하면 티칭 함수에서 `MachineController.ReportManualMotionFailure`를 호출한다.
+오류가 발생하면 티칭 함수에서 `MachineController.ReportManualFailure`를 호출한다.
 전체 STOP·실린더 간섭 감시는 기존 장비 감시에서 유지한다.
 
 티칭 DO는 `ToggleOutputCommand` → `MachineController.ToggleTeachingOutputAsync`에서
@@ -228,14 +229,15 @@ SMEMA만 대상으로 한다. 입고·배출 단계는 모터와 해당 핸드�
 `StopAttemptsEveryDeviceAndPreservesWriteFailures`와
 `ConveyorStopsMotorAndPreservesRunFailureWhenHandshakeCleanupFails`가 출력 누락과 오류 보존을 확인한다.
 NG 컨베이어도 `NgCarrierConveyor.Stop`에서 모터·배출 안내·완료 램프를 각각 OFF 시도한다.
-메인·NG 컨베이어는 각 장치의 `RunControlledAsync`가 수동·자동 운전의 취소 등록과 종료를 맡는다.
+메인·NG 컨베이어의 수동·자동 운전은 각각의 시작 함수에 직접 작성한다.
+`ConveyorRun`은 취소 시 모터 OFF와 종료 출력·오류 수집만 맡고 운전 코드를 호출하지 않는다.
 메인의 `_runCancellation`은 현재 실행의 취소 대상이며, 캐리어 위치나 이송 이력은 아니다.
 종료 출력 실패가 앞선 운전 오류를 덮지 않도록 함께 전달한다.
 `ConveyorRunFailureSurvivesOutputCleanupFailure`에서 원본 운전·정지 오류를 확인한다.
 단계 내부의 종료도 같은 원칙이다. `TransferStepPreservesOperationAndCleanupFailures`는
 메인 입고·이송·배출·복귀, NG 이송, 슈팅, PCB 공급, 슈팅 피더에서 동작과 OFF가 함께
 실패해도 원본 예외가 남는지 확인한다. `MainConveyorStopPreservesCancellationAndOutputFailures`는
-직접 Stop의 취소 콜백 오류를, `FasteningRunPreservesFailureWhenShootingCleanupFails`는
+취소 시 모터 OFF 오류와 종료 오류를, `FasteningRunPreservesFailureWhenShootingCleanupFails`는
 체결 유닛 전체 종료의 원본 오류를 확인한다. `AggregateException`이면 `Flatten().InnerExceptions`로
 모든 원인을 확인한다. 마지막 OFF 오류 하나만 보고 최초 동작 오류로 판단하지 않는다.
 `MachineController.Stop`과 `ShutdownAsync`는 취소·출력·종료 감시 오류를 함께 보존한다.
@@ -244,14 +246,16 @@ NG 컨베이어도 `NgCarrierConveyor.Stop`에서 모터·배출 안내·완료 
 
 수동·자동·Repeat의 모션 알람 분류는 `MachineController.IsMotionFailure`에서 중첩된
 모션 오류까지 확인한다. 알람 상세에는 분류 전 원본 예외 전체를 남긴다.
-`RunManualAsync`는 취소와 장치 정리 실패가 함께 발생해도 장치 알람·Stop을 처리하며,
+수동 명령은 유닛 호출 뒤 `ReportManualFailure`로 취소와 장치 정리 실패를 보고한다.
+`BeginManualOperation`은 실행권·상태 감시만 관리하며 실행 콜백을 받지 않는다.
 장치 오류가 없는 프로그래밍 예외는 호출부로 전달한다.
-실린더 상승의 `RaiseAsync`도 STOP 이후 장치 오류를 누락하지 않는다. 먼저 발생한 안전 알람이
+실린더 상승의 `ObserveRaiseAsync`도 STOP 이후 장치 오류를 누락하지 않는다. 먼저 발생한 안전 알람이
 있으면 유지하고, 추가 오류는 `Cylinder raise ... failed while stopping` 로그로 확인한다.
 일괄 실린더 상승은 `IsCylinderRaiseClear`에서 캐리어 재실과 플레이스먼트 PCB 감지를 확인한다.
 PCB를 들고 있을 때는 IPM을 내린 상태를 유지하며, 버튼 표시·실행·진행 중 취소가 같은 조건을 사용한다.
 
-운전·티칭·설정·수동 컨베이어·모션 화면 종료는 `UI/CommandShutdown.StopAsync`에서
+운전·티칭·설정·수동 컨베이어·모션 화면은 정지 명령을 직접 시작하고,
+`UI/CommandShutdown.CancelAndWaitAsync`에서
 실행 중인 각 명령의 취소를 시도한 뒤 모두 기다린다. 한 취소가 실패해도 나머지 명령을 취소하며,
 화면 비활성화·취소 콜백·명령 정리 오류를 함께 전달한다. `CommandShutdownTests`가
 대기 순서, 복수 오류, 정상 취소와 첫 취소 실패 뒤 나머지 명령의 정리를 확인한다.
@@ -263,8 +267,10 @@ PCB를 들고 있을 때는 IPM을 내린 상태를 유지하며, 버튼 표시�
 현재 편집 허용 상태를 확인한다. `SettingsStayLockedWhileBusyOrClosingEvenWithAnAlarm`은
 작업 중·종료 중 직접 호출해도 파일 대화상자를 열거나 검사 입력 이미지를 바꾸지 않는지 검증한다.
 
-아래 표는 자동 유닛 10개와 공용 인계 영역를 포함한다. 각 유닛은 `AutoUnit.RunLoopAsync`에서
+아래 표는 자동 유닛 10개와 공용 인계 영역를 포함한다. 각 유닛의 `RunAsync`에 있는 루프가
 현재 피드백으로 다음 동작을 선택하고, 할 일이 없으면 `WaitForChangeAsync`로 기다린다.
+`AutoUnit`은 변경 알림과 추적만 관리한다. 자동운전 시작 함수가 각 유닛을 직접 시작하고,
+`ObserveAutomaticUnitAsync`는 이미 시작한 작업의 종료·오류를 확인한다.
 검사와 NG 이송은 갠트리를 공유하므로 `InspectionStation.RunAsync` 한 경로에서 실행한다.
 `BufferStage`는 공급·안착이 함께 읽는 진입 조건이며 별도 실행 루프를 만들지 않는다.
 

@@ -29,8 +29,8 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     private readonly HantasSettings _settings;
     private readonly MachineController _machine;
     private readonly ApplicationLog? _log;
-    private CancellationTokenSource? _operationCancellation;
-    private Task _operation = Task.CompletedTask;
+    private OperationCancellation.Operation? _operationCancellation;
+    private TaskCompletionSource? _operationCompletion;
     private readonly MachineState _state;
     private readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
     private int _refreshQueued;
@@ -251,43 +251,102 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanConnect))]
     private async Task ToggleConnectionAsync()
     {
-        await ExecuteAsync(
-            async cancellationToken =>
+        OperationCancellation.Operation? operation = null;
+        Exception? failure = null;
+        try
+        {
+            operation = BeginCommand(CancellationToken.None);
+            if (_bus.IsOpen)
             {
-                if (_bus.IsOpen)
-                {
-                    var connectedPort = _bus.PortName;
-                    await Task.Run(_bus.Close);
-                    ConnectionAction = "Connect";
-                    ConnectionStatus = "Disconnected";
-                    AppendLog($"DISCONNECT  {connectedPort}");
-                    return;
-                }
+                var connectedPort = _bus.PortName;
+                await Task.Run(_bus.Close);
+                ConnectionAction = "Connect";
+                ConnectionStatus = "Disconnected";
+                AppendLog($"DISCONNECT  {connectedPort}");
+                return;
+            }
 
-                var portName = SelectedPort!;
-                var baudRate = SelectedBaudRate;
-                await Task.Run(() => _bus.Open(portName, baudRate), cancellationToken);
-                ConnectionAction = "Disconnect";
-                ConnectionStatus = $"{portName} | {baudRate}";
-                AppendLog($"CONNECT  {_bus.PortName} | {_bus.BaudRate}");
-            });
+            var portName = SelectedPort!;
+            var baudRate = SelectedBaudRate;
+            await Task.Run(() => _bus.Open(portName, baudRate), operation.Token);
+            ConnectionAction = "Disconnect";
+            ConnectionStatus = $"{portName} | {baudRate}";
+            AppendLog($"CONNECT  {_bus.PortName} | {_bus.BaudRate}");
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            ShowFailure(exception);
+        }
+        finally
+        {
+            if (operation is not null)
+                EndCommand(operation, failure);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(ProtocolEnabled))]
     private async Task SelectPresetAsync()
     {
-        await ExecuteAsync(async cancellationToken =>
+        OperationCancellation.Operation? operation = null;
+        Exception? failure = null;
+        try
         {
+            operation = BeginCommand(CancellationToken.None);
             var preset = ushort.Parse(PresetText);
-            await CreateHead().SelectPresetAsync(preset, cancellationToken);
+            await CreateHead().SelectPresetAsync(preset, operation.Token);
             ResultMessage = $"Preset {preset} selected";
-        });
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            ShowFailure(exception);
+        }
+        finally
+        {
+            if (operation is not null)
+                EndCommand(operation, failure);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanTestBoltHead))]
     private async Task StartAsync()
     {
-        await ExecuteAsync(TestFasteningAsync);
+        OperationCancellation.Operation? operation = null;
+        Exception? failure = null;
+        try
+        {
+            operation = BeginCommand(CancellationToken.None);
+            _machine.EnsureBoltTestAvailable();
+            _state.SetBoltTestRunning(true);
+            try
+            {
+                var head = CreateHead();
+                await head.CheckReadyAsync(operation.Token);
+                ResultMessage = "Fastening...";
+                var result = await head.TightenAsync(operation.Token);
+                ResultMessage = $"{(result.Success ? "OK" : "NG")}  Torque {result.Torque:F2}";
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.BoltFastening, exception);
+                throw;
+            }
+            finally
+            {
+                _state.SetBoltTestRunning(false);
+            }
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            ShowFailure(exception);
+        }
+        finally
+        {
+            if (operation is not null)
+                EndCommand(operation, failure);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanStop), AllowConcurrentExecutions = true)]
@@ -295,21 +354,34 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     {
         if (_operationCancellation is { } cancellation)
         {
+            var completion = _operationCompletion!.Task;
             cancellation.Cancel();
-            await ShowResultAsync(_operation);
+            await ShowResultAsync(completion);
             return;
         }
 
-        await ExecuteAsync(StopControllerAsync);
+        OperationCancellation.Operation? operation = null;
+        Exception? failure = null;
+        try
+        {
+            operation = BeginCommand(CancellationToken.None);
+            operation.Token.ThrowIfCancellationRequested();
+            ResultMessage = "Stopping — waiting for RUN OFF...";
+            await CreateHead().StopAsync();
+            ResultMessage = "Stopped";
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            ShowFailure(exception);
+        }
+        finally
+        {
+            if (operation is not null)
+                EndCommand(operation, failure);
+        }
     }
 
-    private async Task StopControllerAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        ResultMessage = "Stopping — waiting for RUN OFF...";
-        await CreateHead().StopAsync();
-        ResultMessage = "Stopped";
-    }
 
     private AdcBoltHead CreateHead()
     {
@@ -325,35 +397,43 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
             SlaveAddress);
     }
 
-    private Task TestFasteningAsync(CancellationToken cancellationToken)
-    {
-        return _machine.RunBoltTestAsync(
-            async token =>
-            {
-                var head = CreateHead();
-                await head.CheckReadyAsync(token);
-                ResultMessage = "Fastening...";
-                var result = await head.TightenAsync(token);
-                ResultMessage = $"{(result.Success ? "OK" : "NG")}  Torque {result.Torque:F2}";
-            },
-            cancellationToken);
-    }
 
-    private Task TestReverseAsync(CancellationToken cancellationToken)
-    {
-        return _machine.RunBoltTestAsync(
-            async token =>
-            {
-                ResultMessage = "Loosening — hold to run; release to stop. No automatic completion judgement.";
-                await CreateHead().RunReverseAsync(token);
-            },
-            cancellationToken);
-    }
 
     [RelayCommand(CanExecute = nameof(CanTestBoltHead))]
-    private Task ReverseAsync(CancellationToken cancellationToken)
+    private async Task ReverseAsync(CancellationToken cancellationToken)
     {
-        return ExecuteAsync(TestReverseAsync, cancellationToken);
+        OperationCancellation.Operation? operation = null;
+        Exception? failure = null;
+        try
+        {
+            operation = BeginCommand(cancellationToken);
+            _machine.EnsureBoltTestAvailable();
+            _state.SetBoltTestRunning(true);
+            try
+            {
+                ResultMessage = "Loosening — hold to run; release to stop. No automatic completion judgement.";
+                await CreateHead().RunReverseAsync(operation.Token);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                _state.SetError(_state.IsError ? _state.Alarm : MachineAlarm.BoltFastening, exception);
+                throw;
+            }
+            finally
+            {
+                _state.SetBoltTestRunning(false);
+            }
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            ShowFailure(exception);
+        }
+        finally
+        {
+            if (operation is not null)
+                EndCommand(operation, failure);
+        }
     }
 
     [RelayCommand]
@@ -370,106 +450,146 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(ProtocolEnabled))]
     private async Task ResetAlarmAsync()
     {
-        await ExecuteAsync(
-            async cancellationToken =>
-            {
-                await _bus.ResetAlarmAsync(SlaveAddress, cancellationToken);
-                ResultMessage = "Alarm reset sent";
-            });
+        OperationCancellation.Operation? operation = null;
+        Exception? failure = null;
+        try
+        {
+            operation = BeginCommand(CancellationToken.None);
+            await _bus.ResetAlarmAsync(SlaveAddress, operation.Token);
+            ResultMessage = "Alarm reset sent";
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            ShowFailure(exception);
+        }
+        finally
+        {
+            if (operation is not null)
+                EndCommand(operation, failure);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(ProtocolEnabled))]
     private async Task ReadResultAsync()
     {
-        await ExecuteAsync(
-            async cancellationToken =>
-            {
-                var result = await _bus.ReadFasteningResultAsync(SlaveAddress, cancellationToken);
-                var current = await _bus.ReadControllerStatusAsync(SlaveAddress, cancellationToken);
-                ResultMessage =
-                    $"Current: Ready {current.Ready}  Run {current.Running}  Alarm {current.Alarm}  Preset {current.Preset}\n"
-                    + $"Direction: {current.Direction.GetDescription()}\n"
-                    + $"Last result: {result.Status.GetDescription()}  Event {result.EventCount}\n"
-                    + $"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n"
-                    + $"Time {result.FasteningTimeMilliseconds} ms  Error {result.Error}";
-            });
+        OperationCancellation.Operation? operation = null;
+        Exception? failure = null;
+        try
+        {
+            operation = BeginCommand(CancellationToken.None);
+            var result = await _bus.ReadFasteningResultAsync(SlaveAddress, operation.Token);
+            var current = await _bus.ReadControllerStatusAsync(SlaveAddress, operation.Token);
+            ResultMessage = $"Current: Ready {current.Ready}  Run {current.Running}  Alarm {current.Alarm}  Preset {current.Preset}\n" + $"Direction: {current.Direction.GetDescription()}\n" + $"Last result: {result.Status.GetDescription()}  Event {result.EventCount}\n" + $"Preset {result.Preset}  Torque {result.Torque:F2} / {result.TargetTorque:F2}\n" + $"Time {result.FasteningTimeMilliseconds} ms  Error {result.Error}";
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            ShowFailure(exception);
+        }
+        finally
+        {
+            if (operation is not null)
+                EndCommand(operation, failure);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(ProtocolEnabled))]
     private async Task ReadDeviceInformationAsync()
     {
-        await ExecuteAsync(
-            async cancellationToken =>
-            {
-                var data = await _bus.ReadDeviceInformationAsync(SlaveAddress, cancellationToken);
-                ResultMessage = $"Device data: {ToHex(data)}";
-            });
+        OperationCancellation.Operation? operation = null;
+        Exception? failure = null;
+        try
+        {
+            operation = BeginCommand(CancellationToken.None);
+            var data = await _bus.ReadDeviceInformationAsync(SlaveAddress, operation.Token);
+            ResultMessage = $"Device data: {ToHex(data)}";
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            ShowFailure(exception);
+        }
+        finally
+        {
+            if (operation is not null)
+                EndCommand(operation, failure);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(ProtocolEnabled))]
     private async Task CaptureDeviceInformationAsync()
     {
-        await ExecuteAsync(
-            async cancellationToken =>
-            {
-                const int durationMilliseconds = 3000;
-                var slave = SlaveAddress;
-                IsLogPaused = false;
-                ResultMessage = "Capturing raw RX for 3 seconds; no response parsing.";
-                AppendLog($"CAPTURE BEGIN  ADC {slave}, {_bus.PortName} | {_bus.BaudRate}, {durationMilliseconds} ms");
-                var received = await _bus.CaptureDeviceInformationAsync(
-                    slave,
-                    durationMilliseconds,
-                    cancellationToken);
-                var request = AdcRtuFrame.Build(slave, AdcFunctionCode.RequestDeviceInformation, []);
-                var summary = received.Length == 0
-                    ? "No bytes received."
-                    : received.AsSpan().StartsWith(request)
-                        ? $"RX starts with the TX frame; {received.Length - request.Length} byte(s) follow it."
-                        : "RX does not start with the TX frame.";
-                ResultMessage = $"Captured {received.Length} bytes over {durationMilliseconds} ms. {summary}";
-                AppendLog($"RX ALL (arrival order)  {ToHex(received)}");
-                AppendLog($"CAPTURE END  ADC {slave}: {ResultMessage}");
-            });
+        OperationCancellation.Operation? operation = null;
+        Exception? failure = null;
+        try
+        {
+            operation = BeginCommand(CancellationToken.None);
+            const int durationMilliseconds = 3000;
+            var slave = SlaveAddress;
+            IsLogPaused = false;
+            ResultMessage = "Capturing raw RX for 3 seconds; no response parsing.";
+            AppendLog($"CAPTURE BEGIN  ADC {slave}, {_bus.PortName} | {_bus.BaudRate}, {durationMilliseconds} ms");
+            var received = await _bus.CaptureDeviceInformationAsync(slave, durationMilliseconds, operation.Token);
+            var request = AdcRtuFrame.Build(slave, AdcFunctionCode.RequestDeviceInformation, []);
+            var summary = received.Length == 0 ? "No bytes received." : received.AsSpan().StartsWith(request) ? $"RX starts with the TX frame; {received.Length - request.Length} byte(s) follow it." : "RX does not start with the TX frame.";
+            ResultMessage = $"Captured {received.Length} bytes over {durationMilliseconds} ms. {summary}";
+            AppendLog($"RX ALL (arrival order)  {ToHex(received)}");
+            AppendLog($"CAPTURE END  ADC {slave}: {ResultMessage}");
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            ShowFailure(exception);
+        }
+        finally
+        {
+            if (operation is not null)
+                EndCommand(operation, failure);
+        }
     }
 
     [RelayCommand(CanExecute = nameof(ProtocolEnabled))]
     private async Task ExecuteRegisterAsync()
     {
-        await ExecuteAsync(
-            async cancellationToken =>
+        OperationCancellation.Operation? operation = null;
+        Exception? failure = null;
+        try
+        {
+            operation = BeginCommand(CancellationToken.None);
+            var access = RegisterAccess;
+            var address = ushort.Parse(AddressText);
+            switch (access)
             {
-                var access = RegisterAccess;
-                var address = ushort.Parse(AddressText);
+                case AdcFunctionCode.ReadHoldingRegisters:
+                case AdcFunctionCode.ReadInputRegisters:
+                    RegisterResult = FormatRegisters(address, await _bus.ReadRegistersAsync(SlaveAddress, access, address, ushort.Parse(CountText), operation.Token));
+                    break;
+                case AdcFunctionCode.WriteSingleRegister:
+                    var value = ushort.Parse(ValueText);
+                    if (address == (ushort)AdcRemoteRegister.RemoteStart && value != 0)
+                    {
+                        RegisterResult = "Raw Start is not available. Use Start Fastening or Reverse (Hold).";
+                        return;
+                    }
 
-                switch (access)
-                {
-                    case AdcFunctionCode.ReadHoldingRegisters:
-                    case AdcFunctionCode.ReadInputRegisters:
-                        RegisterResult = FormatRegisters(
-                            address,
-                            await _bus.ReadRegistersAsync(
-                                SlaveAddress,
-                                access,
-                                address,
-                                ushort.Parse(CountText),
-                                cancellationToken));
-                        break;
-                    case AdcFunctionCode.WriteSingleRegister:
-                        var value = ushort.Parse(ValueText);
-                        if (address == (ushort)AdcRemoteRegister.RemoteStart && value != 0)
-                        {
-                            RegisterResult = "Raw Start is not available. Use Start Fastening or Reverse (Hold).";
-                            return;
-                        }
-
-                        await _bus.WriteRegisterAsync(SlaveAddress, address, value, cancellationToken);
-                        RegisterResult = $"{address} = {value} (0x{value:X4})";
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
-                }
-            });
+                    await _bus.WriteRegisterAsync(SlaveAddress, address, value, operation.Token);
+                    RegisterResult = $"{address} = {value} (0x{value:X4})";
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            ShowFailure(exception);
+        }
+        finally
+        {
+            if (operation is not null)
+                EndCommand(operation, failure);
+        }
     }
 
     [RelayCommand]
@@ -522,23 +642,73 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task ExecuteAsync(
-        Func<CancellationToken, Task> operation,
-        CancellationToken cancellationToken = default)
+
+    private OperationCancellation.Operation BeginCommand(CancellationToken cancellationToken)
     {
-        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _operationCancellation = cancellation;
+        var operation = _machine.BeginAdcProtocol(cancellationToken);
+        _operationCancellation = operation;
+        _operationCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _state.Changed += StopWhenUnavailable;
         try
         {
-            _operation = _machine.RunAdcProtocolAsync(operation, cancellation.Token);
+            StopWhenUnavailable();
+            operation.Token.ThrowIfCancellationRequested();
             RefreshControls();
-            await ShowResultAsync(_operation);
+            return operation;
+        }
+        catch (Exception exception)
+        {
+            EndCommand(operation, exception);
+            throw;
+        }
+    }
+
+    private void StopWhenUnavailable()
+    {
+        if (!_machine.AdcProtocolAvailable)
+            _operationCancellation?.Cancel();
+    }
+
+    private void EndCommand(OperationCancellation.Operation operation, Exception? failure)
+    {
+        _state.Changed -= StopWhenUnavailable;
+        try
+        {
+            operation.Dispose();
+        }
+        catch (Exception exception)
+        {
+            failure = failure is null ? exception : new AggregateException(failure, exception);
+            ShowFailure(failure);
         }
         finally
         {
             _operationCancellation = null;
+            if (failure is OperationCanceledException)
+                _operationCompletion!.TrySetCanceled();
+            else if (failure is not null)
+            {
+                _operationCompletion!.TrySetException(failure);
+                _ = _operationCompletion.Task.Exception;
+            }
+            else
+                _operationCompletion!.TrySetResult();
             RefreshControls();
         }
+    }
+
+    private void ShowFailure(Exception exception)
+    {
+        if (exception is OperationCanceledException)
+        {
+            ResultMessage = "Operation canceled. Check controller status.";
+            return;
+        }
+
+        ResultMessage = "Operation failed. Check controller status.";
+        ConnectionStatus = exception.Message;
+        _log?.Error("ADC diagnostic operation failed.", exception);
+        AppendLog($"ERROR  {exception.Message}", record: false);
     }
 
     private async Task ShowResultAsync(Task operation)
@@ -547,16 +717,9 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
         {
             await operation;
         }
-        catch (OperationCanceledException)
-        {
-            ResultMessage = "Operation canceled. Check controller status.";
-        }
         catch (Exception exception)
         {
-            ResultMessage = "Operation failed. Check controller status.";
-            ConnectionStatus = exception.Message;
-            _log?.Error("ADC diagnostic operation failed.", exception);
-            AppendLog($"ERROR  {exception.Message}", record: false);
+            ShowFailure(exception);
         }
     }
 
@@ -594,7 +757,7 @@ public partial class AdcProtocolViewModel : ObservableObject, IDisposable
 
     internal async Task ShutdownAsync()
     {
-        var operation = _operation;
+        var operation = _operationCompletion?.Task ?? Task.CompletedTask;
         if (operation.IsCompleted)
         {
             return;

@@ -72,7 +72,21 @@ public sealed class InspectionStation : AutoUnit
     {
         if (cancellationToken.IsCancellationRequested)
             return;
-        await RunLoopAsync(token => ExecuteAsync(bolts, repeat, holdAtShuttle, token), cancellationToken);
+        BeginRun();
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await ExecuteAsync(bolts, repeat, holdAtShuttle, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            EndRun(cancellationToken);
+        }
     }
 
     private async Task ExecuteAsync(

@@ -12,6 +12,8 @@
     <DebugSymbols>true</DebugSymbols>
     <DebugType>portable</DebugType>
     <Optimize>false</Optimize>
+    <!-- The SDK disables metadata updates by default for configurations other than Debug. -->
+    <MetadataUpdaterSupport>true</MetadataUpdaterSupport>
   </PropertyGroup>
 
   <ItemGroup>

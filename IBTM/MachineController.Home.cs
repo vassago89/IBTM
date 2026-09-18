@@ -112,21 +112,34 @@ public sealed partial class MachineController
     internal async Task HomeAxisAsync(MotionGroup group, MotionAxis axis, CancellationToken cancellationToken)
     {
         // Admission and HOME startup read the synchronous SDK before the first asynchronous wait.
-        await Task.Run(() => RunManualAsync(
-            async token =>
+        await Task.Run(async () =>
+        {
+            var viewToken = CancellationToken.None;
+            var activeToken = cancellationToken;
+            try
             {
+                if (!CanHomeAxis(group, axis))
+                    return;
+                using var operation = BeginManualOperation(
+                    () => AreHomeAxisConditionsReady(group, axis),
+                    cancellationToken,
+                    viewToken);
+                if (operation is null)
+                    return;
+                activeToken = operation.Token;
+                operation.Token.ThrowIfCancellationRequested();
                 _state.SetHoming(true);
                 try
                 {
                     var homed = await (group switch
                     {
-                        MotionGroup.PcbSupply => _supplyHandler.HomeAxisAsync(axis, token),
-                        MotionGroup.PcbPlacementHandler => _placementHandler.HomeAxisAsync(axis, token),
-                        MotionGroup.BoltFastening => _fasteningGantry.HomeAxisAsync(axis, token),
-                        MotionGroup.InspectionGantry => _inspectionGantry.HomeAxisAsync(axis, token),
+                        MotionGroup.PcbSupply => _supplyHandler.HomeAxisAsync(axis, operation.Token),
+                        MotionGroup.PcbPlacementHandler => _placementHandler.HomeAxisAsync(axis, operation.Token),
+                        MotionGroup.BoltFastening => _fasteningGantry.HomeAxisAsync(axis, operation.Token),
+                        MotionGroup.InspectionGantry => _inspectionGantry.HomeAxisAsync(axis, operation.Token),
                         _ => throw new ArgumentOutOfRangeException(nameof(group)),
                     });
-                    if (!homed && !token.IsCancellationRequested)
+                    if (!homed && !operation.Token.IsCancellationRequested)
                         _state.SetError(MachineAlarm.HomeFailed);
                 }
                 finally
@@ -134,11 +147,17 @@ public sealed partial class MachineController
                     _state.SetHoming(false);
                     _state.Refresh();
                 }
-            },
-            MachineAlarm.HomeFailed,
-            () => CanHomeAxis(group, axis),
-            cancellationToken,
-            canContinue: () => AreHomeAxisConditionsReady(group, axis)));
+            }
+            catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+                || viewToken.IsCancellationRequested
+                || _operations.IsShuttingDown)
+            {
+            }
+            catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+            {
+                ReportManualFailure(MachineAlarm.HomeFailed, exception);
+            }
+        });
     }
 
     internal bool CanHomeUnit(MotionGroup group, bool live = true)
@@ -149,9 +168,22 @@ public sealed partial class MachineController
 
     internal async Task HomeUnitAsync(MotionGroup group, CancellationToken cancellationToken)
     {
-        await Task.Run(() => RunManualAsync(
-            async token =>
+        await Task.Run(async () =>
+        {
+            var viewToken = CancellationToken.None;
+            var activeToken = cancellationToken;
+            try
             {
+                if (!CanHomeUnit(group))
+                    return;
+                using var operation = BeginManualOperation(
+                    () => _state.GetMotionStatus(group).Feedback.Axes.All(axis => AreHomeAxisConditionsReady(group, axis)),
+                    cancellationToken,
+                    viewToken);
+                if (operation is null)
+                    return;
+                activeToken = operation.Token;
+                operation.Token.ThrowIfCancellationRequested();
                 _state.SetHoming(true);
                 try
                 {
@@ -159,32 +191,28 @@ public sealed partial class MachineController
                     switch (group)
                     {
                         case MotionGroup.PcbSupply:
-                            homed = await _supplyHandler.HomeAxisAsync(MotionAxis.Z, token);
+                            homed = await _supplyHandler.HomeAxisAsync(MotionAxis.Z, operation.Token);
                             if (homed)
-                                homed = await _supplyHandler.HomeHorizontalAsync(token);
+                                homed = await _supplyHandler.HomeHorizontalAsync(operation.Token);
                             break;
-
                         case MotionGroup.PcbPlacementHandler:
-                            homed = await _placementHandler.HomeAxisAsync(MotionAxis.Z, token);
+                            homed = await _placementHandler.HomeAxisAsync(MotionAxis.Z, operation.Token);
                             if (homed)
-                                homed = await _placementHandler.HomeHorizontalAsync(token);
+                                homed = await _placementHandler.HomeHorizontalAsync(operation.Token);
                             break;
-
                         case MotionGroup.BoltFastening:
-                            homed = await _fasteningGantry.HomeAxisAsync(MotionAxis.Z, token);
+                            homed = await _fasteningGantry.HomeAxisAsync(MotionAxis.Z, operation.Token);
                             if (homed)
-                                homed = await _fasteningGantry.HomeHorizontalAsync(token);
+                                homed = await _fasteningGantry.HomeHorizontalAsync(operation.Token);
                             break;
-
                         case MotionGroup.InspectionGantry:
-                            homed = await _inspectionGantry.HomeHorizontalAsync(token);
+                            homed = await _inspectionGantry.HomeHorizontalAsync(operation.Token);
                             break;
-
                         default:
                             throw new ArgumentOutOfRangeException(nameof(group));
                     }
 
-                    if (!homed && !token.IsCancellationRequested)
+                    if (!homed && !operation.Token.IsCancellationRequested)
                         _state.SetError(MachineAlarm.HomeFailed);
                 }
                 finally
@@ -192,12 +220,17 @@ public sealed partial class MachineController
                     _state.SetHoming(false);
                     _state.Refresh();
                 }
-            },
-            MachineAlarm.HomeFailed,
-            () => CanHomeUnit(group),
-            cancellationToken,
-            canContinue: () => _state.GetMotionStatus(group).Feedback.Axes
-                .All(axis => AreHomeAxisConditionsReady(group, axis))));
+            }
+            catch (OperationCanceledException) when (activeToken.IsCancellationRequested
+                || viewToken.IsCancellationRequested
+                || _operations.IsShuttingDown)
+            {
+            }
+            catch (Exception exception) when (MachineController.IsDeviceFailure(exception))
+            {
+                ReportManualFailure(MachineAlarm.HomeFailed, exception);
+            }
+        });
     }
 
     public async Task RaiseCylindersAsync(CancellationToken cancellationToken)
@@ -240,11 +273,11 @@ public sealed partial class MachineController
             }
         }
 
-        async Task RaiseAsync(Func<CancellationToken, Task> raise, MachineAlarm alarm)
+        async Task ObserveRaiseAsync(Task raising, MachineAlarm alarm)
         {
             try
             {
-                await raise(operation.Token);
+                await raising;
             }
             catch (OperationCanceledException) when (operation.IsCancellationRequested)
             {
@@ -267,12 +300,12 @@ public sealed partial class MachineController
             StopWhenUnavailable();
             var tasks = new List<Task>(3);
             if (BufferHandlersEnabled)
-                tasks.Add(RaiseAsync(_placementHandler.RaiseAsync, MachineAlarm.PcbPlacement));
+                tasks.Add(ObserveRaiseAsync(_placementHandler.RaiseAsync(operation.Token), MachineAlarm.PcbPlacement));
             if (_units.BoltFastening)
-                tasks.Add(RaiseAsync(_fasteningGantry.RaiseCylindersAsync, MachineAlarm.BoltFastening));
+                tasks.Add(ObserveRaiseAsync(_fasteningGantry.RaiseCylindersAsync(operation.Token), MachineAlarm.BoltFastening));
             if (InspectionGantryEnabled)
-                tasks.Add(RaiseAsync(
-                    token => _ngTransfer.SetLiftUpAsync(true, token),
+                tasks.Add(ObserveRaiseAsync(
+                    _ngTransfer.SetLiftUpAsync(true, operation.Token),
                     MachineAlarm.NgCarrierTransfer));
             await Task.WhenAll(tasks);
         }

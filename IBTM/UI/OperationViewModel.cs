@@ -615,12 +615,9 @@ public partial class OperationViewModel : ObservableObject
 
     public Task ShutdownAsync()
     {
-        return CommandShutdown.StopAsync(
-            () =>
-            {
-                Deactivate();
-                return Task.CompletedTask;
-            },
+        Deactivate();
+        return CommandShutdown.CancelAndWaitAsync(
+            null,
             StopCommand,
             StartCommand,
             HomeCommand,
@@ -638,8 +635,8 @@ public partial class OperationViewModel : ObservableObject
     {
         try
         {
-            await CommandShutdown.StopAsync(
-                _machine.StopAsync,
+            await CommandShutdown.CancelAndWaitAsync(
+                _machine.StopAsync(),
                 StartCommand,
                 RaiseCylindersCommand,
                 HomeCommand);

@@ -424,6 +424,13 @@ public sealed partial class ConveyorTests
         var cleanupError = new IOException("Handshake OFF failed.");
         void FailHandshakeOff(OutputIo output, bool value)
         {
+            if (output == OutputIo.MainConveyorRun && value)
+            {
+                io.SetOutput(OutputIo.MainConveyorReadyToFront2, true);
+                io.SetOutput(OutputIo.MainConveyorAvailableToRear, true);
+                running = true;
+                throw runError;
+            }
             if (running && output == OutputIo.MainConveyorReadyToFront2 && !value)
                 throw cleanupError;
         }
@@ -431,16 +438,7 @@ public sealed partial class ConveyorTests
         io.OutputChanged += FailHandshakeOff;
         try
         {
-            var failure = await Assert.ThrowsAsync<AggregateException>(() => conveyor.RunControlledAsync(
-                _ =>
-                {
-                    io.SetOutput(OutputIo.MainConveyorRun, true);
-                    io.SetOutput(OutputIo.MainConveyorReadyToFront2, true);
-                    io.SetOutput(OutputIo.MainConveyorAvailableToRear, true);
-                    running = true;
-                    return Task.FromException(runError);
-                },
-                CancellationToken.None));
+            var failure = await Assert.ThrowsAsync<AggregateException>(() => conveyor.RunMotorAsync());
             Assert.Equal(new[] { runError, cleanupError }, failure.InnerExceptions);
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
             Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
@@ -451,7 +449,12 @@ public sealed partial class ConveyorTests
             conveyor.Stop();
         }
 
-        await conveyor.RunControlledAsync(_ => Task.CompletedTask, CancellationToken.None);
+        using var cancellation = new CancellationTokenSource();
+        var restarted = conveyor.RunMotorAsync(cancellation.Token);
+        Assert.True(io.GetOutput(OutputIo.MainConveyorRun));
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => restarted);
+        Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
     }
 
     [Fact]

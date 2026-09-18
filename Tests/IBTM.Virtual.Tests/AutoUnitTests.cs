@@ -171,12 +171,24 @@ public sealed class AutoUnitTests
             return WaitForChangeAsync(token);
         }
 
-        public Task RunAsync(
+        public async Task RunAsync(
             Func<CancellationToken, Task> execute,
             CancellationToken token,
             Func<bool>? completed = null)
         {
-            return RunLoopAsync(execute, token, completed);
+            BeginRun();
+            try
+            {
+                while (!token.IsCancellationRequested && !(completed?.Invoke() ?? false))
+                    await execute(token);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+            }
+            finally
+            {
+                EndRun(token);
+            }
         }
     }
 }
