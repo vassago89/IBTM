@@ -172,7 +172,7 @@ public sealed class NgConveyorTests
     }
 
     [Fact]
-    public async Task ResetAcknowledgesStoppedCompactionWithCarrierPresent()
+    public async Task StoppedCompactionStartsFromCurrentPresenceWithoutReset()
     {
         var system = CreateSystem();
         await system.Signals.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true);
@@ -194,13 +194,8 @@ public sealed class NgConveyorTests
         await system.Conveyor.RunAsync(stop.Token);
         system.Io.OutputChanged -= StopBetweenSensors;
         Assert.False(system.Conveyor.RunCommandOn);
-        Assert.Equal(NgConveyorState.ManualClearRequired, system.Conveyor.State);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => system.Conveyor.RunAsync());
+        Assert.Equal(NgConveyorState.WaitingForCarrier, system.Conveyor.State);
         system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
-        Assert.True(system.Conveyor.RequiresManualClear);
-        system.Conveyor.ConfirmManualClear();
-        Assert.False(system.Conveyor.RequiresManualClear);
         Assert.True(system.Conveyor.Position1Occupied);
         Assert.False(system.Conveyor.RunCommandOn);
         using var nextStop = new CancellationTokenSource();
@@ -284,10 +279,6 @@ public sealed class NgConveyorTests
             Assert.False(system.Conveyor.RunCommandOn);
             Assert.True(system.Io.GetInput(InputIo.NgShuttleCarrierDetected));
             Assert.True(system.Io.GetInput(InputIo.NgShuttleUp));
-            Assert.True(system.Conveyor.RequiresManualClear);
-            await Assert.ThrowsAsync<InvalidOperationException>(() => system.Conveyor.RunAsync());
-            system.Conveyor.ConfirmManualClear();
-            Assert.False(system.Conveyor.RequiresManualClear);
             Assert.True(system.Io.GetInput(InputIo.NgShuttleCarrierDetected));
             system.Io.InputChanged -= StopAfterEject;
             return;
@@ -320,7 +311,7 @@ public sealed class NgConveyorTests
     [InlineData(InputIo.NgConveyorPosition1Occupied, false)]
     [InlineData(InputIo.NgConveyorPosition1Occupied, true)]
     [InlineData(InputIo.NgConveyorPosition2Occupied, false)]
-    public async Task InterruptedDestinationCannotResumeAfterStop(InputIo destination, bool stopAtDestination)
+    public async Task InterruptedDestinationRestartsFromCurrentSensors(InputIo destination, bool stopAtDestination)
     {
         var system = CreateSystem();
         if (destination == InputIo.NgConveyorPosition2Occupied)
@@ -354,10 +345,21 @@ public sealed class NgConveyorTests
 
         await system.Conveyor.RunAsync(stop.Token);
 
-        Assert.True(system.Conveyor.RequiresManualClear);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => system.Conveyor.RunAsync());
         Assert.False(system.Io.GetOutput(OutputIo.NgConveyorRun));
         Assert.Equal(1, motorStarts);
+        using var nextStop = new CancellationTokenSource();
+        var restarted = system.Conveyor.RunAsync(nextStop.Token);
+        try
+        {
+            await system.Signals.WaitForInputAsync(destination, true, nextStop.Token);
+        }
+        finally
+        {
+            nextStop.Cancel();
+            await restarted.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        Assert.False(system.Conveyor.RunCommandOn);
+        Assert.Equal(stopAtDestination ? 1 : 2, motorStarts);
     }
 
     private static TestSystem CreateSystem(int alarmCarrierCount = 3)

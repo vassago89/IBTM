@@ -194,7 +194,7 @@ PCB를 들고 있을 때는 IPM을 내린 상태를 유지하며, 버튼 표시�
 | 특정 유닛이 시작하지 않음 | `RunAutomaticUnitsAsync`의 해당 유닛 `if`, `RunAutomaticUnitAsync`의 취소 조건 | `_units`, `repeat`, `alarm`, `cycle.IsCancellationRequested` |
 | 자동운전 중 알람 발생 | `RunAutomaticUnitAsync`의 `catch (Exception exception)` | `alarm`은 발생 유닛, `exception`은 원본 오류, `_state.Alarm`은 먼저 발생한 알람 |
 | Repeat 메인 복귀가 취소됨 | `MachineController.Repeat.cs`의 `GetMainConveyorReturnBlock`, `ReturnMainCarrierAsync`의 `CheckPath` | 핸들러 상승·안전 Z, NG 픽업 상승·캐리어 센서; 현재 피드백으로 차단 이유를 반환 |
-| 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.ExecuteAsync`, `ReadState` | `state`, `RequiresManualClear`, 현재 도착·착좌 센서; 중간 정지는 수동으로 비운 뒤 RESET |
+| 메인 컨베이어가 이송하지 않거나 센서 사이에서 멈춤 | `MainConveyor.ExecuteAsync`, `ReadState` | 현재 도착·착좌 센서, 작업 완료와 목적지 점유; START는 현재 피드백으로 동작 선택 |
 | PCB 공급이 대기하거나 예상과 다른 동작 | `PcbSupplier.RunAsync` 안 `ExecuteAsync`의 `switch (state)`, `PickPcbAsync` | `state`, `_pickStep`; 픽업 중에는 `pickPosition`, `carrierChanged` |
 | PCB 안착이 멈춤 | `PcbPlacer.ExecuteAsync`, `PlaceStepAsync`의 `switch (state)` | `heatSink`, `state`, `action`; `action == null`이면 피드백 대기 |
 | 공급 진입 또는 안착 인수 실린더가 대기함 | `BufferStage.CanEnterSupply`, `CanEnterPlacement`, `HasConflict` | 도착 순서는 무관; Placement Handler Up/Down 입력, 양쪽 현재 위치·Home·정지 피드백, Supply `PcbSecured`, 인계 좌표 |
@@ -255,11 +255,10 @@ STOP 자체는 새 START를 차단하거나 전체 장비 비움을 요구하지
 정상 착좌된 캐리어는 그대로 두고 현재 I/O·작업 완료·인터록으로 다음 동작을 판단한다.
 RESET은 캐리어가 착좌되어 있거나 부품이 감지되어도 장치 오류를 해제한다.
 재실·보유 부품 감지를 RESET 실패나 새 알람으로 처리하지 않으며, 지지 출력과 작업 결과를 유지한다.
-메인·NG 이송 중단, PCB 압입/Repeat 픽업 중단, 미수집 체결 결과는 해당 유닛의 불확정 작업만 차단한다.
-`AcknowledgeInterruptedWork`가 RESET에서 해당 유닛만 확인한다. 메인·NG 컨베이어는 캐리어가 있어도
-정지 위치를 확인할 수 있다. 미전달 작업은 원래 캐리어가 출발지에 확인될 때만 중단 표시를 해제한다.
-센서 OFF만으로 중단 기록을 해제하지 않으며, RESET은 자동 운전이나 작업 완료 처리를 하지 않는다.
-캐리어·PCB 재실, NG 픽업 보유 입력, 중단 이력은 전역 START 차단 조건이 아니다.
+메인·NG 컨베이어와 PCB 안착에는 중단 이력에 따른 차단 플래그나 수동 확인 단계가 없다.
+캐리어·PCB 재실, NG 픽업 보유 입력, 중단 이력은 START 차단 조건이 아니다.
+STOP 뒤 새 START는 현재 센서·축 피드백과 해당 캐리어의 작업 결과로 동작을 선택한다.
+RESET은 장치 알람을 해제하며 운전이나 작업 완료 처리를 하지 않는다.
 NG 픽업은 현재 보유·지지·목적지 피드백으로 다음 동작을 판단한다.
 복구창, `StartPreparation`, `PrepareRecovery`, 수동 완료 결과 생성은 제거했다.
 
@@ -267,12 +266,14 @@ NG 픽업은 현재 보유·지지·목적지 피드백으로 다음 동작을 �
 자동 재검사하던 경로는 없다. 새 캐리어 입력이 새 작업을 만든다.
 체결의 `_pendingFastening`은 결과가 귀속될 원래 캐리어·볼트·패스만 보관한다.
 `ReadPendingResultAsync`는 모터 재기동 없이 확인된 결과만 회수한다.
-ADC와 I/O 모두 미완료 체결에 다시 START하지 않는다. 실린더 하강 미확인 결과도 OK로 기록하지 않는다.
-수동 정리·RESET까지 미수거 결과의 귀속을 유지하며, 확인된 결과를 다른 캐리어로 옮기지 않는다.
+새 START에서 확인된 미수집 결과를 먼저 수집하고, 결과가 없으면 같은 볼트·패스를 다시 체결한다.
+재체결에는 현재 위치, 컨트롤러 정지·준비와 프리셋, 새 하강 피드백과 새 체결 결과가 필요하다.
+실린더 하강이 미확인된 이전 결과나 STOP으로 떨어진 FASTEN 신호를 OK로 기록하지 않는다.
+중단된 볼트에 새 볼트를 다시 공급하지 않으며, 결과를 다른 캐리어로 옮기지 않는다.
 수동 체결 테스트도 미완료 작업이 있으면 차단한다. 통신 상태·결과 읽기는 가능하다.
 
 NG 컨베이어의 목적지와 배출 버튼 확인 단계는 현재 실행에만 속한다.
-이송·배출 중 중단되면 `ManualClearRequired`로 차단하고 실행 단계를 버린다.
+이송·배출 중 중단되면 실행 단계를 버린다. 새 START는 현재 센서로 동작을 선택한다.
 정상 이송의 도착 센서 확인, 셔틀 지지, 배출 확인 버튼 및 모터 OFF 정리는 유지한다.
 메인 컨베이어는 중단 단계의 자동 재개를 하지 않는다. `ConveyorTransfer`와 장기 보관 도착 이력은 없다.
 정상 이송은 출발 시 잡은 `StationWork.Job`을 `MoveCarrierAsync`의 도착 이벤트에서 전달하고,
@@ -284,20 +285,17 @@ NG 컨베이어의 목적지와 배출 버튼 확인 단계는 현재 실행에�
 구동 중 단순 `Running`으로 덮지 않으며, 정상 종료·취소·오류 모두에서 즉시 지운다.
 이 값으로 센서 피드백을 대신하거나 중단된 이송을 재개하지 않는다.
 `RunToStationAsync`는 현재 구동의 입구·Heat Sink 2 감지와 추가 밀착 시간을 처리한다.
-모터 정지 후 플레이트를 올리는 것까지 한 실행에 포함하며, 중간 취소/오류는 `RequiresManualClear`를 남긴다.
-이는 물리 위치나 재개 단계가 아니라 작업자 확인이 필요한 미완료 기록이다.
-해당 컨베이어의 동작은 위치 확인을 기다리고 기존 지지 출력은 유지한다. RESET에서
-`ConfirmManualClear`를 호출하되 캐리어 재실을 거부하지 않는다. 미전달 작업이 있으면
-원래 작업이 출발 캐리어에 남아 있는지 확인한다. 소유권이 불명확한 작업은 지우거나 옮기지 않는다.
-대기 중 STOP은 이송 중단 기록을 만들지 않으며, 장비 자동 운전 종료도 전체 정리 확인을 요구하지 않는다.
+모터 정지 후 플레이트를 올리는 것까지 한 실행에 포함한다. 취소/오류 때 모터와 이벤트를 정리하고
+지지 출력은 유지한다. 이송 작업 참조는 실행의 지역 변수이며 재시작 차단에 사용하지 않는다.
+이송 중단 뒤 도착한 캐리어에 이전 결과를 붙이지 않으며, 새 START는 현재 피드백으로 동작한다.
 정상 운전에서는 벨트가 정지한 상태에서 감지된 캐리어를 현재 스테이션에서 올린다.
 여러 스테이션에 캐리어가 있으면 동시에 착좌를 시작하고, 각 작업 유닛은 자기 스테이션의
 상승·스토퍼 하강 피드백이 확인되는 즉시 작업한다. 완료된 캐리어의 이송은
 S3 배출 → S2에서 S3 → S1에서 S2 → 신규 반입 순서이며, 목적지가 비어 있어야 한다.
-정상 착좌가 중단되어도 수동 정리·RESET 차단이 걸리며, 중단된 동작을 자동 재개하지 않는다.
-집중 검사는 `ResetAllowsInterruptedSeatingWithCarrierPresent`, `InterruptedPlateRaiseDoesNotResumeOrLowerSupport`,
+착좌 중 STOP 뒤에도 RESET 없이 현재 상승·하강 피드백으로 새 START를 실행한다.
+집중 검사는 `InterruptedSeatingRestartsFromCurrentPresenceWithoutReset`, `InterruptedPlateRaiseUsesFeedbackOnRestartWithoutLoweringSupport`,
 `InterruptedTransferKeepsPendingResultsWithoutMovingThemOnLaterInput`, `ActiveTransferKeepsOriginalResultsWhenSourceGetsAnotherCarrier`,
-`ResetAllowsInterruptedConveyorToStartWithCarrierStillPresent`, `ResetPreservesSeatedCarrierAndAllowsStartingItsTransfer`다.
+`InterruptedConveyorStartsWithCarrierStillPresentWithoutReset`, `ResetPreservesSeatedCarrierAndAllowsStartingItsTransfer`다.
 셔틀의 `_cycleReturnPending`은 제거했다. `CycleAsync`는 하강 완료 후 현재 캐리어와
 픽업 상승을 확인하고 상승한다. 중단된 상승을 별도로 기억해 이어가지 않는다.
 전체 Repeat도 저장 단계 분기 없이 정방향 → NG 반환/셔틀 왕복 → Station 3 → 입구 순서로 실행한다.
@@ -437,7 +435,8 @@ Shooting Bolt Feeder OFF는 공급 대기·이스케이프·볼트 발사와 공
 IO형은 기존 FASTEN ON → OFF를 확인한 뒤 START를 끄고 IO · Assumed OK로 기록한다. 통신형은 체결기의 실제 OK/NG 결과를 기록한다.
 픽업 헤드의 가체결·본체결 위치도 모두 방문한다. 체결기 준비 확인과 검사도 유지한다.
 미수거 결과와 중단된 체결의 복구 조건, XY 이동에 필요한 양쪽 헤드 상승과 Safe Z도 유지한다.
-통신형도 START 후 실린더 하강이 확인되지 않으면 늦게 온 결과를 자동 반영하지 않으며 수동 정리·RESET을 요구한다.
+통신형도 START 후 실린더 하강이 확인되지 않으면 늦게 온 결과를 자동 반영하지 않는다.
+새 START로 재체결할 때 새 하강 피드백과 새 결과를 확인한다.
 하강이 확인된 뒤 결과 수신만 실패한 경우에는 기존 결과를 수거하며 다시 START하지 않는다.
 관련 코드는 `PcbPlacer.Repeat.cs`, `MainConveyor.ReturnToStartAsync`, `MachineController.Repeat.cs`다.
 

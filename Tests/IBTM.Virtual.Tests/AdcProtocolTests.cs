@@ -12,7 +12,7 @@ namespace IBTM.Virtual.Tests;
 public sealed class AdcProtocolTests
 {
     [Fact]
-    public async Task FailedFeedStopsTheMotorAndCannotRestartDespiteALateResult()
+    public async Task FailedFeedRequiresANewConfirmedFeedBeforeRecordingResult()
     {
         var bus = new ControllerBus();
         var head = new AdcBoltHead(bus, new HantasSettings(), 1);
@@ -31,14 +31,7 @@ public sealed class AdcProtocolTests
         Assert.True(head.HasPendingResult);
         // A controller result cannot prove that the cylinder fed the bolt.
         Assert.Null(await head.ReadPendingResultAsync());
-        await head.ResetAsync();
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => head.TightenAsync(feedAsync: FeedAsync));
-        Assert.True(head.HasPendingResult);
         Assert.Equal(1, bus.StartWrites);
-
-        head.DiscardPendingResult();
-        Assert.False(head.HasPendingResult);
         var feeds = 0;
         Task ConfirmFeedAsync(CancellationToken token)
         {
@@ -98,7 +91,7 @@ public sealed class AdcProtocolTests
     }
 
     [Fact]
-    public async Task InterruptedFasteningCannotRestartWithEitherPreset()
+    public async Task InterruptedFasteningRestartsOnlyWithMatchingPreset()
     {
         IAdcBus bus = new VirtualAdcBus();
         var head = new AdcBoltHead(bus, new HantasSettings(), 1);
@@ -111,15 +104,15 @@ public sealed class AdcProtocolTests
 
         await bus.SelectPresetAsync(1, 7);
         var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
-        Assert.Contains("interrupted", failure.Message);
+        Assert.Contains("preset", failure.Message);
         Assert.True(head.HasPendingResult);
         Assert.Equal(0, (await bus.ReadFasteningResultAsync(1)).EventCount);
         Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
 
         await bus.SelectPresetAsync(1, 3);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
-        Assert.True(head.HasPendingResult);
-        Assert.Equal(0, (await bus.ReadFasteningResultAsync(1)).EventCount);
+        Assert.True((await head.TightenAsync()).Success);
+        Assert.False(head.HasPendingResult);
+        Assert.Equal(1, (await bus.ReadFasteningResultAsync(1)).EventCount);
         Assert.False((await bus.ReadControllerStatusAsync(1)).Running);
     }
 

@@ -97,29 +97,36 @@ public sealed class PcbPlacementRepeatTests
         Assert.False(rig.Motion.IsMoving);
         Assert.Empty(rig.Work.Assemblies);
         Assert.False(rig.Work.Completed);
-        Assert.True(rig.Placer.RequiresManualClear);
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => rig.Placer.RunAsync(rig.Recipe, timeout.Token, repeat: true));
+    }
 
-        if (changeCarrier)
+    [Fact]
+    public async Task StoppedRepeatWithHeldPcbRestartsWithoutReset()
+    {
+        using var rig = new RepeatRig();
+        await rig.InitializeAsync(loadPcbs: true);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+        void StopWhileHolding(double x, double y, double z)
         {
-            rig.Io.SetInput(InputIo.PcbPlacementHeatSink2Present, true);
-            await Assert.ThrowsAsync<InvalidOperationException>(
-                () => rig.Placer.RunAsync(rig.Recipe, timeout.Token, repeat: true));
-            Assert.Equal(HeatSinkSlot.HeatSink2, rig.Placer.TargetHeatSink);
-            await rig.Handler.SetVacuumAsync(false);
-            await rig.Handler.SetIpmGripperAsync(false);
-            Assert.Equal(HeatSinkSlot.HeatSink2, rig.Placer.TargetHeatSink);
+            if (rig.Handler.PcbSecured && rig.Motion.IsMovingHorizontal && x < 69)
+                stop.Cancel();
         }
+        rig.Motion.PositionChanged += StopWhileHolding;
+        await rig.Placer.RunAsync(rig.Recipe, stop.Token, repeat: true);
+        rig.Motion.PositionChanged -= StopWhileHolding;
+        Assert.True(rig.Handler.PcbSecured);
+        Assert.Empty(rig.Work.Assemblies);
+        var job = rig.Work.CurrentJob;
 
-        Assert.Throws<InvalidOperationException>(rig.Placer.ConfirmManualClear);
-        rig.Io.SetInputs(
-            (InputIo.PcbPlacementHeatSink1Present, false),
-            (InputIo.PcbPlacementHeatSink2Present, false),
-            (InputIo.PcbPlacementPcbDetected, false),
-            (InputIo.PcbPlacementVacuumDetected, false));
-        rig.Placer.ConfirmManualClear();
-        Assert.False(rig.Placer.RequiresManualClear);
+        using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+        rig.Work.Changed += () =>
+        {
+            if (rig.Work.Completed)
+                finish.Cancel();
+        };
+        await rig.Placer.RunAsync(rig.Recipe, finish.Token, repeat: true);
+        Assert.Same(job, rig.Work.CurrentJob);
+        Assert.True(rig.Work.Completed, rig.Placer.State(rig.Recipe).ToString());
+        Assert.Equal(2, rig.Work.Assemblies.Count());
     }
 
     [Fact]

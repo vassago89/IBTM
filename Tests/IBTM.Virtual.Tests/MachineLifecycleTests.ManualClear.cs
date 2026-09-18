@@ -45,7 +45,6 @@ public sealed partial class MachineLifecycleTests
                     machine.Stop();
                     await run.WaitAsync(TimeSpan.FromSeconds(3));
                 }
-                Assert.False(machine.RequiresManualClear);
             }
 
             state.SetError(MachineAlarm.MainConveyor);
@@ -68,7 +67,6 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(completed, work.Completed);
             Assert.False(state.AutomaticRunning);
             Assert.False(io.GetOutput(OutputIo.MainConveyorRun));
-            Assert.False(machine.RequiresManualClear);
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
             Assert.True(machine.CanStart);
 
@@ -112,7 +110,6 @@ public sealed partial class MachineLifecycleTests
             machine.Stop();
             await run.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
-            Assert.False(machine.RequiresManualClear);
 
             io.SetInput(InputIo.NgCarrierDetected, true);
             io.SetInputs(
@@ -127,15 +124,12 @@ public sealed partial class MachineLifecycleTests
 
             state.SetError(MachineAlarm.NgCarrierTransfer);
             await machine.ResetAsync();
-            Assert.False(machine.RequiresManualClear);
             Assert.False(state.IsError);
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
-            Assert.False(machine.RequiresManualClear);
             // A waiting upstream carrier is normal material, not interrupted work.
             io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
             Assert.True(machine.CanStart, machine.StartBlock.ToString());
             io.SetInput(InputIo.PcbSupplyAvailableFromFront1, false);
-            Assert.False(machine.RequiresManualClear);
             Assert.False(state.AutomaticRunning);
             Assert.True(machine.CanStart, state.AlarmDetail);
 
@@ -152,7 +146,6 @@ public sealed partial class MachineLifecycleTests
             Assert.Equal(MachineAlarm.None, state.Alarm);
             nextStop.Cancel();
             await run.WaitAsync(TimeSpan.FromSeconds(3));
-            Assert.False(machine.RequiresManualClear);
         }
         finally
         {

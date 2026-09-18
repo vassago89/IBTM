@@ -388,10 +388,8 @@ public sealed partial class MachineLifecycleTests
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
         Assert.Equal(MachineAlarm.None, state.Alarm);
 
-        Assert.False(machine.RequiresManualClear);
         Assert.Equal(StartBlockReason.None, machine.StartBlock);
         await machine.ResetAsync();
-        Assert.False(machine.RequiresManualClear);
         Assert.False(state.IsError);
         Assert.Equal(StartBlockReason.None, machine.StartBlock);
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));

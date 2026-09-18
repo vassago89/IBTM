@@ -28,8 +28,6 @@ public sealed partial class PcbPlacer
     {
         if (_repeatTrip is null)
         {
-            if (_handler.Pcb == PlacementPcbState.Secured || _handler.VacuumDetected)
-                throw new InvalidOperationException("Remove the held PCB before starting a new carrier PCB repeat.");
             // The entry carrier already has its PCBs. Start by picking them on the first pass too.
             if (_work.CarrierSeated && !_work.Completed && heatSink is not null)
                 _repeatTrip = new(_work.CurrentJob, heatSink.Value);

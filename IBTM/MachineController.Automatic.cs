@@ -12,19 +12,6 @@ namespace IBTM;
 
 public sealed partial class MachineController
 {
-    // Interrupted work enables RESET; it is not a machine-wide START condition.
-    public bool RequiresManualClear
-    {
-        get
-        {
-            return _conveyor.RequiresManualClear
-                || _ngConveyor.RequiresManualClear
-                || _pcbPlacement.RequiresManualClear
-                || !_state.AutomaticRunning
-                    && (_fasteningGantry.HasPendingResult || _fasteningStation.HasPendingResult);
-        }
-    }
-
     public bool CanStart
     {
         get

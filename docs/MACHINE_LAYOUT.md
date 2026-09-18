@@ -133,8 +133,8 @@ Automatic transfer selection must be ordered
 from rear to front: Inspection to Rear, Bolt Fastening to Inspection, PCB Placement
 to Bolt Fastening, and Front to PCB Placement. A blocked rear transfer must not block
 a runnable transfer in front of it, and a started transfer must run to its destination
-without being preempted. An interrupted automatic run requires manual clearing and
-RESET before a new run, even if an entry or exit sensor remains active. All four routes use
+without being preempted. After STOP, a new run selects its action from current
+feedback without a manual-clear or RESET acknowledgement. All four routes use
 this selection order. `MainConveyorState`
 is derived again from live inputs after each relevant I/O or work-state change; it is
 not a remembered sequence step.
@@ -156,7 +156,7 @@ current stations. Occupied stations seat concurrently, and each station starts w
 as soon as its own seating feedback is complete. Transfer selection then checks
 completed carriers from downstream to upstream: discharge S3, S2 to S3, S1 to S2,
 then new infeed. An occupied destination blocks that transfer; other raised stations
-continue working. This normal seating does not bypass the interrupted-run RESET block.
+continue working.
 
 Only the backup plates participating in a future transfer are lowered. Before
 lowering the source carrier onto the belt, the destination must have confirmed
@@ -166,10 +166,10 @@ its Moving state remains active until seating finishes, including while the belt
 is stopped for lowering or raising. The destination
 Heat Sink 2 input starts the configured extra belt run to reach the stopper. Only
 after that duration does the belt stop, the Backup Plate rise, and the Stopper return down.
-Stop stops the belt and leaves pneumatic outputs at their current state. A stopped
-transfer cannot start again. During an active transfer, destination arrival transfers
+Stop stops the belt and leaves pneumatic outputs at their current state. A new START
+uses current presence and seating feedback. During an active transfer, destination arrival transfers
 the source job's results; later input changes after cancellation do not transfer results.
-Pending work remains owned by its original carrier until manual-clear acknowledgement.
+Results remain owned by their original station job; a new carrier does not inherit them.
 
 Front Available is the receive trigger. After it arrives, PCB Placement raises its
 Stopper and lowers its Backup Plate before Front Ready is asserted and both conveyors
@@ -184,11 +184,11 @@ advertised together. Outputs are commands, not state evidence.
 STOP alone does not block a new START or require the whole machine to be emptied.
 Normally seated carriers remain in place; the next run uses current feedback and work results.
 RESET clears device alarms without changing support outputs or completing work.
-An interrupted main/NG transfer, interrupted PCB press/repeat pickup, or uncollected
-fastening result is checked by the affected unit, not global START admission.
+Interrupted transfers, PCB presses and repeat pickups do not create restart latches.
 Carrier/PCB presence and an NG pickup holding a carrier do not block START.
-Conveyor RESET acknowledgement accepts occupied positions; unresolved transferred
-work remains owned by its original carrier. RESET never runs motion or creates results.
+Fastening first collects a confirmed pending result; otherwise a new START retries the
+same bolt/pass with current readiness, positioning and a fresh result. It does not
+supply another bolt for that retry. RESET never runs motion or creates results.
 
 The machine has three external SMEMA connections. Front 1 belongs to PCB Supply,
 Front 2 belongs to the main heat sink carrier conveyor, and Rear belongs to the

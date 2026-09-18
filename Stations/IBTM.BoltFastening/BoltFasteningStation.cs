@@ -18,7 +18,7 @@ public sealed class BoltFasteningStation(
     Func<FasteningHead, bool>? isFeederEnabled = null) : AutoUnit
 {
     private HeatSinkSlot[]? _runTargets;
-    // The result belongs to this bolt/pass until collection or explicit manual clear.
+    // The result belongs to this bolt/pass until collection or removal of its carrier.
     private PendingFastening? _pendingFastening;
     // Command history when pickup confirmation is disabled, not a loaded-bolt state.
     private PickupAttempt? _pickupAttempt;
@@ -68,12 +68,12 @@ public sealed class BoltFasteningStation(
         }
     }
 
-    public void ConfirmManualClear()
+    public void DiscardRemovedCarrierResults()
     {
         if (work.CarrierPresent)
-            throw new InvalidOperationException("Remove the fastening carrier before clearing interrupted work.");
+            throw new InvalidOperationException("Results still belong to the current fastening carrier.");
         if (_pendingFastening is { } pending)
-            TraceStep(BoltFasteningState.Waiting, target: $"manual clear of {pending.Bolt}, {pending.Pass}", workId: pending.Job.Id);
+            TraceStep(BoltFasteningState.Waiting, target: $"removed carrier: {pending.Bolt}, {pending.Pass}", workId: pending.Job.Id);
         _pendingFastening = null;
         _pickupAttempt = null;
         gantry.DiscardPendingResults();
@@ -145,8 +145,6 @@ public sealed class BoltFasteningStation(
                         RecordResult(pending, result);
                         continue;
                     }
-                    throw new InvalidOperationException(
-                        "Fastening was interrupted. Remove the carrier and held parts, then press RESET before starting new work.");
                 }
 
                 var state = State();
@@ -228,13 +226,31 @@ public sealed class BoltFasteningStation(
 
         if (PendingResult is { } pending)
         {
-            return (pending.Pass switch
+            // A new START may retry the same bolt. Move from current feedback,
+            // without supplying another bolt or changing the result's owner.
+            var shootingFeederEnabled = pending.Pass == FasteningPass.Pcb
+                && IsFeederEnabled(FasteningHead.Shooting);
+            if (shootingFeederEnabled && gantry.ShootingTubeBoltDetected)
+                return BoltFasteningState.WaitingForShootingTubeClear;
+            if (!gantry.IsAt(pending.Bolt, live))
             {
-                FasteningPass.Pcb => PcbState(pending.Bolt, live),
-                FasteningPass.IpmSeating => IpmSeatingState(pending.Bolt, live),
-                FasteningPass.IpmFinal => IpmFinalState(pending.Bolt, live),
+                return pending.Pass switch
+                {
+                    FasteningPass.Pcb => BoltFasteningState.MovingToPcbBolt,
+                    FasteningPass.IpmSeating => BoltFasteningState.MovingToIpmSeatingBolt,
+                    FasteningPass.IpmFinal => BoltFasteningState.MovingToIpmFinalBolt,
+                    _ => throw new ArgumentOutOfRangeException(nameof(pending.Pass)),
+                };
+            }
+            if (shootingFeederEnabled && gantry.ShootingEscape != BoltEscapeState.Backward)
+                return BoltFasteningState.RetractingShootingEscape;
+            return pending.Pass switch
+            {
+                FasteningPass.Pcb => BoltFasteningState.FasteningPcb,
+                FasteningPass.IpmSeating => BoltFasteningState.SeatingIpm,
+                FasteningPass.IpmFinal => BoltFasteningState.FinalizingIpm,
                 _ => throw new ArgumentOutOfRangeException(nameof(pending.Pass)),
-            }) ?? BoltFasteningState.Waiting;
+            };
         }
 
         if (PcbState(PendingPcbBolts().FirstOrDefault(), live) is { } pcbState)

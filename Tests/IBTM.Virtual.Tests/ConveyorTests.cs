@@ -393,7 +393,7 @@ public sealed class ConveyorTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ResetAllowsInterruptedSeatingWithCarrierPresent(bool fromFront)
+    public async Task InterruptedSeatingRestartsFromCurrentPresenceWithoutReset(bool fromFront)
     {
         var io = CreateIo();
         io.Initialize();
@@ -428,20 +428,8 @@ public sealed class ConveyorTests
             await run.WaitAsync(TimeSpan.FromSeconds(2));
         }
 
-        Assert.True(conveyor.RequiresManualClear);
         Assert.False(io.GetOutput(plate));
         io.SetInputs((other, true), (destination, false));
-        var writes = new List<OutputIo>();
-        io.OutputChanged += (output, on) =>
-        {
-            if (on)
-                writes.Add(output);
-        };
-        await Assert.ThrowsAsync<InvalidOperationException>(() => conveyor.RunAsync());
-        Assert.Empty(writes);
-        Assert.Equal(MainConveyorState.ManualClearRequired, conveyor.State);
-        conveyor.ConfirmManualClear();
-        Assert.False(conveyor.RequiresManualClear);
         Assert.False(conveyor.RunCommandOn);
         Assert.True(io.GetInput(other));
         using var idleStop = new CancellationTokenSource();
@@ -459,7 +447,7 @@ public sealed class ConveyorTests
     }
 
     [Fact]
-    public async Task InterruptedPlateRaiseDoesNotResumeOrLowerSupport()
+    public async Task InterruptedPlateRaiseUsesFeedbackOnRestartWithoutLoweringSupport()
     {
         var io = CreateIo();
         io.Initialize();
@@ -492,8 +480,19 @@ public sealed class ConveyorTests
             repeatedPush |= output == OutputIo.MainConveyorRun && on;
             loweredSupport |= output == OutputIo.BoltFasteningBackupPlateUp && !on;
         };
-        await Assert.ThrowsAsync<InvalidOperationException>(() => conveyor.RunAsync());
-        Assert.True(conveyor.RequiresManualClear);
+        using var restartStop = new CancellationTokenSource();
+        var restarted = conveyor.RunAsync(restartStop.Token);
+        io.AutoResponseEnabled = true;
+        io.SetInput(InputIo.BoltFasteningBackupPlateUp, true);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.BoltFasteningStopperUp, false);
+        }
+        finally
+        {
+            restartStop.Cancel();
+            await restarted.WaitAsync(TimeSpan.FromSeconds(2));
+        }
         Assert.False(repeatedPush);
         Assert.False(loweredSupport);
 
@@ -536,7 +535,7 @@ public sealed class ConveyorTests
             Assert.Contains("lost during the seating push", failure.Message);
             Assert.False(conveyor.RunCommandOn);
             Assert.False(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
-            Assert.Equal(MainConveyorState.ManualClearRequired, conveyor.State);
+            Assert.Equal(MainConveyorState.WaitingForFrontCarrier, conveyor.State);
         }
         finally
         {
@@ -549,9 +548,11 @@ public sealed class ConveyorTests
         {
             unsafeOutput |= (output == OutputIo.MainConveyorRun && on) || (output == OutputIo.PcbPlacementBackupPlateUp && !on);
         };
-        var restartFailure = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => conveyor.RunAsync().WaitAsync(TimeSpan.FromSeconds(2)));
-        Assert.Contains("position or transferred work ownership is unconfirmed", restartFailure.Message);
+        using var restartStop = new CancellationTokenSource();
+        var restarted = conveyor.RunAsync(restartStop.Token);
+        Assert.Equal(MainConveyorState.Idle, conveyor.State);
+        restartStop.Cancel();
+        await restarted.WaitAsync(TimeSpan.FromSeconds(2));
         Assert.False(unsafeOutput);
         Assert.True(io.GetInput(InputIo.PcbPlacementBackupPlateUp));
     }
@@ -1165,7 +1166,6 @@ public sealed class ConveyorTests
                 () => conveyor.State == MainConveyorState.WaitingForFrontCarrier,
                 TimeSpan.FromSeconds(1)));
             Assert.True(destination.CarrierSeated);
-            Assert.False(conveyor.RequiresManualClear);
         }
         finally
         {
@@ -1262,9 +1262,6 @@ public sealed class ConveyorTests
         Assert.False(releasedSource);
         Assert.False(ran);
         Assert.True(io.GetInput(InputIo.BoltFasteningBackupPlateUp));
-        Assert.Equal(MainConveyorState.ManualClearRequired, conveyor.State);
-        conveyor.ConfirmManualClear();
-        Assert.False(conveyor.RequiresManualClear);
         Assert.True(io.GetInput(InputIo.BoltFasteningHeatSink1Present));
         Assert.True(io.GetInput(InputIo.BoltFasteningBackupPlateUp));
         Assert.Equal(MainConveyorState.MovingBoltFasteningToInspection, conveyor.State);
@@ -1339,24 +1336,21 @@ public sealed class ConveyorTests
             await run.WaitAsync(TimeSpan.FromSeconds(2));
         }
 
-        Assert.Equal(MainConveyorState.ManualClearRequired, conveyor.State);
         Assert.Same(job, source.CurrentJob);
         Assert.Same(assembly, Assert.Single(source.Assemblies));
-        io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => conveyor.RunAsync());
-        Assert.False(conveyor.RunCommandOn);
-        Assert.Empty(destination.Assemblies);
-        Assert.Same(assembly, Assert.Single(source.Assemblies));
-        conveyor.ConfirmManualClear();
-        Assert.True(conveyor.RequiresManualClear);
-        Assert.Same(assembly, Assert.Single(source.Assemblies));
-        Assert.Empty(destination.Assemblies);
-
-        io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
-        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
-        conveyor.ConfirmManualClear();
-        Assert.True(conveyor.RequiresManualClear);
+        using var restartStop = new CancellationTokenSource();
+        var restarted = conveyor.RunAsync(restartStop.Token);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.InspectionBackupPlateUp, true);
+            Assert.False(conveyor.RunCommandOn);
+        }
+        finally
+        {
+            restartStop.Cancel();
+            await restarted.WaitAsync(TimeSpan.FromSeconds(2));
+        }
         Assert.Same(assembly, Assert.Single(source.Assemblies));
         Assert.Empty(destination.Assemblies);
     }
@@ -1437,7 +1431,7 @@ public sealed class ConveyorTests
     }
 
     [Fact]
-    public async Task InterruptedInitialSeatingRequiresManualClear()
+    public async Task InterruptedInitialSeatingRestartsWithoutManualClear()
     {
         var io = CreateIo();
         var conveyor = CreateConveyor(io);
@@ -1455,13 +1449,22 @@ public sealed class ConveyorTests
             await run.WaitAsync(TimeSpan.FromSeconds(2));
         }
 
-        Assert.True(conveyor.RequiresManualClear);
         io.SetInputs(
             (InputIo.PcbPlacementStopperDown, false),
             (InputIo.PcbPlacementStopperUp, true));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => conveyor.RunAsync());
-        Assert.False(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
-        Assert.False(conveyor.RunCommandOn);
+        io.AutoResponseEnabled = true;
+        using var restartStop = new CancellationTokenSource();
+        var restarted = conveyor.RunAsync(restartStop.Token);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.PcbPlacementBackupPlateUp, true);
+            Assert.False(conveyor.RunCommandOn);
+        }
+        finally
+        {
+            restartStop.Cancel();
+            await restarted.WaitAsync(TimeSpan.FromSeconds(2));
+        }
     }
 
     [Fact]
@@ -1490,18 +1493,16 @@ public sealed class ConveyorTests
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, false);
             await WaitForOutputAsync(io, OutputIo.MainConveyorAvailableToRear, false);
             Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
-            Assert.False(conveyor.RequiresManualClear);
         }
         finally
         {
             stop.Cancel();
             await run.WaitAsync(TimeSpan.FromSeconds(2));
         }
-        Assert.False(conveyor.RequiresManualClear);
     }
 
     [Fact]
-    public async Task InterruptedDischargeCannotResumeFromRestoredExitInput()
+    public async Task InterruptedDischargeRestartsFromCurrentExitInput()
     {
         var io = CreateIo();
         var conveyor = CreateConveyor(io, inspectionEnabled: false);
@@ -1520,15 +1521,22 @@ public sealed class ConveyorTests
             await run.WaitAsync(TimeSpan.FromSeconds(2));
         }
 
-        Assert.True(conveyor.RequiresManualClear);
         io.SetInput(InputIo.MainConveyorExitCarrierDetected, true);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => conveyor.RunAsync());
-        Assert.False(conveyor.RunCommandOn);
-        Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
-        conveyor.ConfirmManualClear();
-        Assert.False(conveyor.RequiresManualClear);
         Assert.True(io.GetInput(InputIo.MainConveyorExitCarrierDetected));
         Assert.Equal(MainConveyorState.DischargingInspectionCarrier, conveyor.State);
+        using var restartStop = new CancellationTokenSource();
+        var restarted = conveyor.RunAsync(restartStop.Token);
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            io.SetInput(InputIo.MainConveyorExitCarrierDetected, false);
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, false);
+        }
+        finally
+        {
+            restartStop.Cancel();
+            await restarted.WaitAsync(TimeSpan.FromSeconds(2));
+        }
     }
 
     [Fact]

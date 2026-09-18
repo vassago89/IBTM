@@ -21,9 +21,6 @@ public sealed class MainConveyor : AutoUnit
     private readonly ConveyorStation _inspection;
     private readonly Func<bool> _routeInspectionToNg;
     private OperationCancellation.Operation? _runCancellation;
-    // An interrupted automatic move needs operator acknowledgement, never step replay.
-    private volatile bool _requiresManualClear;
-    private StationWork.Job? _transferJob;
     // The command currently being awaited, not a physical position or a resumable phase.
     private volatile MainConveyorState _executingTransfer = MainConveyorState.Idle;
     private bool _repeat;
@@ -157,8 +154,6 @@ public sealed class MainConveyor : AutoUnit
 
     public MainConveyorState ReadState(bool runCommandOn)
     {
-        if (RequiresManualClear)
-            return MainConveyorState.ManualClearRequired;
         var executingTransfer = _executingTransfer;
         if (executingTransfer != MainConveyorState.Idle)
             return executingTransfer;
@@ -244,8 +239,6 @@ public sealed class MainConveyor : AutoUnit
 
     public async Task ReturnToStartAsync(CancellationToken cancellationToken)
     {
-        if (RequiresManualClear)
-            throw new InvalidOperationException("Check the interrupted conveyor position and work ownership, then press RESET before starting a new move.");
         if (CarrierCount > 1 || ExitCarrierDetected)
             throw new InvalidOperationException("Main conveyor return requires one carrier and a clear exit.");
 
@@ -253,12 +246,6 @@ public sealed class MainConveyor : AutoUnit
         try
         {
             await RunControlledAsync(ReturnCarrierAsync, cancellationToken);
-        }
-        catch
-        {
-            _requiresManualClear = true;
-            Changed?.Invoke();
-            throw;
         }
         finally
         {
@@ -365,8 +352,6 @@ public sealed class MainConveyor : AutoUnit
     public Task PrepareEmptyStationsAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (RequiresManualClear)
-            throw new InvalidOperationException("Conveyor position or transferred work ownership is unconfirmed. Check the stopped carrier position, then press RESET.");
 
         // Preserve the support under an interrupted placement/fastening operation.
         // Station 3 also stays supported while the pickup still detects a carrier.
@@ -388,7 +373,7 @@ public sealed class MainConveyor : AutoUnit
         await PrepareEmptyStationsAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         var state = State;
-        TraceStep(state, workId: _transferJob?.Id, waitingFor: state switch
+        TraceStep(state, waitingFor: state switch
         {
             MainConveyorState.WaitingForFrontCarrier => "Front 2 Available=ON (teaching: TEST, auto: DI)",
             MainConveyorState.WaitingForRearEquipment => "Rear Ready=ON (teaching: TEST, auto: DI)",
@@ -441,18 +426,6 @@ public sealed class MainConveyor : AutoUnit
                     break;
             }
         }
-        catch when (state is MainConveyorState.SeatingInspectionCarrier
-            or MainConveyorState.SeatingBoltFasteningCarrier
-            or MainConveyorState.SeatingPcbPlacementCarrier
-            or MainConveyorState.ReceivingFrontCarrier
-            or MainConveyorState.MovingPcbPlacementToBoltFastening
-            or MainConveyorState.MovingBoltFasteningToInspection
-            or MainConveyorState.DischargingInspectionCarrier)
-        {
-            _requiresManualClear = true;
-            Changed?.Invoke();
-            throw;
-        }
         finally
         {
             if (transferring)
@@ -461,39 +434,6 @@ public sealed class MainConveyor : AutoUnit
                 Changed?.Invoke();
             }
         }
-    }
-
-    public bool RequiresManualClear
-    {
-        get
-        {
-            return _requiresManualClear;
-        }
-    }
-
-    // RESET acknowledges the stopped position. A carrier may remain at its source.
-    // An unresolved job must not be assigned to a different carrier by acknowledgement.
-    public void ConfirmManualClear()
-    {
-        if (!RequiresManualClear)
-            return;
-        _io.CheckReady();
-        if (_runCancellation is not null || RunCommandOn)
-        {
-            throw new InvalidOperationException("Stop the main conveyor before acknowledging its position.");
-        }
-
-        if (_transferJob is { } pending
-            && !(_placementWork.CarrierPresent && ReferenceEquals(_placementWork.CurrentJob, pending))
-            && !(_boltFasteningWork.CarrierPresent && ReferenceEquals(_boltFasteningWork.CurrentJob, pending)))
-            return;
-
-        TraceStep(MainConveyorState.ManualClearRequired,
-            target: "operator acknowledged stopped position; interrupted move abandoned",
-            workId: _transferJob?.Id);
-        _transferJob = null;
-        _requiresManualClear = false;
-        Changed?.Invoke();
     }
 
     public void Stop()
@@ -632,14 +572,14 @@ public sealed class MainConveyor : AutoUnit
         var source = sourceWork.Station;
         var destination = destinationWork.Station;
         var departingJob = sourceWork.CurrentJob;
-        _transferJob = departingJob;
+        var transferred = 0;
         void TransferArrivingWork(bool present)
         {
             if (present
                 && !cancellationToken.IsCancellationRequested
-                && Interlocked.Exchange(ref _transferJob, null) is { } job)
+                && Interlocked.Exchange(ref transferred, 1) == 0)
             {
-                sourceWork.TransferAssembliesTo(destinationWork, job);
+                sourceWork.TransferAssembliesTo(destinationWork, departingJob);
             }
         }
         Exception? failure = null;

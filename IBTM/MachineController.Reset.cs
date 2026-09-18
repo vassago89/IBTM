@@ -35,7 +35,10 @@ public sealed partial class MachineController
 
             // Hardware recovery admission, not permission to acknowledge the buzzer.
             // A failed feedback scan must leave recovery usable without another native read.
-            if (_state.IsError || _feedback.ReadError is not null || RequiresManualClear)
+            if (_state.IsError
+                || _feedback.ReadError is not null
+                || _fasteningGantry.HasPendingResult
+                || _fasteningStation.HasPendingResult)
                 return true;
             var motion = _state.FeedbackReadiness;
             return motion.Faulted || !motion.ServosOn || !_state.ServoMainContactorOn;
@@ -178,54 +181,27 @@ public sealed partial class MachineController
 
         try
         {
-            AcknowledgeInterruptedWork();
+            // Discard only results for a carrier that has been removed. Results for
+            // the current carrier stay available to its next fastening command.
+            if ((_fasteningGantry.HasPendingResult || _fasteningStation.HasPendingResult)
+                && !_io.GetInput(InputIo.BoltFasteningHeatSink1Present)
+                && !_io.GetInput(InputIo.BoltFasteningHeatSink2Present)
+                && !_io.GetInput(InputIo.PickupHeadVacuumDetected)
+                && !_io.GetInput(InputIo.ShootingHeadVacuumDetected))
+            {
+                _fasteningStation.DiscardRemovedCarrierResults();
+            }
         }
         catch (Exception exception)
         {
-            _log?.Error("Stopped work acknowledgement failed.", exception);
-            _state.SetError(MachineAlarm.MainConveyor, exception);
+            _log?.Error("Removed carrier result cleanup failed.", exception);
+            _state.SetError(MachineAlarm.BoltFastening, exception);
             return;
         }
 
         _state.ClearError();
         _state.Refresh();
         _log?.Write("Machine RESET completed.");
-    }
-
-    private void AcknowledgeInterruptedWork()
-    {
-        if (!RequiresManualClear)
-            return;
-
-        _io.CheckReady();
-        // Conveyor acknowledgement does not require removal of carriers.
-        // Unconfirmed PCB work and fastening results keep their existing ownership.
-        if (_conveyor.RequiresManualClear
-            && !_conveyor.RunCommandOn)
-        {
-            _conveyor.ConfirmManualClear();
-        }
-        if (_ngConveyor.RequiresManualClear
-            && !_ngConveyor.RunCommandOn)
-        {
-            _ngConveyor.ConfirmManualClear();
-        }
-        if (_pcbPlacement.RequiresManualClear
-            && !_io.GetInput(InputIo.PcbPlacementHeatSink1Present)
-            && !_io.GetInput(InputIo.PcbPlacementHeatSink2Present)
-            && !_io.GetInput(InputIo.PcbPlacementPcbDetected)
-            && !_io.GetInput(InputIo.PcbPlacementVacuumDetected))
-        {
-            _pcbPlacement.ConfirmManualClear();
-        }
-        if ((_fasteningGantry.HasPendingResult || _fasteningStation.HasPendingResult)
-            && !_io.GetInput(InputIo.BoltFasteningHeatSink1Present)
-            && !_io.GetInput(InputIo.BoltFasteningHeatSink2Present)
-            && !_io.GetInput(InputIo.PickupHeadVacuumDetected)
-            && !_io.GetInput(InputIo.ShootingHeadVacuumDetected))
-        {
-            _fasteningStation.ConfirmManualClear();
-        }
     }
 
     private async Task<(MachineAlarm Alarm, Exception? Error)> InitializeIoAsync(

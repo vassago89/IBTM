@@ -104,9 +104,9 @@ public sealed class IoBoltHead : IBoltHead, IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         if (HasPendingResult)
         {
-            return await ReadPendingResultAsync(cancellationToken)
-                ?? throw new InvalidOperationException(
-                    $"{_head} IO fastening was interrupted without a complete FASTEN ON/OFF cycle. Remove the carrier and held parts, then press RESET.");
+            var result = await ReadPendingResultAsync(cancellationToken);
+            if (result is not null)
+                return result;
         }
 
         await CheckReadyAsync(cancellationToken);

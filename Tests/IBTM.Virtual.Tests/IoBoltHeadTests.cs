@@ -161,7 +161,7 @@ public sealed class IoBoltHeadTests
     }
 
     [Fact]
-    public async Task CancellationDoesNotCountTheStopInducedFallingEdgeAsOkOrRestart()
+    public async Task RestartAfterCancellationRequiresANewFastenCycle()
     {
         var settings = new IoBoltHardwareSettings();
         var io = new VirtualIoService(settings.Outputs, new());
@@ -186,9 +186,14 @@ public sealed class IoBoltHeadTests
         Assert.False(io.GetInput(InputIo.PickupBoltFasten));
         Assert.True(head.HasPendingResult);
         Assert.Null(await head.ReadPendingResultAsync());
-        await Assert.ThrowsAsync<InvalidOperationException>(() => head.TightenAsync());
         Assert.Equal(1, starts);
-        head.DiscardPendingResult();
+        var restarted = head.TightenAsync();
+        Assert.Equal(2, starts);
+        Assert.False(restarted.IsCompleted);
+        io.SetInput(InputIo.PickupBoltFasten, true);
+        Assert.False(restarted.IsCompleted);
+        io.SetInput(InputIo.PickupBoltFasten, false);
+        Assert.True((await restarted.WaitAsync(TimeSpan.FromSeconds(2))).Success);
         Assert.False(head.HasPendingResult);
     }
 

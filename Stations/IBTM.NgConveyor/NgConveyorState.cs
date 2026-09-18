@@ -46,8 +46,6 @@ public enum NgConveyorState
     [Description("Carrier Position Unknown")]
     CarrierPositionUnknown,
 
-    [Description("Check stopped carrier position, then RESET")]
-    ManualClearRequired,
 }
 
 public enum NgShuttleState

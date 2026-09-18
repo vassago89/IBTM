@@ -765,7 +765,7 @@ public sealed class BoltFasteningTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task InterruptedFasteningRequiresEmptyStationBeforeNewWork(bool useIo)
+    public async Task InterruptedFasteningRetriesSameBoltWithoutEmptyingOrReset(bool useIo)
     {
         var settings = new BoltFasteningSettings
         {
@@ -827,25 +827,14 @@ public sealed class BoltFasteningTests
         Assert.True(pickup.HasPendingResult);
         Assert.Empty(assembly.IpmFinalResults);
 
-        // Feeder OFF cannot erase an interrupted tightening.
+        // A new START keeps this carrier/bolt/pass, including with the feeder OFF.
         pickupEnabled = false;
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => station.RunAsync(new()));
         Assert.True(station.HasPendingResult);
         Assert.Empty(assembly.IpmFinalResults);
         Assert.True(io.GetOutput(OutputIo.PickupHeadDown));
         if (!useIo)
             Assert.Equal(1, bus.StartWrites);
-        pickupEnabled = true;
-
-        Assert.Throws<InvalidOperationException>(station.ConfirmManualClear);
-        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
-        station.ConfirmManualClear();
-        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
-        assembly = work.Assembly(HeatSinkSlot.HeatSink1);
-        assembly.RecordIpmSeating(1, new(true, null));
-        Assert.False(station.HasPendingResult);
-        Assert.False(pickup.HasPendingResult);
+        var job = work.CurrentJob;
         using var finish = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         io.OutputChanged += (output, on) =>
         {
@@ -858,6 +847,9 @@ public sealed class BoltFasteningTests
                 finish.Cancel();
         };
         await station.RunAsync(new(), finish.Token);
+        Assert.Same(job, work.CurrentJob);
+        Assert.Same(assembly, Assert.Single(work.Assemblies));
+        Assert.True(work.CarrierPresent);
         Assert.Equal(
             useIo ? BoltResultSource.IoAssumedOk : BoltResultSource.Controller,
             assembly.IpmFinalResults[1].Source);

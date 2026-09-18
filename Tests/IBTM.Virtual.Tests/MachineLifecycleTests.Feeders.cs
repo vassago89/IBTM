@@ -296,7 +296,7 @@ public sealed partial class MachineLifecycleTests
             settings.Options.TimeoutMilliseconds = 2_000;
             io.AutoResponseEnabled = true;
             VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
-            station.ConfirmManualClear();
+            station.DiscardRemovedCarrierResults();
             await gantry.SetVacuumAsync(FasteningHead.Pickup, false, CancellationToken.None);
             VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
             using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));

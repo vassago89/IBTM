@@ -326,7 +326,6 @@ public sealed partial class MachineLifecycleTests
 
             io.SetInput(InputIo.PcbPlacementHandlerUp, true);
             await machine.ResetAsync();
-            Assert.False(machine.RequiresManualClear);
             Assert.Equal(StartBlockReason.None, machine.StartBlock);
             Assert.True(machine.CanStart);
             Assert.True(state.Buffer.CanExitSupply());

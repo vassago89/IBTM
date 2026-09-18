@@ -125,9 +125,9 @@ public sealed class AdcBoltHead(IAdcBus bus, HantasSettings connection, byte sla
         cancellationToken.ThrowIfCancellationRequested();
         if (HasPendingResult)
         {
-            return await ReadPendingResultAsync(cancellationToken)
-                ?? throw new InvalidOperationException(
-                    $"ADC {slaveAddress} fastening was interrupted. Remove the carrier and held parts, then press RESET.");
+            var result = await ReadPendingResultAsync(cancellationToken);
+            if (result is not null)
+                return result;
         }
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         AdcFasteningResult? completed = null;
