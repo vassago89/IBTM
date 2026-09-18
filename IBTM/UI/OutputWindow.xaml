@@ -18,7 +18,6 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -28,14 +27,8 @@
                 Command="{Binding RefreshCommand}"/>
         </Grid>
 
-        <StackPanel Grid.Row="1" Margin="0,4,0,18">
-            <TextBlock Text="Amber = output ON · blue = input ON · paired numbers = ON / OFF channels"
-                Style="{StaticResource PageSubtitleStyle}" TextWrapping="Wrap"/>
-            <TextBlock Text="MANUAL · Direct I/O · No sequence, position or feedback checks · E-STOP remains active"
-                Foreground="{StaticResource AccentAmberBrush}" Margin="0,6,0,0" TextWrapping="Wrap"/>
-        </StackPanel>
 
-        <Grid Grid.Row="2" Margin="0,0,0,14">
+        <Grid Grid.Row="1" Margin="0,12,0,14">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="12"/>
@@ -55,7 +48,7 @@
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="3" Margin="12,0,12,6">
+        <Grid Grid.Row="2" Margin="12,0,12,6">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="96"/>
                 <ColumnDefinition Width="2*"/>
@@ -71,7 +64,7 @@
             <TextBlock Grid.Column="4" Text="MATCH" Style="{StaticResource SectionHeaderStyle}"/>
         </Grid>
 
-        <ListBox Grid.Row="4"
+        <ListBox Grid.Row="3"
             ItemsSource="{Binding Filter.FilteredRows}"
             Style="{StaticResource IoListStyle}" ItemContainerStyle="{StaticResource IoListItemStyle}">
             <ListBox.GroupStyle>
@@ -110,8 +103,7 @@
                                 Visibility="{Binding Io.HasFeedback, Converter={StaticResource BoolToVis}}"/>
                             <Button x:Name="ToggleOutput" Grid.Column="5" Content="ON"
                                 Command="{Binding ToggleCommand}"
-                                ToolTip="Switch this output only. Paired ON/OFF channels remain mutually exclusive."
-                                ToolTipService.ShowOnDisabled="True" Style="{StaticResource IoToggleButtonStyle}"/>
+                                Style="{StaticResource IoToggleButtonStyle}"/>
                         </Grid>
                     </Border>
                     <DataTemplate.Triggers>

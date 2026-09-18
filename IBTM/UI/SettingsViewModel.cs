@@ -226,7 +226,7 @@ public partial class SettingsViewModel : ObservableObject
             }
 
             await Settings.SaveAsync(_store);
-            DatabaseMessage = "Settings saved. Restart to apply driver, connection, pulse length, mapping and home direction changes.";
+            DatabaseMessage = "Settings saved. Restart to apply hardware changes.";
             Trace.TraceInformation(
                 "Settings saved to {0}. Restart required for hardware changes.",
                 _store.DatabaseFile);
@@ -252,34 +252,6 @@ public partial class SettingsViewModel : ObservableObject
             RefreshCommands();
     }
 
-    public string SettingsAccessMessage
-    {
-        get
-        {
-            if (SaveSettingsCommand.IsRunning)
-                return "Saving settings. Wait for the write to finish before editing.";
-
-            if (_operations.IsShuttingDown)
-            {
-                return "Settings are locked while the application is closing.";
-            }
-
-            if (_state.IsRunning)
-            {
-                return "Settings are locked while the machine is busy. Stop the operation before editing.";
-            }
-
-            if (_state.AutoMode)
-            {
-                return "Settings are locked in AUTO, including during an alarm. Switch the machine to MANUAL before editing.";
-            }
-
-            return _state.IsError
-                ? "Stopped in MANUAL with an alarm: settings can be edited without resetting. Motion and teaching remain interlocked."
-                : "Settings can be edited while stopped in MANUAL.";
-        }
-    }
-
     public void RefreshCommands()
     {
         LoadVirtualImageCommand.NotifyCanExecuteChanged();
@@ -289,7 +261,6 @@ public partial class SettingsViewModel : ObservableObject
         OffTestLightCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(CanEditSettings));
         OnPropertyChanged(nameof(CanChangeDrivers));
-        OnPropertyChanged(nameof(SettingsAccessMessage));
     }
 
     [RelayCommand(CanExecute = nameof(CanChangeVirtualImage))]

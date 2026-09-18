@@ -136,14 +136,11 @@
                 <TextBox Grid.Column="1" Text="{Binding Axis.Number, UpdateSourceTrigger=PropertyChanged}" Margin="4,0"/>
                 <TextBox Grid.Column="2"
                     Text="{Binding Axis.MoveUnit, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                    ToolTip="AxmMotSetMoveUnitPerPulse: second argument (dUnit). Default 1; decimal values such as 0.1 are allowed."
                     Margin="4,0"/>
                 <TextBox Grid.Column="3"
-                    Text="{Binding Axis.MovePulse, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                    ToolTip="AxmMotSetMoveUnitPerPulse: third argument (nPulse). Positive integer; default 1." Margin="4,0"/>
+                    Text="{Binding Axis.MovePulse, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}" Margin="4,0"/>
                 <ComboBox Grid.Column="4" ItemsSource="{StaticResource HomeDirections}"
                     SelectedItem="{Binding Axis.HomeDirection, Mode=TwoWay}"
-                    ToolTip="Home search direction for this axis. Default − (Negative). Save and restart to apply."
                     Margin="4,0"/>
             </Grid>
         </DataTemplate>
@@ -158,7 +155,6 @@
 
         <StackPanel Margin="0,0,0,10">
             <TextBlock Text="Settings" Style="{StaticResource TitleStyle}"/>
-            <TextBlock Text="{Binding SettingsAccessMessage}" Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap"/>
             <TextBlock Text="{Binding DatabaseMessage}" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
         </StackPanel>
 
@@ -181,11 +177,9 @@
                                         IsChecked="{Binding Settings.Units.PcbPlacement}"/>
                                     <CheckBox IsEnabled="{Binding CanEditSettings}"
                                         Content="Pickup Feeder"
-                                        ToolTip="OFF keeps pickup travel, cylinder motion and vacuum ON without feeder-bolt or pickup-vacuum confirmation. Motor START and fastening result collection remain active in production and Repeat."
                                         IsChecked="{Binding Settings.Units.PickupBoltFeeder}"/>
                                     <CheckBox IsEnabled="{Binding CanEditSettings}"
                                         Content="Shooting Bolt Feeder"
-                                        ToolTip="OFF skips feeder supply, escape and bolt shooting. Motor START and fastening result collection remain active in production and Repeat."
                                         IsChecked="{Binding Settings.Units.ShootingBoltFeeder}"/>
                                     <CheckBox IsEnabled="{Binding CanEditSettings}"
                                         Content="Bolt Fastening"
@@ -203,10 +197,6 @@
                                         Content="NG Conveyor"
                                         IsChecked="{Binding Settings.Units.NgConveyor}"/>
                                 </UniformGrid>
-                                <TextBlock Text="Disabled stations skip startup, homing, automatic operation, and teaching."
-                                    TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
-                                <TextBlock Text="Feeder OFF still runs all bolt positions and motor START. Pickup skips bolt/vacuum confirmation; shooting skips supply."
-                                    TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Border>
 
@@ -217,9 +207,6 @@
                                 <TextBox IsEnabled="{Binding CanEditSettings}"
                                     Text="{Binding Settings.Conveyor.CarrierStopDelaySeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
                                     MaxWidth="300" HorizontalAlignment="Left" MinWidth="180"/>
-                                <TextBlock
-                                    Text="Stations 1–3 · After Heat Sink 1 turns ON, keep running for this duration to reach the raised stopper, then stop and raise the backup plate."
-                                    Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,6,0,0"/>
                             </StackPanel>
                         </Border>
 
@@ -262,8 +249,7 @@
                                 <StackPanel Grid.Column="1">
                                     <TextBlock Text="SDK Unit Length (mm/unit)" Style="{StaticResource SettingFieldLabel}"/>
                                     <TextBox IsEnabled="{Binding CanEditSettings}"
-                                        Text="{Binding CurrentMotionHardwareSettings.MillimetersPerUnit, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                        ToolTip="Program conversion between mm and SDK units. 0.001 means one SDK unit is 1 µm. Per-axis SDK Unit / Pulse are set below."/>
+                                        Text="{Binding CurrentMotionHardwareSettings.MillimetersPerUnit, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -316,15 +302,9 @@
                                 </StackPanel>
                             </Border>
                         </UniformGrid>
-                        <TextBlock
-                            Text="Home Direction is set per axis below (default −). Home sensor, Z phase and offset remain unchanged."
-                            Foreground="{StaticResource TextMutedBrush}" Margin="12,0,12,8" TextWrapping="Wrap"/>
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
                                 <TextBlock Text="Axes" Style="{StaticResource SettingSectionTitle}"/>
-                                <TextBlock
-                                    Text="AxmMotSetMoveUnitPerPulse(axis, SDK Unit, SDK Pulse) · Default 1 / 1 · Save and restart to apply."
-                                    Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                 <Grid Margin="6,0,6,4">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -352,9 +332,6 @@
             <TabItem Header="I/O">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel MaxWidth="1480" Margin="0,0,8,0">
-                        <TextBlock
-                            Text="Auto / Manual Selector: ON = MANUAL / OFF = AUTO. Doors: ON = CLOSED / OFF = OPEN. Input states show the raw contact value."
-                            Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="12,8,12,12"/>
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
                                 <Grid Margin="0,0,0,14">
@@ -407,9 +384,6 @@
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
                                 <TextBlock Text="I/O Channel Mapping" Style="{StaticResource SettingSectionTitle}" Margin="0,0,0,14"/>
-                                <TextBlock Text="Channels are decimal. -1 means unassigned; confirm the address before use. Leave OFF blank only for single-output devices."
-                                    TextWrapping="Wrap"
-                                    Foreground="{StaticResource TextMutedBrush}" Margin="6,0,6,8"/>
 
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -425,7 +399,7 @@
                                                 <ColumnDefinition Width="58"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Text="Input Signal" Style="{StaticResource SettingFieldLabel}"/>
-                                            <TextBlock Grid.Column="1" Text="Channel" Style="{StaticResource SettingFieldLabel}"/>
+                                            <TextBlock Grid.Column="1" Text="Channel (dec)" Style="{StaticResource SettingFieldLabel}"/>
                                         </Grid>
                                         <ListBox IsEnabled="{Binding CanEditSettings}"
                                             ItemsSource="{Binding InputMappingView}"
@@ -465,8 +439,8 @@
                                                 <ColumnDefinition Width="58"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Text="Output Signal" Style="{StaticResource SettingFieldLabel}"/>
-                                            <TextBlock Grid.Column="1" Text="ON Ch." Style="{StaticResource SettingFieldLabel}"/>
-                                            <TextBlock Grid.Column="2" Text="OFF Ch." Style="{StaticResource SettingFieldLabel}"/>
+                                            <TextBlock Grid.Column="1" Text="ON Ch. (dec)" Style="{StaticResource SettingFieldLabel}"/>
+                                            <TextBlock Grid.Column="2" Text="OFF Ch. (dec)" Style="{StaticResource SettingFieldLabel}"/>
                                         </Grid>
                                         <ListBox IsEnabled="{Binding CanEditSettings}"
                                             ItemsSource="{Binding OutputMappingView}"
@@ -543,10 +517,8 @@
                                 </TextBlock>
                                     </StackPanel>
                                 </UniformGrid>
-                                <TextBlock Text="Driver changes take effect after saving and restarting."
-                                    Foreground="{StaticResource TextMutedBrush}" Margin="0,8,0,0"/>
                                 <TextBlock
-                                    Text="Virtual development build: physical drivers are unavailable. Use a Debug or Release build for hardware."
+                                    Text="Virtual build"
                                     Visibility="{Binding IsVirtualDevelopment, Converter={StaticResource BoolToVis}}"
                                     TextWrapping="Wrap" Foreground="{StaticResource AccentAmberBrush}" Margin="0,8,0,0"/>
                             </StackPanel>
@@ -666,8 +638,7 @@
                                             <StackPanel Margin="0,0,4,10">
                                                 <TextBlock Text="COM Port" Style="{StaticResource SettingFieldLabel}"/>
                                                 <TextBox IsEnabled="{Binding CanEditSettings}"
-                                                    Text="{Binding Settings.Lighting.Connection, UpdateSourceTrigger=PropertyChanged}"
-                                                    ToolTip="MOVS serial port, for example COM3. Independent of the HANTAS ADC port."/>
+                                                    Text="{Binding Settings.Lighting.Connection, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
                                             <StackPanel Margin="4,0,0,10">
                                                 <TextBlock Text="Baud Rate" Style="{StaticResource SettingFieldLabel}"/>
@@ -709,9 +680,6 @@
                                                     Text="{Binding Settings.Lighting.InspectionChannel, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
                                         </UniformGrid>
-                                        <TextBlock
-                                            Text="Driver and serial changes require Save Settings and restart. Brightness is taught in the inspection recipe."
-                                            TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,10,0,0"/>
                                         <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,14,0,0"
                                             Padding="0,12,0,0">
                                             <StackPanel>
@@ -738,14 +706,10 @@
                                                         Style="{StaticResource PrimaryButtonStyle}" MinWidth="100" Margin="0,0,8,0"/>
                                                     <Button Content="OFF"
                                                         Command="{Binding OffTestLightCommand}"
-                                                        ToolTip="Stop the test or retry a failed OFF on the original test channel."
                                                         Style="{StaticResource DangerButtonStyle}" MinWidth="100"/>
                                                 </StackPanel>
                                                 <TextBlock Text="{Binding LightTestMessage}"
                                                     Foreground="{StaticResource AccentAmberBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
-                                                <TextBlock
-                                                    Text="MANUAL + stopped only. OFF, machine STOP, AUTO selection or leaving Settings ends the test. Test brightness is not saved to the recipe."
-                                                    TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"/>
                                             </StackPanel>
                                         </Border>
                                     </StackPanel>
@@ -773,9 +737,6 @@
                                                 <Button Content="Open Image" Command="{Binding LoadVirtualImageCommand}" Margin="0,0,8,0"/>
                                                 <Button Content="Use Generated" Command="{Binding ClearVirtualImageCommand}"/>
                                             </StackPanel>
-                                            <TextBlock
-                                                Text="One fixed image for every capture. Uses the same binary checker as the physical camera."
-                                                TextWrapping="Wrap" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"/>
                                             <TextBlock Text="{Binding VirtualImageError}" TextWrapping="Wrap" Margin="0,6,0,0"/>
                                         </StackPanel>
                                     </StackPanel>
@@ -810,7 +771,6 @@
                                         IsChecked="{Binding Settings.Options.UseEmergencyStop}"/>
                                     <CheckBox IsEnabled="{Binding CanEditSettings}"
                                         Content="Hardware Reset Button"
-                                        ToolTip="Enables the physical RESET input. The on-screen RESET uses the same recovery conditions independently of this setting."
                                         IsChecked="{Binding Settings.Options.UseResetButton}"/>
                                     <CheckBox IsEnabled="{Binding CanEditSettings}"
                                         Content="Door Interlock"
@@ -819,8 +779,6 @@
                                         Content="Air Pressure Interlock"
                                         IsChecked="{Binding Settings.Options.UseAirPressureInterlock}"/>
                                 </UniformGrid>
-                                <TextBlock Text="Enable only after I/O mapping and electrical behavior are verified."
-                                    Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -830,8 +788,6 @@
 
         <Border Grid.Row="2" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
             <Grid>
-                <TextBlock Text="Save to keep changes. Driver, connection, pulse length and channel/axis mapping changes require restart."
-                    VerticalAlignment="Center" Foreground="{StaticResource TextMutedBrush}"/>
                 <Button
                     Command="{Binding SaveSettingsCommand}"
                     HorizontalAlignment="Right" MinWidth="132">

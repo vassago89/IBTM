@@ -464,7 +464,6 @@ public sealed class AlarmRecoveryTests
         {
             io.SetInput(InputIo.AutoMode, false);
             Assert.False(view.CanEditSettings);
-            Assert.Contains("MANUAL", view.SettingsAccessMessage);
             SetAlarm(state, MachineAlarm.Inspection);
             Assert.False(state.IsRunning);
             Assert.True(state.AutoMode);
@@ -475,7 +474,6 @@ public sealed class AlarmRecoveryTests
             io.SetInput(InputIo.AutoMode, true);
             Assert.True(view.CanEditSettings);
             Assert.True(view.SaveSettingsCommand.CanExecute(null));
-            Assert.Contains("without resetting", view.SettingsAccessMessage);
             Assert.False(state.ManualControlsEnabled);
             Assert.True(state.ManualSetupEnabled);
             Assert.False(machine.CanStart);
@@ -607,7 +605,6 @@ public sealed class AlarmRecoveryTests
             {
                 Assert.False(view.CanEditSettings);
                 Assert.False(view.SaveSettingsCommand.CanExecute(null));
-                Assert.Contains("busy", view.SettingsAccessMessage);
                 Assert.False(view.ClearVirtualImageCommand.CanExecute(null));
                 Assert.False(view.LoadVirtualImageCommand.CanExecute(null));
             }
@@ -627,7 +624,6 @@ public sealed class AlarmRecoveryTests
 
         Assert.False(view.CanEditSettings);
         Assert.False(view.SaveSettingsCommand.CanExecute(null));
-        Assert.Contains("closing", view.SettingsAccessMessage);
         Assert.False(view.ClearVirtualImageCommand.CanExecute(null));
         Assert.False(view.LoadVirtualImageCommand.CanExecute(null));
         Assert.Same(sourceImage, camera.SourceImage);
