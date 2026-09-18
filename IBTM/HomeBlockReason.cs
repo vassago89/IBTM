@@ -8,8 +8,6 @@ public enum HomeBlockReason
     None,
     [Description("Restore I/O communication before HOME")]
     IoUnavailable,
-    [Description("Remove all carriers before HOME")]
-    CarrierDetected,
     [Description("Raise the Placement handler and IPM lift before HOME")]
     PlacementNotRaised,
     [Description("Raise both fastening heads before HOME")]

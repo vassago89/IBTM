@@ -604,7 +604,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task HomeRequiresEmptyEquipmentAndRaisedCylindersWithoutChangingOutputs()
+    public async Task HomeRequiresRaisedCylindersWithoutChangingOutputs()
     {
         var settings = FlowSettings();
         using var services = CreateServices(settings);
@@ -624,32 +624,6 @@ public sealed partial class MachineLifecycleTests
         Assert.True(state.ManualSetupEnabled);
         var outputsChanged = 0;
         io.OutputChanged += (_, _) => outputsChanged++;
-
-        foreach (var input in new[]
-        {
-            InputIo.MainConveyorEntryCarrierDetected,
-            InputIo.PcbPlacementHeatSink1Present,
-            InputIo.BoltFasteningHeatSink1Present,
-            InputIo.InspectionHeatSink1Present,
-            InputIo.MainConveyorExitCarrierDetected,
-            InputIo.NgCarrierDetected,
-            InputIo.NgShuttleCarrierDetected,
-            InputIo.NgConveyorPosition1Occupied,
-            InputIo.NgConveyorPosition2Occupied,
-        })
-        {
-            await WaitUntilAsync(
-                () => state.Display is { HomeBlock: HomeBlockReason.None, HomeableAxes.Count: > 0 });
-            io.SetInput(input, true);
-            Assert.Equal(HomeBlockReason.CarrierDetected, machine.HomeBlock);
-            Assert.False(machine.CanHome);
-            await WaitUntilAsync(
-                () => state.Display is { HomeBlock: HomeBlockReason.CarrierDetected, HomeableAxes.Count: 0 });
-            Assert.All(manual.Axes, axis => Assert.False(manual.HomeAxisCommand.CanExecute(axis)));
-            await machine.HomeAsync(CancellationToken.None);
-            await manual.HomeAxisCommand.ExecuteAsync(manual.Axes[3]);
-            io.SetInput(input, false);
-        }
 
         foreach (var (up, down, reason) in new[]
         {
@@ -686,8 +660,52 @@ public sealed partial class MachineLifecycleTests
         await WaitUntilAsync(() => manual.HomeAxisCommand.CanExecute(manual.Axes[9]));
         Assert.False(manual.HomeAxisCommand.CanExecute(manual.Axes[3]));
         Assert.True(manual.HomeAxisCommand.CanExecute(manual.Axes[9]));
-        io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
-        Assert.False(machine.CanHome);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task HomeIgnoresConveyorCarrierInputsBeforeAndDuringMotion(bool individualAxis)
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.Inspection);
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var gantry = services.GetRequiredService<InspectionGantry>();
+        var manual = services.GetRequiredService<MotionWindowViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+            io.SetInput(InputIo.InspectionHeatSink1Present, true);
+            io.SetInput(InputIo.NgConveyorPosition2Occupied, true);
+            Assert.Equal(HomeBlockReason.None, machine.HomeBlock);
+            Assert.True(machine.CanHome);
+            var axis = manual.Axes.Single(
+                row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
+            await WaitUntilAsync(() => manual.HomeAxisCommand.CanExecute(axis));
+            gantry.Feedback.MovingChanged += moving =>
+            {
+                if (moving)
+                    io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
+            };
+
+            if (individualAxis)
+                await manual.HomeAxisCommand.ExecuteAsync(axis);
+            else
+                await machine.HomeAsync(CancellationToken.None);
+
+            Assert.True(io.GetInput(InputIo.NgConveyorPosition1Occupied));
+            Assert.True(gantry.Feedback.GetAxisState(MotionAxis.X).Homed);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+            Assert.False(state.IsHoming);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 
     [Fact]
@@ -1342,11 +1360,10 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Theory]
-    [InlineData(InputIo.NgConveyorPosition2Occupied, true, false)]
     [InlineData(InputIo.PickupHeadUp, false, false)]
     [InlineData(InputIo.PcbPlacementIpmUp, false, false)]
     [InlineData(InputIo.PcbPlacementIpmUp, false, true)]
-    public async Task HomeStopsWhenItsCarrierOrCylinderConditionChanges(
+    public async Task HomeStopsWhenItsCylinderConditionChanges(
         InputIo input,
         bool value,
         bool teachingHome)
@@ -1401,6 +1418,7 @@ public sealed partial class MachineLifecycleTests
 
         fastening.SetAlarm(MotionAxis.X, true);
         Assert.False(machine.CanHome);
+        await WaitUntilAsync(() => machine.CanReset);
         await machine.ResetAsync();
         Assert.True(machine.CanHome);
 

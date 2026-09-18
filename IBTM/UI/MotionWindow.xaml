@@ -177,8 +177,6 @@
                                 </Button.Style>
                             </Button>
                             <Button Content="Home" Width="80" Style="{StaticResource SecondaryButtonStyle}"
-                                ToolTip="{Binding HomeHint}"
-                                ToolTipService.ShowOnDisabled="True"
                                 CommandParameter="{Binding}"
                                 Command="{Binding HomeAxisCommand}"/>
                         </StackPanel>

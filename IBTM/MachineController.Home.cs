@@ -67,9 +67,6 @@ public sealed partial class MachineController
             return HomeBlockReason.UnitDisabled;
         if (!_state.ManualMode && !_state.DoorInterlockReady)
             return HomeBlockReason.DoorOpen;
-        if (Array.Exists(CarrierInputs, _io.GetInput))
-            return HomeBlockReason.CarrierDetected;
-
         if ((group is MotionGroup.PcbSupply or MotionGroup.PcbPlacementHandler
             || group is null
             && BufferHandlersEnabled)

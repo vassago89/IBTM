@@ -48,16 +48,6 @@ public sealed class MotionMonitorAxis(
 
     public MotionDiagnostics Diagnostics { get; } = motion.MonitorAxes[axis];
 
-    public string HomeHint
-    {
-        get
-        {
-            return Group == MotionGroup.PcbSupply
-                ? "PCB Supply requires the coordinated Home All operation on the main screen."
-                : "Home this axis using the existing clearance and safety interlocks.";
-        }
-    }
-
     internal bool RefreshEnabled()
     {
         return SetProperty(ref _lastEnabled, Enabled, nameof(Enabled));
