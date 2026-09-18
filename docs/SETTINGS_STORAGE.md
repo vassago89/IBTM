@@ -12,6 +12,18 @@
 축/IO 매핑·속도·간섭 좌표는 장비 설정, 제품별 볼트·Heat Sink·FOV/ROI·촬영 조건은 레시피다.
 설비의 현재 위치나 동작 완료 상태를 설정에 저장하지 않는다.
 
+## 설정 화면에서 운전 시간 찾기
+
+- `Settings → Operation & Timing` 첫 항목의 **센서 감지 후 추가 구동 시간**은
+  `Conveyor.CarrierStopDelaySeconds`다. 단위는 초이며, 0이면 추가 구동을 하지 않는다.
+  정방향 이송 중 목적지 Heat Sink 1 감지 후 적용하며 Station 1·2·3이 같은 값을 쓴다.
+  Heat Sink 2만 감지된 상태에서는 이 타이머를 시작하지 않는다.
+- 같은 탭에 공통 피드백·정지 확인, 볼트 공급, 체결 완료 대기 시간을 모았다.
+  이 항목들은 최대 대기 시간이며 단위는 ms다. 1,000 ms = 1초.
+- 사용 유닛·인터록은 `Units & Safety`, 축 설정은 `Motion`, 입출력 주소는 `I/O Mapping`,
+  체결기 타입·통신 연결·카메라·조명은 `Device Connections`에서 설정한다.
+- `Save Settings`로 저장한다. I/O 주소와 장치 연결 변경은 저장 후 재시작해야 적용된다.
+
 ## JSON 방식
 
 - `Settings`: **설정 클래스 전체**를 JSON으로 저장한다. Key는 클래스 이름이다.

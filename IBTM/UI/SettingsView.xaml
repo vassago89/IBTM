@@ -13,6 +13,13 @@
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
             <Setter Property="Margin" Value="0,0,0,4"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style x:Key="SettingHelpText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,8,0,0"/>
         </Style>
         <Style TargetType="TextBox" BasedOn="{StaticResource FieldTextBoxStyle}">
             <Setter Property="MinWidth" Value="90"/>
@@ -159,7 +166,122 @@
         </StackPanel>
 
         <TabControl Grid.Row="1" Style="{StaticResource SettingTabControl}" ItemContainerStyle="{StaticResource SettingTabItem}">
-            <TabItem Header="General">
+            <TabItem Header="Operation &amp; Timing">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel MaxWidth="1480" Margin="0,0,8,0">
+                        <Border Style="{StaticResource SettingCard}"
+                            BorderBrush="{StaticResource ControlFocusBorderBrush}" Padding="18,14">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="260"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,24,0">
+                                    <TextBlock Text="Main Conveyor · Carrier Seating" Style="{StaticResource SettingSectionTitle}"/>
+                                    <TextBlock Text="센서 감지 후 추가 구동 시간"
+                                        Foreground="{StaticResource TextPrimaryBrush}" FontSize="20" FontWeight="SemiBold"/>
+                                    <TextBlock Text="목적지 Heat Sink 1 센서가 ON된 뒤, 캐리어를 밀착시키기 위해 벨트를 더 구동하는 시간입니다."
+                                        Style="{StaticResource SettingHelpText}"/>
+                                    <TextBlock Text="Station 1 · 2 · 3 공통 / 정방향 이송에 적용"
+                                        Style="{StaticResource SettingHelpText}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Extra Run After Detection (s)" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBox IsEnabled="{Binding CanEditSettings}"
+                                        Text="{Binding Settings.Conveyor.CarrierStopDelaySeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
+                                        FontSize="24" Padding="10,6"/>
+                                    <TextBlock Text="단위: 초 · 0 = 추가 구동 없음"
+                                        Style="{StaticResource SettingHelpText}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <TextBlock Text="Heat Sink 2만 감지되면 추가 구동 타이머는 시작하지 않습니다. 아래의 Timeout은 신호를 기다리는 최대 시간입니다."
+                            Style="{StaticResource SettingHelpText}" Margin="4,0,4,12"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <Border Style="{StaticResource SettingCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="Common · Feedback / Stop" Style="{StaticResource SettingSectionTitle}"/>
+                                        <TextBlock Text="Feedback / Stop Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                        <TextBox IsEnabled="{Binding CanEditSettings}"
+                                            Text="{Binding Settings.Options.TimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
+                                            Width="180" HorizontalAlignment="Left"/>
+                                        <TextBlock Text="실린더 도착 피드백·정지 확인의 최대 대기 시간입니다. 1,000 ms = 1초."
+                                            Style="{StaticResource SettingHelpText}"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource SettingCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="Bolt Supply · Detection Timeout" Style="{StaticResource SettingSectionTitle}"/>
+                                        <UniformGrid Columns="2">
+                                            <StackPanel Margin="0,0,8,0">
+                                                <TextBlock Text="Pickup Feeder (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBox IsEnabled="{Binding CanEditSettings}"
+                                                    Text="{Binding Settings.BoltFeeder.PickupTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="8,0,0,0">
+                                                <TextBlock Text="Shooting Feeder (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBox IsEnabled="{Binding CanEditSettings}"
+                                                    Text="{Binding Settings.BoltFeeder.ShootingTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                        </UniformGrid>
+                                        <TextBlock Text="각 피더에서 볼트 감지 신호를 기다리는 최대 시간입니다."
+                                            Style="{StaticResource SettingHelpText}"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <Border Style="{StaticResource SettingCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="Bolt Fastening · Completion Timeout" Style="{StaticResource SettingSectionTitle}"/>
+                                        <StackPanel Visibility="{Binding ShowIoBoltSettings, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="IO · FASTEN ON → OFF Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                            <TextBox IsEnabled="{Binding CanEditSettings}"
+                                                Text="{Binding Settings.IoBoltHardware.FasteningTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"
+                                                Width="180" HorizontalAlignment="Left"/>
+                                            <TextBlock Text="START 후 FASTEN의 ON → OFF 완료를 기다리는 최대 시간입니다."
+                                                Style="{StaticResource SettingHelpText}"/>
+                                        </StackPanel>
+                                        <StackPanel Visibility="{Binding ShowAdcBoltSettings, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="ADC · Fastening Result Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                            <TextBox IsEnabled="{Binding CanEditSettings}"
+                                                Text="{Binding Settings.Hantas.FasteningTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
+                                                Width="180" HorizontalAlignment="Left"/>
+                                            <TextBlock Text="체결 시작 후 컨트롤러의 완료 결과를 기다리는 최대 시간입니다."
+                                                Style="{StaticResource SettingHelpText}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource SettingCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="NG Handling" Style="{StaticResource SettingSectionTitle}"/>
+                                        <UniformGrid Columns="2">
+                                            <StackPanel Margin="0,0,8,0">
+                                                <TextBlock Text="Carrier Count for Alarm" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBox IsEnabled="{Binding CanEditSettings}"
+                                                    Text="{Binding Settings.NgConveyor.AlarmCarrierCount, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </StackPanel>
+                                            <StackPanel Margin="8,0,0,0">
+                                                <TextBlock Text="Transfer Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
+                                                <TextBox IsEnabled="{Binding CanEditSettings}"
+                                                    Text="{Binding Settings.NgCarrierTransfer.Speed, UpdateSourceTrigger=LostFocus}"/>
+                                            </StackPanel>
+                                        </UniformGrid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="Units &amp; Safety">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel MaxWidth="1480" Margin="0,0,8,0">
                         <Border Style="{StaticResource SettingCard}">
@@ -202,28 +324,20 @@
 
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
-                                <TextBlock Text="Main Conveyor" Style="{StaticResource SettingSectionTitle}"/>
-                                <TextBlock Text="Run After Heat Sink 1 Detection (s)" Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox IsEnabled="{Binding CanEditSettings}"
-                                    Text="{Binding Settings.Conveyor.CarrierStopDelaySeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
-                                    MaxWidth="300" HorizontalAlignment="Left" MinWidth="180"/>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Style="{StaticResource SettingCard}">
-                            <StackPanel>
-                                <TextBlock Text="NG Handling" Style="{StaticResource SettingSectionTitle}"/>
+                                <TextBlock Text="Interlocks &amp; Reset Input" Style="{StaticResource SettingSectionTitle}"/>
                                 <UniformGrid Columns="2">
-                                    <StackPanel Margin="0,0,8,0">
-                                        <TextBlock Text="Alarm Count" Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox IsEnabled="{Binding CanEditSettings}"
-                                            Text="{Binding Settings.NgConveyor.AlarmCarrierCount, UpdateSourceTrigger=PropertyChanged}"/>
-                                    </StackPanel>
-                                    <StackPanel Margin="8,0,0,0">
-                                        <TextBlock Text="Transfer Speed (mm/s)" Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox IsEnabled="{Binding CanEditSettings}"
-                                            Text="{Binding Settings.NgCarrierTransfer.Speed, UpdateSourceTrigger=LostFocus}"/>
-                                    </StackPanel>
+                                    <CheckBox IsEnabled="{Binding CanEditSettings}"
+                                        Content="Emergency Stop"
+                                        IsChecked="{Binding Settings.Options.UseEmergencyStop}"/>
+                                    <CheckBox IsEnabled="{Binding CanEditSettings}"
+                                        Content="Hardware Reset Button"
+                                        IsChecked="{Binding Settings.Options.UseResetButton}"/>
+                                    <CheckBox IsEnabled="{Binding CanEditSettings}"
+                                        Content="Door Interlock"
+                                        IsChecked="{Binding Settings.Options.UseDoorInterlock}"/>
+                                    <CheckBox IsEnabled="{Binding CanEditSettings}"
+                                        Content="Air Pressure Interlock"
+                                        IsChecked="{Binding Settings.Options.UseAirPressureInterlock}"/>
                                 </UniformGrid>
                             </StackPanel>
                         </Border>
@@ -317,18 +431,9 @@
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem Header="I/O">
+            <TabItem Header="I/O Mapping">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel MaxWidth="1480" Margin="0,0,8,0">
-                        <Border Style="{StaticResource SettingCard}">
-                            <StackPanel>
-                                <TextBlock Text="Feedback / Stop Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
-                                <TextBox IsEnabled="{Binding CanEditSettings}"
-                                    Text="{Binding Settings.Options.TimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
-                                    Width="100" HorizontalAlignment="Left"/>
-                            </StackPanel>
-                        </Border>
-
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
                                 <TextBlock Text="I/O Channel Mapping" Style="{StaticResource SettingSectionTitle}" Margin="0,0,0,14"/>
@@ -430,7 +535,7 @@
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem Header="Devices &amp; Safety">
+            <TabItem Header="Device Connections">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel MaxWidth="1480" HorizontalAlignment="Stretch" Margin="0,0,8,0">
                         <Border Style="{StaticResource SettingCard}">
@@ -542,26 +647,12 @@
                                                 <TextBox IsEnabled="{Binding CanEditSettings}"
                                                     Text="{Binding Settings.Hantas.ResponseTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"/>
                                             </StackPanel>
-                                            <StackPanel Margin="4,10,0,0">
-                                                <TextBlock Text="Fastening Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
-                                                <TextBox IsEnabled="{Binding CanEditSettings}"
-                                                    Text="{Binding Settings.Hantas.FasteningTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"/>
-                                            </StackPanel>
                                         </UniformGrid>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
 
                             <StackPanel Grid.Column="2">
-                                <Border Style="{StaticResource SettingCard}" Margin="0,0,0,12"
-                                    Visibility="{Binding ShowIoBoltSettings, Converter={StaticResource BoolToVis}}">
-                                    <StackPanel>
-                                        <TextBlock Text="Bolt Controller · IO Only" Style="{StaticResource SettingSectionTitle}"/>
-                                        <TextBlock Text="Fastening Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
-                                        <TextBox IsEnabled="{Binding CanEditSettings}"
-                                            Text="{Binding Settings.IoBoltHardware.FasteningTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}"/>
-                                    </StackPanel>
-                                </Border>
                                 <Border Style="{StaticResource SettingCard}" Margin="0,0,0,12">
                                     <StackPanel>
                                         <TextBlock Text="AlphaMotion · TMC-AE16DIOe" Style="{StaticResource SettingSectionTitle}"/>
@@ -689,46 +780,8 @@
                                         </StackPanel>
                                     </StackPanel>
                                 </Border>
-
-                                <Border Style="{StaticResource SettingCard}" Margin="0,0,0,12">
-                                    <StackPanel>
-                                        <TextBlock Text="Bolt Supply" Style="{StaticResource SettingSectionTitle}"/>
-                                        <UniformGrid Columns="2">
-                                            <StackPanel Margin="0,0,4,0">
-                                                <TextBlock Text="Pickup Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
-                                                <TextBox IsEnabled="{Binding CanEditSettings}"
-                                                    Text="{Binding Settings.BoltFeeder.PickupTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"/>
-                                            </StackPanel>
-                                            <StackPanel Margin="4,0,0,0">
-                                                <TextBlock Text="Shooting Feeder Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
-                                                <TextBox IsEnabled="{Binding CanEditSettings}"
-                                                    Text="{Binding Settings.BoltFeeder.ShootingTimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"/>
-                                            </StackPanel>
-                                        </UniformGrid>
-                                    </StackPanel>
-                                </Border>
                             </StackPanel>
                         </Grid>
-
-                        <Border Style="{StaticResource SettingCard}">
-                            <StackPanel>
-                                <TextBlock Text="Interlocks" Style="{StaticResource SettingSectionTitle}"/>
-                                <UniformGrid Columns="2">
-                                    <CheckBox IsEnabled="{Binding CanEditSettings}"
-                                        Content="Emergency Stop"
-                                        IsChecked="{Binding Settings.Options.UseEmergencyStop}"/>
-                                    <CheckBox IsEnabled="{Binding CanEditSettings}"
-                                        Content="Hardware Reset Button"
-                                        IsChecked="{Binding Settings.Options.UseResetButton}"/>
-                                    <CheckBox IsEnabled="{Binding CanEditSettings}"
-                                        Content="Door Interlock"
-                                        IsChecked="{Binding Settings.Options.UseDoorInterlock}"/>
-                                    <CheckBox IsEnabled="{Binding CanEditSettings}"
-                                        Content="Air Pressure Interlock"
-                                        IsChecked="{Binding Settings.Options.UseAirPressureInterlock}"/>
-                                </UniformGrid>
-                            </StackPanel>
-                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -736,7 +789,14 @@
 
         <Border Grid.Row="2" BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
             <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Save Settings로 변경값을 저장하세요. I/O 주소·장치 연결 변경은 저장 후 재시작해야 적용됩니다."
+                    Style="{StaticResource SettingHelpText}" Margin="0,0,16,0" VerticalAlignment="Center"/>
                 <Button
+                    Grid.Column="1"
                     Command="{Binding SaveSettingsCommand}"
                     HorizontalAlignment="Right" MinWidth="132">
                     <Button.Style>
