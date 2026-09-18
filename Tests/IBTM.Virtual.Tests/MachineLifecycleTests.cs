@@ -356,7 +356,7 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task StoppedNgTransferCannotResumeWhileHoldingCarrier()
+    public async Task StoppedNgTransferStartsWithHeldCarrierAndPlacesItOnShuttle()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
@@ -389,16 +389,26 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.None, state.Alarm);
 
         Assert.False(machine.RequiresManualClear);
-        Assert.Equal(StartBlockReason.NgCarrierHeld, machine.StartBlock);
-        await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(1));
-        Assert.Equal(stoppedX, gantry.Feedback.GetPosition().X);
-        Assert.False(gantry.Feedback.IsMoving);
+        Assert.Equal(StartBlockReason.None, machine.StartBlock);
         await machine.ResetAsync();
         Assert.False(machine.RequiresManualClear);
         Assert.False(state.IsError);
-        Assert.Equal(StartBlockReason.NgCarrierHeld, machine.StartBlock);
+        Assert.Equal(StartBlockReason.None, machine.StartBlock);
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
-        await machine.ShutdownAsync();
+        var restarted = machine.StartAsync();
+        try
+        {
+            await WaitUntilAsync(() => io.GetInput(InputIo.NgShuttleCarrierDetected)
+                && !io.GetInput(InputIo.NgCarrierDetected)
+                && io.GetInput(InputIo.NgCarrierGripperOpen));
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+        }
+        finally
+        {
+            machine.Stop();
+            await restarted.WaitAsync(TimeSpan.FromSeconds(3));
+            await machine.ShutdownAsync();
+        }
     }
 
     [Theory]
@@ -621,7 +631,7 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(MachineAlarm.None, state.Alarm);
         Assert.True(productionHead.HasPendingResult);
         Assert.True(station.HasPendingResult);
-        Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
+        Assert.Equal(StartBlockReason.None, machine.StartBlock);
         Assert.False(machine.CanTestBoltHead);
         Assert.Equal(interruptedEvent, (await bus.ReadFasteningResultAsync(slave)).EventCount);
 

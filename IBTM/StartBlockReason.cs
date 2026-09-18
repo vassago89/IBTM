@@ -10,7 +10,7 @@ public enum StartBlockReason
     [Description("Clear the cause, then press RESET")]
     Alarm,
 
-    [Description("Clear PCB buffer, then press RESET")]
+    [Description("Resolve PCB buffer interference, then press RESET")]
     BufferConflict,
 
     [Description("Clear the motion fault, then press RESET")]
@@ -43,9 +43,4 @@ public enum StartBlockReason
     [Description("Complete bolt teaching")]
     TeachingIncomplete,
 
-    [Description("Clear the interrupted transfer, PCB placement or pending fastening result, then press RESET")]
-    ManualClearRequired,
-
-    [Description("Place or remove the carrier held by the NG pickup before START")]
-    NgCarrierHeld,
 }

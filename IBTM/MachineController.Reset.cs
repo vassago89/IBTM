@@ -178,11 +178,11 @@ public sealed partial class MachineController
 
         try
         {
-            ConfirmClearedInterruptedWork();
+            AcknowledgeInterruptedWork();
         }
         catch (Exception exception)
         {
-            _log?.Error("Machine manual clear was not confirmed.", exception);
+            _log?.Error("Stopped work acknowledgement failed.", exception);
             _state.SetError(MachineAlarm.MainConveyor, exception);
             return;
         }
@@ -190,33 +190,23 @@ public sealed partial class MachineController
         _state.ClearError();
         _state.Refresh();
         _log?.Write("Machine RESET completed.");
-        if (_conveyor.RequiresManualClear)
-            _log?.Write("START blocked: main conveyor transfer was interrupted. Clear the main conveyor, then RESET.");
-        if (_ngConveyor.RequiresManualClear)
-            _log?.Write("START blocked: NG conveyor transfer was interrupted. Clear the NG conveyor and shuttle, then RESET.");
-        if (_pcbPlacement.RequiresManualClear)
-            _log?.Write("START blocked: PCB press or repeat pickup was interrupted. Clear the placement carrier and held PCB, then RESET.");
-        if (_fasteningGantry.HasPendingResult || _fasteningStation.HasPendingResult)
-            _log?.Write("START blocked: fastening result is still pending. Clear the fastening carrier and held bolts, then RESET.");
     }
 
-    private void ConfirmClearedInterruptedWork()
+    private void AcknowledgeInterruptedWork()
     {
         if (!RequiresManualClear)
             return;
 
         _io.CheckReady();
-        // Acknowledge only the interrupted device. Normal carriers elsewhere stay in place.
+        // Conveyor acknowledgement does not require removal of carriers.
+        // Unconfirmed PCB work and fastening results keep their existing ownership.
         if (_conveyor.RequiresManualClear
-            && !_conveyor.RunCommandOn
-            && _conveyor.CarrierCount == 0
-            && _inspectionWork.CanReceive)
+            && !_conveyor.RunCommandOn)
         {
             _conveyor.ConfirmManualClear();
         }
         if (_ngConveyor.RequiresManualClear
-            && !_ngConveyor.RunCommandOn
-            && _ngConveyor.CarrierCount == 0)
+            && !_ngConveyor.RunCommandOn)
         {
             _ngConveyor.ConfirmManualClear();
         }

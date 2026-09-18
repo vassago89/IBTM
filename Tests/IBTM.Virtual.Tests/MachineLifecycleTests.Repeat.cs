@@ -445,7 +445,7 @@ public sealed partial class MachineLifecycleTests
 
     [Fact]
     [Trait("Category", "MachineFlow")]
-    public async Task RepeatStopDiscardsReturnPhaseAndBlocksRestart()
+    public async Task RepeatStopDiscardsReturnPhaseAndResetAllowsOccupiedConveyor()
     {
         var settings = FlowSettings();
         settings.Units = EnableOnly(MachineUnit.MainConveyor);
@@ -479,15 +479,18 @@ public sealed partial class MachineLifecycleTests
             await WaitUntilAsync(() => state.Display.RepeatPhase == RepeatPhase.Automatic);
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.True(machine.RequiresManualClear);
-            Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
             await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(1));
             Assert.False(io.GetOutput(OutputIo.NgConveyorRun));
             Assert.Equal(0, state.Display.RepeatCycles);
             await machine.ResetAsync();
-            Assert.True(machine.RequiresManualClear);
+            Assert.False(machine.RequiresManualClear);
             Assert.False(state.IsError);
-            Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            Assert.True(io.GetInput(InputIo.NgConveyorPosition1Occupied));
+            await machine.StartAsync(timeout.Token).WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(state.IsError);
         }
         finally
         {

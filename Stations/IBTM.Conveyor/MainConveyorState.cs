@@ -34,7 +34,7 @@ public enum MainConveyorState
     [Description("Discharging S3")]
     DischargingInspectionCarrier,
 
-    [Description("Manual clear required · empty conveyor, then RESET")]
+    [Description("Check stopped carrier position / work ownership, then RESET")]
     ManualClearRequired,
 
     [Description("Conveyor RUN output ON")]

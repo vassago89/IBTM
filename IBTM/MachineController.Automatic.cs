@@ -12,6 +12,7 @@ namespace IBTM;
 
 public sealed partial class MachineController
 {
+    // Interrupted work enables RESET; it is not a machine-wide START condition.
     public bool RequiresManualClear
     {
         get
@@ -63,13 +64,6 @@ public sealed partial class MachineController
             return StartBlockReason.EmergencyStop;
         if (_options.UseAirPressureInterlock && !_state.AirPressureOk)
             return StartBlockReason.AirPressure;
-        if (RequiresManualClear)
-            return StartBlockReason.ManualClearRequired;
-        if (!_state.AutomaticRunning
-            && _ngTransfer.CarrierDetected)
-        {
-            return StartBlockReason.NgCarrierHeld;
-        }
         if (motion.Faulted)
             return StartBlockReason.MotionFault;
         if (!motion.ServosOn || !_state.ServoMainContactorOn)

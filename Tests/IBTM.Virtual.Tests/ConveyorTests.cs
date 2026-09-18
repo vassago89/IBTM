@@ -393,7 +393,7 @@ public sealed class ConveyorTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task InterruptedSeatingDoesNotResumeAfterSensorChanges(bool fromFront)
+    public async Task ResetAllowsInterruptedSeatingWithCarrierPresent(bool fromFront)
     {
         var io = CreateIo();
         io.Initialize();
@@ -440,18 +440,22 @@ public sealed class ConveyorTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => conveyor.RunAsync());
         Assert.Empty(writes);
         Assert.Equal(MainConveyorState.ManualClearRequired, conveyor.State);
-        Assert.Throws<InvalidOperationException>(conveyor.ConfirmManualClear);
-
-        io.SetInput(other, false);
-        Assert.True(conveyor.RequiresManualClear); // Empty inputs do not acknowledge an unseen carrier.
         conveyor.ConfirmManualClear();
         Assert.False(conveyor.RequiresManualClear);
         Assert.False(conveyor.RunCommandOn);
+        Assert.True(io.GetInput(other));
         using var idleStop = new CancellationTokenSource();
         var idle = conveyor.RunAsync(idleStop.Token);
-        idleStop.Cancel();
-        await idle.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.False(conveyor.RequiresManualClear);
+        try
+        {
+            await WaitForOutputAsync(io, plate, true);
+            Assert.False(conveyor.RunCommandOn);
+        }
+        finally
+        {
+            idleStop.Cancel();
+            await idle.WaitAsync(TimeSpan.FromSeconds(2));
+        }
     }
 
     [Fact]
@@ -547,7 +551,7 @@ public sealed class ConveyorTests
         };
         var restartFailure = await Assert.ThrowsAsync<InvalidOperationException>(
             () => conveyor.RunAsync().WaitAsync(TimeSpan.FromSeconds(2)));
-        Assert.Contains("Clear all carriers manually", restartFailure.Message);
+        Assert.Contains("position or transferred work ownership is unconfirmed", restartFailure.Message);
         Assert.False(unsafeOutput);
         Assert.True(io.GetInput(InputIo.PcbPlacementBackupPlateUp));
     }
@@ -1259,9 +1263,11 @@ public sealed class ConveyorTests
         Assert.False(ran);
         Assert.True(io.GetInput(InputIo.BoltFasteningBackupPlateUp));
         Assert.Equal(MainConveyorState.ManualClearRequired, conveyor.State);
-        io.SetInput(InputIo.BoltFasteningHeatSink1Present, false);
         conveyor.ConfirmManualClear();
-        Assert.Equal(MainConveyorState.WaitingForFrontCarrier, conveyor.State);
+        Assert.False(conveyor.RequiresManualClear);
+        Assert.True(io.GetInput(InputIo.BoltFasteningHeatSink1Present));
+        Assert.True(io.GetInput(InputIo.BoltFasteningBackupPlateUp));
+        Assert.Equal(MainConveyorState.MovingBoltFasteningToInspection, conveyor.State);
     }
 
     [Fact]
@@ -1342,7 +1348,17 @@ public sealed class ConveyorTests
         Assert.False(conveyor.RunCommandOn);
         Assert.Empty(destination.Assemblies);
         Assert.Same(assembly, Assert.Single(source.Assemblies));
-        Assert.Throws<InvalidOperationException>(conveyor.ConfirmManualClear);
+        conveyor.ConfirmManualClear();
+        Assert.True(conveyor.RequiresManualClear);
+        Assert.Same(assembly, Assert.Single(source.Assemblies));
+        Assert.Empty(destination.Assemblies);
+
+        io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
+        VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, false);
+        conveyor.ConfirmManualClear();
+        Assert.True(conveyor.RequiresManualClear);
+        Assert.Same(assembly, Assert.Single(source.Assemblies));
+        Assert.Empty(destination.Assemblies);
     }
 
     [Theory]
@@ -1507,12 +1523,12 @@ public sealed class ConveyorTests
         Assert.True(conveyor.RequiresManualClear);
         io.SetInput(InputIo.MainConveyorExitCarrierDetected, true);
         await Assert.ThrowsAsync<InvalidOperationException>(() => conveyor.RunAsync());
-        Assert.Throws<InvalidOperationException>(conveyor.ConfirmManualClear);
         Assert.False(conveyor.RunCommandOn);
         Assert.False(io.GetOutput(OutputIo.MainConveyorAvailableToRear));
-        io.SetInput(InputIo.MainConveyorExitCarrierDetected, false);
         conveyor.ConfirmManualClear();
         Assert.False(conveyor.RequiresManualClear);
+        Assert.True(io.GetInput(InputIo.MainConveyorExitCarrierDetected));
+        Assert.Equal(MainConveyorState.DischargingInspectionCarrier, conveyor.State);
     }
 
     [Fact]

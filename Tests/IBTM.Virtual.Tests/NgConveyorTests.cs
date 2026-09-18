@@ -172,7 +172,7 @@ public sealed class NgConveyorTests
     }
 
     [Fact]
-    public async Task StoppedCompactionRequiresManualClearEvenWhenPresenceReturns()
+    public async Task ResetAcknowledgesStoppedCompactionWithCarrierPresent()
     {
         var system = CreateSystem();
         await system.Signals.SetOutputAndWaitAsync(OutputIo.NgConveyorStopperUp, true);
@@ -198,12 +198,23 @@ public sealed class NgConveyorTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => system.Conveyor.RunAsync());
         system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
-        Assert.Throws<InvalidOperationException>(system.Conveyor.ConfirmManualClear);
-        Assert.False(system.Conveyor.RunCommandOn);
-        system.Io.SetInput(InputIo.NgConveyorPosition1Occupied, false);
         Assert.True(system.Conveyor.RequiresManualClear);
         system.Conveyor.ConfirmManualClear();
         Assert.False(system.Conveyor.RequiresManualClear);
+        Assert.True(system.Conveyor.Position1Occupied);
+        Assert.False(system.Conveyor.RunCommandOn);
+        using var nextStop = new CancellationTokenSource();
+        var nextRun = system.Conveyor.RunAsync(nextStop.Token);
+        try
+        {
+            Assert.Equal(NgConveyorState.ReadyToEject, system.Conveyor.State);
+            Assert.False(system.Conveyor.RunCommandOn);
+        }
+        finally
+        {
+            nextStop.Cancel();
+            await nextRun.WaitAsync(TimeSpan.FromSeconds(2));
+        }
     }
 
     [Fact]
@@ -275,7 +286,9 @@ public sealed class NgConveyorTests
             Assert.True(system.Io.GetInput(InputIo.NgShuttleUp));
             Assert.True(system.Conveyor.RequiresManualClear);
             await Assert.ThrowsAsync<InvalidOperationException>(() => system.Conveyor.RunAsync());
-            Assert.Throws<InvalidOperationException>(system.Conveyor.ConfirmManualClear);
+            system.Conveyor.ConfirmManualClear();
+            Assert.False(system.Conveyor.RequiresManualClear);
+            Assert.True(system.Io.GetInput(InputIo.NgShuttleCarrierDetected));
             system.Io.InputChanged -= StopAfterEject;
             return;
         }

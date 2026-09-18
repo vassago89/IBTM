@@ -245,7 +245,7 @@ public sealed class MainConveyor : AutoUnit
     public async Task ReturnToStartAsync(CancellationToken cancellationToken)
     {
         if (RequiresManualClear)
-            throw new InvalidOperationException("Clear the main conveyor manually, then press RESET before starting a new move.");
+            throw new InvalidOperationException("Check the interrupted conveyor position and work ownership, then press RESET before starting a new move.");
         if (CarrierCount > 1 || ExitCarrierDetected)
             throw new InvalidOperationException("Main conveyor return requires one carrier and a clear exit.");
 
@@ -366,7 +366,7 @@ public sealed class MainConveyor : AutoUnit
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (RequiresManualClear)
-            throw new InvalidOperationException("Automatic conveyor move was interrupted. Clear all carriers manually, then press RESET. START cannot resume the move.");
+            throw new InvalidOperationException("Conveyor position or transferred work ownership is unconfirmed. Check the stopped carrier position, then press RESET.");
 
         // Preserve the support under an interrupted placement/fastening operation.
         // Station 3 also stays supported while the pickup still detects a carrier.
@@ -471,23 +471,25 @@ public sealed class MainConveyor : AutoUnit
         }
     }
 
-    // RESET acknowledges the operator's manual removal, including carriers between sensors.
-    // Empty inputs alone cannot establish that an interrupted transfer left no carrier behind.
+    // RESET acknowledges the stopped position. A carrier may remain at its source.
+    // An unresolved job must not be assigned to a different carrier by acknowledgement.
     public void ConfirmManualClear()
     {
         if (!RequiresManualClear)
             return;
         _io.CheckReady();
-        if (_runCancellation is not null
-            || RunCommandOn
-            || CarrierCount != 0
-            || !_inspectionWork.CanReceive)
+        if (_runCancellation is not null || RunCommandOn)
         {
-            throw new InvalidOperationException("Stop and manually empty the main conveyor before RESET. Check between sensors and remove any carrier held at Station 3.");
+            throw new InvalidOperationException("Stop the main conveyor before acknowledging its position.");
         }
 
+        if (_transferJob is { } pending
+            && !(_placementWork.CarrierPresent && ReferenceEquals(_placementWork.CurrentJob, pending))
+            && !(_boltFasteningWork.CarrierPresent && ReferenceEquals(_boltFasteningWork.CurrentJob, pending)))
+            return;
+
         TraceStep(MainConveyorState.ManualClearRequired,
-            target: "operator confirmed empty conveyor; interrupted move abandoned",
+            target: "operator acknowledged stopped position; interrupted move abandoned",
             workId: _transferJob?.Id);
         _transferJob = null;
         _requiresManualClear = false;

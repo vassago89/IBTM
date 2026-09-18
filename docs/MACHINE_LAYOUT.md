@@ -185,10 +185,10 @@ STOP alone does not block a new START or require the whole machine to be emptied
 Normally seated carriers remain in place; the next run uses current feedback and work results.
 RESET clears device alarms without changing support outputs or completing work.
 An interrupted main/NG transfer, interrupted PCB press/repeat pickup, or uncollected
-fastening result blocks only acknowledgement of that uncertain operation. Clear its
-affected area and press RESET; other normal carriers may remain. An NG pickup holding
-a carrier separately blocks START from its current presence input until the carrier is
-safely placed or removed. RESET never resumes an interrupted command or creates results.
+fastening result is checked by the affected unit, not global START admission.
+Carrier/PCB presence and an NG pickup holding a carrier do not block START.
+Conveyor RESET acknowledgement accepts occupied positions; unresolved transferred
+work remains owned by its original carrier. RESET never runs motion or creates results.
 
 The machine has three external SMEMA connections. Front 1 belongs to PCB Supply,
 Front 2 belongs to the main heat sink carrier conveyor, and Rear belongs to the

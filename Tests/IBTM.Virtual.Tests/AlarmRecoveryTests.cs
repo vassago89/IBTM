@@ -20,7 +20,7 @@ namespace IBTM.Virtual.Tests;
 public sealed class AlarmRecoveryTests
 {
     [Fact]
-    public async Task ResetClearsAlarmButKeepsInterruptedConveyorStartBlockUntilManualClear()
+    public async Task ResetAllowsInterruptedConveyorToStartWithCarrierStillPresent()
     {
         using var services = CreateServices();
         var machine = services.GetRequiredService<MachineController>();
@@ -43,24 +43,29 @@ public sealed class AlarmRecoveryTests
             }
 
             Assert.True(conveyor.RequiresManualClear);
-            Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
-            Assert.False(machine.CanStart);
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            Assert.True(machine.CanStart);
             Assert.True(machine.CanReset);
             SetAlarm(state, MachineAlarm.MainConveyor);
             await machine.ResetAsync();
-            Assert.True(conveyor.RequiresManualClear);
-            Assert.Equal(MachineAlarm.None, state.Alarm);
-            Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
-            Assert.False(machine.CanStart);
-
-            io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
-            io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
-            await machine.ResetAsync();
             Assert.False(conveyor.RequiresManualClear);
-            Assert.False(machine.RequiresManualClear);
             Assert.Equal(MachineAlarm.None, state.Alarm);
-            Assert.False(conveyor.RunCommandOn);
-            Assert.True(io.GetInput(InputIo.NgConveyorPosition1Occupied));
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            Assert.True(machine.CanStart);
+
+            Assert.True(io.GetInput(InputIo.MainConveyorEntryCarrierDetected));
+            var restarted = machine.StartAsync();
+            try
+            {
+                await VirtualTest.WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+                Assert.True(state.AutomaticRunning);
+                Assert.Equal(MachineAlarm.None, state.Alarm);
+            }
+            finally
+            {
+                machine.Stop();
+                await restarted.WaitAsync(TimeSpan.FromSeconds(2));
+            }
         }
         finally
         {

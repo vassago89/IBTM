@@ -31,8 +31,8 @@ public sealed class NgCarrierConveyor : AutoUnit
         if (!_requiresManualClear)
             return;
         _io.CheckReady();
-        if (RunCommandOn || CarrierCount != 0)
-            throw new InvalidOperationException("Stop and manually empty the NG conveyor and shuttle before RESET.");
+        if (RunCommandOn)
+            throw new InvalidOperationException("Stop the NG conveyor before acknowledging its position.");
         _requiresManualClear = false;
         Changed?.Invoke();
     }
@@ -259,7 +259,7 @@ public sealed class NgCarrierConveyor : AutoUnit
     public Task RunAsync(CancellationToken cancellationToken = default, bool repeat = false)
     {
         if (_requiresManualClear)
-            throw new InvalidOperationException("NG conveyor movement was interrupted. Manually clear it and press RESET.");
+            throw new InvalidOperationException("NG conveyor movement was interrupted. Check the stopped carrier position, then press RESET.");
         _repeat = repeat;
         return RunControlledAsync(
             async token =>
@@ -333,7 +333,7 @@ public sealed class NgCarrierConveyor : AutoUnit
     public async Task ReturnToShuttleAsync(CancellationToken cancellationToken)
     {
         if (_requiresManualClear)
-            throw new InvalidOperationException("NG conveyor movement was interrupted. Manually clear it and press RESET.");
+            throw new InvalidOperationException("NG conveyor movement was interrupted. Check the stopped carrier position, then press RESET.");
         if (CarrierCount != 1)
             throw new InvalidOperationException("NG return requires one carrier with known presence feedback.");
         if (_shuttle.Lift != NgShuttleLiftState.Down && !Position3Occupied)

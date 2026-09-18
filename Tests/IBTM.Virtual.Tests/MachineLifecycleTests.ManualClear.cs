@@ -94,10 +94,10 @@ public sealed partial class MachineLifecycleTests
     }
 
     [Fact]
-    public async Task NgPickupHeldCarrierBlocksStartFromCurrentInputWithoutBlockingAlarmReset()
+    public async Task MaterialInsideMachineDoesNotBlockStartOrAlarmReset()
     {
         var settings = FlowSettings();
-        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        settings.Units = EnableOnly(MachineUnit.NgConveyor);
         using var services = CreateServices(settings);
         var machine = services.GetRequiredService<MachineController>();
         var state = services.GetRequiredService<MachineState>();
@@ -115,24 +115,21 @@ public sealed partial class MachineLifecycleTests
             Assert.False(machine.RequiresManualClear);
 
             io.SetInput(InputIo.NgCarrierDetected, true);
-            Assert.Equal(StartBlockReason.NgCarrierHeld, machine.StartBlock);
-
-            var writes = 0;
-            void CountOutput(OutputIo output, bool value)
-            {
-                writes++;
-            }
-            io.OutputChanged += CountOutput;
-            await machine.StartAsync();
-            io.OutputChanged -= CountOutput;
-            Assert.Equal(0, writes);
+            io.SetInputs(
+                (InputIo.PcbPlacementHeatSink1Present, true),
+                (InputIo.BoltFasteningHeatSink1Present, true),
+                (InputIo.InspectionHeatSink1Present, true),
+                (InputIo.NgConveyorPosition1Occupied, true),
+                (InputIo.PcbPlacementPcbDetected, true),
+                (InputIo.PcbPlacementVacuumDetected, true));
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
+            Assert.True(machine.CanStart);
 
             state.SetError(MachineAlarm.NgCarrierTransfer);
             await machine.ResetAsync();
             Assert.False(machine.RequiresManualClear);
             Assert.False(state.IsError);
-            Assert.Equal(StartBlockReason.NgCarrierHeld, machine.StartBlock);
-            io.SetInput(InputIo.NgCarrierDetected, false);
+            Assert.Equal(StartBlockReason.None, machine.StartBlock);
             Assert.False(machine.RequiresManualClear);
             // A waiting upstream carrier is normal material, not interrupted work.
             io.SetInput(InputIo.PcbSupplyAvailableFromFront1, true);
@@ -145,6 +142,14 @@ public sealed partial class MachineLifecycleTests
             using var nextStop = new CancellationTokenSource();
             run = machine.StartAsync(nextStop.Token);
             await WaitUntilAsync(() => state.AutomaticRunning);
+            Assert.True(io.GetInput(InputIo.NgCarrierDetected));
+            Assert.True(io.GetInput(InputIo.PcbPlacementPcbDetected));
+            Assert.True(io.GetInput(InputIo.PcbPlacementVacuumDetected));
+            Assert.True(io.GetInput(InputIo.PcbPlacementHeatSink1Present));
+            Assert.True(io.GetInput(InputIo.BoltFasteningHeatSink1Present));
+            Assert.True(io.GetInput(InputIo.InspectionHeatSink1Present));
+            Assert.True(io.GetInput(InputIo.NgConveyorPosition1Occupied));
+            Assert.Equal(MachineAlarm.None, state.Alarm);
             nextStop.Cancel();
             await run.WaitAsync(TimeSpan.FromSeconds(3));
             Assert.False(machine.RequiresManualClear);
