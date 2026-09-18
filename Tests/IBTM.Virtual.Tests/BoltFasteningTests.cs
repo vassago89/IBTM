@@ -648,10 +648,9 @@ public sealed class BoltFasteningTests
         await gantry.MoveZAsync(settings.GetHead(selectedHead).FasteningZ);
         var work = new BoltFasteningWork(ConveyorStation.BoltFastening(io));
         var layout = new PcbLayout { BoltPoints = [Bolt(1, selectedHead, 0, 0)] };
-        var headEnabled = true;
         var station = new BoltFasteningStation(
             gantry, work,
-            new PickupBoltFeeder(io, new()), new ShootingBoltFeeder(io, new()), () => layout, _ => headEnabled);
+            new PickupBoltFeeder(io, new()), new ShootingBoltFeeder(io, new()), () => layout);
         io.SetOutput(OutputIo.PickupHeadVacuumPump, true);
         io.SetOutput(OutputIo.ShootingHeadVacuumPump, true);
         io.SetInputs(
@@ -742,10 +741,7 @@ public sealed class BoltFasteningTests
                 Assert.Empty(results);
                 Assert.True(selected.HasPendingResult);
                 Assert.True(station.HasPendingResult);
-                headEnabled = false;
-                await Assert.ThrowsAsync<InvalidOperationException>(() => station.RunAsync(new()));
-                Assert.True(io.GetOutput(cylinder)); // Recovery is required before another movement.
-                Assert.Equal(new[] { "START ON", "DOWN", "START OFF" }, commands);
+                Assert.True(io.GetOutput(cylinder));
             }
             else
             {
@@ -1333,6 +1329,18 @@ public sealed class BoltFasteningTests
                 : BoltFasteningState.WaitingForShootingFeeder,
             station.State());
 
+        using (var cancelled = new CancellationTokenSource())
+        {
+            var waiting = station.RunAsync(new BoltFasteningRecipe(), cancelled.Token);
+            Assert.False(waiting.IsCompleted);
+            cancelled.Cancel();
+            await waiting.WaitAsync(TimeSpan.FromSeconds(1));
+        }
+
+        var stationChanges = 0;
+        var gantryChanges = 0;
+        station.Changed += () => Interlocked.Increment(ref stationChanges);
+        gantry.Changed += () => Interlocked.Increment(ref gantryChanges);
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         var continued = false;
         io.OutputChanged += (output, value) =>
@@ -1367,6 +1375,8 @@ public sealed class BoltFasteningTests
         Assert.False(io.GetInput(InputIo.PickupFeederBoltDetected));
         Assert.False(io.GetInput(InputIo.ShootingFeederBoltDetected));
         Assert.False(io.GetOutput(OutputIo.ShootBolt));
+        Assert.Equal(0, stationChanges);
+        Assert.True(gantryChanges > 0); // Display listeners still receive head feedback.
         Assert.Equal(
             head == FasteningHead.Pickup ? settings.SafeZ : settings.ShootingHead.FasteningZ,
             motion.GetPosition().Z);

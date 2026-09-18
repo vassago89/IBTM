@@ -383,6 +383,65 @@ public sealed class BoltFasteningGantry
         return _io.WaitForInputAsync(InputIo.ShootingTubeBoltDetected, false, cancellationToken);
     }
 
+    internal async Task WaitForBoltSupplyAsync(FasteningHead head, CancellationToken cancellationToken)
+    {
+        var changed = new AsyncAutoResetEvent();
+
+        bool WaitingForSupply()
+        {
+            return head switch
+            {
+                FasteningHead.Pickup => !_io.GetInput(InputIo.PickupFeederBoltDetected)
+                    && !PickupBoltLoaded
+                    && PickupHeadPosition == BoltCylinderState.Down,
+                FasteningHead.Shooting => !_io.GetInput(InputIo.ShootingFeederBoltDetected)
+                    && !ShootingBoltLoaded
+                    && !ShootingTubeBoltDetected
+                    && ShootingHeadPosition == BoltCylinderState.Up
+                    && ShootingEscape == BoltEscapeState.Backward,
+                _ => throw new ArgumentOutOfRangeException(nameof(head)),
+            };
+        }
+
+        void OnSupplyInputChanged(InputIo input, bool _)
+        {
+            var relevant = head switch
+            {
+                FasteningHead.Pickup => input is InputIo.PickupFeederBoltDetected
+                    or InputIo.PickupHeadVacuumDetected
+                    or InputIo.PickupHeadUp
+                    or InputIo.PickupHeadDown,
+                FasteningHead.Shooting => input is InputIo.ShootingFeederBoltDetected
+                    or InputIo.ShootingHeadVacuumDetected
+                    or InputIo.ShootingTubeBoltDetected
+                    or InputIo.ShootingHeadUp
+                    or InputIo.ShootingHeadDown
+                    or InputIo.ShootingEscapeForward
+                    or InputIo.ShootingEscapeBackward,
+                _ => false,
+            };
+            if (relevant)
+                changed.Set();
+        }
+
+        // Listen only during this supply wait; late head feedback can mean the bolt
+        // already arrived. The station rechecks live state before its next action.
+        _io.InputChanged += OnSupplyInputChanged;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            while (WaitingForSupply())
+            {
+                await changed.WaitAsync(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
+        finally
+        {
+            _io.InputChanged -= OnSupplyInputChanged;
+        }
+    }
+
     public Task MoveToSafeZAsync(CancellationToken cancellationToken = default)
     {
         return _motion.MoveToHorizontalZAsync(cancellationToken);

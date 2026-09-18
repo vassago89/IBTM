@@ -54,7 +54,6 @@ public sealed class BoltFasteningStation(
         add
         {
             work.Changed += value;
-            gantry.Changed += value;
             pickupFeeder.Changed += value;
             shootingFeeder.Changed += value;
         }
@@ -62,7 +61,6 @@ public sealed class BoltFasteningStation(
         remove
         {
             work.Changed -= value;
-            gantry.Changed -= value;
             pickupFeeder.Changed -= value;
             shootingFeeder.Changed -= value;
         }
@@ -180,6 +178,10 @@ public sealed class BoltFasteningStation(
                 => MoveToBoltAsync(
                     PendingResult?.Bolt ?? PendingPcbBolts().First(),
                     cancellationToken),
+            BoltFasteningState.WaitingForShootingFeeder
+                => gantry.WaitForBoltSupplyAsync(FasteningHead.Shooting, cancellationToken),
+            BoltFasteningState.WaitingForPickupFeeder
+                => gantry.WaitForBoltSupplyAsync(FasteningHead.Pickup, cancellationToken),
             BoltFasteningState.ShootingBolt => gantry.ShootBoltAsync(cancellationToken),
             BoltFasteningState.AdvancingShootingEscape
                 => gantry.SetShootingEscapeForwardAsync(true, cancellationToken),

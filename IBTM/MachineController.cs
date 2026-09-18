@@ -128,6 +128,7 @@ public sealed partial class MachineController
         pcbSupply.Changed += state.RequestDisplayRefresh;
         pcbPlacement.Changed += state.RequestDisplayRefresh;
         fasteningStation.Changed += state.RequestDisplayRefresh;
+        fasteningGantry.Changed += state.RequestDisplayRefresh;
         inspectionStation.Changed += state.RequestDisplayRefresh;
         pickupBoltFeeder.Changed += state.RequestDisplayRefresh;
         shootingBoltFeeder.Changed += state.RequestDisplayRefresh;
