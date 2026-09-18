@@ -48,12 +48,6 @@ public sealed partial class MachineController
             || !_state.SafetyReady
             || !_units.IsMotionEnabled(group))
             return false;
-        if (group == MotionGroup.PcbSupply
-            && (live ? _state.Buffer.IsPlacementInside() : _state.Display.PlacementInBufferArea)
-            || group == MotionGroup.PcbPlacementHandler
-            && (live ? _state.Buffer.IsSupplyInside() : _state.Display.SupplyInBufferArea))
-            return false;
-
         var motion = _state.GetMotionStatus(group);
         return (!live || motion.Feedback.IsReady)
             && motion.Feedback.Axes.All(

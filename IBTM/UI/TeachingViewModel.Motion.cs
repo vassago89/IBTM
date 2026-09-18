@@ -48,14 +48,10 @@ public partial class TeachingViewModel
                 return TeachingMotionHint.NgPickupSafeXRequired;
             return ActiveMotionGroup switch
             {
-                MotionGroup.PcbSupply when _state.Display.PlacementInBufferArea
-                    => TeachingMotionHint.PlacementInBuffer,
                 MotionGroup.PcbSupply when _state.Display.SupplyInBufferArea
                     => TeachingMotionHint.SupplyInBufferRestricted,
                 MotionGroup.PcbSupply when CanEditTeaching && !CanJog(MotionAxis.X)
                     => TeachingMotionHint.SafeZRequired,
-                MotionGroup.PcbPlacementHandler when _state.Display.SupplyInBufferArea
-                    => TeachingMotionHint.SupplyInBuffer,
                 MotionGroup.PcbPlacementHandler when !_placementHandler.CanMoveHorizontal
                     => TeachingMotionHint.RaisePlacementCylinders,
                 MotionGroup.BoltFastening => TeachingMotionHint.BoltAdjustment,

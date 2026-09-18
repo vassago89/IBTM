@@ -347,8 +347,8 @@ public sealed partial class MachineController
                 + $"shooting head: {_fasteningGantry.ShootingHeadPosition}.";
         }
         else if (InspectionGantryEnabled
-            && ((!_inspectionGantry.CanMove && _inspectionGantry.Feedback.IsMoving)
-                || (_state.IsHoming && !_inspectionGantry.CanHome)))
+            && _inspectionGantry.Feedback.IsMoving
+            && (!_inspectionGantry.CanMove || _state.IsHoming && !_inspectionGantry.CanHome))
         {
             alarm = MachineAlarm.NgCarrierTransfer;
             interlockDetail = _state.IsHoming

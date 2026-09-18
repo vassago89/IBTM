@@ -27,7 +27,6 @@ public sealed partial class MachineController
             && motion.ServosOn
             && !motion.Faulted
             && _state.ServoMainContactorOn
-            && !motion.Homed
             && !_state.IsError
             && !(running ?? _state.IsRunning)
             && HomeBlock == HomeBlockReason.None
@@ -55,8 +54,7 @@ public sealed partial class MachineController
     private bool IsCylinderRaiseClear()
     {
         // Keep the IPM down while Placement holds a PCB.
-        return !Array.Exists(CarrierInputs, _io.GetInput)
-            && (!BufferHandlersEnabled || !_io.GetInput(InputIo.PcbPlacementPcbDetected));
+        return !BufferHandlersEnabled || !_io.GetInput(InputIo.PcbPlacementPcbDetected);
     }
 
     internal HomeBlockReason GetHomeBlock(MotionGroup? group = null)
