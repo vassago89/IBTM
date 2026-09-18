@@ -208,6 +208,13 @@ public sealed class MainConveyor : AutoUnit
             return MainConveyorState.WaitingForRearEquipment;
         }
 
+        if (_boltFasteningWork.CarrierPresent)
+        {
+            return _boltFasteningWork.Completed
+                ? MainConveyorState.WaitingForInspectionClear
+                : MainConveyorState.WaitingForBoltFastening;
+        }
+
         return _placementWork.CarrierPresent
             ? MainConveyorState.Idle
             : MainConveyorState.WaitingForFrontCarrier;
@@ -377,6 +384,16 @@ public sealed class MainConveyor : AutoUnit
         {
             MainConveyorState.WaitingForFrontCarrier => "Front 2 Available=ON (teaching: TEST, auto: DI)",
             MainConveyorState.WaitingForRearEquipment => "Rear Ready=ON (teaching: TEST, auto: DI)",
+            MainConveyorState.WaitingForBoltFastening =>
+                $"S2 work complete; enabled={_boltFasteningWork.Enabled}, completed={_boltFasteningWork.Completed}, "
+                    + $"plate={_boltFasteningWork.BackupPlate}, stopper={_boltFasteningWork.Stopper}, "
+                    + $"canTransfer={_boltFasteningWork.CanTransfer}, work={_boltFasteningWork.CurrentJob.Id}",
+            MainConveyorState.WaitingForInspectionClear =>
+                $"S3 vacant and NG pickup empty; S2 enabled={_boltFasteningWork.Enabled}, "
+                    + $"completed={_boltFasteningWork.Completed}, canTransfer={_boltFasteningWork.CanTransfer}; "
+                    + $"S3 canReceive={_inspectionWork.CanReceive}, HS1={_inspectionWork.HeatSinkPresent(HeatSinkSlot.HeatSink1)}, "
+                    + $"HS2={_inspectionWork.HeatSinkPresent(HeatSinkSlot.HeatSink2)}, "
+                    + $"NG carrier detected={_io.GetInput(InputIo.NgCarrierDetected)}",
             MainConveyorState.Idle => "station work complete and destination vacant",
             _ => null,
         });
@@ -572,16 +589,6 @@ public sealed class MainConveyor : AutoUnit
         var source = sourceWork.Station;
         var destination = destinationWork.Station;
         var departingJob = sourceWork.CurrentJob;
-        var transferred = 0;
-        void TransferArrivingWork(bool present)
-        {
-            if (present
-                && !cancellationToken.IsCancellationRequested
-                && Interlocked.Exchange(ref transferred, 1) == 0)
-            {
-                sourceWork.TransferAssembliesTo(destinationWork, departingJob);
-            }
-        }
         Exception? failure = null;
         try
         {
@@ -597,7 +604,6 @@ public sealed class MainConveyor : AutoUnit
                 throw new InvalidOperationException(
                     "Transfer requires the completed source carrier to remain seated and the destination to remain empty.");
             }
-            destination.CarrierChanged += TransferArrivingWork;
             await source.ReleaseAsync(cancellationToken);
             RequireSeatingPushPosition(destination);
             await RunToStationAsync(destinationWork, cancellationToken);
@@ -609,12 +615,15 @@ public sealed class MainConveyor : AutoUnit
         }
         finally
         {
-            destination.CarrierChanged -= TransferArrivingWork;
             StopOutputs(failure, OutputIo.MainConveyorRun);
         }
 
         if (!destination.CarrierPresent)
             throw new InvalidOperationException("Carrier presence was lost before raising the backup plate.");
+        cancellationToken.ThrowIfCancellationRequested();
+        // HS1 can pulse across carrier openings while it enters. Transfer results only
+        // after HS2 arrival and the seating push, before the station starts its work.
+        sourceWork.TransferAssembliesTo(destinationWork, departingJob);
         await destination.SeatAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
     }

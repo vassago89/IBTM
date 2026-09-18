@@ -370,6 +370,15 @@
                             Style="{StaticResource MapIoAddressStyle}"/>
                         <TextBlock Text="DI Heat sink 2" Style="{StaticResource MapIoLabelStyle}"/>
                     </DockPanel>
+                    <DockPanel Margin="0,0,0,4"
+                        ToolTip="S3 receives the next carrier after the NG pickup carrier sensor turns OFF.">
+                        <TextBlock
+                            Text="{Binding Signals.Inputs[NgCarrierDetected].IsOn, Converter={StaticResource SignalTextConverter}}"
+                            Style="{StaticResource MapIoInputStyle}"/>
+                        <TextBlock Text="{Binding Signals.Inputs[NgCarrierDetected].Address}"
+                            Style="{StaticResource MapIoAddressStyle}"/>
+                        <TextBlock Text="DI NG pickup carrier" Style="{StaticResource MapIoLabelStyle}"/>
+                    </DockPanel>
                 </StackPanel>
             </Border>
 

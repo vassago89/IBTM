@@ -333,6 +333,9 @@ public sealed partial class MachineLifecycleTests
         state.RequestDisplayRefresh();
         await WaitUntilAsync(() => !state.Display.Available);
         Assert.Same(error, state.Display.ReadError);
+        Assert.Equal(
+            MachineDisplayState.Unavailable,
+            services.GetRequiredService<OperationViewModel>().ConveyorStatus);
         Assert.False(state.Display.CanHome);
         Assert.False(state.Display.CanStart);
         Assert.Equal(MachineAlarm.None, state.Alarm);

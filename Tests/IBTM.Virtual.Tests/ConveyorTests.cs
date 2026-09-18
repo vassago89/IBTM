@@ -359,6 +359,8 @@ public sealed class ConveyorTests
         await SetSeatedCarrierAsync(
             io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
         var conveyor = CreateConveyor(io, boltFasteningEnabled: false);
+        var steps = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        conveyor.Trace += steps.Enqueue;
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var run = conveyor.RunAsync(cancellation.Token);
         try
@@ -366,6 +368,10 @@ public sealed class ConveyorTests
             await WaitForOutputAsync(io, OutputIo.PcbPlacementBackupPlateUp, false);
             Assert.True(io.GetOutput(OutputIo.InspectionBackupPlateUp));
             Assert.False(conveyor.RunCommandOn);
+            Assert.Equal(MainConveyorState.WaitingForInspectionClear, conveyor.State);
+            Assert.True(await WaitUntilAsync(
+                () => steps.Any(step => step.Contains("NG carrier detected=True")),
+                TimeSpan.FromSeconds(1)));
 
             io.SetInput(InputIo.NgCarrierDetected, false);
             await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
@@ -799,11 +805,18 @@ public sealed class ConveyorTests
             var nextJob = source.CurrentJob;
             Assert.NotSame(originalJob, nextJob);
             await source.Station.SeatAsync(default);
+            // The equipment's HS1 pulses several times before HS2 confirms arrival.
+            for (var pulse = 0; pulse < 3; pulse++)
+            {
+                io.SetInput(InputIo.InspectionHeatSink1Present, true);
+                io.SetInput(InputIo.InspectionHeatSink1Present, false);
+            }
             io.SetInputs(
-                (InputIo.InspectionHeatSink1Present, true),
+                (InputIo.InspectionHeatSink1Present, false),
                 (InputIo.InspectionHeatSink2Present, true));
             await signals.WaitForInputAsync(InputIo.InspectionBackupPlateUp, true);
 
+            Assert.Equal(originalJob.Id, destination.CurrentJob.Id);
             Assert.Same(assembly, Assert.Single(destination.Assemblies));
             Assert.Same(result, assembly.PcbBoltResults[1]);
             Assert.True(destination.HasNg);

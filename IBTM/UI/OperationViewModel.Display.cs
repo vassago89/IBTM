@@ -75,7 +75,7 @@ public partial class OperationViewModel
                 return HandlerDisplayState.Disabled;
             }
 
-            if (MainConveyorRun.IsOn is not { } running)
+            if (!State.Display.Available || MainConveyorRun.IsOn is not { } running)
             {
                 return MachineDisplayState.Unavailable;
             }

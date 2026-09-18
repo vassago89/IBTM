@@ -46,8 +46,11 @@ public sealed partial class MachineLifecycleTests
         io.SetInputs(
             (InputIo.MainConveyorAvailableFromFront2, false),
             (InputIo.MainConveyorReadyFromRear, false),
-            (InputIo.PcbPlacementHeatSink1Present, true),
+            (InputIo.PcbPlacementHeatSink1Present, false),
             (InputIo.PcbPlacementHeatSink2Present, true));
+        // Match the equipment case: HS2 only and the empty next station raised.
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, true);
+        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionStopperUp, true);
         io.OutputChanged += (output, value) =>
         {
             if (output == OutputIo.BoltFasteningBackupPlateUp)
@@ -65,7 +68,10 @@ public sealed partial class MachineLifecycleTests
                     + $"Alarm={state.AlarmMessage}");
             Assert.Equal(new[] { true, false }, fasteningPlate);
             Assert.False(fastening.CarrierPresent);
+            Assert.False(inspection.HeatSinkPresent(HeatSinkSlot.HeatSink1));
+            Assert.True(inspection.HeatSinkPresent(HeatSinkSlot.HeatSink2));
             Assert.False(conveyor.RunCommandOn);
+            Assert.True(state.AutomaticRunning);
             Assert.Equal(MachineAlarm.None, state.Alarm);
         }
         finally

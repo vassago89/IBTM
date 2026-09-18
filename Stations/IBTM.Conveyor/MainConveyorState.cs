@@ -36,4 +36,10 @@ public enum MainConveyorState
 
     [Description("Conveyor RUN output ON")]
     Running,
+
+    [Description("Waiting for S2 fastening completion")]
+    WaitingForBoltFastening,
+
+    [Description("Waiting for S3 / NG pickup to clear")]
+    WaitingForInspectionClear,
 }
