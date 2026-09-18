@@ -98,7 +98,6 @@ public partial class SettingsViewModel : ObservableObject
             .ToArray();
         InputMappingView = GroupMappings(InputMappings);
         OutputMappingView = GroupMappings(OutputMappings);
-        FeedbackMappings = OutputMappings.Where(row => row.Output?.Feedback is not null).ToArray();
     }
 
     public MachineSettings Settings { get; }
@@ -177,8 +176,6 @@ public partial class SettingsViewModel : ObservableObject
     public HardwareMappingRow[] AxisMappings { get; }
     public ICollectionView InputMappingView { get; }
     public ICollectionView OutputMappingView { get; }
-    public HardwareMappingRow[] FeedbackMappings { get; }
-    public static InputIo[] InputSignals { get; } = Enum.GetValues<InputIo>();
     public MotionGroup[] MotionGroups { get; }
 
     public MotionSettings CurrentMotionSettings

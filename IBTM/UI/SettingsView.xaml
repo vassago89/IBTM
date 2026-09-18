@@ -334,50 +334,10 @@
                     <StackPanel MaxWidth="1480" Margin="0,0,8,0">
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>
-                                <Grid Margin="0,0,0,14">
-                                    <TextBlock Text="Actuator Feedback" Style="{StaticResource SettingSectionTitle}" Margin="0"/>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                                        <TextBlock Text="Feedback / Stop Timeout (ms)" VerticalAlignment="Center"
-                                            Foreground="{StaticResource TextMutedBrush}" Margin="0,0,8,0"/>
-                                        <TextBox IsEnabled="{Binding CanEditSettings}"
-                                            Text="{Binding Settings.Options.TimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
-                                            Width="100"/>
-                                    </StackPanel>
-                                </Grid>
-                                <Grid Margin="6,0,6,5">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="1.2*"/>
-                                        <ColumnDefinition Width="1.4*"/>
-                                        <ColumnDefinition Width="1.4*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="OUTPUT" Style="{StaticResource SettingFieldLabel}"/>
-                                    <TextBlock Grid.Column="1" Text="ON INPUT" Style="{StaticResource SettingFieldLabel}"/>
-                                    <TextBlock Grid.Column="2" Text="OFF INPUT" Style="{StaticResource SettingFieldLabel}"/>
-                                </Grid>
-                                <ListBox IsEnabled="{Binding CanEditSettings}"
-                                    ItemsSource="{Binding FeedbackMappings}"
-                                    Style="{StaticResource PanelListStyle}" MaxHeight="240"
-                                    ItemContainerStyle="{StaticResource HardwareListItem}">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate DataType="{x:Type ui:HardwareMappingRow}">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="1.2*"/>
-                                                    <ColumnDefinition Width="1.4*"/>
-                                                    <ColumnDefinition Width="1.4*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding Signal, Converter={StaticResource EnumDescriptionConverter}}"
-                                                    VerticalAlignment="Center"/>
-                                                <ComboBox Grid.Column="1" ItemsSource="{x:Static ui:SettingsViewModel.InputSignals}"
-                                                    SelectedItem="{Binding Output.Feedback.OnInput, Mode=TwoWay}"
-                                                    MinWidth="0" Padding="5,3"/>
-                                                <ComboBox Grid.Column="2" ItemsSource="{x:Static ui:SettingsViewModel.InputSignals}"
-                                                    SelectedItem="{Binding Output.Feedback.OffInput, Mode=TwoWay}"
-                                                    MinWidth="0" Padding="5,3"/>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
+                                <TextBlock Text="Feedback / Stop Timeout (ms)" Style="{StaticResource SettingFieldLabel}"/>
+                                <TextBox IsEnabled="{Binding CanEditSettings}"
+                                    Text="{Binding Settings.Options.TimeoutMilliseconds, UpdateSourceTrigger=PropertyChanged}"
+                                    Width="100" HorizontalAlignment="Left"/>
                             </StackPanel>
                         </Border>
 

@@ -6,7 +6,9 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using IBTM.Conveyor;
 using IBTM.Device;
+using IBTM.Inspection;
 using IBTM.Storage;
+using IBTM.Virtual;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
@@ -15,6 +17,105 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class MachineStoreTests
 {
+    [Theory]
+    [InlineData("NgCarrierPickupUp", "NgCarrierGripperOpen")]
+    [InlineData("NgCarrierPickupDown", "NgCarrierGripperClose")]
+    public async Task NamedIoSettingsLoadWithFixedIdsAndStationFeedback(string pickupName, string gripperName)
+    {
+        var store = new MachineStore(Path.Combine(CreateDirectory(), "Machine.db"));
+        var json = $$$"""
+            {"Outputs":{
+                "{{{pickupName}}}":{"Number":101,"OffNumber":102,"Feedback":{"OnInput":"NgCarrierPickupUp","OffInput":"NgCarrierPickupDown"}},
+                "{{{gripperName}}}":{"Number":103,"OffNumber":104,"Feedback":{"OnInput":"NgCarrierGripperOpen","OffInput":"NgCarrierGripperClosed"}}
+            },"Inputs":{"NgCarrierPickupDown":91,"NgCarrierPickupUp":92,"NgCarrierGripperClosed":93,"NgCarrierGripperOpen":94,"NgCarrierDetected":95}}
+            """;
+        using var connection = new SqliteConnection($"Data Source={store.DatabaseFile}");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "INSERT INTO Settings (Key, Value) VALUES ('NgCarrierTransferHardwareSettings', $value)";
+        command.Parameters.AddWithValue("$value", json);
+        command.ExecuteNonQuery();
+
+        var loaded = await MachineSettings.LoadAsync(store);
+        var hardware = loaded.NgCarrierTransferHardware;
+        var pickup = hardware.Outputs[OutputIo.NgCarrierPickupDown];
+        var gripper = hardware.Outputs[OutputIo.NgCarrierGripperClose];
+        Assert.Equal(101, pickup.Number);
+        Assert.Equal(102, pickup.OffNumber);
+        Assert.Equal(103, gripper.Number);
+        Assert.Equal(104, gripper.OffNumber);
+        Assert.Equal(91, hardware.Inputs[InputIo.NgCarrierPickupDown]);
+        Assert.Equal(92, hardware.Inputs[InputIo.NgCarrierPickupUp]);
+        Assert.Equal(InputIo.NgCarrierPickupDown, pickup.Feedback!.OnInput);
+        Assert.Equal(InputIo.NgCarrierPickupUp, pickup.Feedback.OffInput);
+        Assert.Equal(InputIo.NgCarrierGripperClosed, gripper.Feedback!.OnInput);
+        Assert.Equal(InputIo.NgCarrierGripperOpen, gripper.Feedback.OffInput);
+
+        var io = new VirtualIoService(hardware.Outputs, new() { TimeoutMilliseconds = 100 })
+        {
+            AutoResponseEnabled = false,
+        };
+        var transfer = new NgCarrierTransfer(io);
+        io.SetInput(InputIo.NgCarrierPickupUp, true);
+        io.SetInput(InputIo.NgCarrierPickupDown, false);
+        var lowering = transfer.SetLiftUpAsync(false);
+        Assert.True(io.GetOutput(OutputIo.NgCarrierPickupDown));
+        Assert.False(lowering.IsCompleted);
+        io.SetInput(InputIo.NgCarrierPickupUp, false);
+        io.SetInput(InputIo.NgCarrierPickupDown, true);
+        await lowering;
+
+        command.Parameters.Clear();
+        command.CommandText = "SELECT Value FROM Settings WHERE Key = 'NgCarrierTransferHardwareSettings'";
+        Assert.Equal(json, command.ExecuteScalar()); // Loading never rewrites the database.
+        await loaded.SaveAsync(store);
+        using var saved = JsonDocument.Parse((string)command.ExecuteScalar()!);
+        var outputs = saved.RootElement.GetProperty("Outputs");
+        Assert.Equal(101, outputs.GetProperty("20").GetProperty("Number").GetInt32());
+        Assert.Equal(103, outputs.GetProperty("21").GetProperty("Number").GetInt32());
+        Assert.False(outputs.GetProperty("20").TryGetProperty("Feedback", out _));
+        var reopened = await MachineSettings.LoadAsync(new MachineStore(store.DatabaseFile));
+        Assert.Equal(101, reopened.NgCarrierTransferHardware.Outputs[OutputIo.NgCarrierPickupDown].Number);
+        Assert.Equal(InputIo.NgCarrierPickupDown,
+            reopened.NgCarrierTransferHardware.Outputs[OutputIo.NgCarrierPickupDown].Feedback!.OnInput);
+    }
+
+    [Fact]
+    public void SignalIdsRemainIndependentOfNamesAndRejectUnknownSignals()
+    {
+        Assert.Equal("20", JsonSerializer.Serialize(OutputIo.NgCarrierPickupDown));
+        Assert.Equal("21", JsonSerializer.Serialize(OutputIo.NgCarrierGripperClose));
+        Assert.Equal(OutputIo.NgCarrierPickupDown, JsonSerializer.Deserialize<OutputIo>("20"));
+        Assert.Equal(OutputIo.NgCarrierPickupDown, JsonSerializer.Deserialize<OutputIo>("\"NgCarrierPickupUp\""));
+        Assert.Equal(OutputIo.NgCarrierPickupDown, JsonSerializer.Deserialize<OutputIo>("\"NgCarrierPickupDown\""));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<OutputIo>("9999"));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<NgCarrierTransferHardwareSettings>(
+            """{"Outputs":{"UnknownOutput":{"Number":101}}}"""));
+    }
+
+    [Fact]
+    public void OldConveyorNamesUseCurrentDefinitionsAndKeepEditedAddresses()
+    {
+        var hardware = JsonSerializer.Deserialize<ConveyorHardwareSettings>("""
+            {"Inputs":{"MainConveyorAutoMode":153},"Outputs":{
+                "PcbPlacementStopperDown":{"Number":125,"OffNumber":126,"Feedback":{"OnInput":"PcbPlacementStopperDown","OffInput":"PcbPlacementStopperUp"}},
+                "PcbPlacementBackupPlateDown":{"Number":127,"OffNumber":128,"Feedback":{"OnInput":"PcbPlacementBackupPlateDown","OffInput":"PcbPlacementBackupPlateUp"}}
+            }}
+            """)!;
+        Assert.Equal(153, hardware.Inputs[InputIo.MainConveyorManualMode]);
+        Assert.Equal(2, hardware.Outputs.Count); // Do not add missing addresses.
+        var stopper = hardware.Outputs[OutputIo.PcbPlacementStopperUp];
+        Assert.Equal(125, stopper.Number);
+        Assert.Equal(126, stopper.OffNumber);
+        Assert.Equal(InputIo.PcbPlacementStopperUp, stopper.Feedback!.OnInput);
+        Assert.Equal(InputIo.PcbPlacementStopperDown, stopper.Feedback.OffInput);
+        var plate = hardware.Outputs[OutputIo.PcbPlacementBackupPlateUp];
+        Assert.Equal(127, plate.Number);
+        Assert.Equal(128, plate.OffNumber);
+        Assert.Equal(InputIo.PcbPlacementBackupPlateUp, plate.Feedback!.OnInput);
+        Assert.Equal(InputIo.PcbPlacementBackupPlateDown, plate.Feedback.OffInput);
+    }
+
     [Fact]
     public void OpeningDatabaseDoesNotRewriteSavedJson()
     {
@@ -64,8 +165,6 @@ public sealed class MachineStoreTests
         settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyIpmFixerForward] = 24;
         settings.PcbSupplyHardware.Inputs[InputIo.PcbSupplyIpmFixerBackward] = 25;
         settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].OffNumber = 25;
-        settings.PcbSupplyHardware.Outputs[OutputIo.PcbSupplyIpmFixerForward].Feedback = new(
-            InputIo.PcbSupplyIpmFixerForward, InputIo.PcbSupplyIpmFixerBackward);
         settings.ConveyorHardware.Inputs[InputIo.MainConveyorEntryCarrierDetected] = 91;
         settings.ConveyorHardware.Inputs[InputIo.MainConveyorExitCarrierDetected] = 92;
         settings.ConveyorHardware.Inputs[InputIo.PcbPlacementStopperUp] = 57;
@@ -74,7 +173,6 @@ public sealed class MachineStoreTests
         settings.ConveyorHardware.Outputs[OutputIo.PcbPlacementStopperUp].OffNumber = 97;
         settings.NgConveyorHardware.Inputs.Remove(InputIo.NgConveyorStopperUp);
         settings.NgConveyorHardware.Inputs.Remove(InputIo.NgConveyorStopperDown);
-        settings.NgConveyorHardware.Outputs[OutputIo.NgConveyorStopperUp].Feedback = null;
         settings.BoltFasteningStationHardware.Inputs[InputIo.BoltFasteningHeatSink1Present] = 61;
         settings.BoltFasteningStationHardware.Inputs[InputIo.BoltFasteningHeatSink2Present] = 62;
         settings.InspectionStationHardware.Inputs[InputIo.InspectionHeatSink1Present] = 68;

@@ -9,14 +9,15 @@ namespace IBTM.Device;
 
 public sealed class OutputFeedback(InputIo onInput, InputIo? offInput = null)
 {
-    public InputIo OnInput { get; set; } = onInput;
-    public InputIo? OffInput { get; set; } = offInput;
+    public InputIo OnInput { get; } = onInput;
+    public InputIo? OffInput { get; } = offInput;
 }
 
 public sealed class OutputHardware
 {
     public int Number { get; set; }
     public int? OffNumber { get; set; }
+    [JsonIgnore]
     public OutputFeedback? Feedback { get; set; }
 }
 
@@ -93,7 +94,25 @@ public abstract class InputHardwareSettings : HardwareSettings
 
 public abstract class IoHardwareSettings : InputHardwareSettings
 {
-    public Dictionary<OutputIo, OutputHardware> Outputs { get; set; } = [];
+    private Dictionary<OutputIo, OutputHardware> _outputs = [];
+
+    public Dictionary<OutputIo, OutputHardware> Outputs
+    {
+        get
+        {
+            return _outputs;
+        }
+        set
+        {
+            // Loading addresses must retain the station's completion-sensor definition.
+            foreach (var (signal, output) in value)
+            {
+                if (_outputs.TryGetValue(signal, out var definition))
+                    output.Feedback = definition.Feedback;
+            }
+            _outputs = value;
+        }
+    }
 
     protected static OutputHardware Output(int number)
     {

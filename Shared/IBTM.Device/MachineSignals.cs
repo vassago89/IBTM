@@ -3,455 +3,470 @@ using System.Text.Json.Serialization;
 
 namespace IBTM.Device;
 
-[JsonConverter(typeof(JsonStringEnumConverter<InputIo>))]
+// Persisted IDs: never renumber or reuse; these are not hardware channel numbers.
+[JsonConverter(typeof(SignalIdJsonConverter<InputIo>))]
 public enum InputIo
 {
     [Description("Available From Front 2 (Heat Sink)")]
-    MainConveyorAvailableFromFront2,
+    MainConveyorAvailableFromFront2 = 0,
 
     [Description("Unused (former PCB buffer sensor)")]
-    PcbBufferPcbPresent,
+    PcbBufferPcbPresent = 1,
 
     [Description("PCB Placement Stopper Up")]
-    PcbPlacementStopperUp,
+    PcbPlacementStopperUp = 2,
 
     [Description("PCB Placement Stopper Down")]
-    PcbPlacementStopperDown,
+    PcbPlacementStopperDown = 3,
 
     [Description("PCB Placement Heat Sink 1 Present")]
-    PcbPlacementHeatSink1Present,
+    PcbPlacementHeatSink1Present = 4,
 
     [Description("PCB Placement Backup Plate Up")]
-    PcbPlacementBackupPlateUp,
+    PcbPlacementBackupPlateUp = 5,
 
     [Description("PCB Placement Backup Plate Down")]
-    PcbPlacementBackupPlateDown,
+    PcbPlacementBackupPlateDown = 6,
 
     [Description("Placement IPM Gripper Closed")]
-    PcbPlacementIpmGripperClosed,
+    PcbPlacementIpmGripperClosed = 7,
 
     [Description("Placement IPM Gripper Open")]
-    PcbPlacementIpmGripperOpen,
+    PcbPlacementIpmGripperOpen = 8,
 
     [Description("PCB Placement Heat Sink 2 Present")]
-    PcbPlacementHeatSink2Present,
+    PcbPlacementHeatSink2Present = 9,
 
     [Description("Unused (former Station 1 carrier sensor)")]
-    PcbPlacementCarrierPresent,
+    PcbPlacementCarrierPresent = 10,
 
     [Description("Available From Front 1 (PCB)")]
-    PcbSupplyAvailableFromFront1,
+    PcbSupplyAvailableFromFront1 = 11,
 
     [Description("Supply Handler Unrotated")]
-    PcbSupplyUnrotated,
+    PcbSupplyUnrotated = 12,
 
     [Description("Supply Handler Rotated")]
-    PcbSupplyRotated,
+    PcbSupplyRotated = 13,
 
     [Description("Supply Gripper Closed")]
-    PcbSupplyGripperClosed,
+    PcbSupplyGripperClosed = 14,
 
     [Description("Supply Gripper Open")]
-    PcbSupplyGripperOpen,
+    PcbSupplyGripperOpen = 15,
 
     [Description("Supply IPM Fixer Forward")]
-    PcbSupplyIpmFixerForward,
+    PcbSupplyIpmFixerForward = 16,
 
     [Description("Unused (former Supply IPM backward sensor)")]
-    PcbSupplyIpmFixerBackward,
+    PcbSupplyIpmFixerBackward = 17,
 
     [Description("Bolt Fastening Stopper Up")]
-    BoltFasteningStopperUp,
+    BoltFasteningStopperUp = 18,
 
     [Description("Bolt Fastening Stopper Down")]
-    BoltFasteningStopperDown,
+    BoltFasteningStopperDown = 19,
 
     [Description("Bolt Fastening Heat Sink 1 Present")]
-    BoltFasteningHeatSink1Present,
+    BoltFasteningHeatSink1Present = 20,
 
     [Description("Bolt Fastening Backup Plate Up")]
-    BoltFasteningBackupPlateUp,
+    BoltFasteningBackupPlateUp = 21,
 
     [Description("Bolt Fastening Backup Plate Down")]
-    BoltFasteningBackupPlateDown,
+    BoltFasteningBackupPlateDown = 22,
 
     [Description("Bolt Fastening Heat Sink 2 Present")]
-    BoltFasteningHeatSink2Present,
+    BoltFasteningHeatSink2Present = 23,
 
     [Description("Unused (former Station 2 carrier sensor)")]
-    BoltFasteningCarrierPresent,
+    BoltFasteningCarrierPresent = 24,
 
     [Description("Shooting Head Vacuum Detected (Head 2)")]
-    ShootingHeadVacuumDetected,
+    ShootingHeadVacuumDetected = 25,
 
     [Description("Placement Handler Down")]
-    PcbPlacementHandlerDown,
+    PcbPlacementHandlerDown = 26,
 
     [Description("Placement Handler Up")]
-    PcbPlacementHandlerUp,
+    PcbPlacementHandlerUp = 27,
 
     [Description("Placement Handler Rotated")]
-    PcbPlacementHandlerRotated,
+    PcbPlacementHandlerRotated = 28,
 
     [Description("Placement Handler Unrotated")]
-    PcbPlacementHandlerUnrotated,
+    PcbPlacementHandlerUnrotated = 29,
 
     [Description("Placement IPM Down")]
-    PcbPlacementIpmDown,
+    PcbPlacementIpmDown = 30,
 
     [Description("Placement IPM Up")]
-    PcbPlacementIpmUp,
+    PcbPlacementIpmUp = 31,
 
     [Description("Placement Vacuum Detected")]
-    PcbPlacementVacuumDetected,
+    PcbPlacementVacuumDetected = 32,
 
     [Description("Pickup Head Down (Head 1)")]
-    PickupHeadDown,
+    PickupHeadDown = 33,
 
     [Description("Pickup Head Up (Head 1)")]
-    PickupHeadUp,
+    PickupHeadUp = 34,
 
     [Description("Shooting Head Down (Head 2)")]
-    ShootingHeadDown,
+    ShootingHeadDown = 35,
 
     [Description("Shooting Head Up (Head 2)")]
-    ShootingHeadUp,
+    ShootingHeadUp = 36,
 
     [Description("Pickup Head Vacuum Detected (Head 1)")]
-    PickupHeadVacuumDetected,
+    PickupHeadVacuumDetected = 37,
 
     [Description("Shooting Feeder Bolt Detected (Linear)")]
-    ShootingFeederBoltDetected,
+    ShootingFeederBoltDetected = 38,
 
     [Description("Shooting Tube Bolt Detected")]
-    ShootingTubeBoltDetected,
+    ShootingTubeBoltDetected = 39,
 
     [Description("Shooting Escape Forward")]
-    ShootingEscapeForward,
+    ShootingEscapeForward = 40,
 
     [Description("Shooting Escape Backward")]
-    ShootingEscapeBackward,
+    ShootingEscapeBackward = 41,
 
     [Description("Pickup Feeder Bolt Detected")]
-    PickupFeederBoltDetected,
+    PickupFeederBoltDetected = 42,
 
     [Description("Inspection Stopper Up")]
-    InspectionStopperUp,
+    InspectionStopperUp = 43,
 
     [Description("Inspection Stopper Down")]
-    InspectionStopperDown,
+    InspectionStopperDown = 44,
 
     [Description("Inspection Heat Sink 1 Present")]
-    InspectionHeatSink1Present,
+    InspectionHeatSink1Present = 45,
 
     [Description("Inspection Backup Plate Up")]
-    InspectionBackupPlateUp,
+    InspectionBackupPlateUp = 46,
 
     [Description("Inspection Backup Plate Down")]
-    InspectionBackupPlateDown,
+    InspectionBackupPlateDown = 47,
 
     [Description("NG Carrier Gripper Closed")]
-    NgCarrierGripperClosed,
+    NgCarrierGripperClosed = 48,
 
     [Description("NG Carrier Gripper Open")]
-    NgCarrierGripperOpen,
+    NgCarrierGripperOpen = 49,
 
     [Description("Inspection Heat Sink 2 Present")]
-    InspectionHeatSink2Present,
+    InspectionHeatSink2Present = 50,
 
     [Description("Unused (former Station 3 carrier sensor)")]
-    InspectionCarrierPresent,
+    InspectionCarrierPresent = 51,
 
     [Description("NG Carrier Pickup Down")]
-    NgCarrierPickupDown,
+    NgCarrierPickupDown = 52,
 
     [Description("NG Carrier Pickup Up")]
-    NgCarrierPickupUp,
+    NgCarrierPickupUp = 53,
 
     [Description("NG Carrier Detected")]
-    NgCarrierDetected,
+    NgCarrierDetected = 54,
 
     [Description("NG Shuttle Down")]
-    NgShuttleDown,
+    NgShuttleDown = 55,
 
     [Description("NG Shuttle Up")]
-    NgShuttleUp,
+    NgShuttleUp = 56,
 
     [Description("NG Shuttle Carrier Detected (P3)")]
-    NgShuttleCarrierDetected,
+    NgShuttleCarrierDetected = 57,
 
     [Description("NG Conveyor Position 1 Occupied")]
-    NgConveyorPosition1Occupied,
+    NgConveyorPosition1Occupied = 58,
 
     [Description("NG Conveyor Position 2 Occupied")]
-    NgConveyorPosition2Occupied,
+    NgConveyorPosition2Occupied = 59,
 
     [Description("NG Conveyor Stopper Up")]
-    NgConveyorStopperUp,
+    NgConveyorStopperUp = 60,
 
     [Description("NG Conveyor Stopper Down")]
-    NgConveyorStopperDown,
+    NgConveyorStopperDown = 61,
 
     [Description("NG Carrier Eject Button")]
-    NgCarrierEjectButton,
+    NgCarrierEjectButton = 62,
 
     [Description("NG Carrier Eject Complete Button")]
-    NgCarrierEjectCompleteButton,
+    NgCarrierEjectCompleteButton = 63,
 
     [Description("Ready From Rear")]
-    MainConveyorReadyFromRear,
+    MainConveyorReadyFromRear = 64,
 
     [Description("Emergency Stop 1 Pressed")]
-    EmergencyStop1Pressed,
+    EmergencyStop1Pressed = 65,
 
     [Description("Emergency Stop 2 Pressed")]
-    EmergencyStop2Pressed,
+    EmergencyStop2Pressed = 66,
     // Keep the persisted mapping key; the physical contact is ON in MANUAL.
     [Description("Auto / Manual Selector")]
-    AutoMode,
+    AutoMode = 67,
 
     [Description("Reset Button")]
-    ResetButton,
+    ResetButton = 68,
     // Preserve existing database mapping keys; ON means the door is CLOSED.
     [Description("Door 1 Closed")]
-    Door1Open,
+    Door1Open = 69,
 
     [Description("Door 2 Closed")]
-    Door2Open,
+    Door2Open = 70,
 
     [Description("Door 3 Closed")]
-    Door3Open,
+    Door3Open = 71,
 
     [Description("Door 4 Closed")]
-    Door4Open,
+    Door4Open = 72,
 
     [Description("Door 5 Closed")]
-    Door5Open,
+    Door5Open = 73,
 
     [Description("Door 6 Closed")]
-    Door6Open,
+    Door6Open = 74,
 
     [Description("Servo Main Contactor On")]
-    ServoMainContactorOn,
+    ServoMainContactorOn = 75,
 
     [Description("Air Pressure High")]
-    AirPressureHigh,
+    AirPressureHigh = 76,
 
     [Description("Placement Handler PCB Detected")]
-    PcbPlacementPcbDetected,
+    PcbPlacementPcbDetected = 77,
 
     [Description("Supply Handler PCB Detected")]
-    PcbSupplyPcbDetected,
+    PcbSupplyPcbDetected = 78,
 
     [Description("Main Conveyor Entry Carrier Detected")]
-    MainConveyorEntryCarrierDetected,
+    MainConveyorEntryCarrierDetected = 79,
 
     [Description("Main Conveyor Exit Carrier Detected")]
-    MainConveyorExitCarrierDetected,
+    MainConveyorExitCarrierDetected = 80,
 
     [Description("Main Conveyor Manual Input")]
-    MainConveyorManualMode,
+    [JsonStringEnumMemberName("MainConveyorAutoMode")]
+    MainConveyorManualMode = 81,
 
     [Description("NG Conveyor Manual Input")]
-    NgConveyorManualMode,
+    [JsonStringEnumMemberName("NgConveyorAutoMode")]
+    NgConveyorManualMode = 82,
 
     [Description("Pickup Controller Ready (Head 1)")]
-    PickupBoltReady,
+    PickupBoltReady = 83,
     [Description("Pickup Controller Alarm (Head 1)")]
-    PickupBoltAlarm,
+    PickupBoltAlarm = 84,
     [Description("Pickup Controller FASTEN (Head 1)")]
-    PickupBoltFasten,
+    PickupBoltFasten = 85,
     [Description("Shooting Controller Ready (Head 2)")]
-    ShootingBoltReady,
+    ShootingBoltReady = 86,
     [Description("Shooting Controller Alarm (Head 2)")]
-    ShootingBoltAlarm,
+    ShootingBoltAlarm = 87,
     [Description("Shooting Controller FASTEN (Head 2)")]
-    ShootingBoltFasten,
+    ShootingBoltFasten = 88,
 }
 
-[JsonConverter(typeof(JsonStringEnumConverter<OutputIo>))]
+// Persisted IDs: never renumber or reuse; these are not hardware channel numbers.
+[JsonConverter(typeof(SignalIdJsonConverter<OutputIo>))]
 public enum OutputIo
 {
     [Description("Ready To Front 2 (Heat Sink)")]
-    MainConveyorReadyToFront2,
+    MainConveyorReadyToFront2 = 0,
 
     [Description("PCB Placement Stopper Up")]
-    PcbPlacementStopperUp,
+    [JsonStringEnumMemberName("PcbPlacementStopperDown")]
+    PcbPlacementStopperUp = 1,
 
     [Description("PCB Placement Backup Plate Up")]
-    PcbPlacementBackupPlateUp,
+    [JsonStringEnumMemberName("PcbPlacementBackupPlateDown")]
+    PcbPlacementBackupPlateUp = 2,
 
     [Description("Placement IPM Gripper Close")]
-    PcbPlacementIpmGripperClose,
+    PcbPlacementIpmGripperClose = 3,
 
     [Description("Ready To Front 1 (PCB)")]
-    PcbSupplyReadyToFront1,
+    PcbSupplyReadyToFront1 = 4,
 
     [Description("Supply Handler Rotate")]
-    PcbSupplyRotate,
+    PcbSupplyRotate = 5,
 
     [Description("Supply Gripper Closed")]
-    PcbSupplyGripperClosed,
+    PcbSupplyGripperClosed = 6,
 
     [Description("Supply IPM Fixer Forward")]
-    PcbSupplyIpmFixerForward,
+    PcbSupplyIpmFixerForward = 7,
 
     [Description("Placement Handler Down")]
-    PcbPlacementHandlerDown,
+    PcbPlacementHandlerDown = 8,
 
     [Description("Placement Handler Rotate")]
-    PcbPlacementHandlerRotate,
+    PcbPlacementHandlerRotate = 9,
 
     [Description("Placement IPM Down")]
-    PcbPlacementIpmDown,
+    PcbPlacementIpmDown = 10,
 
     [Description("Placement Vacuum Ejector")]
-    PcbPlacementVacuumEjector,
+    PcbPlacementVacuumEjector = 11,
 
     [Description("Pickup Head Up (Head 1)")]
-    PickupHeadUp,
+    PickupHeadUp = 12,
 
     [Description("Shooting Head Up (Head 2)")]
-    ShootingHeadUp,
+    ShootingHeadUp = 13,
 
     [Description("Pickup Head Vacuum Pump (Head 1)")]
-    PickupHeadVacuumPump,
+    PickupHeadVacuumPump = 14,
 
     [Description("Bolt Fastening Stopper Up")]
-    BoltFasteningStopperUp,
+    [JsonStringEnumMemberName("BoltFasteningStopperDown")]
+    BoltFasteningStopperUp = 15,
 
     [Description("Bolt Fastening Backup Plate Up")]
-    BoltFasteningBackupPlateUp,
+    [JsonStringEnumMemberName("BoltFasteningBackupPlateDown")]
+    BoltFasteningBackupPlateUp = 16,
 
     [Description("Shooting Head Vacuum Pump (Head 2)")]
-    ShootingHeadVacuumPump,
+    ShootingHeadVacuumPump = 17,
 
     [Description("Inspection Stopper Up")]
-    InspectionStopperUp,
+    [JsonStringEnumMemberName("InspectionStopperDown")]
+    InspectionStopperUp = 18,
 
     [Description("Inspection Backup Plate Up")]
-    InspectionBackupPlateUp,
+    [JsonStringEnumMemberName("InspectionBackupPlateDown")]
+    InspectionBackupPlateUp = 19,
 
     [Description("NG Carrier Pickup Down")]
-    NgCarrierPickupDown,
+    [JsonStringEnumMemberName("NgCarrierPickupUp")]
+    NgCarrierPickupDown = 20,
 
     [Description("NG Carrier Gripper Close")]
-    NgCarrierGripperClose,
+    [JsonStringEnumMemberName("NgCarrierGripperOpen")]
+    NgCarrierGripperClose = 21,
 
     [Description("NG Shuttle Down")]
-    NgShuttleDown,
+    [JsonStringEnumMemberName("NgShuttleUp")]
+    NgShuttleDown = 22,
 
     [Description("Shooting Feeder Run (Linear)")]
-    ShootingFeederRunSignal,
+    ShootingFeederRunSignal = 23,
 
     [Description("Shooting Escape Forward")]
-    ShootingEscapeForward,
+    ShootingEscapeForward = 24,
 
     [Description("Shoot Bolt")]
-    ShootBolt,
+    ShootBolt = 25,
 
     [Description("Main Conveyor Run")]
-    MainConveyorRun,
+    MainConveyorRun = 26,
 
     [Description("Main Conveyor Forward")]
-    MainConveyorForward,
+    MainConveyorForward = 27,
 
     [Description("NG Conveyor Stopper Up")]
-    NgConveyorStopperUp,
+    [JsonStringEnumMemberName("NgConveyorStopperDown")]
+    NgConveyorStopperUp = 28,
 
     [Description("NG Conveyor Run")]
-    NgConveyorRun,
+    NgConveyorRun = 29,
 
     [Description("NG Conveyor Reverse")]
-    NgConveyorReverse,
+    NgConveyorReverse = 30,
 
     [Description("NG Carrier Eject Lamp")]
-    NgCarrierEjectLamp,
+    NgCarrierEjectLamp = 31,
 
     [Description("NG Carrier Eject Complete Lamp")]
-    NgCarrierEjectCompleteLamp,
+    NgCarrierEjectCompleteLamp = 32,
 
     [Description("Available To Rear")]
-    MainConveyorAvailableToRear,
+    MainConveyorAvailableToRear = 33,
 
     [Description("Tower Lamp Green")]
-    TowerLampGreen,
+    TowerLampGreen = 34,
 
     [Description("Tower Lamp Yellow")]
-    TowerLampYellow,
+    TowerLampYellow = 35,
 
     [Description("Tower Lamp Red")]
-    TowerLampRed,
+    TowerLampRed = 36,
 
     [Description("Buzzer")]
-    Buzzer,
+    Buzzer = 37,
 
     [Description("Machine Light")]
-    MachineLight,
+    MachineLight = 38,
 
     [Description("Pickup Controller Preset 1 (Head 1)")]
-    PickupBoltPreset1,
+    PickupBoltPreset1 = 39,
     [Description("Pickup Controller Preset 2 (Head 1)")]
-    PickupBoltPreset2,
+    PickupBoltPreset2 = 40,
     [Description("Pickup Controller Preset 3 (Head 1)")]
-    PickupBoltPreset3,
+    PickupBoltPreset3 = 41,
     [Description("Pickup Controller Start (Head 1)")]
-    PickupBoltStart,
+    PickupBoltStart = 42,
     [Description("Pickup Controller FWD/BWD (Head 1)")]
-    PickupBoltDirection,
+    PickupBoltDirection = 43,
     [Description("Pickup Controller Lock (Head 1)")]
-    PickupBoltLock,
+    PickupBoltLock = 44,
     [Description("Pickup Controller Reset (Head 1)")]
-    PickupBoltReset,
+    PickupBoltReset = 45,
     [Description("Shooting Controller Preset 1 (Head 2)")]
-    ShootingBoltPreset1,
+    ShootingBoltPreset1 = 46,
     [Description("Shooting Controller Preset 2 (Head 2)")]
-    ShootingBoltPreset2,
+    ShootingBoltPreset2 = 47,
     [Description("Shooting Controller Preset 3 (Head 2)")]
-    ShootingBoltPreset3,
+    ShootingBoltPreset3 = 48,
     [Description("Shooting Controller Start (Head 2)")]
-    ShootingBoltStart,
+    ShootingBoltStart = 49,
     [Description("Shooting Controller FWD/BWD (Head 2)")]
-    ShootingBoltDirection,
+    ShootingBoltDirection = 50,
     [Description("Shooting Controller Lock (Head 2)")]
-    ShootingBoltLock,
+    ShootingBoltLock = 51,
     [Description("Shooting Controller Reset (Head 2)")]
-    ShootingBoltReset,
+    ShootingBoltReset = 52,
 }
 
-[JsonConverter(typeof(JsonStringEnumConverter<MachineAxis>))]
+// Persisted IDs: never renumber or reuse; these are not hardware channel numbers.
+[JsonConverter(typeof(SignalIdJsonConverter<MachineAxis>))]
 public enum MachineAxis
 {
     [Description("PCB Supply Handler X")]
-    PcbSupplyX,
+    PcbSupplyX = 0,
 
     [Description("PCB Supply Handler Y")]
-    PcbSupplyY,
+    PcbSupplyY = 1,
 
     [Description("PCB Supply Handler Z")]
-    PcbSupplyZ,
+    PcbSupplyZ = 2,
 
     [Description("PCB Placement Handler X")]
-    PcbPlacementHandlerX,
+    PcbPlacementHandlerX = 3,
 
     [Description("PCB Placement Handler Y")]
-    PcbPlacementHandlerY,
+    PcbPlacementHandlerY = 4,
 
     [Description("PCB Placement Handler Z")]
-    PcbPlacementHandlerZ,
+    PcbPlacementHandlerZ = 5,
 
     [Description("Bolt Fastening X")]
-    BoltFasteningX,
+    BoltFasteningX = 6,
 
     [Description("Bolt Fastening Y")]
-    BoltFasteningY,
+    BoltFasteningY = 7,
 
     [Description("Bolt Fastening Z")]
-    BoltFasteningZ,
+    BoltFasteningZ = 8,
 
     [Description("Inspection Gantry X")]
-    InspectionGantryX,
+    InspectionGantryX = 9,
 
     [Description("Inspection Gantry Y")]
-    InspectionGantryY,
+    InspectionGantryY = 10,
 }

@@ -490,7 +490,6 @@ public sealed class AlarmRecoveryTests
             var originalOutput = (runningOutput.Number, runningOutput.OffNumber, runningOutput.Feedback!.OnInput);
             output.Number = 80;
             output.OffNumber = 81;
-            output.Feedback!.OnInput = InputIo.InspectionStopperUp;
             axis.Number = 12;
 
             view.Settings.AlphaMotion.ControllerNumber = 3;
@@ -514,7 +513,7 @@ public sealed class AlarmRecoveryTests
             var saved = services.GetRequiredService<MachineStore>().LoadSettings();
             var savedOutput = saved.Get<ConveyorHardwareSettings>().Outputs[OutputIo.PcbPlacementStopperUp];
             var savedAxis = saved.Get<InspectionGantryHardwareSettings>().Axes[MachineAxis.InspectionGantryX];
-            Assert.Equal((80, (int?)81, InputIo.InspectionStopperUp),
+            Assert.Equal((80, (int?)81, InputIo.PcbPlacementStopperUp),
                 (savedOutput.Number, savedOutput.OffNumber, savedOutput.Feedback!.OnInput));
             Assert.Equal(12, savedAxis.Number);
             Assert.Equal(originalOutput,
