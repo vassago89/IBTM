@@ -177,7 +177,6 @@ public sealed class MachineStoreTests
         settings.BoltFasteningStationHardware.Inputs[InputIo.BoltFasteningHeatSink2Present] = 62;
         settings.InspectionStationHardware.Inputs[InputIo.InspectionHeatSink1Present] = 68;
         settings.InspectionStationHardware.Inputs[InputIo.InspectionHeatSink2Present] = 69;
-        settings.PcbPlacementHandlerHardware.MillimetersPerUnit = 0.002;
         settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.MoveUnit = 0.1;
         settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.MovePulse = 10;
         settings.PcbPlacementHandlerHardware.GetAxis(MotionAxis.Y)!.HomeDirection = HomeDirection.Positive;

@@ -14,7 +14,6 @@ public class AjinMotionService(
     AxisHardware axisX,
     AxisHardware? axisY,
     AxisHardware? axisZ,
-    double millimetersPerUnit,
     MotionSettings settings,
     MachineOptions options,
     OperationCancellation operationCancellation,
@@ -40,7 +39,6 @@ public class AjinMotionService(
     private readonly int _axisX = axisX.Number;
     private readonly int? _axisY = axisY?.Number;
     private readonly int? _axisZ = axisZ?.Number;
-    private readonly double _millimetersPerUnit = millimetersPerUnit;
     private readonly Dictionary<int, (double Unit, int Pulse)> _axisScales = new[] { axisX, axisY, axisZ }
         .OfType<AxisHardware>()
         .ToDictionary(axis => axis.Number, axis => (axis.MoveUnit, axis.MovePulse));
@@ -76,11 +74,6 @@ public class AjinMotionService(
     public override void Initialize()
     {
         controller.Initialize();
-        if (IsMoving)
-        {
-            throw new InvalidOperationException("Cannot configure axes while hardware reports motion.");
-        }
-
         foreach (var axis in _axes)
         {
             if (AxisParametersMatch(axis))
@@ -88,13 +81,23 @@ public class AjinMotionService(
                 continue;
             }
 
+            var inMotion = 0U;
+            AjinController.Check(
+                CAXM.AxmStatusReadInMotion(axis, ref inMotion),
+                $"{nameof(CAXM.AxmStatusReadInMotion)} (axis={axis})");
+            if (inMotion != 0)
+            {
+                throw new MotionInterlockException(
+                    $"Cannot change AJIN axis {axis} unit settings: AxmStatusReadInMotion={inMotion}.");
+            }
+
             var scale = _axisScales[axis];
             AjinController.Check(
                 CAXM.AxmMotSetMoveUnitPerPulse(axis, scale.Unit, scale.Pulse),
-                nameof(CAXM.AxmMotSetMoveUnitPerPulse));
+                $"{nameof(CAXM.AxmMotSetMoveUnitPerPulse)} (axis={axis})");
             AjinController.Check(
                 CAXM.AxmMotSetAccelUnit(axis, AccelerationInUnitsPerSecondSquared),
-                nameof(CAXM.AxmMotSetAccelUnit));
+                $"{nameof(CAXM.AxmMotSetAccelUnit)} (axis={axis})");
         }
 
         // Communication readiness is independent of servo power and axis alarms.
@@ -304,7 +307,7 @@ public class AjinMotionService(
 
         AjinController.Check(
             CAXM.AxmHomeSetResult(axisNumber, HomeUnknown),
-            nameof(CAXM.AxmHomeSetResult));
+            $"{nameof(CAXM.AxmHomeSetResult)} (axis={axisNumber})");
         AjinController.Check(
             CAXM.AxmHomeSetVel(
                 axisNumber,
@@ -314,7 +317,7 @@ public class AjinMotionService(
                 ToUnits(home.FineSpeed),
                 velocityInUnits / home.SearchAccelerationSeconds,
                 ToUnits(home.DetectionSpeed) / home.DetectionAccelerationSeconds),
-            nameof(CAXM.AxmHomeSetVel));
+            $"{nameof(CAXM.AxmHomeSetVel)} (axis={axisNumber})");
         Exception? cancellationFailure = null;
         void StopOnCancellation()
         {
@@ -330,25 +333,27 @@ public class AjinMotionService(
 
         Exception? failure = null;
         var homed = false;
+        var homeResult = HomeUnknown;
         using (cancellationToken.Register(StopOnCancellation))
         {
             try
             {
                 BeginMotion(axis != MotionAxis.Z);
                 cancellationToken.ThrowIfCancellationRequested();
-                AjinController.Check(CAXM.AxmHomeSetStart(axisNumber), nameof(CAXM.AxmHomeSetStart));
+                AjinController.Check(
+                    CAXM.AxmHomeSetStart(axisNumber),
+                    $"{nameof(CAXM.AxmHomeSetStart)} (axis={axisNumber})");
                 while (true)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var result = 0U;
                     AjinController.Check(
-                        CAXM.AxmHomeGetResult(axisNumber, ref result),
-                        nameof(CAXM.AxmHomeGetResult));
+                        CAXM.AxmHomeGetResult(axisNumber, ref homeResult),
+                        $"{nameof(CAXM.AxmHomeGetResult)} (axis={axisNumber})");
                     PublishPosition();
 
-                    if (result != HomeSearching)
+                    if (homeResult != HomeSearching)
                     {
-                        homed = result == HomeSuccess;
+                        homed = homeResult == HomeSuccess;
                         break;
                     }
 
@@ -362,9 +367,12 @@ public class AjinMotionService(
 
             if (!homed)
             {
+                var clearHome = failure is not null;
+                failure ??= new System.IO.IOException(
+                    $"AJIN home failed (axis={axisNumber}): {(AXT_MOTION_HOME_RESULT)homeResult} (0x{homeResult:X2}).");
                 try
                 {
-                    StopAxes([axisNumber], clearHome: failure is not null);
+                    StopAxes([axisNumber], clearHome: clearHome);
                 }
                 catch (Exception stopFailure)
                 {
@@ -749,17 +757,16 @@ public class AjinMotionService(
         }
     }
 
-    private double ToUnits(double millimeters)
+    private static double ToUnits(double millimeters)
     {
-        return millimeters / _millimetersPerUnit;
+        return millimeters * 1000;
     }
 
     private double FromUnits(int axis, double position, double unit, int pulse)
     {
         var expected = _axisScales[axis];
-        // With the configured SDK scale this is just position * mm/unit.
-        // A different live scale is converted through raw pulses for monitoring.
-        return position * pulse / unit * expected.Unit / expected.Pulse * _millimetersPerUnit;
+        // Convert a different live scale through raw pulses before converting micrometers to mm.
+        return position * pulse / unit * expected.Unit / expected.Pulse / 1000;
     }
 
     private int GetAxis(MotionAxis axis)

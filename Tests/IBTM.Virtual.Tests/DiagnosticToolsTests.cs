@@ -173,7 +173,7 @@ public sealed class DiagnosticToolsTests
                 {
                     Assert.NotNull(row.Diagnostics.Snapshot.State);
                     Assert.NotNull(row.Diagnostics.Snapshot.Position);
-                    Assert.False(view.HomeAxisCommand.CanExecute(row));
+                    Assert.False(row.HomeCommand.CanExecute(null));
                 });
             var x = Assert.Single(axes, row => row.Axis == MotionAxis.X);
             var y = Assert.Single(axes, row => row.Axis == MotionAxis.Y);
@@ -226,8 +226,8 @@ public sealed class DiagnosticToolsTests
             var position = services.GetRequiredService<IBTM.Inspection.InspectionGantry>().Motion;
             Assert.False(x.Enabled);
             Assert.NotNull(x.Diagnostics.Snapshot.State);
-            Assert.False(view.ToggleServoCommand.CanExecute(x));
-            Assert.False(view.HomeAxisCommand.CanExecute(x));
+            Assert.False(x.ToggleServoCommand.CanExecute(null));
+            Assert.False(x.HomeCommand.CanExecute(null));
             var reads = diagnostics.Reads;
             // Change raw state silently: no motion, input event, refresh request or monitor window.
             diagnostics.Position = 42;
@@ -277,10 +277,10 @@ public sealed class DiagnosticToolsTests
             // or throw while WPF evaluates the RESET button.
             settings.Units.NgCarrierTransfer = true;
             Assert.True(x.Enabled);
-            Assert.True(x.RefreshEnabled());
-            Assert.False(x.RefreshEnabled());
+            Assert.True(x.Refresh());
+            Assert.False(x.Refresh());
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => state.Display.MotionFaulted && !view.ToggleServoCommand.CanExecute(y),
+                () => state.Display.MotionFaulted && !y.ToggleServoCommand.CanExecute(null),
                 TimeSpan.FromSeconds(2)));
             Assert.NotNull(state.Display.ReadError); // Explicit failure without another throwing control read.
             diagnostics.FailX = false;
@@ -290,10 +290,10 @@ public sealed class DiagnosticToolsTests
             Assert.NotNull(y.Diagnostics.Snapshot.State);
             Assert.NotNull(y.Diagnostics.Snapshot.Position);
             Assert.True(machine.CanReset);
-            Assert.False(view.ToggleServoCommand.CanExecute(y));
+            Assert.False(y.ToggleServoCommand.CanExecute(null));
             diagnostics.FailControl = false;
             settings.Units.NgCarrierTransfer = false;
-            Assert.True(x.RefreshEnabled());
+            Assert.True(x.Refresh());
             Assert.False(x.Enabled);
             // Control-I/O loss does not stop independent motion diagnostics or allow control.
             io.SetConnected(false);
@@ -306,8 +306,8 @@ public sealed class DiagnosticToolsTests
                         && x.Diagnostics.Snapshot.Faulted == false,
                     TimeSpan.FromSeconds(2)));
             Assert.Equal(44, position.Position.X);
-            Assert.False(view.ToggleServoCommand.CanExecute(x));
-            Assert.False(view.HomeAxisCommand.CanExecute(x));
+            Assert.False(x.ToggleServoCommand.CanExecute(null));
+            Assert.False(x.HomeCommand.CanExecute(null));
 
             await machine.ShutdownAsync();
             Assert.True(services.GetRequiredService<MachineFeedbackMonitor>().Completion.IsCompletedSuccessfully);

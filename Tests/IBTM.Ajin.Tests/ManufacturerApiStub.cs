@@ -29,6 +29,7 @@ internal static class AjinSdk
     internal sealed record HomeMethod(int Direction, uint Signal, uint ZPhase, double ClearTime, double Offset);
     internal static readonly Dictionary<int, MotionAxis> MotionAxes = [];
     internal static readonly Dictionary<int, HomeMethod> HomeMethods = [];
+    internal static readonly Dictionary<int, double[]> HomeVelocities = [];
     internal static readonly List<Call> Calls = [];
     internal static readonly Dictionary<Call, uint> Results = [];
     internal static readonly Dictionary<int, Module> Modules = [];
@@ -44,6 +45,7 @@ internal static class AjinSdk
         Calls.Clear();
         MotionAxes.Clear();
         HomeMethods.Clear();
+        HomeVelocities.Clear();
         Results.Clear();
         Modules.Clear();
         Inputs.Clear();

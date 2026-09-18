@@ -39,7 +39,6 @@ public sealed partial class MachineLifecycleTests
                     try
                     {
                         IAsyncRelayCommand command;
-                        object? parameter = null;
                         if (teachingHome)
                         {
                             var teaching = services.GetRequiredService<TeachingViewModel>();
@@ -49,12 +48,12 @@ public sealed partial class MachineLifecycleTests
                         else
                         {
                             var manual = services.GetRequiredService<MotionWindowViewModel>();
-                            parameter = manual.Axes.Single(
+                            var axis = manual.Axes.Single(
                                 row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
-                            command = manual.HomeAxisCommand;
+                            command = axis.HomeCommand;
                         }
 
-                        await WaitUntilAsync(() => command.CanExecute(parameter));
+                        await WaitUntilAsync(() => command.CanExecute(null));
                         feedback.BeforeHome = () =>
                         {
                             entered.TrySetResult(Environment.CurrentManagedThreadId);
@@ -62,7 +61,7 @@ public sealed partial class MachineLifecycleTests
                                 throw new TimeoutException("The UI could not release the simulated hardware call.");
                         };
 
-                        homing = command.ExecuteAsync(parameter);
+                        homing = command.ExecuteAsync(null);
                         var hardwareThread = await entered.Task.WaitAsync(TimeSpan.FromSeconds(2));
                         Assert.NotEqual(Environment.CurrentManagedThreadId, hardwareThread);
                         Assert.False(homing.IsCompleted);
@@ -98,5 +97,39 @@ public sealed partial class MachineLifecycleTests
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         await finished.Task.WaitAsync(TimeSpan.FromSeconds(15));
+    }
+
+    [Fact]
+    public async Task MotionWindowCloseCancelsAndAwaitsItsAxisHome()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.NgCarrierTransfer);
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var motion = services.GetRequiredKeyedService<IXyMotion>(MotionGroup.InspectionGantry);
+        var monitor = services.GetRequiredService<MotionWindowViewModel>();
+        await machine.InitializeAsync();
+        try
+        {
+            await machine.HomeAsync(CancellationToken.None);
+            await motion.MoveAxisAsync(MotionAxis.X, 20, 10_000);
+            settings.InspectionGantry.Motion.HorizontalHome.SearchSpeed = 1;
+            var axis = monitor.Axes.Single(
+                row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
+            await WaitUntilAsync(() => axis.HomeCommand.CanExecute(null));
+            var homing = axis.HomeCommand.ExecuteAsync(null);
+            await WaitUntilAsync(() => motion.IsMoving);
+
+            Assert.True(await monitor.TryCloseAsync());
+
+            Assert.True(homing.IsCompletedSuccessfully);
+            Assert.False(motion.IsMoving);
+            Assert.False(motion.GetAxisState(MotionAxis.X).Homed);
+            Assert.False(services.GetRequiredService<OperationCancellation>().HasActiveOperations);
+        }
+        finally
+        {
+            await machine.ShutdownAsync();
+        }
     }
 }

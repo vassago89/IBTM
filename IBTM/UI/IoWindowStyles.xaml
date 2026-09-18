@@ -204,7 +204,6 @@
                                 Style="{StaticResource IoOutputStateStyle}"/>
                             <Button x:Name="ToggleOutput"
                                 Command="{Binding ToggleOutputCommand}"
-                                CommandParameter="{Binding Output}"
                                 Content="{Binding Io.IsOn, Converter={StaticResource SignalTextConverter}}">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource IoOutputStateButtonStyle}">

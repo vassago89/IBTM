@@ -473,7 +473,7 @@ public sealed partial class MachineLifecycleTests
             row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
         feedback.BeforeRead = () => throw new IOException("Home feedback read failed.");
 
-        await manual.HomeAxisCommand.ExecuteAsync(axis);
+        await axis.HomeCommand.ExecuteAsync(null);
 
         Assert.Equal(MachineAlarm.HomeFailed, state.Alarm);
         Assert.Contains("Home feedback read failed.", state.AlarmDetail);
@@ -657,9 +657,9 @@ public sealed partial class MachineLifecycleTests
         io.SetInput(InputIo.NgShuttleDown, true);
         Assert.True(machine.CanHome);
         services.GetRequiredService<MachineState>().RequestDisplayRefresh();
-        await WaitUntilAsync(() => manual.HomeAxisCommand.CanExecute(manual.Axes[9]));
-        Assert.False(manual.HomeAxisCommand.CanExecute(manual.Axes[3]));
-        Assert.True(manual.HomeAxisCommand.CanExecute(manual.Axes[9]));
+        await WaitUntilAsync(() => manual.Axes[9].HomeCommand.CanExecute(null));
+        Assert.False(manual.Axes[3].HomeCommand.CanExecute(null));
+        Assert.True(manual.Axes[9].HomeCommand.CanExecute(null));
     }
 
     [Theory]
@@ -685,7 +685,7 @@ public sealed partial class MachineLifecycleTests
             Assert.True(machine.CanHome);
             var axis = manual.Axes.Single(
                 row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
-            await WaitUntilAsync(() => manual.HomeAxisCommand.CanExecute(axis));
+            await WaitUntilAsync(() => axis.HomeCommand.CanExecute(null));
             var moved = false;
             gantry.Feedback.MovingChanged += moving =>
             {
@@ -702,7 +702,7 @@ public sealed partial class MachineLifecycleTests
                 moved = false;
                 Assert.True(machine.CanHome);
                 if (individualAxis)
-                    await manual.HomeAxisCommand.ExecuteAsync(axis);
+                    await axis.HomeCommand.ExecuteAsync(null);
                 else
                     await machine.HomeAsync(CancellationToken.None);
 
@@ -1351,12 +1351,12 @@ public sealed partial class MachineLifecycleTests
 
         foreach (var row in manual.Axes.Where(row => row.Group != group))
         {
-            Assert.False(manual.ToggleServoCommand.CanExecute(row));
-            Assert.False(manual.HomeAxisCommand.CanExecute(row));
+            Assert.False(row.ToggleServoCommand.CanExecute(null));
+            Assert.False(row.HomeCommand.CanExecute(null));
             Assert.Null(row.Diagnostics.Snapshot.State);
             // Bypassing CanExecute still must not command a disabled drive.
-            manual.ToggleServoCommand.Execute(row);
-            await manual.HomeAxisCommand.ExecuteAsync(row);
+            row.ToggleServoCommand.Execute(null);
+            await row.HomeCommand.ExecuteAsync(null);
         }
 
         Assert.All(
@@ -1596,7 +1596,7 @@ public sealed partial class MachineLifecycleTests
         var homing = teachingHome
             ? teaching.HomeCommand.ExecuteAsync(null)
             : individual
-                ? manual.HomeAxisCommand.ExecuteAsync(axisRow)
+                ? axisRow.HomeCommand.ExecuteAsync(null)
                 : machine.HomeAsync(CancellationToken.None);
         try
         {
@@ -1624,7 +1624,7 @@ public sealed partial class MachineLifecycleTests
                 Assert.Contains("Home command failed.", state.AlarmDetail);
             await WaitUntilAsync(() => state.Display.Alarm == expectedAlarm && !state.Display.IsRunning);
             // A latched home failure does not block a retry while the axis feedback remains healthy.
-            Assert.Equal(!safetyStop, manual.HomeAxisCommand.CanExecute(axisRow));
+            Assert.Equal(!safetyStop, axisRow.HomeCommand.CanExecute(null));
             Assert.False(state.IsHoming);
             Assert.False(placement.IsMoving);
             Assert.False(supply.IsMoving);
@@ -1633,7 +1633,7 @@ public sealed partial class MachineLifecycleTests
         }
         finally
         {
-            manual.HomeAxisCommand.Cancel();
+            axisRow.HomeCommand.Cancel();
             teaching.HomeCommand.Cancel();
             machine.Stop();
             await homing;

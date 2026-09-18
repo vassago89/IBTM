@@ -397,23 +397,25 @@ public partial class TeachingViewModel : TeachingMotionViewModel
     {
         var commandsStopped = CommandShutdown.StopAsync(
             Deactivate,
-            ToggleLiveViewCommand,
-            JogCommand,
-            HomeCommand,
-            StepCommand,
-            MoveToHorizontalZCommand,
-            MoveToPointCommand,
-            ReturnFromPickupCommand,
-            ToggleOutputCommand,
-            CaptureCarrierImageCommand,
-            ApplyRulerResolutionCommand,
-            CaptureInspectionCommand,
-            ReinspectImageCommand,
-            ReadDataMatrixCommand,
-            DrawFovRegionCommand,
-            TeachFovRegionCommand,
-            TeachCurrentPositionCommand,
-            SaveHandoffSetupCommand);
+            [
+                ToggleLiveViewCommand,
+                JogCommand,
+                HomeCommand,
+                StepCommand,
+                MoveToHorizontalZCommand,
+                MoveToPointCommand,
+                ReturnFromPickupCommand,
+                CaptureCarrierImageCommand,
+                ApplyRulerResolutionCommand,
+                CaptureInspectionCommand,
+                ReinspectImageCommand,
+                ReadDataMatrixCommand,
+                DrawFovRegionCommand,
+                TeachFovRegionCommand,
+                TeachCurrentPositionCommand,
+                SaveHandoffSetupCommand,
+                .. OutputCommands,
+            ]);
         try
         {
             await commandsStopped;

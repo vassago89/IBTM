@@ -281,6 +281,13 @@ public sealed partial class MachineLifecycleTests
                 new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true, });
     }
 
+    private static Dictionary<OutputIo, TeachingOutputRow> TeachingRows(TeachingViewModel teaching)
+    {
+        return teaching.TeachingIoGroups.SelectMany(group => group.Outputs)
+            .Where(row => row.Output is not null)
+            .ToDictionary(row => row.Io.Signal);
+    }
+
     private static ServiceProvider CreateMotionScopeServices(
         MachineSettings settings,
         out Dictionary<MotionGroup, ScopedMotionProbe> probes,

@@ -247,9 +247,25 @@ public sealed class OutputWindowThreadingTests
             var monitor = services.GetRequiredService<MotionWindowViewModel>();
             var axis = monitor.Axes.Single(
                 row => row.Group == MotionGroup.InspectionGantry && row.Axis == MotionAxis.X);
+            var motionWindow = new MotionWindow(monitor);
+            try
+            {
+                var axisList = ((Grid)motionWindow.Content).Children.OfType<ListBox>().Single();
+                var axisView = (Grid)axisList.ItemTemplate.LoadContent();
+                axisView.DataContext = axis;
+                var buttons = axisView.Children.OfType<StackPanel>().Single().Children.OfType<Button>().ToArray();
+                await Dispatcher.Yield(DispatcherPriority.DataBind);
+                Assert.Same(axis.ToggleServoCommand, buttons[0].Command);
+                Assert.Same(axis.HomeCommand, buttons[1].Command);
+                Assert.All(buttons, button => Assert.Null(button.CommandParameter));
+            }
+            finally
+            {
+                motionWindow.Close();
+            }
             Assert.True(await VirtualTest.WaitUntilAsync(
-                () => monitor.HomeAxisCommand.CanExecute(axis), TimeSpan.FromSeconds(2)));
-            await monitor.HomeAxisCommand.ExecuteAsync(axis);
+                () => axis.HomeCommand.CanExecute(null), TimeSpan.FromSeconds(2)));
+            await axis.HomeCommand.ExecuteAsync(null);
             Assert.True(inspection.GetAxisState(MotionAxis.X).Homed);
             Assert.Equal(MachineAlarm.MotionUnavailable, state.Alarm);
 
@@ -630,8 +646,8 @@ public sealed class OutputWindowThreadingTests
         outputPresenter.ApplyTemplate();
         var outputButton = (Button)outputTemplate.FindName("ToggleOutput", outputPresenter);
         Assert.True(BindingOperations.IsDataBound(outputButton, Button.CommandProperty));
-        Assert.Same(teaching.ToggleOutputCommand, outputButton.Command);
-        Assert.Same(teachingOutput.Output, outputButton.CommandParameter);
+        Assert.Same(teachingOutput.ToggleOutputCommand, outputButton.Command);
+        Assert.Null(outputButton.CommandParameter);
         var page = new Border();
         page.SetBinding(
             UIElement.IsEnabledProperty,

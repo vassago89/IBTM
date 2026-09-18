@@ -107,7 +107,6 @@ public sealed class MotionStatusTests
         new AxisHardware(),
         null,
         null,
-        0.01,
         new MotionSettings(),
         new MachineOptions(),
         new OperationCancellation(),

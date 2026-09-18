@@ -12,7 +12,7 @@ public sealed class VirtualMotionService(
     bool hasY = true,
     bool hasZ = true,
     double zPositiveLimitPosition = 100,
-    double resolutionMillimeters = MotionHardwareSettings.DefaultMillimetersPerUnit,
+    double resolutionMillimeters = 0.001,
     Func<double>? horizontalZ = null,
     Func<bool>? servoPowerOn = null,
     (double X, double Y, double Z)? axisResolutionMillimeters = null) : MotionService(

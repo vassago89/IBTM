@@ -510,7 +510,6 @@ public static class DependencyInjection
                 x,
                 y,
                 z,
-                hardware.MillimetersPerUnit,
                 settings,
                 provider.GetRequiredService<MachineOptions>(),
                 cancellation,
@@ -524,12 +523,11 @@ public static class DependencyInjection
             hasY: y is not null,
             hasZ: z is not null,
             zPositiveLimitPosition: hardware.Group == MotionGroup.PcbSupply ? 100 : 200,
-            resolutionMillimeters: hardware.MillimetersPerUnit,
             horizontalZ: horizontalZ,
             servoPowerOn: () => io.GetInput(InputIo.ServoMainContactorOn),
             axisResolutionMillimeters: (
-                hardware.MillimetersPerUnit * x.MoveUnit / x.MovePulse,
-                hardware.MillimetersPerUnit * (y?.MoveUnit ?? 1) / (y?.MovePulse ?? 1),
-                hardware.MillimetersPerUnit * (z?.MoveUnit ?? 1) / (z?.MovePulse ?? 1)));
+                x.MoveUnit / x.MovePulse / 1000,
+                (y?.MoveUnit ?? 1) / (y?.MovePulse ?? 1) / 1000,
+                (z?.MoveUnit ?? 1) / (z?.MovePulse ?? 1) / 1000));
     }
 }

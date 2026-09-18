@@ -108,7 +108,7 @@ public sealed class MotionSafetyTests
     [Fact]
     public async Task SlowJogAccumulatesSubPulseDistanceAndStopsOnCancellation()
     {
-        const double pulseLength = MotionHardwareSettings.DefaultMillimetersPerUnit;
+        const double pulseLength = 0.001;
         const double velocity = pulseLength * 20;
         using var motion = new VirtualMotionService(
             new MotionSettings(),
@@ -138,10 +138,6 @@ public sealed class MotionSafetyTests
     [Fact]
     public async Task VirtualMotionUsesEachAxisPulseLength()
     {
-        var hardware = new PcbSupplyHardwareSettings();
-        Assert.Throws<ArgumentOutOfRangeException>(() => hardware.MillimetersPerUnit = 0);
-        Assert.Throws<ArgumentOutOfRangeException>(() => hardware.MillimetersPerUnit = double.NaN);
-        Assert.Equal(MotionHardwareSettings.DefaultMillimetersPerUnit, hardware.MillimetersPerUnit);
         using var motion = new VirtualMotionService(
             new MotionSettings(),
             new OperationCancellation(),

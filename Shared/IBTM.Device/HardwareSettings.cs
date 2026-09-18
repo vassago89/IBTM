@@ -146,9 +146,6 @@ public abstract class MotionHardwareSettings(
     MotionGroup group,
     params (MotionAxis Axis, MachineAxis Signal, int Number)[] axes) : IoHardwareSettings
 {
-    public const double DefaultMillimetersPerUnit = 0.001;
-    private double _millimetersPerUnit = DefaultMillimetersPerUnit;
-
     [JsonIgnore]
     public MotionGroup Group { get; } = group;
 
@@ -159,21 +156,6 @@ public abstract class MotionHardwareSettings(
     public Dictionary<MachineAxis, AxisHardware> Axes { get; set; } = axes.ToDictionary(
         axis => axis.Signal,
         axis => new AxisHardware { Number = axis.Number });
-    [JsonPropertyName("MillimetersPerPulse")]
-    public double MillimetersPerUnit
-    {
-        get
-        {
-            return _millimetersPerUnit;
-        }
-        set
-        {
-            if (!double.IsFinite(value) || value <= 0)
-                throw new ArgumentOutOfRangeException(nameof(value), "Millimeters per SDK unit must be positive and finite.");
-            _millimetersPerUnit = value;
-        }
-    }
-
     public AxisHardware? GetAxis(MotionAxis axis)
     {
         return AxisSignals.TryGetValue(axis, out var signal) ? Axes[signal] : null;

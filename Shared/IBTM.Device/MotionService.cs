@@ -388,8 +388,8 @@ public abstract class MotionService(
             ValidateMove(Settings.ZSpeed);
             if (!GetAxisState(MotionAxis.Z).Homed)
             {
-                ValidateHome(MotionAxis.Z, Settings.ZSpeed);
-                if (!await HomeCoreAsync(MotionAxis.Z, Settings.ZSpeed, cancellationToken))
+                ValidateHome(MotionAxis.Z, Settings.ZHome.SearchSpeed);
+                if (!await HomeCoreAsync(MotionAxis.Z, Settings.ZHome.SearchSpeed, cancellationToken))
                 {
                     return false;
                 }

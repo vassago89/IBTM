@@ -1,6 +1,5 @@
 using System;
 using System.ComponentModel;
-using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,47 +11,6 @@ using IBTM.Core;
 using IBTM.Device;
 
 namespace IBTM.UI;
-
-public sealed class MotionMonitorAxis(
-    MotionGroup group,
-    MotionAxis axis,
-    int number,
-    MotionStatus motion,
-    UnitSettings units,
-    IRelayCommand<MotionMonitorAxis> toggleServoCommand,
-    IAsyncRelayCommand<MotionMonitorAxis> homeAxisCommand) : ObservableObject
-{
-    private bool _lastEnabled = units.IsMotionEnabled(group);
-
-    public IRelayCommand<MotionMonitorAxis> ToggleServoCommand { get; } = toggleServoCommand;
-    public IAsyncRelayCommand<MotionMonitorAxis> HomeAxisCommand { get; } = homeAxisCommand;
-    public MotionGroup Group { get; } = group;
-    public MotionAxis Axis { get; } = axis;
-    public int Number { get; } = number;
-
-    public string Address
-    {
-        get
-        {
-            return Number.ToString("D3", CultureInfo.InvariantCulture);
-        }
-    }
-
-    public bool Enabled
-    {
-        get
-        {
-            return units.IsMotionEnabled(Group);
-        }
-    }
-
-    public MotionDiagnostics Diagnostics { get; } = motion.MonitorAxes[axis];
-
-    internal bool RefreshEnabled()
-    {
-        return SetProperty(ref _lastEnabled, Enabled, nameof(Enabled));
-    }
-}
 
 public partial class MotionWindowViewModel : ObservableObject
 {
@@ -83,10 +41,9 @@ public partial class MotionWindowViewModel : ObservableObject
                             section.Hardware.Group,
                             axis.Key,
                             section.Hardware.Axes[axis.Value].Number,
-                            state.GetMotionStatus(section.Hardware.Group),
-                            settings.Units,
-                            ToggleServoCommand,
-                            HomeAxisCommand)))
+                            machine,
+                            state,
+                            settings.Units)))
             .ToArray();
         View = new ListCollectionView(Axes);
         View.GroupDescriptions.Add(new PropertyGroupDescription(nameof(MotionMonitorAxis.Group)));
@@ -134,37 +91,12 @@ public partial class MotionWindowViewModel : ObservableObject
         View.Refresh();
     }
 
-    [RelayCommand(CanExecute = nameof(CanToggleServo))]
-    private void ToggleServo(MotionMonitorAxis row)
-    {
-        _machine.ToggleServo(row.Group, row.Axis);
-    }
-
-    private bool CanToggleServo(MotionMonitorAxis? row)
-    {
-        return !IsClosing && row is { Diagnostics.Snapshot.State: not null }
-            && _machine.CanSetServo(row.Group, live: false);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanHomeAxis), IncludeCancelCommand = true)]
-    private Task HomeAxisAsync(MotionMonitorAxis row, CancellationToken cancellationToken)
-    {
-        return Task.Run(() => _machine.HomeAxisAsync(row.Group, row.Axis, cancellationToken));
-    }
-
-    private bool CanHomeAxis(MotionMonitorAxis? row)
-    {
-        return !IsClosing && row is { Enabled: true }
-            && _state.Display.Available
-            && _state.Display.HomeableAxes.Contains((row.Group, row.Axis));
-    }
-
     [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task StopAsync()
     {
         try
         {
-            await CommandShutdown.StopAsync(_machine.Stop, HomeAxisCommand);
+            await CommandShutdown.StopAsync(_machine.Stop, Axes.Select(axis => axis.HomeCommand).ToArray());
         }
         catch (Exception exception)
         {
@@ -180,15 +112,13 @@ public partial class MotionWindowViewModel : ObservableObject
         var enabledChanged = false;
         foreach (var row in Axes)
         {
-            enabledChanged |= row.RefreshEnabled();
+            enabledChanged |= row.Refresh();
         }
 
         // Do not reset the list/scroll position on every feedback scan.
         if (enabledChanged)
             View.Refresh();
         OnPropertyChanged(nameof(ControlStatus));
-        ToggleServoCommand.NotifyCanExecuteChanged();
-        HomeAxisCommand.NotifyCanExecuteChanged();
     }
 
     public void Activate()
@@ -241,6 +171,6 @@ public partial class MotionWindowViewModel : ObservableObject
 
     public Task ShutdownAsync()
     {
-        return CommandShutdown.StopAsync(null, StopCommand, HomeAxisCommand);
+        return CommandShutdown.StopAsync(null, [StopCommand, .. Axes.Select(axis => axis.HomeCommand)]);
     }
 }

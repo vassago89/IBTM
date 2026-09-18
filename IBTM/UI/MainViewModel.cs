@@ -106,7 +106,6 @@ public partial class MainViewModel : ObservableObject
             teachingViewModel.TeachCurrentPositionCommand,
             teachingViewModel.MoveToPointCommand,
             teachingViewModel.ReturnFromPickupCommand,
-            teachingViewModel.ToggleOutputCommand,
             teachingViewModel.CaptureCarrierImageCommand,
             teachingViewModel.ApplyRulerResolutionCommand,
             teachingViewModel.CaptureInspectionCommand,

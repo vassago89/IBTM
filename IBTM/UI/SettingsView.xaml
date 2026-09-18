@@ -235,23 +235,11 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel MaxWidth="1480" Margin="0,0,8,0">
                         <Border Style="{StaticResource SettingCard}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="240"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Margin="0,0,16,0">
-                                    <TextBlock Text="Motion Group" Style="{StaticResource SettingFieldLabel}"/>
-                                    <ComboBox ItemsSource="{Binding MotionGroups}"
-                                        IsEnabled="True"
-                                        SelectedItem="{Binding SelectedMotionGroup, Mode=TwoWay}"/>
-                                </StackPanel>
-                                <StackPanel Grid.Column="1">
-                                    <TextBlock Text="SDK Unit Length (mm/unit)" Style="{StaticResource SettingFieldLabel}"/>
-                                    <TextBox IsEnabled="{Binding CanEditSettings}"
-                                        Text="{Binding CurrentMotionHardwareSettings.MillimetersPerUnit, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"/>
-                                </StackPanel>
-                            </Grid>
+                            <StackPanel>
+                                <TextBlock Text="Motion Group" Style="{StaticResource SettingFieldLabel}"/>
+                                <ComboBox ItemsSource="{Binding MotionGroups}"
+                                    SelectedItem="{Binding SelectedMotionGroup, Mode=TwoWay}"/>
+                            </StackPanel>
                         </Border>
                         <Border Style="{StaticResource SettingCard}">
                             <StackPanel>

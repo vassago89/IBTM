@@ -138,9 +138,11 @@ public abstract partial class TeachingMotionViewModel(
                     io =>
                         new TeachingIoGroup(
                             io,
-                            TeachingOutputs,
-                            ToggleOutputCommand))
+                            teachingOutputs[ActiveTeachingUnit],
+                            Machine))
                     .ToArray();
+                foreach (var row in groups.SelectMany(group => group.Outputs))
+                    row.ViewCancellation = ViewCancellation;
                 _teachingIoGroups.Add(ActiveTeachingUnit, groups);
             }
 
@@ -148,11 +150,14 @@ public abstract partial class TeachingMotionViewModel(
         }
     }
 
-    public IReadOnlyDictionary<OutputIo, TeachingOutput> TeachingOutputs
+    protected IAsyncRelayCommand[] OutputCommands
     {
         get
         {
-            return teachingOutputs[ActiveTeachingUnit];
+            return _teachingIoGroups.Values.SelectMany(groups => groups)
+                .SelectMany(group => group.Outputs)
+                .Select(row => row.ToggleOutputCommand)
+                .ToArray();
         }
     }
 
@@ -327,28 +332,6 @@ public abstract partial class TeachingMotionViewModel(
         SelectNextPointCommand.NotifyCanExecuteChanged();
     }
 
-    private bool CanToggleOutput(TeachingOutput? output)
-    {
-        return output is not null
-            && TeachingOutputs.ContainsKey(output.Signal)
-            && Machine.CanSetTeachingOutput(output, live: false);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanToggleOutput))]
-    private async Task ToggleOutputAsync(
-        TeachingOutput output,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await Machine.ToggleTeachingOutputAsync(output, cancellationToken, ViewCancellation);
-        }
-        finally
-        {
-            NotifyManualTeachingCommands();
-        }
-    }
-
     [RelayCommand(CanExecute = nameof(CanMoveDirection))]
     protected abstract Task JogAsync(TeachingDirection direction, CancellationToken cancellationToken);
 
@@ -460,6 +443,11 @@ public abstract partial class TeachingMotionViewModel(
         finally
         {
             cancellation.Dispose();
+            foreach (var row in TeachingIoGroups.SelectMany(group => group.Outputs))
+            {
+                row.ViewCancellation = ViewCancellation;
+                row.ToggleOutputCommand.NotifyCanExecuteChanged();
+            }
         }
     }
 
@@ -469,7 +457,8 @@ public abstract partial class TeachingMotionViewModel(
         JogCommand.NotifyCanExecuteChanged();
         StepCommand.NotifyCanExecuteChanged();
         MoveToHorizontalZCommand.NotifyCanExecuteChanged();
-        ToggleOutputCommand.NotifyCanExecuteChanged();
+        foreach (var row in TeachingIoGroups.SelectMany(group => group.Outputs))
+            row.ToggleOutputCommand.NotifyCanExecuteChanged();
         TeachCurrentPositionCommand.NotifyCanExecuteChanged();
         MoveToPointCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(ManualBlock));

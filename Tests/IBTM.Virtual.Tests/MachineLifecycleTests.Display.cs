@@ -424,8 +424,8 @@ public sealed partial class MachineLifecycleTests
 
         motion.StateChanged += FailOnce;
 
-        Assert.True(manual.ToggleServoCommand.CanExecute(row));
-        manual.ToggleServoCommand.Execute(row);
+        Assert.True(row.ToggleServoCommand.CanExecute(null));
+        row.ToggleServoCommand.Execute(null);
         Assert.Equal(emergencyStop ? MachineAlarm.EmergencyStop : MachineAlarm.MotionUnavailable, state.Alarm);
         Assert.Contains("Servo feedback failed", state.AlarmDetail);
         await WaitUntilAsync(() => row.Diagnostics.Snapshot.State?.ServoOn == false);

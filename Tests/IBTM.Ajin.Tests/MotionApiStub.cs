@@ -189,7 +189,10 @@ internal static partial class CAXM
         double firstAcceleration,
         double secondAcceleration)
     {
-        return Command(new(nameof(AxmHomeSetVel), Axis: axis));
+        var result = Command(new(nameof(AxmHomeSetVel), Axis: axis));
+        if (result == 0)
+            AjinSdk.HomeVelocities[axis] = [first, second, third, last, firstAcceleration, secondAcceleration];
+        return result;
     }
 
     public static uint AxmHomeSetStart(int axis)
