@@ -1097,6 +1097,27 @@ public sealed class ConveyorTests
     }
 
     [Fact]
+    public async Task CompletedRearCarrierMovesBeforeWaitingInfeed()
+    {
+        var io = CreateIo();
+        var conveyor = CreateConveyor(io, boltFasteningEnabled: false, inspectionEnabled: false);
+        io.Initialize();
+        await SetSeatedCarrierAsync(
+            io, io, InputIo.BoltFasteningHeatSink1Present, OutputIo.BoltFasteningBackupPlateUp);
+        io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
+
+        Assert.Equal(MainConveyorState.MovingBoltFasteningToInspection, conveyor.State);
+
+        await SetSeatedCarrierAsync(
+            io, io, InputIo.InspectionHeatSink1Present, OutputIo.InspectionBackupPlateUp);
+        io.SetInput(InputIo.MainConveyorReadyFromRear, true);
+        Assert.Equal(MainConveyorState.DischargingInspectionCarrier, conveyor.State);
+
+        io.SetInput(InputIo.MainConveyorReadyFromRear, false);
+        Assert.Equal(MainConveyorState.ReceivingFrontCarrier, conveyor.State);
+    }
+
+    [Fact]
     public async Task MainConveyorDoesNotInferCarrierFromCylinderPositions()
     {
         var virtualIo = CreateIo();
@@ -1156,23 +1177,107 @@ public sealed class ConveyorTests
         Assert.Throws<InvalidOperationException>(conveyor.ConfirmManualClear);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DetectedCarriersSeatIndependentlyAndReleaseOnlyCompletedWork(bool twoCarriers)
+    {
+        var io = CreateIo();
+        var placement = new PcbPlacementWork(ConveyorStation.PcbPlacement(io));
+        var fastening = new BoltFasteningWork(ConveyorStation.BoltFastening(io));
+        var conveyor = new MainConveyor(
+            io,
+            new ConveyorSettings { CarrierStopDelaySeconds = 0 },
+            new OperationCancellation(),
+            placement,
+            fastening,
+            new InspectionWork(ConveyorStation.Inspection(io), new NgCarrierTransfer(io)),
+            routeInspectionToNg: () => false);
+        io.Initialize();
+        io.AutoResponseEnabled = false;
+        io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+        if (twoCarriers)
+            io.SetInput(InputIo.BoltFasteningHeatSink1Present, true);
+        var beltStarted = false;
+        io.OutputChanged += (output, on) =>
+        {
+            beltStarted |= on && output == OutputIo.MainConveyorRun;
+        };
+
+        var run = conveyor.RunAsync();
+        try
+        {
+            // Neither stopper has responded yet; both commands must already be issued.
+            await WaitForOutputAsync(io, OutputIo.PcbPlacementStopperUp, true);
+            if (twoCarriers)
+                await WaitForOutputAsync(io, OutputIo.BoltFasteningStopperUp, true);
+            io.SetInputs(
+                (InputIo.PcbPlacementStopperDown, false),
+                (InputIo.PcbPlacementStopperUp, true));
+            await WaitForOutputAsync(io, OutputIo.PcbPlacementBackupPlateUp, true);
+            io.SetInputs(
+                (InputIo.PcbPlacementBackupPlateDown, false),
+                (InputIo.PcbPlacementBackupPlateUp, true));
+            await WaitForOutputAsync(io, OutputIo.PcbPlacementStopperUp, false);
+            io.SetInputs(
+                (InputIo.PcbPlacementStopperUp, false),
+                (InputIo.PcbPlacementStopperDown, true));
+
+            Assert.True(placement.CarrierSeated);
+            Assert.False(placement.Completed);
+            Assert.False(fastening.CarrierSeated);
+            Assert.False(io.GetOutput(OutputIo.BoltFasteningBackupPlateUp));
+            Assert.False(beltStarted);
+
+            if (twoCarriers)
+            {
+                io.AutoResponseEnabled = true;
+                Assert.True(await WaitUntilAsync(
+                    () => fastening.CarrierSeated, TimeSpan.FromSeconds(2)));
+                Assert.True(placement.CarrierSeated);
+                Assert.False(fastening.Completed);
+                Assert.False(beltStarted);
+
+                fastening.Complete(fastening.CurrentJob);
+                await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+                Assert.True(placement.CarrierSeated);
+                Assert.False(placement.Completed);
+                Assert.Equal(StationCylinderState.Down, fastening.BackupPlate);
+            }
+        }
+        finally
+        {
+            conveyor.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
     [Fact]
-    public async Task UnseatedCarrierBlocksNewInfeedWithoutAutomaticSeating()
+    public async Task InterruptedInitialSeatingRequiresManualClear()
     {
         var io = CreateIo();
         var conveyor = CreateConveyor(io);
         io.Initialize();
-        VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, true);
-        io.SetInput(InputIo.MainConveyorEntryCarrierDetected, true);
-        var unsafeOutput = false;
-        io.OutputChanged += (output, on) =>
+        io.AutoResponseEnabled = false;
+        io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
+        var run = conveyor.RunAsync();
+        try
         {
-            unsafeOutput |= on && output is OutputIo.MainConveyorRun or OutputIo.BoltFasteningBackupPlateUp;
-        };
+            await WaitForOutputAsync(io, OutputIo.PcbPlacementStopperUp, true);
+        }
+        finally
+        {
+            conveyor.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
 
-        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => conveyor.RunAsync());
-        Assert.Contains("not seated", failure.Message);
-        Assert.False(unsafeOutput);
+        Assert.True(conveyor.RequiresManualClear);
+        io.SetInputs(
+            (InputIo.PcbPlacementStopperDown, false),
+            (InputIo.PcbPlacementStopperUp, true));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => conveyor.RunAsync());
+        Assert.False(io.GetOutput(OutputIo.PcbPlacementBackupPlateUp));
+        Assert.False(conveyor.RunCommandOn);
     }
 
     [Fact]

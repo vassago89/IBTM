@@ -280,7 +280,12 @@ NG 컨베이어의 목적지와 배출 버튼 확인 단계는 현재 실행에�
 START는 차단하고 기존 지지 출력은 유지한다. 센서 사이까지 수동으로 비운 뒤 RESET에서
 `ConfirmManualClear`를 호출한다. 정지 출력과 모든 재실 입력·Station 3 인수 가능 상태를 확인하며,
 센서 OFF만으로는 중단 기록을 해제하지 않는다. 미전달 작업 참조는 이 명시적인 제거 확인 때 해제한다.
-메인 컨베이어 자체의 대기 STOP은 이송 중단 기록을 만들지 않지만, 장비 자동 운전 종료는 전체 정리 확인을 요구한다. 처음부터 착좌가 불완전한 캐리어도 자동 상승시키지 않는다.
+메인 컨베이어 자체의 대기 STOP은 이송 중단 기록을 만들지 않지만, 장비 자동 운전 종료는 전체 정리 확인을 요구한다.
+정상 운전에서는 벨트가 정지한 상태에서 감지된 캐리어를 현재 스테이션에서 올린다.
+여러 스테이션에 캐리어가 있으면 동시에 착좌를 시작하고, 각 작업 유닛은 자기 스테이션의
+상승·스토퍼 하강 피드백이 확인되는 즉시 작업한다. 완료된 캐리어의 이송은
+S3 배출 → S2에서 S3 → S1에서 S2 → 신규 반입 순서이며, 목적지가 비어 있어야 한다.
+정상 착좌가 중단되어도 수동 정리·RESET 차단이 걸리며, 중단된 동작을 자동 재개하지 않는다.
 집중 검사는 `InterruptedSeatingDoesNotResumeAfterSensorChanges`, `InterruptedPlateRaiseDoesNotResumeOrLowerSupport`,
 `InterruptedTransferKeepsPendingResultsWithoutMovingThemOnLaterInput`, `ActiveTransferKeepsOriginalResultsWhenSourceGetsAnotherCarrier`,
 `ResetAcknowledgesInterruptedConveyorOnlyAfterManualClear`다.

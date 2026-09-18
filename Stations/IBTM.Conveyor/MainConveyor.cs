@@ -183,9 +183,6 @@ public sealed class MainConveyor : AutoUnit
                 : MainConveyorState.WaitingForRearEquipment;
         }
 
-        if (_placementWork.CanReceive && EntryCarrierDetected)
-            return MainConveyorState.ReceivingFrontCarrier;
-
         if (CanDischargeInspection)
         {
             return MainConveyorState.DischargingInspectionCarrier;
@@ -400,7 +397,18 @@ public sealed class MainConveyor : AutoUnit
                 case MainConveyorState.SeatingInspectionCarrier:
                 case MainConveyorState.SeatingBoltFasteningCarrier:
                 case MainConveyorState.SeatingPcbPlacementCarrier:
-                    throw new InvalidOperationException("A main conveyor carrier is not seated. Check and position it manually before START; automatic seating recovery is disabled.");
+                    // The belt is stopped. Each occupied station can lift and start
+                    // its own work without waiting for another station to finish.
+                    var seating = new List<Task>(3);
+                    if (_inspectionWork.CarrierPresent && !_inspectionWork.CarrierSeated)
+                        seating.Add(_inspection.SeatAsync(cancellationToken));
+                    if (_boltFasteningWork.CarrierPresent && !_boltFasteningWork.CarrierSeated)
+                        seating.Add(_boltFastening.SeatAsync(cancellationToken));
+                    if (_placementWork.CarrierPresent && !_placementWork.CarrierSeated)
+                        seating.Add(_placement.SeatAsync(cancellationToken));
+                    await Task.WhenAll(seating);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    break;
                 case MainConveyorState.DischargingInspectionCarrier:
                     await DischargeInspectionAsync(cancellationToken);
                     break;
@@ -419,7 +427,10 @@ public sealed class MainConveyor : AutoUnit
                     break;
             }
         }
-        catch when (state is MainConveyorState.ReceivingFrontCarrier
+        catch when (state is MainConveyorState.SeatingInspectionCarrier
+            or MainConveyorState.SeatingBoltFasteningCarrier
+            or MainConveyorState.SeatingPcbPlacementCarrier
+            or MainConveyorState.ReceivingFrontCarrier
             or MainConveyorState.MovingPcbPlacementToBoltFastening
             or MainConveyorState.MovingBoltFasteningToInspection
             or MainConveyorState.DischargingInspectionCarrier)

@@ -151,6 +151,12 @@ recipe Bolt Point belonging to a detected heat sink and records bolt presence wi
 stopping at the first missing bolt.
 Station work starts only when either heat sink is detected, the Backup Plate is Up,
 and the Stopper is Down.
+With the belt stopped, detected carriers that are not seated are lifted at their
+current stations. Occupied stations seat concurrently, and each station starts work
+as soon as its own seating feedback is complete. Transfer selection then checks
+completed carriers from downstream to upstream: discharge S3, S2 to S3, S1 to S2,
+then new infeed. An occupied destination blocks that transfer; other raised stations
+continue working. This normal seating does not bypass the interrupted-run RESET block.
 
 Only the backup plates participating in a future transfer are lowered. A source
 Stopper is lowered to release its Carrier; a destination Stopper is raised before
