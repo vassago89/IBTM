@@ -1090,7 +1090,7 @@ public sealed class IoStartupTests
         io.BeforeOutputWrite = (output, _) =>
         {
             if (output is OutputIo.PcbPlacementHandlerDown or OutputIo.PcbPlacementIpmDown
-                or OutputIo.PickupHeadUp or OutputIo.ShootingHeadUp or OutputIo.NgCarrierPickupDown)
+                or OutputIo.PickupHeadDown or OutputIo.ShootingHeadDown or OutputIo.NgCarrierPickupDown)
                 cylinderWrites++;
         };
         try

@@ -90,7 +90,7 @@ public sealed partial class MachineLifecycleTests
                 }
                 io.SetInput(InputIo.ShootingBoltFasten, on);
             }
-            if (output == OutputIo.ShootingHeadUp && !on)
+            if (output == OutputIo.ShootingHeadDown && on)
             {
                 Assert.True(io.GetOutput(OutputIo.ShootingBoltStart));
                 io.SetInput(InputIo.ShootingBoltFasten, false);
@@ -104,7 +104,7 @@ public sealed partial class MachineLifecycleTests
                 }
                 io.SetInput(InputIo.PickupBoltFasten, on);
             }
-            if (output == OutputIo.PickupHeadUp && !on)
+            if (output == OutputIo.PickupHeadDown && on)
             {
                 if (!gantry.IsAtPickupXY())
                 {
@@ -243,15 +243,7 @@ public sealed partial class MachineLifecycleTests
             {
                 await run.WaitAsync(TimeSpan.FromSeconds(5));
                 Assert.True(stoppedForConfiguration);
-                settings.Units.NgShuttle = false;
-                Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
-                Assert.False(machine.CanStart);
-                await machine.StartAsync();
-                Assert.Equal(new[] { true }, shuttleOutputs.ToArray());
-
-                settings.Units.NgShuttle = true;
-                Assert.False(machine.CanStart);
-                await machine.StartAsync(timeout.Token);
+                Assert.False(machine.RequiresManualClear);
                 Assert.Equal(new[] { true }, shuttleOutputs.ToArray());
                 return;
             }

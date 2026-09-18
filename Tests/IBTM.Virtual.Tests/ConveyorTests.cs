@@ -1171,6 +1171,71 @@ public sealed class ConveyorTests
         Assert.Equal(MainConveyorState.WaitingForFrontCarrier, conveyor.State);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DisabledStationLowersOnceAndKeepsTransferringWhileSourceSensorStaysOn(bool fastening)
+    {
+        var io = CreateIo();
+        var conveyor = CreateConveyor(
+            io, placementEnabled: fastening, boltFasteningEnabled: !fastening);
+        var sourceInput = fastening
+            ? InputIo.BoltFasteningHeatSink1Present
+            : InputIo.PcbPlacementHeatSink1Present;
+        var sourcePlate = fastening
+            ? OutputIo.BoltFasteningBackupPlateUp
+            : OutputIo.PcbPlacementBackupPlateUp;
+        var destinationInput = fastening
+            ? InputIo.InspectionHeatSink2Present
+            : InputIo.BoltFasteningHeatSink2Present;
+        var destinationPlate = fastening
+            ? OutputIo.InspectionBackupPlateUp
+            : OutputIo.BoltFasteningBackupPlateUp;
+        var transferState = fastening
+            ? MainConveyorState.MovingBoltFasteningToInspection
+            : MainConveyorState.MovingPcbPlacementToBoltFastening;
+        var raises = 0;
+        var lowers = 0;
+        io.Initialize();
+        io.SetInput(sourceInput, true);
+        io.OutputChanged += (output, on) =>
+        {
+            if (output != sourcePlate)
+                return;
+            if (on)
+                raises++;
+            else
+                lowers++;
+        };
+
+        var run = conveyor.RunAsync();
+        try
+        {
+            await WaitForOutputAsync(io, OutputIo.MainConveyorRun, true);
+            Assert.True(io.GetInput(sourceInput));
+            Assert.Equal(transferState, conveyor.State);
+            // Leave the source input ON long enough for a reseating loop to show itself.
+            await Task.Delay(800);
+            Assert.False(run.IsCompleted);
+            Assert.True(conveyor.RunCommandOn);
+            Assert.False(io.GetOutput(sourcePlate));
+            Assert.Equal(1, raises);
+            Assert.Equal(1, lowers);
+
+            io.SetInput(sourceInput, false);
+            io.SetInput(destinationInput, true);
+            await WaitForOutputAsync(io, destinationPlate, true);
+            Assert.False(conveyor.RunCommandOn);
+            Assert.Equal(1, raises);
+            Assert.Equal(1, lowers);
+        }
+        finally
+        {
+            conveyor.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+    }
+
     [Fact]
     public async Task DestinationPreparationFailureLeavesSourceCarrierRaised()
     {

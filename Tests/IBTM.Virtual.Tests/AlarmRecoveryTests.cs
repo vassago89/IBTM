@@ -54,10 +54,13 @@ public sealed class AlarmRecoveryTests
             Assert.False(machine.CanStart);
 
             io.SetInput(InputIo.MainConveyorEntryCarrierDetected, false);
+            io.SetInput(InputIo.NgConveyorPosition1Occupied, true);
             await machine.ResetAsync();
             Assert.False(conveyor.RequiresManualClear);
+            Assert.False(machine.RequiresManualClear);
             Assert.Equal(MachineAlarm.None, state.Alarm);
             Assert.False(conveyor.RunCommandOn);
+            Assert.True(io.GetInput(InputIo.NgConveyorPosition1Occupied));
         }
         finally
         {

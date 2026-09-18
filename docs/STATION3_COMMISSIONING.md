@@ -70,7 +70,7 @@ NG Transfer만 사용하는 Repeat에서는 비활성 셔틀의 Up/Down/캐리�
 PCB를 집어 기존 인계 좌표까지 이동한 뒤 원래 히트싱크에 재안착·압착한다.
 두 히트싱크의 대상 PCB 왕복이 끝나야 Station 2로 보낸다. Supply는 새 PCB를 공급하지 않는다.
 XY 이동·회전은 핸들러 실린더 상승과 공통 이동 Z에서 진행하며, 인계 위치에서 PCB를 놓지 않는다.
-STOP 후에는 PCB 왕복 진행과 전체 Repeat 복귀 단계를 버린다. 모든 캐리어와 보유 PCB를 수동 정리하고 RESET한 뒤 새 작업을 시작한다. 복구 완료 체크와 자동 재개는 없다.
+STOP 후에는 PCB 왕복 진행과 전체 Repeat 복귀 단계를 버린다. 정상 착좌 상태의 STOP은 전체 비움을 요구하지 않는다. 실제 PCB 왕복/압입이나 컨베이어 이송이 중단된 영역만 수동 정리·RESET하며, 복구 완료 체크와 중단 단계 재실행은 없다.
 
 관련 코드: `IBTM/MachineController.Repeat.cs`,
 `Stations/IBTM.Conveyor/MainConveyor.cs`의 `ReturnToStartAsync`.

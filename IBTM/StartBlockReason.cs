@@ -43,6 +43,9 @@ public enum StartBlockReason
     [Description("Complete bolt teaching")]
     TeachingIncomplete,
 
-    [Description("Remove carriers and held parts, including between sensors, then press RESET")]
+    [Description("Clear the interrupted transfer, PCB placement or pending fastening result, then press RESET")]
     ManualClearRequired,
+
+    [Description("Place or remove the carrier held by the NG pickup before START")]
+    NgCarrierHeld,
 }

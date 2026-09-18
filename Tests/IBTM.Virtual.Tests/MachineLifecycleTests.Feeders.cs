@@ -84,19 +84,19 @@ public sealed partial class MachineLifecycleTests
                 io.SetInput(InputIo.ShootingBoltFasten, on);
             if (output == OutputIo.PickupBoltStart)
                 io.SetInput(InputIo.PickupBoltFasten, on);
-            if (!on && output is OutputIo.ShootingHeadUp or OutputIo.PickupHeadUp)
+            if (on && output is OutputIo.ShootingHeadDown or OutputIo.PickupHeadDown)
             {
                 var position = gantry.Feedback.GetPosition();
                 if (!gantry.IsAtPickupXY())
-                    descents.Enqueue((output == OutputIo.ShootingHeadUp ? FasteningHead.Shooting : FasteningHead.Pickup,
+                    descents.Enqueue((output == OutputIo.ShootingHeadDown ? FasteningHead.Shooting : FasteningHead.Pickup,
                         position.X, position.Y, position.Z));
             }
-            if (output == OutputIo.ShootingHeadUp && !on)
+            if (output == OutputIo.ShootingHeadDown && on)
             {
                 Assert.True(io.GetOutput(OutputIo.ShootingBoltStart));
                 io.SetInput(InputIo.ShootingBoltFasten, false);
             }
-            if (output == OutputIo.PickupHeadUp && !on && io.GetOutput(OutputIo.PickupBoltStart))
+            if (output == OutputIo.PickupHeadDown && on && io.GetOutput(OutputIo.PickupBoltStart))
                 io.SetInput(InputIo.PickupBoltFasten, false);
         };
         work.Changed += () =>
@@ -191,9 +191,9 @@ public sealed partial class MachineLifecycleTests
         {
             if (output == OutputIo.ShootingBoltStart)
                 io.SetInput(InputIo.ShootingBoltFasten, on);
-            if (output != OutputIo.ShootingHeadUp)
+            if (output != OutputIo.ShootingHeadDown)
                 return;
-            if (!on)
+            if (on)
             {
                 Assert.True(io.GetOutput(OutputIo.ShootingBoltStart));
                 descended = true;
@@ -266,7 +266,7 @@ public sealed partial class MachineLifecycleTests
                 }
                 io.SetInput(InputIo.PickupBoltFasten, on);
             }
-            if (output == OutputIo.PickupHeadUp && !on && io.GetOutput(OutputIo.PickupBoltStart))
+            if (output == OutputIo.PickupHeadDown && on && io.GetOutput(OutputIo.PickupBoltStart))
                 io.SetInput(InputIo.PickupBoltFasten, false);
             if (output == OutputIo.PickupHeadVacuumPump && on)
             {

@@ -314,11 +314,13 @@ public enum OutputIo
     [Description("Placement Vacuum Ejector")]
     PcbPlacementVacuumEjector = 11,
 
-    [Description("Pickup Head Up (Head 1)")]
-    PickupHeadUp = 12,
+    [Description("Pickup Head Down (Head 1)")]
+    [JsonStringEnumMemberName("PickupHeadUp")]
+    PickupHeadDown = 12,
 
-    [Description("Shooting Head Up (Head 2)")]
-    ShootingHeadUp = 13,
+    [Description("Shooting Head Down (Head 2)")]
+    [JsonStringEnumMemberName("ShootingHeadUp")]
+    ShootingHeadDown = 13,
 
     [Description("Pickup Head Vacuum Pump (Head 1)")]
     PickupHeadVacuumPump = 14,

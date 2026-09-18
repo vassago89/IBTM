@@ -194,17 +194,17 @@ public sealed class IoTests
                     : new[] { pair.Value.Number })
             .ToArray();
         Assert.Equal(channels.Length, channels.Distinct().Count());
-        foreach (var (output, up, down, channel) in new[]
+        foreach (var (output, down, up, channel) in new[]
         {
-            (OutputIo.PickupHeadUp, InputIo.PickupHeadUp, InputIo.PickupHeadDown, 39),
-            (OutputIo.ShootingHeadUp, InputIo.ShootingHeadUp, InputIo.ShootingHeadDown, 41),
+            (OutputIo.PickupHeadDown, InputIo.PickupHeadDown, InputIo.PickupHeadUp, 39),
+            (OutputIo.ShootingHeadDown, InputIo.ShootingHeadDown, InputIo.ShootingHeadUp, 41),
         })
         {
             var head = settings.BoltFasteningHardware.Outputs[output];
             Assert.Equal(channel, head.Number);
             Assert.Equal(channel + 1, head.OffNumber);
-            Assert.Equal(up, head.Feedback!.OnInput);
-            Assert.Equal(down, head.Feedback.OffInput);
+            Assert.Equal(down, head.Feedback!.OnInput);
+            Assert.Equal(up, head.Feedback.OffInput);
         }
 
         var io = new VirtualIoService(settings.PcbSupplyHardware.Outputs, new());

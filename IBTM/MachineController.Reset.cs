@@ -178,8 +178,7 @@ public sealed partial class MachineController
 
         try
         {
-            if (TryConfirmAutomaticManualClear())
-                _automaticNeedsManualClear = false;
+            ConfirmClearedInterruptedWork();
         }
         catch (Exception exception)
         {
@@ -190,46 +189,53 @@ public sealed partial class MachineController
 
         _state.ClearError();
         _state.Refresh();
-        if (RequiresManualClear)
-            _log?.Write("Machine RESET completed; START remains blocked until interrupted work is manually cleared and acknowledged.");
+        _log?.Write("Machine RESET completed.");
+        if (_conveyor.RequiresManualClear)
+            _log?.Write("START blocked: main conveyor transfer was interrupted. Clear the main conveyor, then RESET.");
+        if (_ngConveyor.RequiresManualClear)
+            _log?.Write("START blocked: NG conveyor transfer was interrupted. Clear the NG conveyor and shuttle, then RESET.");
+        if (_pcbPlacement.RequiresManualClear)
+            _log?.Write("START blocked: PCB press or repeat pickup was interrupted. Clear the placement carrier and held PCB, then RESET.");
+        if (_fasteningGantry.HasPendingResult || _fasteningStation.HasPendingResult)
+            _log?.Write("START blocked: fastening result is still pending. Clear the fastening carrier and held bolts, then RESET.");
     }
 
-    private bool TryConfirmAutomaticManualClear()
+    private void ConfirmClearedInterruptedWork()
     {
         if (!RequiresManualClear)
-            return true;
+            return;
 
         _io.CheckReady();
-        // Material presence blocks acknowledgement of interrupted work, not alarm reset.
-        // RESET acknowledges manual removal even in gaps between presence sensors.
-        // Never infer that a stopped motion can continue from its previous destination.
-        foreach (var input in CarrierInputs)
+        // Acknowledge only the interrupted device. Normal carriers elsewhere stay in place.
+        if (_conveyor.RequiresManualClear
+            && !_conveyor.RunCommandOn
+            && _conveyor.CarrierCount == 0
+            && _inspectionWork.CanReceive)
         {
-            if (_io.GetInput(input))
-                return false;
+            _conveyor.ConfirmManualClear();
         }
-        InputIo[] heldParts = [
-            InputIo.PcbSupplyPcbDetected,
-            InputIo.PcbPlacementPcbDetected,
-            InputIo.PcbPlacementVacuumDetected,
-            InputIo.PickupHeadVacuumDetected,
-            InputIo.ShootingHeadVacuumDetected,
-        ];
-        foreach (var input in heldParts)
+        if (_ngConveyor.RequiresManualClear
+            && !_ngConveyor.RunCommandOn
+            && _ngConveyor.CarrierCount == 0)
         {
-            if (_io.GetInput(input))
-                return false;
+            _ngConveyor.ConfirmManualClear();
         }
-        if (_io.GetInput(InputIo.PcbSupplyAvailableFromFront1))
-            return false;
-        if (_conveyor.RunCommandOn || _ngConveyor.RunCommandOn)
-            return false;
-
-        _conveyor.ConfirmManualClear();
-        _fasteningStation.ConfirmManualClear();
-        _ngConveyor.ConfirmManualClear();
-        _log?.Write("Operator confirmed the machine empty; interrupted automatic work abandoned.");
-        return true;
+        if (_pcbPlacement.RequiresManualClear
+            && !_io.GetInput(InputIo.PcbPlacementHeatSink1Present)
+            && !_io.GetInput(InputIo.PcbPlacementHeatSink2Present)
+            && !_io.GetInput(InputIo.PcbPlacementPcbDetected)
+            && !_io.GetInput(InputIo.PcbPlacementVacuumDetected))
+        {
+            _pcbPlacement.ConfirmManualClear();
+        }
+        if ((_fasteningGantry.HasPendingResult || _fasteningStation.HasPendingResult)
+            && !_io.GetInput(InputIo.BoltFasteningHeatSink1Present)
+            && !_io.GetInput(InputIo.BoltFasteningHeatSink2Present)
+            && !_io.GetInput(InputIo.PickupHeadVacuumDetected)
+            && !_io.GetInput(InputIo.ShootingHeadVacuumDetected))
+        {
+            _fasteningStation.ConfirmManualClear();
+        }
     }
 
     private async Task<(MachineAlarm Alarm, Exception? Error)> InitializeIoAsync(

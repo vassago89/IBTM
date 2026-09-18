@@ -312,11 +312,11 @@ public sealed class BoltFasteningGantry
     {
         var output = head switch
         {
-            FasteningHead.Pickup => OutputIo.PickupHeadUp,
-            FasteningHead.Shooting => OutputIo.ShootingHeadUp,
+            FasteningHead.Pickup => OutputIo.PickupHeadDown,
+            FasteningHead.Shooting => OutputIo.ShootingHeadDown,
             _ => throw new ArgumentOutOfRangeException(nameof(head)),
         };
-        return _io.SetOutputAndWaitAsync(output, !down, cancellationToken);
+        return _io.SetOutputAndWaitAsync(output, down, cancellationToken);
     }
 
     public Task RaiseCylindersAsync(CancellationToken cancellationToken = default)

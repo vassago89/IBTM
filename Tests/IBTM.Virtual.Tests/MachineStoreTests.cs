@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using IBTM.BoltFastening;
 using IBTM.Conveyor;
 using IBTM.Device;
 using IBTM.Inspection;
@@ -17,6 +18,35 @@ namespace IBTM.Virtual.Tests;
 
 public sealed class MachineStoreTests
 {
+    [Fact]
+    public void OldHeadOutputNamesKeepAddressesAndUseDownFeedback()
+    {
+        var hardware = JsonSerializer.Deserialize<BoltFasteningHardwareSettings>("""
+            {"Outputs":{
+                "PickupHeadUp":{"Number":139,"OffNumber":140,"Feedback":{"OnInput":"PickupHeadUp","OffInput":"PickupHeadDown"}},
+                "ShootingHeadUp":{"Number":141,"OffNumber":142,"Feedback":{"OnInput":"ShootingHeadUp","OffInput":"ShootingHeadDown"}}
+            }}
+            """)!;
+        foreach (var (output, down, up, channel, id) in new[]
+        {
+            (OutputIo.PickupHeadDown, InputIo.PickupHeadDown, InputIo.PickupHeadUp, 139, "12"),
+            (OutputIo.ShootingHeadDown, InputIo.ShootingHeadDown, InputIo.ShootingHeadUp, 141, "13"),
+        })
+        {
+            var head = hardware.Outputs[output];
+            Assert.Equal(channel, head.Number);
+            Assert.Equal(channel + 1, head.OffNumber);
+            Assert.Equal(down, head.Feedback!.OnInput);
+            Assert.Equal(up, head.Feedback.OffInput);
+            Assert.Equal(id, JsonSerializer.Serialize(output));
+        }
+        var reopened = JsonSerializer.Deserialize<BoltFasteningHardwareSettings>(
+            JsonSerializer.Serialize(hardware))!;
+        Assert.Equal(139, reopened.Outputs[OutputIo.PickupHeadDown].Number);
+        Assert.Equal(InputIo.ShootingHeadDown,
+            reopened.Outputs[OutputIo.ShootingHeadDown].Feedback!.OnInput);
+    }
+
     [Theory]
     [InlineData("NgCarrierPickupUp", "NgCarrierGripperOpen")]
     [InlineData("NgCarrierPickupDown", "NgCarrierGripperClose")]

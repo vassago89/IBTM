@@ -17,6 +17,25 @@ public sealed partial class PcbPlacer : AutoUnit
     // Down before release and Down after pressing have identical IO feedback.
     // Keep the press target only while this run owns the operation.
     private HeatSinkSlot? _pressingHeatSink;
+    // An interrupted press/repeat trip cannot be identified from the same Down feedback.
+    private volatile bool _requiresManualClear;
+
+    public bool RequiresManualClear
+    {
+        get
+        {
+            return _requiresManualClear;
+        }
+    }
+
+    public void ConfirmManualClear()
+    {
+        if (_work.CarrierPresent
+            || _handler.Pcb != PlacementPcbState.None
+            || _handler.VacuumDetected)
+            throw new InvalidOperationException("Clear the interrupted placement carrier and held PCB before RESET.");
+        _requiresManualClear = false;
+    }
 
     public PcbPlacer(BufferStage buffer, PcbPlacementHandler handler, PcbPlacementWork work)
     {
@@ -54,6 +73,8 @@ public sealed partial class PcbPlacer : AutoUnit
         CancellationToken cancellationToken = default,
         bool repeat = false)
     {
+        if (RequiresManualClear)
+            throw new InvalidOperationException("PCB pressing or repeat pickup was interrupted. Clear this placement work before START.");
         _repeat = repeat;
         _runTargets = null;
         try
@@ -62,6 +83,8 @@ public sealed partial class PcbPlacer : AutoUnit
         }
         finally
         {
+            if (_pressingHeatSink is not null || _repeatTrip is not null)
+                _requiresManualClear = true;
             _runTargets = null;
             _pressingHeatSink = null;
             _repeatTrip = null;

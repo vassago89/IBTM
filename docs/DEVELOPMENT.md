@@ -251,14 +251,15 @@ PCB 안착의 XY 이동은 `PcbPlacementHandler.MoveToXYAsync`, Z 이동은 `Mov
 `_pressingHeatSink`는 현재 실행 안에서만 압입 대상을 보관한다. `RunAsync` 종료 시 압입 대상,
 Repeat PCB 왕복 단계와 실행 대상을 버린다. 현재 캐리어·IPM·그리퍼 피드백 확인은 유지한다.
 
-장비 자동 운전이 종료되면 `MachineController.RequiresManualClear`가 전체 START를 차단한다.
-PCB 공급·안착·체결·검사·NG 이송·셔틀 및 Repeat에 같은 정책을 적용하며,
-Main Conveyor나 해당 유닛을 비활성화해도 차단을 우회하지 못한다.
+STOP 자체는 새 START를 차단하거나 전체 장비 비움을 요구하지 않는다.
+정상 착좌된 캐리어는 그대로 두고 현재 I/O·작업 완료·인터록으로 다음 동작을 판단한다.
 RESET은 캐리어가 착좌되어 있거나 부품이 감지되어도 장치 오류를 해제한다.
 재실·보유 부품 감지를 RESET 실패나 새 알람으로 처리하지 않으며, 지지 출력과 작업 결과를 유지한다.
-중단 작업의 START 차단은 별개다. 캐리어와 핸들러의 보유 부품, 센서 사이의 소재까지
-수동 제거하고 RESET하면 `TryConfirmAutomaticManualClear`가 정지·비움을 확인하고 차단을 해제한다.
-센서 OFF만으로 차단을 해제하지 않으며, RESET은 자동 운전을 시작하거나 작업을 완료 처리하지 않는다.
+메인·NG 이송 중단, PCB 압입/Repeat 픽업 중단, 미수집 체결 결과는 해당 유닛의 불확정 작업만 차단한다.
+`ConfirmClearedInterruptedWork`가 RESET에서 해당 영역만 정리 확인하며, 다른 정상 캐리어는 제거하지 않는다.
+센서 OFF만으로 중단 기록을 해제하지 않으며, RESET은 자동 운전이나 작업 완료 처리를 하지 않는다.
+NG 픽업이 캐리어를 들고 있으면 `NgCarrierHeld`로 START를 막는다. 이는 현재 입력 조건이며,
+안전하게 내려놓아 감지가 해제되면 별도 중단 플래그 없이 해소된다.
 복구창, `StartPreparation`, `PrepareRecovery`, 수동 완료 결과 생성은 제거했다.
 
 검사 결과는 해당 캐리어 객체에만 기록한다. STOP 후 새 START에서 미완료 검사를 초기화해
@@ -287,7 +288,7 @@ NG 컨베이어의 목적지와 배출 버튼 확인 단계는 현재 실행에�
 START는 차단하고 기존 지지 출력은 유지한다. 센서 사이까지 수동으로 비운 뒤 RESET에서
 `ConfirmManualClear`를 호출한다. 정지 출력과 모든 재실 입력·Station 3 인수 가능 상태를 확인하며,
 센서 OFF만으로는 중단 기록을 해제하지 않는다. 미전달 작업 참조는 이 명시적인 제거 확인 때 해제한다.
-메인 컨베이어 자체의 대기 STOP은 이송 중단 기록을 만들지 않지만, 장비 자동 운전 종료는 전체 정리 확인을 요구한다.
+대기 중 STOP은 이송 중단 기록을 만들지 않으며, 장비 자동 운전 종료도 전체 정리 확인을 요구하지 않는다.
 정상 운전에서는 벨트가 정지한 상태에서 감지된 캐리어를 현재 스테이션에서 올린다.
 여러 스테이션에 캐리어가 있으면 동시에 착좌를 시작하고, 각 작업 유닛은 자기 스테이션의
 상승·스토퍼 하강 피드백이 확인되는 즉시 작업한다. 완료된 캐리어의 이송은
@@ -295,7 +296,7 @@ S3 배출 → S2에서 S3 → S1에서 S2 → 신규 반입 순서이며, 목적
 정상 착좌가 중단되어도 수동 정리·RESET 차단이 걸리며, 중단된 동작을 자동 재개하지 않는다.
 집중 검사는 `InterruptedSeatingDoesNotResumeAfterSensorChanges`, `InterruptedPlateRaiseDoesNotResumeOrLowerSupport`,
 `InterruptedTransferKeepsPendingResultsWithoutMovingThemOnLaterInput`, `ActiveTransferKeepsOriginalResultsWhenSourceGetsAnotherCarrier`,
-`ResetClearsAlarmButKeepsInterruptedConveyorStartBlockUntilManualClear`, `ResetPreservesSeatedCarrierAndResults`다.
+`ResetClearsAlarmButKeepsInterruptedConveyorStartBlockUntilManualClear`, `ResetPreservesSeatedCarrierAndAllowsStartingItsTransfer`다.
 셔틀의 `_cycleReturnPending`은 제거했다. `CycleAsync`는 하강 완료 후 현재 캐리어와
 픽업 상승을 확인하고 상승한다. 중단된 상승을 별도로 기억해 이어가지 않는다.
 전체 Repeat도 저장 단계 분기 없이 정방향 → NG 반환/셔틀 왕복 → Station 3 → 입구 순서로 실행한다.

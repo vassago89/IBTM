@@ -353,9 +353,9 @@ horizontal motion with Placement inside the shared area and its cylinder not Up
 is a collision fault. Loss of holding feedback before reaching the
 handoff pose is an error, not permission to release.
 
-STOP does not resume an interrupted XY entry or release. The machine blocks START
-until the operator removes carriers and held parts and presses RESET. Slot progress
-is discarded when the supply run exits. Handoff still requires settled X/Y and actual
+STOP discards the run's slot progress without imposing an empty-machine START block.
+A new run evaluates current holding, position and buffer feedback; it does not replay
+a saved entry/release phase. Handoff still requires settled X/Y and actual
 Z at Rotation Z. There is no buffer-presence condition or handoff descent.
 
 After the PCB 1 handoff and unrotation, check PCB 2 on the same carrier.

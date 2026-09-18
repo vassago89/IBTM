@@ -97,6 +97,9 @@ public sealed class PcbPlacementRepeatTests
         Assert.False(rig.Motion.IsMoving);
         Assert.Empty(rig.Work.Assemblies);
         Assert.False(rig.Work.Completed);
+        Assert.True(rig.Placer.RequiresManualClear);
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => rig.Placer.RunAsync(rig.Recipe, timeout.Token, repeat: true));
 
         if (changeCarrier)
         {
@@ -108,6 +111,15 @@ public sealed class PcbPlacementRepeatTests
             await rig.Handler.SetIpmGripperAsync(false);
             Assert.Equal(HeatSinkSlot.HeatSink2, rig.Placer.TargetHeatSink);
         }
+
+        Assert.Throws<InvalidOperationException>(rig.Placer.ConfirmManualClear);
+        rig.Io.SetInputs(
+            (InputIo.PcbPlacementHeatSink1Present, false),
+            (InputIo.PcbPlacementHeatSink2Present, false),
+            (InputIo.PcbPlacementPcbDetected, false),
+            (InputIo.PcbPlacementVacuumDetected, false));
+        rig.Placer.ConfirmManualClear();
+        Assert.False(rig.Placer.RequiresManualClear);
     }
 
     [Fact]

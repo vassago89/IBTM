@@ -29,6 +29,54 @@ namespace IBTM.Virtual.Tests;
 public sealed partial class MachineLifecycleTests
 {
     [Fact]
+    public async Task DisabledPlacementAndFasteningTransferCarrierThroughBothStations()
+    {
+        var settings = FlowSettings();
+        settings.Units = EnableOnly(MachineUnit.MainConveyor);
+        settings.Conveyor.CarrierStopDelaySeconds = 0;
+        using var services = CreateServices(settings);
+        var machine = services.GetRequiredService<MachineController>();
+        var state = services.GetRequiredService<MachineState>();
+        var io = services.GetRequiredService<VirtualIoService>();
+        var conveyor = services.GetRequiredService<MainConveyor>();
+        var fastening = services.GetRequiredService<BoltFasteningWork>();
+        var inspection = services.GetRequiredService<InspectionWork>();
+        var fasteningPlate = new ConcurrentQueue<bool>();
+        await machine.InitializeAsync();
+        io.SetInputs(
+            (InputIo.MainConveyorAvailableFromFront2, false),
+            (InputIo.MainConveyorReadyFromRear, false),
+            (InputIo.PcbPlacementHeatSink1Present, true),
+            (InputIo.PcbPlacementHeatSink2Present, true));
+        io.OutputChanged += (output, value) =>
+        {
+            if (output == OutputIo.BoltFasteningBackupPlateUp)
+                fasteningPlate.Enqueue(value);
+        };
+        Assert.False(fastening.Enabled);
+        Assert.True(machine.CanStart);
+        var run = machine.StartAsync();
+        try
+        {
+            Assert.True(
+                await VirtualTest.WaitUntilAsync(() => inspection.CarrierSeated, TimeSpan.FromSeconds(5)),
+                $"Conveyor={conveyor.State}, FasteningCompleted={fastening.Completed}, "
+                    + $"FasteningSeated={fastening.CarrierSeated}, InspectionCanReceive={inspection.CanReceive}, "
+                    + $"Alarm={state.AlarmMessage}");
+            Assert.Equal(new[] { true, false }, fasteningPlate);
+            Assert.False(fastening.CarrierPresent);
+            Assert.False(conveyor.RunCommandOn);
+            Assert.Equal(MachineAlarm.None, state.Alarm);
+        }
+        finally
+        {
+            machine.Stop();
+            await run.WaitAsync(TimeSpan.FromSeconds(2));
+            await machine.ShutdownAsync();
+        }
+    }
+
+    [Fact]
     public void InspectionRequiresBoltsAsWellAsDataMatrixTeaching()
     {
         var settings = FlowSettings();
@@ -340,15 +388,15 @@ public sealed partial class MachineLifecycleTests
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
         Assert.Equal(MachineAlarm.None, state.Alarm);
 
-        Assert.True(machine.RequiresManualClear);
-        Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
+        Assert.False(machine.RequiresManualClear);
+        Assert.Equal(StartBlockReason.NgCarrierHeld, machine.StartBlock);
         await machine.StartAsync().WaitAsync(TimeSpan.FromSeconds(1));
         Assert.Equal(stoppedX, gantry.Feedback.GetPosition().X);
         Assert.False(gantry.Feedback.IsMoving);
         await machine.ResetAsync();
-        Assert.True(machine.RequiresManualClear);
+        Assert.False(machine.RequiresManualClear);
         Assert.False(state.IsError);
-        Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
+        Assert.Equal(StartBlockReason.NgCarrierHeld, machine.StartBlock);
         Assert.True(io.GetInput(InputIo.NgCarrierDetected));
         await machine.ShutdownAsync();
     }
@@ -568,13 +616,24 @@ public sealed partial class MachineLifecycleTests
         Assert.Equal(interruptedEvent, (await bus.ReadFasteningResultAsync(slave)).EventCount);
         Assert.Null(await productionHead.ReadPendingResultAsync());
 
-        // Only explicit empty-machine acknowledgement retires the interrupted operation.
+        state.SetError(MachineAlarm.BoltFastening);
+        await machine.ResetAsync();
+        Assert.Equal(MachineAlarm.None, state.Alarm);
+        Assert.True(productionHead.HasPendingResult);
+        Assert.True(station.HasPendingResult);
+        Assert.Equal(StartBlockReason.ManualClearRequired, machine.StartBlock);
+        Assert.False(machine.CanTestBoltHead);
+        Assert.Equal(interruptedEvent, (await bus.ReadFasteningResultAsync(slave)).EventCount);
+
+        // Acknowledgement clears only this fastening operation, not other carriers.
         VirtualTest.SetCarrier(io, InputIo.BoltFasteningHeatSink1Present, false);
+        io.SetInput(InputIo.PcbPlacementHeatSink1Present, true);
         io.SetInputs(
             (InputIo.PickupHeadVacuumDetected, false),
             (InputIo.ShootingHeadVacuumDetected, false));
         await machine.ResetAsync();
         Assert.True(machine.CanTestBoltHead);
+        Assert.True(io.GetInput(InputIo.PcbPlacementHeatSink1Present));
         await machine.RunAdcProtocolAsync(
             token => machine.RunBoltTestAsync(testToken => manualHead.TightenAsync(testToken), token),
             CancellationToken.None);

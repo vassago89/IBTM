@@ -15,7 +15,7 @@ public sealed class VirtualIoService(
     private const int FeedbackDelayMilliseconds = 200;
 
     private readonly bool[] _inputs = CreateInitialInputs();
-    private readonly bool[] _outputs = CreateInitialOutputs();
+    private readonly bool[] _outputs = new bool[Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
     private readonly int[] _feedbackVersions = new int[Enum.GetValues<OutputIo>().Max(
         output => (int)output) + 1];
     private readonly Lock _responseGate = new();
@@ -65,14 +65,6 @@ public sealed class VirtualIoService(
         inputs[(int)InputIo.NgCarrierGripperOpen] = true;
         inputs[(int)InputIo.NgShuttleUp] = true;
         return inputs;
-    }
-
-    private static bool[] CreateInitialOutputs()
-    {
-        var values = new bool[Enum.GetValues<OutputIo>().Max(output => (int)output) + 1];
-        values[(int)OutputIo.PickupHeadUp] = true;
-        values[(int)OutputIo.ShootingHeadUp] = true;
-        return values;
     }
 
     public bool AutoResponseEnabled

@@ -864,15 +864,15 @@ public sealed partial class MachineLifecycleTests
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         Assert.Contains(OutputIo.ShootBolt, TeachingRows(teaching).Keys);
         Assert.DoesNotContain(OutputIo.ShootingEscapeForward, TeachingRows(teaching).Keys);
-        foreach (var output in new[] { OutputIo.PickupHeadUp, OutputIo.ShootingHeadUp })
+        foreach (var output in new[] { OutputIo.PickupHeadDown, OutputIo.ShootingHeadDown })
         {
             var head = TeachingRows(teaching)[output];
             await head.ToggleOutputCommand.ExecuteAsync(null);
-            Assert.False(io.GetOutput(output));
+            Assert.True(io.GetOutput(output));
             Assert.False(services.GetRequiredService<BoltFasteningGantry>().CanMoveHorizontal);
             await WaitUntilAsync(() => teaching.StepCommand.CanExecute(TeachingDirection.XPlus));
             await head.ToggleOutputCommand.ExecuteAsync(null);
-            Assert.True(io.GetOutput(output));
+            Assert.False(io.GetOutput(output));
             Assert.True(services.GetRequiredService<BoltFasteningGantry>().CanMoveHorizontal);
         }
 
@@ -1323,8 +1323,8 @@ public sealed partial class MachineLifecycleTests
         await gantry.MoveToXYAsync(20, 20);
         await gantry.MoveZAsync(10);
         await Task.WhenAll(
-            ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupHeadUp, false),
-            ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadUp, false));
+            ((IIoService)io).SetOutputAndWaitAsync(OutputIo.PickupHeadDown, true),
+            ((IIoService)io).SetOutputAndWaitAsync(OutputIo.ShootingHeadDown, true));
         teaching.SelectedTeachingUnit = HardwareArea.BoltFastening;
         teaching.SelectedPoint = teaching.FilteredPoints.Single(
             point => point.Position.Target == TeachingTarget.BoltPickup);

@@ -261,8 +261,6 @@ public sealed partial class MachineController
         }
         finally
         {
-            if (_fasteningGantry.HasPendingResult)
-                _automaticNeedsManualClear = true;
             _state.SetBoltTestRunning(false);
         }
     }

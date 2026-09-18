@@ -181,14 +181,14 @@ discharge trigger. Rear wins when it is ready; a blocked Rear does not prevent a
 already-waiting Front carrier from entering. Front Ready and Rear Available are not
 advertised together. Outputs are commands, not state evidence.
 
-After an automatic run stops, START is blocked for the whole machine. Remove all carriers
-and held parts, including material between sensors, then press RESET. Empty inputs alone
-do not clear the block. PCB supply, placement, NG conveyor and Repeat route progress do
-not survive the run. RESET can restore device readiness and clear alarms while carriers
-remain seated or parts are detected; their presence does not raise a RESET alarm or
-change support outputs and work results. Acknowledging manual clearing is separate:
-the interrupted-work START block remains until the machine is empty and RESET is pressed.
-RESET never resumes an interrupted sequence or marks unfinished work complete.
+STOP alone does not block a new START or require the whole machine to be emptied.
+Normally seated carriers remain in place; the next run uses current feedback and work results.
+RESET clears device alarms without changing support outputs or completing work.
+An interrupted main/NG transfer, interrupted PCB press/repeat pickup, or uncollected
+fastening result blocks only acknowledgement of that uncertain operation. Clear its
+affected area and press RESET; other normal carriers may remain. An NG pickup holding
+a carrier separately blocks START from its current presence input until the carrier is
+safely placed or removed. RESET never resumes an interrupted command or creates results.
 
 The machine has three external SMEMA connections. Front 1 belongs to PCB Supply,
 Front 2 belongs to the main heat sink carrier conveyor, and Rear belongs to the
