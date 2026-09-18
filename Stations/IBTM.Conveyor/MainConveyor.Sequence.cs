@@ -44,12 +44,20 @@ public sealed partial class MainConveyor
                 {
                     if (!_inspectionWork.IsTransferAtWaitingPosition(live))
                         return MainConveyorState.WaitingForInspectionTransfer;
-                    return CanReleaseInspection(live) && DownstreamReady
+                    return !_repeat
+                        && !_routeInspectionToNg()
+                        && _inspectionWork.CanTransfer
+                        && DownstreamReady
                         ? MainConveyorState.DischargingInspectionCarrier
                         : MainConveyorState.RaisingInspectionCarrier;
                 }
             }
-            else if (_inspectionWork.InspectionRequested || !CanMoveOtherCarrierBeforeInspection)
+            else if (_inspectionWork.InspectionRequested
+                || !(ExitCarrierDetected
+                    ? DownstreamReady
+                    : _placementWork.CanTransfer && _boltFasteningWork.CanReceive
+                        || _placementWork.CanReceive
+                            && (EntryCarrierDetected || !_repeat && UpstreamCarrierAvailable)))
             {
                 // Once requested, keep the belt stopped through inspection and parking.
                 if (_inspectionWork.InspectionRequested && _inspectionWork.AtInspectionPosition)
@@ -74,7 +82,11 @@ public sealed partial class MainConveyor
                 : MainConveyorState.WaitingForRearEquipment;
         }
 
-        if (CanReleaseInspection(live) && DownstreamReady)
+        if (!_repeat
+            && !_routeInspectionToNg()
+            && _inspectionWork.CanTransfer
+            && _inspectionWork.IsTransferAtWaitingPosition(live)
+            && DownstreamReady)
         {
             return MainConveyorState.DischargingInspectionCarrier;
         }
@@ -84,17 +96,21 @@ public sealed partial class MainConveyor
             return MainConveyorState.MovingBoltFasteningToInspection;
         }
 
-        if (CanMovePlacementToBoltFastening)
+        if (_placementWork.CanTransfer && _boltFasteningWork.CanReceive)
         {
             return MainConveyorState.MovingPcbPlacementToBoltFastening;
         }
 
-        if (CanReceiveAtPlacement)
+        if (_placementWork.CanReceive
+            && (EntryCarrierDetected || !_repeat && UpstreamCarrierAvailable))
         {
             return MainConveyorState.ReceivingFrontCarrier;
         }
 
-        if (CanReleaseInspection(live))
+        if (!_repeat
+            && !_routeInspectionToNg()
+            && _inspectionWork.CanTransfer
+            && _inspectionWork.IsTransferAtWaitingPosition(live))
         {
             return MainConveyorState.WaitingForRearEquipment;
         }
@@ -175,7 +191,12 @@ public sealed partial class MainConveyor
                     await _io.SetOutputAndWaitAsync(OutputIo.InspectionStopperUp, true, cancellationToken);
                     await _io.SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, false, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
-                    if (!_inspectionWork.InspectionRequested && CanMoveOtherCarrierBeforeInspection)
+                    if (!_inspectionWork.InspectionRequested
+                        && (ExitCarrierDetected
+                            ? DownstreamReady
+                            : _placementWork.CanTransfer && _boltFasteningWork.CanReceive
+                                || _placementWork.CanReceive
+                                    && (EntryCarrierDetected || !_repeat && UpstreamCarrierAvailable)))
                         break;
                     _inspectionWork.RequestInspection(inspectionJob);
                     break;
@@ -222,45 +243,13 @@ public sealed partial class MainConveyor
         }
     }
 
-    private bool CanReleaseInspection(bool live = true)
-    {
-        return !_repeat && !_routeInspectionToNg()
-            && _inspectionWork.CanTransfer
-            && _inspectionWork.IsTransferAtWaitingPosition(live);
-    }
-
-    private bool CanMovePlacementToBoltFastening
-    {
-        get
-        {
-            return _placementWork.CanTransfer && _boltFasteningWork.CanReceive;
-        }
-    }
-
-    private bool CanReceiveAtPlacement
-    {
-        get
-        {
-            // Either a carrier already at the entrance or the upstream offer starts receiving.
-            return _placementWork.CanReceive
-                && (EntryCarrierDetected
-                    || !_repeat && UpstreamCarrierAvailable);
-        }
-    }
-
-    private bool CanMoveOtherCarrierBeforeInspection
-    {
-        get
-        {
-            return ExitCarrierDetected
-                ? DownstreamReady
-                : CanMovePlacementToBoltFastening || CanReceiveAtPlacement;
-        }
-    }
-
     private void UpdateSmema()
     {
-        var rearAvailable = ExitCarrierDetected || CanReleaseInspection();
+        var rearAvailable = ExitCarrierDetected
+            || !_repeat
+                && !_routeInspectionToNg()
+                && _inspectionWork.CanTransfer
+                && _inspectionWork.IsTransferAtWaitingPosition();
         _io.SetAutomaticSmemaOutput(
             OutputIo.MainConveyorReadyToFront2,
             !_repeat && _placementWork.CanReceive && !rearAvailable);

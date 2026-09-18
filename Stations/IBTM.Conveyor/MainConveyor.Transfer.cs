@@ -236,7 +236,10 @@ public sealed partial class MainConveyor
                 return;
             if (ExitCarrierDetected)
                 arrived.TrySetResult(Stopwatch.GetTimestamp());
-            if (CanReleaseInspection())
+            if (!_repeat
+                && !_routeInspectionToNg()
+                && _inspectionWork.CanTransfer
+                && _inspectionWork.IsTransferAtWaitingPosition())
             {
                 await _inspection.ReleaseAsync(cancellationToken);
             }
