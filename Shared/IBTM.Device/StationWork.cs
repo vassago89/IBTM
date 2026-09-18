@@ -89,7 +89,7 @@ public abstract class StationWork
         }
     }
 
-    public bool Completed
+    public virtual bool Completed
     {
         get
         {
@@ -123,7 +123,7 @@ public abstract class StationWork
         }
     }
 
-    public bool CanTransfer
+    public virtual bool CanTransfer
     {
         get
         {

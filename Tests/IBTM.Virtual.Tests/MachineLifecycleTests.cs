@@ -538,18 +538,27 @@ public sealed partial class MachineLifecycleTests
         var work = services.GetRequiredService<InspectionWork>();
         var conveyor = services.GetRequiredService<MainConveyor>();
         var inspection = services.GetRequiredService<InspectionStation>();
-        await services.GetRequiredService<MachineController>().InitializeAsync();
+        var machine = services.GetRequiredService<MachineController>();
+        await machine.InitializeAsync();
+        await machine.HomeAsync(CancellationToken.None);
+        if (inspectionEnabled || transferEnabled)
+        {
+            await services.GetRequiredService<NgCarrierMove>().MoveToCarrierAsync(
+                NgTransferDestination.Station, CancellationToken.None);
+        }
+        io.SetInput(InputIo.AutoMode, false);
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.MainConveyorReadyFromRear, true);
-        await ((IIoService)io).SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, true);
+        await work.Station.SeatAsync(CancellationToken.None);
         var assembly = work.Assembly(HeatSinkSlot.HeatSink1);
         assembly.RecordBoltPresence(1, true);
         assembly.CompleteInspection();
         work.Complete(work.CurrentJob);
 
-        Assert.Equal(expectNg, inspection.State([]) == InspectionStationState.MovingTransferToCarrier);
+        Assert.Equal(expectNg, inspection.State([]) == InspectionStationState.LoweringTransferAtCarrier);
         Assert.Equal(!expectNg, conveyor.State == MainConveyorState.DischargingInspectionCarrier);
+        await machine.ShutdownAsync();
     }
 
     [Theory]

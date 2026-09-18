@@ -106,6 +106,11 @@ public sealed class InspectionStation : AutoUnit
         var inspectionState = NextInspectionState(NextBolt(bolts));
         TraceStep(inspectionState, workId: _work.CurrentJob.Id,
             waitingFor: inspectionState == InspectionStationState.Waiting ? _work.State.ToString() : null);
+        if (inspectionState == InspectionStationState.ReturningToNgPickup)
+        {
+            await _move.MoveToCarrierAsync(NgTransferDestination.Station, cancellationToken);
+            return;
+        }
         if (inspectionState is InspectionStationState.Waiting
             or InspectionStationState.BarcodeTeachingRequired
             or InspectionStationState.FovTeachingRequired)
@@ -170,7 +175,7 @@ public sealed class InspectionStation : AutoUnit
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         void CheckWorkPosition()
         {
-            if (!_work.CarrierSeated || !_transfer.IsClear)
+            if (!_work.AtInspectionPosition || !_transfer.IsClear)
             {
                 operation.Cancel();
             }
@@ -219,6 +224,9 @@ public sealed class InspectionStation : AutoUnit
                         assembly.RecordBoltPresence(bolt.Number, present);
                         NotifyChanged();
                         break;
+                    case InspectionStationState.ReturningToNgPickup:
+                        await _move.MoveToCarrierAsync(NgTransferDestination.Station, operation.Token);
+                        break;
                     case InspectionStationState.CompletingInspection:
                         operation.Token.ThrowIfCancellationRequested();
                         foreach (var heatSink in targets)
@@ -249,13 +257,13 @@ public sealed class InspectionStation : AutoUnit
     {
         if (!_work.Enabled || _work.State != InspectionWorkState.ReadyToInspect)
         {
-            return InspectionStationState.Waiting;
+            return WaitAtPickup(InspectionStationState.Waiting, live);
         }
 
         if (NextBarcode() is { } pcb)
         {
             if (!_inspector.HasBarcodeRegion(pcb))
-                return InspectionStationState.BarcodeTeachingRequired;
+                return WaitAtPickup(InspectionStationState.BarcodeTeachingRequired, live);
             return _inspector.IsAtBarcode(pcb, live)
                 ? InspectionStationState.ReadingBarcode
                 : InspectionStationState.MovingToBarcode;
@@ -263,14 +271,23 @@ public sealed class InspectionStation : AutoUnit
 
         if (bolt is null)
         {
-            return InspectionStationState.CompletingInspection;
+            return _work.IsTransferAtWaitingPosition(live)
+                ? InspectionStationState.CompletingInspection
+                : InspectionStationState.ReturningToNgPickup;
         }
 
         if (!_inspector.HasPosition(bolt))
-            return InspectionStationState.FovTeachingRequired;
+            return WaitAtPickup(InspectionStationState.FovTeachingRequired, live);
         return _inspector.IsAt(bolt, live)
             ? InspectionStationState.InspectingBolt
             : InspectionStationState.MovingToBolt;
+    }
+
+    private InspectionStationState WaitAtPickup(InspectionStationState waiting, bool live)
+    {
+        return _transfer.IsClear && !_work.IsTransferAtWaitingPosition(live)
+            ? InspectionStationState.ReturningToNgPickup
+            : waiting;
     }
 
     private HeatSinkSlot? NextBarcode()

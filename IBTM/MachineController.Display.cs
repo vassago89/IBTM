@@ -64,7 +64,7 @@ public sealed partial class MachineController
             HomeBlock = HomeBlock,
             IsHoming = _state.IsHoming,
             AutomaticRunning = automatic,
-            ConveyorState = _conveyor.ReadState(mainRunning),
+            ConveyorState = _conveyor.ReadState(mainRunning, live: false),
             NgConveyorState = _ngConveyor.ReadState(ngRunning),
             BufferConflict = conflict,
             SupplyInBufferArea = _state.Buffer.IsSupplyInside(live: false),

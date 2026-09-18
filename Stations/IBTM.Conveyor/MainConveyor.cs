@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using System.Threading.Tasks;
 using IBTM.Core;
 using IBTM.Device;
+using IBTM.Inspection;
 
 namespace IBTM.Conveyor;
 
@@ -15,7 +17,7 @@ public sealed class MainConveyor : AutoUnit
     private readonly OperationCancellation _operations;
     private readonly StationWork _placementWork;
     private readonly StationWork _boltFasteningWork;
-    private readonly StationWork _inspectionWork;
+    private readonly InspectionWork _inspectionWork;
     private readonly ConveyorStation _placement;
     private readonly ConveyorStation _boltFastening;
     private readonly ConveyorStation _inspection;
@@ -34,7 +36,7 @@ public sealed class MainConveyor : AutoUnit
         OperationCancellation operations,
         StationWork placementWork,
         StationWork boltFasteningWork,
-        StationWork inspectionWork,
+        InspectionWork inspectionWork,
         Func<bool> routeInspectionToNg)
     {
         _io = io;
@@ -152,7 +154,7 @@ public sealed class MainConveyor : AutoUnit
         }
     }
 
-    public MainConveyorState ReadState(bool runCommandOn)
+    public MainConveyorState ReadState(bool runCommandOn, bool live = true)
     {
         var executingTransfer = _executingTransfer;
         if (executingTransfer != MainConveyorState.Idle)
@@ -160,9 +162,13 @@ public sealed class MainConveyor : AutoUnit
         if (runCommandOn)
             return MainConveyorState.Running;
 
-        if (_inspectionWork.CarrierPresent && !_inspectionWork.CarrierSeated)
+        if (_inspectionWork.CarrierPresent
+            && !_inspectionWork.Completed
+            && !_inspectionWork.AtInspectionPosition)
         {
-            return MainConveyorState.SeatingInspectionCarrier;
+            return _inspectionWork.PickupClear
+                ? MainConveyorState.PreparingInspectionCarrier
+                : MainConveyorState.WaitingForInspectionTransfer;
         }
 
         if (_boltFasteningWork.CarrierPresent && !_boltFasteningWork.CarrierSeated)
@@ -176,6 +182,23 @@ public sealed class MainConveyor : AutoUnit
             return MainConveyorState.SeatingPcbPlacementCarrier;
         }
 
+        if (_inspectionWork.CarrierPresent)
+        {
+            if (!_inspectionWork.Completed)
+                return MainConveyorState.WaitingForInspection;
+
+            // A carrier on the belt must either leave now or be lifted before
+            // any other conveyor transfer. Inspection always finishes at NG pickup.
+            if (!_inspectionWork.CarrierSeated)
+            {
+                if (!_inspectionWork.IsTransferAtWaitingPosition(live))
+                    return MainConveyorState.WaitingForInspectionTransfer;
+                return CanReleaseInspection(live) && DownstreamReady
+                    ? MainConveyorState.DischargingInspectionCarrier
+                    : MainConveyorState.RaisingInspectionCarrier;
+            }
+        }
+
         if (ExitCarrierDetected)
         {
             return DownstreamReady
@@ -183,7 +206,7 @@ public sealed class MainConveyor : AutoUnit
                 : MainConveyorState.WaitingForRearEquipment;
         }
 
-        if (CanDischargeInspection)
+        if (CanDischargeInspection(live))
         {
             return MainConveyorState.DischargingInspectionCarrier;
         }
@@ -203,7 +226,7 @@ public sealed class MainConveyor : AutoUnit
             return MainConveyorState.ReceivingFrontCarrier;
         }
 
-        if (CanOfferToRear)
+        if (CanOfferToRear(live))
         {
             return MainConveyorState.WaitingForRearEquipment;
         }
@@ -382,8 +405,13 @@ public sealed class MainConveyor : AutoUnit
         var state = State;
         TraceStep(state, waitingFor: state switch
         {
-            MainConveyorState.WaitingForFrontCarrier => "Front 2 Available=ON (teaching: TEST, auto: DI)",
+            MainConveyorState.WaitingForFrontCarrier =>
+                "Entry carrier detected=ON OR Front 2 Available=ON (teaching: TEST, auto: DI)",
             MainConveyorState.WaitingForRearEquipment => "Rear Ready=ON (teaching: TEST, auto: DI)",
+            MainConveyorState.WaitingForInspection =>
+                "S3 inspection complete and transfer returned to NG pickup; conveyor remains stopped",
+            MainConveyorState.WaitingForInspectionTransfer =>
+                "NG pickup raised, empty and at its waiting position",
             MainConveyorState.WaitingForBoltFastening =>
                 $"S2 work complete; enabled={_boltFasteningWork.Enabled}, completed={_boltFasteningWork.Completed}, "
                     + $"plate={_boltFasteningWork.BackupPlate}, stopper={_boltFasteningWork.Stopper}, "
@@ -410,14 +438,17 @@ public sealed class MainConveyor : AutoUnit
             }
             switch (state)
             {
-                case MainConveyorState.SeatingInspectionCarrier:
+                case MainConveyorState.PreparingInspectionCarrier:
+                    await _io.SetOutputAndWaitAsync(OutputIo.InspectionStopperUp, true, cancellationToken);
+                    await _io.SetOutputAndWaitAsync(OutputIo.InspectionBackupPlateUp, false, cancellationToken);
+                    break;
+                case MainConveyorState.RaisingInspectionCarrier:
+                    await _inspection.SeatAsync(cancellationToken);
+                    break;
                 case MainConveyorState.SeatingBoltFasteningCarrier:
                 case MainConveyorState.SeatingPcbPlacementCarrier:
-                    // The belt is stopped. Each occupied station can lift and start
-                    // its own work without waiting for another station to finish.
-                    var seating = new List<Task>(3);
-                    if (_inspectionWork.CarrierPresent && !_inspectionWork.CarrierSeated)
-                        seating.Add(_inspection.SeatAsync(cancellationToken));
+                    // S1/S2 work raised; S3 inspection stays down on the stopped belt.
+                    var seating = new List<Task>(2);
                     if (_boltFasteningWork.CarrierPresent && !_boltFasteningWork.CarrierSeated)
                         seating.Add(_boltFastening.SeatAsync(cancellationToken));
                     if (_placementWork.CarrierPresent && !_placementWork.CarrierSeated)
@@ -499,22 +530,21 @@ public sealed class MainConveyor : AutoUnit
             throw new AggregateException("Main conveyor outputs could not all be stopped.", failures);
     }
 
-    private bool CanOfferToRear
+    private bool CanOfferToRear(bool live = true)
     {
-        get
-        {
-            return ExitCarrierDetected
-                || !_repeat && !_routeInspectionToNg()
-                && _inspectionWork.CanTransfer;
-        }
+        return ExitCarrierDetected || CanReleaseInspection(live);
     }
 
-    private bool CanDischargeInspection
+    private bool CanReleaseInspection(bool live = true)
     {
-        get
-        {
-            return CanOfferToRear && DownstreamReady;
-        }
+        return !_repeat && !_routeInspectionToNg()
+            && _inspectionWork.CanTransfer
+            && _inspectionWork.IsTransferAtWaitingPosition(live);
+    }
+
+    private bool CanDischargeInspection(bool live = true)
+    {
+        return CanOfferToRear(live) && DownstreamReady;
     }
 
     private bool CanMoveBoltFasteningToInspection
@@ -537,15 +567,16 @@ public sealed class MainConveyor : AutoUnit
     {
         get
         {
+            // Either a carrier already at the entrance or the upstream offer starts receiving.
             return _placementWork.CanReceive
-                && (!_repeat && UpstreamCarrierAvailable
-                    || EntryCarrierDetected);
+                && (EntryCarrierDetected
+                    || !_repeat && UpstreamCarrierAvailable);
         }
     }
 
     private void UpdateSmema()
     {
-        var rearAvailable = CanOfferToRear;
+        var rearAvailable = CanOfferToRear();
         _io.SetAutomaticSmemaOutput(
             OutputIo.MainConveyorReadyToFront2,
             !_repeat && _placementWork.CanReceive && !rearAvailable);
@@ -607,6 +638,12 @@ public sealed class MainConveyor : AutoUnit
             await source.ReleaseAsync(cancellationToken);
             RequireSeatingPushPosition(destination);
             await RunToStationAsync(destinationWork, cancellationToken);
+            if (!destination.CarrierPresent)
+                throw new InvalidOperationException("Carrier presence was lost after the seating push.");
+            cancellationToken.ThrowIfCancellationRequested();
+            // Commit after HS2 + push, before STOP can wake S3 inspection on the
+            // lowered plate. The original source job owns these results throughout.
+            sourceWork.TransferAssembliesTo(destinationWork, departingJob);
         }
         catch (Exception exception)
         {
@@ -618,13 +655,9 @@ public sealed class MainConveyor : AutoUnit
             StopOutputs(failure, OutputIo.MainConveyorRun);
         }
 
-        if (!destination.CarrierPresent)
-            throw new InvalidOperationException("Carrier presence was lost before raising the backup plate.");
-        cancellationToken.ThrowIfCancellationRequested();
-        // HS1 can pulse across carrier openings while it enters. Transfer results only
-        // after HS2 arrival and the seating push, before the station starts its work.
-        sourceWork.TransferAssembliesTo(destinationWork, departingJob);
-        await destination.SeatAsync(cancellationToken);
+        // S3 inspects at conveyor height, held by the raised stopper.
+        if (!ReferenceEquals(destinationWork, _inspectionWork))
+            await destination.SeatAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
     }
 
@@ -704,50 +737,99 @@ public sealed class MainConveyor : AutoUnit
 
     private async Task DischargeInspectionAsync(CancellationToken cancellationToken)
     {
-        var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var departed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        // Only this awaited discharge owns the first detection; STOP discards it.
+        var arrived = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstClear = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var rearReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var feedbackChanged = new AsyncAutoResetEvent();
+        var clearDelay = TimeSpan.FromSeconds(_settings.ExitSensorClearDelaySeconds);
+        void ObserveRear()
+        {
+            if (!DownstreamReady)
+                rearReleased.TrySetResult();
+            feedbackChanged.Set();
+        }
         void ObserveExit(InputIo input, bool value)
         {
             if (input != InputIo.MainConveyorExitCarrierDetected)
                 return;
             if (value)
-                arrived.TrySetResult();
+                arrived.TrySetResult(Stopwatch.GetTimestamp());
             else if (arrived.Task.IsCompleted)
-                departed.TrySetResult();
+                firstClear.TrySetResult(Stopwatch.GetTimestamp());
+            feedbackChanged.Set();
         }
 
-        _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorReadyToFront2, false);
-        _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorAvailableToRear, true);
         _io.InputChanged += ObserveExit;
+        Changed += ObserveRear;
         Exception? failure = null;
         try
         {
+            _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorReadyToFront2, false);
+            _io.SetAutomaticSmemaOutput(OutputIo.MainConveyorAvailableToRear, true);
+            ObserveRear();
+            if (rearReleased.Task.IsCompleted)
+                return;
             if (ExitCarrierDetected)
-                arrived.TrySetResult();
-            if (_inspectionWork.CarrierPresent)
+                arrived.TrySetResult(Stopwatch.GetTimestamp());
+            if (CanReleaseInspection())
             {
                 await _inspection.ReleaseAsync(cancellationToken);
             }
 
+            if (rearReleased.Task.IsCompleted)
+                return;
+            TraceStep(MainConveyorState.DischargingInspectionCarrier, waitingFor:
+                $"Rear Ready=OFF OR exit detected then first OFF + {clearDelay.TotalSeconds} s and sensor=OFF");
+            var started = Stopwatch.GetTimestamp();
             StartMotor(cancellationToken);
             var timeout = TimeSpan.FromMilliseconds(_io.TimeoutMilliseconds);
-            try
+            while (true)
             {
-                await arrived.Task.WaitAsync(timeout, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (rearReleased.Task.IsCompleted)
+                {
+                    TraceStep(MainConveyorState.DischargingInspectionCarrier, target: "Rear Ready OFF; stopping");
+                    return;
+                }
+
+                TimeSpan remaining;
+                if (!arrived.Task.IsCompleted)
+                {
+                    remaining = timeout - Stopwatch.GetElapsedTime(started);
+                    if (remaining <= TimeSpan.Zero)
+                        throw new IoTimeoutException(InputIo.MainConveyorExitCarrierDetected, true, _io.TimeoutMilliseconds);
+                }
+                else if (!firstClear.Task.IsCompleted)
+                {
+                    remaining = timeout - Stopwatch.GetElapsedTime(await arrived.Task);
+                    if (remaining <= TimeSpan.Zero)
+                        throw new IoTimeoutException(InputIo.MainConveyorExitCarrierDetected, false, _io.TimeoutMilliseconds);
+                }
+                else
+                {
+                    // Plasma's margin starts at the first OFF after detection.
+                    // Later ON pulses keep this timer, but cannot complete the exit.
+                    var elapsed = Stopwatch.GetElapsedTime(await firstClear.Task);
+                    if (elapsed < clearDelay)
+                    {
+                        remaining = clearDelay - elapsed;
+                    }
+                    else
+                    {
+                        // Earlier OFF pulses do not prove that the carrier is clear now.
+                        if (!ExitCarrierDetected)
+                        {
+                            TraceStep(MainConveyorState.DischargingInspectionCarrier, target: "Exit margin elapsed and sensor OFF; stopping");
+                            return;
+                        }
+                        remaining = clearDelay + timeout - elapsed;
+                        if (remaining <= TimeSpan.Zero)
+                            throw new IoTimeoutException(InputIo.MainConveyorExitCarrierDetected, false, _io.TimeoutMilliseconds);
+                    }
+                }
+                await feedbackChanged.WaitAsync(remaining, cancellationToken);
             }
-            catch (TimeoutException)
-            {
-                throw new IoTimeoutException(InputIo.MainConveyorExitCarrierDetected, true, _io.TimeoutMilliseconds);
-            }
-            try
-            {
-                await departed.Task.WaitAsync(timeout, cancellationToken);
-            }
-            catch (TimeoutException)
-            {
-                throw new IoTimeoutException(InputIo.MainConveyorExitCarrierDetected, false, _io.TimeoutMilliseconds);
-            }
-            cancellationToken.ThrowIfCancellationRequested();
         }
         catch (Exception exception)
         {
@@ -757,6 +839,7 @@ public sealed class MainConveyor : AutoUnit
         finally
         {
             _io.InputChanged -= ObserveExit;
+            Changed -= ObserveRear;
             StopOutputs(failure, OutputIo.MainConveyorRun, OutputIo.MainConveyorAvailableToRear);
         }
     }

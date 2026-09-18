@@ -171,9 +171,12 @@ public static class DependencyInjection
             {
                 var units = provider.GetRequiredService<UnitSettings>();
                 return new InspectionWork(
-                    ConveyorStation.Inspection(provider.GetRequiredService<IIoService>()),
+                    provider.GetRequiredService<IIoService>(),
                     provider.GetRequiredService<INgCarrierTransferFeedback>(),
-                    () => units.Inspection);
+                    provider.GetRequiredService<InspectionGantry>(),
+                    settings.NgCarrierTransfer,
+                    () => units.Inspection,
+                    () => units.Inspection || units.NgCarrierTransfer);
             });
         services.AddSingleton(
             provider =>

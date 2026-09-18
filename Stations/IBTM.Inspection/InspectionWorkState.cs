@@ -7,8 +7,8 @@ internal enum InspectionWorkState
     [Description("Waiting for Carrier")]
     WaitingForCarrier,
 
-    [Description("Waiting for Carrier Seat")]
-    WaitingForSeat,
+    [Description("Waiting for plate DOWN, stopper UP and conveyor STOP")]
+    WaitingForInspectionPosition,
 
     [Description("Waiting for Inspection Gantry")]
     WaitingForGantry,

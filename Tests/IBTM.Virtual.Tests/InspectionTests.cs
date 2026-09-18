@@ -174,7 +174,6 @@ public sealed class InspectionTests
             new NgCarrierTransferHardwareSettings().Outputs,
             new MachineOptions());
         var transferFeedback = new NgCarrierTransfer(io);
-        var work = new InspectionWork(ConveyorStation.Inspection(io), transferFeedback);
         var carrierReference = new CarrierReferenceSettings
         {
             UpperLeftLocatingPin = new AxisPosition { X = 2, Y = 2 },
@@ -191,6 +190,8 @@ public sealed class InspectionTests
             hasZ: false);
         var transfer = new NgCarrierTransfer(io);
         var gantry = new InspectionGantry(motion, transfer, operations, gantrySettings);
+        var transferSettings = new NgCarrierTransferSettings { PickupSafeX = 0 };
+        var work = new InspectionWork(io, transferFeedback, gantry, transferSettings);
         BoltTarget[] bolts = [
             Bolt(1, HeatSinkSlot.HeatSink1, 9, 9, carrierReference),
             Bolt(2, HeatSinkSlot.HeatSink1, 9, 21, carrierReference),
@@ -236,7 +237,6 @@ public sealed class InspectionTests
         var shuttleFeedback = new NgShuttleFeedback(io);
         var conveyor = new NgCarrierConveyor(io, new NgConveyorSettings(), shuttleFeedback);
         var shuttle = new NgShuttle(io, conveyor, shuttleFeedback, transferFeedback);
-        var transferSettings = new NgCarrierTransferSettings();
         var station = new InspectionStation(
             work,
             inspector,
@@ -250,9 +250,10 @@ public sealed class InspectionTests
         motion.Initialize();
         io.SetInput(InputIo.InspectionHeatSink1Present, true);
         io.SetInput(InputIo.InspectionHeatSink2Present, true);
-        io.SetInput(InputIo.InspectionBackupPlateUp, true);
-        io.SetInput(InputIo.InspectionStopperDown, true);
-        io.SetInput(InputIo.InspectionStopperUp, false);
+        io.SetInput(InputIo.InspectionBackupPlateUp, false);
+        io.SetInput(InputIo.InspectionBackupPlateDown, true);
+        io.SetInput(InputIo.InspectionStopperDown, false);
+        io.SetInput(InputIo.InspectionStopperUp, true);
         VirtualTest.SetCarrier(io, InputIo.InspectionHeatSink1Present, true);
 
         Assert.Empty(work.Assemblies);
@@ -344,9 +345,12 @@ public sealed class InspectionTests
             Y = position.Y,
         };
         var transferWork = new InspectionWork(
-            ConveyorStation.Inspection(io),
+            io,
             transferFeedback,
-            isEnabled: () => false);
+            gantry,
+            transferSettings,
+            isEnabled: () => false,
+            isGantryEnabled: () => true);
         var transferStation = new InspectionStation(
             transferWork,
             inspector,
@@ -358,9 +362,11 @@ public sealed class InspectionTests
         io.SetInput(InputIo.NgShuttleUp, true);
         io.SetInput(InputIo.InspectionBackupPlateUp, false);
         io.SetInput(InputIo.InspectionBackupPlateDown, true);
-        Assert.Equal(InspectionStationState.Waiting, transferStation.State([]));
+        Assert.Equal(InspectionStationState.ReturningToNgPickup, transferStation.State([]));
         io.SetInput(InputIo.InspectionBackupPlateDown, false);
         io.SetInput(InputIo.InspectionBackupPlateUp, true);
+        io.SetInput(InputIo.InspectionStopperUp, false);
+        io.SetInput(InputIo.InspectionStopperDown, true);
         Assert.Equal(InspectionStationState.MovingTransferToCarrier, transferStation.State([]));
         io.SetInput(InputIo.NgCarrierPickupUp, false);
         io.SetInput(InputIo.NgCarrierPickupDown, true);

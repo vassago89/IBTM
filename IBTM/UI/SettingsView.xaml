@@ -198,6 +198,32 @@
                         <TextBlock Text="Heat Sink 1만 감지되면 추가 구동 타이머는 시작하지 않습니다. 아래의 Timeout은 신호를 기다리는 최대 시간입니다."
                             Style="{StaticResource SettingHelpText}" Margin="4,0,4,12"/>
 
+                        <Border Style="{StaticResource SettingCard}" Padding="18,14">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="260"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Margin="0,0,24,0">
+                                    <TextBlock Text="Main Conveyor · Rear Discharge" Style="{StaticResource SettingSectionTitle}"/>
+                                    <TextBlock Text="출구 센서 구멍 통과 여유 시간"
+                                        Foreground="{StaticResource TextPrimaryBrush}" FontSize="20" FontWeight="SemiBold"/>
+                                    <TextBlock Text="출구 센서 ON 확인 후 처음 OFF된 시점부터 시간을 잽니다. 시간이 지난 뒤에도 OFF이면 캐리어 배출로 판단하여 정지합니다."
+                                        Style="{StaticResource SettingHelpText}"/>
+                                    <TextBlock Text="중간에 다시 ON되어도 타이머는 유지합니다. 후방 SMEMA Ready가 OFF되면 시간과 관계없이 정지합니다."
+                                        Style="{StaticResource SettingHelpText}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="Exit Sensor Clear Delay (s)" Style="{StaticResource SettingFieldLabel}"/>
+                                    <TextBox IsEnabled="{Binding CanEditSettings}"
+                                        Text="{Binding Settings.Conveyor.ExitSensorClearDelaySeconds, UpdateSourceTrigger=LostFocus, ValidatesOnExceptions=True}"
+                                        FontSize="24" Padding="10,6"/>
+                                    <TextBlock Text="단위: 초 · 기본 0.3초 · 스테이션 밀착 시간과 별도"
+                                        Style="{StaticResource SettingHelpText}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>

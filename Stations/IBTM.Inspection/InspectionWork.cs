@@ -7,15 +7,73 @@ namespace IBTM.Inspection;
 
 public sealed class InspectionWork : StationWork
 {
+    private readonly IIoService _io;
     private readonly INgCarrierTransferFeedback _transferFeedback;
+    private readonly InspectionGantry _gantry;
+    private readonly NgCarrierTransferSettings _transferSettings;
+    private readonly Func<bool>? _isGantryEnabled;
 
     public InspectionWork(
-        ConveyorStation station,
+        IIoService io,
         INgCarrierTransferFeedback transferFeedback,
-        Func<bool>? isEnabled = null) : base(station, isEnabled)
+        InspectionGantry gantry,
+        NgCarrierTransferSettings transferSettings,
+        Func<bool>? isEnabled = null,
+        Func<bool>? isGantryEnabled = null) : base(ConveyorStation.Inspection(io), isEnabled)
     {
+        _io = io;
         _transferFeedback = transferFeedback;
+        _gantry = gantry;
+        _transferSettings = transferSettings;
+        _isGantryEnabled = isGantryEnabled;
         transferFeedback.Changed += NotifyChanged;
+        // Conveyor release depends on the transfer's actual waiting position.
+        gantry.Feedback.StateChanged += NotifyChanged;
+        io.OutputChanged += OnOutputChanged;
+    }
+
+    public bool AtInspectionPosition
+    {
+        get
+        {
+            return CarrierPresent
+                && BackupPlate == StationCylinderState.Down
+                && Stopper == StationCylinderState.Up
+                && !_io.GetOutput(OutputIo.MainConveyorRun);
+        }
+    }
+
+    public bool PickupClear
+    {
+        get
+        {
+            return _transferFeedback.IsClear;
+        }
+    }
+
+    public bool IsTransferAtWaitingPosition(bool live = true)
+    {
+        if (!(_isGantryEnabled?.Invoke() ?? Enabled))
+            return true;
+        return _transferFeedback.IsClear
+            && _transferSettings.GetCarrierPickupPosition() is { } position
+            && _gantry.IsAt(position, live);
+    }
+
+    public override bool Completed
+    {
+        get
+        {
+            return Enabled ? base.Completed : CarrierPresent;
+        }
+    }
+
+    public override bool CanTransfer
+    {
+        get
+        {
+            return CarrierPresent && Completed && (AtInspectionPosition || CarrierSeated);
+        }
     }
 
     public override bool CanReceive
@@ -59,9 +117,9 @@ public sealed class InspectionWork : StationWork
                 return InspectionWorkState.WaitingForTransfer;
             }
 
-            if (!CarrierSeated)
+            if (!AtInspectionPosition)
             {
-                return InspectionWorkState.WaitingForSeat;
+                return InspectionWorkState.WaitingForInspectionPosition;
             }
 
             return !_transferFeedback.IsClear
@@ -70,4 +128,9 @@ public sealed class InspectionWork : StationWork
         }
     }
 
+    private void OnOutputChanged(OutputIo output, bool _)
+    {
+        if (output == OutputIo.MainConveyorRun)
+            NotifyChanged();
+    }
 }
